@@ -17,74 +17,40 @@ import { auth, db, firebaseConfig } from './firebase';
 const BOOTSTRAP_SUPERADMINS = [
   'adm.exam.hss.shangus@gmail.com',
   'e.educational.24@gmail.com',
-  'socialshiftz@gmail.com',
 ];
 
 /**
  * Resolves whether an email/user belongs to Staff (SuperAdmin, Admin, Teacher)
- * by checking Bootstrap list, Firestore adminSettings/permissions, and Firestore users collection.
+ * by checking Firestore users collection, Firestore adminSettings/permissions, and fallback Bootstrap list.
  */
 export async function resolveStaffRoleAndPerms(emailOrUser) {
   if (!emailOrUser) return null;
   const email = (typeof emailOrUser === 'string' ? emailOrUser : emailOrUser.email || '').trim().toLowerCase();
   if (!email) return null;
 
-  // 1. Check bootstrap super admins
-  if (BOOTSTRAP_SUPERADMINS.includes(email)) {
-    return {
-      role: 'SuperAdmin',
-      perms: ['*'],
-      isSuperAdmin: true,
-      isAdmin: true,
-      isStaff: true,
-      name: 'Super Admin',
-      email,
-    };
-  }
-
-  // 2. Check Firestore permissions document
-  try {
-    const permSnap = await getDoc(doc(db, 'adminSettings', 'permissions'));
-    if (permSnap.exists()) {
-      const data = permSnap.data();
-      const usersList = Array.isArray(data.users) ? data.users : [];
-      const found = usersList.find(u => String(u.email || '').trim().toLowerCase() === email);
-      if (found) {
-        const isSuper = found.role === 'SuperAdmin' || (Array.isArray(found.perms) && found.perms.includes('*'));
-        return {
-          role: found.role || (isSuper ? 'SuperAdmin' : 'Admin'),
-          perms: isSuper ? ['*'] : (found.perms || []),
-          isSuperAdmin: isSuper,
-          isAdmin: true,
-          isStaff: true,
-          name: found.name || email.split('@')[0],
-          email,
-        };
-      }
-    }
-  } catch (err) {
-    console.warn('resolveStaffRoleAndPerms permissions lookup note:', err);
-  }
-
-  // 3. Check Firestore 'users' collection
+  // 1. Check Firestore 'users' collection first (where Super Admin explicitly provisions staff & teachers)
   try {
     const userSnap = await getDoc(doc(db, 'users', email));
     if (userSnap.exists()) {
       const uData = userSnap.data();
-      const rawRole = String(uData.role || uData.requestedRole || '').trim();
+      const rawRole = String(uData.role || '').trim();
       const roleLower = rawRole.toLowerCase();
       if (roleLower.includes('admin') || roleLower === 'teacher' || roleLower === 'faculty' || roleLower === 'staff') {
         const isSuper = roleLower === 'superadmin' || roleLower === 'super admin';
-        const isAdmin = roleLower.includes('admin');
+        const isAdmin = roleLower === 'admin' || isSuper;
+        const isTeacher = roleLower === 'teacher' || roleLower === 'faculty';
         return {
           role: isSuper ? 'SuperAdmin' : isAdmin ? 'Admin' : 'Teacher',
           perms: isSuper ? ['*'] : (uData.perms || []),
           isSuperAdmin: isSuper,
           isAdmin,
+          isTeacher,
           isStaff: true,
           name: uData.name || uData.displayName || email.split('@')[0],
           subject: uData.subject || uData.teachingSubject || '',
           mobile: uData.mobile || uData.phone || '',
+          teacherLoginCount: typeof uData.teacherLoginCount === 'number' ? uData.teacherLoginCount : 0,
+          last2StepVerificationDate: uData.last2StepVerificationDate || null,
           email,
         };
       }
@@ -93,7 +59,93 @@ export async function resolveStaffRoleAndPerms(emailOrUser) {
     console.warn('resolveStaffRoleAndPerms users doc lookup note:', err);
   }
 
+  // 2. Check Firestore permissions document (for Admin & SuperAdmin roles)
+  try {
+    const permSnap = await getDoc(doc(db, 'adminSettings', 'permissions'));
+    if (permSnap.exists()) {
+      const data = permSnap.data();
+      const usersList = Array.isArray(data.users) ? data.users : [];
+      const found = usersList.find(u => String(u.email || '').trim().toLowerCase() === email);
+      if (found) {
+        const isSuper = found.role === 'SuperAdmin' || (Array.isArray(found.perms) && found.perms.includes('*'));
+        const isAdmin = found.role === 'Admin' || isSuper;
+        const isTeacher = found.role === 'Teacher' || found.role === 'Faculty';
+        return {
+          role: found.role || (isSuper ? 'SuperAdmin' : 'Admin'),
+          perms: isSuper ? ['*'] : (found.perms || []),
+          isSuperAdmin: isSuper,
+          isAdmin,
+          isTeacher,
+          isStaff: true,
+          name: found.name || email.split('@')[0],
+          subject: found.subject || '',
+          mobile: found.mobile || '',
+          email,
+        };
+      }
+    }
+  } catch (err) {
+    console.warn('resolveStaffRoleAndPerms permissions lookup note:', err);
+  }
+
+  // 3. Check master institutional fallback super admins (only if not found in Firestore)
+  if (BOOTSTRAP_SUPERADMINS.includes(email)) {
+    return {
+      role: 'SuperAdmin',
+      perms: ['*'],
+      isSuperAdmin: true,
+      isAdmin: true,
+      isTeacher: false,
+      isStaff: true,
+      name: 'Super Admin',
+      email,
+    };
+  }
+
   return null;
+}
+
+/**
+ * Increments teacher email/password login counter in Firestore.
+ */
+export async function incrementTeacherLoginCount(email) {
+  const cleanEmail = String(email || '').trim().toLowerCase();
+  if (!cleanEmail) return 1;
+  try {
+    const userRef = doc(db, 'users', cleanEmail);
+    const snap = await getDoc(userRef);
+    if (snap.exists()) {
+      const curCount = typeof snap.data().teacherLoginCount === 'number' ? snap.data().teacherLoginCount : 0;
+      await setDoc(userRef, {
+        teacherLoginCount: curCount + 1,
+        lastLoginAt: new Date().toISOString()
+      }, { merge: true });
+      return curCount + 1;
+    }
+  } catch (err) {
+    console.warn('incrementTeacherLoginCount note:', err);
+  }
+  return 1;
+}
+
+/**
+ * Records successful 2-step verification for a teacher in Firestore and increments login count.
+ */
+export async function recordTeacher2StepVerification(email) {
+  const cleanEmail = String(email || '').trim().toLowerCase();
+  if (!cleanEmail) return;
+  try {
+    const userRef = doc(db, 'users', cleanEmail);
+    const snap = await getDoc(userRef);
+    const curCount = (snap.exists() && typeof snap.data().teacherLoginCount === 'number') ? snap.data().teacherLoginCount : 0;
+    await setDoc(userRef, {
+      teacherLoginCount: curCount + 1,
+      last2StepVerificationDate: new Date().toISOString(),
+      lastLoginAt: new Date().toISOString()
+    }, { merge: true });
+  } catch (err) {
+    console.warn('recordTeacher2StepVerification note:', err);
+  }
 }
 
 /**

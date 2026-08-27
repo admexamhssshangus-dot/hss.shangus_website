@@ -23,7 +23,9 @@ import {
   createAdminLoginHandshake,
   approveAdminLoginHandshake,
   consumeAdminLoginHandshake,
-  sendAdminSignInVerificationLink 
+  sendAdminSignInVerificationLink,
+  incrementTeacherLoginCount,
+  recordTeacher2StepVerification
 } from '../services/staffAuthService';
 
 export default function LoginPage() {
@@ -117,7 +119,7 @@ export default function LoginPage() {
     
     // Resolve role from Firestore permissions & users collection & bootstrap
     const staffProfile = await resolveStaffRoleAndPerms(emailLower);
-    const isBootstrapAdmin = emailLower === 'adm.exam.hss.shangus@gmail.com' || emailLower === 'e.educational.24@gmail.com' || emailLower === 'socialshiftz@gmail.com';
+    const isBootstrapAdmin = emailLower === 'adm.exam.hss.shangus@gmail.com' || emailLower === 'e.educational.24@gmail.com';
 
     const rawRole = String(
       staffProfile?.role ||
@@ -143,7 +145,7 @@ export default function LoginPage() {
 
     if ((selected === 'admin' || selected === 'superadmin' || selected === 'teacher') && claimedArea === 'student') {
       await signOut(auth).catch(() => {});
-      throw new Error(`This account is a Student account and cannot access the ${selected.toUpperCase()} portal.`);
+      throw new Error(`This account is registered as a Student account. ${selected === 'teacher' ? 'Faculty' : 'Administrative'} accounts must be created and authorized by the Super Admin.`);
     }
 
     return {
@@ -179,9 +181,12 @@ export default function LoginPage() {
       if (isHandled) return;
       isHandled = true;
       
+      const isTeacher = emailLinkSentState?.role === 'Teacher';
       setAlert({ 
         type: 'success', 
-        text: '🛡️ 2-Step Verification Completed! Unlocking Admin Portal...' 
+        text: isTeacher 
+          ? '🛡️ 2-Step Verification Completed! Unlocking Teacher Portal...' 
+          : '🛡️ 2-Step Verification Completed! Unlocking Admin Portal...' 
       });
 
       try {
@@ -199,6 +204,13 @@ export default function LoginPage() {
 
         const verifiedSession = await createVerifiedSession(currentUser, cleanEmail);
         
+        if (cleanEmail) {
+          const staffProfile = await resolveStaffRoleAndPerms(cleanEmail);
+          if (staffProfile?.role === 'Teacher' || staffProfile?.role === 'Faculty') {
+            await recordTeacher2StepVerification(cleanEmail);
+          }
+        }
+
         if (handshakeId) {
           await consumeAdminLoginHandshake(handshakeId).catch(() => {});
         }
@@ -294,6 +306,9 @@ export default function LoginPage() {
           .then(async (userCred) => {
             const staffProfile = await resolveStaffRoleAndPerms(cleanEmail);
             const roleName = staffProfile?.role || 'Admin';
+            if (roleName === 'Teacher' || roleName === 'Faculty') {
+              await recordTeacher2StepVerification(cleanEmail);
+            }
 
             // 1. Approve handshake in Firestore (Unlocks Window 1 on desktop or phone immediately!)
             if (handshakeId) {
@@ -446,33 +461,98 @@ export default function LoginPage() {
       // 1. Authenticate credentials against Firebase Auth
       const userCred = await signInWithEmailAndPassword(auth, cleanEmail, password);
       
-      // 2. Check if user is an Admin or SuperAdmin
+      // 2. Resolve account profile from Firestore (configured strictly by Super Admin)
       const staffProfile = await resolveStaffRoleAndPerms(cleanEmail);
-      const isSuper = staffProfile?.role === 'SuperAdmin' || selectedRole === 'superadmin' || cleanEmail === 'adm.exam.hss.shangus@gmail.com' || cleanEmail === 'e.educational.24@gmail.com' || cleanEmail === 'socialshiftz@gmail.com';
-      const isAdmin = isSuper || staffProfile?.role === 'Admin' || selectedRole === 'admin';
+      const isSuper = staffProfile?.role === 'SuperAdmin' || selectedRole === 'superadmin' || cleanEmail === 'adm.exam.hss.shangus@gmail.com' || cleanEmail === 'e.educational.24@gmail.com';
+      const isAdmin = isSuper || staffProfile?.role === 'Admin';
+      const isTeacher = staffProfile?.role === 'Teacher' || staffProfile?.role === 'Faculty';
 
-      // 3. ENFORCE 2-STEP EMAIL VERIFICATION FOR ADMIN & SUPERADMIN
-      if (isAdmin) {
-        // Create one-time secure handshake for real-time inter-window sync
+      // 3. STRICT TAB & ROLE ACCESS CONTROL
+
+      // --- TEACHER TAB ACCESS ---
+      if (selectedRole === 'teacher') {
+        if (!isTeacher && !isAdmin) {
+          await signOut(auth).catch(() => {});
+          setAlert({
+            type: 'error',
+            text: 'Access Denied: This account is not registered as a Faculty/Staff account. Teacher accounts must be generated and authorized by the Super Admin.'
+          });
+          setIsLoading(false);
+          return;
+        }
+
+        // Teacher 2-Step Verification Policy: Required once per 10 email/password logins
+        if (isTeacher && !isAdmin) {
+          const currentLoginCount = typeof staffProfile?.teacherLoginCount === 'number' ? staffProfile.teacherLoginCount : 0;
+          const requires2Step = (currentLoginCount % 10 === 0);
+
+          if (requires2Step) {
+            const handshakeId = await createAdminLoginHandshake(cleanEmail);
+            await sendAdminSignInVerificationLink(cleanEmail, handshakeId);
+            await signOut(auth).catch(() => {});
+
+            setEmailLinkSentState({ 
+              email: cleanEmail, 
+              handshakeId, 
+              sentAt: Date.now(), 
+              role: 'Teacher',
+              loginCount: currentLoginCount 
+            });
+            setResendCooldown(60);
+            setAlert({
+              type: 'success',
+              text: `🛡️ 2-Step Security Link sent to ${cleanEmail}. (Periodic security check: required once per 10 faculty logins). Please check your email to complete sign-in!`
+            });
+            setIsLoading(false);
+            return;
+          } else {
+            // Direct login permitted (logins 1..9)
+            await incrementTeacherLoginCount(cleanEmail);
+            const verifiedSession = await createVerifiedSession(userCred.user);
+            setAlert({ type: 'success', text: `Welcome back, ${verifiedSession.user.name}! Redirecting to Teacher Portal...` });
+            setTimeout(() => {
+              onLoginSuccess(verifiedSession, keepLoggedIn);
+            }, 400);
+            return;
+          }
+        }
+      }
+
+      // --- ADMIN TAB ACCESS ---
+      if (selectedRole === 'admin' || selectedRole === 'superadmin') {
+        if (!isAdmin) {
+          await signOut(auth).catch(() => {});
+          setAlert({
+            type: 'error',
+            text: 'Access Denied: This account does not have Administrative privileges. Admin accounts must be generated and authorized by the Super Admin.'
+          });
+          setIsLoading(false);
+          return;
+        }
+
+        // Admin 2-Step Verification Policy: ALWAYS required on EVERY login
         const handshakeId = await createAdminLoginHandshake(cleanEmail);
         await sendAdminSignInVerificationLink(cleanEmail, handshakeId);
-        
-        // Sign out temporary password session so unverified session cannot access portal
         await signOut(auth).catch(() => {});
 
-        // Transition to 2-Step Verification Waiting View (Window 1)
-        setEmailLinkSentState({ email: cleanEmail, handshakeId, sentAt: Date.now() });
+        setEmailLinkSentState({ 
+          email: cleanEmail, 
+          handshakeId, 
+          sentAt: Date.now(), 
+          role: staffProfile?.role || 'Admin' 
+        });
         setResendCooldown(60);
         setAlert({
           type: 'success',
-          text: `🛡️ Security Verification Link dispatched to ${cleanEmail}. Please check your inbox to complete sign-in!`
+          text: `🛡️ 2-Step Security Link dispatched to ${cleanEmail}. Please check your inbox to complete sign-in!`
         });
+        setIsLoading(false);
         return;
       }
 
-      // If Student or Teacher, proceed directly to dashboard
+      // --- STUDENT TAB ACCESS (OR DEFAULT) ---
       const verifiedSession = await createVerifiedSession(userCred.user);
-      setAlert({ type: 'success', text: 'Login successful! Redirecting...' });
+      setAlert({ type: 'success', text: 'Login successful! Redirecting to Student Portal...' });
       setTimeout(() => {
         onLoginSuccess(verifiedSession, keepLoggedIn);
       }, 400);
@@ -730,7 +810,7 @@ export default function LoginPage() {
             </div>
 
             {/* Segmented Control Role Selector Tabs */}
-            <div className="grid grid-cols-3 p-1 rounded-2xl border text-xs font-black relative z-10 bg-slate-100/90 dark:bg-slate-950/90 border-slate-200 dark:border-slate-800 mb-5">
+            <div className="grid grid-cols-3 p-1 rounded-2xl border text-xs font-black relative z-10 bg-slate-100/90 dark:bg-slate-950/90 border-slate-200 dark:border-slate-800 mb-3">
               <button
                 type="button"
                 onClick={() => setSelectedRole('student')}
@@ -770,6 +850,34 @@ export default function LoginPage() {
                 <span className="truncate">Admin</span>
               </button>
             </div>
+
+            {/* Role Security Guidance Note */}
+            {!emailLinkSentState && !window2VerifiedState && (
+              <div className="mb-4 text-[11px] font-medium leading-relaxed rounded-xl p-2.5 bg-slate-50 dark:bg-slate-800/40 border border-slate-200/70 dark:border-slate-800 text-slate-600 dark:text-slate-400 flex items-center gap-2">
+                {selectedRole === 'teacher' ? (
+                  <>
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0"></span>
+                    <span>
+                      <strong className="text-slate-900 dark:text-slate-200 font-bold">Faculty Portal:</strong> 2-Step verification required once per 10 logins. Accounts are generated by Super Admin.
+                    </span>
+                  </>
+                ) : selectedRole === 'admin' || isSuperAdmin ? (
+                  <>
+                    <span className="w-2 h-2 rounded-full bg-purple-500 shrink-0"></span>
+                    <span>
+                      <strong className="text-slate-900 dark:text-slate-200 font-bold">Admin Portal:</strong> 2-Step verification required on every login for administrative security.
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <span className="w-2 h-2 rounded-full bg-teal-500 shrink-0"></span>
+                    <span>
+                      <strong className="text-slate-900 dark:text-slate-200 font-bold">Student Portal:</strong> Sign in with registered Email/Password or Google account.
+                    </span>
+                  </>
+                )}
+              </div>
+            )}
 
             {/* Alert Banner (Suppressed during clean waiting / confirmed states unless error) */}
             {alert && !emailLinkSentState && !window2VerifiedState && (
@@ -838,7 +946,7 @@ export default function LoginPage() {
                   </div>
                   <div className="flex items-center justify-between border-b border-slate-200/60 dark:border-slate-700/60 pb-2">
                     <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">Role</span>
-                    <span className="font-bold text-purple-600 dark:text-purple-400">{window2VerifiedState.role || 'Admin'}</span>
+                    <span className="font-bold text-teal-600 dark:text-teal-400">{window2VerifiedState.role || 'Staff'}</span>
                   </div>
                   <div className="flex items-center justify-between border-b border-slate-200/60 dark:border-slate-700/60 pb-2">
                     <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">Verified At</span>
@@ -846,7 +954,7 @@ export default function LoginPage() {
                   </div>
                   <div className="flex items-start gap-2 pt-0.5 text-[11.5px] font-medium text-emerald-700 dark:text-emerald-300">
                     <Sparkles size={14} className="text-emerald-600 shrink-0 mt-0.5" />
-                    <span>Your main workstation login window has automatically detected this verification and loaded your Admin Dashboard.</span>
+                    <span>Your main workstation login window has automatically detected this verification and loaded your {window2VerifiedState.role === 'Teacher' ? 'Teacher Portal' : 'Admin Dashboard'}.</span>
                   </div>
                 </div>
 
@@ -883,6 +991,16 @@ export default function LoginPage() {
                     Click the sign-in link sent to <strong className="text-slate-900 dark:text-slate-100 font-bold">{emailLinkSentState.email}</strong>.
                   </p>
                 </div>
+
+                {emailLinkSentState?.role === 'Teacher' ? (
+                  <div className="p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/50 text-[11px] font-medium text-amber-800 dark:text-amber-300 text-center">
+                    🔒 <strong>Periodic Security Check:</strong> Faculty accounts require 2-step verification once per 10 logins. Your next 9 logins will be direct password logins.
+                  </div>
+                ) : (
+                  <div className="p-2.5 rounded-xl bg-purple-50 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800/50 text-[11px] font-medium text-purple-800 dark:text-purple-300 text-center">
+                    🔒 <strong>Administrative Security:</strong> Admin accounts require 2-step verification on every login.
+                  </div>
+                )}
 
                 <div className="flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/80 dark:border-slate-800 text-[11.5px] font-bold text-slate-600 dark:text-slate-400">
                   <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
