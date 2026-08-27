@@ -206,6 +206,73 @@ function checkMobile(mobile, email = null) {
   return call('checkMobileRegistered', { mobile, email }, { requireAuth: false });
 }
 
+async function checkDuplicateMobileInSession({
+  mobile,
+  session,
+  currentApplicationId,
+  currentFormNo,
+  currentOwnerUid,
+}) {
+  if (!mobile) return { isDuplicate: false };
+  const cleanMobile = String(mobile).replace(/\D/g, '');
+  if (cleanMobile.length < 10) return { isDuplicate: false };
+  const targetMobile10 = cleanMobile.slice(-10);
+
+  const targetSession = String(session || getCurrentAcademicSession()).trim();
+  const currentUid = currentOwnerUid || auth.currentUser?.uid || sessionManager.getUser()?.uid || '';
+  const currentCleanFormNo = String(currentFormNo || '').replace(/^(N\/A|#N\/A|—|-|null|undefined)$/i, '').trim();
+
+  try {
+    const snap = await getDocs(collection(db, 'admissions'));
+    if (!snap.empty) {
+      for (const d of snap.docs) {
+        // Skip current application doc if editing
+        if (currentApplicationId && d.id === currentApplicationId) continue;
+        if (currentCleanFormNo && d.id === currentCleanFormNo.replace(/\//g, '_')) continue;
+
+        const data = d.data() || {};
+
+        // If it's the applicant's own record (same user uid), skip
+        if (currentUid && data.ownerUid && data.ownerUid === currentUid) continue;
+
+        // Skip withdrawn/deleted/purged/rejected records
+        const status = String(data.Status || data.status || '').trim();
+        if (['Withdrawn', 'Purged', 'Deleted', 'Rejected'].includes(status) || data._deleted === true || data._purged === true) {
+          continue;
+        }
+
+        // Compare session
+        const docSession = String(data.Session || data.session || data.sessionCanonical || '').trim() || targetSession;
+        if (docSession !== targetSession) {
+          continue; // Allowed in different academic sessions
+        }
+
+        // Check if student mobile or parent mobile matches
+        const studentMobile = String(data['Mobile No. (with working WhatsApp)'] || data.mobile || data['Mobile Number'] || '').replace(/\D/g, '').slice(-10);
+        const parentMobile = String(data["Parent's Mobile No. (must be working)"] || data.parentMobile || data['Parent Mobile'] || '').replace(/\D/g, '').slice(-10);
+
+        if (studentMobile === targetMobile10 || parentMobile === targetMobile10) {
+          const formNo = data['Form Number'] || data.FormNo || data.formNo || d.id;
+          const className = String(data['Admission sought for class'] || data.class || data.Class || 'N/A').trim();
+          const sessionName = docSession;
+
+          return {
+            isDuplicate: true,
+            existingFormNo: formNo,
+            existingSession: sessionName,
+            existingClass: className,
+            message: `This mobile number is already linked to Form No. ${formNo} of Session ${sessionName} (Class ${className}). Duplicate mobile submissions are not allowed for the same session.`,
+          };
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('[appsScriptApi] checkDuplicateMobileInSession note:', err);
+  }
+
+  return { isDuplicate: false };
+}
+
 function sendOTP(email, name, mobile) {
   return call('sendRegistrationOTP', { email, name, mobile }, { requireAuth: false });
 }
@@ -486,7 +553,9 @@ async function legacySaveApplication(payload) {
   const sanitizedDocId = formNo.replace(/\//g, '_');
 
   const admissionClass = String(data['Admission sought for class'] || data['class'] || '').trim();
-  const session = String(data['Session'] || data['session'] || '').trim();
+  const computedSession = getCurrentAcademicSession();
+  const sessionUser = sessionManager.getUser();
+  const session = String(data['Session'] || data['session'] || '').trim() || computedSession;
   const userEmail = String(data['Email Address'] || data['email'] || '').toLowerCase().trim();
   const userMobile = String(data['Mobile No. (with working WhatsApp)'] || data['mobile'] || '').replace(/[^0-9]/g, '');
   const isProvisional = data['Admission Type (Class 11th)'] === 'Provisional' ||
@@ -494,32 +563,58 @@ async function legacySaveApplication(payload) {
     data['Admission Type'] === 'Provisional' ||
     Boolean(data.isProvisional);
 
-  // ── DUPLICATE GUARD (skip in upgrade mode) ──
-  if (!isUpgradeMode && !isProvisional) {
+  // ── DUPLICATE APPLICATION & MOBILE GUARD (skip in upgrade mode) ──
+  if (!isUpgradeMode) {
     try {
       const snap = await getDocs(collection(db, 'admissions'));
       if (!snap.empty) {
+        const userMobileNorm = userMobile.slice(-10);
+        const currentUid = auth.currentUser?.uid || sessionUser?.uid || sessionUser?.id || data.ownerUid;
+
         for (const d of snap.docs) {
           if (d.id === sanitizedDocId) continue; // same doc = edit, not duplicate
-          const ex = d.data();
-          const exClass = String(ex['Admission sought for class'] || ex['class'] || '').trim();
-          const exSession = String(ex['Session'] || ex['session'] || '').trim();
+          const ex = d.data() || {};
+
+          // Skip if exact same user editing their own document
+          if (currentUid && ex.ownerUid && ex.ownerUid === currentUid) continue;
+
           const exStatus = String(ex['Status'] || ex['status'] || '').trim();
+          if (['Withdrawn', 'Purged', 'Deleted', 'Rejected'].includes(exStatus) || ex._deleted === true || ex._purged === true) {
+            continue;
+          }
+
+          const exClass = String(ex['Admission sought for class'] || ex['class'] || ex['Class'] || '').trim();
+          const exSession = String(ex['Session'] || ex['session'] || ex['sessionCanonical'] || '').trim() || computedSession;
+          const targetSession = session || computedSession;
+          const isSameSession = (!session || !exSession || exSession === targetSession);
+
           const exEmail = String(ex['Email Address'] || ex['email'] || '').toLowerCase().trim();
-          const exMobile = String(ex['Mobile No. (with working WhatsApp)'] || ex['mobile'] || '').replace(/[^0-9]/g, '');
+          const exMobile = String(ex['Mobile No. (with working WhatsApp)'] || ex['mobile'] || ex['Mobile Number'] || '').replace(/[^0-9]/g, '');
+          const exParentMobile = String(ex["Parent's Mobile No. (must be working)"] || ex['parentMobile'] || ex['Parent Mobile'] || '').replace(/[^0-9]/g, '');
+          const exMobileNorm = exMobile.slice(-10);
+          const exParentMobileNorm = exParentMobile.slice(-10);
+
+          // 1. Strict Duplicate Mobile Guard for Same Session
+          if (isSameSession && userMobileNorm && (exMobileNorm === userMobileNorm || exParentMobileNorm === userMobileNorm)) {
+            const exFormNo = ex['Form Number'] || ex['FormNo'] || ex['formNo'] || d.id;
+            return {
+              success: false,
+              error: 'duplicate_mobile',
+              message: `This mobile number is already linked to Form No. ${exFormNo} of Session ${exSession} (Class ${exClass || 'N/A'}). Duplicate mobile submissions are not allowed for the same session.`,
+              existingFormNo: exFormNo,
+              existingSession: exSession,
+              existingClass: exClass,
+            };
+          }
+
+          // 2. Duplicate Application Check (same email + same class + same session)
+          const isSameStudent = (userEmail && exEmail && userEmail === exEmail);
+          const isSameContext = isSameSession && (exClass === admissionClass);
           const exIsProvisional = ex['Admission Type (Class 11th)'] === 'Provisional' ||
             ex['Admission Type (Class 12th)'] === 'Provisional' ||
             ex['Admission Type'] === 'Provisional' ||
             Boolean(ex.isProvisional);
-
-          // Match same student (email or mobile) for same session + class
-          const isSameStudent =
-            (userEmail && exEmail && userEmail === exEmail) ||
-            (userMobile && exMobile && userMobile.slice(-10) === exMobile.slice(-10));
-          const isSameContext =
-            (!session || !exSession || session === exSession) &&
-            (exClass === admissionClass);
-          const isExistingFull = !exIsProvisional &&
+          const isExistingFull = !exIsProvisional && !isProvisional &&
             (exStatus === 'Submitted' || exStatus === 'Approved' || exStatus === 'Draft');
 
           if (isSameStudent && isSameContext && isExistingFull) {
@@ -537,8 +632,6 @@ async function legacySaveApplication(payload) {
     }
   }
 
-  const computedSession = getCurrentAcademicSession();
-  const sessionUser = sessionManager.getUser();
   const wasRejected = data.Status === 'Rejected' || data.status === 'Rejected' || Boolean(data.rejectionReason);
   const payloadData = {
     ...data,
@@ -968,6 +1061,7 @@ const appsScriptApi = {
   // Student
   getInitialData,
   getStudentApplication,
+  checkDuplicateMobileInSession,
   saveApplication,
   deleteStudentApplication,
   updateProfile,

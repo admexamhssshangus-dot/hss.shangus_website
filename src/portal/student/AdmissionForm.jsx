@@ -276,6 +276,7 @@ export default function AdmissionForm() {
   const applicationIdRef = useRef('');
   const submissionKeyRef = useRef('');
   const autosaveServiceUnavailableRef = useRef(false);
+  const mobileCheckTimeoutRef = useRef(null);
   const [upgradeMode, setUpgradeMode] = useState(false);
   const [upgradeSourceFormNo, setUpgradeSourceFormNo] = useState(null);
 
@@ -749,6 +750,50 @@ export default function AdmissionForm() {
         if (next[PARENT_MOBILE_KEY] === DUPE_MSG) delete next[PARENT_MOBILE_KEY];
         if (next[STUDENT_MOBILE_KEY] === DUPE_MSG) delete next[STUDENT_MOBILE_KEY];
       }
+
+      return next;
+    });
+
+    // ── Real-time Database Duplicate Mobile Guard (for same session) ──
+    const STUDENT_MOBILE_KEY = "Mobile No. (with working WhatsApp)";
+    const PARENT_MOBILE_KEY  = "Parent's Mobile No. (must be working)";
+
+    if (fieldName === STUDENT_MOBILE_KEY || fieldName === PARENT_MOBILE_KEY) {
+      const mobileDigits = String(cleanValue || '').replace(/[^0-9]/g, '');
+      if (mobileDigits.length === 10) {
+        if (mobileCheckTimeoutRef.current) clearTimeout(mobileCheckTimeoutRef.current);
+        mobileCheckTimeoutRef.current = setTimeout(async () => {
+          try {
+            const res = await appsScriptApi.checkDuplicateMobileInSession({
+              mobile: mobileDigits,
+              session: formData.Session || formData.session,
+              currentApplicationId: applicationIdRef.current || applicationId,
+              currentFormNo: formData['Form Number'] || formData.FormNo || formData.formNo,
+              currentOwnerUid: currentUser?.uid,
+            });
+            if (res.isDuplicate) {
+              setFieldErrors((prev) => ({
+                ...prev,
+                [fieldName]: res.message,
+              }));
+            } else {
+              setFieldErrors((prev) => {
+                const next = { ...prev };
+                if (next[fieldName]?.includes('already linked to Form No.')) {
+                  delete next[fieldName];
+                }
+                return next;
+              });
+            }
+          } catch (e) {
+            console.warn('Real-time mobile duplicate check note:', e);
+          }
+        }, 350);
+      }
+    }
+
+    setFieldErrors((prev) => {
+      const next = { ...prev };
 
       // ── Real-time cross-field Aadhaar duplicate check ──
       const STUDENT_AADHAAR_KEY = "Aadhar No.";
@@ -1454,6 +1499,41 @@ export default function AdmissionForm() {
     else if (mobile.length === 10 && parentMobile === mobile)
       addError("Parent's Mobile No. (must be working)", "Student's and Parent's mobile numbers must be different");
 
+    // ── Session-Scoped Duplicate Mobile Validation Against Live Database ──
+    if (mobile.length === 10 && !errors["Mobile No. (with working WhatsApp)"]) {
+      try {
+        const studentDup = await appsScriptApi.checkDuplicateMobileInSession({
+          mobile,
+          session: formData.Session || formData.session,
+          currentApplicationId: applicationIdRef.current || applicationId,
+          currentFormNo: formData['Form Number'] || formData.FormNo || formData.formNo,
+          currentOwnerUid: currentUser?.uid,
+        });
+        if (studentDup.isDuplicate) {
+          addError("Mobile No. (with working WhatsApp)", studentDup.message);
+        }
+      } catch (dupErr) {
+        console.warn('Student mobile duplicate validation check note:', dupErr);
+      }
+    }
+
+    if (parentMobile.length === 10 && !errors["Parent's Mobile No. (must be working)"]) {
+      try {
+        const parentDup = await appsScriptApi.checkDuplicateMobileInSession({
+          mobile: parentMobile,
+          session: formData.Session || formData.session,
+          currentApplicationId: applicationIdRef.current || applicationId,
+          currentFormNo: formData['Form Number'] || formData.FormNo || formData.formNo,
+          currentOwnerUid: currentUser?.uid,
+        });
+        if (parentDup.isDuplicate) {
+          addError("Parent's Mobile No. (must be working)", parentDup.message);
+        }
+      } catch (dupErr) {
+        console.warn('Parent mobile duplicate validation check note:', dupErr);
+      }
+    }
+
     // Aadhar
     const aadhar = String(formData["Aadhar No."] || '').replace(/[^0-9]/g, '');
     if (!aadhar) addError("Aadhar No.", "Aadhar number is required");
@@ -1736,11 +1816,17 @@ export default function AdmissionForm() {
         ...(upgradeMode ? { _upgradeMode: true, _provisionalFormNo: upgradeSourceFormNo || '' } : {}),
       });
 
-      if (res && res.error === 'duplicate') {
+      if (res && (res.error === 'duplicate' || res.error === 'duplicate_mobile')) {
         setAlert({
           type: 'error',
-          text: res.message || 'Duplicate application detected. You already have an active application for this class.',
+          text: res.message || 'Duplicate submission detected. Please check your mobile number and details.',
         });
+        if (res.error === 'duplicate_mobile') {
+          setFieldErrors((prev) => ({
+            ...prev,
+            "Mobile No. (with working WhatsApp)": res.message,
+          }));
+        }
         setIsSubmitting(false);
         return;
       }
