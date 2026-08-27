@@ -8878,18 +8878,72 @@ export default function AdvancedReports({
                   );
                 })
               ) : (loading || isFetchingData) ? (
-                <tr>
-                  <td colSpan={(orderedVisibleColumns.length || 1) + 1} className="p-8 text-center bg-slate-50/50 dark:bg-slate-900/30">
-                    <ModernLoader
-                      moduleKey="reports"
-                      text="Loading Student Database Records"
-                      subtext={fetchProgress > 0 ? `Fetching & indexing records (${fetchProgress}%)…` : undefined}
-                      progress={fetchProgress > 0 ? fetchProgress : undefined}
-                      totalRecords={currentAdmissions?.length || undefined}
-                      className="py-4"
-                    />
-                  </td>
-                </tr>
+                Array.from({ length: 12 }).map((_, rIdx) => (
+                  <tr
+                    key={`skel_row_${rIdx}`}
+                    className="border-b border-slate-200/60 dark:border-slate-800/60 transition-colors animate-pulse"
+                    style={{
+                      backgroundColor: rIdx % 2 === 0 ? 'var(--bg-table-row, #ffffff)' : 'var(--bg-table-row-alt, rgba(248, 250, 252, 0.6))',
+                      opacity: Math.max(0.4, 1 - (rIdx * 0.05))
+                    }}
+                  >
+                    {/* Checkbox Placeholder */}
+                    <td className="p-1 sm:p-1.5 text-center border-r border-slate-200/60 dark:border-slate-800/60 w-8">
+                      <div className="w-3.5 h-3.5 mx-auto rounded-md bg-slate-200 dark:bg-slate-800" />
+                    </td>
+
+                    {/* Dynamic Table Column Skeletons */}
+                    {orderedVisibleColumns.map((col, cIdx) => {
+                      const colKey = col.key;
+                      return (
+                        <td
+                          key={`skel_cell_${rIdx}_${colKey}`}
+                          className="p-1 sm:p-1.5 border-r border-slate-200/50 dark:border-slate-800/50 align-middle text-left"
+                        >
+                          {colKey === 'sno' ? (
+                            <div className="w-5 h-3.5 mx-auto rounded bg-slate-200 dark:bg-slate-800" />
+                          ) : colKey === 'formNo' ? (
+                            <div className="w-12 h-4 rounded-md bg-emerald-100 dark:bg-emerald-950/60" />
+                          ) : colKey === 'status' ? (
+                            <div className="w-12 h-4 rounded-full bg-emerald-100 dark:bg-emerald-950/60" />
+                          ) : colKey === 'classRollNo' || colKey === 'admNo' ? (
+                            <div className="w-8 h-4 rounded bg-amber-100 dark:bg-amber-950/60" />
+                          ) : colKey === 'class' ? (
+                            <div className="w-10 h-4 rounded bg-purple-100 dark:bg-purple-950/60" />
+                          ) : colKey === 'session' ? (
+                            <div className="w-14 h-4 rounded bg-purple-100 dark:bg-purple-950/60" />
+                          ) : colKey === 'boardRegNo' ? (
+                            <div className="w-20 h-4 rounded bg-slate-200 dark:bg-slate-800" />
+                          ) : colKey === 'photoId' ? (
+                            <div className="w-8 h-10 mx-auto rounded-lg bg-slate-200 dark:bg-slate-800 border border-slate-300/40 dark:border-slate-700/40" />
+                          ) : colKey === 'studentName' ? (
+                            <div className="space-y-1">
+                              <div className="w-28 h-3.5 rounded bg-slate-300 dark:bg-slate-700" />
+                              <div className="w-16 h-2.5 rounded bg-slate-200 dark:bg-slate-800" />
+                            </div>
+                          ) : colKey === 'fatherName' || colKey === 'motherName' ? (
+                            <div className="space-y-1">
+                              <div className="w-24 h-3.5 rounded bg-slate-200 dark:bg-slate-800" />
+                              <div className="w-16 h-2.5 rounded bg-slate-200 dark:bg-slate-800" />
+                            </div>
+                          ) : colKey === 'mobile' ? (
+                            <div className="w-20 h-4 rounded bg-teal-100 dark:bg-teal-950/60" />
+                          ) : colKey === 'aadhar' ? (
+                            <div className="w-24 h-3.5 rounded bg-slate-200 dark:bg-slate-800" />
+                          ) : colKey === 'subs' ? (
+                            <div className="flex gap-1">
+                              <div className="w-6 h-3.5 rounded bg-slate-200 dark:bg-slate-800" />
+                              <div className="w-6 h-3.5 rounded bg-slate-200 dark:bg-slate-800" />
+                              <div className="w-6 h-3.5 rounded bg-slate-200 dark:bg-slate-800" />
+                            </div>
+                          ) : (
+                            <div className="w-16 h-3.5 rounded bg-slate-200 dark:bg-slate-800" />
+                          )}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))
               ) : (
                 <tr>
                   <td colSpan={(orderedVisibleColumns.length || 1) + 1} className="p-10 text-center text-slate-600 dark:text-slate-400">

@@ -67,9 +67,18 @@ export default function PortalLayout() {
 
   // ---------------------------------------------------------------------------
   // Synchronous initial session state — reads from localStorage/sessionStorage
-  // immediately (0ms latency, no flicker on page load/refresh)
+  // immediately (0ms latency, zero flicker on page load/refresh)
   // ---------------------------------------------------------------------------
-  const [sessionState, setSessionState] = useState({ loading: !isPublicRoute, user: null, isAuthenticated: false });
+  const [sessionState, setSessionState] = useState(() => {
+    if (isPublicRoute) {
+      return { loading: false, user: null, isAuthenticated: false };
+    }
+    const saved = sessionManager.getSession();
+    if (saved?.user && sessionStorage.getItem('hss_explicit_logout') !== 'true') {
+      return { loading: false, user: saved.user, isAuthenticated: true };
+    }
+    return { loading: true, user: null, isAuthenticated: false };
+  });
 
   // ---------------------------------------------------------------------------
   // Stable setState — only triggers a re-render when state actually changes.
@@ -150,10 +159,26 @@ export default function PortalLayout() {
         }
 
         const cleanEmail = String(fbUser.email || '').toLowerCase().trim();
-        // Session already active for this user — no state update needed
-        // Always refresh and validate token claims; cached roles are display-only.
+        
+        // If session is already authenticated and active for this email, refresh claims silently in background without blocking UI
+        if (sessionStateRef.current.isAuthenticated && sessionStateRef.current.user?.email === cleanEmail) {
+          resolveUserProfile(fbUser).then(({ role: userRole, name: displayName, perms: userPerms, token: verifiedToken }) => {
+            const updatedSession = {
+              email: cleanEmail,
+              name: displayName,
+              role: userRole,
+              perms: userPerms,
+              uid: fbUser.uid,
+            };
+            sessionManager.saveSession({ user: updatedSession, token: verifiedToken }, true);
+            setSessionStateStable({ loading: false, user: updatedSession, isAuthenticated: true });
+          }).catch((err) => {
+            console.warn('Silent token claims refresh note:', err);
+          });
+          return;
+        }
 
-        // No session yet (e.g. page refresh with Firebase still signed in)
+        // Full session restore on cold start / page refresh
         try {
           const { role: userRole, name: displayName, perms: userPerms, token: verifiedToken } = await resolveUserProfile(fbUser);
           const defaultSession = {
