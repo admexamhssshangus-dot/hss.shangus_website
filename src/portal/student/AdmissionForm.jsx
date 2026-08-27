@@ -2168,7 +2168,7 @@ export default function AdmissionForm() {
       ) : (
         <div className="max-w-7xl mx-auto space-y-3">
           {/* Form Container Card */}
-          <div className="portal-form-sans relative rounded-2xl border p-3 sm:p-5 shadow-sm space-y-4 min-w-0 bg-slate-50/80 dark:bg-slate-950/90 border-slate-200 dark:border-slate-800">
+          <div className="portal-form-sans relative rounded-2xl border p-2 sm:p-4 md:p-5 shadow-sm space-y-2.5 sm:space-y-4 min-w-0 bg-slate-50/80 dark:bg-slate-950/90 border-slate-200 dark:border-slate-800">
 
           {/* School Logo Watermark */}
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center opacity-[0.03] dark:opacity-[0.05] select-none z-0 overflow-hidden rounded-2xl">
@@ -2582,7 +2582,7 @@ export default function AdmissionForm() {
                     <div id="admission-workflow-content" className="space-y-3 scroll-mt-24">
                       {/* Select the admission context before showing class-specific fields — Mobile-First Responsive Layout */}
                       {!isFormLocked && (
-                        <div id="admission-start" className="p-3.5 sm:p-5 rounded-2xl border-2 bg-white dark:bg-slate-900 border-teal-500/40 dark:border-teal-500/30 shadow-md space-y-3.5 scroll-mt-24 transition-all">
+                        <div id="admission-start" className="p-2.5 sm:p-4 rounded-2xl border-2 bg-white dark:bg-slate-900 border-teal-500/40 dark:border-teal-500/30 shadow-md space-y-2.5 sm:space-y-3.5 scroll-mt-24 transition-all">
                           {/* Card Header with Progress Badge & Hide/Unhide Toggle */}
                           <div className="flex items-center justify-between gap-2 border-b border-teal-500/20 pb-2">
                             <div className="flex items-center gap-2">
@@ -2837,23 +2837,23 @@ export default function AdmissionForm() {
                           <section
                             key={workflowStep.id}
                             id={`admission-section-${workflowStep.id}`}
-                            className="scroll-mt-24 space-y-3.5 p-3.5 sm:p-5 rounded-2xl bg-slate-200/50 dark:bg-slate-900/60 border border-slate-300/70 dark:border-slate-800 shadow-2xs"
+                            className="scroll-mt-24 space-y-2.5 sm:space-y-3.5 p-2 sm:p-4 rounded-2xl bg-slate-200/50 dark:bg-slate-900/60 border border-slate-300/70 dark:border-slate-800 shadow-2xs"
                             onFocusCapture={() => {
                               setActiveTab(workflowStep.id);
                               if (hasAdmissionStart) setIsSetupCollapsed(true);
                             }}
                           >
-                            <div className="flex items-center justify-between gap-3 border-b border-slate-300/70 dark:border-slate-700/80 pb-2.5">
-                              <div className="flex items-center gap-2.5 min-w-0">
-                                <span className="w-6 h-6 rounded-lg bg-teal-600 text-white text-xs font-black flex items-center justify-center flex-shrink-0 shadow-xs">
+                            <div className="flex items-center justify-between gap-2 border-b border-slate-300/70 dark:border-slate-700/80 pb-2">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <span className="w-5 h-5 sm:w-6 sm:h-6 rounded-lg bg-teal-600 text-white text-[10px] sm:text-xs font-black flex items-center justify-center flex-shrink-0 shadow-xs">
                                   {workflowIndex + 1}
                                 </span>
                                 <div className="min-w-0">
                                   <h2 className="text-xs sm:text-sm font-black text-slate-900 dark:text-white truncate">{workflowStep.label}</h2>
-                                  <p className="text-[10px] font-medium text-slate-500 dark:text-slate-400">Complete the labelled groups below</p>
+                                  <p className="text-[9.5px] sm:text-[10px] font-medium text-slate-500 dark:text-slate-400">Complete the labelled groups below</p>
                                 </div>
                               </div>
-                              <span className="text-[10px] font-extrabold text-slate-600 dark:text-slate-300 whitespace-nowrap bg-white dark:bg-slate-800 px-2.5 py-0.5 rounded-full border border-slate-200 dark:border-slate-700 shadow-2xs">
+                              <span className="text-[9px] sm:text-[10px] font-extrabold text-slate-600 dark:text-slate-300 whitespace-nowrap bg-white dark:bg-slate-800 px-2 py-0.5 rounded-full border border-slate-200 dark:border-slate-700 shadow-2xs">
                                 {stepSections.length} group{stepSections.length === 1 ? '' : 's'}
                               </span>
                             </div>
@@ -2867,15 +2867,15 @@ export default function AdmissionForm() {
                               return (
                                 <div
                                   key={sectionTitle}
-                                  className="p-3.5 sm:p-5 rounded-2xl border bg-white dark:bg-slate-900 border-slate-200/90 dark:border-slate-700/80 shadow-xs hover:shadow-md space-y-3.5 transition-all hover:border-teal-500/50"
+                                  className="p-2.5 sm:p-4 rounded-2xl border bg-white dark:bg-slate-900 border-slate-200/90 dark:border-slate-700/80 shadow-xs hover:shadow-md space-y-2.5 sm:space-y-3.5 transition-all hover:border-teal-500/50"
                                 >
-                                  <div className="flex items-center justify-between gap-2 bg-slate-50/90 dark:bg-slate-800/70 px-3.5 py-2.5 rounded-xl border border-slate-200/80 dark:border-slate-700/60">
-                                    <div className="font-black text-slate-800 dark:text-slate-100 flex items-center gap-2 min-w-0">
-                                      <span className="w-2.5 h-2.5 rounded-full bg-teal-500 flex-shrink-0 shadow-xs"></span>
-                                      <span className="tracking-wide uppercase text-xs truncate">{sectionTitle}</span>
+                                  <div className="flex items-center justify-between gap-1.5 bg-slate-50/90 dark:bg-slate-800/70 px-2.5 py-1.5 sm:px-3.5 sm:py-2 rounded-xl border border-slate-200/80 dark:border-slate-700/60">
+                                    <div className="font-black text-slate-800 dark:text-slate-100 flex items-center gap-2 min-w-0 flex-1">
+                                      <span className="w-2 h-2 rounded-full bg-teal-500 flex-shrink-0 shadow-xs"></span>
+                                      <span className="tracking-wide uppercase text-[10.5px] sm:text-xs font-black break-words leading-tight">{sectionTitle}</span>
                                     </div>
                                     {isIdentitySection && (
-                                      <span className="hidden text-[9.5px] font-extrabold text-slate-600 dark:text-slate-300 whitespace-nowrap sm:inline bg-white dark:bg-slate-850 px-2.5 py-0.5 rounded-md border border-slate-200 dark:border-slate-700 shadow-2xs">
+                                      <span className="hidden text-[9px] font-extrabold text-slate-600 dark:text-slate-300 whitespace-nowrap sm:inline bg-white dark:bg-slate-850 px-2 py-0.5 rounded-md border border-slate-200 dark:border-slate-700 shadow-2xs">
                                         Match official school records
                                       </span>
                                     )}
