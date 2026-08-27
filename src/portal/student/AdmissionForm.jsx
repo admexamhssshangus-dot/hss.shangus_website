@@ -27,6 +27,48 @@ export const SUBJECT_CANONICAL_SYNONYMS = {
   'mathematics': 'Mathematics',
 };
 
+export const SECTION_GUIDANCE_MAP = {
+  "1. Personal & Identity Details": "Ensure student name, parents' names, and date of birth strictly match Class 10th Marks Card / School Leaving Certificate. Aadhaar is required for official DBT student registry.",
+  "2. Contact & Residential Address": "Provide active WhatsApp numbers and working parent contacts to ensure delivery of circulars, admit cards, and examination schedules.",
+  "3. Physical & Social Category Profile": "Social categories (RBA, SC, ST, EWS, etc.) and disability reservations require valid certificates issued by competent revenue/medical authorities.",
+  "4. National & Student Identifiers & Sports": "PEN is the 11-digit national student ID from UDISE+. APAAR ID is the 12-digit lifelong DigiLocker academic ID under NEP 2020.",
+  "5. Academic Details & Schooling": "Enter accurate Class 10th/11th Board Roll No, Registration No, and marks secured. Provisional admissions are verified against board records.",
+  "6. Bank & Scholarship Details": "Provide active CBS bank account details (in student's or joint name) with correct 11-digit IFSC code for direct scholarship disbursement.",
+  "7. Subject Selections": "Select 5 main subjects based on chosen faculty. Science requires 3 Compulsory + 2 Electives; Arts/Humanities requires General English + 4 Electives.",
+  "8. Docs & Declaration": "Upload a clear, recent passport-size photograph with white background (< 200 KB) and accept the declaration to submit."
+};
+
+export function getSectionGuidance(title = '') {
+  if (!title) return null;
+  if (SECTION_GUIDANCE_MAP[title]) return SECTION_GUIDANCE_MAP[title];
+  const lower = title.toLowerCase();
+  if (lower.includes('personal') || lower.includes('identity')) {
+    return "Ensure student name, parents' names, and date of birth strictly match Class 10th Marks Card / School Leaving Certificate. Aadhaar is required for official DBT student registry.";
+  }
+  if (lower.includes('contact') || lower.includes('address')) {
+    return "Provide active WhatsApp numbers and working parent contacts to ensure delivery of circulars, admit cards, and examination schedules.";
+  }
+  if (lower.includes('category') || lower.includes('physical') || lower.includes('profile')) {
+    return "Social categories (RBA, SC, ST, EWS, etc.) and disability reservations require valid certificates issued by competent revenue/medical authorities.";
+  }
+  if (lower.includes('national') || lower.includes('identifier') || lower.includes('sports')) {
+    return "PEN is the 11-digit national student ID from UDISE+. APAAR ID is the 12-digit lifelong DigiLocker academic ID under NEP 2020.";
+  }
+  if (lower.includes('academic') || lower.includes('schooling') || lower.includes('record')) {
+    return "Enter accurate Class 10th/11th Board Roll No, Registration No, and marks secured. Provisional admissions are verified against board records.";
+  }
+  if (lower.includes('bank') || lower.includes('scholarship')) {
+    return "Provide active CBS bank account details (in student's or joint name) with correct 11-digit IFSC code for direct scholarship disbursement.";
+  }
+  if (lower.includes('subject') || lower.includes('stream')) {
+    return "Select 5 main subjects based on chosen faculty. Science requires 3 Compulsory + 2 Electives; Arts/Humanities requires General English + 4 Electives.";
+  }
+  if (lower.includes('doc') || lower.includes('declaration') || lower.includes('upload')) {
+    return "Upload a clear, recent passport-size photograph with white background (< 200 KB) and accept the declaration to submit.";
+  }
+  return null;
+}
+
 export function normalizeSubjectTitle(subj) {
   if (!subj) return '';
   const trimmed = String(subj).trim();
@@ -2998,14 +3040,14 @@ export default function AdmissionForm() {
                                       <span className="tracking-wide uppercase text-[10.5px] sm:text-xs font-black break-words leading-tight">{sectionTitle}</span>
                                     </div>
                                     {(() => {
-                                      const sectionHelp = SECTION_GUIDANCE_MAP[sectionTitle];
+                                      const sectionHelp = getSectionGuidance(sectionTitle);
                                       if (!sectionHelp) return null;
                                       return (
-                                        <StandardTooltip content={sectionHelp} title={sectionTitle} position="top">
-                                          <span className="inline-flex items-center gap-1 text-[9px] sm:text-[9.5px] font-bold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-850 hover:bg-slate-100 dark:hover:bg-slate-800 px-2 py-0.5 rounded-lg border border-slate-200 dark:border-slate-700 shadow-2xs cursor-pointer transition-colors shrink-0">
+                                        <StandardTooltip content={sectionHelp} title={`${sectionTitle} Guidance`} position="top">
+                                          <span className="inline-flex items-center gap-1 text-[9px] sm:text-[9.5px] font-bold text-teal-700 dark:text-teal-300 bg-white dark:bg-slate-850 hover:bg-slate-100 dark:hover:bg-slate-800 px-2 py-0.5 rounded-lg border border-slate-200 dark:border-slate-700 shadow-2xs cursor-pointer transition-colors shrink-0">
                                             <Info size={10} className="text-teal-600 dark:text-teal-400 flex-shrink-0" />
                                             <span className="hidden sm:inline font-bold">
-                                              {isIdentitySection ? 'Match official records' : 'Instructions'}
+                                              {isIdentitySection ? 'Official records match' : 'Guidance'}
                                             </span>
                                             <span className="sm:hidden font-extrabold">Help</span>
                                           </span>

@@ -247,6 +247,114 @@ export const FIELD_INSTRUCTION_GUIDE = {
 };
 
 /**
+ * Resolves authoritative institutional guidance text for any given field name,
+ * matching exact keys, main labels, or domain-specific keywords.
+ */
+export function resolveFieldInstruction(fieldName = '', mainLabel = '', customHelpText = '') {
+  const cleanName = String(fieldName || '').trim();
+  const cleanMain = String(mainLabel || '').trim();
+  const lower = cleanName.toLowerCase();
+  const lowerMain = cleanMain.toLowerCase();
+
+  // 1. Direct match in dictionary
+  if (FIELD_INSTRUCTION_GUIDE[cleanName]) return FIELD_INSTRUCTION_GUIDE[cleanName];
+  if (FIELD_INSTRUCTION_GUIDE[cleanMain]) return FIELD_INSTRUCTION_GUIDE[cleanMain];
+
+  // 2. Fuzzy / Keyword matching for diverse naming schemes
+  if (lower.includes('dob') || lower.includes('date of birth') || lowerMain.includes('dob') || lowerMain.includes('date of birth')) {
+    return FIELD_INSTRUCTION_GUIDE["DoB (as per school records)"];
+  }
+  if (lower.includes('student') && (lower.includes('name') || lowerMain.includes('name'))) {
+    return FIELD_INSTRUCTION_GUIDE["Student's Name (as per school records)"];
+  }
+  if (lower.includes('father') && (lower.includes('name') || lower.includes('guardian'))) {
+    return FIELD_INSTRUCTION_GUIDE["Father's/Guardian's Name (as per school records)"];
+  }
+  if (lower.includes('mother') && lower.includes('name')) {
+    return FIELD_INSTRUCTION_GUIDE["Mother's Name (as per school records)"];
+  }
+  if (lower.includes('father') && lower.includes('aadhar')) {
+    return FIELD_INSTRUCTION_GUIDE["Father's Aadhar No."];
+  }
+  if (lower.includes('aadhar') || lower.includes('aadhaar') || lower.includes('uidai')) {
+    return FIELD_INSTRUCTION_GUIDE["Aadhar No."];
+  }
+  if (lower.includes('parent') && (lower.includes('mobile') || lower.includes('phone') || lower.includes('contact'))) {
+    return FIELD_INSTRUCTION_GUIDE["Parent's Mobile No. (must be working)"];
+  }
+  if (lower.includes('mobile') || lower.includes('whatsapp') || lower.includes('phone') || lower.includes('contact')) {
+    return FIELD_INSTRUCTION_GUIDE["Mobile No. (with working WhatsApp)"];
+  }
+  if (lower.includes('email')) {
+    return FIELD_INSTRUCTION_GUIDE["Email Address"];
+  }
+  if (lower.includes('village') || lower.includes('address') || lower.includes('mohalla')) {
+    return FIELD_INSTRUCTION_GUIDE["Name of your village"];
+  }
+  if (lower.includes('pin') || lower.includes('pincode') || lower.includes('postal')) {
+    return FIELD_INSTRUCTION_GUIDE["PIN code"];
+  }
+  if (lower.includes('category') || lower.includes('social category')) {
+    return FIELD_INSTRUCTION_GUIDE["Social category"];
+  }
+  if (lower.includes('disability') && lower.includes('type')) {
+    return FIELD_INSTRUCTION_GUIDE["Type of Disability"];
+  }
+  if (lower.includes('disability')) {
+    return FIELD_INSTRUCTION_GUIDE["Whether Any Disability"];
+  }
+  if (lower.includes('pen') && (lower.includes('udise') || lower.includes('number') || lower.includes('no'))) {
+    return FIELD_INSTRUCTION_GUIDE["PEN number (given by UDISE portal)"];
+  }
+  if (lower.includes('apaar') || lower.includes('abc id')) {
+    return FIELD_INSTRUCTION_GUIDE["APAAR ID"];
+  }
+  if (lower.includes('bank') && (lower.includes('account') || lower.includes('no'))) {
+    return FIELD_INSTRUCTION_GUIDE["Bank Account No."];
+  }
+  if (lower.includes('ifsc')) {
+    return FIELD_INSTRUCTION_GUIDE["IFSC code"];
+  }
+  if (lower.includes('name of bank') || (lower.includes('bank') && lower.includes('name'))) {
+    return FIELD_INSTRUCTION_GUIDE["Name of Bank"];
+  }
+  if (lower.includes('board') && lower.includes('reg')) {
+    return FIELD_INSTRUCTION_GUIDE["Board Registration No. (Class 10th)"];
+  }
+  if (lower.includes('exam roll') || (lower.includes('roll') && lower.includes('10th'))) {
+    return FIELD_INSTRUCTION_GUIDE["Exam Roll Number of Class 10th"];
+  }
+  if (lower.includes('previous school') || lower.includes('school last attended')) {
+    return FIELD_INSTRUCTION_GUIDE["Name of Previous School (Class 10th)"];
+  }
+  if (lower.includes('provisional') && lower.includes('reason')) {
+    return FIELD_INSTRUCTION_GUIDE["Reason for Provisional (Class 11th)"];
+  }
+  if (lower.includes('admission type')) {
+    return FIELD_INSTRUCTION_GUIDE["Admission Type (Class 11th)"];
+  }
+  if (lower.includes('stream')) {
+    return FIELD_INSTRUCTION_GUIDE["Stream for Class 11th"];
+  }
+  if (lower.includes('subject') && (lower.includes('taken') || lower.includes('stud'))) {
+    return FIELD_INSTRUCTION_GUIDE["Subjects to be taken in Class 11th"];
+  }
+  if (lower.includes('reappear') || lower.includes('backlog')) {
+    return FIELD_INSTRUCTION_GUIDE["Subjects to Reappear (Class 10th)"];
+  }
+  if (lower.includes('photo') || lower.includes('photograph') || lower.includes('image')) {
+    return FIELD_INSTRUCTION_GUIDE["Student Photo"];
+  }
+
+  // 3. Custom schema helpText fallback
+  if (customHelpText && customHelpText.trim().length > 0) {
+    return customHelpText.trim();
+  }
+
+  return null;
+}
+
+/**
  * Separates the raw field label from qualifiers like "(as per school records)".
  */
 function getLabelDisplay(name = '') {
@@ -851,10 +959,8 @@ export default function DynamicFormField({
 
   // Resolve substantive institutional guidance text
   const instructionText = useMemo(() => {
-    if (FIELD_INSTRUCTION_GUIDE[name]) return FIELD_INSTRUCTION_GUIDE[name];
-    if (hint && hint.trim().length > 15) return hint.trim();
-    return null;
-  }, [name, hint]);
+    return resolveFieldInstruction(name, mainLabel, hint);
+  }, [name, mainLabel, hint]);
 
   // Process options based on type
   let options = [];
