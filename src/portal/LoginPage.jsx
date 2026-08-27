@@ -425,7 +425,11 @@ export default function LoginPage() {
       setAlert({ type: 'success', text: `Fresh 2-step verification link sent to ${emailLinkSentState.email}!` });
     } catch (err) {
       console.error('Resend verification link error:', err);
-      setAlert({ type: 'error', text: 'Failed to resend link. Please try again in a moment.' });
+      if (err.code === 'auth/quota-exceeded') {
+        setAlert({ type: 'error', text: 'Email dispatch quota exceeded. Please try again later or contact administrator.' });
+      } else {
+        setAlert({ type: 'error', text: 'Failed to resend link. Please try again in a moment.' });
+      }
     } finally {
       setIsLoading(false);
     }

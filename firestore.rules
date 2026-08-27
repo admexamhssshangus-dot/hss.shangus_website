@@ -87,10 +87,11 @@ service cloud.firestore {
 
     function hasCanonicalUserFieldsOnly(data) {
       return data.keys().hasOnly([
-        'uid', 'email', 'name', 'mobile', 'role', 'perms', 'residence',
-        'requestedRole', 'assignedClass', 'teachingSubject', 'designation',
+        'uid', 'email', 'name', 'displayName', 'mobile', 'phone', 'role', 'perms', 'residence',
+        'requestedRole', 'assignedClass', 'teachingSubject', 'subject', 'designation',
         'academicSession', 'createdAt', 'updatedAt', 'active', 'studentName',
-        'classRollNo', 'admNo', 'boardRegNo'
+        'classRollNo', 'admNo', 'boardRegNo', 'teacherLoginCount', 'last2StepVerificationDate',
+        'lastLoginAt', 'authProvider', 'authProviders'
       ]);
     }
 
@@ -158,6 +159,9 @@ service cloud.firestore {
         (!('classRollNo' in data) || (data.classRollNo is string && data.classRollNo.size() <= 40)) &&
         (!('admNo' in data) || (data.admNo is string && data.admNo.size() <= 40)) &&
         (!('boardRegNo' in data) || (data.boardRegNo is string && data.boardRegNo.size() <= 50)) &&
+        (!('teacherLoginCount' in data) || data.teacherLoginCount is int || data.teacherLoginCount is number) &&
+        (!('last2StepVerificationDate' in data) || data.last2StepVerificationDate is string || data.last2StepVerificationDate is timestamp) &&
+        (!('lastLoginAt' in data) || data.lastLoginAt is string || data.lastLoginAt is timestamp) &&
         (!('active' in data) || data.active is bool) &&
         (!('createdAt' in data) || data.createdAt is string || data.createdAt is timestamp) &&
         (!('updatedAt' in data) || data.updatedAt is string || data.updatedAt is timestamp);
@@ -180,6 +184,9 @@ service cloud.firestore {
         (!('classRollNo' in data) || (data.classRollNo is string && data.classRollNo.size() <= 40)) &&
         (!('admNo' in data) || (data.admNo is string && data.admNo.size() <= 40)) &&
         (!('boardRegNo' in data) || (data.boardRegNo is string && data.boardRegNo.size() <= 50)) &&
+        (!('teacherLoginCount' in data) || data.teacherLoginCount is int || data.teacherLoginCount is number) &&
+        (!('last2StepVerificationDate' in data) || data.last2StepVerificationDate is string || data.last2StepVerificationDate is timestamp) &&
+        (!('lastLoginAt' in data) || data.lastLoginAt is string || data.lastLoginAt is timestamp) &&
         (!('active' in data) || data.active is bool) &&
         (!('createdAt' in data) || data.createdAt is string || data.createdAt is timestamp) &&
         (!('updatedAt' in data) || data.updatedAt is string || data.updatedAt is timestamp);
