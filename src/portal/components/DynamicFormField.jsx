@@ -188,6 +188,65 @@ const MONTHS = [
 ];
 
 /**
+ * Authoritative, high-value institutional instructions & policy guidance for Admission Form fields.
+ * Only meaningful, actionable instructions are provided — no trivial placeholder duplicates.
+ */
+export const FIELD_INSTRUCTION_GUIDE = {
+  // 1. Personal & Identity
+  "Student's Name (as per school records)": "Enter your full name exactly as printed on your Class 10th Marks Card or School Leaving Certificate. Do not add prefixes like Mr. or Ms.",
+  "DoB (as per school records)": "Date of Birth must match your official matriculation certificate. Class 11th admission requires a minimum age of 14 years as per JKBOSE guidelines.",
+  "Father's/Guardian's Name (as per school records)": "Enter father's or legal guardian's name matching previous school leaving records.",
+  "Mother's Name (as per school records)": "Enter mother's full legal name as registered in previous school records.",
+  "Aadhar No.": "Enter student's 12-digit UIDAI Aadhaar number. Required for DBT scholarship processing and state student verification.",
+  "Father's Aadhar No.": "Enter the 12-digit Aadhaar number of father or legal guardian for official verification.",
+  "Your Mother Tongue": "Select your native primary language spoken at home.",
+  "Identification Mark (if any)": "Specify a permanent visible identification mark (e.g. mole on right cheek, scar on forehead).",
+
+  // 2. Contact & Residential Address
+  "Mobile No. (with working WhatsApp)": "Enter an active 10-digit mobile number with WhatsApp. All crucial school circulars, time tables, and result alerts will be delivered here.",
+  "Parent's Mobile No. (must be working)": "Enter parent's or guardian's functional 10-digit mobile number for emergency notifications and SMS advisories.",
+  "Email Address": "Provide a valid email address to receive admission confirmation receipts and downloadable form copies.",
+  "House No.": "Enter house number, ward number, or lane details if applicable.",
+  "Name of your village": "Enter your residential village, town, or mohalla name.",
+  "PIN code": "Enter the 6-digit postal PIN code of your local post office.",
+
+  // 3. Physical & Social Category
+  "Social category": "Select your recognized social category (OM, RBA, SC, ST, OBC, EWS, ALC/IB, PSP). You must hold a valid category certificate from the competent revenue authority.",
+  "Whether Any Disability": "Select 'Yes' if you have 40% or more benchmark disability to avail government fee concessions and assistive exam accommodations.",
+  "Type of Disability": "Specify the nature of disability as stated in your official UDID or Medical Board certificate.",
+
+  // 4. National Identifiers
+  "PEN number (given by UDISE portal)": "Permanent Education Number (PEN) is the 11-digit national student ID issued by the Ministry of Education via the UDISE+ portal.",
+  "APAAR ID": "Automated Permanent Academic Account Registry (APAAR ID) is the 12-digit lifelong academic credential ID under NEP 2020 linked with DigiLocker.",
+
+  // 5. Academic Details & Schooling
+  "Admission sought for class": "Select your target class of admission (11th, 12th, 10th, or 9th).",
+  "Admission Type (Class 11th)": "Select 'Regular' if you passed Class 10th in full. Select 'Provisional' if you are appearing in bi-annual/reappear exams or awaiting result.",
+  "Reason for Provisional (Class 11th)": "Specify the reason for provisional admission (e.g. Reappear in 1–2 subjects, Result Awaited). Final admission is subject to passing.",
+  "Admission Type (Class 12th)": "Select 'Regular' if promoted/passed Class 11th. Select 'Provisional' if having backlog/reappear.",
+  "Board Registration No. (Class 10th)": "Enter the 16-character JKBOSE registration number (e.g. 23N-1234567-89) printed on your Class 10th marks card.",
+  "Board Registration No. (Class 11th)": "Enter your Class 11th registration number allotted by JKBOSE.",
+  "Exam Roll Number of Class 10th": "Enter your 7 or 8-digit Class 10th Board Examination Roll Number.",
+  "Total Marks Obtained in Class 10th": "Enter aggregate marks obtained out of maximum total marks in Class 10th.",
+  "Total Max. Marks in Class 10th": "Enter maximum aggregate marks (default 500 for JKBOSE).",
+  "Name of Previous School (Class 10th)": "Select or type the complete name of the school or institute where you completed Class 10th.",
+  "Board (Class 10th)": "Select your Class 10th examining educational board (JKBOSE, CBSE, ICSE, NIOS, etc.).",
+
+  // 6. Bank & Scholarship
+  "Bank Account No.": "Enter student's active single/joint savings bank account number (9 to 18 digits) for scholarship disbursements.",
+  "Name of Bank": "Enter bank name (e.g. J&K Bank, State Bank of India). Branch must be CBS-enabled.",
+  "IFSC code": "Enter the 11-character Bank Branch IFSC Code (e.g. JAKA0SHNGUS, SBIN0001234).",
+
+  // 7. Streams & Subjects
+  "Stream for Class 11th": "Choose your academic stream: Science (Medical/Non-Medical), Arts/Humanities, or Commerce.",
+  "Subjects to be taken in Class 11th": "Select 5 subjects including General English (compulsory) plus your elective and skill subjects.",
+  "Subjects to Reappear (Class 10th)": "List the subject(s) in which you have reappear/compartment in Class 10th for provisional verification.",
+
+  // 8. Photo
+  "Student Photo": "Upload a clear, recent passport-size photograph with white or light background. Avoid selfies, sunglasses, or group pictures (Max file size 200 KB)."
+};
+
+/**
  * Separates the raw field label from qualifiers like "(as per school records)".
  */
 function getLabelDisplay(name = '') {
@@ -211,10 +270,16 @@ function getLabelDisplay(name = '') {
         📋 as per school records
       </span>
     );
-  } else if (lowerTag.includes('whatsapp') || lowerTag.includes('working')) {
+  } else if (lowerTag.includes('whatsapp')) {
     badge = (
-      <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[9px] font-black bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 border border-emerald-500/30 tracking-tight" title="Must be an active working number">
-        📱 WhatsApp active
+      <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[9px] font-black bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 border border-emerald-500/30 tracking-tight" title="WhatsApp number for alerts">
+        📱 WhatsApp
+      </span>
+    );
+  } else if (lowerTag.includes('working')) {
+    badge = (
+      <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[9px] font-black bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 border border-emerald-500/30 tracking-tight" title="Active contact number">
+        📱 active
       </span>
     );
   } else if (lowerTag.includes('udise')) {
@@ -227,6 +292,12 @@ function getLabelDisplay(name = '') {
     badge = (
       <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[9px] font-semibold bg-slate-100 dark:bg-slate-800 text-slate-500 border border-slate-200 dark:border-slate-700 tracking-tight">
         optional
+      </span>
+    );
+  } else if (lowerTag.startsWith('class ')) {
+    badge = (
+      <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[9px] font-bold bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border border-indigo-500/20 tracking-tight">
+        {rawTag}
       </span>
     );
   } else {
@@ -744,8 +815,46 @@ export default function DynamicFormField({
 
   const { mainLabel, badge, cleanPlaceholder } = useMemo(() => getLabelDisplay(name), [name]);
 
-  // Clean raw {{Template}} tags from placeholders
-  const placeholder = (rawPlaceholder && rawPlaceholder.includes('{{')) ? cleanPlaceholder : (rawPlaceholder || cleanPlaceholder);
+  // Clean raw {{Template}} tags from placeholders and apply smart format cues
+  const placeholder = useMemo(() => {
+    if (rawPlaceholder && !rawPlaceholder.includes('{{')) return rawPlaceholder;
+    const lower = String(name || '').toLowerCase();
+    if (lower.includes('mobile') || lower.includes('phone') || lower.includes('contact')) {
+      return '10-digit mobile number (e.g. 9906123456)';
+    }
+    if (lower.includes('aadhar') || lower.includes('aadhaar')) {
+      return '12-digit Aadhaar number';
+    }
+    if (lower.includes('pin code') || lower.includes('pincode')) {
+      return '6-digit Postal PIN (e.g. 192201)';
+    }
+    if (lower.includes('email')) {
+      return 'student@example.com';
+    }
+    if (lower.includes('bank account')) {
+      return 'Bank account number (9–18 digits)';
+    }
+    if (lower.includes('ifsc')) {
+      return '11-character IFSC (e.g. JAKA0SHNGUS)';
+    }
+    if (lower.includes('board reg') || lower.includes('registration no')) {
+      return 'e.g. 23N-1234567-89 / JKBOSE Reg No';
+    }
+    if (lower.includes('pen number') || lower.includes('pen no')) {
+      return '11-digit UDISE Permanent Education Number';
+    }
+    if (lower.includes('apaar')) {
+      return '12-digit APAAR / ABC ID';
+    }
+    return cleanPlaceholder;
+  }, [name, rawPlaceholder, cleanPlaceholder]);
+
+  // Resolve substantive institutional guidance text
+  const instructionText = useMemo(() => {
+    if (FIELD_INSTRUCTION_GUIDE[name]) return FIELD_INSTRUCTION_GUIDE[name];
+    if (hint && hint.trim().length > 15) return hint.trim();
+    return null;
+  }, [name, hint]);
 
   // Process options based on type
   let options = [];
@@ -872,12 +981,11 @@ export default function DynamicFormField({
             </span>
           )}
         </span>
-        {hint && (
-          <StandardTooltip content={hint} title={`${mainLabel} Instructions`} position="top">
-            <span className="inline-flex items-center gap-1 text-[9px] sm:text-[9.5px] font-bold text-teal-700 dark:text-teal-400 bg-teal-50/90 dark:bg-teal-950/60 hover:bg-teal-100 dark:hover:bg-teal-900/80 px-1.5 py-0.5 rounded-md border border-teal-200/80 dark:border-teal-800/80 transition-colors shadow-2xs cursor-pointer">
-              <Info size={9.5} className="text-teal-600 dark:text-teal-400 flex-shrink-0" />
-              <span className="hidden sm:inline truncate max-w-[140px]">{hint}</span>
-              <span className="sm:hidden font-extrabold">Help</span>
+        {instructionText && (
+          <StandardTooltip content={instructionText} title={`${mainLabel} Guidance`} position="top">
+            <span className="inline-flex items-center gap-1 text-[9.5px] font-bold text-teal-700 dark:text-teal-300 bg-teal-50/90 dark:bg-teal-950/60 hover:bg-teal-100 dark:hover:bg-teal-900/80 px-1.5 py-0.5 rounded-md border border-teal-200/80 dark:border-teal-800/80 transition-colors shadow-2xs cursor-pointer">
+              <Info size={10} className="text-teal-600 dark:text-teal-400 flex-shrink-0" />
+              <span>Guidance</span>
             </span>
           </StandardTooltip>
         )}
