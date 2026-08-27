@@ -893,90 +893,136 @@ export default function LoginPage() {
             {/* 2-Step Verification Confirmation View (Window 2) vs Waiting View (Window 1) vs Main Login Form */}
             {window2VerifiedState ? (
               /* == == == == == == == == WINDOW 2: VERIFIED LOGIN DETAILS VIEW == == == == == == == == */
-              <div className="space-y-4 relative z-10 text-center animate-fadeIn py-2">
-                <div className="w-14 h-14 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mx-auto shadow-inner">
-                  <CheckCircle2 size={30} className="text-emerald-600" />
+              <div className="space-y-5 relative z-10 text-center animate-fadeIn py-3">
+                {/* Animated Success Badge */}
+                <div className="relative mx-auto w-20 h-20">
+                  {/* Outer rotating ring */}
+                  <div className="absolute inset-0 rounded-full border-2 border-dashed border-emerald-300/50 dark:border-emerald-500/30 animate-spin" style={{ animationDuration: '12s' }}></div>
+                  {/* Inner glow ring */}
+                  <div className="absolute inset-1.5 rounded-full bg-gradient-to-br from-emerald-400/20 via-teal-400/10 to-emerald-500/20 dark:from-emerald-500/15 dark:via-teal-500/10 dark:to-emerald-600/15 animate-pulse" style={{ animationDuration: '2s' }}></div>
+                  {/* Center icon */}
+                  <div className="absolute inset-3 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-500/25">
+                    <ShieldCheck size={26} className="text-white drop-shadow-sm" />
+                  </div>
                 </div>
 
-                <div className="space-y-1">
-                  <span className="text-[10px] font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400">
-                    2-Step Security Verified
-                  </span>
-                  <h2 className="text-lg font-black text-slate-900 dark:text-white">
-                    Login Authorized!
+                <div className="space-y-1.5">
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                    <span className="text-[10px] font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400">
+                      Verified & Authorized
+                    </span>
+                  </div>
+                  <h2 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">
+                    Identity Confirmed
                   </h2>
-                  <p className="text-xs text-slate-600 dark:text-slate-400 max-w-xs mx-auto leading-relaxed">
-                    Your email identity has been authenticated successfully.
+                  <p className="text-[11.5px] text-slate-500 dark:text-slate-400 max-w-[260px] mx-auto leading-relaxed">
+                    Your secure sign-in has been authenticated successfully.
                   </p>
                 </div>
 
-                {/* Verification Details Table */}
-                <div className="rounded-2xl bg-slate-50/90 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-800 p-3.5 text-left text-xs space-y-2.5">
-                  <div className="flex items-center justify-between border-b border-slate-200/60 dark:border-slate-700/60 pb-2">
-                    <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">Account</span>
-                    <span className="font-mono font-bold text-slate-900 dark:text-slate-100">{window2VerifiedState.email}</span>
+                {/* Verification Details Card */}
+                <div className="rounded-2xl bg-gradient-to-b from-slate-50 to-white dark:from-slate-800/80 dark:to-slate-800/40 border border-slate-200/80 dark:border-slate-700/50 p-4 text-left text-xs space-y-0 overflow-hidden relative">
+                  {/* Subtle top accent */}
+                  <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-400"></div>
+                  
+                  <div className="flex items-center justify-between py-2.5 border-b border-slate-200/60 dark:border-slate-700/40">
+                    <span className="text-[11px] font-bold text-slate-400 dark:text-slate-500 flex items-center gap-1.5">
+                      <Mail size={12} /> Account
+                    </span>
+                    <span className="font-mono font-bold text-[11px] text-slate-800 dark:text-slate-200">{window2VerifiedState.email}</span>
                   </div>
-                  <div className="flex items-center justify-between border-b border-slate-200/60 dark:border-slate-700/60 pb-2">
-                    <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">Role</span>
-                    <span className="font-bold text-teal-600 dark:text-teal-400">{window2VerifiedState.role || 'Staff'}</span>
+                  <div className="flex items-center justify-between py-2.5 border-b border-slate-200/60 dark:border-slate-700/40">
+                    <span className="text-[11px] font-bold text-slate-400 dark:text-slate-500 flex items-center gap-1.5">
+                      <Award size={12} /> Role
+                    </span>
+                    <span className="font-black text-[11px] text-transparent bg-clip-text bg-gradient-to-r from-teal-600 to-emerald-600 dark:from-teal-400 dark:to-emerald-400">{window2VerifiedState.role || 'Staff'}</span>
                   </div>
-                  <div className="flex items-center justify-between border-b border-slate-200/60 dark:border-slate-700/60 pb-2">
-                    <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">Verified At</span>
-                    <span className="text-slate-700 dark:text-slate-300 font-medium">{window2VerifiedState.time || 'Just now'}</span>
+                  <div className="flex items-center justify-between py-2.5 border-b border-slate-200/60 dark:border-slate-700/40">
+                    <span className="text-[11px] font-bold text-slate-400 dark:text-slate-500 flex items-center gap-1.5">
+                      <Compass size={12} /> Verified At
+                    </span>
+                    <span className="text-[11px] text-slate-600 dark:text-slate-300 font-semibold">{window2VerifiedState.time || 'Just now'}</span>
                   </div>
-                  <div className="flex items-start gap-2 pt-0.5 text-[11.5px] font-medium text-emerald-700 dark:text-emerald-300">
-                    <Sparkles size={14} className="text-emerald-600 shrink-0 mt-0.5" />
-                    <span>Your main workstation login window has automatically detected this verification and loaded your {window2VerifiedState.role === 'Teacher' ? 'Teacher Portal' : 'Admin Dashboard'}.</span>
+                  <div className="flex items-start gap-2 pt-3 text-[11px] font-medium text-emerald-700 dark:text-emerald-300/90 leading-relaxed">
+                    <Sparkles size={13} className="text-emerald-500 shrink-0 mt-0.5" />
+                    <span>Your main login window has auto-detected this verification and loaded your {window2VerifiedState.role === 'Teacher' ? 'Teacher Workspace' : 'Admin Dashboard'}.</span>
                   </div>
                 </div>
 
-                <div className="pt-1">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      try {
-                        window.close();
-                      } catch (_) {}
-                    }}
-                    className="w-full py-2.5 rounded-xl font-bold text-xs bg-slate-900 dark:bg-white text-white dark:text-slate-900 hover:bg-slate-800 dark:hover:bg-slate-100 cursor-pointer transition-all shadow-sm"
-                  >
-                    Close This Window
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    try {
+                      window.close();
+                    } catch (_) {}
+                  }}
+                  className="w-full py-3 rounded-xl font-black text-xs bg-gradient-to-r from-slate-800 to-slate-900 dark:from-white dark:to-slate-100 text-white dark:text-slate-900 hover:from-slate-700 hover:to-slate-800 dark:hover:from-slate-50 dark:hover:to-white cursor-pointer transition-all shadow-md hover:shadow-lg active:scale-[0.98]"
+                >
+                  Close This Window
+                </button>
               </div>
             ) : emailLinkSentState ? (
-              /* == == == == == == == == WINDOW 1: MINIMAL 2-STEP WAITING VIEW == == == == == == == == */
-              <div className="space-y-4 relative z-10 text-center animate-fadeIn py-2">
-                <div className="w-12 h-12 rounded-2xl bg-amber-500/10 text-amber-600 flex items-center justify-center mx-auto relative">
-                  <Mail size={22} className="text-amber-600" />
-                  <span className="absolute -top-1 -right-1 flex h-3 w-3">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
-                  </span>
+              /* == == == == == == == == WINDOW 1: PREMIUM 2-STEP WAITING VIEW == == == == == == == == */
+              <div className="space-y-5 relative z-10 text-center animate-fadeIn py-3">
+                {/* Animated Shield with Pulse Ring */}
+                <div className="relative mx-auto w-20 h-20">
+                  {/* Outer pulsing ring */}
+                  <div className="absolute inset-0 rounded-full border-2 border-amber-300/40 dark:border-amber-500/20 animate-ping" style={{ animationDuration: '3s' }}></div>
+                  {/* Middle rotating dashed ring */}
+                  <div className="absolute inset-1 rounded-full border-2 border-dashed border-amber-400/30 dark:border-amber-500/20 animate-spin" style={{ animationDuration: '15s' }}></div>
+                  {/* Glow background */}
+                  <div className="absolute inset-2.5 rounded-full bg-gradient-to-br from-amber-400/15 via-orange-400/10 to-amber-500/15 dark:from-amber-500/10 dark:via-orange-500/5 dark:to-amber-600/10"></div>
+                  {/* Center icon */}
+                  <div className="absolute inset-4 rounded-full bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center shadow-lg shadow-amber-500/25">
+                    <ShieldAlert size={22} className="text-white drop-shadow-sm" />
+                  </div>
                 </div>
 
-                <div className="space-y-1">
-                  <h2 className="text-base font-black text-slate-900 dark:text-white">
-                    Verify your email
+                <div className="space-y-1.5">
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/20">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+                    <span className="text-[10px] font-black uppercase tracking-widest text-amber-600 dark:text-amber-400">
+                      Verification Required
+                    </span>
+                  </div>
+                  <h2 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">
+                    Check Your Inbox
                   </h2>
-                  <p className="text-xs text-slate-600 dark:text-slate-400 max-w-sm mx-auto leading-relaxed">
-                    Click the sign-in link sent to <strong className="text-slate-900 dark:text-slate-100 font-bold">{emailLinkSentState.email}</strong>.
+                  <p className="text-[11.5px] text-slate-500 dark:text-slate-400 max-w-[260px] mx-auto leading-relaxed">
+                    A secure sign-in link has been sent to
                   </p>
                 </div>
 
-                <div className="flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/80 dark:border-slate-800 text-[11.5px] font-bold text-slate-600 dark:text-slate-400">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                  <span>Waiting for verification in real-time...</span>
+                {/* Email Card */}
+                <div className="rounded-xl bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-950/30 dark:to-orange-950/20 border border-amber-200/70 dark:border-amber-800/40 p-3 flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center shrink-0 shadow-sm">
+                    <Mail size={16} className="text-white" />
+                  </div>
+                  <div className="text-left min-w-0">
+                    <p className="text-[11px] font-black text-slate-800 dark:text-slate-200 truncate">{emailLinkSentState.email}</p>
+                    <p className="text-[10px] font-semibold text-amber-600/80 dark:text-amber-400/70">Click the link in the email to continue</p>
+                  </div>
                 </div>
 
-                <div className="flex items-center justify-center gap-3 pt-1 text-xs">
+                {/* Live Status Indicator */}
+                <div className="flex items-center justify-center gap-2.5 py-2.5 px-4 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/80 dark:border-slate-700/50">
+                  <div className="flex gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-bounce" style={{ animationDelay: '0ms', animationDuration: '1.4s' }}></span>
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-bounce" style={{ animationDelay: '200ms', animationDuration: '1.4s' }}></span>
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-bounce" style={{ animationDelay: '400ms', animationDuration: '1.4s' }}></span>
+                  </div>
+                  <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">Listening for verification in real-time</span>
+                </div>
+
+                <div className="flex items-center justify-center gap-3 pt-0.5 text-xs">
                   <button
                     type="button"
                     onClick={handleResendAdminLink}
                     disabled={resendCooldown > 0 || isLoading}
                     className="font-bold text-teal-600 hover:text-teal-700 dark:text-teal-400 disabled:text-slate-400 cursor-pointer disabled:cursor-not-allowed transition-colors"
                   >
-                    {resendCooldown > 0 ? `Resend link in ${resendCooldown}s` : 'Resend link'}
+                    {resendCooldown > 0 ? `Resend in ${resendCooldown}s` : 'Resend link'}
                   </button>
                   <span className="text-slate-300 dark:text-slate-700">•</span>
                   <button
