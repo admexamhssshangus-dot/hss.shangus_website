@@ -10,7 +10,7 @@ import { sessionManager } from '../../services/sessionManager';
 import { generateStudentAdmissionPdf, generateProvisionalAdmissionPdf } from '../../utils/pdfGenerator';
 import { saveAdmissionDraft } from '../../services/admissionWorkflowApi';
 import { getNextAvailableFormNumber, consumeFormNumber } from '../../services/formNumberService';
-import { isValidAadhaar, isStrictIsoDate, normalizeDobToIso, validateMinimumAge, MIN_ADMISSION_AGE } from '../../utils/admissionValidation';
+import { isValidAadhaar, areAadhaarsDistinct, isStrictIsoDate, normalizeDobToIso, validateMinimumAge, MIN_ADMISSION_AGE } from '../../utils/admissionValidation';
 
 export const SUBJECT_CANONICAL_SYNONYMS = {
   'social studies': 'Social Science',
@@ -703,6 +703,34 @@ export default function AdmissionForm() {
         if (next[STUDENT_MOBILE_KEY] === DUPE_MSG) delete next[STUDENT_MOBILE_KEY];
       }
 
+      // ── Real-time cross-field Aadhaar duplicate check ──
+      const STUDENT_AADHAAR_KEY = "Aadhar No.";
+      const FATHER_AADHAAR_KEY  = "Father's Aadhar No.";
+
+      const studentAadhaarRaw = fieldName === STUDENT_AADHAAR_KEY
+        ? String(value || '')
+        : String(formData[STUDENT_AADHAAR_KEY] || '');
+      const fatherAadhaarRaw = fieldName === FATHER_AADHAAR_KEY
+        ? String(value || '')
+        : String(formData[FATHER_AADHAAR_KEY] || '');
+
+      const studentAadhaarDigits = studentAadhaarRaw.replace(/[^0-9]/g, '');
+      const fatherAadhaarDigits  = fatherAadhaarRaw.replace(/[^0-9]/g, '');
+
+      const AADHAAR_DUPE_MSG = "Student's and Father's Aadhaar numbers cannot be identical";
+
+      if (
+        studentAadhaarDigits.length === 12 &&
+        fatherAadhaarDigits.length  === 12 &&
+        studentAadhaarDigits === fatherAadhaarDigits
+      ) {
+        next[FATHER_AADHAAR_KEY] = AADHAAR_DUPE_MSG;
+      } else {
+        // Clear dupe error on either field if Aadhaar numbers are now distinct
+        if (next[FATHER_AADHAAR_KEY] === AADHAAR_DUPE_MSG) delete next[FATHER_AADHAAR_KEY];
+        if (next[STUDENT_AADHAAR_KEY] === AADHAAR_DUPE_MSG) delete next[STUDENT_AADHAAR_KEY];
+      }
+
       return next;
     });
   };
@@ -1365,6 +1393,9 @@ export default function AdmissionForm() {
     if (!fatherAadhar) addError("Father's Aadhar No.", "Father's Aadhaar number is required");
     else if (fatherAadhar.length !== 12) addError("Father's Aadhar No.", "Father's Aadhaar number must be exactly 12 digits");
     else if (!isValidAadhaar(fatherAadhar)) addError("Father's Aadhar No.", "Enter a valid Father's Aadhaar number (checksum failed)");
+    else if (aadhar.length === 12 && fatherAadhar.length === 12 && aadhar === fatherAadhar) {
+      addError("Father's Aadhar No.", "Student's and Father's Aadhaar numbers cannot be identical");
+    }
 
     // Occupations (Mandatory)
     const fatherOcc = String(formData["Father's/Guardian's Occupation"] || formData["Father's Occupation"] || '').trim();
