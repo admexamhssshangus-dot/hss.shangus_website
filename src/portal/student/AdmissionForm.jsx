@@ -92,12 +92,49 @@ export function validateSubjectSelection(targetClass = '11th', stream = 'Science
     if (total < 5) {
       return {
         valid: false,
-        error: `Class 9th/10th requires at least 5 subjects (4 Compulsory + 1 Optional). Currently ${total}/5 selected.`,
+        error: `Class 9th/10th requires at least 5 subjects (4 Compulsory + 1 Language). Currently ${total}/5 selected.`,
         count: total,
         min: 5,
         max: 6
       };
     }
+
+    const groupBLanguages = ['urdu', 'arabic', 'hindi', 'kashmiri'];
+    const optionals = allSubjects.filter(s => {
+      const lower = s.toLowerCase();
+      return !['english', 'mathematics', 'science', 'social science', 'social studies'].includes(lower);
+    });
+    const chosenLanguages = optionals.filter(s => groupBLanguages.some(l => s.toLowerCase().includes(l)));
+    const chosenVocational = optionals.filter(s => !groupBLanguages.some(l => s.toLowerCase().includes(l)));
+
+    if (chosenLanguages.length === 0) {
+      return {
+        valid: false,
+        error: `Class 9th/10th Rule: Please select 1 language from Group B (Urdu, Arabic, Hindi, or Kashmiri).`,
+        count: total,
+        min: 5,
+        max: 6
+      };
+    }
+    if (chosenLanguages.length > 1) {
+      return {
+        valid: false,
+        error: `Class 9th/10th Rule: Only 1 language allowed from Group B (Currently ${chosenLanguages.length} selected: ${chosenLanguages.join(', ')}).`,
+        count: total,
+        min: 5,
+        max: 6
+      };
+    }
+    if (chosenVocational.length > 1) {
+      return {
+        valid: false,
+        error: `Class 9th/10th Rule: Only 1 vocational subject allowed from Group C (Currently ${chosenVocational.length} selected: ${chosenVocational.join(', ')}).`,
+        count: total,
+        min: 5,
+        max: 6
+      };
+    }
+
     return { valid: true, error: null, count: total, min: 5, max: 6 };
   }
 
@@ -567,6 +604,9 @@ export default function AdmissionForm() {
       // When stream is selected for 11th, keep Stream for Class 11th in sync
       // so 12th auto-inherits it from 'Stream opted in Class 11th'
       if (fieldName === 'Stream for Class 11th') {
+        if (prev['Stream for Class 11th'] !== value) {
+          next['Subjects to be taken in Class 11th'] = '';
+        }
         next['Stream'] = value; // keep general Stream key in sync
       }
       if (fieldName === 'Stream opted in Class 11th') {

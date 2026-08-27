@@ -1461,32 +1461,104 @@ export default function DynamicFormField({
 
             const subjectValidation = validateSubjectSelection(targetCls, strm, allSelectedSubjects, isReappearField);
 
-            // Group B target count badge text
+            // Dynamic Group B target count badge text & status
             let groupBBadgeText = '';
             let groupBBadgeStatus = 'pending'; // 'pending' | 'success' | 'warn'
+
             if (isSecondary) {
-              groupBBadgeText = `${selectedB.length}/1 Language`;
-              groupBBadgeStatus = selectedB.length === 1 ? 'success' : selectedB.length > 1 ? 'warn' : 'pending';
+              if (selectedB.length === 1) {
+                groupBBadgeText = '1/1 Language ✓';
+                groupBBadgeStatus = 'success';
+              } else if (selectedB.length > 1) {
+                groupBBadgeText = `${selectedB.length}/1 (Max 1)`;
+                groupBBadgeStatus = 'warn';
+              } else {
+                groupBBadgeText = '0/1 Language Required';
+                groupBBadgeStatus = 'pending';
+              }
             } else if (isHumanities) {
-              groupBBadgeText = `${selectedB.length}/3 Core`;
-              groupBBadgeStatus = selectedB.length >= 3 ? 'success' : 'pending';
+              const targetB = selectedC.length > 0 ? 3 : 4;
+              if (selectedB.length === targetB) {
+                groupBBadgeText = `${selectedB.length}/${targetB} Core ✓`;
+                groupBBadgeStatus = 'success';
+              } else if (selectedB.length > 4 || (selectedC.length > 0 && selectedB.length > 3)) {
+                groupBBadgeText = `${selectedB.length} Selected (Max ${targetB})`;
+                groupBBadgeStatus = 'warn';
+              } else {
+                groupBBadgeText = `${selectedB.length}/${targetB} Core`;
+                groupBBadgeStatus = selectedB.length >= 3 ? 'success' : 'pending';
+              }
             } else if (isScience) {
-              groupBBadgeText = `${selectedB.length} Selected`;
-              groupBBadgeStatus = selectedB.length >= 1 ? 'success' : 'pending';
+              const isBothGroupB = selectedB.length === 2 && selectedC.length === 0;
+              const isGroupBPlusC = selectedB.length === 1 && selectedC.length === 1;
+              if (isBothGroupB) {
+                groupBBadgeText = '2/2 Selected (Bio & Math) ✓';
+                groupBBadgeStatus = 'success';
+              } else if (isGroupBPlusC) {
+                groupBBadgeText = '1/1 Core Selected ✓';
+                groupBBadgeStatus = 'success';
+              } else if (selectedB.length === 0 && selectedC.length > 0) {
+                groupBBadgeText = '0/1 Required (Bio or Math)';
+                groupBBadgeStatus = 'warn';
+              } else if (selectedB.length > 2) {
+                groupBBadgeText = `${selectedB.length}/2 (Max 2)`;
+                groupBBadgeStatus = 'warn';
+              } else {
+                groupBBadgeText = `${selectedB.length} Selected`;
+                groupBBadgeStatus = selectedB.length >= 1 ? 'success' : 'pending';
+              }
             } else {
               groupBBadgeText = `${selectedB.length} Selected`;
               groupBBadgeStatus = selectedB.length >= 1 ? 'success' : 'pending';
             }
 
-            // Group C target count badge text
+            // Dynamic Group C target count badge text & status
             let groupCBadgeText = '';
             let groupCBadgeStatus = 'pending';
             if (isSecondary) {
-              groupCBadgeText = selectedC.length === 0 ? 'Optional (0/1)' : 'Selected (1/1)';
-              groupCBadgeStatus = selectedC.length === 1 ? 'success' : selectedC.length > 1 ? 'warn' : 'pending';
+              if (selectedC.length === 1) {
+                groupCBadgeText = '1/1 Vocational ✓';
+                groupCBadgeStatus = 'success';
+              } else if (selectedC.length > 1) {
+                groupCBadgeText = `${selectedC.length}/1 (Max 1)`;
+                groupCBadgeStatus = 'warn';
+              } else {
+                groupCBadgeText = 'Optional (0/1)';
+                groupCBadgeStatus = 'pending';
+              }
+            } else if (isHumanities) {
+              if (selectedC.length === 1) {
+                groupCBadgeText = '1/1 Elective ✓';
+                groupCBadgeStatus = 'success';
+              } else if (selectedC.length > 1) {
+                groupCBadgeText = `${selectedC.length}/1 (Max 1 Allowed)`;
+                groupCBadgeStatus = 'warn';
+              } else {
+                groupCBadgeText = selectedB.length >= 4 ? '0/1 (Optional)' : 'Optional (0/1)';
+                groupCBadgeStatus = 'pending';
+              }
+            } else if (isScience) {
+              if (selectedC.length === 1 && selectedB.length === 1) {
+                groupCBadgeText = '1/1 Elective ✓';
+                groupCBadgeStatus = 'success';
+              } else if (selectedC.length > 1) {
+                groupCBadgeText = `${selectedC.length}/1 (Max 1 Allowed)`;
+                groupCBadgeStatus = 'warn';
+              } else {
+                groupCBadgeText = selectedB.length >= 2 ? '0/1 (Optional)' : 'Optional (0/1)';
+                groupCBadgeStatus = 'pending';
+              }
             } else {
-              groupCBadgeText = `${selectedC.length}/1 Elective`;
-              groupCBadgeStatus = selectedC.length === 1 ? 'success' : selectedC.length > 1 ? 'warn' : 'pending';
+              if (selectedC.length === 1) {
+                groupCBadgeText = '1/1 Elective ✓';
+                groupCBadgeStatus = 'success';
+              } else if (selectedC.length > 1) {
+                groupCBadgeText = `${selectedC.length}/1 (Max 1)`;
+                groupCBadgeStatus = 'warn';
+              } else {
+                groupCBadgeText = 'Optional (0/1)';
+                groupCBadgeStatus = 'pending';
+              }
             }
 
             return (
