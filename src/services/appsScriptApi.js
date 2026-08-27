@@ -573,6 +573,10 @@ async function legacySaveApplication(payload) {
   try {
     await setDoc(doc(db, 'admissions', sanitizedDocId), payloadData, { merge: true });
     updateCachedItem('admissions', sanitizedDocId, payloadData);
+    try {
+      const { consumeFormNumber } = require('./formNumberService');
+      await consumeFormNumber(formNo);
+    } catch (_) {}
   } catch (e) {
     console.warn('Firestore saveApplication admissions write error:', e);
   }

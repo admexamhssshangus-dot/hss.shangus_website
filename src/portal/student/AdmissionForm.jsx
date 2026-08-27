@@ -814,10 +814,11 @@ export default function AdmissionForm() {
     setIsDownloadingPdf(true);
     setAlert(null);
     try {
+      const dataToPrint = submittedSuccessData || formData;
       if (isProvisionalForm) {
-        generateProvisionalAdmissionPdf(formData);
+        generateProvisionalAdmissionPdf(dataToPrint);
       } else {
-        generateStudentAdmissionPdf(formData);
+        generateStudentAdmissionPdf(dataToPrint);
       }
     } catch (err) {
       console.error('Manual PDF print error:', err);
@@ -1647,7 +1648,6 @@ export default function AdmissionForm() {
     setShowPreviewModal(false);
     setIsSubmitting(true);
     try {
-      {
       if (!submissionKeyRef.current) {
         submissionKeyRef.current = window.crypto?.randomUUID?.() || `${Date.now()}_${Math.random().toString(36).slice(2)}`;
       }
@@ -1657,68 +1657,6 @@ export default function AdmissionForm() {
         submissionKey: submissionKeyRef.current,
         ...(upgradeMode ? { _upgradeMode: true, _provisionalFormNo: upgradeSourceFormNo || '' } : {}),
       });
-      const formNo = res.formNumber;
-      applicationIdRef.current = res.applicationId || applicationIdRef.current;
-      setApplicationId(applicationIdRef.current);
-      const submittedData = {
-        ...formData,
-        'Form Number': formNo,
-        FormNo: formNo,
-        formNo,
-        Status: 'Submitted',
-      };
-      try {
-        const uid = currentUser?.uid || 'guest';
-        localStorage.removeItem(`hss_student_draft_${uid}`);
-        localStorage.removeItem('hss_student_draft_guest');
-        localStorage.removeItem('hss_student_draft_local');
-        sessionStorage.removeItem(`hss_student_draft_${uid}`);
-        sessionStorage.removeItem('hss_student_draft_guest');
-        sessionStorage.removeItem('hss_student_draft_local');
-        sessionStorage.removeItem('hss_admission_upgrade');
-        sessionStorage.removeItem('hss_admission_draft');
-      } catch (e) { }
-      setSubmittedSuccessData(submittedData);
-      return;
-      }
-
-      /* Legacy direct-write path retained temporarily below for historical
-         reference; execution always returns after the authoritative server
-         transaction above. */
-      // eslint-disable-next-line no-unreachable
-      const studentPhoto = formData['Student Photo'] || formData['photo_id'] || formData['photo'] || '';
-      const cleanFNoVal = (val) => {
-        if (!val) return '';
-        const s = String(val).replace(/^(N\/A|#N\/A|—|-|null|undefined)$/i, '').trim();
-        if (s.startsWith('FORM_')) return '';
-        return s;
-      };
-
-      // eslint-disable-next-line no-unreachable
-      let formNo = cleanFNoVal(formData['Form Number'] || formData['FormNo'] || formData['Form No.'] || formData['formNo']);
-      if (!formNo) {
-        formNo = await getNextAvailableFormNumber();
-      }
-
-      const payloadData = {
-        ...formData,
-        'Form Number': formNo,
-        'FormNo': formNo,
-        'formNo': formNo,
-        'Student Photo': studentPhoto,
-        'photo_id': studentPhoto,
-        'photoUrl': studentPhoto,
-        Status: 'Submitted',
-        submittedAt: new Date().toISOString()
-      };
-
-      // Build the payload — pass upgrade flags so saveApplication handles in-place update
-      const apiPayload = {
-        ...payloadData,
-        ...(upgradeMode ? { _upgradeMode: true, _provisionalFormNo: upgradeSourceFormNo || formNo } : {}),
-      };
-
-      const res = await appsScriptApi.saveApplication(apiPayload);
 
       if (res && res.error === 'duplicate') {
         setAlert({
@@ -1730,15 +1668,37 @@ export default function AdmissionForm() {
       }
 
       if (res && res.success !== false) {
-        // Consume / recycle form number in database counter
+        const formNo = res.formNumber;
+        applicationIdRef.current = res.applicationId || applicationIdRef.current;
+        setApplicationId(applicationIdRef.current);
+        const submittedData = {
+          ...formData,
+          'Form Number': formNo,
+          FormNo: formNo,
+          formNo,
+          Status: 'Submitted',
+          status: 'Submitted',
+          submittedAt: new Date().toISOString()
+        };
+
+        // Update local component state so all PDF generators & modals receive the official form number
+        setFormData(submittedData);
+        setSubmittedSuccessData(submittedData);
+
+        // Advance / consume form number in counter
         consumeFormNumber(formNo).catch(e => console.warn('consumeFormNumber note:', e));
 
-        // Clear local draft and upgrade context from sessionStorage
-        try { sessionStorage.removeItem('hss_admission_draft'); } catch (e) { }
-        try { sessionStorage.removeItem('hss_admission_upgrade'); } catch (e) { }
-
-        // Display standard confirmation modal with progress tracking instead of immediate print popover
-        setSubmittedSuccessData(payloadData);
+        try {
+          const uid = currentUser?.uid || 'guest';
+          localStorage.removeItem(`hss_student_draft_${uid}`);
+          localStorage.removeItem('hss_student_draft_guest');
+          localStorage.removeItem('hss_student_draft_local');
+          sessionStorage.removeItem(`hss_student_draft_${uid}`);
+          sessionStorage.removeItem('hss_student_draft_guest');
+          sessionStorage.removeItem('hss_student_draft_local');
+          sessionStorage.removeItem('hss_admission_upgrade');
+          sessionStorage.removeItem('hss_admission_draft');
+        } catch (e) { }
       } else {
         setAlert({ type: 'error', text: res?.error || res?.message || 'Submission failed.' });
       }
