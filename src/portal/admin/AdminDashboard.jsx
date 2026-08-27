@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { Lock, Hash, Layers, RefreshCw, LogOut, ShieldCheck, BarChart2, Mail, CreditCard, Settings, ChevronDown, Wrench, ClipboardCheck, CalendarCheck, Contact, PanelsTopLeft, FileSpreadsheet, FileText, Award, Sliders, BookOpen, GitMerge } from 'lucide-react';
+import { Lock, Hash, Layers, RefreshCw, LogOut, ShieldCheck, BarChart2, Mail, CreditCard, Settings, ChevronDown, Wrench, ClipboardCheck, CalendarCheck, Contact, PanelsTopLeft, FileSpreadsheet, FileText, Award, Sliders, BookOpen, GitMerge, ArrowLeft } from 'lucide-react';
 import SEO from '../../components/SEO';
 import ApplicationReviewModal from './ApplicationReviewModal';
 import AdvancedReports from './AdvancedReports';
@@ -347,20 +347,25 @@ export default function AdminDashboard() {
             return (
               <div className="no-print flex items-center justify-between gap-1.5 p-1.5 rounded-xl border text-xs font-bold flex-wrap md:flex-nowrap bg-slate-100 dark:bg-slate-950 border-slate-200 dark:border-slate-800 shadow-2xs">
                 
-                {/* Left Slot: Brand & Active Module Title (Strictly Anchored Left) */}
-                <div className="flex min-w-0 items-center gap-1.5 flex-nowrap shrink-0 order-1">
-                  <div className="flex items-center gap-1.5 font-black text-xs text-slate-800 dark:text-slate-200 border-r border-slate-300 dark:border-slate-700 pr-2.5 flex-shrink-0" title={`${user?.email || 'Admin'} • HSS Shangus`}>
-                    <div className="w-6 h-6 rounded-lg bg-amber-600/10 border border-amber-600/30 flex items-center justify-center font-black text-amber-600 text-[10px]">
-                      <Lock size={11} />
-                    </div>
-                    <span className="hidden sm:inline text-[11px] font-black">Admin</span>
-                  </div>
+                {/* Left Slot: Navigation Back to Records + Active Module Title */}
+                <div className="flex min-w-0 items-center gap-1.5 sm:gap-2 flex-nowrap shrink-0 order-1">
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('reports')}
+                    className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 hover:bg-teal-50 dark:hover:bg-teal-950/40 text-slate-700 dark:text-slate-200 hover:text-teal-700 dark:hover:text-teal-300 font-bold text-[11px] sm:text-xs shadow-2xs transition-all cursor-pointer group"
+                    title="Return to Student Records & Reports"
+                  >
+                    <ArrowLeft size={12} className="text-slate-500 group-hover:text-teal-600 group-hover:-translate-x-0.5 transition-transform" />
+                    <span className="hidden sm:inline font-bold">Records</span>
+                  </button>
 
-                  <div className="flex min-w-0 items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-lg border text-xs font-black bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 shrink-0 shadow-2xs">
-                    <div className="w-4 h-4 rounded-md bg-purple-100 dark:bg-purple-900/60 text-purple-700 dark:text-purple-300 flex items-center justify-center">
-                      <CurrentIcon size={12} />
+                  <span className="text-slate-400 dark:text-slate-600 font-bold text-xs">/</span>
+
+                  <div className="flex min-w-0 items-center gap-1.5 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg border text-xs font-black bg-gradient-to-r from-teal-50 to-indigo-50/50 dark:from-slate-900 dark:to-slate-900 border-teal-200/80 dark:border-slate-700 shrink-0 shadow-2xs">
+                    <div className="w-4 h-4 rounded-md bg-teal-600 text-white flex items-center justify-center shadow-xs">
+                      <CurrentIcon size={11} />
                     </div>
-                    <span className="truncate text-slate-800 dark:text-slate-200 font-black">{currentModule.label}</span>
+                    <span className="truncate text-teal-950 dark:text-teal-100 font-black">{currentModule.label}</span>
                   </div>
                 </div>
 
