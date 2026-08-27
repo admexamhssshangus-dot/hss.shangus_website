@@ -1849,8 +1849,8 @@ export default function AdmissionForm() {
       }
 
       if (res && res.success !== false) {
-        const formNo = res.formNumber;
-        applicationIdRef.current = res.applicationId || applicationIdRef.current;
+        const formNo = res.formNumber || res['Form Number'] || res.formNo || res.data?.['Form Number'] || res.data?.formNo;
+        applicationIdRef.current = res.applicationId || res.data?.docId || applicationIdRef.current || String(formNo);
         setApplicationId(applicationIdRef.current);
         const submittedData = {
           ...formData,

@@ -10,7 +10,8 @@ import { auth, db } from './firebase';
 import { collection, getDocs, doc, getDoc, setDoc, query, where } from 'firebase/firestore';
 import { DEFAULT_FORM_STRUCTURE, DEFAULT_SUBJECTS_CONFIG } from '../utils/defaultFormSchema';
 import { getCachedCollection, getCachedCollectionSync, updateCachedItem } from './dbCache';
-import { loadAdmissionWorkspace, submitAdmission } from './admissionWorkflowApi';
+import { loadAdmissionWorkspace } from './admissionWorkflowApi';
+import { getNextAvailableFormNumber, consumeFormNumber } from './formNumberService';
 
 const DEFAULT_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxklDr4jb25tAiDDrIoU2pjEBe9UXmJxkbXY-jp-BXLjkq9FppA1NlE2Or-gCpwjp8B1g/exec';
 const APPS_SCRIPT_URL = process.env.REACT_APP_APPS_SCRIPT_URL || DEFAULT_APPS_SCRIPT_URL;
@@ -544,7 +545,6 @@ async function legacySaveApplication(payload) {
   let formNo = cleanFNoVal(provisionalFormNo || data['Form Number'] || data['FormNo'] || data['Form No.'] || data.formNumber || data.formNo);
   if (!formNo) {
     try {
-      const { getNextAvailableFormNumber } = require('./formNumberService');
       formNo = await getNextAvailableFormNumber();
     } catch (_) {
       formNo = `26${Math.floor(1000 + Math.random() * 9000)}`;
@@ -667,7 +667,6 @@ async function legacySaveApplication(payload) {
     await setDoc(doc(db, 'admissions', sanitizedDocId), payloadData, { merge: true });
     updateCachedItem('admissions', sanitizedDocId, payloadData);
     try {
-      const { consumeFormNumber } = require('./formNumberService');
       await consumeFormNumber(formNo);
     } catch (_) {}
   } catch (e) {
@@ -856,23 +855,7 @@ async function getStudentApplication() {
 }
 
 async function saveApplication(payload) {
-  const role = String(sessionManager.getUser()?.role || '').toLowerCase();
-  if (role.includes('admin')) return legacySaveApplication(payload);
-  const data = payload.formData || payload;
-  try {
-    return await submitAdmission({
-      formData: data,
-      applicationId: payload.applicationId || data.docId || data.applicationId || '',
-      submissionKey: payload.submissionKey,
-      upgradeMode: Boolean(payload._upgradeMode || data._upgradeMode || payload.upgradeMode || data.upgradeMode),
-    });
-  } catch (err) {
-    if (err.isServiceUnavailable || err.status === 404 || process.env.NODE_ENV === 'development') {
-      console.warn('Admission workflow function unavailable, falling back to direct Firestore submission:', err);
-      return legacySaveApplication(payload);
-    }
-    throw err;
-  }
+  return legacySaveApplication(payload);
 }
 
 async function deleteStudentApplication(formNoOrDocId) {
