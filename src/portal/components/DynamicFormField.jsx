@@ -1397,10 +1397,17 @@ export default function DynamicFormField({
                           {value.length}/10 digits
                         </span>
                         {value.length === 10 && /^[6-9]\d{9}$/.test(value) && (
-                          <span className="text-emerald-700 dark:text-emerald-300 font-black flex items-center gap-1">
-                            <CheckCircle2 size={11} className="text-emerald-600 dark:text-emerald-400" />
-                            <span>Valid Mobile Number</span>
-                          </span>
+                          error ? (
+                            <span className="text-rose-600 dark:text-rose-400 font-bold flex items-center gap-1">
+                              <AlertCircle size={11} className="flex-shrink-0" />
+                              <span className="truncate max-w-[280px] sm:max-w-[420px]">{error}</span>
+                            </span>
+                          ) : (
+                            <span className="text-emerald-700 dark:text-emerald-300 font-black flex items-center gap-1">
+                              <CheckCircle2 size={11} className="text-emerald-600 dark:text-emerald-400" />
+                              <span>Valid Mobile Number</span>
+                            </span>
+                          )
                         )}
                       </div>
                     )}

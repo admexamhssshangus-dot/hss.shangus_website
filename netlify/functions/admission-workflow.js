@@ -585,6 +585,34 @@ async function submitApplication(db, token, body) {
       throw Object.assign(new Error(`An active application already exists for this registration number in Class ${normalized.cls}, ${normalized.session}.`), { status: 409 });
     }
 
+    // Duplicate Mobile Guard for Same Academic Session
+    const mobileDigits = digits(valueOf(sanitized, 'Mobile No. (with working WhatsApp)', 'mobile', 'Mobile Number')).slice(-10);
+    if (mobileDigits) {
+      const mobileQuery = db.collection('admissions').where('sessionCanonical', '==', normalized.session);
+      const mobileSnaps = await tx.get(mobileQuery);
+      const dupMobileDoc = mobileSnaps.docs.find(d => {
+        if (d.id === appRef.id) return false;
+        const dData = d.data();
+        if (dData.ownerUid === token.uid) return false;
+        if (['Withdrawn', 'Purged', 'Deleted', 'Rejected'].includes(dData.Status) || dData._deleted === true || dData._purged === true) return false;
+        const dMobile = digits(valueOf(dData, 'Mobile No. (with working WhatsApp)', 'mobile', 'Mobile Number')).slice(-10);
+        const dParentMobile = digits(valueOf(dData, "Parent's Mobile No. (must be working)", 'parentMobile', 'Parent Mobile')).slice(-10);
+        return dMobile === mobileDigits || dParentMobile === mobileDigits;
+      });
+      if (dupMobileDoc) {
+        const dupData = dupMobileDoc.data();
+        const fNo = dupData['Form Number'] || dupData.FormNo || dupData.formNo || dupMobileDoc.id;
+        const cName = dupData.classCanonical || normalizeClass(valueOf(dupData, 'Admission sought for class', 'class')) || 'N/A';
+        const sName = dupData.sessionCanonical || normalizeSession(valueOf(dupData, 'Session', 'session')) || normalized.session;
+        throw Object.assign(new Error(`This mobile number is already linked to Form No. ${fNo} of Session ${sName} (Class ${cName}). Duplicate mobile submissions are not allowed for the same session.`), {
+          status: 409,
+          errors: {
+            'Mobile No. (with working WhatsApp)': `This mobile number is already linked to Form No. ${fNo} of Session ${sName} (Class ${cName}).`
+          }
+        });
+      }
+    }
+
     const counter = counterSnap.exists ? counterSnap.data() : {};
     let formNumber = cleanString(valueOf(existing || {}, 'Form Number', 'FormNo', 'formNo') || valueOf(sanitized || {}, 'Form Number', 'FormNo', 'formNo'), 20);
 
