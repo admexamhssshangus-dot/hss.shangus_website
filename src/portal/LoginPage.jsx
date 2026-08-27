@@ -485,41 +485,14 @@ export default function LoginPage() {
           return;
         }
 
-        // Teacher 2-Step Verification Policy: Required once per 10 email/password logins
-        if (isTeacher && !isAdmin) {
-          const currentLoginCount = typeof staffProfile?.teacherLoginCount === 'number' ? staffProfile.teacherLoginCount : 0;
-          const requires2Step = (currentLoginCount % 10 === 0);
-
-          if (requires2Step) {
-            const handshakeId = await createAdminLoginHandshake(cleanEmail);
-            await sendAdminSignInVerificationLink(cleanEmail, handshakeId);
-            await signOut(auth).catch(() => {});
-
-            setEmailLinkSentState({ 
-              email: cleanEmail, 
-              handshakeId, 
-              sentAt: Date.now(), 
-              role: 'Teacher',
-              loginCount: currentLoginCount 
-            });
-            setResendCooldown(60);
-            setAlert({
-              type: 'success',
-              text: `🛡️ Verification link dispatched to ${cleanEmail}. Please check your email to complete sign-in.`
-            });
-            setIsLoading(false);
-            return;
-          } else {
-            // Direct login permitted (logins 1..9)
-            await incrementTeacherLoginCount(cleanEmail);
-            const verifiedSession = await createVerifiedSession(userCred.user);
-            setAlert({ type: 'success', text: `Welcome back, ${verifiedSession.user.name}! Redirecting to Teacher Portal...` });
-            setTimeout(() => {
-              onLoginSuccess(verifiedSession, keepLoggedIn);
-            }, 400);
-            return;
-          }
-        }
+        // Direct Teacher Login (Accounts strictly provisioned and authorized by Super Admin)
+        await incrementTeacherLoginCount(cleanEmail);
+        const verifiedSession = await createVerifiedSession(userCred.user);
+        setAlert({ type: 'success', text: `Welcome back, ${verifiedSession.user.name}! Redirecting to Teacher Portal...` });
+        setTimeout(() => {
+          onLoginSuccess(verifiedSession, keepLoggedIn);
+        }, 400);
+        return;
       }
 
       // --- ADMIN TAB ACCESS ---
