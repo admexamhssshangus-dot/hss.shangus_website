@@ -2,7 +2,7 @@ import React, { useId, useState, useMemo, useEffect, useRef } from 'react';
 import { CheckCircle2, AlertCircle, Info, Camera, X, Loader2, Calendar, ChevronDown, Plus, BookOpen, Layers, Sparkles, Lock, ShieldCheck } from 'lucide-react';
 import StandardTooltip from '../../components/StandardTooltip';
 import compressStudentPhoto, { formatPhotoDisplayUrl } from '../../utils/imageCompressor';
-import { MIN_ADMISSION_AGE, isValidAadhaar } from '../../utils/admissionValidation';
+import { MIN_ADMISSION_AGE, isValidAadhaar, isPersonNameField, sanitizePersonName, validatePersonName } from '../../utils/admissionValidation';
 import { validateSubjectSelection, normalizeSubjectTitle } from '../student/AdmissionForm';
 import { DEFAULT_FEEDER_SCHOOLS, getCachedFeederSchools, loadFeederSchools } from '../../utils/feederSchoolsManager';
 
@@ -1129,7 +1129,7 @@ export default function DynamicFormField({
             const isSchoolInput = (lowerName.includes('previous school') || lowerName.includes('name of previous school') || lowerName.includes('last school')) && !lowerName.includes('record');
             const isIfsc = lowerName.includes('ifsc');
             const isEmail = lowerName.includes('email');
-            const isNameField = lowerName.includes('name') && !isSchoolInput && !lowerName.includes('bank');
+            const isNameField = isPersonNameField(name) || (lowerName.includes('name') && !isSchoolInput && !lowerName.includes('bank') && !lowerName.includes('village') && !lowerName.includes('occupation') && !lowerName.includes('subject'));
             const isMaxMarksField = lowerName.includes('max. marks') || lowerName.includes('max marks') || (lowerName.includes('total max') && !lowerName.includes('percentage'));
             const isMarksObtainedField = lowerName.includes('marks obtained') || lowerName.includes('total marks obtained');
             const isComplexHead = lowerName.includes('complex head') || (lowerName.includes('complex') && !lowerName.includes('building'));
@@ -1200,6 +1200,9 @@ export default function DynamicFormField({
                 raw = raw.replace(/\D/g, '').slice(0, effectiveMaxLength);
               } else if (isIfsc) {
                 raw = raw.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 11);
+              } else if (isNameField) {
+                // Strictly disallow numbers and strange symbols from person name fields
+                raw = sanitizePersonName(raw).slice(0, effectiveMaxLength);
               } else if (type === 'number' || type === 'number_range') {
                 if (raw !== '') {
                   raw = raw.replace(/-/g, '');
@@ -1214,6 +1217,26 @@ export default function DynamicFormField({
                 raw = raw.replace(/[\u0000-\u001f\u007f]/g, '').slice(0, effectiveMaxLength);
               }
               onChange(name, raw);
+            };
+
+            const handleKeyDown = (e) => {
+              if (isNameField) {
+                // Allow control & navigation keys
+                if (
+                  e.key === 'Backspace' || e.key === 'Tab' || e.key === 'Enter' ||
+                  e.key === 'Escape' || e.key === 'ArrowLeft' || e.key === 'ArrowRight' ||
+                  e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'Delete' ||
+                  e.key === 'Home' || e.key === 'End' || e.ctrlKey || e.metaKey || e.altKey
+                ) {
+                  return;
+                }
+                // Allow English letters, space, dot, hyphen, apostrophe
+                if (/^[a-zA-Z\s.'-]$/.test(e.key)) {
+                  return;
+                }
+                // Intercept and prevent numbers (0-9) and special characters
+                e.preventDefault();
+              }
             };
 
             const datalistId = isSchoolInput
@@ -1295,19 +1318,43 @@ export default function DynamicFormField({
                       type={type === 'text' ? (isEmail ? 'email' : 'text') : type === 'text_numeric' ? 'tel' : 'number'}
                       value={value}
                       onChange={handleInputChange}
+                      onKeyDown={handleKeyDown}
                       disabled={disabled}
                       required={required}
                       min={computedMin}
                       max={computedMax}
                       maxLength={effectiveMaxLength}
                       list={datalistId}
-                      inputMode={type === 'text_numeric' ? 'numeric' : (type === 'number' || type === 'number_range') ? 'decimal' : undefined}
+                      pattern={isNameField ? "^[a-zA-Z\\s.'-]+$" : undefined}
+                      title={isNameField ? "Name must contain only English letters, spaces, and dots. Numbers and special characters are not allowed." : undefined}
+                      autoComplete={lowerName.includes("student's name") || lowerName === 'name' ? 'name' : undefined}
+                      inputMode={type === 'text_numeric' ? 'numeric' : (type === 'number' || type === 'number_range') ? 'decimal' : isNameField ? 'text' : undefined}
                       aria-invalid={Boolean(error)}
                       aria-describedby={error ? errorId : undefined}
-                      placeholder={placeholder || (isMarksObtainedField ? 'e.g. 420' : '')}
+                      placeholder={placeholder || (isMarksObtainedField ? 'e.g. 420' : (isNameField ? `Enter ${mainLabel} (Letters only)...` : ''))}
                       className="w-full px-2.5 py-1.5 rounded-lg sm:rounded-xl text-[11.5px] sm:text-xs font-semibold border focus:outline-none focus:ring-2 focus:ring-teal-500 transition-all"
                       style={inputStyle}
                     />
+
+                    {/* Live Person Name Helper */}
+                    {isNameField && value && (
+                      <div className="flex items-center justify-between text-[10px] px-1 pt-0.5 font-bold">
+                        <span className="text-slate-400">
+                          Letters &amp; dots only
+                        </span>
+                        {validatePersonName(value, mainLabel).valid ? (
+                          <span className="text-emerald-700 dark:text-emerald-300 font-black flex items-center gap-1">
+                            <CheckCircle2 size={11} className="text-emerald-600 dark:text-emerald-400" />
+                            <span>Valid Name</span>
+                          </span>
+                        ) : (
+                          <span className="text-rose-600 dark:text-rose-400 font-bold flex items-center gap-1">
+                            <AlertCircle size={11} className="flex-shrink-0" />
+                            <span>{validatePersonName(value, mainLabel).error}</span>
+                          </span>
+                        )}
+                      </div>
+                    )}
 
                     {/* Real-time Warning if Marks Obtained exceeds Max Marks */}
                     {isMarksObtainedField && value !== '' && !isNaN(parseFloat(value)) && parseFloat(value) > correspondingMaxMarks && (
