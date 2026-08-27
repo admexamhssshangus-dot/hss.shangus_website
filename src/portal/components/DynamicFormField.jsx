@@ -848,7 +848,7 @@ export default function DynamicFormField({
   };
 
   const inputStyle = {
-    backgroundColor: 'var(--bg-page, #f8fafc)',
+    backgroundColor: 'var(--bg-input, #f8fafc)',
     borderColor: error ? '#ef4444' : 'var(--border-ui, #cbd5e1)',
     color: 'var(--text-main, #0f172a)',
   };

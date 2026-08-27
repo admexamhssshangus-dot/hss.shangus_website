@@ -119,9 +119,10 @@ html, body, #root {
 :root {
   --bg-page: #f5f3ff; /* Colorful light violet-50 background base */
   --bg-card: #ffffff;
+  --bg-input: #f8fafc;
   --text-main: #0f172a;
   --text-muted: #2e3a4e;
-  --border-ui: #e0e7ff; /* Soft periwinkle border */
+  --border-ui: #cbd5e1; /* Clear UI border */
   --teal-accent: #00674F; /* Deep Emerald Green */
   --teal-accent-hover: #004d3b; /* Darker Emerald Green */
   --navbar-bg: #1e293b;
@@ -130,9 +131,10 @@ html, body, #root {
 .theme-light {
   --bg-page: #f5f3ff;
   --bg-card: #ffffff;
+  --bg-input: #f8fafc;
   --text-main: #0f172a;
   --text-muted: #2e3a4e;
-  --border-ui: #e0e7ff;
+  --border-ui: #cbd5e1;
   --teal-accent: #00674F; /* Deep Emerald Green */
   --teal-accent-hover: #004d3b; /* Darker Emerald Green */
   --navbar-bg: #1e293b;
@@ -142,6 +144,7 @@ html, body, #root {
 .theme-dark {
   --bg-page: #0f172a;
   --bg-card: #1e293b;
+  --bg-input: #0b1120;
   --text-main: #f8fafc;
   --text-muted: #94a3b8;
   --border-ui: #334155;
@@ -154,6 +157,7 @@ html, body, #root {
 .theme-royal {
   --bg-page: #0a1128;
   --bg-card: #101f42;
+  --bg-input: #060b1a;
   --text-main: #f8fafc;
   --text-muted: #8da9c4;
   --border-ui: #23345c;
@@ -166,6 +170,7 @@ html, body, #root {
 .theme-forest {
   --bg-page: #062e1b;
   --bg-card: #0b4f35;
+  --bg-input: #041d11;
   --text-main: #f0fdf4;
   --text-muted: #78a890;
   --border-ui: #146e49;
@@ -178,6 +183,7 @@ html, body, #root {
 .theme-midnight {
   --bg-page: #000000;
   --bg-card: #0a0a0f;
+  --bg-input: #111116;
   --text-main: #f8fafc;
   --text-muted: #94a3b8;
   --border-ui: #1e1b4b; /* Deep indigo border */
