@@ -1,5 +1,5 @@
 import React, { useId, useState, useMemo, useEffect, useRef } from 'react';
-import { CheckCircle2, AlertCircle, Info, Camera, X, Loader2, Calendar, ChevronDown, Plus } from 'lucide-react';
+import { CheckCircle2, AlertCircle, Info, Camera, X, Loader2, Calendar, ChevronDown, Plus, BookOpen, Layers, Sparkles, Lock, ShieldCheck } from 'lucide-react';
 import compressStudentPhoto, { formatPhotoDisplayUrl } from '../../utils/imageCompressor';
 import { MIN_ADMISSION_AGE } from '../../utils/admissionValidation';
 import { validateSubjectSelection, normalizeSubjectTitle } from '../student/AdmissionForm';
@@ -1338,7 +1338,7 @@ export default function DynamicFormField({
 
       {/* Checkbox Dynamic (Subjects) — 5-column modern grid with pre-selected & locked compulsory subjects */}
       {type === 'checkbox_dynamic' && (
-        <div className="space-y-2.5 mt-1.5">
+        <div className="space-y-4 mt-2">
           {(() => {
             const realConfig = (subjectsConfig && subjectsConfig.data) ? subjectsConfig.data : subjectsConfig;
 
@@ -1355,8 +1355,9 @@ export default function DynamicFormField({
               'Science';
 
             const isReappearField = name.toLowerCase().includes('reappear');
-            let compulsorySubjects = [];
-            let optionalSubjects = [];
+            let groupA = [];
+            let groupB = [];
+            let groupC = [];
 
             if (isReappearField) {
               // 1. Resolve compulsory subjects of the previous class
@@ -1392,164 +1393,334 @@ export default function DynamicFormField({
                 .map(s => s.trim())
                 .filter(Boolean);
 
-              // 3. Reappear pool = compulsory + selected optional subjects (none locked)
-              optionalSubjects = [...new Set([...prevCompulsory, ...studiedArray])];
-              compulsorySubjects = [];
+              // In reappear mode: pool of previous subjects
+              groupB = [...new Set([...prevCompulsory, ...studiedArray])];
+              groupA = [];
+              groupC = [];
             } else {
+              // Exact available school subjects matching the Academics page
               if (cls9 || cls10 || cls8) {
-                compulsorySubjects = ["English", "Mathematics", "Science", "Social Science"];
-                optionalSubjects = ["Urdu", "Kashmiri", "Hindi", "IT & ITES", "Healthcare", "Computer Applications", "Retail", "Tourism", "Environmental Education"];
+                groupA = ["English", "Mathematics", "Science", "Social Science"];
+                groupB = ["Urdu", "Arabic", "Hindi", "Kashmiri"];
+                groupC = ["Healthcare", "IT and ITES"];
               } else if (cls11 || cls12) {
                 if (strm === 'Humanities' || strm === 'Arts') {
-                  compulsorySubjects = ["General English"];
-                  optionalSubjects = [
-                    "Political Science", "History", "Sociology", "Economics", "Education",
-                    "Geography", "Urdu", "Kashmiri", "Islamic Studies", "Environmental Science",
-                    "Physical Education", "Mathematics", "Computer Science", "Public Administration", "Psychology"
-                  ];
+                  groupA = ["General English"];
+                  groupB = ["Urdu", "Education", "Economics", "History", "Political Science", "Mathematics"];
+                  groupC = ["Environmental Science", "Physical Education", "Healthcare", "IT and ITES"];
+                } else if (strm === 'Commerce') {
+                  groupA = ["General English", "Accountancy", "Business Studies"];
+                  groupB = ["Economics", "Entrepreneurship", "Mathematics"];
+                  groupC = ["Environmental Science", "Physical Education", "Healthcare", "IT and ITES"];
                 } else {
-                  // Science (Medical / Non-Medical)
-                  compulsorySubjects = ["General English", "Physics", "Chemistry"];
-                  optionalSubjects = [
-                    "Biology", "Mathematics", "Environmental Science", "Information Practices",
-                    "Computer Science", "Physical Education", "Urdu", "Psychology", "Statistics"
-                  ];
+                  // Science Stream
+                  groupA = ["General English", "Physics", "Chemistry"];
+                  groupB = ["Biology", "Mathematics"];
+                  groupC = ["Environmental Science", "Physical Education", "Healthcare", "IT and ITES"];
                 }
               }
 
-              // Dynamic subject configuration from subjectsConfig if available
+              // Dynamic overrides from subjectsConfig if configured by admin
               if (realConfig) {
                 const classConfig = realConfig[targetCls];
                 if (classConfig) {
                   const cfg = classConfig[strm] || classConfig['General'] || Object.values(classConfig)[0];
                   if (cfg) {
-                    if (cfg.compulsory && Array.isArray(cfg.compulsory) && cfg.compulsory.length > 0) {
-                      compulsorySubjects = cfg.compulsory;
+                    if (cfg.groupA || cfg.compulsory) {
+                      const arr = cfg.groupA || cfg.compulsory;
+                      if (Array.isArray(arr) && arr.length > 0) groupA = arr;
                     }
-                    if (cfg.optional && Array.isArray(cfg.optional) && cfg.optional.length > 0) {
-                      optionalSubjects = cfg.optional;
-                    } else if ((cfg.group1 || cfg.group2) && (Array.isArray(cfg.group1) || Array.isArray(cfg.group2))) {
-                      optionalSubjects = [...new Set([...(cfg.group1 || []), ...(cfg.group2 || [])])];
+                    if (cfg.groupB || cfg.group1) {
+                      const arr = cfg.groupB || cfg.group1;
+                      if (Array.isArray(arr) && arr.length > 0) groupB = arr;
+                    }
+                    if (cfg.groupC || cfg.group2) {
+                      const arr = cfg.groupC || cfg.group2;
+                      if (Array.isArray(arr) && arr.length > 0) groupC = arr;
                     }
                   }
                 }
               }
             }
 
-            // Normalize compulsory and optional subjects using canonical synonyms (e.g. Social Studies -> Social Science)
-            compulsorySubjects = [...new Set(compulsorySubjects.map(normalizeSubjectTitle))];
-            optionalSubjects = [...new Set(optionalSubjects.map(normalizeSubjectTitle).filter(s => !compulsorySubjects.includes(s)))];
+            // Normalize subject titles using canonical synonyms
+            groupA = [...new Set(groupA.map(normalizeSubjectTitle))];
+            groupB = [...new Set(groupB.map(normalizeSubjectTitle).filter(s => !groupA.includes(s)))];
+            groupC = [...new Set(groupC.map(normalizeSubjectTitle).filter(s => !groupA.includes(s) && !groupB.includes(s)))];
 
+            const compulsorySubjects = groupA;
             const currentArray = (typeof value === 'string' ? value.split(', ') : (value || [])).map(s => normalizeSubjectTitle(s.trim())).filter(Boolean);
             const allSelectedSubjects = isReappearField ? currentArray : [...new Set([...compulsorySubjects, ...currentArray])];
 
-            // Validate full subject combination
-            const subjectValidation = validateSubjectSelection(targetCls, strm, allSelectedSubjects, isReappearField);
-
-            // Group all subjects for display (compulsory first, followed by optionals)
-            const allDisplaySubjects = [...new Set([...compulsorySubjects, ...optionalSubjects])];
+            const selectedB = currentArray.filter(s => groupB.includes(s));
+            const selectedC = currentArray.filter(s => groupC.includes(s));
 
             const isScience = strm.toLowerCase() === 'science' || strm.toLowerCase() === 'medical' || strm.toLowerCase() === 'non-medical';
             const isHumanities = strm.toLowerCase() === 'humanities' || strm.toLowerCase() === 'arts';
+            const isSecondary = cls9 || cls10 || cls8;
+
+            const subjectValidation = validateSubjectSelection(targetCls, strm, allSelectedSubjects, isReappearField);
+
+            // Group B target count badge text
+            let groupBBadgeText = '';
+            let groupBBadgeStatus = 'pending'; // 'pending' | 'success' | 'warn'
+            if (isSecondary) {
+              groupBBadgeText = `${selectedB.length}/1 Language`;
+              groupBBadgeStatus = selectedB.length === 1 ? 'success' : selectedB.length > 1 ? 'warn' : 'pending';
+            } else if (isHumanities) {
+              groupBBadgeText = `${selectedB.length}/3 Core`;
+              groupBBadgeStatus = selectedB.length >= 3 ? 'success' : 'pending';
+            } else if (isScience) {
+              groupBBadgeText = `${selectedB.length} Selected`;
+              groupBBadgeStatus = selectedB.length >= 1 ? 'success' : 'pending';
+            } else {
+              groupBBadgeText = `${selectedB.length} Selected`;
+              groupBBadgeStatus = selectedB.length >= 1 ? 'success' : 'pending';
+            }
+
+            // Group C target count badge text
+            let groupCBadgeText = '';
+            let groupCBadgeStatus = 'pending';
+            if (isSecondary) {
+              groupCBadgeText = selectedC.length === 0 ? 'Optional (0/1)' : 'Selected (1/1)';
+              groupCBadgeStatus = selectedC.length === 1 ? 'success' : selectedC.length > 1 ? 'warn' : 'pending';
+            } else {
+              groupCBadgeText = `${selectedC.length}/1 Elective`;
+              groupCBadgeStatus = selectedC.length === 1 ? 'success' : selectedC.length > 1 ? 'warn' : 'pending';
+            }
 
             return (
-              <div className="space-y-2.5">
+              <div className="space-y-4">
                 {/* Combination Guidance Header */}
                 {!isReappearField && (
-                  <div className="p-2 rounded-xl bg-slate-100/90 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-[10.5px] leading-relaxed text-slate-700 dark:text-slate-300">
-                    <div className="font-extrabold text-teal-800 dark:text-teal-300 mb-0.5 flex items-center gap-1">
-                      <Info size={12} className="text-teal-600 flex-shrink-0" />
-                      <span>Combination Rules ({strm} Stream — {targetCls}):</span>
+                  <div className="p-3 rounded-2xl bg-gradient-to-r from-teal-50/90 to-blue-50/90 dark:from-slate-800/90 dark:to-slate-800/60 border border-teal-200 dark:border-slate-700 text-xs leading-relaxed text-slate-700 dark:text-slate-300 shadow-xs">
+                    <div className="font-black text-teal-900 dark:text-teal-200 mb-1 flex items-center justify-between gap-2 flex-wrap">
+                      <div className="flex items-center gap-1.5">
+                        <Info size={14} className="text-teal-600 dark:text-teal-400 flex-shrink-0" />
+                        <span>Combination Rules ({strm} Stream — Class {targetCls}):</span>
+                      </div>
+                      <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-teal-100 dark:bg-teal-900/60 text-teal-800 dark:text-teal-300 border border-teal-300/60 dark:border-teal-700">
+                        {isSecondary ? '5 to 6 Subjects Total' : '5 Subjects Total'}
+                      </span>
                     </div>
                     {isScience && (
-                      <p>
-                        <strong className="text-slate-900 dark:text-slate-100">Compulsory (3):</strong> General English, Physics, Chemistry. Choose <strong className="text-teal-700 dark:text-teal-300">2 more</strong>: either both from Group B (Biology, Mathematics), or 1 from Group B and 1 from Group C. (Both from Group C not allowed). <strong className="text-slate-900 dark:text-slate-100">Total: 5 subjects.</strong>
+                      <p className="text-[11px] text-slate-600 dark:text-slate-300">
+                        <strong className="text-slate-900 dark:text-slate-100">Compulsory (3):</strong> General English, Physics, Chemistry. Choose <strong className="text-teal-700 dark:text-teal-300 font-bold">2 more options</strong>: either both from Group B (Biology + Mathematics), or 1 from Group B and 1 from Group C (both cannot be from Group C).
                       </p>
                     )}
                     {isHumanities && (
-                      <p>
-                        <strong className="text-slate-900 dark:text-slate-100">Compulsory (1):</strong> General English. Choose <strong className="text-teal-700 dark:text-teal-300">3 from Group B</strong> and <strong className="text-teal-700 dark:text-teal-300">1 from Group C</strong>. <strong className="text-slate-900 dark:text-slate-100">Total: 5 subjects.</strong>
+                      <p className="text-[11px] text-slate-600 dark:text-slate-300">
+                        <strong className="text-slate-900 dark:text-slate-100">Compulsory (1):</strong> General English. Choose <strong className="text-teal-700 dark:text-teal-300 font-bold">3 from Group B</strong> and <strong className="text-teal-700 dark:text-teal-300 font-bold">1 from Group C</strong> (or 4 from Group B). Maximum 1 subject allowed from Group C.
                       </p>
                     )}
-                    {!isScience && !isHumanities && (cls9 || cls10 || cls8) && (
-                      <p>
-                        <strong className="text-slate-900 dark:text-slate-100">Compulsory (4):</strong> English, Mathematics, Science, Social Science. Select 1 (or max 2 with vocational) options. <strong className="text-slate-900 dark:text-slate-100">Maximum: 5 to 6 subjects.</strong>
+                    {!isScience && !isHumanities && isSecondary && (
+                      <p className="text-[11px] text-slate-600 dark:text-slate-300">
+                        <strong className="text-slate-900 dark:text-slate-100">Compulsory (4):</strong> English, Mathematics, Science, Social Science. Choose <strong className="text-teal-700 dark:text-teal-300 font-bold">1 Language</strong> from Group B and optionally <strong className="text-teal-700 dark:text-teal-300 font-bold">1 Vocational subject</strong> from Group C.
                       </p>
                     )}
                   </div>
                 )}
 
-                {/* Responsive Checkbox Grid */}
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-1.5 sm:gap-2">
-                  {allDisplaySubjects.map((sub) => {
-                    const isCompulsory = compulsorySubjects.includes(sub);
-                    const isChecked = isCompulsory || currentArray.includes(sub);
-
-                    return (
-                      <label
-                        key={sub}
-                        className={`flex min-w-0 flex-col justify-between p-2 rounded-xl border text-[10px] transition-all select-none ${
-                          isCompulsory
-                            ? 'bg-teal-50/90 dark:bg-teal-950/60 border-teal-500/50 text-teal-950 dark:text-teal-100 font-extrabold shadow-xs cursor-not-allowed opacity-95'
-                            : isChecked
-                            ? 'bg-teal-50 dark:bg-teal-950/40 border-teal-500 text-teal-950 dark:text-teal-200 font-bold shadow-xs cursor-pointer ring-1 ring-teal-400'
-                            : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:border-teal-400 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer'
-                        }`}
-                      >
-                        <div className="flex items-center gap-1.5 min-w-0">
-                          <input
-                            type="checkbox"
-                            checked={isChecked}
-                            disabled={disabled || isCompulsory}
-                            onChange={(e) => {
-                              if (!isCompulsory) {
-                                handleCheckboxArrayChange(sub, e.target.checked, compulsorySubjects);
-                              }
-                            }}
-                            className={`w-3.5 h-3.5 rounded border-slate-300 text-teal-600 focus:ring-teal-500 ${isCompulsory ? 'opacity-80 cursor-not-allowed' : 'cursor-pointer'}`}
-                          />
-                          <span className="min-w-0 break-words leading-tight flex-1 font-semibold">{sub}</span>
+                {/* ── GROUP A: COMPULSORY CORE SUBJECTS ── */}
+                {groupA.length > 0 && !isReappearField && (
+                  <div className="p-3.5 rounded-2xl border border-teal-300/80 dark:border-teal-900/60 bg-teal-50/40 dark:bg-teal-950/20 space-y-2.5 shadow-xs">
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <div className="flex items-center gap-2">
+                        <span className="w-5 h-5 rounded-md bg-teal-600 text-white font-black text-[10px] flex items-center justify-center shadow-xs">
+                          A
+                        </span>
+                        <div>
+                          <h4 className="text-xs font-black text-slate-900 dark:text-slate-100 uppercase tracking-wide">
+                            Group A: Compulsory Core Subjects
+                          </h4>
+                          <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">
+                            Mandatory for all students in this stream (Auto-locked)
+                          </p>
                         </div>
-                        {isCompulsory && (
-                          <div className="mt-1 flex items-center justify-end">
-                            <span className="text-[8px] font-black uppercase tracking-wider px-1 py-0.2 rounded bg-teal-600/15 text-teal-800 dark:text-teal-300">
-                              Compulsory
-                            </span>
-                          </div>
-                        )}
-                      </label>
-                    );
-                  })}
-                </div>
+                      </div>
+                      <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md bg-teal-600/15 text-teal-800 dark:text-teal-300 border border-teal-500/30">
+                        <Lock size={10} />
+                        {groupA.length} {groupA.length === 1 ? 'Subject' : 'Subjects'} Compulsory
+                      </span>
+                    </div>
 
-                {/* Real-time Subject Count & Error Banner */}
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+                      {groupA.map(sub => (
+                        <div
+                          key={sub}
+                          className="flex items-center justify-between p-2.5 rounded-xl border border-teal-400/50 bg-white/90 dark:bg-slate-900/90 text-teal-950 dark:text-teal-100 shadow-2xs font-extrabold text-[11px]"
+                        >
+                          <div className="flex items-center gap-2 min-w-0">
+                            <CheckCircle2 size={15} className="text-teal-600 dark:text-teal-400 flex-shrink-0" />
+                            <span className="truncate">{sub}</span>
+                          </div>
+                          <span className="text-[8px] font-black uppercase px-1.5 py-0.5 rounded bg-teal-100 dark:bg-teal-950 text-teal-800 dark:text-teal-300 flex-shrink-0 ml-1">
+                            Fixed
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* ── GROUP B: CORE ELECTIVES / LANGUAGES ── */}
+                {groupB.length > 0 && (
+                  <div className="p-3.5 rounded-2xl border border-amber-300/80 dark:border-amber-900/60 bg-amber-50/30 dark:bg-amber-950/20 space-y-2.5 shadow-xs">
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <div className="flex items-center gap-2">
+                        <span className="w-5 h-5 rounded-md bg-amber-600 text-white font-black text-[10px] flex items-center justify-center shadow-xs">
+                          B
+                        </span>
+                        <div>
+                          <h4 className="text-xs font-black text-slate-900 dark:text-slate-100 uppercase tracking-wide">
+                            {isSecondary ? 'Group B: Language Electives' : 'Group B: Core Stream Electives'}
+                          </h4>
+                          <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">
+                            {isSecondary
+                              ? 'Choose exactly 1 language from the options below'
+                              : isHumanities
+                              ? 'Choose 3 core subjects (or 4 if taking no Group C elective)'
+                              : isScience
+                              ? 'Choose Biology, Mathematics, or both'
+                              : 'Select core elective subjects'}
+                          </p>
+                        </div>
+                      </div>
+                      <span className={`inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md border ${
+                        groupBBadgeStatus === 'success'
+                          ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border-emerald-300'
+                          : groupBBadgeStatus === 'warn'
+                          ? 'bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300 border-red-300 animate-pulse'
+                          : 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 border-amber-300'
+                      }`}>
+                        {groupBBadgeText}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+                      {groupB.map(sub => {
+                        const isChecked = currentArray.includes(sub);
+                        return (
+                          <label
+                            key={sub}
+                            className={`flex min-w-0 items-center justify-between p-2.5 rounded-xl border text-[11px] transition-all select-none cursor-pointer ${
+                              isChecked
+                                ? 'bg-amber-100/80 dark:bg-amber-950/60 border-amber-500 text-amber-950 dark:text-amber-100 font-black shadow-xs ring-1 ring-amber-400'
+                                : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:border-amber-400 hover:bg-amber-50/50 dark:hover:bg-slate-800 font-semibold'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2 min-w-0">
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                disabled={disabled}
+                                onChange={(e) => {
+                                  handleCheckboxArrayChange(sub, e.target.checked, compulsorySubjects);
+                                }}
+                                className="w-4 h-4 rounded border-slate-300 text-amber-600 focus:ring-amber-500 cursor-pointer"
+                              />
+                              <span className="truncate">{sub}</span>
+                            </div>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* ── GROUP C: APPLIED / VOCATIONAL / INTERDISCIPLINARY ELECTIVES ── */}
+                {groupC.length > 0 && !isReappearField && (
+                  <div className="p-3.5 rounded-2xl border border-indigo-300/80 dark:border-indigo-900/60 bg-indigo-50/30 dark:bg-indigo-950/20 space-y-2.5 shadow-xs">
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <div className="flex items-center gap-2">
+                        <span className="w-5 h-5 rounded-md bg-indigo-600 text-white font-black text-[10px] flex items-center justify-center shadow-xs">
+                          C
+                        </span>
+                        <div>
+                          <h4 className="text-xs font-black text-slate-900 dark:text-slate-100 uppercase tracking-wide">
+                            {isSecondary ? 'Group C: Vocational & Skill Courses' : 'Group C: Applied / Vocational / Minor Electives'}
+                          </h4>
+                          <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">
+                            {isSecondary
+                              ? 'Optional 6th subject for vocational skill development'
+                              : isHumanities
+                              ? 'Choose maximum 1 elective from this group'
+                              : isScience
+                              ? 'Choose maximum 1 elective from this group (combined with Group B)'
+                              : 'Choose maximum 1 elective'}
+                          </p>
+                        </div>
+                      </div>
+                      <span className={`inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md border ${
+                        groupCBadgeStatus === 'success'
+                          ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border-emerald-300'
+                          : groupCBadgeStatus === 'warn'
+                          ? 'bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300 border-red-300 animate-pulse'
+                          : 'bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-300 border-indigo-300'
+                      }`}>
+                        {groupCBadgeText}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+                      {groupC.map(sub => {
+                        const isChecked = currentArray.includes(sub);
+                        return (
+                          <label
+                            key={sub}
+                            className={`flex min-w-0 items-center justify-between p-2.5 rounded-xl border text-[11px] transition-all select-none cursor-pointer ${
+                              isChecked
+                                ? 'bg-indigo-100/80 dark:bg-indigo-950/60 border-indigo-500 text-indigo-950 dark:text-indigo-100 font-black shadow-xs ring-1 ring-indigo-400'
+                                : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:border-indigo-400 hover:bg-indigo-50/50 dark:hover:bg-slate-800 font-semibold'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2 min-w-0">
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                disabled={disabled}
+                                onChange={(e) => {
+                                  handleCheckboxArrayChange(sub, e.target.checked, compulsorySubjects);
+                                }}
+                                className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                              />
+                              <span className="truncate">{sub}</span>
+                            </div>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* ── REAL-TIME VALIDATION & COMBINATION SUMMARY BANNER ── */}
                 {!isReappearField && !subjectValidation.valid && (
-                  <div className="p-2.5 rounded-xl border border-red-400 dark:border-red-800 bg-red-50 dark:bg-red-950/70 text-red-700 dark:text-red-200 text-xs font-bold flex items-start gap-2 shadow-xs animate-shake">
+                  <div className="p-3 rounded-2xl border border-red-400 dark:border-red-800 bg-red-50/90 dark:bg-red-950/70 text-red-700 dark:text-red-200 text-xs font-bold flex items-start gap-2.5 shadow-xs animate-shake">
                     <AlertCircle size={16} className="text-red-600 flex-shrink-0 mt-0.5" />
                     <div className="flex-1 leading-snug">{subjectValidation.error}</div>
                   </div>
                 )}
 
                 {!isReappearField && subjectValidation.valid && (
-                  <div className="p-2 rounded-xl border border-emerald-300 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-200 text-xs font-bold flex items-center justify-between shadow-xs">
-                    <div className="flex items-center gap-1.5">
-                      <CheckCircle2 size={15} className="text-emerald-600 flex-shrink-0" />
+                  <div className="p-3 rounded-2xl border border-emerald-300 dark:border-emerald-800 bg-emerald-50/90 dark:bg-emerald-950/50 text-emerald-800 dark:text-emerald-200 text-xs font-bold flex items-center justify-between shadow-xs">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 size={16} className="text-emerald-600 flex-shrink-0" />
                       <span>Valid subject combination selected!</span>
                     </div>
-                    <span className="px-2 py-0.5 rounded-md bg-emerald-600 text-white font-extrabold text-[10px]">
-                      {allSelectedSubjects.length}/{subjectValidation.max || 5} Subjects
+                    <span className="px-2.5 py-1 rounded-lg bg-emerald-600 text-white font-black text-[11px] shadow-xs">
+                      {allSelectedSubjects.length} Subjects Selected
                     </span>
                   </div>
                 )}
 
-                <div className="flex items-center justify-between text-[10px] text-slate-500 dark:text-slate-400 px-1">
+                <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 px-1 font-semibold">
                   <span>
                     {isReappearField
                       ? 'Select only the specific subject(s) you need to reappear in.'
-                      : 'Compulsory subjects are locked. Select additional options adhering to stream rules.'}
+                      : 'Compulsory subjects are locked. Select options adhering to the group limits above.'}
                   </span>
-                  <span className="font-bold text-teal-700 dark:text-teal-300">
-                    Selected: {allSelectedSubjects.length} subject(s)
+                  <span className="font-extrabold text-teal-800 dark:text-teal-300">
+                    Total: {allSelectedSubjects.length} subject(s)
                   </span>
                 </div>
               </div>
