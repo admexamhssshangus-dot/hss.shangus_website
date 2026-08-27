@@ -1019,7 +1019,6 @@ export default function DynamicFormField({
                   required={required}
                   placeholder={`Please enter your ${mainLabel.toLowerCase()}...`}
                   className="w-full px-2.5 py-1.5 rounded-lg sm:rounded-xl text-[11.5px] sm:text-xs font-semibold border border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500 transition-all bg-teal-50/50 dark:bg-teal-950/20 text-slate-800 dark:text-slate-100 placeholder:text-slate-400 shadow-2xs"
-                  autoFocus
                 />
                 <div className="flex items-center gap-1 text-[9.5px] font-bold text-teal-700 dark:text-teal-400">
                   <span>✏️ Please specify your custom {mainLabel.toLowerCase()} above</span>
@@ -1359,7 +1358,6 @@ export default function DynamicFormField({
                           placeholder="Enter Custom Max Marks (e.g. 650)"
                           className="w-full px-2.5 py-1.5 rounded-lg sm:rounded-xl text-[11.5px] sm:text-xs font-semibold border focus:outline-none focus:ring-2 focus:ring-teal-500 transition-all"
                           style={inputStyle}
-                          autoFocus
                         />
                       </div>
                     )}
