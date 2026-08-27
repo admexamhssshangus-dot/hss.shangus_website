@@ -18,7 +18,7 @@ import { moveToRecycleBin, getRecycleBinItems } from '../../services/recycleBinS
 import { logAdminActivity } from '../../services/adminActivityLogger';
 import { generateStudentAdmissionPdf, generateBulkAdmissionPdf, downloadStudentAdmissionPdf, downloadBulkAdmissionPdf } from '../../utils/pdfGenerator';
 import ModernLoader from '../../components/ModernLoader';
-import { parseSearchQuery, executeGlobalSearch, buildLocalSearchIndex, cleanSearchAdm, cleanSearchReg, cleanSearchMobile } from '../../services/searchIndexService';
+import { parseSearchQuery, executeGlobalSearch, buildLocalSearchIndex, cleanSearchAdm, cleanSearchReg, cleanSearchMobile, evaluateStudentRecord } from '../../services/searchIndexService';
 import { getNextAvailableFormNumber, consumeFormNumber, recycleDeletedFormNumber } from '../../services/formNumberService';
 import { getStudentRegIndex, lookupStudentByRegSync } from '../../services/studentIndexService';
 import LazyStudentPhoto from '../../components/LazyStudentPhoto';
@@ -7058,84 +7058,7 @@ export default function AdvancedReports({
   // ─── Pre-Parsed Google-like Intelligent Search & Relevance Engine ───
   const evaluateParsedGoogleSearch = useCallback((s, parsed) => {
     if (!parsed) return { matches: true, score: 0 };
-
-    if (parsed.isPattern) {
-      const val = parsed.patternVal.toLowerCase();
-      if (parsed.patternType === 'admNo') {
-        const sAdm = String(s.admNo || '').toLowerCase();
-        const sRawAdm = cleanSearchAdm(s.admNo);
-        if (sAdm === val || sRawAdm === cleanSearchAdm(val)) return { matches: true, score: 3500 };
-        if (sAdm.includes(val)) return { matches: true, score: 2200 };
-        return { matches: false, score: 0 };
-      }
-      if (parsed.patternType === 'boardRegNo') {
-        const sReg = cleanSearchReg(s.boardRegNo);
-        const targetReg = cleanSearchReg(val);
-        if (sReg === targetReg) return { matches: true, score: 3500 };
-        if (sReg.includes(targetReg)) return { matches: true, score: 2200 };
-        return { matches: false, score: 0 };
-      }
-      if (parsed.patternType === 'formNo') {
-        const sFNo = String(s.formNo || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-        const targetFNo = val.replace(/[^a-z0-9]/g, '');
-        if (sFNo === targetFNo) return { matches: true, score: 3500 };
-        if (sFNo.includes(targetFNo)) return { matches: true, score: 2200 };
-        return { matches: false, score: 0 };
-      }
-      if (parsed.patternType === 'classRollNo') {
-        const sRoll = String(s.classRollNo || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-        const targetRoll = val.replace(/[^a-z0-9]/g, '');
-        if (sRoll === targetRoll) return { matches: true, score: 3500 };
-        if (sRoll.includes(targetRoll)) return { matches: true, score: 2200 };
-        return { matches: false, score: 0 };
-      }
-      if (parsed.patternType === 'mobile') {
-        const sMob = cleanSearchMobile(s.mobile || s.parentContact);
-        const targetMob = cleanSearchMobile(val);
-        if (sMob === targetMob) return { matches: true, score: 3500 };
-        if (sMob.includes(targetMob)) return { matches: true, score: 2200 };
-        return { matches: false, score: 0 };
-      }
-    }
-
-    const rawTokens = parsed.rawTokens;
-    if (!rawTokens || rawTokens.length === 0) return { matches: true, score: 0 };
-
-    const blob = `${s._searchBlob || ''} ${s.motherName || ''} ${s.parentContact || ''} ${s.fatherName || ''} ${s.village || ''} ${s.admNo || ''} ${s.boardRegNo || ''} ${s.formNo || ''} ${s.classRollNo || ''} ${s.mobile || ''}`.toLowerCase();
-    let score = 0;
-
-    for (let i = 0; i < rawTokens.length; i++) {
-      const token = rawTokens[i];
-      if (!blob.includes(token)) {
-        return { matches: false, score: 0 };
-      }
-
-      // Fast relevance score boosting
-      if (s.formNo === token || String(s._formNum) === token) score += 2500;
-      else if (String(s.formNo || '').includes(token)) score += 800;
-
-      if (String(s.admNo || '').toLowerCase() === token) score += 2200;
-      else if (String(s.admNo || '').toLowerCase().includes(token)) score += 800;
-
-      if (s.boardRegNo === token) score += 2000;
-      else if (String(s.boardRegNo || '').includes(token)) score += 700;
-
-      if (s.classRollNo === token || String(s._rollNum) === token) score += 1500;
-      else if (String(s.classRollNo || '').includes(token)) score += 600;
-
-      if (String(s.mobile || '').includes(token) || String(s.parentContact || '').includes(token)) score += 1200;
-
-      if (s._nameLower === token) score += 1200;
-      else if (s._nameLower?.startsWith(token)) score += 700;
-      else if (s._nameLower?.includes(token)) score += 350;
-
-      if (String(s.fatherName || '').toLowerCase().includes(token)) score += 400;
-      if (String(s.motherName || '').toLowerCase().includes(token)) score += 400;
-      if (String(s.subs || '').toLowerCase().includes(token) || String(s.stream || '').toLowerCase().includes(token)) score += 100;
-      if (String(s.village || '').toLowerCase().includes(token)) score += 80;
-    }
-
-    return { matches: true, score };
+    return evaluateStudentRecord(s, parsed);
   }, []);
 
   // Filtered & Sorted Students with Pre-Parsed Google Search Relevance
@@ -8355,7 +8278,14 @@ export default function AdvancedReports({
                 type="text"
                 placeholder="Search Name, Father, Mother, Mob, adm4347, reg..."
                 value={searchTerm}
-                onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
+                onChange={(e) => { 
+                  setSearchTerm(e.target.value); 
+                  setCurrentPage(1); 
+                  setShowSearchHelp(false);
+                }}
+                onKeyDown={() => {
+                  if (showSearchHelp) setShowSearchHelp(false);
+                }}
                 className="w-full pl-7 pr-12 py-1 sm:py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 font-black text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-amber-500 text-[11px] sm:text-xs bg-slate-50 dark:bg-slate-950 shadow-2xs leading-normal"
               />
               <div className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-0.5">
