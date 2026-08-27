@@ -215,6 +215,7 @@ export default function ModernLoader({
   totalRecords,
   progress, // Optional number 0–100 for actual percentage progress
   fullScreen = false,
+  inverted = false,
   className = ''
 }) {
   // Resolve module preset configuration
@@ -250,7 +251,9 @@ export default function ModernLoader({
   const clampedProgress = hasExplicitProgress ? Math.min(100, Math.max(0, Math.round(progress))) : null;
 
   const containerClasses = fullScreen
-    ? "fixed inset-0 z-50 flex flex-col items-center justify-center p-4 sm:p-6 bg-white/95 dark:bg-slate-950/95 backdrop-blur-md text-center overflow-hidden animate-fadeIn"
+    ? (inverted
+        ? "fixed inset-0 z-50 flex flex-col items-center justify-center p-4 sm:p-6 bg-slate-950/95 backdrop-blur-md text-center overflow-hidden animate-fadeIn"
+        : "fixed inset-0 z-50 flex flex-col items-center justify-center p-4 sm:p-6 bg-white/95 dark:bg-slate-950/95 backdrop-blur-md text-center overflow-hidden animate-fadeIn")
     : `w-full py-10 sm:py-14 px-4 flex flex-col items-center justify-center text-center animate-fadeIn ${className}`;
 
   return (
@@ -266,7 +269,11 @@ export default function ModernLoader({
         <div className="absolute inset-0 rounded-full bg-teal-500/10 dark:bg-teal-400/10 animate-pulse" />
 
         {/* Logo Card */}
-        <div className="relative w-14 h-14 sm:w-16 sm:h-16 bg-white dark:bg-slate-900 rounded-full flex items-center justify-center shadow-sm ring-1 ring-slate-200/80 dark:ring-slate-800 overflow-hidden">
+        <div className={`relative w-14 h-14 sm:w-16 sm:h-16 rounded-full flex items-center justify-center shadow-sm overflow-hidden ${
+          inverted
+            ? 'bg-slate-900 ring-1 ring-slate-700'
+            : 'bg-white dark:bg-slate-900 ring-1 ring-slate-200/80 dark:ring-slate-800'
+        }`}>
           {!logoFailed ? (
             <img
               src={logoSrc}
@@ -281,28 +288,38 @@ export default function ModernLoader({
               }}
             />
           ) : (
-            <span className="font-black text-xs text-teal-700 dark:text-teal-300">HSS</span>
+            <span className="font-black text-xs text-teal-400">HSS</span>
           )}
         </div>
       </div>
 
       {/* Header & Module Badge */}
       <div className="flex flex-col items-center gap-1.5 mb-3 max-w-sm sm:max-w-md px-2">
-        <h1 className="text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-100 tracking-tight leading-tight">
+        <h1 className={`text-xs sm:text-sm font-bold tracking-tight leading-tight ${
+          inverted ? 'text-white font-extrabold' : 'text-slate-800 dark:text-slate-100'
+        }`}>
           {displayTitle}
         </h1>
-        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] font-semibold bg-teal-50 dark:bg-teal-950/60 text-teal-700 dark:text-teal-300 border border-teal-200/70 dark:border-teal-800/60">
+        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] sm:text-[11px] font-semibold border ${
+          inverted
+            ? 'bg-teal-950/80 text-teal-300 border-teal-500/40'
+            : 'bg-teal-50 dark:bg-teal-950/60 text-teal-700 dark:text-teal-300 border-teal-200/70 dark:border-teal-800/60'
+        }`}>
           {displayBadge}
         </span>
       </div>
 
       {/* Status & Dynamic Context */}
       <div className="space-y-1 mb-3.5 max-w-xs sm:max-w-sm px-2 min-h-[38px] flex flex-col items-center justify-center">
-        <h2 className="text-xs font-semibold text-slate-700 dark:text-slate-200 leading-snug">
+        <h2 className={`text-xs sm:text-[13px] font-bold leading-snug ${
+          inverted ? 'text-slate-100 font-extrabold' : 'text-slate-700 dark:text-slate-200'
+        }`}>
           {mainStatusText}
         </h2>
         {secondarySubtext && (
-          <p className="text-[10.5px] sm:text-[11px] text-slate-500 dark:text-slate-400 font-normal truncate max-w-full transition-opacity duration-300">
+          <p className={`text-[10.5px] sm:text-[11px] font-normal truncate max-w-full transition-opacity duration-300 ${
+            inverted ? 'text-slate-300 font-medium' : 'text-slate-500 dark:text-slate-400'
+          }`}>
             {secondarySubtext}
           </p>
         )}
@@ -310,7 +327,9 @@ export default function ModernLoader({
 
       {/* Modern Minimal Progress Line & Optional Minimal Percentage */}
       <div className="flex flex-col items-center gap-1.5">
-        <div className="w-40 sm:w-48 h-1 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden relative shadow-2xs">
+        <div className={`w-40 sm:w-48 h-1 rounded-full overflow-hidden relative shadow-2xs ${
+          inverted ? 'bg-slate-800' : 'bg-slate-100 dark:bg-slate-800'
+        }`}>
           {hasExplicitProgress ? (
             <div
               className="absolute top-0 bottom-0 left-0 bg-gradient-to-r from-teal-500 to-emerald-500 rounded-full transition-all duration-300 ease-out shadow-xs"
@@ -329,7 +348,9 @@ export default function ModernLoader({
 
         {/* Minimal numeric percentage counter */}
         {hasExplicitProgress && (
-          <span className="text-[10.5px] font-black font-mono tracking-tight text-teal-700 dark:text-teal-400">
+          <span className={`text-[10.5px] font-black font-mono tracking-tight ${
+            inverted ? 'text-teal-300' : 'text-teal-700 dark:text-teal-400'
+          }`}>
             {clampedProgress}%
           </span>
         )}

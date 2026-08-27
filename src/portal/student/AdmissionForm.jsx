@@ -1915,10 +1915,10 @@ export default function AdmissionForm() {
           aria-modal="true"
           className="fixed inset-0 z-[9999999] bg-slate-950/85 backdrop-blur-xl flex items-center justify-center p-4 animate-fadeIn pointer-events-auto"
         >
-          <div className="w-full max-w-md rounded-3xl p-6 sm:p-8 border border-teal-500/30 bg-slate-900/95 text-white shadow-2xl space-y-6 text-center relative overflow-hidden">
+          <div className="w-full max-w-md rounded-3xl p-6 sm:p-8 border border-teal-500/40 bg-slate-900 text-white shadow-2xl space-y-5 text-center relative overflow-hidden">
             {/* Background ambient glow */}
-            <div className="absolute -top-24 -left-24 w-48 h-48 bg-teal-500/20 rounded-full blur-3xl pointer-events-none" />
-            <div className="absolute -bottom-24 -right-24 w-48 h-48 bg-emerald-500/20 rounded-full blur-3xl pointer-events-none" />
+            <div className="absolute -top-24 -left-24 w-48 h-48 bg-teal-500/25 rounded-full blur-3xl pointer-events-none" />
+            <div className="absolute -bottom-24 -right-24 w-48 h-48 bg-emerald-500/25 rounded-full blur-3xl pointer-events-none" />
 
             <div className="relative z-10 space-y-4">
               <ModernLoader
@@ -1928,22 +1928,23 @@ export default function AdmissionForm() {
                 text="Securing & Submitting Application..."
                 subtext="Encrypting student records, validating photos, and generating verified registration ID…"
                 progress={88}
-                className="py-2"
+                inverted={true}
+                className="py-1"
               />
 
               {/* Step checklist */}
-              <div className="space-y-2 text-left pt-2 text-xs font-semibold text-slate-300 bg-slate-800/60 p-3.5 rounded-2xl border border-slate-700/60">
-                <div className="flex items-center gap-2.5 text-teal-400">
-                  <CheckCircle2 size={15} className="flex-shrink-0" />
-                  <span>Validating student profile &amp; subjects</span>
-                </div>
+              <div className="space-y-2.5 text-left pt-2 text-xs font-bold text-slate-100 bg-slate-800/90 p-4 rounded-2xl border border-slate-700/80 shadow-inner">
                 <div className="flex items-center gap-2.5 text-teal-300">
-                  <Loader2 size={15} className="animate-spin flex-shrink-0" />
-                  <span>Encrypting photos &amp; identity details</span>
+                  <CheckCircle2 size={16} className="flex-shrink-0 text-teal-400" />
+                  <span className="font-bold">Validating student profile &amp; subjects</span>
                 </div>
-                <div className="flex items-center gap-2.5 text-slate-400">
-                  <div className="w-3.5 h-3.5 rounded-full border-2 border-slate-500 flex-shrink-0" />
-                  <span>Generating cryptographic verification QR</span>
+                <div className="flex items-center gap-2.5 text-emerald-300">
+                  <Loader2 size={16} className="animate-spin flex-shrink-0 text-emerald-400" />
+                  <span className="font-bold">Encrypting photos &amp; identity details</span>
+                </div>
+                <div className="flex items-center gap-2.5 text-slate-200">
+                  <div className="w-4 h-4 rounded-full border-2 border-slate-400 flex-shrink-0" />
+                  <span className="font-semibold text-slate-300">Generating cryptographic verification QR</span>
                 </div>
               </div>
             </div>
