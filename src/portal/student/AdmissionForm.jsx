@@ -1989,8 +1989,15 @@ export default function AdmissionForm() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
               {/* Contact & Address */}
               <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 space-y-2">
-                <div className="font-extrabold text-slate-900 dark:text-white border-b pb-1.5 border-slate-200 dark:border-slate-700">
-                  📍 Contact & Address
+                <div className="flex items-center justify-between font-extrabold text-slate-900 dark:text-white border-b pb-1.5 border-slate-200 dark:border-slate-700">
+                  <span>📍 Contact & Address</span>
+                  <button
+                    type="button"
+                    onClick={() => { setShowPreviewModal(false); setActiveTab('contact'); }}
+                    className="text-[10px] font-extrabold text-teal-600 dark:text-teal-400 hover:underline cursor-pointer"
+                  >
+                    Edit ✏️
+                  </button>
                 </div>
                 <div className="space-y-1 text-slate-600 dark:text-slate-300">
                   <div><strong>Mobile:</strong> {formData["Mobile No. (with working WhatsApp)"] || 'N/A'}</div>
@@ -2003,8 +2010,15 @@ export default function AdmissionForm() {
 
               {/* Academic Details */}
               <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 space-y-2">
-                <div className="font-extrabold text-slate-900 dark:text-white border-b pb-1.5 border-slate-200 dark:border-slate-700">
-                  🎓 Examination & Marks
+                <div className="flex items-center justify-between font-extrabold text-slate-900 dark:text-white border-b pb-1.5 border-slate-200 dark:border-slate-700">
+                  <span>🎓 Examination & Marks</span>
+                  <button
+                    type="button"
+                    onClick={() => { setShowPreviewModal(false); setActiveTab('academic'); }}
+                    className="text-[10px] font-extrabold text-teal-600 dark:text-teal-400 hover:underline cursor-pointer"
+                  >
+                    Edit ✏️
+                  </button>
                 </div>
                 <div className="space-y-1 text-slate-600 dark:text-slate-300">
                   <div><strong>Prev. School:</strong> {formData[`Name of Previous School (Class ${selectedClass?.includes('12') ? '11th' : selectedClass?.includes('11') ? '10th' : selectedClass?.includes('10') ? '9th' : '8th'})`] || formData["Name of Previous School (Class 10th)"] || formData["Name of Previous School (Class 11th)"] || formData["Name of Previous School (Class 8th)"] || formData["Previous School"] || 'N/A'}</div>
@@ -2016,8 +2030,15 @@ export default function AdmissionForm() {
 
               {/* Selected Subjects */}
               <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 space-y-2 sm:col-span-2">
-                <div className="font-extrabold text-slate-900 dark:text-white border-b pb-1.5 border-slate-200 dark:border-slate-700">
-                  📖 Chosen Subjects
+                <div className="flex items-center justify-between font-extrabold text-slate-900 dark:text-white border-b pb-1.5 border-slate-200 dark:border-slate-700">
+                  <span>📖 Chosen Subjects</span>
+                  <button
+                    type="button"
+                    onClick={() => { setShowPreviewModal(false); setActiveTab('academic'); }}
+                    className="text-[10px] font-extrabold text-teal-600 dark:text-teal-400 hover:underline cursor-pointer"
+                  >
+                    Edit ✏️
+                  </button>
                 </div>
                 <div className="text-teal-700 dark:text-teal-400 font-bold">
                   {formatAllSubjects(
@@ -2030,8 +2051,15 @@ export default function AdmissionForm() {
 
               {/* Bank & Aadhaar Details */}
               <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 space-y-2 sm:col-span-2">
-                <div className="font-extrabold text-slate-900 dark:text-white border-b pb-1.5 border-slate-200 dark:border-slate-700">
-                  🏦 Bank Account & Identifiers
+                <div className="flex items-center justify-between font-extrabold text-slate-900 dark:text-white border-b pb-1.5 border-slate-200 dark:border-slate-700">
+                  <span>🏦 Bank Account & Identifiers</span>
+                  <button
+                    type="button"
+                    onClick={() => { setShowPreviewModal(false); setActiveTab('academic'); }}
+                    className="text-[10px] font-extrabold text-teal-600 dark:text-teal-400 hover:underline cursor-pointer"
+                  >
+                    Edit ✏️
+                  </button>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 text-slate-600 dark:text-slate-300">
                   <div><strong>Student Aadhaar:</strong> {maskSensitive(formData["Aadhar No."])}</div>
@@ -2831,7 +2859,7 @@ export default function AdmissionForm() {
                                               key={idx}
                                               data-field-name={name}
                                               className={`relative rounded-xl transition-all duration-200 ${
-                                                hasError ? 'ring-2 ring-red-500 bg-red-50/60 dark:bg-red-950/30 p-1 -m-1 shadow-sm' : ''
+                                                hasError ? 'ring-2 ring-red-500 bg-red-50/60 dark:bg-red-950/30 p-1 -m-1 shadow-sm animate-error-shake' : ''
                                               }`}
                                             >
                                               <DynamicFormField
@@ -2854,7 +2882,7 @@ export default function AdmissionForm() {
                                           data-field-name={photoFieldInSec.fieldName || photoFieldInSec.name || photoFieldInSec['Field Name']}
                                           className={`w-full md:w-auto flex flex-col items-center md:items-end flex-shrink-0 pt-0.5 rounded-xl transition-all duration-200 ${
                                             Boolean(fieldErrors[photoFieldInSec.fieldName || photoFieldInSec.name || photoFieldInSec['Field Name']])
-                                              ? 'ring-2 ring-red-500 bg-red-50/60 dark:bg-red-950/30 p-1 shadow-sm'
+                                              ? 'ring-2 ring-red-500 bg-red-50/60 dark:bg-red-950/30 p-1 shadow-sm animate-error-shake'
                                               : ''
                                           }`}
                                         >
@@ -2882,7 +2910,7 @@ export default function AdmissionForm() {
                                             key={idx}
                                             data-field-name={name}
                                             className={`${isFullWidthField(field, name) ? 'md:col-span-2 lg:col-span-3' : ''} relative rounded-xl transition-all duration-200 ${
-                                              hasError ? 'ring-2 ring-red-500 bg-red-50/60 dark:bg-red-950/30 p-1 -m-1 shadow-sm' : ''
+                                              hasError ? 'ring-2 ring-red-500 bg-red-50/60 dark:bg-red-950/30 p-1 -m-1 shadow-sm animate-error-shake' : ''
                                             }`}
                                           >
                                             <DynamicFormField
