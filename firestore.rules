@@ -446,6 +446,28 @@ service cloud.firestore {
       allow read: if isAdmin();
       allow write: if false;
     }
+
+    // ── 2-Step Login Handshake Tokens ──
+    // Authenticated users may create handshakes bound to their own email,
+    // read handshakes that match their email, and update status to 'approved'.
+    // Deletion is restricted to admin cleanup.
+    match /adminAuthHandshakes/{handshakeId} {
+      allow create: if isAuthenticated()
+        && request.resource.data.email is string
+        && request.resource.data.email == authEmail()
+        && request.resource.data.status == 'pending'
+        && request.resource.data.keys().hasAll(['id', 'email', 'status', 'createdAt', 'expiresAt']);
+
+      allow read: if isAuthenticated()
+        && resource.data.email == authEmail();
+
+      allow update: if isAuthenticated()
+        && resource.data.email == authEmail()
+        && request.resource.data.status in ['approved', 'consumed']
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['id', 'email', 'createdAt', 'expiresAt']);
+
+      allow delete: if isAdmin();
+    }
     match /{document=**} {
       allow read, write: if false;
     }

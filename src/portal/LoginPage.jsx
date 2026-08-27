@@ -593,10 +593,14 @@ export default function LoginPage() {
           email: cleanEmail,
           text: 'This account was registered using Google Sign-In and does not have a password set yet. Please click "Sign in with Google" below, or use "Reset Password" to set a password for email login.'
         });
+      } else if (err.code === 'auth/quota-exceeded') {
+        setAlert({ type: 'error', text: 'Service temporarily unavailable due to high demand. Please try again after some time.' });
       } else if (err.code === 'auth/too-many-requests') {
         setAlert({ type: 'error', text: 'Too many failed login attempts. Please try again later or reset your password.' });
       } else if (err.code === 'auth/network-request-failed') {
         setAlert({ type: 'error', text: 'Network error. Please check your internet connection.' });
+      } else if (err.code === 'permission-denied' || (err.message && err.message.includes('insufficient permissions'))) {
+        setAlert({ type: 'error', text: 'A system configuration issue occurred. Please contact the administrator.' });
       } else if (err.message && err.message.includes('portal')) {
         setAlert({ type: 'error', text: err.message });
       } else {
