@@ -18,6 +18,7 @@ import {
   Shield, Check, ArrowLeftRight, HelpCircle, Grid,
   Upload, Save, Sliders, ChevronDown, ChevronUp, Layers, RotateCcw, CheckCircle, Filter, Palette
 } from 'lucide-react';
+import ModernLoader from '../../components/ModernLoader';
 import {
   ID_CARD_THEMES,
   resolveClassTheme,
@@ -2754,7 +2755,7 @@ export default function StudentIdCardManager({ students = [], onClose }) {
       {/* ─── MODAL 3: FAST CACHE GENERATION & PROGRESS BAR ─── */}
       {isGenerating && (
         <div className="fixed inset-0 z-[10010] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-fadeIn">
-          <div className="relative w-full max-w-sm bg-white dark:bg-slate-900 rounded-3xl border border-slate-300 dark:border-slate-800 p-6 shadow-2xl space-y-4 text-center">
+          <div className="relative w-full max-w-md bg-white dark:bg-slate-900 rounded-3xl border border-slate-300 dark:border-slate-800 p-6 shadow-2xl space-y-4 text-center">
             {/* Top-Right Close X Button */}
             <button
               type="button"
@@ -2765,32 +2766,14 @@ export default function StudentIdCardManager({ students = [], onClose }) {
               <X size={16} />
             </button>
 
-            <div className="w-12 h-12 rounded-2xl bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400 flex items-center justify-center mx-auto border border-amber-300 dark:border-amber-700/50 shadow-inner">
-              <RefreshCw size={24} className="animate-spin" />
-            </div>
-
-            <div>
-              <h3 className="font-black text-base text-slate-900 dark:text-white">
-                Preparing ID Cards ({generationProgress.current}/{generationProgress.total})
-              </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400 font-bold mt-1">
-                {generationProgress.status}
-              </p>
-            </div>
-
-            {/* Progress Bar Container */}
-            <div className="space-y-1">
-              <div className="w-full bg-slate-200 dark:bg-slate-800 rounded-full h-3 overflow-hidden p-0.5 border border-slate-300 dark:border-slate-700">
-                <div
-                  className="bg-gradient-to-r from-amber-600 via-emerald-600 to-teal-500 h-full rounded-full transition-all duration-200"
-                  style={{ width: `${generationProgress.percent}%` }}
-                />
-              </div>
-              <div className="flex justify-between text-[10px] font-mono font-black text-slate-500">
-                <span>{generationProgress.percent}% Completed</span>
-                <span>{generationProgress.current} / {generationProgress.total} Cards</span>
-              </div>
-            </div>
+            <ModernLoader
+              moduleKey="idCards"
+              text={`Preparing ID Cards (${generationProgress.current}/${generationProgress.total})`}
+              subtext={generationProgress.status}
+              progress={generationProgress.percent}
+              totalRecords={generationProgress.total}
+              className="py-2"
+            />
 
             <div className="pt-1 text-[10px] text-slate-400 font-semibold italic">
               ⚡ Pre-warming photo memory cache &amp; structuring layout for clean print...

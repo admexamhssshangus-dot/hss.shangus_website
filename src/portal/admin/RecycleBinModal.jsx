@@ -3,6 +3,7 @@ import { X, RotateCcw, Trash2, Search, RefreshCw, Archive, Clock, ShieldCheck, C
 import { getRecycleBinItems, restoreFromRecycleBin, restoreMultipleFromRecycleBin, purgeFromRecycleBin } from '../../services/recycleBinService';
 import { logAdminActivity } from '../../services/adminActivityLogger';
 import ConfirmDialogModal from '../components/ConfirmDialogModal';
+import ModernLoader from '../../components/ModernLoader';
 
 export default function RecycleBinModal({ isOpen, onClose, onRestoreSuccess }) {
   const [items, setItems] = useState([]);
@@ -467,10 +468,12 @@ export default function RecycleBinModal({ isOpen, onClose, onRestoreSuccess }) {
         {/* High Density Compact Content Table */}
         <div className="p-2 sm:p-3 overflow-y-auto flex-1 text-xs">
           {loading ? (
-            <div className="p-8 text-center text-slate-400 font-bold text-xs flex items-center justify-center gap-2">
-              <RefreshCw size={16} className="animate-spin text-amber-500" />
-              <span>Loading Recycle Bin archives...</span>
-            </div>
+            <ModernLoader
+              moduleKey="trash"
+              text="Loading Recycle Bin Archives..."
+              subtext="Retrieving deleted student records & audit logs..."
+              className="py-10"
+            />
           ) : filteredItems.length > 0 ? (
             <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-xs">
               <table className="w-full text-left text-xs">

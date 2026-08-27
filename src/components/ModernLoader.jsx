@@ -174,6 +174,26 @@ const PAGE_MODULE_PRESETS = {
       "Preparing email & WhatsApp broadcast templates…"
     ]
   },
+  archive: {
+    title: "Govt. Higher Secondary School Shangus",
+    badge: "Session Archival",
+    defaultText: "Processing Session Archives",
+    hints: [
+      "Auditing current admissions database & analyzing records…",
+      "Packaging approved students into master register archives…",
+      "Configuring active admissions intake for new session…"
+    ]
+  },
+  trash: {
+    title: "Govt. Higher Secondary School Shangus",
+    badge: "Recycle Bin",
+    defaultText: "Loading Deleted Archives",
+    hints: [
+      "Retrieving soft-deleted student records…",
+      "Scanning archival timestamps and audit logs…",
+      "Preparing recovery and permanent purge controls…"
+    ]
+  },
   default: {
     title: "Govt. Higher Secondary School Shangus",
     badge: "Academic Portal",

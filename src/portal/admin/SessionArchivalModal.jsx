@@ -6,6 +6,7 @@ import {
 import { db } from '../../services/firebase';
 import { collection, getDocs, doc, setDoc, deleteDoc, writeBatch } from 'firebase/firestore';
 import { clearAllMemoryCache, invalidateCache } from '../../services/dbCache';
+import ModernLoader from '../../components/ModernLoader';
 
 export default function SessionArchivalModal({ isOpen, onClose, currentSession = '2025-26', onArchivalComplete }) {
   const [loading, setLoading] = useState(true);
@@ -260,12 +261,12 @@ export default function SessionArchivalModal({ isOpen, onClose, currentSession =
         <div className="p-4 sm:p-5 overflow-y-auto flex-1 space-y-4">
           
           {loading && (
-            <div className="py-16 text-center space-y-3">
-              <RefreshCw size={32} className="animate-spin text-purple-600 mx-auto" />
-              <p className="text-xs font-black text-slate-600 dark:text-slate-300">
-                Auditing current admissions database & analyzing records...
-              </p>
-            </div>
+            <ModernLoader
+              moduleKey="archive"
+              text="Auditing Admissions Database"
+              subtext="Auditing current admissions database & analyzing student records..."
+              className="py-12"
+            />
           )}
 
           {!loading && errorMsg && (
@@ -482,19 +483,14 @@ export default function SessionArchivalModal({ isOpen, onClose, currentSession =
 
           {/* STEP 3: EXECUTING PROGRESS */}
           {step === 'executing' && (
-            <div className="py-12 px-4 space-y-4 text-center">
-              <RefreshCw size={36} className="animate-spin text-purple-600 mx-auto" />
-              <div className="space-y-1">
-                <h3 className="font-black text-sm text-slate-900 dark:text-white">Archiving Session...</h3>
-                <p className="text-xs font-bold text-slate-500 dark:text-slate-400">{progressStage}</p>
-              </div>
-              <div className="w-full max-w-md mx-auto bg-slate-200 dark:bg-slate-800 h-2.5 rounded-full overflow-hidden">
-                <div 
-                  className="bg-purple-600 h-full rounded-full transition-all duration-300"
-                  style={{ width: `${progressPercent}%` }}
-                />
-              </div>
-              <span className="text-[11px] font-mono font-black text-purple-600">{progressPercent}%</span>
+            <div className="py-8 px-4">
+              <ModernLoader
+                moduleKey="archive"
+                text="Archiving Session Records..."
+                subtext={progressStage}
+                progress={progressPercent}
+                className="py-4"
+              />
             </div>
           )}
 

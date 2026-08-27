@@ -6,6 +6,7 @@ import { collection, doc, setDoc, getDoc, getDocs, deleteDoc, writeBatch, server
 import { GoogleAuthProvider, signInWithRedirect, signInWithPopup, getRedirectResult, signOut as firebaseSignOut, onAuthStateChanged, getIdTokenResult, RecaptchaVerifier, signInWithPhoneNumber, sendSignInLinkToEmail, isSignInWithEmailLink, signInWithEmailLink } from 'firebase/auth';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { publicFacultyDocumentId, toPublicFacultyList } from '../utils/facultyPrivacy';
+import ModernLoader from '../components/ModernLoader';
 
 // ==========================================
 // IndexedDB Helpers for Storing Folder Handle
@@ -6315,10 +6316,12 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
 
         {/* Console Body */}
         {loading ? (
-          <div className="py-20 text-center text-slate-500 text-sm">
-            <div className="w-8 h-8 rounded-full border-2 border-orange-500 border-t-transparent animate-spin mx-auto mb-4" />
-            Loading configuration data...
-          </div>
+          <ModernLoader
+            moduleKey="admin"
+            text="Loading System Configuration..."
+            subtext="Synchronizing administrative parameters & flags..."
+            className="py-16"
+          />
         ) : (
           <div className={`bg-slate-900/40 border border-slate-800 rounded-xl ${embeddedUser ? 'p-2.5 sm:p-3' : 'p-4 md:p-5'} shadow-xl`}>
 
@@ -9071,10 +9074,12 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
                         </p>
                       </div>
                     ) : cmsLoading ? (
-                      <div className="py-20 text-center text-slate-500 text-xs">
-                        <div className="w-8 h-8 rounded-full border-2 border-orange-500 border-t-transparent animate-spin mx-auto mb-4" />
-                        Loading page blocks configuration...
-                      </div>
+                      <ModernLoader
+                        moduleKey="admin"
+                        text="Loading Page Blocks Configuration..."
+                        subtext="Retrieving dynamic layout schema..."
+                        className="py-12"
+                      />
                     ) : (
                       <div className="space-y-6 animate-in fade-in duration-200 text-left">
                         {/* Page Header Info */}
