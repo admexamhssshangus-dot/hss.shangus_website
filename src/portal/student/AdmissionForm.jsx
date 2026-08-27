@@ -520,6 +520,13 @@ export default function AdmissionForm() {
     return () => clearTimeout(timer);
   }, [alert]);
 
+  // Ensure form always starts predictably at top on load / login / draft restore
+  useEffect(() => {
+    if (!loading) {
+      window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    }
+  }, [loading]);
+
   useEffect(() => {
     initForm();
   }, [initForm]);
@@ -2719,7 +2726,12 @@ export default function AdmissionForm() {
                             </div>
                             <button
                               type="button"
-                              onClick={() => setIsSetupCollapsed(false)}
+                              onClick={() => {
+                                setIsSetupCollapsed(false);
+                                setTimeout(() => {
+                                  document.querySelector('#admission-start')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                }, 60);
+                              }}
                               className="px-2 py-1 rounded-lg text-[10.5px] font-bold bg-white dark:bg-slate-800 text-teal-700 dark:text-teal-300 border border-teal-500/30 hover:bg-teal-500/20 transition-all cursor-pointer flex-shrink-0 shadow-2xs"
                             >
                               Edit Setup ✎
@@ -2750,7 +2762,12 @@ export default function AdmissionForm() {
                                 {hasAdmissionStart && (
                                   <button
                                     type="button"
-                                    onClick={() => setIsSetupCollapsed(true)}
+                                    onClick={() => {
+                                      setIsSetupCollapsed(true);
+                                      setTimeout(() => {
+                                        document.querySelector('#admission-workflow-content')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                      }, 60);
+                                    }}
                                     className="px-2 py-0.5 rounded-lg text-[10.5px] font-bold border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-teal-600 transition-all cursor-pointer shadow-2xs"
                                   >
                                     Done ▲
