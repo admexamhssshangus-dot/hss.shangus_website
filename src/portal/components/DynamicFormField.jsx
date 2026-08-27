@@ -861,7 +861,7 @@ export default function DynamicFormField({
   return (
     <div className="min-w-0 space-y-1 text-xs" data-field-name={name}>
       {/* Field Label Header */}
-      <label htmlFor={inputId} className="flex min-w-0 flex-wrap items-center justify-between gap-1 text-[11px] font-bold" style={{ color: 'var(--text-main, #1e293b)' }}>
+      <label htmlFor={inputId} className="flex min-w-0 flex-wrap items-center justify-between gap-1 text-[10.5px] sm:text-[11px] font-bold" style={{ color: 'var(--text-main, #1e293b)' }}>
         <span className="flex min-w-0 flex-wrap items-center gap-1.5 leading-snug">
           <span className="break-words font-extrabold text-slate-800 dark:text-slate-100">{mainLabel} {required && <span className="text-red-500">*</span>}</span>
           {badge}
@@ -915,7 +915,7 @@ export default function DynamicFormField({
             required={required}
             aria-invalid={Boolean(error)}
             aria-describedby={error ? errorId : undefined}
-            className="w-full px-3 py-1.5 rounded-lg sm:rounded-xl text-xs font-semibold border focus:outline-none focus:ring-2 focus:ring-teal-500 transition-all cursor-pointer"
+            className="w-full px-2.5 py-1.5 rounded-lg sm:rounded-xl text-[11.5px] sm:text-xs font-semibold border focus:outline-none focus:ring-2 focus:ring-teal-500 transition-all cursor-pointer"
             style={inputStyle}
           >
             <option value="">-- Select {mainLabel} --</option>
@@ -946,7 +946,7 @@ export default function DynamicFormField({
                   disabled={disabled}
                   required={required}
                   placeholder={`Please enter your ${mainLabel.toLowerCase()}...`}
-                  className="w-full px-3 py-1.5 rounded-lg sm:rounded-xl text-xs font-semibold border border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500 transition-all bg-teal-50/50 dark:bg-teal-950/20 text-slate-800 dark:text-slate-100 placeholder:text-slate-400 shadow-2xs"
+                  className="w-full px-2.5 py-1.5 rounded-lg sm:rounded-xl text-[11.5px] sm:text-xs font-semibold border border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500 transition-all bg-teal-50/50 dark:bg-teal-950/20 text-slate-800 dark:text-slate-100 placeholder:text-slate-400 shadow-2xs"
                   autoFocus
                 />
                 <div className="flex items-center gap-1 text-[9.5px] font-bold text-teal-700 dark:text-teal-400">
@@ -978,7 +978,7 @@ export default function DynamicFormField({
               aria-invalid={Boolean(error)}
               aria-describedby={error ? errorId : undefined}
               placeholder={placeholder || `Enter ${mainLabel}...`}
-              className="w-full px-3 py-1.5 rounded-lg sm:rounded-xl text-xs font-semibold border focus:outline-none focus:ring-2 focus:ring-teal-500 transition-all"
+              className="w-full px-2.5 py-1.5 rounded-lg sm:rounded-xl text-[11.5px] sm:text-xs font-semibold border focus:outline-none focus:ring-2 focus:ring-teal-500 transition-all"
               style={inputStyle}
             />
             <div className="flex items-center justify-between text-[10px] text-slate-400 dark:text-slate-500 font-bold px-1">
@@ -1239,7 +1239,7 @@ export default function DynamicFormField({
                       required={required}
                       aria-invalid={Boolean(error)}
                       aria-describedby={error ? errorId : undefined}
-                      className="w-full px-3 py-1.5 rounded-lg sm:rounded-xl text-xs font-semibold border focus:outline-none focus:ring-2 focus:ring-teal-500 transition-all cursor-pointer"
+                      className="w-full px-2.5 py-1.5 rounded-lg sm:rounded-xl text-[11.5px] sm:text-xs font-semibold border focus:outline-none focus:ring-2 focus:ring-teal-500 transition-all cursor-pointer"
                       style={inputStyle}
                     >
                       <option value="500">500 (Standard Max Marks)</option>
@@ -1262,7 +1262,7 @@ export default function DynamicFormField({
                           min="1"
                           max="2000"
                           placeholder="Enter Custom Max Marks (e.g. 650)"
-                          className="w-full px-3 py-1.5 rounded-lg sm:rounded-xl text-xs font-semibold border focus:outline-none focus:ring-2 focus:ring-teal-500 transition-all"
+                          className="w-full px-2.5 py-1.5 rounded-lg sm:rounded-xl text-[11.5px] sm:text-xs font-semibold border focus:outline-none focus:ring-2 focus:ring-teal-500 transition-all"
                           style={inputStyle}
                           autoFocus
                         />
@@ -1301,7 +1301,7 @@ export default function DynamicFormField({
                       aria-invalid={Boolean(error)}
                       aria-describedby={error ? errorId : undefined}
                       placeholder={placeholder || (isMarksObtainedField ? 'e.g. 420' : '')}
-                      className="w-full px-3 py-1.5 rounded-lg sm:rounded-xl text-xs font-semibold border focus:outline-none focus:ring-2 focus:ring-teal-500 transition-all"
+                      className="w-full px-2.5 py-1.5 rounded-lg sm:rounded-xl text-[11.5px] sm:text-xs font-semibold border focus:outline-none focus:ring-2 focus:ring-teal-500 transition-all"
                       style={inputStyle}
                     />
 
