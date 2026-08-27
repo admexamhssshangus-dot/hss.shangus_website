@@ -11,24 +11,54 @@ import { getCachedCollectionSync } from './dbCache';
 
 const CONFIG_DOC_ID = 'formNumberConfig';
 const SETTINGS_COLLECTION = 'systemSettings';
+const PUBLIC_SETTINGS_DOC = 'settings';
+const PUBLIC_SETTINGS_COLLECTION = 'site';
 const DELETED_HISTORY_COLLECTION = 'deletedFormsHistory';
 
 /**
- * Fetch current Form Number configuration from Firestore or return smart defaults.
- * Session Rules:
- * - Till Oct 31st 2026: Form numbers continue sequentially from the last form of 2025-26 (e.g. 250458).
- * - After Oct 31st 2026 (Nov 1st 2026 onwards): Form numbers auto-reset to 260001 for 2026-27 session till Oct 31 2027.
- * - Cutoff Month (default: 10 = Oct) and Cutoff Day (default: 31) are fully configurable by teachers/admins.
+ * Fetch current Form Number configuration from Firestore (admin or public site settings) or return smart defaults.
  */
 export async function getFormNumberConfig() {
   let dbData = null;
+  
+  // 1. Try systemSettings/formNumberConfig (available to Admins & Teachers)
   try {
     const snap = await getDoc(doc(db, SETTINGS_COLLECTION, CONFIG_DOC_ID));
     if (snap && snap.exists()) {
       dbData = snap.data();
     }
   } catch (e) {
-    console.warn('getFormNumberConfig note:', e);
+    // Expected for unauthenticated or student users due to firestore rules
+  }
+
+  // 2. Try site/settings (publicly readable by everyone including student portal)
+  if (!dbData) {
+    try {
+      const siteSnap = await getDoc(doc(db, PUBLIC_SETTINGS_COLLECTION, PUBLIC_SETTINGS_DOC));
+      if (siteSnap && siteSnap.exists()) {
+        const siteData = siteSnap.data();
+        if (siteData.formNumberConfig || siteData.nextFormNumber || siteData.startingSeries) {
+          dbData = siteData.formNumberConfig || {
+            nextFormNumber: siteData.nextFormNumber,
+            startingSeries: siteData.startingSeries,
+            recycledFormNumbers: siteData.recycledFormNumbers,
+            session: siteData.session
+          };
+        }
+      }
+    } catch (e) {
+      console.warn('Public site settings read note:', e);
+    }
+  }
+
+  // 3. Try localStorage cached counter
+  if (!dbData) {
+    try {
+      const localMax = localStorage.getItem('hss_last_max_form_no');
+      if (localMax && /^\d+$/.test(localMax)) {
+        dbData = { nextFormNumber: Number(localMax) + 1 };
+      }
+    } catch (_) {}
   }
 
   const now = new Date();
@@ -39,11 +69,9 @@ export async function getFormNumberConfig() {
   // Teacher/Admin configurable settings (defaults: Cutoff = 31st October, Format = YY0000)
   const cutoffMonth = dbData?.cutoffMonth !== undefined ? Number(dbData.cutoffMonth) : 10;
   const cutoffDay = dbData?.cutoffDay !== undefined ? Number(dbData.cutoffDay) : 31;
-  const digitFormat = dbData?.digitFormat || 'YY0000'; // 'YY0000' (260001) or 'YYYY0000' (20260001)
+  const digitFormat = dbData?.digitFormat || 'YY0000'; // 'YY0000' (250001) or 'YYYY0000' (20250001)
 
   // Determine if current date is PAST the cutoff date in the current calendar year
-  // If calDate > Cutoff (e.g. Nov 1st 2026 or later), session is 2026-27 (Prefix 26)
-  // If calDate <= Cutoff (e.g. <= Oct 31st 2026), session is 2025-26 (Prefix 25)
   let sessionEndYear = calYear;
   if (calMonth > cutoffMonth || (calMonth === cutoffMonth && calDay > cutoffDay)) {
     sessionEndYear = calYear + 1;
@@ -68,18 +96,26 @@ export async function getFormNumberConfig() {
 
 /**
  * Calculate the next available Form Number for a new student (Strictly Sequential max + 1).
- * 1. Scans existing applications in admissions and masterRegisters to find the maximum existing form number.
- * 2. Increments sequentially to max + 1 without skipping or reordering.
+ * 1. Checks recycled deleted form numbers first.
+ * 2. Scans existing applications in admissions and masterRegisters memory cache & Firestore to find max existing form number.
+ * 3. Increments sequentially to max + 1 without skipping or reordering.
  */
 export async function getNextAvailableFormNumber() {
   const config = await getFormNumberConfig();
+
+  // If recycled form numbers exist from deleted applications, assign the oldest recycled number first
+  const recycled = Array.isArray(config.recycledFormNumbers) ? config.recycledFormNumbers.filter(Boolean) : [];
+  if (recycled.length > 0) {
+    const firstRecycled = String(recycled[0]).trim();
+    if (firstRecycled) return firstRecycled;
+  }
 
   // Scan admissions and masterRegisters in memory/cache & Firestore to get max existing form number
   let maxFormNum = 0;
 
   const checkRecord = (rec) => {
     if (!rec) return;
-    const fNoStr = String(rec['Form Number'] || rec['Form No.'] || rec['FormNo'] || rec.id || '').replace(/[^0-9]/g, '');
+    const fNoStr = String(rec['Form Number'] || rec['Form No.'] || rec['FormNo'] || rec.formNo || rec.fNo || '').replace(/[^0-9]/g, '');
     if (fNoStr && fNoStr.length >= 4 && fNoStr.length <= 8) {
       const num = parseInt(fNoStr, 10);
       if (!isNaN(num) && num > maxFormNum) {
@@ -104,27 +140,41 @@ export async function getNextAvailableFormNumber() {
     });
   }
 
-  // Also query Firestore admissions collection directly to be 100% accurate
+  // Check localStorage for the highest seen form number
+  try {
+    const localMax = localStorage.getItem('hss_last_max_form_no');
+    if (localMax && /^\d+$/.test(localMax)) {
+      const num = parseInt(localMax, 10);
+      if (!isNaN(num) && num > maxFormNum) maxFormNum = num;
+    }
+  } catch (_) {}
+
+  // Also query Firestore admissions collection directly if admin permissions are active
   try {
     const snap = await getDocs(collection(db, 'admissions'));
     snap.forEach(d => checkRecord(d.data()));
   } catch (e) {}
 
-  const configNext = Number(config.nextFormNumber) || Number(config.startingSeries) || 260001;
-  const candidate = Math.max(configNext, maxFormNum + 1);
+  const configNext = Number(config.nextFormNumber) || Number(config.startingSeries) || 250001;
+  const candidate = Math.max(configNext, maxFormNum > 0 ? maxFormNum + 1 : configNext);
 
   return String(candidate);
 }
 
 /**
  * Mark a form number as consumed when a student submits an application.
- * Removes it from recycled list and advances nextFormNumber if applicable.
+ * Removes it from recycled list and advances nextFormNumber across systemSettings and public site settings.
  */
 export async function consumeFormNumber(formNo) {
   if (!formNo) return;
   const cleanFormNoStr = String(formNo).replace(/[^0-9]/g, '');
   const cleanFormNo = parseInt(cleanFormNoStr, 10);
   if (isNaN(cleanFormNo)) return;
+
+  try {
+    // Update local cache tracker immediately
+    localStorage.setItem('hss_last_max_form_no', String(cleanFormNo));
+  } catch (_) {}
 
   try {
     const config = await getFormNumberConfig();
@@ -134,12 +184,22 @@ export async function consumeFormNumber(formNo) {
     const updatedRecycled = recycled.filter(n => String(n) !== cleanFormNoStr);
     const updatedNext = isRecycled ? config.nextFormNumber : Math.max(Number(config.nextFormNumber || 0), cleanFormNo + 1);
 
-    await setDoc(doc(db, SETTINGS_COLLECTION, CONFIG_DOC_ID), {
+    const updatedConfig = {
       ...config,
       nextFormNumber: updatedNext,
       recycledFormNumbers: updatedRecycled,
       lastUpdated: new Date().toISOString()
-    }, { merge: true });
+    };
+
+    // 1. Update systemSettings/formNumberConfig
+    setDoc(doc(db, SETTINGS_COLLECTION, CONFIG_DOC_ID), updatedConfig, { merge: true }).catch(() => {});
+
+    // 2. Update site/settings (publicly accessible for students)
+    setDoc(doc(db, PUBLIC_SETTINGS_COLLECTION, PUBLIC_SETTINGS_DOC), {
+      nextFormNumber: updatedNext,
+      recycledFormNumbers: updatedRecycled,
+      formNumberConfig: updatedConfig
+    }, { merge: true }).catch(() => {});
   } catch (e) {
     console.warn('consumeFormNumber error:', e);
   }
@@ -189,10 +249,26 @@ export async function recycleDeletedFormNumber(formNo, deletedRecordData = {}, a
  */
 export async function saveFormNumberConfig(newConfig) {
   try {
-    await setDoc(doc(db, SETTINGS_COLLECTION, CONFIG_DOC_ID), {
+    const payload = {
       ...newConfig,
       lastUpdated: new Date().toISOString()
-    }, { merge: true });
+    };
+    // 1. Save to admin-restricted systemSettings/formNumberConfig
+    await setDoc(doc(db, SETTINGS_COLLECTION, CONFIG_DOC_ID), payload, { merge: true });
+
+    // 2. Sync to public site/settings for student portal
+    await setDoc(doc(db, PUBLIC_SETTINGS_COLLECTION, PUBLIC_SETTINGS_DOC), {
+      nextFormNumber: Number(newConfig.nextFormNumber || newConfig.startingSeries || 250001),
+      recycledFormNumbers: newConfig.recycledFormNumbers || [],
+      formNumberConfig: payload
+    }, { merge: true }).catch(() => {});
+
+    try {
+      if (newConfig.nextFormNumber) {
+        localStorage.setItem('hss_last_max_form_no', String(Number(newConfig.nextFormNumber) - 1));
+      }
+    } catch (_) {}
+
     return { success: true, message: 'Form Number configuration updated successfully!' };
   } catch (e) {
     console.error('saveFormNumberConfig error:', e);
