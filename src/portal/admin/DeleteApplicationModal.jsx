@@ -3,6 +3,7 @@ import { X, Trash2, AlertTriangle, CheckCircle2, ShieldAlert, CheckSquare, Squar
 import { moveToRecycleBin } from '../../services/recycleBinService';
 import { extractRegNoClean, getStudentName, getFatherName } from './AdvancedReports';
 import { logAdminActivity } from '../../services/adminActivityLogger';
+import ModernLoader from '../../components/ModernLoader';
 
 export default function DeleteApplicationModal({
   isOpen,
@@ -154,30 +155,13 @@ export default function DeleteApplicationModal({
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-md animate-fadeIn">
       {deleting && (
-        <div className="absolute inset-0 z-[10000] flex flex-col items-center justify-center bg-slate-950/80 backdrop-blur-sm rounded-3xl">
-          <div className="flex flex-col items-center gap-4 p-8 rounded-3xl bg-white/10 border border-white/20 shadow-2xl backdrop-blur-md">
-            <div className="relative flex items-center justify-center">
-              <div className="w-16 h-16 border-4 border-rose-500/30 rounded-full" />
-              <div className="absolute w-16 h-16 border-4 border-rose-500 border-t-transparent rounded-full animate-spin" />
-              <div className="absolute w-8 h-8 border-4 border-amber-400/50 border-b-transparent rounded-full animate-spin" style={{ animationDirection: 'reverse', animationDuration: '0.7s' }} />
-            </div>
-            <div className="text-center space-y-1">
-              <p className="text-white font-black text-base tracking-wide">{archiveStep || 'Archiving...'}</p>
-              <p className="text-white/60 text-xs font-semibold">Please wait — do not close this window</p>
-            </div>
-            <div className="flex gap-1.5 mt-1">
-              {['Archiving to Recycle Bin...', 'Logging activity...', 'Done ✅'].map((step, i) => (
-                <div
-                  key={i}
-                  className={`h-1.5 w-10 rounded-full transition-all duration-500 ${
-                    archiveStep === step ? 'bg-rose-500 scale-x-110' :
-                    ['Archiving to Recycle Bin...', 'Logging activity...', 'Done ✅'].indexOf(archiveStep) > i ? 'bg-emerald-400' :
-                    'bg-white/20'
-                  }`}
-                />
-              ))}
-            </div>
-          </div>
+        <div className="absolute inset-0 z-[10000] flex flex-col items-center justify-center bg-slate-950/85 backdrop-blur-md rounded-3xl p-6">
+          <ModernLoader
+            moduleKey="trash"
+            text={archiveStep || 'Archiving to Recycle Bin...'}
+            subtext="Please wait — safely securing record in Recycle Bin archives..."
+            className="w-full max-w-sm"
+          />
         </div>
       )}
 

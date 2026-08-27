@@ -4,6 +4,7 @@ import { collection, getDocs, deleteDoc, doc, getDoc, setDoc } from 'firebase/fi
 import { db } from '../../services/firebase';
 import { generateGkTestAdmitCardPdf } from '../../utils/pdfGenerator';
 import { getStudentPhotoUrl, formatPhotoDisplayUrl } from '../../utils/imageCompressor';
+import ModernLoader from '../../components/ModernLoader';
 
 const EXAM_PRESETS = [
   {
@@ -771,10 +772,12 @@ export default function AdminGkTestManager() {
       {/* Candidates Table */}
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden">
         {loading ? (
-          <div className="py-16 text-center text-slate-500 space-y-3">
-            <div className="w-8 h-8 border-3 border-teal-500 border-t-transparent rounded-full animate-spin mx-auto" />
-            <p className="text-xs font-bold">Loading Test Candidates...</p>
-          </div>
+          <ModernLoader
+            moduleKey="gkTest"
+            text="Loading Test Candidates..."
+            subtext="Fetching candidate registrations & hall ticket assignments..."
+            className="py-12"
+          />
         ) : filtered.length === 0 ? (
           <div className="py-16 text-center text-slate-400 space-y-2">
             <p className="text-base font-bold text-slate-600 dark:text-slate-300">No Candidate Registrations Found</p>

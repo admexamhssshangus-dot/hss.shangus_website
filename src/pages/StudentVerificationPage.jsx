@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { db } from '../services/firebase';
 import { collection, getDocs, doc, getDoc } from 'firebase/firestore';
+import ModernLoader from '../components/ModernLoader';
 import { getStudentRollVal, normalizeStudentClass, generateVerificationSignature } from '../utils/idCardRenderer';
 import { getStudentPhotoUrl, formatPhotoDisplayUrl } from '../utils/imageCompressor';
 
@@ -362,11 +363,12 @@ export default function StudentVerificationPage() {
         {/* Dynamic Verification Content */}
         <div className="p-4 sm:p-6 space-y-4">
           {loading ? (
-            <div className="py-12 text-center space-y-3">
-              <RefreshCw size={36} className="mx-auto text-amber-500 animate-spin" />
-              <h3 className="font-black text-base">Authenticating Records...</h3>
-              <p className="text-xs text-slate-500 font-bold">Querying official institutional database in real-time.</p>
-            </div>
+            <ModernLoader
+              moduleKey="certStudio"
+              text="Authenticating Official Records..."
+              subtext="Querying official institutional database in real-time..."
+              className="py-10"
+            />
           ) : isRateLimited ? (
             <div className="p-5 text-center bg-amber-50 dark:bg-amber-950/40 rounded-2xl border border-amber-300 dark:border-amber-700 space-y-3">
               <ShieldAlert size={40} className="mx-auto text-amber-600 animate-bounce" />

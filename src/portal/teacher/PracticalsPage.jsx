@@ -11,6 +11,7 @@ import { collection, getDocs, doc, setDoc, addDoc } from 'firebase/firestore';
 import { getCachedCollection } from '../../services/dbCache';
 import { printIndividualAwardRoll } from '../../utils/practicalsPdfGenerator';
 import { loadSiteSettings } from '../../utils/settingsLoader';
+import ModernLoader from '../../components/ModernLoader';
 
 // Subject Name to Code mapping (from legacy system)
 const SUBJECT_MAP = [
@@ -1905,10 +1906,12 @@ export default function PracticalsPage() {
 
           {/* Student Roster Marks Entry Table - Ultra Compact */}
           {loading ? (
-            <div className="p-8 text-center text-xs font-bold text-slate-400">
-              <RefreshCw size={18} className="animate-spin mx-auto mb-1.5 text-indigo-600" />
-              Loading roster...
-            </div>
+            <ModernLoader
+              moduleKey="practicals"
+              text="Loading Practicals Roster..."
+              subtext="Fetching candidate records and evaluation rolls..."
+              className="py-10"
+            />
           ) : displayedStudents.length > 0 ? (
             <>
               {/* ── MOBILE CARDS (hidden on sm+) — Ultra Compact 2-Line Format ── */}
@@ -2211,10 +2214,12 @@ export default function PracticalsPage() {
             </div>
 
             {loadingHistory ? (
-              <div className="p-6 text-center text-xs font-bold text-slate-400">
-                <RefreshCw size={16} className="animate-spin mx-auto mb-1 text-indigo-600" />
-                Fetching historical submissions...
-              </div>
+              <ModernLoader
+                moduleKey="practicals"
+                text="Fetching Historical Submissions..."
+                subtext="Retrieving previous practical assessment records..."
+                className="py-6"
+              />
             ) : submissionHistory.length > 0 ? (
               <div className="max-h-80 overflow-y-auto space-y-1.5 pr-1">
                 {submissionHistory.map((item, i) => (

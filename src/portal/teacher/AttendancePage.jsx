@@ -9,6 +9,7 @@ import appsScriptApi from '../../services/appsScriptApi';
 import ConfirmModal from '../components/ConfirmModal';
 import { getCachedCollection } from '../../services/dbCache';
 import { loadSiteSettings } from '../../utils/settingsLoader';
+import ModernLoader from '../../components/ModernLoader';
 
 // Master List of Official School Subjects with Codes
 const MASTER_SUBJECTS = [
@@ -2161,10 +2162,12 @@ export default function AttendancePage() {
 
               {/* Compact Student Grid (4-cols on Laptop, 6-cols on Desktop) */}
               {loadingStudents ? (
-                <div className="p-8 text-center text-xs font-bold text-slate-400">
-                  <RefreshCw size={18} className="animate-spin mx-auto mb-1.5 text-teal-500" />
-                  Loading Roster for {selectedClass}...
-                </div>
+                <ModernLoader
+                  moduleKey="attendance"
+                  text={`Loading Roster for ${selectedClass}...`}
+                  subtext="Fetching enrolled student attendance roll..."
+                  className="py-10"
+                />
               ) : sortedStudents.length > 0 ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-2 max-h-[600px] overflow-y-auto pr-1">
                   {sortedStudents.map((st, idx) => {
@@ -2318,10 +2321,12 @@ export default function AttendancePage() {
 
               {/* Holidays Table */}
               {loadingHolidays ? (
-                <div className="p-6 text-center text-xs font-bold text-slate-400">
-                  <RefreshCw size={16} className="animate-spin mx-auto mb-1 text-amber-500" />
-                  Loading Holiday Records...
-                </div>
+                <ModernLoader
+                  moduleKey="attendance"
+                  text="Loading Holiday Records..."
+                  subtext="Synchronizing official holiday calendar..."
+                  className="py-6"
+                />
               ) : holidaysList.length > 0 ? (
                 <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800">
                   <table className="w-full text-left text-xs">
