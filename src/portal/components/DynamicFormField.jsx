@@ -1205,7 +1205,7 @@ export default function DynamicFormField({
           {(() => {
             const isSchoolInput = (lowerName.includes('previous school') || lowerName.includes('name of previous school') || lowerName.includes('last school')) && !lowerName.includes('record');
             const isIfsc = lowerName.includes('ifsc');
-            const isEmail = lowerName.includes('email');
+            const isEmail = lowerName.includes('email') || lowerName.includes('e-mail') || lowerName.includes('mail') || lowerName.includes('e_mail');
             const isNameField = isPersonNameField(name) || (lowerName.includes('name') && !isSchoolInput && !lowerName.includes('bank') && !lowerName.includes('village') && !lowerName.includes('occupation') && !lowerName.includes('subject'));
             const isMaxMarksField = lowerName.includes('max. marks') || lowerName.includes('max marks') || (lowerName.includes('total max') && !lowerName.includes('percentage'));
             const isMarksObtainedField = lowerName.includes('marks obtained') || lowerName.includes('total marks obtained');
@@ -1411,8 +1411,8 @@ export default function DynamicFormField({
                       list={datalistId}
                       pattern={isNameField ? "^[a-zA-Z\\s.'-]+$" : undefined}
                       title={isNameField ? "Name must contain only English letters, spaces, and dots. Numbers and special characters are not allowed." : undefined}
-                      autoComplete={lowerName.includes("student's name") || lowerName === 'name' ? 'name' : undefined}
-                      inputMode={type === 'text_numeric' ? 'numeric' : (type === 'number' || type === 'number_range') ? 'decimal' : isNameField ? 'text' : undefined}
+                      autoComplete={isEmail ? 'email' : (lowerName.includes("student's name") || lowerName === 'name' ? 'name' : undefined)}
+                      inputMode={isEmail ? 'email' : (type === 'text_numeric' ? 'numeric' : (type === 'number' || type === 'number_range') ? 'decimal' : isNameField ? 'text' : undefined)}
                       aria-invalid={Boolean(error)}
                       aria-describedby={error ? errorId : undefined}
                       placeholder={placeholder || (isMarksObtainedField ? 'e.g. 420' : (isNameField ? `Enter ${mainLabel} (Letters only)...` : ''))}
@@ -1506,6 +1506,26 @@ export default function DynamicFormField({
                           <span className="text-emerald-700 dark:text-emerald-300 font-black flex items-center gap-1">
                             <CheckCircle2 size={11} className="text-emerald-600 dark:text-emerald-400" />
                             <span>Valid IFSC Format</span>
+                          </span>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Live Email Helper */}
+                    {isEmail && value && (
+                      <div className="flex items-center justify-between text-[10px] px-1 pt-0.5 font-bold">
+                        <span className="text-slate-400">
+                          Email Format
+                        </span>
+                        {/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value).trim()) ? (
+                          <span className="text-emerald-700 dark:text-emerald-300 font-black flex items-center gap-1">
+                            <CheckCircle2 size={11} className="text-emerald-600 dark:text-emerald-400" />
+                            <span>Valid Email Address</span>
+                          </span>
+                        ) : (
+                          <span className="text-amber-600 dark:text-amber-400 font-bold flex items-center gap-1">
+                            <AlertCircle size={11} className="flex-shrink-0" />
+                            <span>Enter valid email (e.g. name@gmail.com)</span>
                           </span>
                         )}
                       </div>
