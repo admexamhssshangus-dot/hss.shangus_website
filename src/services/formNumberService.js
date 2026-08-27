@@ -103,10 +103,12 @@ export async function getFormNumberConfig() {
 export async function getNextAvailableFormNumber() {
   const config = await getFormNumberConfig();
 
-  // If recycled form numbers exist from deleted applications, assign the oldest recycled number first
-  const recycled = Array.isArray(config.recycledFormNumbers) ? config.recycledFormNumbers.filter(Boolean) : [];
+  // If recycled form numbers exist from deleted applications, assign the oldest valid recycled number first
+  const recycled = (Array.isArray(config.recycledFormNumbers) ? config.recycledFormNumbers : [])
+    .map(s => String(s || '').trim())
+    .filter(s => /^\d{6}$/.test(s) && !s.startsWith('0'));
   if (recycled.length > 0) {
-    const firstRecycled = String(recycled[0]).trim();
+    const firstRecycled = recycled[0];
     if (firstRecycled) return firstRecycled;
   }
 
@@ -211,6 +213,7 @@ export async function consumeFormNumber(formNo) {
 export async function recycleDeletedFormNumber(formNo, deletedRecordData = {}, adminEmail = '') {
   if (!formNo) return;
   const cleanFormNoStr = String(formNo).trim();
+  if (!/^\d{6}$/.test(cleanFormNoStr)) return;
 
   try {
     // 1. Add to systemSettings/formNumberConfig recycled array

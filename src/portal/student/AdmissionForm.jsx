@@ -412,7 +412,7 @@ export default function AdmissionForm() {
       const cleanFNoVal = (val) => {
         if (!val) return '';
         const s = String(val).replace(/^(N\/A|#N\/A|—|-|null|undefined)$/i, '').trim();
-        if (s.startsWith('FORM_')) return ''; // Ignore temporary timestamp forms
+        if (s.startsWith('FORM_') || /^draft/i.test(s) || !/^\d{4,8}$/.test(s)) return '';
         return s;
       };
 
@@ -540,9 +540,18 @@ export default function AdmissionForm() {
       setDraftState('saving');
       try {
         const result = await saveAdmissionDraft({ formData, applicationId: applicationIdRef.current });
-        if (result.applicationId && !applicationIdRef.current) {
-          applicationIdRef.current = result.applicationId;
-          setApplicationId(result.applicationId);
+        if (result.formNumber || result.applicationId) {
+          const assignedNo = result.formNumber || result.applicationId;
+          applicationIdRef.current = String(assignedNo);
+          setApplicationId(String(assignedNo));
+          if (!formData['Form Number'] || formData['Form Number'] !== assignedNo) {
+            setFormData(prev => ({
+              ...prev,
+              'Form Number': assignedNo,
+              FormNo: assignedNo,
+              formNo: assignedNo,
+            }));
+          }
         }
         setDraftSavedTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
         setDraftState('saved');
@@ -695,16 +704,26 @@ export default function AdmissionForm() {
         }
       }
 
-      // Class changed — clear admission-type and all dependent provisional fields
+      // Class changed — clear admission-type, subject choices, and dependent provisional fields
       if (fieldName === 'Admission sought for class') {
-        next['Admission Type (Class 11th)'] = '';
-        next['Admission Type (Class 12th)'] = '';
-        next['Reason for Provisional (Class 11th)'] = '';
-        next['Reason for Provisional (Class 12th)'] = '';
-        next['Subjects to Reappear (Class 10th)'] = '';
-        next['Subjects to Reappear (Class 11th)'] = '';
-        next['Year of Appearing (Class 10th)'] = '';
-        next['Year of Appearing (Class 11th)'] = '';
+        if (prev['Admission sought for class'] !== value) {
+          next['Subjects to be taken in Class 9th'] = '';
+          next['Subjects to be taken in Class 10th'] = '';
+          next['Subjects to be taken in Class 11th'] = '';
+          next['Stream & Subjects for Class 12th'] = '';
+          next['Stream for Class 11th'] = '';
+          next['Stream opted in Class 11th'] = '';
+          next['Stream'] = '';
+          next['Admission Type (Class 11th)'] = '';
+          next['Admission Type (Class 12th)'] = '';
+          next['Reason for Provisional (Class 11th)'] = '';
+          next['Reason for Provisional (Class 12th)'] = '';
+          next['Subjects to Reappear (Class 10th)'] = '';
+          next['Subjects to Reappear (Class 11th)'] = '';
+          next['Year of Appearing (Class 10th)'] = '';
+          next['Year of Appearing (Class 11th)'] = '';
+          setFieldErrors({});
+        }
       }
 
       // ── Auto-calculate Percentage for 10th/11th/8th/9th marks ──
@@ -856,9 +875,16 @@ export default function AdmissionForm() {
         'Email Address': formData['Email Address'] || currentUser?.email || '',
       };
       const res = await saveAdmissionDraft({ formData: draftPayload, applicationId: applicationIdRef.current, force: true });
-      if (res.applicationId) {
-        applicationIdRef.current = res.applicationId;
-        setApplicationId(res.applicationId);
+      if (res.formNumber || res.applicationId) {
+        const assignedNo = res.formNumber || res.applicationId;
+        applicationIdRef.current = String(assignedNo);
+        setApplicationId(String(assignedNo));
+        setFormData(prev => ({
+          ...prev,
+          'Form Number': assignedNo,
+          FormNo: assignedNo,
+          formNo: assignedNo,
+        }));
       }
       setDraftSavedTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
       setDraftState('saved');
@@ -866,9 +892,7 @@ export default function AdmissionForm() {
       if (!silent) {
         setAlert({
           type: 'success',
-          text: res?.localOnly
-            ? 'Draft securely saved to your browser session. It will sync automatically upon final submission.'
-            : 'Secure draft saved. Sensitive numbers and the photograph remain in this active form until final submission.'
+          text: `Draft application (Form #${res.formNumber || res.applicationId || '—'}) saved securely. You can resume anytime from your dashboard.`,
         });
       }
       return res;
@@ -2230,7 +2254,8 @@ export default function AdmissionForm() {
                   </>
                 ) : (
                   <>
-                    <Send size={16} /> Confirm & Final Submit Application →
+                    <Send size={16} />
+                    <span>{currentStatus === 'Rejected' ? 'Confirm & Resubmit Application →' : upgradeMode ? 'Confirm & Convert to Full Admission →' : 'Confirm & Final Submit Application →'}</span>
                   </>
                 )}
               </button>
@@ -2557,6 +2582,29 @@ export default function AdmissionForm() {
                 </div>
               </div>,
               document.body
+            )}
+
+            {/* Rejected / Correction Notice Banner */}
+            {currentStatus === 'Rejected' && !isFormLocked && (
+              <div className="mb-3 flex flex-col items-start gap-3 rounded-2xl border-2 border-red-500/60 bg-gradient-to-r from-red-500/15 via-amber-500/10 to-red-500/15 p-4 text-xs font-semibold text-red-900 dark:text-red-100 shadow-md animate-fadeIn">
+                <div className="flex items-start gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-red-500/20 text-red-600 dark:text-red-400 flex items-center justify-center flex-shrink-0 mt-0.5 border border-red-500/40">
+                    <AlertCircle size={22} />
+                  </div>
+                  <div className="space-y-1">
+                    <div className="text-sm font-black text-red-800 dark:text-red-200 flex items-center gap-2">
+                      <span>⚠️ Application Returned for Correction</span>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-red-600 text-white">Action Required</span>
+                    </div>
+                    <div className="text-xs text-red-700 dark:text-red-300 leading-relaxed">
+                      <strong>School Verification Note:</strong> <span className="underline decoration-red-400 font-bold">{formData.rejectionReason || formData['Rejection Reason'] || 'Please check and correct your application details/documents.'}</span>
+                    </div>
+                    <p className="text-[11px] text-red-600 dark:text-red-400">
+                      Update the necessary fields or documents below, then click <strong>"Confirm & Resubmit Application"</strong> to submit your corrections for re-review.
+                    </p>
+                  </div>
+                </div>
+              </div>
             )}
 
             {/* Locked Application Banner */}
@@ -3128,7 +3176,7 @@ export default function AdmissionForm() {
                         onMouseLeave={e => e.currentTarget.style.opacity = '1'}
                       >
                         <Send size={14} />
-                        <span>Review & Submit →</span>
+                        <span>{currentStatus === 'Rejected' ? 'Review & Resubmit →' : upgradeMode ? 'Review & Convert →' : 'Review & Submit →'}</span>
                       </button>
                     </>
                   )}

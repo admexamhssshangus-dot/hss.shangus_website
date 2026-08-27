@@ -502,6 +502,10 @@ export default function StudentDashboard() {
                     <button
                       onClick={() => {
                         try {
+                          const uid = user?.uid || 'guest';
+                          sessionStorage.removeItem(`hss_student_draft_${uid}`);
+                          sessionStorage.removeItem('hss_student_draft_guest');
+                          sessionStorage.removeItem('hss_student_draft_local');
                           sessionStorage.removeItem('hss_admission_draft');
                           sessionStorage.removeItem('hss_admission_upgrade');
                         } catch (e) {}

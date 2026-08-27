@@ -538,7 +538,7 @@ async function legacySaveApplication(payload) {
   const cleanFNoVal = (val) => {
     if (!val) return '';
     const s = String(val).replace(/^(N\/A|#N\/A|—|-|null|undefined)$/i, '').trim();
-    if (s.startsWith('FORM_')) return '';
+    if (s.startsWith('FORM_') || /^draft/i.test(s) || !/^\d{4,8}$/.test(s)) return '';
     return s;
   };
 
