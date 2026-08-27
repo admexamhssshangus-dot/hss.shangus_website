@@ -188,169 +188,38 @@ const MONTHS = [
 ];
 
 /**
- * Authoritative, high-value institutional instructions & policy guidance for Admission Form fields.
- * Only meaningful, actionable instructions are provided — no trivial placeholder duplicates.
+ * Minimal, non-redundant institutional guidance for complex/technical fields only.
+ * Self-explanatory fields rely entirely on clean labels and placeholders.
  */
-export const FIELD_INSTRUCTION_GUIDE = {
-  // 1. Personal & Identity
-  "Student's Name (as per school records)": "Enter your full name exactly as printed on your Class 10th Marks Card or School Leaving Certificate. Do not add prefixes like Mr. or Ms.",
-  "DoB (as per school records)": "Date of Birth must match your official matriculation certificate. Class 11th admission requires a minimum age of 14 years as per JKBOSE guidelines.",
-  "Father's/Guardian's Name (as per school records)": "Enter father's or legal guardian's name matching previous school leaving records.",
-  "Mother's Name (as per school records)": "Enter mother's full legal name as registered in previous school records.",
-  "Aadhar No.": "Enter student's 12-digit UIDAI Aadhaar number. Required for DBT scholarship processing and state student verification.",
-  "Father's Aadhar No.": "Enter the 12-digit Aadhaar number of father or legal guardian for official verification.",
-  "Your Mother Tongue": "Select your native primary language spoken at home.",
-  "Identification Mark (if any)": "Specify a permanent visible identification mark (e.g. mole on right cheek, scar on forehead).",
-
-  // 2. Contact & Residential Address
-  "Mobile No. (with working WhatsApp)": "Enter an active 10-digit mobile number with WhatsApp. All crucial school circulars, time tables, and result alerts will be delivered here.",
-  "Parent's Mobile No. (must be working)": "Enter parent's or guardian's functional 10-digit mobile number for emergency notifications and SMS advisories.",
-  "Email Address": "Provide a valid email address to receive admission confirmation receipts and downloadable form copies.",
-  "House No.": "Enter house number, ward number, or lane details if applicable.",
-  "Name of your village": "Enter your residential village, town, or mohalla name.",
-  "PIN code": "Enter the 6-digit postal PIN code of your local post office.",
-
-  // 3. Physical & Social Category
-  "Social category": "Select your recognized social category (OM, RBA, SC, ST, OBC, EWS, ALC/IB, PSP). You must hold a valid category certificate from the competent revenue authority.",
-  "Whether Any Disability": "Select 'Yes' if you have 40% or more benchmark disability to avail government fee concessions and assistive exam accommodations.",
-  "Type of Disability": "Specify the nature of disability as stated in your official UDID or Medical Board certificate.",
-
-  // 4. National Identifiers
-  "PEN number (given by UDISE portal)": "Permanent Education Number (PEN) is the 11-digit national student ID issued by the Ministry of Education via the UDISE+ portal.",
+export const SPECIAL_TECHNICAL_GUIDANCE = {
+  "PEN number (given by UDISE portal)": "Permanent Education Number (PEN) is the 11-digit national student identifier allotted by the Ministry of Education via UDISE+.",
   "APAAR ID": "Automated Permanent Academic Account Registry (APAAR ID) is the 12-digit lifelong academic credential ID under NEP 2020 linked with DigiLocker.",
-
-  // 5. Academic Details & Schooling
-  "Admission sought for class": "Select your target class of admission (11th, 12th, 10th, or 9th).",
-  "Admission Type (Class 11th)": "Select 'Regular' if you passed Class 10th in full. Select 'Provisional' if you are appearing in bi-annual/reappear exams or awaiting result.",
-  "Reason for Provisional (Class 11th)": "Specify the reason for provisional admission (e.g. Reappear in 1–2 subjects, Result Awaited). Final admission is subject to passing.",
-  "Admission Type (Class 12th)": "Select 'Regular' if promoted/passed Class 11th. Select 'Provisional' if having backlog/reappear.",
   "Board Registration No. (Class 10th)": "Enter the 16-character JKBOSE registration number (e.g. 23N-1234567-89) printed on your Class 10th marks card.",
   "Board Registration No. (Class 11th)": "Enter your Class 11th registration number allotted by JKBOSE.",
-  "Exam Roll Number of Class 10th": "Enter your 7 or 8-digit Class 10th Board Examination Roll Number.",
-  "Total Marks Obtained in Class 10th": "Enter aggregate marks obtained out of maximum total marks in Class 10th.",
-  "Total Max. Marks in Class 10th": "Enter maximum aggregate marks (default 500 for JKBOSE).",
-  "Name of Previous School (Class 10th)": "Select or type the complete name of the school or institute where you completed Class 10th.",
-  "Board (Class 10th)": "Select your Class 10th examining educational board (JKBOSE, CBSE, ICSE, NIOS, etc.).",
-
-  // 6. Bank & Scholarship
-  "Bank Account No.": "Enter student's active single/joint savings bank account number (9 to 18 digits) for scholarship disbursements.",
-  "Name of Bank": "Enter bank name (e.g. J&K Bank, State Bank of India). Branch must be CBS-enabled.",
-  "IFSC code": "Enter the 11-character Bank Branch IFSC Code (e.g. JAKA0SHNGUS, SBIN0001234).",
-
-  // 7. Streams & Subjects
-  "Stream for Class 11th": "Choose your academic stream: Science (Medical/Non-Medical), Arts/Humanities, or Commerce.",
-  "Subjects to be taken in Class 11th": "Select 5 subjects including General English (compulsory) plus your elective and skill subjects.",
-  "Subjects to Reappear (Class 10th)": "List the subject(s) in which you have reappear/compartment in Class 10th for provisional verification.",
-
-  // 8. Photo
-  "Student Photo": "Upload a clear, recent passport-size photograph with white or light background. Avoid selfies, sunglasses, or group pictures (Max file size 200 KB)."
+  "Reason for Provisional (Class 11th)": "Specify the reason for provisional admission (e.g. Reappear in 1–2 subjects, Result Awaited). Final admission is subject to passing.",
+  "Reason for Provisional (Class 12th)": "Specify the reason for provisional admission (e.g. Reappear in 1–2 subjects, Result Awaited)."
 };
 
-/**
- * Resolves authoritative institutional guidance text for any given field name,
- * matching exact keys, main labels, or domain-specific keywords.
- */
-export function resolveFieldInstruction(fieldName = '', mainLabel = '', customHelpText = '') {
+export function resolveTechnicalGuidance(fieldName = '', mainLabel = '') {
   const cleanName = String(fieldName || '').trim();
   const cleanMain = String(mainLabel || '').trim();
   const lower = cleanName.toLowerCase();
-  const lowerMain = cleanMain.toLowerCase();
 
-  // 1. Direct match in dictionary
-  if (FIELD_INSTRUCTION_GUIDE[cleanName]) return FIELD_INSTRUCTION_GUIDE[cleanName];
-  if (FIELD_INSTRUCTION_GUIDE[cleanMain]) return FIELD_INSTRUCTION_GUIDE[cleanMain];
+  if (SPECIAL_TECHNICAL_GUIDANCE[cleanName]) return SPECIAL_TECHNICAL_GUIDANCE[cleanName];
+  if (SPECIAL_TECHNICAL_GUIDANCE[cleanMain]) return SPECIAL_TECHNICAL_GUIDANCE[cleanMain];
 
-  // 2. Fuzzy / Keyword matching for diverse naming schemes
-  if (lower.includes('dob') || lower.includes('date of birth') || lowerMain.includes('dob') || lowerMain.includes('date of birth')) {
-    return FIELD_INSTRUCTION_GUIDE["DoB (as per school records)"];
-  }
-  if (lower.includes('student') && (lower.includes('name') || lowerMain.includes('name'))) {
-    return FIELD_INSTRUCTION_GUIDE["Student's Name (as per school records)"];
-  }
-  if (lower.includes('father') && (lower.includes('name') || lower.includes('guardian'))) {
-    return FIELD_INSTRUCTION_GUIDE["Father's/Guardian's Name (as per school records)"];
-  }
-  if (lower.includes('mother') && lower.includes('name')) {
-    return FIELD_INSTRUCTION_GUIDE["Mother's Name (as per school records)"];
-  }
-  if (lower.includes('father') && lower.includes('aadhar')) {
-    return FIELD_INSTRUCTION_GUIDE["Father's Aadhar No."];
-  }
-  if (lower.includes('aadhar') || lower.includes('aadhaar') || lower.includes('uidai')) {
-    return FIELD_INSTRUCTION_GUIDE["Aadhar No."];
-  }
-  if (lower.includes('parent') && (lower.includes('mobile') || lower.includes('phone') || lower.includes('contact'))) {
-    return FIELD_INSTRUCTION_GUIDE["Parent's Mobile No. (must be working)"];
-  }
-  if (lower.includes('mobile') || lower.includes('whatsapp') || lower.includes('phone') || lower.includes('contact')) {
-    return FIELD_INSTRUCTION_GUIDE["Mobile No. (with working WhatsApp)"];
-  }
-  if (lower.includes('email')) {
-    return FIELD_INSTRUCTION_GUIDE["Email Address"];
-  }
-  if (lower.includes('village') || lower.includes('address') || lower.includes('mohalla')) {
-    return FIELD_INSTRUCTION_GUIDE["Name of your village"];
-  }
-  if (lower.includes('pin') || lower.includes('pincode') || lower.includes('postal')) {
-    return FIELD_INSTRUCTION_GUIDE["PIN code"];
-  }
-  if (lower.includes('category') || lower.includes('social category')) {
-    return FIELD_INSTRUCTION_GUIDE["Social category"];
-  }
-  if (lower.includes('disability') && lower.includes('type')) {
-    return FIELD_INSTRUCTION_GUIDE["Type of Disability"];
-  }
-  if (lower.includes('disability')) {
-    return FIELD_INSTRUCTION_GUIDE["Whether Any Disability"];
-  }
   if (lower.includes('pen') && (lower.includes('udise') || lower.includes('number') || lower.includes('no'))) {
-    return FIELD_INSTRUCTION_GUIDE["PEN number (given by UDISE portal)"];
+    return SPECIAL_TECHNICAL_GUIDANCE["PEN number (given by UDISE portal)"];
   }
   if (lower.includes('apaar') || lower.includes('abc id')) {
-    return FIELD_INSTRUCTION_GUIDE["APAAR ID"];
+    return SPECIAL_TECHNICAL_GUIDANCE["APAAR ID"];
   }
-  if (lower.includes('bank') && (lower.includes('account') || lower.includes('no'))) {
-    return FIELD_INSTRUCTION_GUIDE["Bank Account No."];
-  }
-  if (lower.includes('ifsc')) {
-    return FIELD_INSTRUCTION_GUIDE["IFSC code"];
-  }
-  if (lower.includes('name of bank') || (lower.includes('bank') && lower.includes('name'))) {
-    return FIELD_INSTRUCTION_GUIDE["Name of Bank"];
-  }
-  if (lower.includes('board') && lower.includes('reg')) {
-    return FIELD_INSTRUCTION_GUIDE["Board Registration No. (Class 10th)"];
-  }
-  if (lower.includes('exam roll') || (lower.includes('roll') && lower.includes('10th'))) {
-    return FIELD_INSTRUCTION_GUIDE["Exam Roll Number of Class 10th"];
-  }
-  if (lower.includes('previous school') || lower.includes('school last attended')) {
-    return FIELD_INSTRUCTION_GUIDE["Name of Previous School (Class 10th)"];
+  if (lower.includes('board') && lower.includes('reg') && lower.includes('10th')) {
+    return SPECIAL_TECHNICAL_GUIDANCE["Board Registration No. (Class 10th)"];
   }
   if (lower.includes('provisional') && lower.includes('reason')) {
-    return FIELD_INSTRUCTION_GUIDE["Reason for Provisional (Class 11th)"];
+    return SPECIAL_TECHNICAL_GUIDANCE["Reason for Provisional (Class 11th)"];
   }
-  if (lower.includes('admission type')) {
-    return FIELD_INSTRUCTION_GUIDE["Admission Type (Class 11th)"];
-  }
-  if (lower.includes('stream')) {
-    return FIELD_INSTRUCTION_GUIDE["Stream for Class 11th"];
-  }
-  if (lower.includes('subject') && (lower.includes('taken') || lower.includes('stud'))) {
-    return FIELD_INSTRUCTION_GUIDE["Subjects to be taken in Class 11th"];
-  }
-  if (lower.includes('reappear') || lower.includes('backlog')) {
-    return FIELD_INSTRUCTION_GUIDE["Subjects to Reappear (Class 10th)"];
-  }
-  if (lower.includes('photo') || lower.includes('photograph') || lower.includes('image')) {
-    return FIELD_INSTRUCTION_GUIDE["Student Photo"];
-  }
-
-  // 3. Custom schema helpText fallback
-  if (customHelpText && customHelpText.trim().length > 0) {
-    return customHelpText.trim();
-  }
-
   return null;
 }
 
@@ -372,54 +241,33 @@ function getLabelDisplay(name = '') {
   const lowerTag = rawTag.toLowerCase();
 
   let badge = null;
-  if (lowerTag.includes('school record')) {
+  if (lowerTag.includes('if any') || lowerTag.includes('optional') || lowerTag.includes('if available')) {
     badge = (
-      <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[9px] font-black bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-500/30 tracking-tight" title="Must match Class 10th / School marks card exactly">
-        📋 as per school records
-      </span>
-    );
-  } else if (lowerTag.includes('whatsapp')) {
-    badge = (
-      <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[9px] font-black bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 border border-emerald-500/30 tracking-tight" title="WhatsApp number for alerts">
-        📱 WhatsApp
-      </span>
-    );
-  } else if (lowerTag.includes('working')) {
-    badge = (
-      <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[9px] font-black bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 border border-emerald-500/30 tracking-tight" title="Active contact number">
-        📱 active
-      </span>
-    );
-  } else if (lowerTag.includes('udise')) {
-    badge = (
-      <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[9px] font-black bg-blue-500/15 text-blue-800 dark:text-blue-300 border border-blue-500/30 tracking-tight">
-        🏫 UDISE portal
-      </span>
-    );
-  } else if (lowerTag.includes('if any') || lowerTag.includes('optional') || lowerTag.includes('if available')) {
-    badge = (
-      <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[9px] font-semibold bg-slate-100 dark:bg-slate-800 text-slate-500 border border-slate-200 dark:border-slate-700 tracking-tight">
-        optional
+      <span className="text-[9.5px] font-normal text-slate-400 dark:text-slate-500">
+        (optional)
       </span>
     );
   } else if (lowerTag.startsWith('class ')) {
     badge = (
-      <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[9px] font-bold bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border border-indigo-500/20 tracking-tight">
-        {rawTag}
-      </span>
-    );
-  } else {
-    badge = (
-      <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[9px] font-bold bg-teal-500/10 text-teal-700 dark:text-teal-300 border border-teal-500/20 tracking-tight">
+      <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[9px] font-semibold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
         {rawTag}
       </span>
     );
   }
 
+  let cleanPlaceholder = `Enter ${mainLabel}`;
+  if (lowerTag.includes('school record')) {
+    cleanPlaceholder = `As per school records / matric card`;
+  } else if (lowerTag.includes('whatsapp')) {
+    cleanPlaceholder = `10-digit WhatsApp number`;
+  } else if (lowerTag.includes('working')) {
+    cleanPlaceholder = `10-digit active contact number`;
+  }
+
   return {
     mainLabel,
     badge,
-    cleanPlaceholder: `Enter ${mainLabel}`,
+    cleanPlaceholder,
   };
 }
 
@@ -957,10 +805,10 @@ export default function DynamicFormField({
     return cleanPlaceholder;
   }, [name, rawPlaceholder, cleanPlaceholder]);
 
-  // Resolve substantive institutional guidance text
+  // Resolve minimal technical guidance only for complex fields
   const instructionText = useMemo(() => {
-    return resolveFieldInstruction(name, mainLabel, hint);
-  }, [name, mainLabel, hint]);
+    return resolveTechnicalGuidance(name, mainLabel);
+  }, [name, mainLabel]);
 
   // Process options based on type
   let options = [];
@@ -1076,9 +924,9 @@ export default function DynamicFormField({
 
   return (
     <div className="min-w-0 space-y-1 text-xs" data-field-name={name}>
-      {/* Field Label Header */}
-      <label htmlFor={inputId} className="flex min-w-0 flex-wrap items-center justify-between gap-1 text-[10.5px] sm:text-[11px] font-bold" style={{ color: 'var(--text-main, #1e293b)' }}>
-        <span className="flex min-w-0 flex-wrap items-center gap-1.5 leading-snug">
+      {/* Field Label Header — Minimal, clean, without visual clutter */}
+      <label htmlFor={inputId} className="flex min-w-0 items-center justify-between gap-1 text-[11px] font-bold text-slate-700 dark:text-slate-200">
+        <span className="flex min-w-0 items-center gap-1.5 leading-snug">
           <span className="break-words font-extrabold text-slate-800 dark:text-slate-100">{mainLabel} {required && <span className="text-red-500">*</span>}</span>
           {badge}
           {calcPercentageBadge && (
@@ -1088,10 +936,12 @@ export default function DynamicFormField({
           )}
         </span>
         {instructionText && (
-          <StandardTooltip content={instructionText} title={`${mainLabel} Guidance`} position="top">
-            <span className="inline-flex items-center gap-1 text-[9.5px] font-bold text-teal-700 dark:text-teal-300 bg-teal-50/90 dark:bg-teal-950/60 hover:bg-teal-100 dark:hover:bg-teal-900/80 px-1.5 py-0.5 rounded-md border border-teal-200/80 dark:border-teal-800/80 transition-colors shadow-2xs cursor-pointer">
-              <Info size={10} className="text-teal-600 dark:text-teal-400 flex-shrink-0" />
-              <span>Guidance</span>
+          <StandardTooltip content={instructionText} title={mainLabel} position="top">
+            <span
+              className="text-slate-400 hover:text-teal-600 dark:hover:text-teal-400 p-0.5 rounded transition-colors cursor-pointer inline-flex items-center"
+              title="Click for details"
+            >
+              <Info size={11} />
             </span>
           </StandardTooltip>
         )}
