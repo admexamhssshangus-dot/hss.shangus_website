@@ -1,7 +1,7 @@
 import React, { useId, useState, useMemo, useEffect, useRef } from 'react';
 import { CheckCircle2, AlertCircle, Info, Camera, X, Loader2, Calendar, ChevronDown, Plus, BookOpen, Layers, Sparkles, Lock, ShieldCheck } from 'lucide-react';
 import compressStudentPhoto, { formatPhotoDisplayUrl } from '../../utils/imageCompressor';
-import { MIN_ADMISSION_AGE } from '../../utils/admissionValidation';
+import { MIN_ADMISSION_AGE, isValidAadhaar } from '../../utils/admissionValidation';
 import { validateSubjectSelection, normalizeSubjectTitle } from '../student/AdmissionForm';
 import { DEFAULT_FEEDER_SCHOOLS, getCachedFeederSchools, loadFeederSchools } from '../../utils/feederSchoolsManager';
 
@@ -1310,6 +1310,62 @@ export default function DynamicFormField({
                       <div className="text-[10px] font-bold text-red-600 dark:text-red-400 flex items-center gap-1 pt-0.5">
                         <AlertCircle size={12} className="flex-shrink-0" />
                         <span>Marks obtained cannot exceed Total Max Marks ({correspondingMaxMarks}).</span>
+                      </div>
+                    )}
+
+                    {/* Live Aadhaar Helper */}
+                    {lowerName.includes('aadhar') && value && (
+                      <div className="flex items-center justify-between text-[10px] px-1 pt-0.5 font-bold">
+                        <span className="font-mono text-slate-500 dark:text-slate-400">
+                          {value.length}/12 digits
+                        </span>
+                        {value.length === 12 && (
+                          <span className={`flex items-center gap-1 font-black ${
+                            isValidAadhaar(value) ? 'text-emerald-700 dark:text-emerald-300' : 'text-amber-700 dark:text-amber-300'
+                          }`}>
+                            {isValidAadhaar(value) ? (
+                              <>
+                                <CheckCircle2 size={11} className="text-emerald-600 dark:text-emerald-400" />
+                                <span>Verified Aadhaar</span>
+                              </>
+                            ) : (
+                              <>
+                                <AlertCircle size={11} className="text-amber-600 dark:text-amber-400" />
+                                <span>Invalid Checksum</span>
+                              </>
+                            )}
+                          </span>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Live Mobile Helper */}
+                    {lowerName.includes('mobile') && value && (
+                      <div className="flex items-center justify-between text-[10px] px-1 pt-0.5 font-bold">
+                        <span className="font-mono text-slate-500 dark:text-slate-400">
+                          {value.length}/10 digits
+                        </span>
+                        {value.length === 10 && /^[6-9]\d{9}$/.test(value) && (
+                          <span className="text-emerald-700 dark:text-emerald-300 font-black flex items-center gap-1">
+                            <CheckCircle2 size={11} className="text-emerald-600 dark:text-emerald-400" />
+                            <span>Valid Mobile Number</span>
+                          </span>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Live IFSC Helper */}
+                    {isIfsc && value && (
+                      <div className="flex items-center justify-between text-[10px] px-1 pt-0.5 font-bold">
+                        <span className="font-mono text-slate-500 dark:text-slate-400">
+                          {value.length}/11 chars
+                        </span>
+                        {value.length === 11 && /^[A-Z]{4}0[A-Z0-9]{6}$/.test(value) && (
+                          <span className="text-emerald-700 dark:text-emerald-300 font-black flex items-center gap-1">
+                            <CheckCircle2 size={11} className="text-emerald-600 dark:text-emerald-400" />
+                            <span>Valid IFSC Format</span>
+                          </span>
+                        )}
                       </div>
                     )}
 
