@@ -204,17 +204,21 @@ export function resolveTechnicalGuidance(fieldName = '', mainLabel = '') {
   const cleanName = String(fieldName || '').trim();
   const cleanMain = String(mainLabel || '').trim();
   const lower = cleanName.toLowerCase();
+  const lowerMain = cleanMain.toLowerCase();
 
   if (SPECIAL_TECHNICAL_GUIDANCE[cleanName]) return SPECIAL_TECHNICAL_GUIDANCE[cleanName];
   if (SPECIAL_TECHNICAL_GUIDANCE[cleanMain]) return SPECIAL_TECHNICAL_GUIDANCE[cleanMain];
 
-  if (lower.includes('pen') && (lower.includes('udise') || lower.includes('number') || lower.includes('no'))) {
+  if (lower.includes('pen') || lowerMain.includes('pen')) {
     return SPECIAL_TECHNICAL_GUIDANCE["PEN number (given by UDISE portal)"];
   }
-  if (lower.includes('apaar') || lower.includes('abc id')) {
+  if (lower.includes('apaar') || lowerMain.includes('apaar') || lower.includes('abc id') || lowerMain.includes('abc id')) {
     return SPECIAL_TECHNICAL_GUIDANCE["APAAR ID"];
   }
-  if (lower.includes('board') && lower.includes('reg') && lower.includes('10th')) {
+  if ((lower.includes('board') || lowerMain.includes('board')) && (lower.includes('reg') || lowerMain.includes('reg'))) {
+    if (lower.includes('11th') || lowerMain.includes('11th')) {
+      return SPECIAL_TECHNICAL_GUIDANCE["Board Registration No. (Class 11th)"];
+    }
     return SPECIAL_TECHNICAL_GUIDANCE["Board Registration No. (Class 10th)"];
   }
   if (lower.includes('provisional') && lower.includes('reason')) {

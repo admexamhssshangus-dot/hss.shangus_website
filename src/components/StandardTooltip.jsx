@@ -119,12 +119,21 @@ export default function StandardTooltip({
         <div
           ref={tooltipRef}
           role="tooltip"
-          className={`absolute z-50 pointer-events-auto animate-fadeIn w-max max-w-[280px] sm:max-w-sm p-3 rounded-xl shadow-2xl bg-slate-900 dark:bg-slate-950 text-white border border-slate-700 dark:border-slate-600 text-xs font-normal leading-relaxed ${positionClasses[position] || positionClasses.top}`}
+          className={`absolute z-50 pointer-events-auto animate-fadeIn w-max max-w-[280px] sm:max-w-sm p-3 rounded-xl shadow-2xl text-xs font-normal leading-relaxed ${positionClasses[position] || positionClasses.top}`}
+          style={{
+            backgroundColor: '#0f172a',
+            color: '#f8fafc',
+            border: '1px solid #334155',
+            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.6), 0 8px 10px -6px rgba(0, 0, 0, 0.6)',
+          }}
         >
           {/* Header with Title & Dismiss Button */}
-          <div className="flex items-center justify-between gap-2 border-b border-slate-800 dark:border-slate-700/80 pb-1.5 mb-2">
-            <div className="flex items-center gap-1.5 text-[11px] font-bold text-teal-300 tracking-tight">
-              <Info size={13} className="text-teal-400 flex-shrink-0" />
+          <div
+            className="flex items-center justify-between gap-2 pb-1.5 mb-2"
+            style={{ borderBottom: '1px solid #1e293b' }}
+          >
+            <div className="flex items-center gap-1.5 text-[11.5px] font-bold tracking-tight" style={{ color: '#2dd4bf' }}>
+              <Info size={14} style={{ color: '#2dd4bf' }} className="flex-shrink-0" />
               <span className="truncate">{title || 'Guidance / Instructions'}</span>
             </div>
             <button
@@ -134,7 +143,10 @@ export default function StandardTooltip({
                 e.stopPropagation();
                 setIsOpen(false);
               }}
-              className="text-slate-300 hover:text-white p-0.5 rounded-md hover:bg-slate-800 cursor-pointer transition-colors flex-shrink-0"
+              className="p-0.5 rounded-md cursor-pointer transition-colors flex-shrink-0"
+              style={{ color: '#94a3b8' }}
+              onMouseEnter={(e) => e.currentTarget.style.color = '#ffffff'}
+              onMouseLeave={(e) => e.currentTarget.style.color = '#94a3b8'}
               title="Close"
               aria-label="Close tooltip"
             >
@@ -142,8 +154,11 @@ export default function StandardTooltip({
             </button>
           </div>
 
-          {/* Body Content (Full text with crisp high-contrast readability) */}
-          <div className="text-white dark:text-white text-[11.5px] sm:text-xs font-normal break-words leading-relaxed selection:bg-teal-600 selection:text-white">
+          {/* Body Content (Full text with crystal clear high-contrast white text) */}
+          <div
+            className="text-[11.5px] sm:text-xs font-medium break-words leading-relaxed selection:bg-teal-600 selection:text-white"
+            style={{ color: '#f1f5f9' }}
+          >
             {content}
           </div>
 
