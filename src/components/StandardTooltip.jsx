@@ -119,12 +119,12 @@ export default function StandardTooltip({
         <div
           ref={tooltipRef}
           role="tooltip"
-          className={`absolute z-50 pointer-events-auto animate-fadeIn w-max max-w-[260px] sm:max-w-xs p-2.5 rounded-xl shadow-xl bg-slate-900/95 dark:bg-slate-800/98 backdrop-blur-md text-white border border-slate-700/80 dark:border-slate-600/80 text-[11px] font-medium leading-relaxed ${positionClasses[position] || positionClasses.top}`}
+          className={`absolute z-50 pointer-events-auto animate-fadeIn w-max max-w-[280px] sm:max-w-sm p-3 rounded-2xl shadow-2xl bg-slate-950/95 dark:bg-slate-900/98 backdrop-blur-md text-white border border-slate-700/80 dark:border-slate-600/90 text-xs font-normal leading-relaxed ${positionClasses[position] || positionClasses.top}`}
         >
           {/* Header with Title & Dismiss Button */}
-          <div className="flex items-center justify-between gap-2 border-b border-slate-700/60 dark:border-slate-700/80 pb-1 mb-1.5">
-            <div className="flex items-center gap-1 text-[10px] font-black text-teal-300 uppercase tracking-wider">
-              <Info size={11} className="text-teal-400 flex-shrink-0" />
+          <div className="flex items-center justify-between gap-2 border-b border-slate-800 dark:border-slate-700/80 pb-1.5 mb-2">
+            <div className="flex items-center gap-1.5 text-[11px] font-black text-teal-300 tracking-tight">
+              <Info size={12} className="text-teal-400 flex-shrink-0" />
               <span className="truncate">{title || 'Guidance / Instructions'}</span>
             </div>
             <button
@@ -134,16 +134,16 @@ export default function StandardTooltip({
                 e.stopPropagation();
                 setIsOpen(false);
               }}
-              className="text-slate-400 hover:text-white p-0.5 rounded hover:bg-slate-800 cursor-pointer transition-colors flex-shrink-0"
+              className="text-slate-400 hover:text-white p-0.5 rounded-md hover:bg-slate-800 cursor-pointer transition-colors flex-shrink-0"
               title="Close"
               aria-label="Close tooltip"
             >
-              <X size={11} />
+              <X size={12} />
             </button>
           </div>
 
-          {/* Body Content (Full text without truncation) */}
-          <div className="text-slate-200 dark:text-slate-200 text-[10.5px] font-normal break-words leading-snug">
+          {/* Body Content (Full text with crisp high-contrast readability) */}
+          <div className="text-slate-100 dark:text-slate-100 text-[11px] font-normal break-words leading-relaxed">
             {content}
           </div>
 
