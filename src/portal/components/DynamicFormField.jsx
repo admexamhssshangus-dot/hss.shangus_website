@@ -1448,7 +1448,7 @@ export default function DynamicFormField({
                             ) : (
                               <>
                                 <AlertCircle size={11} className="text-amber-600 dark:text-amber-400" />
-                                <span>Invalid Checksum</span>
+                                <span>Invalid Aadhaar Number</span>
                               </>
                             )}
                           </span>

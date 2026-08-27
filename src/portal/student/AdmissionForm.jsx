@@ -1545,13 +1545,13 @@ export default function AdmissionForm() {
     const aadhar = String(formData["Aadhar No."] || '').replace(/[^0-9]/g, '');
     if (!aadhar) addError("Aadhar No.", "Aadhar number is required");
     else if (aadhar.length !== 12) addError("Aadhar No.", "Aadhar number must be exactly 12 digits");
-    else if (!isValidAadhaar(aadhar)) addError("Aadhar No.", "Enter a valid Aadhaar number (checksum failed)");
+    else if (!isValidAadhaar(aadhar)) addError("Aadhar No.", "Please enter a valid 12-digit Aadhaar number (check for typos)");
 
     // Father's Aadhar (Mandatory)
     const fatherAadhar = String(formData["Father's Aadhar No."] || '').replace(/[^0-9]/g, '');
     if (!fatherAadhar) addError("Father's Aadhar No.", "Father's Aadhaar number is required");
     else if (fatherAadhar.length !== 12) addError("Father's Aadhar No.", "Father's Aadhaar number must be exactly 12 digits");
-    else if (!isValidAadhaar(fatherAadhar)) addError("Father's Aadhar No.", "Enter a valid Father's Aadhaar number (checksum failed)");
+    else if (!isValidAadhaar(fatherAadhar)) addError("Father's Aadhar No.", "Please enter a valid Father's Aadhaar number (check for typos)");
     else if (aadhar.length === 12 && fatherAadhar.length === 12 && aadhar === fatherAadhar) {
       addError("Father's Aadhar No.", "Student's and Father's Aadhaar numbers cannot be identical");
     }
