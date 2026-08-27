@@ -612,58 +612,55 @@ function extractWordTokens(text) {
   });
 }
 
+const safeStr = (val) => (val !== null && val !== undefined ? String(val).trim() : '');
+
 /**
  * Create a search index entry from any student document (admissions or masterRegisters)
  */
 export function createSearchIndexEntry(doc, source = 'admissions') {
   if (!doc || typeof doc !== 'object') return null;
 
-  const id = doc.id || doc['Form Number'] || doc['Form No.'] || doc.formNo || doc['Board Registration Number'] || '';
-  const name = (
+  const id = safeStr(doc.id || doc['Form Number'] || doc['Form No.'] || doc.formNo || doc['Board Registration Number']);
+  const name = safeStr(
     doc.studentName ||
     doc["Student's Name (as per school records)"] ||
     doc["Student's Name"] ||
     doc['Student Name'] ||
     doc['Name of Student'] ||
-    doc['name'] ||
-    ''
-  ).trim();
+    doc['name']
+  );
 
-  const father = (
+  const father = safeStr(
     doc.fatherName ||
     doc["Father's/Guardian's Name (as per school records)"] ||
     doc["Father's Name"] ||
-    doc['Father Name'] ||
-    ''
-  ).trim();
+    doc['Father Name']
+  );
 
-  const mother = (
+  const mother = safeStr(
     doc.motherName ||
     doc["Mother's Name"] ||
-    doc['Mother Name'] ||
-    ''
-  ).trim();
+    doc['Mother Name']
+  );
 
-  const formNo = String(
+  const formNo = safeStr(
     doc.formNo ||
     doc['Form Number'] ||
     doc['Form No.'] ||
     doc['FormNo'] ||
-    doc.formNumber ||
-    ''
+    doc.formNumber
   ).replace(/^(N\/A|—)$/i, '').trim();
 
-  const boardRegNo = (
+  const boardRegNo = safeStr(
     doc.boardRegNo ||
     doc['Board Registration Number'] ||
     doc['Board Registration No.'] ||
     doc['Board Reg. No.'] ||
     doc['Board Reg No'] ||
-    doc.regNo ||
-    ''
+    doc.regNo
   ).replace(/^(N\/A|—)$/i, '').trim();
 
-  const admNo = String(
+  const admNo = safeStr(
     doc.admNo ||
     doc['Admission No.'] ||
     doc['Admission No'] ||
@@ -671,100 +668,89 @@ export function createSearchIndexEntry(doc, source = 'admissions') {
     doc['Adm. No.'] ||
     doc['Adm. No'] ||
     doc['AdmNo'] ||
-    doc.admissionNo ||
-    ''
+    doc.admissionNo
   ).replace(/^(N\/A|—)$/i, '').trim();
 
-  const classRollNo = String(
+  const classRollNo = safeStr(
     doc.classRollNo ||
     doc['Class Roll No'] ||
     doc['Class Roll No.'] ||
     doc['Roll No'] ||
     doc['Roll No.'] ||
-    doc.rollNo ||
-    ''
+    doc.rollNo
   ).replace(/^(N\/A|—)$/i, '').trim();
 
-  const mobile = String(
+  const mobile = safeStr(
     doc.mobile ||
     doc.mobileNumber ||
     doc['Mobile Number'] ||
     doc['Contact Number'] ||
     doc['Phone'] ||
     doc['Mobile No.'] ||
-    doc['Mobile'] ||
-    ''
+    doc['Mobile']
   ).replace(/^(N\/A|—)$/i, '').trim();
 
-  const parentContact = String(
+  const parentContact = safeStr(
     doc.parentContact ||
     doc["Parent's Contact"] ||
     doc["Parent's Mobile No. (must be working)"] ||
     doc["Parent's Mobile No."] ||
-    doc["Father's Mobile No."] ||
-    ''
+    doc["Father's Mobile No."]
   ).replace(/^(N\/A|—)$/i, '').trim();
 
-  const studentClass = (
+  const studentClass = safeStr(
     doc.class ||
     doc.Class ||
     doc['Admission sought for class'] ||
-    doc['Class'] ||
-    ''
-  ).trim();
+    doc['Class']
+  );
 
-  const session = (
+  const session = safeStr(
     doc.session ||
     doc.Session ||
     doc['Academic Session'] ||
-    doc['Session'] ||
-    ''
-  ).trim();
+    doc['Session']
+  );
 
-  const stream = (
+  const stream = safeStr(
     doc.stream ||
     doc.Stream ||
-    doc['Stream'] ||
-    ''
-  ).trim();
+    doc['Stream']
+  );
 
-  const gender = (
+  const gender = safeStr(
     doc.gender ||
     doc.Gender ||
-    doc['Gender'] ||
-    ''
-  ).trim();
+    doc['Gender']
+  );
 
-  const category = (
+  const category = safeStr(
     doc.category ||
     doc.Category ||
-    doc['Category'] ||
-    ''
-  ).trim();
+    doc['Category']
+  );
 
-  const village = (
+  const village = safeStr(
     doc.village ||
     doc.Village ||
     doc['Village'] ||
     doc['Address'] ||
     doc['Permanent Address'] ||
     doc['Name of your village'] ||
-    doc['Village/Town'] ||
-    ''
-  ).trim();
+    doc['Village/Town']
+  );
 
-  const subjects = String(
+  const subjects = safeStr(
     doc.subs ||
     doc.Subjects ||
     doc.subjects ||
     doc['Subjects to be taken in Class 11th'] ||
-    doc['Subjects to be taken in Class 12th'] ||
-    ''
-  ).trim();
+    doc['Subjects to be taken in Class 12th']
+  );
 
-  const aadhar = String(doc.aadhar || doc['Aadhar No.'] || doc['Aadhaar No.'] || '').trim();
-  const penNo = String(doc.penNo || doc['PEN No.'] || '').trim();
-  const apaarId = String(doc.apaarId || doc['APAAR ID'] || '').trim();
+  const aadhar = safeStr(doc.aadhar || doc['Aadhar No.'] || doc['Aadhaar No.']);
+  const penNo = safeStr(doc.penNo || doc['PEN No.']);
+  const apaarId = safeStr(doc.apaarId || doc['APAAR ID']);
 
   // Search blob combining all text fields for substring matching
   const searchBlob = [
