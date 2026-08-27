@@ -5,6 +5,7 @@ import { ArrowLeft, Save, Send, CheckCircle, CheckCircle2, AlertCircle, RefreshC
 import SEO from '../../components/SEO';
 import DynamicFormField from '../components/DynamicFormField';
 import ModernLoader from '../../components/ModernLoader';
+import StandardTooltip from '../../components/StandardTooltip';
 import appsScriptApi from '../../services/appsScriptApi';
 import { sessionManager } from '../../services/sessionManager';
 import { generateStudentAdmissionPdf, generateProvisionalAdmissionPdf } from '../../utils/pdfGenerator';
@@ -1780,33 +1781,15 @@ export default function AdmissionForm() {
             <div className="absolute -bottom-24 -right-24 w-48 h-48 bg-emerald-500/20 rounded-full blur-3xl pointer-events-none" />
 
             <div className="relative z-10 space-y-4">
-              {/* Animated Icon Ring */}
-              <div className="relative inline-flex items-center justify-center">
-                <div className="w-20 h-20 rounded-full bg-teal-500/10 border border-teal-500/30 flex items-center justify-center animate-pulse">
-                  <Loader2 size={38} className="text-teal-400 animate-spin" />
-                </div>
-                <div className="absolute inset-0 rounded-full border-2 border-teal-400 border-t-transparent animate-spin" style={{ animationDuration: '1.2s' }} />
-              </div>
-
-              <div className="space-y-1">
-                <h3 className="text-lg font-black tracking-wide text-teal-300 uppercase">
-                  Submitting Application...
-                </h3>
-                <p className="text-xs text-slate-300 font-semibold">
-                  Govt. Higher Secondary School Shangus
-                </p>
-              </div>
-
-              {/* Animated Progress Bar */}
-              <div className="space-y-2 pt-2">
-                <div className="h-3 w-full bg-slate-800 rounded-full overflow-hidden p-0.5 border border-slate-700">
-                  <div className="h-full bg-gradient-to-r from-teal-500 via-emerald-400 to-teal-300 rounded-full transition-all duration-500 animate-pulse w-4/5" />
-                </div>
-                <div className="flex items-center justify-between text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                  <span>Processing Records</span>
-                  <span className="text-teal-400 font-mono font-black animate-pulse">Please wait...</span>
-                </div>
-              </div>
+              <ModernLoader
+                moduleKey="student"
+                title="Govt. Higher Secondary School Shangus"
+                badge="Admission Submission"
+                text="Securing & Submitting Application..."
+                subtext="Encrypting student records, validating photos, and generating verified registration ID…"
+                progress={88}
+                className="py-2"
+              />
 
               {/* Step checklist */}
               <div className="space-y-2 text-left pt-2 text-xs font-semibold text-slate-300 bg-slate-800/60 p-3.5 rounded-2xl border border-slate-700/60">
@@ -2553,6 +2536,23 @@ export default function AdmissionForm() {
                     '💬 Remarks & Final Review',
                   ];
 
+                  const SECTION_GUIDANCE_MAP = {
+                    '👤 Identity & Parentage': "Please ensure the candidate's name, parentage, DoB, and Aadhaar match official school records exactly.",
+                    '📱 Contact & Residential Address': "Provide active mobile numbers and complete residential address for official notifications.",
+                    '🩺 Physical & Social Category': "Provide accurate category details (e.g. Open/RBA/SC/ST/EWS) and disability status if applicable.",
+                    '🆔 National & Student Identifiers': "Enter official National Identifiers including Student PEN and Aadhaar numbers.",
+                    '⚽ Sports & Extracurricular': "Select your participation and achievements in national/state school sports competitions.",
+                    '🏫 Class 10th Examination Records': "Enter Class 10th Roll No., Session, Marks Obtained, and Previous School as per official JKBOSE marks card.",
+                    '🏫 Class 11th Examination Records': "Enter Class 11th Examination Roll No., Session, Marks, and Result details.",
+                    '🏫 Class 8th / 9th Examination Records': "Enter previous class examination results and school details.",
+                    '🎁 Scholarship Details': "Specify category and welfare scheme details for government educational scholarships.",
+                    '🏦 Bank Account Details': "Enter active student bank account number and IFSC code for scholarship processing.",
+                    '🛠️ Vocational Studies': "Select your opted skill/vocational courses (e.g. IT & ITES, Tourism, Healthcare).",
+                    '📚 Stream & Subject Selection': "Select your chosen stream and confirm your compulsory and elective subjects.",
+                    '📖 Subject Combinations': "Choose your elective stream and subject combination. Lab subjects include practical evaluations.",
+                    '💬 Remarks & Final Review': "Review all entered information carefully before submitting your admission application."
+                  };
+
                   const grouped = {};
                   activeFields.forEach(field => {
                     const name = field.fieldName || field.name || field['Field Name'];
@@ -2874,11 +2874,21 @@ export default function AdmissionForm() {
                                       <span className="w-2 h-2 rounded-full bg-teal-500 flex-shrink-0 shadow-xs"></span>
                                       <span className="tracking-wide uppercase text-[10.5px] sm:text-xs font-black break-words leading-tight">{sectionTitle}</span>
                                     </div>
-                                    {isIdentitySection && (
-                                      <span className="hidden text-[9px] font-extrabold text-slate-600 dark:text-slate-300 whitespace-nowrap sm:inline bg-white dark:bg-slate-850 px-2 py-0.5 rounded-md border border-slate-200 dark:border-slate-700 shadow-2xs">
-                                        Match official school records
-                                      </span>
-                                    )}
+                                    {(() => {
+                                      const sectionHelp = SECTION_GUIDANCE_MAP[sectionTitle];
+                                      if (!sectionHelp) return null;
+                                      return (
+                                        <StandardTooltip content={sectionHelp} title={sectionTitle} position="top">
+                                          <span className="inline-flex items-center gap-1 text-[9px] sm:text-[9.5px] font-bold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-850 hover:bg-slate-100 dark:hover:bg-slate-800 px-2 py-0.5 rounded-lg border border-slate-200 dark:border-slate-700 shadow-2xs cursor-pointer transition-colors shrink-0">
+                                            <Info size={10} className="text-teal-600 dark:text-teal-400 flex-shrink-0" />
+                                            <span className="hidden sm:inline font-bold">
+                                              {isIdentitySection ? 'Match official records' : 'Instructions'}
+                                            </span>
+                                            <span className="sm:hidden font-extrabold">Help</span>
+                                          </span>
+                                        </StandardTooltip>
+                                      );
+                                    })()}
                                   </div>
 
                                   {isIdentitySection ? (

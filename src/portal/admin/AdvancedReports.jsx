@@ -8949,20 +8949,15 @@ export default function AdvancedReports({
                 })
               ) : (loading || isFetchingData) ? (
                 <tr>
-                  <td colSpan={(orderedVisibleColumns.length || 1) + 1} className="p-10 text-center bg-slate-50/50 dark:bg-slate-900/30">
-                    <div className="flex flex-col items-center justify-center gap-2.5 py-4">
-                      <div className="w-10 h-10 rounded-2xl bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400 flex items-center justify-center border border-amber-300 dark:border-amber-700/50 shadow-inner">
-                        <RefreshCw size={20} className="animate-spin text-amber-700 dark:text-amber-400" />
-                      </div>
-                      <div>
-                        <p className="font-black text-sm text-slate-800 dark:text-slate-200">
-                          Loading Student Database Records...
-                        </p>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5">
-                          {fetchProgress > 0 ? `Fetching & indexing records (${fetchProgress}%)...` : 'Fetching records securely from database...'}
-                        </p>
-                      </div>
-                    </div>
+                  <td colSpan={(orderedVisibleColumns.length || 1) + 1} className="p-8 text-center bg-slate-50/50 dark:bg-slate-900/30">
+                    <ModernLoader
+                      moduleKey="reports"
+                      text="Loading Student Database Records"
+                      subtext={fetchProgress > 0 ? `Fetching & indexing records (${fetchProgress}%)…` : undefined}
+                      progress={fetchProgress > 0 ? fetchProgress : undefined}
+                      totalRecords={currentAdmissions?.length || undefined}
+                      className="py-4"
+                    />
                   </td>
                 </tr>
               ) : (

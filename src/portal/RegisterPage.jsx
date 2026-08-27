@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 
 import SEO from '../components/SEO';
+import ModernLoader from '../components/ModernLoader';
 import { auth, db, googleProvider } from '../services/firebase';
 import { 
   createUserWithEmailAndPassword, 
@@ -319,23 +320,15 @@ export default function RegisterPage() {
             {/* Loading blur overlay */}
             {isLoading && (
               <div 
-                className="absolute inset-0 z-50 rounded-3xl flex flex-col items-center justify-center gap-3 animate-fadeIn"
-                style={{ backgroundColor: 'rgba(255,255,255,0.78)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)' }}
+                className="absolute inset-0 z-50 rounded-3xl flex flex-col items-center justify-center p-4 animate-fadeIn"
+                style={{ backgroundColor: 'rgba(255,255,255,0.88)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)' }}
               >
-                <div className="relative flex items-center justify-center">
-                  <div 
-                    className="absolute w-20 h-20 rounded-full border-[3px] border-transparent animate-spin"
-                    style={{ borderTopColor: '#0d9488', borderRightColor: '#14b8a640', animationDuration: '0.9s' }}
-                  />
-                  <div 
-                    className="absolute w-16 h-16 rounded-full border-2 border-dashed animate-spin opacity-50"
-                    style={{ borderColor: '#0d9488', animationDuration: '2s', animationDirection: 'reverse' }}
-                  />
-                  <img src="/logo512.png" alt="HSS Shangus" className="w-10 h-10 object-contain relative z-10 drop-shadow-md" />
-                </div>
-                <p className="text-xs sm:text-sm font-black tracking-widest uppercase text-slate-800 dark:text-slate-200">
-                  Creating Student Account...
-                </p>
+                <ModernLoader
+                  moduleKey="student"
+                  text="Creating Student Account..."
+                  subtext="Provisioning secure student portal profile…"
+                  className="py-4"
+                />
               </div>
             )}
 
