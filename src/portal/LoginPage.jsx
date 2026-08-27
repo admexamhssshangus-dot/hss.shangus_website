@@ -106,19 +106,19 @@ export default function LoginPage() {
   }, [resendCooldown]);
 
   // Helper to construct verified user session
-  const createVerifiedSession = async (firebaseUser, overrideEmail = null) => {
+  const createVerifiedSession = async (firebaseUser, overrideEmail = null, cachedStaffProfile = null) => {
     let tokenResult = null;
     let claims = {};
     if (firebaseUser?.getIdTokenResult) {
       try {
-        tokenResult = await getIdTokenResult(firebaseUser, true);
+        tokenResult = await getIdTokenResult(firebaseUser, false);
         claims = tokenResult?.claims || {};
       } catch (_) {}
     }
     const emailLower = String(firebaseUser?.email || overrideEmail || '').toLowerCase().trim();
     
-    // Resolve role from Firestore permissions & users collection & bootstrap
-    const staffProfile = await resolveStaffRoleAndPerms(emailLower);
+    // Resolve role from Firestore permissions & users collection & bootstrap (use cached if available)
+    const staffProfile = cachedStaffProfile || await resolveStaffRoleAndPerms(emailLower);
     const isBootstrapAdmin = emailLower === 'adm.exam.hss.shangus@gmail.com' || emailLower === 'e.educational.24@gmail.com';
 
     const rawRole = String(
@@ -485,13 +485,11 @@ export default function LoginPage() {
           return;
         }
 
-        // Direct Teacher Login (Accounts strictly provisioned and authorized by Super Admin)
-        await incrementTeacherLoginCount(cleanEmail);
-        const verifiedSession = await createVerifiedSession(userCred.user);
+        // Direct Teacher Login (Non-blocking login count update, immediate redirect)
+        incrementTeacherLoginCount(cleanEmail).catch(() => {});
+        const verifiedSession = await createVerifiedSession(userCred.user, cleanEmail, staffProfile);
         setAlert({ type: 'success', text: `Welcome back, ${verifiedSession.user.name}! Redirecting to Teacher Portal...` });
-        setTimeout(() => {
-          onLoginSuccess(verifiedSession, keepLoggedIn);
-        }, 400);
+        onLoginSuccess(verifiedSession, keepLoggedIn);
         return;
       }
 
@@ -528,11 +526,9 @@ export default function LoginPage() {
       }
 
       // --- STUDENT TAB ACCESS (OR DEFAULT) ---
-      const verifiedSession = await createVerifiedSession(userCred.user);
+      const verifiedSession = await createVerifiedSession(userCred.user, cleanEmail, staffProfile);
       setAlert({ type: 'success', text: 'Login successful! Redirecting to Student Portal...' });
-      setTimeout(() => {
-        onLoginSuccess(verifiedSession, keepLoggedIn);
-      }, 400);
+      onLoginSuccess(verifiedSession, keepLoggedIn);
 
     } catch (err) {
       console.error('Login error:', err);
