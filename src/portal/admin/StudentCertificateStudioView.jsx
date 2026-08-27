@@ -240,6 +240,7 @@ export default function StudentCertificateStudioView({
 
   // ─── Data Sources: Fed Directly & Instantaneously from Parent Global Session ───
   const [activeCohortFilter, setActiveCohortFilter] = useState('ALL'); // 'ALL' | '12th' | '11th' | '10th' | '9th' | 'present' | 'past'
+  const [activeSessionFilter, setActiveSessionFilter] = useState('ALL');
   const [photosVersion, setPhotosVersion] = useState(0);
   const [recentIngestedResults, setRecentIngestedResults] = useState([]);
   const liveStudentsList = useMemo(() => {
@@ -324,6 +325,19 @@ export default function StudentCertificateStudioView({
     return list;
   }, [liveStudentsList, recentIngestedResults, isReady]);
 
+  // ─── Dynamic Sessions Derived from Indexed Directory ───
+  const dynamicSessions = useMemo(() => {
+    const counts = {};
+    unifiedStudentDirectory.forEach(st => {
+      const sess = st.session;
+      if (sess && sess !== '—') {
+        counts[sess] = (counts[sess] || 0) + 1;
+      }
+    });
+    const sorted = Object.keys(counts).sort((a, b) => b.localeCompare(a));
+    return sorted.map(k => ({ value: k, label: `Session ${k} (${counts[k]})` }));
+  }, [unifiedStudentDirectory]);
+
   // ─── Student Search & Selection State ───
   const [studentSearchQuery, setStudentSearchQuery] = useState('');
   const [debouncedStudentQuery, setDebouncedStudentQuery] = useState('');
@@ -343,7 +357,7 @@ export default function StudentCertificateStudioView({
   const filteredStudents = useMemo(() => {
     let pool = unifiedStudentDirectory;
 
-    // Apply Active Cohort Filter Chip
+    // Apply Active Cohort / Class Filter Chip
     if (activeCohortFilter === '12th') {
       pool = pool.filter(st => st.cls.toLowerCase().includes('12'));
     } else if (activeCohortFilter === '11th') {
@@ -356,6 +370,11 @@ export default function StudentCertificateStudioView({
       pool = pool.filter(st => st.sourceType === 'present');
     } else if (activeCohortFilter === 'past') {
       pool = pool.filter(st => st.sourceType === 'past');
+    }
+
+    // Apply Active Session Filter
+    if (activeSessionFilter !== 'ALL') {
+      pool = pool.filter(st => (st.session || '').toLowerCase().includes(activeSessionFilter.toLowerCase()));
     }
 
     const q = deferredStudentQuery.trim().toLowerCase();
@@ -376,7 +395,7 @@ export default function StudentCertificateStudioView({
         st.session.toLowerCase().includes(q)
       );
     }).slice(0, 40);
-  }, [unifiedStudentDirectory, deferredStudentQuery, activeCohortFilter]);
+  }, [unifiedStudentDirectory, deferredStudentQuery, activeCohortFilter, activeSessionFilter]);
 
   // ─── Active Certificate Form State (Auto-filled + Manual Overrides) ───
   const [studentName, setStudentName] = useState('MOHAMMAD TAHIR WANI');
@@ -2784,26 +2803,45 @@ export default function StudentCertificateStudioView({
               </span>
             </div>
 
-            {/* Quick Cohort Filter Dropdown & TC Tools Action */}
-            <div className="flex items-center justify-between gap-1.5 pb-0.5 text-[9.5px]">
-              <div className="flex items-center gap-1 flex-1 min-w-0">
-                <span className="text-slate-500 dark:text-slate-400 font-bold text-[9px] uppercase tracking-wider shrink-0">Cohort:</span>
-                <select
-                  value={activeCohortFilter}
-                  onChange={(e) => setActiveCohortFilter(e.target.value)}
-                  className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 font-bold text-[10px] rounded-lg px-2 py-1 focus:ring-1 focus:ring-teal-500 focus:outline-none cursor-pointer truncate shadow-2xs"
-                >
-                  <option value="ALL">All Students ({unifiedStudentDirectory.length})</option>
-                  <option value="12th">Class 12th ({unifiedStudentDirectory.filter(s => s.cls.includes('12')).length})</option>
-                  <option value="11th">Class 11th ({unifiedStudentDirectory.filter(s => s.cls.includes('11')).length})</option>
-                  <option value="10th">Class 10th ({unifiedStudentDirectory.filter(s => s.cls.includes('10')).length})</option>
-                  <option value="past">Master Register / Historical ({unifiedStudentDirectory.filter(s => s.sourceType === 'past').length})</option>
-                </select>
+            {/* Quick Cohort & Session Filter Dropdowns & TC Tools Action */}
+            <div className="space-y-1 pb-0.5 text-[9.5px]">
+              <div className="grid grid-cols-2 gap-1.5">
+                {/* Cohort / Class Filter */}
+                <div className="flex items-center gap-1 min-w-0">
+                  <span className="text-slate-500 dark:text-slate-400 font-bold text-[8.5px] uppercase tracking-wider shrink-0">Class:</span>
+                  <select
+                    value={activeCohortFilter}
+                    onChange={(e) => setActiveCohortFilter(e.target.value)}
+                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 font-bold text-[10px] rounded-lg px-1.5 py-1 focus:ring-1 focus:ring-teal-500 focus:outline-none cursor-pointer truncate shadow-2xs"
+                  >
+                    <option value="ALL">All Classes ({unifiedStudentDirectory.length})</option>
+                    <option value="12th">Class 12th ({unifiedStudentDirectory.filter(s => s.cls.includes('12')).length})</option>
+                    <option value="11th">Class 11th ({unifiedStudentDirectory.filter(s => s.cls.includes('11')).length})</option>
+                    <option value="10th">Class 10th ({unifiedStudentDirectory.filter(s => s.cls.includes('10')).length})</option>
+                    <option value="9th">Class 9th ({unifiedStudentDirectory.filter(s => s.cls.includes('9')).length})</option>
+                    <option value="past">Historical ({unifiedStudentDirectory.filter(s => s.sourceType === 'past').length})</option>
+                  </select>
+                </div>
+
+                {/* Session Filter */}
+                <div className="flex items-center gap-1 min-w-0">
+                  <span className="text-slate-500 dark:text-slate-400 font-bold text-[8.5px] uppercase tracking-wider shrink-0">Session:</span>
+                  <select
+                    value={activeSessionFilter}
+                    onChange={(e) => setActiveSessionFilter(e.target.value)}
+                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 font-bold text-[10px] rounded-lg px-1.5 py-1 focus:ring-1 focus:ring-teal-500 focus:outline-none cursor-pointer truncate shadow-2xs"
+                  >
+                    <option value="ALL">All Sessions ({unifiedStudentDirectory.length})</option>
+                    {dynamicSessions.map((sess) => (
+                      <option key={sess.value} value={sess.value}>{sess.label}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
               {/* TC/DC Specific Tools (Result Hub & Bulk Generator) - Shown ONLY when TC/DC template is selected */}
               {isTcDcActive && (
-                <div className="flex items-center gap-1 shrink-0 animate-fadeIn">
+                <div className="flex items-center justify-end gap-1 shrink-0 animate-fadeIn pt-0.5">
                   <button
                     type="button"
                     onClick={() => setShowResultIngestionModal(true)}

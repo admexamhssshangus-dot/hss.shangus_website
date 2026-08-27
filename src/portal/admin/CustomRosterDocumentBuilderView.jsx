@@ -1371,7 +1371,8 @@ export default function CustomRosterDocumentBuilderView({
     return Array.from(map.values()).sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
   }, [unifiedStudentPool]);
 
-  // ─── Filter States (Class, Stream, Gender, Status) ───
+  // ─── Filter States (Session, Class, Stream, Gender, Status) ───
+  const [selectedSession, setSelectedSession] = useState('ALL');
   const [selectedClass, setSelectedClass] = useState('ALL');
   const [selectedStream, setSelectedStream] = useState('ALL');
   const [selectedGender, setSelectedGender] = useState('ALL');
@@ -1821,10 +1822,26 @@ export default function CustomRosterDocumentBuilderView({
     setDraggedColIdx(null);
   };
 
-  // ─── Dynamic Classes Derived from Cohort Students ───
-  const dynamicClasses = useMemo(() => {
+  // ─── Dynamic Sessions & Classes Derived from Cohort Students ───
+  const dynamicSessions = useMemo(() => {
     const counts = {};
     unifiedStudentPool.forEach(st => {
+      const sess = extractSession(st);
+      if (sess && sess !== '—') counts[sess] = (counts[sess] || 0) + 1;
+    });
+    const list = Object.keys(counts).sort((a, b) => b.localeCompare(a));
+    return list.map(sess => ({ value: sess, label: `Session ${sess} (${counts[sess]})` }));
+  }, [unifiedStudentPool]);
+
+  const sessionStudents = useMemo(() => {
+    return selectedSession === 'ALL'
+      ? unifiedStudentPool
+      : unifiedStudentPool.filter(st => extractSession(st).toLowerCase().includes(selectedSession.toLowerCase()));
+  }, [unifiedStudentPool, selectedSession]);
+
+  const dynamicClasses = useMemo(() => {
+    const counts = {};
+    sessionStudents.forEach(st => {
       const cls = extractClass(st);
       if (cls && cls !== '—') counts[cls] = (counts[cls] || 0) + 1;
     });
@@ -1836,13 +1853,13 @@ export default function CustomRosterDocumentBuilderView({
       return a.localeCompare(b);
     });
     return list.map(cls => ({ value: cls, label: `Class ${cls} (${counts[cls]})` }));
-  }, [unifiedStudentPool]);
+  }, [sessionStudents]);
 
   const sessionClassStudents = useMemo(() => {
     return selectedClass === 'ALL'
-      ? unifiedStudentPool
-      : unifiedStudentPool.filter(st => extractClass(st).toLowerCase().includes(selectedClass.toLowerCase()));
-  }, [unifiedStudentPool, selectedClass]);
+      ? sessionStudents
+      : sessionStudents.filter(st => extractClass(st).toLowerCase().includes(selectedClass.toLowerCase()));
+  }, [sessionStudents, selectedClass]);
 
   const dynamicStreams = useMemo(() => {
     const counts = {};
@@ -1889,6 +1906,12 @@ export default function CustomRosterDocumentBuilderView({
     return unifiedStudentPool.filter(st => {
       if (!st) return false;
 
+      // Session
+      if (selectedSession !== 'ALL') {
+        const sess = extractSession(st).toLowerCase();
+        if (!sess.includes(selectedSession.toLowerCase())) return false;
+      }
+
       // Class
       if (selectedClass !== 'ALL') {
         const cls = extractClass(st).toLowerCase();
@@ -1917,7 +1940,7 @@ export default function CustomRosterDocumentBuilderView({
 
       return true;
     });
-  }, [unifiedStudentPool, selectedClass, selectedStream, selectedGender, selectedStatus]);
+  }, [unifiedStudentPool, selectedSession, selectedClass, selectedStream, selectedGender, selectedStatus]);
 
   // Active Columns for Table
   const activeTableColumns = activeColumns;
@@ -2046,9 +2069,9 @@ export default function CustomRosterDocumentBuilderView({
 
   // Metadata Badges for Header
   const cleanGlobalSession = String(globalSession || '').replace(/^(active_|master_)/, '');
-  const displaySession = cleanGlobalSession && globalSession !== 'ALL'
-    ? `Session: ${cleanGlobalSession}`
-    : (globalSession === 'ALL' ? 'All Sessions' : 'Session: 2025-26');
+  const displaySession = selectedSession !== 'ALL'
+    ? `Session: ${selectedSession}`
+    : (cleanGlobalSession && globalSession !== 'ALL' ? `Session: ${cleanGlobalSession}` : 'All Sessions');
 
   const metaBadges = [
     selectedClass !== 'ALL' ? `Class: ${selectedClass}` : 'All Classes',
@@ -2279,7 +2302,22 @@ export default function CustomRosterDocumentBuilderView({
               </span>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-1">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-1">
+              {/* Session */}
+              <div>
+                <label className="block text-[8.5px] font-extrabold text-slate-400 uppercase tracking-tight">Session</label>
+                <select
+                  value={selectedSession}
+                  onChange={(e) => setSelectedSession(e.target.value)}
+                  className="w-full px-1.5 py-0.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-extrabold text-[10px]"
+                >
+                  <option value="ALL">All Sessions ({unifiedStudentPool.length})</option>
+                  {dynamicSessions.map((sess) => (
+                    <option key={sess.value} value={sess.value}>{sess.label}</option>
+                  ))}
+                </select>
+              </div>
+
               {/* Class */}
               <div>
                 <label className="block text-[8.5px] font-extrabold text-slate-400 uppercase tracking-tight">Class</label>
@@ -2288,7 +2326,7 @@ export default function CustomRosterDocumentBuilderView({
                   onChange={(e) => setSelectedClass(e.target.value)}
                   className="w-full px-1.5 py-0.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-extrabold text-[10px]"
                 >
-                  <option value="ALL">All ({unifiedStudentPool.length})</option>
+                  <option value="ALL">All Classes ({sessionStudents.length})</option>
                   {dynamicClasses.map((c) => (
                     <option key={c.value} value={c.value}>{c.label}</option>
                   ))}
@@ -2303,7 +2341,7 @@ export default function CustomRosterDocumentBuilderView({
                   onChange={(e) => setSelectedStream(e.target.value)}
                   className="w-full px-1.5 py-0.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-extrabold text-[10px]"
                 >
-                  <option value="ALL">All ({sessionClassStudents.length})</option>
+                  <option value="ALL">All Streams ({sessionClassStudents.length})</option>
                   {dynamicStreams.map((stm) => (
                     <option key={stm.value} value={stm.value}>{stm.label}</option>
                   ))}
