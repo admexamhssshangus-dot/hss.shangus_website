@@ -172,18 +172,18 @@ const BOARD_SUGGESTIONS = ['JKBOSE', 'CBSE', 'ICSE', 'DIET', 'NIOS', 'Other'];
 const MAX_MARKS_PRESETS = ['500', '600', '700', '800', '1000', '1200'];
 
 const MONTHS = [
-  { val: '01', name: '1_Jan' },
-  { val: '02', name: '2_Feb' },
-  { val: '03', name: '3_Mar' },
-  { val: '04', name: '4_Apr' },
-  { val: '05', name: '5_May' },
-  { val: '06', name: '6_Jun' },
-  { val: '07', name: '7_Jul' },
-  { val: '08', name: '8_Aug' },
-  { val: '09', name: '9_Sep' },
-  { val: '10', name: '10_Oct' },
-  { val: '11', name: '11_Nov' },
-  { val: '12', name: '12_Dec' },
+  { val: '01', name: '01 - Jan' },
+  { val: '02', name: '02 - Feb' },
+  { val: '03', name: '03 - Mar' },
+  { val: '04', name: '04 - Apr' },
+  { val: '05', name: '05 - May' },
+  { val: '06', name: '06 - Jun' },
+  { val: '07', name: '07 - Jul' },
+  { val: '08', name: '08 - Aug' },
+  { val: '09', name: '09 - Sep' },
+  { val: '10', name: '10 - Oct' },
+  { val: '11', name: '11 - Nov' },
+  { val: '12', name: '12 - Dec' },
 ];
 
 /**
@@ -415,7 +415,7 @@ function ModernDateInput({ id, value, onChange, disabled, required, error, input
             style={inputStyle}
             aria-label="Day"
           >
-            <option value="">Day (DD)</option>
+            <option value="">Day</option>
             {dayOptions.map(d => (
               <option key={d} value={d}>{d}</option>
             ))}
@@ -431,7 +431,7 @@ function ModernDateInput({ id, value, onChange, disabled, required, error, input
             style={inputStyle}
             aria-label="Month"
           >
-            <option value="">Month (MM)</option>
+            <option value="">Month</option>
             {MONTHS.map(m => (
               <option key={m.val} value={m.val}>{m.name}</option>
             ))}
@@ -447,7 +447,7 @@ function ModernDateInput({ id, value, onChange, disabled, required, error, input
             style={inputStyle}
             aria-label="Year"
           >
-            <option value="">Year (YYYY)</option>
+            <option value="">Year</option>
             {yearOptions.map(y => (
               <option key={y} value={y}>{y}</option>
             ))}
@@ -1672,17 +1672,17 @@ export default function DynamicFormField({
                       </span>
                     </div>
 
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
                       {groupA.map(sub => (
                         <div
                           key={sub}
-                          className="flex items-center justify-between p-2.5 rounded-xl border border-teal-400/50 bg-white/90 dark:bg-slate-900/90 text-teal-950 dark:text-teal-100 shadow-2xs font-extrabold text-[11px]"
+                          className="flex items-center justify-between p-2.5 rounded-xl border border-teal-400/50 bg-white/90 dark:bg-slate-900/90 text-teal-950 dark:text-teal-100 shadow-2xs font-extrabold text-xs"
                         >
-                          <div className="flex items-center gap-2 min-w-0">
+                          <div className="flex items-center gap-2 min-w-0 flex-1">
                             <CheckCircle2 size={15} className="text-teal-600 dark:text-teal-400 flex-shrink-0" />
-                            <span className="truncate">{sub}</span>
+                            <span className="break-words leading-tight">{sub}</span>
                           </div>
-                          <span className="text-[8px] font-black uppercase px-1.5 py-0.5 rounded bg-teal-100 dark:bg-teal-950 text-teal-800 dark:text-teal-300 flex-shrink-0 ml-1">
+                          <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded bg-teal-100 dark:bg-teal-950 text-teal-800 dark:text-teal-300 flex-shrink-0 ml-1.5">
                             Fixed
                           </span>
                         </div>
@@ -1725,19 +1725,19 @@ export default function DynamicFormField({
                       </span>
                     </div>
 
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
                       {groupB.map(sub => {
                         const isChecked = currentArray.includes(sub);
                         return (
                           <label
                             key={sub}
-                            className={`flex min-w-0 items-center justify-between p-2.5 rounded-xl border text-[11px] transition-all select-none cursor-pointer ${
+                            className={`flex min-w-0 items-center justify-between p-2.5 rounded-xl border text-xs transition-all select-none cursor-pointer ${
                               isChecked
                                 ? 'bg-amber-100/80 dark:bg-amber-950/60 border-amber-500 text-amber-950 dark:text-amber-100 font-black shadow-xs ring-1 ring-amber-400'
                                 : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:border-amber-400 hover:bg-amber-50/50 dark:hover:bg-slate-800 font-semibold'
                             }`}
                           >
-                            <div className="flex items-center gap-2 min-w-0">
+                            <div className="flex items-center gap-2.5 min-w-0 flex-1">
                               <input
                                 type="checkbox"
                                 checked={isChecked}
@@ -1745,9 +1745,9 @@ export default function DynamicFormField({
                                 onChange={(e) => {
                                   handleCheckboxArrayChange(sub, e.target.checked, compulsorySubjects);
                                 }}
-                                className="w-4 h-4 rounded border-slate-300 text-amber-600 focus:ring-amber-500 cursor-pointer"
+                                className="w-4 h-4 rounded border-slate-300 text-amber-600 focus:ring-amber-500 cursor-pointer flex-shrink-0"
                               />
-                              <span className="truncate">{sub}</span>
+                              <span className="break-words leading-tight">{sub}</span>
                             </div>
                           </label>
                         );
@@ -1790,19 +1790,19 @@ export default function DynamicFormField({
                       </span>
                     </div>
 
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
                       {groupC.map(sub => {
                         const isChecked = currentArray.includes(sub);
                         return (
                           <label
                             key={sub}
-                            className={`flex min-w-0 items-center justify-between p-2.5 rounded-xl border text-[11px] transition-all select-none cursor-pointer ${
+                            className={`flex min-w-0 items-center justify-between p-2.5 rounded-xl border text-xs transition-all select-none cursor-pointer ${
                               isChecked
                                 ? 'bg-indigo-100/80 dark:bg-indigo-950/60 border-indigo-500 text-indigo-950 dark:text-indigo-100 font-black shadow-xs ring-1 ring-indigo-400'
                                 : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:border-indigo-400 hover:bg-indigo-50/50 dark:hover:bg-slate-800 font-semibold'
                             }`}
                           >
-                            <div className="flex items-center gap-2 min-w-0">
+                            <div className="flex items-center gap-2.5 min-w-0 flex-1">
                               <input
                                 type="checkbox"
                                 checked={isChecked}
@@ -1810,9 +1810,9 @@ export default function DynamicFormField({
                                 onChange={(e) => {
                                   handleCheckboxArrayChange(sub, e.target.checked, compulsorySubjects);
                                 }}
-                                className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                                className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer flex-shrink-0"
                               />
-                              <span className="truncate">{sub}</span>
+                              <span className="break-words leading-tight">{sub}</span>
                             </div>
                           </label>
                         );

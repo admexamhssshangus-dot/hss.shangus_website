@@ -2168,7 +2168,7 @@ export default function AdmissionForm() {
       ) : (
         <div className="max-w-7xl mx-auto space-y-3">
           {/* Form Container Card */}
-          <div className="relative rounded-2xl border p-3 sm:p-5 shadow-sm space-y-4 min-w-0 bg-slate-50/80 dark:bg-slate-950/90 border-slate-200 dark:border-slate-800">
+          <div className="portal-form-sans relative rounded-2xl border p-3 sm:p-5 shadow-sm space-y-4 min-w-0 bg-slate-50/80 dark:bg-slate-950/90 border-slate-200 dark:border-slate-800">
 
           {/* School Logo Watermark */}
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center opacity-[0.03] dark:opacity-[0.05] select-none z-0 overflow-hidden rounded-2xl">
@@ -2217,74 +2217,103 @@ export default function AdmissionForm() {
 
             {/* Top Navigation & Live Progress Toolbar (Unified across Mobile & Desktop) */}
             <div
-              className="sticky top-0 z-30 flex flex-wrap items-center justify-between gap-2 px-3 py-2 rounded-2xl border bg-white/95 dark:bg-slate-950/95 shadow-md backdrop-blur-xl transition-all relative overflow-hidden"
-              style={{ borderColor: 'var(--border-ui, #e2e8f0)' }}
+              className="sticky top-0 z-30 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 p-2.5 sm:px-3.5 sm:py-2 rounded-2xl border bg-white/95 dark:bg-slate-950/95 shadow-md backdrop-blur-xl transition-all relative overflow-hidden border-slate-200 dark:border-slate-800"
             >
-              {/* Left: Back Button + Student Identity Summary */}
-              <div className="flex items-center gap-2 min-w-0 flex-shrink-0">
-                <button
-                  type="button"
-                  onClick={handleBackWithAutoSave}
-                  disabled={isBackSaving}
-                  className="p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-700 dark:text-slate-200 hover:text-teal-600 shadow-2xs transition-all cursor-pointer disabled:opacity-50 flex items-center gap-1 text-xs font-bold"
-                  title="Save draft & back to dashboard"
-                >
-                  {isBackSaving ? <RefreshCw size={13} className="animate-spin text-teal-600" /> : <ArrowLeft size={13} />}
-                  <span className="hidden sm:inline">Back</span>
-                </button>
-                <div className="min-w-0">
-                  <div className="text-xs font-black text-slate-900 dark:text-white truncate flex items-center gap-1.5">
-                    <span className="truncate">
-                      {formData["Student's Name (as per school records)"] || formData['Student Name'] || (upgradeMode ? 'Upgrade Admission' : isProvisionalForm ? 'Provisional Form' : 'Admission Form')}
-                    </span>
-                    {isProvisionalForm && !upgradeMode && (
-                      <span className="px-1.5 py-0.2 rounded-full text-[8px] font-black bg-amber-100 dark:bg-amber-950/50 text-amber-800 dark:text-amber-300 border border-amber-400">PROV</span>
-                    )}
-                    {upgradeMode && (
-                      <span className="px-1.5 py-0.2 rounded-full text-[8px] font-black bg-emerald-100 dark:bg-emerald-950/50 text-emerald-800 dark:text-emerald-300 border border-emerald-400">UPGRADE</span>
-                    )}
-                  </div>
-                  <div className="text-[10px] text-slate-400 font-mono truncate flex items-center gap-1">
-                    <span>Form #{formData['Form Number'] || '—'}</span>
-                    {selectedClass && (
-                      <span className="text-teal-600 dark:text-teal-400 font-bold">
-                        · Class {selectedClass} {selectedStream ? `(${selectedStream})` : ''}
+              {/* Row 1 / Left on Desktop: Back Button + Student Identity + Top Right Actions on Mobile */}
+              <div className="flex items-center justify-between gap-2 min-w-0">
+                <div className="flex items-center gap-2 min-w-0 flex-1">
+                  <button
+                    type="button"
+                    onClick={handleBackWithAutoSave}
+                    disabled={isBackSaving}
+                    className="p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-700 dark:text-slate-200 hover:text-teal-600 shadow-2xs transition-all cursor-pointer disabled:opacity-50 flex items-center gap-1 text-xs font-bold flex-shrink-0"
+                    title="Save draft & back to dashboard"
+                  >
+                    {isBackSaving ? <RefreshCw size={13} className="animate-spin text-teal-600" /> : <ArrowLeft size={13} />}
+                    <span className="hidden sm:inline">Back</span>
+                  </button>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-xs font-black text-slate-900 dark:text-white truncate flex items-center gap-1.5 font-sans">
+                      <span className="truncate">
+                        {formData["Student's Name (as per school records)"] || formData['Student Name'] || (upgradeMode ? 'Upgrade Admission' : isProvisionalForm ? 'Provisional Form' : 'Admission Form')}
                       </span>
-                    )}
+                      {isProvisionalForm && !upgradeMode && (
+                        <span className="px-1.5 py-0.2 rounded-full text-[8px] font-black bg-amber-100 dark:bg-amber-950/50 text-amber-800 dark:text-amber-300 border border-amber-400">PROV</span>
+                      )}
+                      {upgradeMode && (
+                        <span className="px-1.5 py-0.2 rounded-full text-[8px] font-black bg-emerald-100 dark:bg-emerald-950/50 text-emerald-800 dark:text-emerald-300 border border-emerald-400">UPGRADE</span>
+                      )}
+                    </div>
+                    <div className="text-[10px] text-slate-400 font-mono truncate flex items-center gap-1">
+                      <span>Form #{formData['Form Number'] || '—'}</span>
+                      {selectedClass && (
+                        <span className="text-teal-600 dark:text-teal-400 font-bold">
+                          · Class {selectedClass} {selectedStream ? `(${selectedStream})` : ''}
+                        </span>
+                      )}
+                    </div>
                   </div>
+                </div>
+
+                {/* Mobile Quick Action Buttons (Save + Help) */}
+                <div className="flex sm:hidden items-center gap-1.5 flex-shrink-0">
+                  {!isFormLocked && (
+                    <button
+                      type="button"
+                      onClick={handleSaveDraft}
+                      disabled={isSubmitting || !hasAdmissionStart}
+                      className="p-1.5 rounded-xl border border-teal-600 bg-teal-600 text-white shadow-xs transition-all flex items-center gap-1 text-xs font-bold cursor-pointer disabled:opacity-50"
+                      title="Save Draft"
+                    >
+                      {draftState === 'saving' ? <RefreshCw size={13} className="animate-spin" /> : <Save size={13} />}
+                    </button>
+                  )}
+                  {!isFormLocked && (
+                    <button
+                      type="button"
+                      onClick={() => setShowInstructions(true)}
+                      className="p-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-600 hover:text-teal-600 transition-colors cursor-pointer"
+                      title="Instructions & Help"
+                    >
+                      <HelpCircle size={14} />
+                    </button>
+                  )}
                 </div>
               </div>
 
-              {/* Middle: 4 Step Navigation Tabs */}
+              {/* Middle: 4 Step Navigation Tabs (Fitted 4-column Grid on Mobile, Flex on Desktop) */}
               {!isFormLocked && (
-                <nav aria-label="Admission section shortcuts" className="flex items-center gap-1 p-1 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-                  {workflowSteps.map((step, index) => (
-                    <button
-                      key={step.id}
-                      type="button"
-                      onClick={() => goToWorkflowStep(step)}
-                      disabled={!hasAdmissionStart}
-                      className={`px-2.5 py-1 rounded-lg text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer ${
-                        activeTab === step.id
-                          ? 'bg-teal-600 text-white shadow-xs'
-                          : 'text-slate-600 dark:text-slate-400 hover:text-teal-600 hover:bg-white/50 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed'
-                      }`}
-                      title={step.label}
-                    >
-                      <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold ${activeTab === step.id ? 'bg-white/25 text-white' : 'bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300'}`}>
-                        {index + 1}
-                      </span>
-                      <span className="hidden md:inline">{step.label}</span>
-                      <span className="md:hidden">{step.mobileLabel}</span>
-                    </button>
-                  ))}
+                <nav aria-label="Admission section shortcuts" className="grid grid-cols-4 sm:flex items-center gap-1 p-1 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full sm:w-auto">
+                  {workflowSteps.map((step, index) => {
+                    const isActive = activeTab === step.id;
+                    return (
+                      <button
+                        key={step.id}
+                        type="button"
+                        onClick={() => goToWorkflowStep(step)}
+                        disabled={!hasAdmissionStart}
+                        className={`py-1 px-1.5 sm:px-2.5 rounded-lg text-xs font-black transition-all flex items-center justify-center gap-1 cursor-pointer truncate ${
+                          isActive
+                            ? 'bg-teal-600 text-white shadow-xs'
+                            : 'text-slate-600 dark:text-slate-400 hover:text-teal-600 hover:bg-white/50 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed'
+                        }`}
+                        title={step.label}
+                      >
+                        <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold flex-shrink-0 ${isActive ? 'bg-white/25 text-white' : 'bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300'}`}>
+                          {index + 1}
+                        </span>
+                        <span className="hidden md:inline">{step.label}</span>
+                        <span className="md:hidden text-[10px] truncate">{step.mobileLabel}</span>
+                      </button>
+                    );
+                  })}
                 </nav>
               )}
 
-              {/* Right: Progress & Action Controls */}
-              <div className="flex items-center gap-2 flex-shrink-0">
+              {/* Desktop Right: Progress & Action Controls */}
+              <div className="hidden sm:flex items-center gap-2 flex-shrink-0">
                 {!isFormLocked && hasAdmissionStart && (
-                  <div className="hidden sm:flex flex-col items-end text-right">
+                  <div className="flex flex-col items-end text-right">
                     <span className="text-[11px] font-black text-teal-700 dark:text-teal-300">
                       {progressPercent}% <span className="text-[9px] font-normal text-slate-400">({filledRequiredCount}/{requiredFields.length})</span>
                     </span>
@@ -2302,7 +2331,7 @@ export default function AdmissionForm() {
                     title="Save Draft"
                   >
                     {draftState === 'saving' ? <RefreshCw size={13} className="animate-spin" /> : <Save size={13} />}
-                    <span className="hidden sm:inline">{draftState === 'saving' ? 'Saving…' : 'Save Draft'}</span>
+                    <span>{draftState === 'saving' ? 'Saving…' : 'Save Draft'}</span>
                   </button>
                 )}
                 {!isFormLocked && (
@@ -2884,7 +2913,7 @@ export default function AdmissionForm() {
                                       {photoFieldInSec && (
                                         <div
                                           data-field-name={photoFieldInSec.fieldName || photoFieldInSec.name || photoFieldInSec['Field Name']}
-                                          className={`w-full md:w-auto flex flex-col items-center md:items-end flex-shrink-0 pt-0.5 rounded-xl transition-all duration-200 ${
+                                          className={`w-full md:w-auto flex flex-col items-center md:items-end flex-shrink-0 pt-0.5 rounded-xl transition-all duration-200 order-first md:order-last mb-1 md:mb-0 ${
                                             Boolean(fieldErrors[photoFieldInSec.fieldName || photoFieldInSec.name || photoFieldInSec['Field Name']])
                                               ? 'ring-2 ring-red-500 bg-red-50/60 dark:bg-red-950/30 p-1 shadow-sm animate-error-shake'
                                               : ''
