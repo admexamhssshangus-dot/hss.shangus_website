@@ -29,6 +29,13 @@ export function isValidAadhaar(value) {
   return checksum === 0;
 }
 
+export function areAadhaarsDistinct(studentAadhaar, fatherAadhaar) {
+  const s = digitsOnly(studentAadhaar);
+  const f = digitsOnly(fatherAadhaar);
+  if (s.length !== 12 || f.length !== 12) return true;
+  return s !== f;
+}
+
 export function normalizeDobToIso(value) {
   if (!value) return '';
   if (value instanceof Date) {

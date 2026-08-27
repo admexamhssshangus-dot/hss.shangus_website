@@ -1558,6 +1558,14 @@ CRITICAL INSTRUCTIONS:
   };
 
   const handleSubmit = async (addAnother = false) => {
+    // Validate Aadhaar numbers if provided
+    const sAadhaar = String(formData.aadhar || '').replace(/[^0-9]/g, '');
+    const fAadhaar = String(formData.fatherAadhar || '').replace(/[^0-9]/g, '');
+    if (sAadhaar && fAadhaar && sAadhaar.length === 12 && fAadhaar.length === 12 && sAadhaar === fAadhaar) {
+      showNotice('Invalid Aadhaar Details', "Student's Aadhaar and Father's Aadhaar cannot have the same value (must be different 12-digit numbers).");
+      return;
+    }
+
     setSaving(true);
     setSuccessToast(null);
 
