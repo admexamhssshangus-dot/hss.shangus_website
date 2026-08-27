@@ -2398,18 +2398,20 @@ export default function AdmissionForm() {
                         type="button"
                         onClick={() => goToWorkflowStep(step)}
                         disabled={!hasAdmissionStart}
-                        className={`py-1 px-1.5 sm:px-2.5 rounded-lg text-xs font-black transition-all flex items-center justify-center gap-1 cursor-pointer truncate ${
+                        className={`py-1.5 px-1 sm:px-2.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1 cursor-pointer min-w-0 ${
                           isActive
-                            ? 'bg-teal-600 text-white shadow-xs'
+                            ? 'bg-teal-600 text-white shadow-xs font-black'
                             : 'text-slate-600 dark:text-slate-400 hover:text-teal-600 hover:bg-white/50 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed'
                         }`}
                         title={step.label}
                       >
-                        <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold flex-shrink-0 ${isActive ? 'bg-white/25 text-white' : 'bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300'}`}>
+                        <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-black flex-shrink-0 ${
+                          isActive ? 'bg-white/20 text-white' : 'bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
+                        }`}>
                           {index + 1}
                         </span>
-                        <span className="hidden md:inline">{step.label}</span>
-                        <span className="md:hidden text-[10px] truncate">{step.mobileLabel}</span>
+                        <span className="hidden md:inline text-xs">{step.label}</span>
+                        <span className="md:hidden text-[10.5px] font-bold tracking-tight truncate">{step.mobileLabel}</span>
                       </button>
                     );
                   })}
@@ -2685,116 +2687,111 @@ export default function AdmissionForm() {
                   });
 
                   return (
-                    <div id="admission-workflow-content" className="space-y-3 scroll-mt-24">
+                    <div id="admission-workflow-content" className="space-y-3.5 scroll-mt-24">
                       {/* Select the admission context before showing class-specific fields — Mobile-First Responsive Layout */}
                       {!isFormLocked && (
-                        <div id="admission-start" className="p-2.5 sm:p-4 rounded-2xl border-2 bg-white dark:bg-slate-900 border-teal-500/40 dark:border-teal-500/30 shadow-md space-y-2.5 sm:space-y-3.5 scroll-mt-24 transition-all">
-                          {/* Card Header with Progress Badge & Hide/Unhide Toggle */}
-                          <div className="flex items-center justify-between gap-2 border-b border-teal-500/20 pb-2">
-                            <div className="flex items-center gap-2">
-                              <span className="w-2.5 h-2.5 rounded-full bg-teal-500 flex-shrink-0 animate-pulse"></span>
-                              <div>
-                                <h2 className="text-xs sm:text-sm font-black text-slate-800 dark:text-slate-100 uppercase tracking-wide flex items-center gap-2">
-                                  <span>Admission Setup</span>
-                                </h2>
-                                <p className="text-[10px] text-slate-400">
-                                  {isSetupCollapsed
-                                    ? 'Your active class, stream & admission options'
-                                    : 'Select your class, type & stream to open your form'}
-                                </p>
-                              </div>
-                            </div>
-
-                            <div className="flex items-center gap-2">
-                              <span className={`text-[10px] font-black px-2.5 py-1 rounded-full border whitespace-nowrap ${hasAdmissionStart ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30 shadow-2xs' : 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30'}`}>
-                                {hasAdmissionStart ? '✓ Ready' : 'Required'}
+                        hasAdmissionStart && isSetupCollapsed ? (
+                          /* Ultra-Sleek Collapsed Setup Banner — Minimal 1-Line Strip */
+                          <div className="flex items-center justify-between gap-2 p-2 sm:px-3 sm:py-2 rounded-xl bg-teal-500/10 dark:bg-teal-950/40 border border-teal-500/25 text-xs animate-fadeIn shadow-2xs">
+                            <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
+                              <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wider text-teal-800 dark:text-teal-300">
+                                <span className="w-1.5 h-1.5 rounded-full bg-teal-500 animate-pulse"></span>
+                                Setup:
                               </span>
-
-                              {hasAdmissionStart && (
-                                <button
-                                  type="button"
-                                  onClick={() => setIsSetupCollapsed(!isSetupCollapsed)}
-                                  className="px-2.5 py-1 rounded-xl text-[11px] font-extrabold border border-teal-500/40 bg-teal-500/10 hover:bg-teal-500/20 text-teal-700 dark:text-teal-300 transition-all cursor-pointer flex items-center gap-1 shadow-2xs"
-                                  title={isSetupCollapsed ? "Unhide setup options" : "Hide setup options to save space"}
-                                >
-                                  <span>{isSetupCollapsed ? 'Unhide Setup Options ▼' : 'Hide Setup ▲'}</span>
-                                </button>
-                              )}
-                            </div>
-                          </div>
-
-                          {/* Compact Bar when Setup is Collapsed */}
-                          {hasAdmissionStart && isSetupCollapsed ? (
-                            <div className="flex flex-wrap items-center justify-between gap-2 p-2 rounded-xl bg-teal-500/5 border border-teal-500/20 text-xs font-semibold animate-fadeIn">
-                              <div className="flex flex-wrap items-center gap-1.5 min-w-0">
-                                <span className="text-slate-500 dark:text-slate-400 text-[10px] font-bold">Active Setup:</span>
-                                <span className="px-2 py-0.5 rounded-md text-[10px] font-black bg-teal-500/20 text-teal-700 dark:text-teal-300 border border-teal-500/30">
+                              <div className="flex items-center gap-1 flex-wrap">
+                                <span className="px-1.5 py-0.5 rounded text-[10.5px] font-black bg-teal-600 text-white shadow-2xs">
                                   Class {formData['Admission sought for class']}
                                 </span>
-                                <span className="px-2 py-0.5 rounded-md text-[10px] font-black bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30">
+                                <span className="px-1.5 py-0.5 rounded text-[10.5px] font-bold bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-500/30">
                                   {formData['Admission Type (Class 11th)'] || formData['Admission Type (Class 12th)'] || formData['Admission Type'] || 'Full'}
                                 </span>
                                 {selectedClass === '11th' && (
-                                  <span className="px-2 py-0.5 rounded-md text-[10px] font-black bg-purple-500/20 text-purple-700 dark:text-purple-300 border border-purple-500/30">
+                                  <span className="px-1.5 py-0.5 rounded text-[10.5px] font-bold bg-purple-500/15 text-purple-800 dark:text-purple-300 border border-purple-500/30">
                                     {formData['Stream for Class 11th'] || 'Science'}
                                   </span>
                                 )}
                                 {selectedAdmissionType === 'Provisional' && (
-                                  <span className="px-2 py-0.5 rounded-md text-[10px] font-black bg-orange-500/20 text-orange-700 dark:text-orange-300 border border-orange-500/30 truncate max-w-[180px]">
+                                  <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-orange-500/15 text-orange-800 dark:text-orange-300 border border-orange-500/30 truncate max-w-[130px]">
                                     {formData['Reason for Provisional (Class 11th)'] || formData['Reason for Provisional (Class 12th)'] || formData['Reason for Provisional'] || 'Provisional'}
                                   </span>
                                 )}
                               </div>
-                              <button
-                                type="button"
-                                onClick={() => setIsSetupCollapsed(false)}
-                                className="text-[10px] font-extrabold text-teal-600 hover:text-teal-700 dark:text-teal-400 underline cursor-pointer"
-                              >
-                                Change Setup
-                              </button>
                             </div>
-                          ) : (
-                            /* Expanded Options Grid */
-                            <div className="space-y-3.5 animate-fadeIn">
-                              <div className={`grid grid-cols-1 ${selectedClass === '11th' ? 'md:grid-cols-2 lg:grid-cols-3' : 'md:grid-cols-2'} gap-3`}>
-                                {/* 1. Target Class */}
-                                <div className="space-y-1.5">
-                                  <label className="text-xs font-black text-slate-700 dark:text-slate-200 uppercase tracking-wider flex items-center justify-between">
-                                    <span className="flex items-center gap-1.5">
-                                      <span className="w-4 h-4 rounded-full bg-teal-600 text-white text-[9px] flex items-center justify-center font-bold">1</span>
-                                      <span>Class applying for</span>
-                                    </span>
-                                    <span className="text-red-500 text-xs font-bold">*</span>
-                                  </label>
-                                  <div className="grid grid-cols-4 gap-1.5 p-1 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
-                                    {['9th', '10th', '11th', '12th'].map(clsVal => {
-                                      const isSel = String(formData['Admission sought for class'] || '') === clsVal;
-                                      return (
-                                        <button
-                                          key={clsVal}
-                                          type="button"
-                                          onClick={() => handleFieldChange('Admission sought for class', clsVal)}
-                                          className={`min-h-[44px] sm:min-h-[40px] rounded-lg font-black text-sm transition-all cursor-pointer flex items-center justify-center ${
-                                            isSel
-                                              ? 'bg-teal-600 text-white shadow-sm ring-2 ring-teal-600/30 scale-[1.02]'
-                                              : 'text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
-                                          }`}
-                                        >
-                                          {clsVal}
-                                        </button>
-                                      );
-                                    })}
-                                  </div>
+                            <button
+                              type="button"
+                              onClick={() => setIsSetupCollapsed(false)}
+                              className="px-2 py-1 rounded-lg text-[10.5px] font-bold bg-white dark:bg-slate-800 text-teal-700 dark:text-teal-300 border border-teal-500/30 hover:bg-teal-500/20 transition-all cursor-pointer flex-shrink-0 shadow-2xs"
+                            >
+                              Edit Setup ✎
+                            </button>
+                          </div>
+                        ) : (
+                          /* Clean, Proportionate Expanded Setup Card */
+                          <div id="admission-start" className="p-3 sm:p-4 rounded-xl sm:rounded-2xl border bg-white dark:bg-slate-900 border-teal-500/30 dark:border-teal-500/20 shadow-xs space-y-3 scroll-mt-24 transition-all">
+                            {/* Card Header */}
+                            <div className="flex items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-2">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <span className="w-2 h-2 rounded-full bg-teal-500 flex-shrink-0"></span>
+                                <div>
+                                  <h2 className="text-xs sm:text-sm font-black text-slate-800 dark:text-slate-100 uppercase tracking-wide">
+                                    Admission Setup
+                                  </h2>
+                                  <p className="text-[10px] text-slate-400">
+                                    Select class, type &amp; stream to configure your form
+                                  </p>
                                 </div>
+                              </div>
 
-                                {/* 2. Admission Category */}
-                                <div className="space-y-1.5">
-                                  <label className="text-xs font-black text-slate-700 dark:text-slate-200 uppercase tracking-wider flex items-center justify-between">
-                                    <span className="flex items-center gap-1.5">
-                                      <span className="w-4 h-4 rounded-full bg-teal-600 text-white text-[9px] flex items-center justify-center font-bold">2</span>
-                                      <span>Admission Type</span>
-                                    </span>
-                                    <span className="text-red-500 text-xs font-bold">*</span>
+                              <div className="flex items-center gap-1.5">
+                                <span className={`text-[9.5px] font-black px-2 py-0.5 rounded-full border whitespace-nowrap ${hasAdmissionStart ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30' : 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30'}`}>
+                                  {hasAdmissionStart ? '✓ Ready' : 'Required'}
+                                </span>
+
+                                {hasAdmissionStart && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setIsSetupCollapsed(true)}
+                                    className="px-2 py-0.5 rounded-lg text-[10.5px] font-bold border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-teal-600 transition-all cursor-pointer shadow-2xs"
+                                  >
+                                    Done ▲
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Options Grid */}
+                            <div className="space-y-3">
+                              {/* 1. Target Class */}
+                              <div className="space-y-1">
+                                <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300 flex items-center justify-between">
+                                  <span>1. Class applying for <span className="text-red-500">*</span></span>
+                                </label>
+                                <div className="grid grid-cols-4 gap-1.5 p-1 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                                  {['9th', '10th', '11th', '12th'].map(clsVal => {
+                                    const isSel = String(formData['Admission sought for class'] || '') === clsVal;
+                                    return (
+                                      <button
+                                        key={clsVal}
+                                        type="button"
+                                        onClick={() => handleFieldChange('Admission sought for class', clsVal)}
+                                        className={`h-8 sm:h-9 rounded-lg font-black text-xs transition-all cursor-pointer flex items-center justify-center ${
+                                          isSel
+                                            ? 'bg-teal-600 text-white shadow-xs'
+                                            : 'text-slate-700 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700'
+                                        }`}
+                                      >
+                                        {clsVal}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+
+                              {/* 2. Admission Type & 3. Stream */}
+                              <div className={`grid grid-cols-1 ${selectedClass === '11th' ? 'sm:grid-cols-2' : 'sm:grid-cols-2'} gap-2.5`}>
+                                <div className="space-y-1">
+                                  <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300 flex items-center justify-between">
+                                    <span>2. Admission Type <span className="text-red-500">*</span></span>
                                   </label>
                                   <div className="grid grid-cols-2 gap-1.5 p-1 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
                                     {[
@@ -2815,12 +2812,12 @@ export default function AdmissionForm() {
                                             handleFieldChange('Admission Type', cat.key);
                                             handleFieldChange('isProvisional', cat.key === 'Provisional');
                                           }}
-                                          className={`min-h-[44px] sm:min-h-[40px] px-2 rounded-lg font-black text-xs transition-all cursor-pointer flex items-center justify-center text-center ${
+                                          className={`h-8 sm:h-9 px-2 rounded-lg font-bold text-xs transition-all cursor-pointer flex items-center justify-center text-center ${
                                             isSel
                                               ? cat.key === 'Provisional'
-                                                ? 'bg-amber-500 text-white shadow-sm ring-2 ring-amber-500/30 scale-[1.02]'
-                                                : 'bg-teal-600 text-white shadow-sm ring-2 ring-teal-600/30 scale-[1.02]'
-                                              : 'text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                                                ? 'bg-amber-500 text-white shadow-xs font-black'
+                                                : 'bg-teal-600 text-white shadow-xs font-black'
+                                              : 'text-slate-700 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700'
                                           }`}
                                         >
                                           {cat.label}
@@ -2830,20 +2827,15 @@ export default function AdmissionForm() {
                                   </div>
                                 </div>
 
-                                {/* 3. Stream Selection — Shown ONLY for Class 11th */}
                                 {selectedClass === '11th' && (
-                                  <div className="space-y-1.5 md:col-span-2 lg:col-span-1 animate-fadeIn">
-                                    <label className="text-xs font-black text-slate-700 dark:text-slate-200 uppercase tracking-wider flex items-center justify-between">
-                                      <span className="flex items-center gap-1.5">
-                                        <span className="w-4 h-4 rounded-full bg-teal-600 text-white text-[9px] flex items-center justify-center font-bold">3</span>
-                                        <span>Stream Selection</span>
-                                      </span>
-                                      <span className="text-red-500 text-xs font-bold">*</span>
+                                  <div className="space-y-1 animate-fadeIn">
+                                    <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300 flex items-center justify-between">
+                                      <span>3. Stream Selection <span className="text-red-500">*</span></span>
                                     </label>
                                     <div className="grid grid-cols-2 gap-1.5 p-1 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
                                       {[
-                                        { val: 'Science', label: '🔬 Science' },
-                                        { val: 'Humanities', label: '🎨 Humanities' },
+                                        { val: 'Science', label: 'Science' },
+                                        { val: 'Humanities', label: 'Humanities' },
                                       ].map(st => {
                                         const isSel = selectedStream === st.val;
                                         return (
@@ -2851,10 +2843,10 @@ export default function AdmissionForm() {
                                             key={st.val}
                                             type="button"
                                             onClick={() => handleFieldChange('Stream for Class 11th', st.val)}
-                                            className={`min-h-[44px] sm:min-h-[40px] px-2 rounded-lg font-black text-xs transition-all cursor-pointer flex items-center justify-center text-center ${
+                                            className={`h-8 sm:h-9 px-2 rounded-lg font-bold text-xs transition-all cursor-pointer flex items-center justify-center text-center ${
                                               isSel
-                                                ? 'bg-teal-600 text-white shadow-sm ring-2 ring-teal-600/30 scale-[1.02]'
-                                                : 'text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                                                ? 'bg-teal-600 text-white shadow-xs font-black'
+                                                : 'text-slate-700 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700'
                                             }`}
                                           >
                                             {st.label}
@@ -2866,22 +2858,18 @@ export default function AdmissionForm() {
                                 )}
                               </div>
 
-                              {/* Dynamically populated Reason for Provisional Row */}
+                              {/* Reason for Provisional */}
                               {selectedAdmissionType === 'Provisional' && (
-                                <div className="p-3 rounded-xl bg-amber-500/10 dark:bg-amber-950/40 border border-amber-500/30 space-y-2 animate-fadeIn">
-                                  <div className="flex items-center gap-1.5 text-amber-900 dark:text-amber-200">
-                                    <span className="w-4 h-4 rounded-full bg-amber-500 text-white text-[9px] flex items-center justify-center font-black">!</span>
-                                    <div className="text-xs font-black uppercase tracking-wider">
-                                      Reason for Provisional Admission <span className="text-red-500">*</span>
-                                    </div>
+                                <div className="p-2.5 rounded-xl bg-amber-500/10 dark:bg-amber-950/40 border border-amber-500/30 space-y-1.5 animate-fadeIn">
+                                  <div className="text-[11px] font-bold text-amber-900 dark:text-amber-200">
+                                    Reason for Provisional Admission <span className="text-red-500">*</span>
                                   </div>
-
-                                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
                                     {[
-                                      { val: 'Reappear Candidate', label: '🔄 Reappear Candidate' },
-                                      { val: 'Result Awaited', label: '⏳ Result Awaited' },
-                                      { val: 'Document Deficient', label: '📄 Doc Deficient' },
-                                      { val: 'Other', label: '📝 Other Reason' },
+                                      { val: 'Reappear Candidate', label: 'Reappear' },
+                                      { val: 'Result Awaited', label: 'Result Awaited' },
+                                      { val: 'Document Deficient', label: 'Doc Deficient' },
+                                      { val: 'Other', label: 'Other Reason' },
                                     ].map(r => {
                                       const reasonKey = selectedClass === '12th'
                                         ? 'Reason for Provisional (Class 12th)'
@@ -2896,10 +2884,10 @@ export default function AdmissionForm() {
                                             handleFieldChange(reasonKey, r.val);
                                             handleFieldChange('Reason for Provisional', r.val);
                                           }}
-                                          className={`min-h-[44px] sm:min-h-[40px] px-2.5 rounded-xl font-black text-xs transition-all cursor-pointer flex items-center justify-center text-center ${
+                                          className={`h-8 px-2 rounded-lg font-bold text-[11px] transition-all cursor-pointer flex items-center justify-center text-center ${
                                             isSel
-                                              ? 'bg-amber-500 text-white shadow-sm ring-2 ring-amber-500/30 scale-[1.02]'
-                                              : 'bg-white/80 dark:bg-slate-900/80 text-amber-900 dark:text-amber-200 border border-amber-500/30 hover:bg-amber-500/15'
+                                              ? 'bg-amber-500 text-white shadow-xs font-black'
+                                              : 'bg-white dark:bg-slate-800 text-amber-900 dark:text-amber-200 border border-amber-500/30 hover:bg-amber-500/15'
                                           }`}
                                         >
                                           {r.label}
@@ -2910,15 +2898,14 @@ export default function AdmissionForm() {
                                 </div>
                               )}
                             </div>
-                          )}
-                        </div>
+                          </div>
+                        )
                       )}
 
                       {/* Gate notice if admission setup options are pending */}
-
                       {!hasAdmissionStart && !isFormLocked && (
-                        <div className="rounded-2xl border border-dashed border-amber-400/60 bg-amber-50/60 dark:bg-amber-950/10 p-5 text-center space-y-1 animate-fadeIn">
-                          <div className="font-black text-sm text-amber-800 dark:text-amber-300">
+                        <div className="rounded-xl sm:rounded-2xl border border-dashed border-amber-400/60 bg-amber-50/60 dark:bg-amber-950/10 p-4 text-center space-y-1 animate-fadeIn">
+                          <div className="font-bold text-xs sm:text-sm text-amber-800 dark:text-amber-300">
                             {!selectedClass
                               ? '👉 Please select your Class above to get started'
                               : !selectedAdmissionType
@@ -2929,7 +2916,7 @@ export default function AdmissionForm() {
                               ? '👉 Please select your Stream (Science or Humanities) for Class 11th'
                               : 'Select your admission options above to open the application form'}
                           </div>
-                          <p className="text-[11px] text-slate-500">The application form will unlock automatically once your initial setup is selected.</p>
+                          <p className="text-[10.5px] text-slate-500">The application form will unlock automatically once your initial setup is selected.</p>
                         </div>
                       )}
 
@@ -2943,48 +2930,100 @@ export default function AdmissionForm() {
                           <section
                             key={workflowStep.id}
                             id={`admission-section-${workflowStep.id}`}
-                            className="scroll-mt-24 space-y-2.5 sm:space-y-3.5 p-2 sm:p-4 rounded-2xl bg-slate-200/50 dark:bg-slate-900/60 border border-slate-300/70 dark:border-slate-800 shadow-2xs"
+                            className="scroll-mt-24 space-y-3"
                             onFocusCapture={() => {
                               setActiveTab(workflowStep.id);
                               if (hasAdmissionStart) setIsSetupCollapsed(true);
                             }}
                           >
-                            <div className="flex items-center justify-between gap-2 border-b border-slate-300/70 dark:border-slate-700/80 pb-2">
+                            {/* Workflow Step Divider/Header — Minimal & Crisp */}
+                            <div className="flex items-center justify-between gap-2 pt-2 pb-1 border-b border-slate-200 dark:border-slate-800">
                               <div className="flex items-center gap-2 min-w-0">
-                                <span className="w-5 h-5 sm:w-6 sm:h-6 rounded-lg bg-teal-600 text-white text-[10px] sm:text-xs font-black flex items-center justify-center flex-shrink-0 shadow-xs">
+                                <span className="w-5 h-5 rounded-md bg-teal-600 text-white text-[10px] font-black flex items-center justify-center flex-shrink-0 shadow-2xs">
                                   {workflowIndex + 1}
                                 </span>
-                                <div className="min-w-0">
-                                  <h2 className="text-xs sm:text-sm font-black text-slate-900 dark:text-white truncate">{workflowStep.label}</h2>
-                                  <p className="text-[9.5px] sm:text-[10px] font-medium text-slate-500 dark:text-slate-400">Complete the labelled groups below</p>
-                                </div>
+                                <h3 className="text-xs sm:text-sm font-black text-slate-800 dark:text-slate-100 truncate">
+                                  {workflowStep.label}
+                                </h3>
                               </div>
-                              <span className="text-[9px] sm:text-[10px] font-extrabold text-slate-600 dark:text-slate-300 whitespace-nowrap bg-white dark:bg-slate-800 px-2 py-0.5 rounded-full border border-slate-200 dark:border-slate-700 shadow-2xs">
-                                {stepSections.length} group{stepSections.length === 1 ? '' : 's'}
+                              <span className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 whitespace-nowrap">
+                                {stepSections.length} {stepSections.length === 1 ? 'group' : 'groups'}
                               </span>
                             </div>
 
-                            {stepSections.map(([sectionTitle, fields]) => {
-                              const isIdentitySection = sectionTitle === '👤 Identity & Parentage';
-                              const photoFieldInSec = isIdentitySection ? (fields.find(f => f === globalPhotoField) || globalPhotoField) : null;
-                              const displayFields = photoFieldInSec ? fields.filter(f => f !== photoFieldInSec) : fields;
-                              if (displayFields.length === 0 && !photoFieldInSec) return null;
+                            <div className="space-y-3">
+                              {stepSections.map(([sectionTitle, fields]) => {
+                                const isIdentitySection = sectionTitle === '👤 Identity & Parentage';
+                                const photoFieldInSec = isIdentitySection ? (fields.find(f => f === globalPhotoField) || globalPhotoField) : null;
+                                const displayFields = photoFieldInSec ? fields.filter(f => f !== photoFieldInSec) : fields;
+                                if (displayFields.length === 0 && !photoFieldInSec) return null;
 
-                              return (
-                                <div
-                                  key={sectionTitle}
-                                  className="p-2.5 sm:p-4 rounded-2xl border bg-white dark:bg-slate-900 border-slate-200/90 dark:border-slate-700/80 shadow-xs hover:shadow-md space-y-2.5 sm:space-y-3.5 transition-all hover:border-teal-500/50"
-                                >
-                                  <div className="flex items-center justify-between gap-1.5 bg-slate-50/90 dark:bg-slate-800/70 px-2.5 py-1.5 sm:px-3.5 sm:py-2 rounded-xl border border-slate-200/80 dark:border-slate-700/60">
-                                    <div className="font-black text-slate-800 dark:text-slate-100 flex items-center gap-2 min-w-0 flex-1">
-                                      <span className="w-2 h-2 rounded-full bg-teal-500 flex-shrink-0 shadow-xs"></span>
-                                      <span className="tracking-wide uppercase text-[10.5px] sm:text-xs font-black break-words leading-tight">{sectionTitle}</span>
+                                return (
+                                  <div
+                                    key={sectionTitle}
+                                    className="p-3 sm:p-4 rounded-xl sm:rounded-2xl border bg-white dark:bg-slate-900 border-slate-200/90 dark:border-slate-800 shadow-xs hover:shadow-sm space-y-3 transition-all hover:border-teal-500/40"
+                                  >
+                                    <div className="flex items-center gap-2 pb-2 border-b border-slate-100 dark:border-slate-800/80">
+                                      <span className="w-2 h-2 rounded-full bg-teal-500 flex-shrink-0"></span>
+                                      <h4 className="tracking-wide uppercase text-[11px] sm:text-xs font-black text-slate-800 dark:text-slate-100 leading-tight">
+                                        {sectionTitle}
+                                      </h4>
                                     </div>
-                                  </div>
 
-                                  {isIdentitySection ? (
-                                    <div className="flex flex-col md:flex-row items-start gap-3.5">
-                                      <div className="flex-1 w-full grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                                    {isIdentitySection ? (
+                                      <div className="flex flex-col md:flex-row items-start gap-3.5">
+                                        <div className="flex-1 w-full grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                                          {displayFields.map((field, idx) => {
+                                            const name = field.fieldName || field.name || field['Field Name'];
+                                            const hasError = Boolean(fieldErrors[name]);
+                                            return (
+                                              <div
+                                                key={idx}
+                                                data-field-name={name}
+                                                className={`relative rounded-xl transition-all duration-200 ${
+                                                  hasError ? 'ring-2 ring-red-500 bg-red-50/60 dark:bg-red-950/30 p-1 -m-1 shadow-sm animate-error-shake' : ''
+                                                }`}
+                                              >
+                                                <DynamicFormField
+                                                  config={field}
+                                                  value={formData[name] || ''}
+                                                  onChange={handleFieldChange}
+                                                  subjectsConfig={subjectsConfig}
+                                                  selectedStream={selectedStream}
+                                                  disabled={isSubmitting || isFormLocked}
+                                                  error={fieldErrors[name]}
+                                                  formData={formData}
+                                                  targetClass={selectedClass}
+                                                />
+                                              </div>
+                                            );
+                                          })}
+                                        </div>
+                                        {photoFieldInSec && (
+                                          <div
+                                            data-field-name={photoFieldInSec.fieldName || photoFieldInSec.name || photoFieldInSec['Field Name']}
+                                            className={`w-full md:w-auto flex flex-col items-center md:items-end flex-shrink-0 pt-0.5 rounded-xl transition-all duration-200 order-first md:order-last mb-1 md:mb-0 ${
+                                              Boolean(fieldErrors[photoFieldInSec.fieldName || photoFieldInSec.name || photoFieldInSec['Field Name']])
+                                                ? 'ring-2 ring-red-500 bg-red-50/60 dark:bg-red-950/30 p-1 shadow-sm animate-error-shake'
+                                                : ''
+                                            }`}
+                                          >
+                                            <DynamicFormField
+                                              config={photoFieldInSec}
+                                              value={formData[photoFieldInSec.fieldName || photoFieldInSec.name || photoFieldInSec['Field Name']] || ''}
+                                              onChange={handleFieldChange}
+                                              subjectsConfig={subjectsConfig}
+                                              selectedStream={selectedStream}
+                                              disabled={isSubmitting || isFormLocked}
+                                              error={fieldErrors[photoFieldInSec.fieldName || photoFieldInSec.name || photoFieldInSec['Field Name']]}
+                                              formData={formData}
+                                              targetClass={selectedClass}
+                                            />
+                                          </div>
+                                        )}
+                                      </div>
+                                    ) : (
+                                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                                         {displayFields.map((field, idx) => {
                                           const name = field.fieldName || field.name || field['Field Name'];
                                           const hasError = Boolean(fieldErrors[name]);
@@ -2992,7 +3031,7 @@ export default function AdmissionForm() {
                                             <div
                                               key={idx}
                                               data-field-name={name}
-                                              className={`relative rounded-xl transition-all duration-200 ${
+                                              className={`${isFullWidthField(field, name) ? 'md:col-span-2 lg:col-span-3' : ''} relative rounded-xl transition-all duration-200 ${
                                                 hasError ? 'ring-2 ring-red-500 bg-red-50/60 dark:bg-red-950/30 p-1 -m-1 shadow-sm animate-error-shake' : ''
                                               }`}
                                             >
@@ -3011,61 +3050,11 @@ export default function AdmissionForm() {
                                           );
                                         })}
                                       </div>
-                                      {photoFieldInSec && (
-                                        <div
-                                          data-field-name={photoFieldInSec.fieldName || photoFieldInSec.name || photoFieldInSec['Field Name']}
-                                          className={`w-full md:w-auto flex flex-col items-center md:items-end flex-shrink-0 pt-0.5 rounded-xl transition-all duration-200 order-first md:order-last mb-1 md:mb-0 ${
-                                            Boolean(fieldErrors[photoFieldInSec.fieldName || photoFieldInSec.name || photoFieldInSec['Field Name']])
-                                              ? 'ring-2 ring-red-500 bg-red-50/60 dark:bg-red-950/30 p-1 shadow-sm animate-error-shake'
-                                              : ''
-                                          }`}
-                                        >
-                                          <DynamicFormField
-                                            config={photoFieldInSec}
-                                            value={formData[photoFieldInSec.fieldName || photoFieldInSec.name || photoFieldInSec['Field Name']] || ''}
-                                            onChange={handleFieldChange}
-                                            subjectsConfig={subjectsConfig}
-                                            selectedStream={selectedStream}
-                                            disabled={isSubmitting || isFormLocked}
-                                            error={fieldErrors[photoFieldInSec.fieldName || photoFieldInSec.name || photoFieldInSec['Field Name']]}
-                                            formData={formData}
-                                            targetClass={selectedClass}
-                                          />
-                                        </div>
-                                      )}
-                                    </div>
-                                  ) : (
-                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                                      {displayFields.map((field, idx) => {
-                                        const name = field.fieldName || field.name || field['Field Name'];
-                                        const hasError = Boolean(fieldErrors[name]);
-                                        return (
-                                          <div
-                                            key={idx}
-                                            data-field-name={name}
-                                            className={`${isFullWidthField(field, name) ? 'md:col-span-2 lg:col-span-3' : ''} relative rounded-xl transition-all duration-200 ${
-                                              hasError ? 'ring-2 ring-red-500 bg-red-50/60 dark:bg-red-950/30 p-1 -m-1 shadow-sm animate-error-shake' : ''
-                                            }`}
-                                          >
-                                            <DynamicFormField
-                                              config={field}
-                                              value={formData[name] || ''}
-                                              onChange={handleFieldChange}
-                                              subjectsConfig={subjectsConfig}
-                                              selectedStream={selectedStream}
-                                              disabled={isSubmitting || isFormLocked}
-                                              error={fieldErrors[name]}
-                                              formData={formData}
-                                              targetClass={selectedClass}
-                                            />
-                                          </div>
-                                        );
-                                      })}
-                                    </div>
-                                  )}
-                                </div>
-                              );
-                            })}
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
 
                             {workflowStep.id === 'review' && (
                               <div className="rounded-xl border border-teal-500/25 bg-teal-500/5 p-3 flex items-center gap-2.5">
