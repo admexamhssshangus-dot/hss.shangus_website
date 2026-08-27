@@ -833,6 +833,16 @@ export default function DynamicFormField({
   // Calculate live percentage badge if this is a marks field
   let calcPercentageBadge = null;
   const lowerName = (name || '').toLowerCase();
+  const isMaxMarksField = lowerName.includes('max. marks') || lowerName.includes('max marks') || (lowerName.includes('total max') && !lowerName.includes('percentage'));
+  const [isCustomMaxMarksSelected, setIsCustomMaxMarksSelected] = useState(false);
+
+  // Auto-initialize standard 500 max marks if field is active but empty
+  useEffect(() => {
+    if (isMaxMarksField && (value === undefined || value === null || String(value).trim() === '') && !disabled && typeof onChange === 'function') {
+      onChange(name, '500');
+    }
+  }, [isMaxMarksField, value, disabled, name, onChange]);
+
   if (formData && (lowerName.includes('marks obtained') || lowerName.includes('max. marks'))) {
     const clsMatch = name.match(/Class \d+th|Class 8th|Class 9th|Class 10th|Class 11th|Class 12th/i);
     if (clsMatch) {
@@ -1316,53 +1326,61 @@ export default function DynamicFormField({
 
             return (
               <>
-                {isMaxMarksField ? (
-                  <div className="space-y-1.5">
-                    <select
-                      id={inputId}
-                      value={MAX_MARKS_PRESETS.includes(String(value || '').trim()) ? String(value).trim() : (value ? 'custom' : '500')}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        if (val !== 'custom') {
-                          onChange(name, val);
-                        } else if (MAX_MARKS_PRESETS.includes(String(value || '').trim())) {
-                          onChange(name, '');
-                        }
-                      }}
-                      disabled={disabled}
-                      required={required}
-                      aria-invalid={Boolean(error)}
-                      aria-describedby={error ? errorId : undefined}
-                      className="w-full px-2.5 py-1.5 rounded-lg sm:rounded-xl text-[11.5px] sm:text-xs font-semibold border focus:outline-none focus:ring-2 focus:ring-teal-500 transition-all cursor-pointer"
-                      style={inputStyle}
-                    >
-                      <option value="500">500 (Standard Max Marks)</option>
-                      <option value="600">600 Max Marks</option>
-                      <option value="700">700 Max Marks</option>
-                      <option value="800">800 Max Marks</option>
-                      <option value="1000">1000 Max Marks</option>
-                      <option value="1200">1200 Max Marks</option>
-                      <option value="custom">Custom Maximum Marks...</option>
-                    </select>
+                {isMaxMarksField ? (() => {
+                  const strVal = String(value || '').trim();
+                  const isKnownPreset = MAX_MARKS_PRESETS.includes(strVal);
+                  const isCustom = isCustomMaxMarksSelected || (Boolean(strVal) && !isKnownPreset);
 
-                    {(!MAX_MARKS_PRESETS.includes(String(value || '').trim())) && (
-                      <div className="flex items-center gap-1.5 animate-fadeIn">
-                        <input
-                          type="number"
-                          value={value}
-                          onChange={handleInputChange}
-                          disabled={disabled}
-                          required={required}
-                          min="1"
-                          max="2000"
-                          placeholder="Enter Custom Max Marks (e.g. 650)"
-                          className="w-full px-2.5 py-1.5 rounded-lg sm:rounded-xl text-[11.5px] sm:text-xs font-semibold border focus:outline-none focus:ring-2 focus:ring-teal-500 transition-all"
-                          style={inputStyle}
-                        />
-                      </div>
-                    )}
-                  </div>
-                ) : isSchoolInput ? (
+                  return (
+                    <div className="space-y-1.5">
+                      <select
+                        id={inputId}
+                        value={isCustom ? 'custom' : (strVal || '500')}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (val === 'custom') {
+                            setIsCustomMaxMarksSelected(true);
+                            onChange(name, '');
+                          } else {
+                            setIsCustomMaxMarksSelected(false);
+                            onChange(name, val);
+                          }
+                        }}
+                        disabled={disabled}
+                        required={required}
+                        aria-invalid={Boolean(error)}
+                        aria-describedby={error ? errorId : undefined}
+                        className="w-full px-2.5 py-1.5 rounded-lg sm:rounded-xl text-[11.5px] sm:text-xs font-semibold border focus:outline-none focus:ring-2 focus:ring-teal-500 transition-all cursor-pointer"
+                        style={inputStyle}
+                      >
+                        <option value="500">500</option>
+                        <option value="600">600</option>
+                        <option value="700">700</option>
+                        <option value="800">800</option>
+                        <option value="1000">1000</option>
+                        <option value="1200">1200</option>
+                        <option value="custom">Other / Custom</option>
+                      </select>
+
+                      {isCustom && (
+                        <div className="flex items-center gap-1.5 animate-fadeIn">
+                          <input
+                            type="number"
+                            value={value || ''}
+                            onChange={handleInputChange}
+                            disabled={disabled}
+                            required={required}
+                            min="1"
+                            max="2000"
+                            placeholder="Enter Custom Max Marks (e.g. 650)"
+                            className="w-full px-2.5 py-1.5 rounded-lg sm:rounded-xl text-[11.5px] sm:text-xs font-semibold border focus:outline-none focus:ring-2 focus:ring-teal-500 transition-all"
+                            style={inputStyle}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  );
+                })() : isSchoolInput ? (
                   <div className="space-y-1">
                     <SearchableSchoolCombobox
                       id={inputId}
