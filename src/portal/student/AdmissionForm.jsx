@@ -1541,6 +1541,16 @@ export default function AdmissionForm() {
       }
     }
 
+    // Email validation
+    const emailFieldKey = Object.keys(formData).find(k => {
+      const kl = k.toLowerCase();
+      return kl.includes('email') || kl.includes('e-mail') || kl === 'mail';
+    }) || "Email Address";
+    const emailValue = String(formData[emailFieldKey] || formData["Email Address"] || formData["E-mail ID"] || formData["E-mail Address"] || '').trim();
+    if (emailValue && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailValue)) {
+      addError(emailFieldKey, "Please enter a valid email address (e.g. name@gmail.com)");
+    }
+
     // Aadhar
     const aadhar = String(formData["Aadhar No."] || '').replace(/[^0-9]/g, '');
     if (!aadhar) addError("Aadhar No.", "Aadhar number is required");
