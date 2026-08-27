@@ -8420,16 +8420,6 @@ export default function AdvancedReports({
                   <span className="font-mono font-black text-slate-900 dark:text-slate-50">{filteredStudents.length}</span>
                 </div>
               )}
-
-              {/* Glowing animated progress stripe */}
-              {(isFetchingData || loading || isSearching || searchTerm !== deferredSearchTerm || fetchProgress > 0) && (
-                <div className="absolute left-0 right-0 bottom-0 h-1 bg-amber-100 dark:bg-amber-950/40 overflow-hidden pointer-events-none transition-all">
-                  <div
-                    className="h-full bg-gradient-to-r from-emerald-500 via-amber-400 to-teal-400 transition-all duration-300 ease-out shadow-[0_0_8px_rgba(16,185,129,0.9)] animate-pulse"
-                    style={{ width: `${fetchProgress || 100}%` }}
-                  />
-                </div>
-              )}
             </div>
           </div>
         </div>
@@ -8648,12 +8638,6 @@ export default function AdvancedReports({
 
       {/* Master Data Table (Clean Light Theme Adaptive Headers & Sticky S.No Column) */}
       <div className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-110px)] rounded-lg border border-slate-300 dark:border-slate-700 shadow-2xs max-w-full bg-white dark:bg-slate-900 relative">
-        {/* Real-time Table Loading Progress Stripe */}
-        {(isFetchingData || loading || fetchProgress > 0) && (
-          <div className="sticky top-0 left-0 right-0 z-50 h-1 bg-amber-100 dark:bg-amber-950/60 overflow-hidden">
-            <div className="h-full bg-gradient-to-r from-emerald-500 via-teal-400 to-indigo-500 w-full animate-pulse shadow-sm" />
-          </div>
-        )}
         <table className="w-full text-left text-slate-900 dark:text-slate-100 bg-white dark:bg-slate-900 whitespace-normal break-words table-fixed">
             <thead className="sticky top-0 z-30 overflow-visible bg-slate-100 dark:bg-slate-800 text-[#800000] dark:text-rose-400 font-black border-b-2 border-rose-900/30 uppercase tracking-tight text-xs sm:text-[13px] shadow-2xs">
               <tr className="overflow-visible">
