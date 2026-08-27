@@ -1,5 +1,6 @@
 import React, { useId, useState, useMemo, useEffect, useRef } from 'react';
 import { CheckCircle2, AlertCircle, Info, Camera, X, Loader2, Calendar, ChevronDown, Plus, BookOpen, Layers, Sparkles, Lock, ShieldCheck } from 'lucide-react';
+import StandardTooltip from '../../components/StandardTooltip';
 import compressStudentPhoto, { formatPhotoDisplayUrl } from '../../utils/imageCompressor';
 import { MIN_ADMISSION_AGE, isValidAadhaar } from '../../utils/admissionValidation';
 import { validateSubjectSelection, normalizeSubjectTitle } from '../student/AdmissionForm';
@@ -872,10 +873,13 @@ export default function DynamicFormField({
           )}
         </span>
         {hint && (
-          <span className="inline-flex items-center gap-1 text-[9px] font-medium text-slate-400">
-            <Info size={9} className="text-teal-600 flex-shrink-0" />
-            <span className="truncate">{hint}</span>
-          </span>
+          <StandardTooltip content={hint} title={`${mainLabel} Instructions`} position="top">
+            <span className="inline-flex items-center gap-1 text-[9px] sm:text-[9.5px] font-bold text-teal-700 dark:text-teal-400 bg-teal-50/90 dark:bg-teal-950/60 hover:bg-teal-100 dark:hover:bg-teal-900/80 px-1.5 py-0.5 rounded-md border border-teal-200/80 dark:border-teal-800/80 transition-colors shadow-2xs cursor-pointer">
+              <Info size={9.5} className="text-teal-600 dark:text-teal-400 flex-shrink-0" />
+              <span className="hidden sm:inline truncate max-w-[140px]">{hint}</span>
+              <span className="sm:hidden font-extrabold">Help</span>
+            </span>
+          </StandardTooltip>
         )}
       </label>
 

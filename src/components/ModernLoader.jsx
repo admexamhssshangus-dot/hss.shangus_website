@@ -22,6 +22,76 @@ const PAGE_MODULE_PRESETS = {
       "Securing your digital application draft…"
     ]
   },
+  auth: {
+    title: "Govt. Higher Secondary School Shangus",
+    badge: "Secure Access",
+    defaultText: "Authenticating Session Credentials",
+    hints: [
+      "Verifying encrypted administrative tokens…",
+      "Connecting to official institutional database…",
+      "Loading session access privileges…"
+    ]
+  },
+  login: {
+    title: "Govt. Higher Secondary School Shangus",
+    badge: "Secure Access",
+    defaultText: "Authenticating Session Credentials",
+    hints: [
+      "Verifying encrypted administrative tokens…",
+      "Connecting to official institutional database…",
+      "Loading session access privileges…"
+    ]
+  },
+  customRoster: {
+    title: "Govt. Higher Secondary School Shangus",
+    badge: "Roster & Registers",
+    defaultText: "Loading Student Roster Studio",
+    hints: [
+      "Preparing student cohort records matrix…",
+      "Indexing custom fee sheets and class registers…",
+      "Configuring tabular column formulas…"
+    ]
+  },
+  certStudio: {
+    title: "Govt. Higher Secondary School Shangus",
+    badge: "Certificates & Bonafides",
+    defaultText: "Loading Certificate Studio",
+    hints: [
+      "Compiling official certificate templates…",
+      "Indexing student directory and JKBOSE results…",
+      "Preparing institutional signature engine…"
+    ]
+  },
+  officialLetter: {
+    title: "Govt. Higher Secondary School Shangus",
+    badge: "Letterhead Writer",
+    defaultText: "Loading Official Letterhead Writer",
+    hints: [
+      "Formatting institutional dispatch headers…",
+      "Configuring official signatories and margins…",
+      "Preparing Word & PDF document engine…"
+    ]
+  },
+  admRegisterSuite: {
+    title: "Govt. Higher Secondary School Shangus",
+    badge: "Admission Registers",
+    defaultText: "Loading Admission Register Suite",
+    hints: [
+      "Indexing Class 11th & 12th registers…",
+      "Synchronizing official enrollment archives…",
+      "Preparing sentup & examination rosters…"
+    ]
+  },
+  mergeStudio: {
+    title: "Govt. Higher Secondary School Shangus",
+    badge: "Merger & Deduplication",
+    defaultText: "Loading Deduplication Studio",
+    hints: [
+      "Scanning duplicate application entries…",
+      "Reconciling student registration identifiers…",
+      "Preparing unified database merger…"
+    ]
+  },
   teacher: {
     title: "Govt. Higher Secondary School Shangus",
     badge: "Faculty Portal",
@@ -86,6 +156,24 @@ const PAGE_MODULE_PRESETS = {
       "Fetching institutional configuration…"
     ]
   },
+  funds: {
+    title: "Govt. Higher Secondary School Shangus",
+    badge: "Funds & Fee Accounts",
+    defaultText: "Loading Fee & Account Ledgers",
+    hints: [
+      "Calculating student fee allocation ledgers…",
+      "Compiling department account summaries…"
+    ]
+  },
+  automations: {
+    title: "Govt. Higher Secondary School Shangus",
+    badge: "Messages & Automations",
+    defaultText: "Loading Automation Hub",
+    hints: [
+      "Synchronizing automated messaging queues…",
+      "Preparing email & WhatsApp broadcast templates…"
+    ]
+  },
   default: {
     title: "Govt. Higher Secondary School Shangus",
     badge: "Academic Portal",
@@ -105,6 +193,7 @@ export default function ModernLoader({
   text,
   subtext,
   totalRecords,
+  progress, // Optional number 0–100 for actual percentage progress
   fullScreen = false,
   className = ''
 }) {
@@ -119,6 +208,8 @@ export default function ModernLoader({
   const hintsList = preset.hints || [preset.defaultText];
 
   const [hintIdx, setHintIdx] = useState(0);
+  const [logoSrc, setLogoSrc] = useState('/logo512.png');
+  const [logoFailed, setLogoFailed] = useState(false);
 
   useEffect(() => {
     if (hintsList.length <= 1) return;
@@ -134,6 +225,9 @@ export default function ModernLoader({
       ? `Synchronizing ${totalRecords.toLocaleString()} student records…`
       : hintsList[hintIdx]
   );
+
+  const hasExplicitProgress = typeof progress === 'number' && !isNaN(progress);
+  const clampedProgress = hasExplicitProgress ? Math.min(100, Math.max(0, Math.round(progress))) : null;
 
   const containerClasses = fullScreen
     ? "fixed inset-0 z-50 flex flex-col items-center justify-center p-4 sm:p-6 bg-white/95 dark:bg-slate-950/95 backdrop-blur-md text-center overflow-hidden animate-fadeIn"
@@ -152,15 +246,23 @@ export default function ModernLoader({
         <div className="absolute inset-0 rounded-full bg-teal-500/10 dark:bg-teal-400/10 animate-pulse" />
 
         {/* Logo Card */}
-        <div className="relative w-14 h-14 sm:w-16 sm:h-16 bg-white dark:bg-slate-900 rounded-full flex items-center justify-center shadow-sm ring-1 ring-slate-200/80 dark:ring-slate-800">
-          <img
-            src="/logo.png"
-            alt="Govt HSS Shangus"
-            className="w-11 h-11 sm:w-13 sm:h-13 rounded-full object-contain"
-            onError={(e) => {
-              e.target.style.display = 'none';
-            }}
-          />
+        <div className="relative w-14 h-14 sm:w-16 sm:h-16 bg-white dark:bg-slate-900 rounded-full flex items-center justify-center shadow-sm ring-1 ring-slate-200/80 dark:ring-slate-800 overflow-hidden">
+          {!logoFailed ? (
+            <img
+              src={logoSrc}
+              alt="Govt HSS Shangus"
+              className="w-11 h-11 sm:w-13 sm:h-13 rounded-full object-contain"
+              onError={() => {
+                if (logoSrc === '/logo512.png') {
+                  setLogoSrc('/logo.png');
+                } else {
+                  setLogoFailed(true);
+                }
+              }}
+            />
+          ) : (
+            <span className="font-black text-xs text-teal-700 dark:text-teal-300">HSS</span>
+          )}
         </div>
       </div>
 
@@ -175,26 +277,42 @@ export default function ModernLoader({
       </div>
 
       {/* Status & Dynamic Context */}
-      <div className="space-y-1 mb-4 max-w-xs sm:max-w-sm px-2 min-h-[42px] flex flex-col items-center justify-center">
+      <div className="space-y-1 mb-3.5 max-w-xs sm:max-w-sm px-2 min-h-[38px] flex flex-col items-center justify-center">
         <h2 className="text-xs font-semibold text-slate-700 dark:text-slate-200 leading-snug">
           {mainStatusText}
         </h2>
         {secondarySubtext && (
-          <p className="text-[11px] text-slate-500 dark:text-slate-400 font-normal truncate max-w-full transition-opacity duration-300">
+          <p className="text-[10.5px] sm:text-[11px] text-slate-500 dark:text-slate-400 font-normal truncate max-w-full transition-opacity duration-300">
             {secondarySubtext}
           </p>
         )}
       </div>
 
-      {/* Modern Minimal Progress Line */}
-      <div className="w-36 sm:w-44 h-1 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden relative">
-        <div
-          className="absolute top-0 bottom-0 bg-gradient-to-r from-teal-500 to-emerald-500 rounded-full"
-          style={{
-            width: '40%',
-            animation: 'minimalSweep 1.4s ease-in-out infinite alternate'
-          }}
-        />
+      {/* Modern Minimal Progress Line & Optional Minimal Percentage */}
+      <div className="flex flex-col items-center gap-1.5">
+        <div className="w-40 sm:w-48 h-1 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden relative shadow-2xs">
+          {hasExplicitProgress ? (
+            <div
+              className="absolute top-0 bottom-0 left-0 bg-gradient-to-r from-teal-500 to-emerald-500 rounded-full transition-all duration-300 ease-out shadow-xs"
+              style={{ width: `${clampedProgress}%` }}
+            />
+          ) : (
+            <div
+              className="absolute top-0 bottom-0 bg-gradient-to-r from-teal-500 to-emerald-500 rounded-full"
+              style={{
+                width: '40%',
+                animation: 'minimalSweep 1.4s ease-in-out infinite alternate'
+              }}
+            />
+          )}
+        </div>
+
+        {/* Minimal numeric percentage counter */}
+        {hasExplicitProgress && (
+          <span className="text-[10.5px] font-black font-mono tracking-tight text-teal-700 dark:text-teal-400">
+            {clampedProgress}%
+          </span>
+        )}
       </div>
 
       {/* Inline Keyframe Animation */}
@@ -208,4 +326,3 @@ export default function ModernLoader({
     </div>
   );
 }
-
