@@ -34,6 +34,14 @@ html, body, #root {
 	.font-title {
 		font-family: var(--font-title);
 	}
+	.portal-form-sans h1,
+	.portal-form-sans h2,
+	.portal-form-sans h3,
+	.portal-form-sans h4,
+	.portal-form-sans h5,
+	.portal-form-sans h6 {
+		font-family: var(--font-sans) !important;
+	}
 }
 
 @keyframes shrink60s {
