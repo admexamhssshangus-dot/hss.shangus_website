@@ -304,28 +304,40 @@ service cloud.firestore {
     }
 
     match /admissions/{documentId} {
-      allow read: if isTeacher() ||
+      allow get: if isTeacher() ||
         (isAuthenticated() && (
           resource.data.ownerUid == request.auth.uid ||
           (resource.data.emailNormalized is string && resource.data.emailNormalized == authEmail()) ||
-          (resource.data.email is string && resource.data.email.lower() == authEmail()) ||
-          (resource.data['Email Address'] is string && resource.data['Email Address'].lower() == authEmail())
+          (resource.data.email is string && resource.data.email == authEmail()) ||
+          (resource.data['Email Address'] is string && resource.data['Email Address'] == authEmail()) ||
+          (resource.data.email is string && resource.data.email == request.auth.token.email) ||
+          (resource.data['Email Address'] is string && resource.data['Email Address'] == request.auth.token.email)
         ));
-      // Student writes go through the authenticated admission-workflow server.
-      // This allows verified student accounts to submit and update their own admission application.
+      allow list: if isTeacher() ||
+        (isAuthenticated() && (
+          resource.data.ownerUid == request.auth.uid ||
+          (resource.data.emailNormalized is string && resource.data.emailNormalized == authEmail()) ||
+          (resource.data.email is string && resource.data.email == authEmail()) ||
+          (resource.data['Email Address'] is string && resource.data['Email Address'] == authEmail())
+        ));
+      // Student writes allow verified/authenticated student accounts to submit and update their own admission application.
       allow create: if (isAdmin() && validStaffDocument(request.resource.data)) ||
         (isStudent() && (
           request.resource.data.ownerUid == request.auth.uid ||
           (request.resource.data.emailNormalized is string && request.resource.data.emailNormalized == authEmail()) ||
-          (request.resource.data.email is string && request.resource.data.email.lower() == authEmail()) ||
-          (request.resource.data['Email Address'] is string && request.resource.data['Email Address'].lower() == authEmail())
+          (request.resource.data.email is string && request.resource.data.email == authEmail()) ||
+          (request.resource.data['Email Address'] is string && request.resource.data['Email Address'] == authEmail()) ||
+          (request.resource.data.email is string && request.resource.data.email == request.auth.token.email) ||
+          (request.resource.data['Email Address'] is string && request.resource.data['Email Address'] == request.auth.token.email)
         ));
       allow update: if (isAdmin() && validStaffDocument(request.resource.data)) ||
         (isStudent() && (
           resource.data.ownerUid == request.auth.uid ||
           (resource.data.emailNormalized is string && resource.data.emailNormalized == authEmail()) ||
-          (resource.data.email is string && resource.data.email.lower() == authEmail()) ||
-          (resource.data['Email Address'] is string && resource.data['Email Address'].lower() == authEmail())
+          (resource.data.email is string && resource.data.email == authEmail()) ||
+          (resource.data['Email Address'] is string && resource.data['Email Address'] == authEmail()) ||
+          (resource.data.email is string && resource.data.email == request.auth.token.email) ||
+          (resource.data['Email Address'] is string && resource.data['Email Address'] == request.auth.token.email)
         ));
       allow delete: if isAdmin();
     }

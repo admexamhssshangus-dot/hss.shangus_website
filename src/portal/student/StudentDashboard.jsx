@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useOutletContext, useNavigate } from 'react-router-dom';
-import { FileText, Edit3, RefreshCw, LogOut, ShieldCheck, CheckCircle2, Clock, AlertCircle, Sparkles, ArrowRight, X, Trash2, Printer, CreditCard, Mail } from 'lucide-react';
+import { FileText, Edit3, RefreshCw, LogOut, ShieldCheck, CheckCircle2, Clock, AlertCircle, Sparkles, ArrowRight, X, Trash2, Printer, CreditCard, Mail, Plus } from 'lucide-react';
 import SEO from '../../components/SEO';
 import ModernLoader from '../../components/ModernLoader';
 import LogoutConfirmModal from '../components/LogoutConfirmModal';
@@ -33,6 +33,7 @@ export default function StudentDashboard() {
   // Dashboard Data State
   const [loading, setLoading] = useState(true);
   const [appData, setAppData] = useState(null);
+  const [allApplications, setAllApplications] = useState([]);
   const [sessionInfo, setSessionInfo] = useState(() => getCurrentAcademicSession());
   const [alert, setAlert] = useState(null);
 
@@ -150,6 +151,7 @@ export default function StudentDashboard() {
       try {
         const applicationResult = await appsScriptApi.getStudentApplication();
         const applications = applicationResult?.data?.applications || applicationResult?.applications || [];
+        setAllApplications(applications);
         const currentApp = applications.find(a => (a.Session || a.session || a['Academic Session']) === activeSession) || applications[0] || null;
         if (currentApp && (currentApp.Session || currentApp.session || currentApp['Academic Session'])) {
           activeSession = currentApp.Session || currentApp.session || currentApp['Academic Session'];
@@ -488,6 +490,52 @@ export default function StudentDashboard() {
                 <span>{status === 'Withdrawn' ? 'ADM. WITHDRAWN' : status}</span>
               </div>
             </div>
+
+            {/* Multiple Submitted Applications Switcher */}
+            {allApplications.length > 1 && (
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2 rounded-2xl bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 shadow-2xs">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-[10.5px] font-black text-slate-500 dark:text-slate-400 uppercase px-1.5 whitespace-nowrap">
+                    Your Applications ({allApplications.length}):
+                  </span>
+                  {allApplications.map((app, idx) => {
+                    const isCurrent = (app.docId || app['Form Number'] || idx) === (appData?.docId || appData?.['Form Number'] || 0);
+                    const appFNum = app['Form Number'] || app.formNo || app.docId || `#${idx + 1}`;
+                    const appCls = app['Admission sought for class'] || app.class || 'N/A';
+                    const appStrm = app['Stream for Class 11th'] || app['Stream opted in Class 11th'] || app.Stream || '';
+                    return (
+                      <button
+                        key={app.docId || idx}
+                        type="button"
+                        onClick={() => {
+                          setAppData(app);
+                          if (app.Session || app.session || app['Academic Session']) {
+                            setSessionInfo(app.Session || app.session || app['Academic Session']);
+                          }
+                        }}
+                        className={`px-3 py-1.5 rounded-xl font-bold text-xs transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
+                          isCurrent
+                            ? 'bg-teal-600 text-white shadow-xs font-black'
+                            : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700'
+                        }`}
+                      >
+                        <span>Form #{appFNum}</span>
+                        <span className="text-[10px] opacity-80">(Class {appCls}{appStrm ? ` • ${appStrm}` : ''})</span>
+                      </button>
+                    );
+                  })}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => navigate('/portal/student/application')}
+                  className="px-3 py-1.5 rounded-xl font-bold text-[11px] text-teal-700 dark:text-teal-300 hover:bg-teal-500/10 transition-all flex items-center gap-1 whitespace-nowrap sm:ml-auto"
+                  title="Submit another admission form"
+                >
+                  <Plus size={13} />
+                  <span>Apply for Another Class</span>
+                </button>
+              </div>
+            )}
 
             {/* Application Overview Cards */}
             {appData ? (

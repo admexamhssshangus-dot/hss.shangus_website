@@ -732,11 +732,9 @@ async function legacySaveApplication(payload) {
 
 function getCurrentAcademicSession() {
   const now = new Date();
-  const calYear = now.getFullYear();
-  const calMonth = now.getMonth() + 1; // 1-12
-  const calDay = now.getDate();
-  const isPastCutoff = calMonth > 10 || (calMonth === 10 && calDay > 31);
-  const sessionEndYear = isPastCutoff ? calYear + 1 : calYear;
+  const currentMonth = now.getMonth(); // 0 = Jan, 11 = Dec
+  const currentYear = now.getFullYear();
+  const sessionEndYear = currentMonth >= 10 ? currentYear + 1 : currentYear;
   const sessionStartYear = sessionEndYear - 1;
   return `${sessionStartYear}-${String(sessionEndYear).slice(-2)}`;
 }
@@ -788,27 +786,42 @@ async function getStudentApplication() {
         } catch (_) {}
       }
 
-      // Check last known form document directly if query did not catch it yet
-      if (appDocs.length === 0) {
-        try {
-          const lastFormNo = (email && localStorage.getItem(`hss_student_last_app_${email}`)) ||
-                             (uid && localStorage.getItem(`hss_student_last_app_${uid}`));
-          if (lastFormNo) {
-            const singleSnap = await getDoc(doc(db, 'admissions', String(lastFormNo).trim()));
-            if (singleSnap.exists()) {
-              const sData = singleSnap.data();
-              const sEmail = String(sData['Email Address'] || sData.email || sData.emailNormalized || '').toLowerCase().trim();
-              const sUid = String(sData.ownerUid || '').trim();
-              if ((email && sEmail === email) || (uid && sUid === uid)) {
-                if (!seenDocIds.has(singleSnap.id)) {
+      // Check all known form IDs stored in localStorage for this student
+      try {
+        const allKnown = [];
+        if (email) {
+          const rawList1 = localStorage.getItem(`hss_student_all_apps_${email}`);
+          if (rawList1) allKnown.push(...JSON.parse(rawList1));
+          const last1 = localStorage.getItem(`hss_student_last_app_${email}`);
+          if (last1) allKnown.push(last1);
+        }
+        if (uid) {
+          const rawList2 = localStorage.getItem(`hss_student_all_apps_${uid}`);
+          if (rawList2) allKnown.push(...JSON.parse(rawList2));
+          const last2 = localStorage.getItem(`hss_student_last_app_${uid}`);
+          if (last2) allKnown.push(last2);
+        }
+
+        const uniqueKnown = [...new Set(allKnown.filter(Boolean))];
+        for (const formId of uniqueKnown) {
+          if (!seenDocIds.has(formId)) {
+            try {
+              const singleSnap = await getDoc(doc(db, 'admissions', String(formId).trim()));
+              if (singleSnap.exists()) {
+                const sData = singleSnap.data();
+                const sEmail = String(sData['Email Address'] || sData.email || sData.emailNormalized || '').toLowerCase().trim();
+                const sUid = String(sData.ownerUid || '').trim();
+                if ((email && sEmail === email) || (uid && sUid === uid)) {
                   seenDocIds.add(singleSnap.id);
                   appDocs.push(singleSnap);
                 }
               }
+            } catch (err) {
+              console.warn(`Direct fetch for form ${formId} note:`, err);
             }
           }
-        } catch (_) {}
-      }
+        }
+      } catch (_) {}
 
       // Comprehensive fallback: scan all admissions if index or field exact match missed
       if (appDocs.length === 0) {
