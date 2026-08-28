@@ -61,6 +61,15 @@ const NAMES = {
 const DEFAULT_MX11 = { BI: 20, BO: 10, ZO: 10, CH: 10, EC: 20, ED: 20, EN: 20, ES: 10, HT: 20, MA: 20, PD: 15, PH: 10, PS: 20, UR: 20, HTC: 50, ITE: 50 };
 const DEFAULT_MX12 = { BI: 20, BO: 10, ZO: 10, CH: 10, EC: 20, ED: 20, EN: 20, ES: 10, HT: 20, MA: 20, PD: 15, PH: 10, PS: 20, UR: 20, HTC: 50, ITE: 50 };
 
+export const DEFAULT_EXCLUDED_TEACHERS = [
+  'teacher@hssshangus.in',
+  'teacher@test.com',
+  'smuzaffera@gmail.com',
+  'sameerganie5899445@gmail.com',
+  'mwani@gmail.com',
+  'bilalhcut@gmail.com'
+];
+
 export const isClassMatch = (stc, trc) => {
   if (!stc) return false;
   const s = String(stc).toLowerCase().trim();
@@ -506,15 +515,13 @@ export default function AdminPracticals() {
         getCachedCollection('masterRegisters', force, 30 * 60 * 1000)
       ]);
 
-      if (!setDocSnap.empty) {
-        const d = setDocSnap.docs.find(x => x.id === 'config')?.data();
-        if (d) {
-          setSettings(p => ({
-            ...p,
-            ...d,
-            evaluationMarksConfig: d.evaluationMarksConfig || d.evaluationSettings || d.marksConfig || p.evaluationMarksConfig || DEFAULT_PRACTICAL_MARKS_CONFIG
-          }));
-        }
+      const savedSettings = !setDocSnap.empty ? setDocSnap.docs.find(x => x.id === 'config')?.data() : null;
+      if (savedSettings) {
+        setSettings(p => ({
+          ...p,
+          ...savedSettings,
+          evaluationMarksConfig: savedSettings.evaluationMarksConfig || savedSettings.evaluationSettings || savedSettings.marksConfig || p.evaluationMarksConfig || DEFAULT_PRACTICAL_MARKS_CONFIG
+        }));
       }
 
       const studentsMap = new Map();
@@ -811,10 +818,15 @@ export default function AdminPracticals() {
 
       setStudents(enrichedStudents);
 
+      const rawExclusions = (savedSettings && Array.isArray(savedSettings.excludedTeacherEmails)) ? savedSettings.excludedTeacherEmails : DEFAULT_EXCLUDED_TEACHERS;
+      const excludedSet = new Set(rawExclusions.map(e => String(e).toLowerCase().trim()));
+
       setTeachers(
         ts.docs
           .map(d => ({ id: d.id, ...d.data() }))
           .filter(u => {
+            const email = String(u.email || '').toLowerCase().trim();
+            if (excludedSet.has(email)) return false;
             const r = String(u.role || '').toLowerCase();
             return r === 'teacher' || r === 'faculty' || r === 'examiner' || r === 'staff' || r === 'admin';
           })
@@ -826,6 +838,19 @@ export default function AdminPracticals() {
       setLoading(false);
     }
   }, []);
+
+  const handleExcludeTeacher = async (teacher) => {
+    const tEmail = String(teacher.email || '').toLowerCase().trim();
+    if (!tEmail) return;
+    if (!window.confirm(`Are you sure you want to remove ${teacher.name || tEmail} from the Practical Portal faculty list?`)) return;
+
+    const currentEx = Array.isArray(settings.excludedTeacherEmails) ? settings.excludedTeacherEmails : DEFAULT_EXCLUDED_TEACHERS;
+    const updated = Array.from(new Set([...currentEx, tEmail]));
+
+    const newSettings = { ...settings, excludedTeacherEmails: updated };
+    await saveSettingsDoc('Faculty Exclusions', newSettings);
+    setTeachers(prev => prev.filter(t => String(t.email || '').toLowerCase().trim() !== tEmail));
+  };
 
   useEffect(() => {
     loadData();
@@ -1128,6 +1153,8 @@ export default function AdminPracticals() {
               handleSaveTeacherPhone={handleSaveTeacherPhone}
               setSelSub={setSelSub}
               handleDeleteSubmission={handleDeleteSubmission}
+              settings={settings}
+              handleExcludeTeacher={handleExcludeTeacher}
             />
           )}
 
@@ -2662,7 +2689,9 @@ function FacultySubmissionsView({
   handleEmailShare,
   handleSaveTeacherPhone,
   setSelSub,
-  handleDeleteSubmission
+  handleDeleteSubmission,
+  settings,
+  handleExcludeTeacher
 }) {
   const [editingPhoneId, setEditingPhoneId] = useState(null);
   const [phoneInputVal, setPhoneInputVal] = useState('');
@@ -2672,12 +2701,19 @@ function FacultySubmissionsView({
   const [filterClass, setFilterClass] = useState('all');
   const [filterSubject, setFilterSubject] = useState('all');
 
-  // Filter and unify faculty members (excluding pure admin accounts with 0 submissions)
+  const excludedSet = useMemo(() => {
+    const list = Array.isArray(settings?.excludedTeacherEmails) ? settings.excludedTeacherEmails : DEFAULT_EXCLUDED_TEACHERS;
+    return new Set(list.map(e => String(e).toLowerCase().trim()));
+  }, [settings?.excludedTeacherEmails]);
+
+  // Filter and unify faculty members (excluding pure admin accounts with 0 submissions and excluded teachers)
   const facultyMembers = useMemo(() => {
     const mapByEmail = new Map();
 
     teachers.forEach(t => {
       const tEmail = String(t.email || '').toLowerCase().trim();
+      if (excludedSet.has(tEmail)) return;
+
       const r = String(t.role || '').toLowerCase().trim();
       const isPureAdmin = (r === 'admin' || r === 'administrator' || r === 'principal' || r === 'superadmin');
 
@@ -2711,6 +2747,8 @@ function FacultySubmissionsView({
     // Also include any teacher who submitted in submissions collection but wasn't in teachers
     submissions.forEach(s => {
       const sEmail = String(s.teacherEmail || s.Email || s.email || '').toLowerCase().trim();
+      if (excludedSet.has(sEmail)) return;
+
       const sName = s.teacherName || s['Teacher Name'] || 'Faculty Member';
       if (sEmail && !mapByEmail.has(sEmail)) {
         mapByEmail.set(sEmail, {
@@ -2743,7 +2781,7 @@ function FacultySubmissionsView({
     }
 
     return list;
-  }, [teachers, submissions, searchQuery]);
+  }, [teachers, submissions, searchQuery, excludedSet]);
 
   // Raw documents filtering for the audit mode
   const filteredDocs = useMemo(() => {
@@ -3031,6 +3069,13 @@ function FacultySubmissionsView({
                         title={phone ? `Open WhatsApp chat with ${phone}` : 'Add mobile and open WhatsApp'}
                       >
                         <MessageCircle size={11} /> WhatsApp
+                      </button>
+                      <button
+                        onClick={() => handleExcludeTeacher && handleExcludeTeacher(t)}
+                        className="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                        title="Remove/Hide from Practicals Portal"
+                      >
+                        <Trash2 size={11} />
                       </button>
                     </td>
                   </tr>

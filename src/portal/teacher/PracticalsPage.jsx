@@ -144,10 +144,6 @@ function getSessionEndYear(sessionStr) {
 }
 
 // Helper: Session matching using end-year comparison & sub-session checks
-// IMPORTANT: '2024-25 (Mar-Apr)' and '2024-25 (Oct-Nov)' are TWO DIFFERENT regular sessions in the same year.
-// IMPORTANT: '2026' (Regular) and '2026 APR/BIAN' (Annual Private/Bi-annual) are DIFFERENT sessions.
-// STRICT RULE: If the TARGET specifies a sub-qualifier (Mar-Apr or Oct-Nov), the student record must
-// ALSO carry that qualifier — plain "2024-25" with no qualifier is AMBIGUOUS and must NOT match either.
 function isSessionMatch(stSession, targetYearSuffix) {
   if (!stSession) return true;
   const sStr = String(stSession).toLowerCase().trim();
@@ -156,12 +152,28 @@ function isSessionMatch(stSession, targetYearSuffix) {
   // Exact string match
   if (sStr === tStr) return true;
 
+  // Normalize standard session aliases
+  const normalize = (val) => {
+    let s = String(val || '').toLowerCase().trim();
+    if (s === '2026' || s.includes('2025-26') || s.includes('2025-2026')) return '2025-26';
+    if (s === '2025' || s.includes('oct-nov') || s.includes('oct/nov') || s.includes('revised') || s === '2024-25' || s === '2024-2025') {
+      if (s.includes('mar-apr') || s.includes('mar/apr')) return '2024-25 (mar-apr)';
+      return '2024-25 (oct-nov)';
+    }
+    if (s === '2024' || s.includes('2023-24') || s.includes('2023-2024')) return '2023-24';
+    if (s === '2023' || s.includes('2022-23') || s.includes('2022-2023')) return '2022-23';
+    return s;
+  };
+
+  const sNorm = normalize(sStr);
+  const tNorm = normalize(tStr);
+
+  if (sNorm === tNorm) return true;
+
   // Detect APR/BIAN (Annual Private / Bi-annual) vs Regular
   const aprBianPattern = /\b(apr|bian|biannual|bi-annual|private|annual\s*private)\b/i;
   const sIsAprBian = aprBianPattern.test(sStr);
   const tIsAprBian = aprBianPattern.test(tStr);
-
-  // If one is APR/BIAN and the other is Regular, they are DIFFERENT sessions
   if (sIsAprBian !== tIsAprBian) return false;
 
   // Detect sub-session qualifiers
@@ -170,30 +182,29 @@ function isSessionMatch(stSession, targetYearSuffix) {
   const sIsOctNov = sStr.includes('oct-nov') || sStr.includes('oct/nov') || sStr.includes('revised');
   const tIsOctNov = tStr.includes('oct-nov') || tStr.includes('oct/nov') || tStr.includes('revised');
 
-  // Cross-qualifier mismatch: always reject
   if (sIsMarApr && tIsOctNov) return false;
   if (sIsOctNov && tIsMarApr) return false;
-
-  // STRICT: if target has a sub-qualifier (Mar-Apr OR Oct-Nov), student record must also carry it.
-  // A plain "2024-25" without any qualifier is ambiguous and must NOT match a qualified target.
-  if ((tIsMarApr || tIsOctNov) && !sIsMarApr && !sIsOctNov) return false;
 
   // Compare END YEARS (the year when exams happen)
   const sEndYear = getSessionEndYear(sStr);
   const tEndYear = getSessionEndYear(tStr);
-
   if (sEndYear && tEndYear) {
     return sEndYear === tEndYear;
   }
 
-  // Fallback: if no year could be extracted, try substring match
   return sStr.includes(tStr) || tStr.includes(sStr);
 }
 
 // Helper: Subject / Stream Matcher
 function isSubjectOrStreamMatch(st, targetSubjectCode, targetSubjectName) {
   if (!targetSubjectCode && !targetSubjectName) return true;
-  
+
+  const codeUpper = String(targetSubjectCode || '').toUpperCase().trim();
+  const nameUpper = String(targetSubjectName || '').toUpperCase().trim();
+
+  // 1. General English is COMPULSORY for 100% of students in 11th & 12th!
+  if (codeUpper === 'EN' || nameUpper.includes('ENGLISH')) return true;
+
   const rawSubjStr = String(
     extractRawSubjectsString(st) ||
     st.subs ||
@@ -213,40 +224,119 @@ function isSubjectOrStreamMatch(st, targetSubjectCode, targetSubjectName) {
     st.Stream ||
     st['Stream for Class 11th'] ||
     st['Stream for Class 12th'] ||
+    st['Stream Studied in Class 11th'] ||
+    st['Stream opted in Class 11th'] ||
     ''
   ).toUpperCase();
 
-  const codeUpper = String(targetSubjectCode || '').toUpperCase();
-  const nameUpper = String(targetSubjectName || '').toUpperCase();
+  const isScience = streamStr.includes('SCIENCE') || streamStr.includes('MED') || streamStr.includes('SCI') || rawSubjStr.includes('PHYSICS') || rawSubjStr.includes('CHEMISTRY') || /\b(PH|CH)\b/i.test(rawSubjStr);
+  const isNonMed = streamStr.includes('NON-MED') || streamStr.includes('NONMED') || streamStr.includes('NON MEDICAL') || (/\b(MATHEMATICS|MATHS|MATH|MA)\b/i.test(rawSubjStr) && !/\b(BIOLOGY|BOTANY|ZOOLOGY|BIO|BO|ZO|BI)\b/i.test(rawSubjStr));
+  const isCommerce = streamStr.includes('COMMERCE');
+  const isArts = streamStr.includes('ARTS') || streamStr.includes('HUMANITIES');
 
-  // 1. If student has explicit subject data, check subject string strictly
+  // 2. Physics & Chemistry
+  if (codeUpper === 'PH' || codeUpper === 'CH') {
+    if (isScience || rawSubjStr.includes(codeUpper) || (codeUpper === 'PH' && rawSubjStr.includes('PHYSICS')) || (codeUpper === 'CH' && rawSubjStr.includes('CHEMISTRY'))) return true;
+  }
+
+  // 3. Botany, Zoology, Biology
+  if (['BO', 'ZO', 'BI'].includes(codeUpper)) {
+    if (rawSubjStr.includes('BI') || rawSubjStr.includes('BO') || rawSubjStr.includes('ZO') || rawSubjStr.includes('BIOLOGY') || rawSubjStr.includes('BOTANY') || rawSubjStr.includes('ZOOLOGY')) return true;
+    if (isScience && !isNonMed) return true;
+  }
+
+  // 4. Mathematics
+  if (codeUpper === 'MA') {
+    if (rawSubjStr.includes('MA') || rawSubjStr.includes('MATH') || rawSubjStr.includes('MATHEMATICS')) return true;
+    if (isScience && isNonMed) return true;
+  }
+
+  // 5. Environmental Science
+  if (codeUpper === 'ES') {
+    if (rawSubjStr.includes('ES') || rawSubjStr.includes('ENV') || rawSubjStr.includes('ENVIRONMENTAL')) return true;
+    if (isScience) return true;
+  }
+
+  // 6. Physical Education
+  if (codeUpper === 'PD') {
+    if (rawSubjStr.includes('PD') || rawSubjStr.includes('PHYSICAL EDUCATION') || rawSubjStr.includes('PHYSICAL ED') || rawSubjStr.includes('PHY ED') || rawSubjStr.includes('P.E.') || rawSubjStr.includes('P.ED')) return true;
+  }
+
+  // 7. Vocational & Applied Practicals
+  if (codeUpper === 'ITE') {
+    if (rawSubjStr.includes('ITE') || rawSubjStr.includes('IT & ITES') || rawSubjStr.includes('IT AND ITES') || rawSubjStr.includes('INFORMATION TECHNOLOGY') || rawSubjStr.includes('IT')) return true;
+  }
+  if (codeUpper === 'HTC') {
+    if (rawSubjStr.includes('HTC') || rawSubjStr.includes('HEALTHCARE') || rawSubjStr.includes('HEALTH CARE')) return true;
+  }
+  if (codeUpper === 'CS') {
+    if (rawSubjStr.includes('CS') || rawSubjStr.includes('COMPUTER SCIENCE') || rawSubjStr.includes('COMP SC')) return true;
+  }
+  if (codeUpper === 'GG') {
+    if (rawSubjStr.includes('GG') || rawSubjStr.includes('GEOGRAPHY') || rawSubjStr.includes('GEO')) return true;
+  }
+
+  // 8. Humanities / Arts Subjects
+  if (codeUpper === 'PS') {
+    if (rawSubjStr.includes('PS') || rawSubjStr.includes('POLITICAL SCIENCE') || rawSubjStr.includes('POL SC') || rawSubjStr.includes('POL. SC')) return true;
+    if (isArts && !rawSubjStr) return true;
+  }
+  if (codeUpper === 'ED') {
+    if (/\b(ED|EDUCATION)\b/i.test(rawSubjStr) && !/\b(PHYSICAL EDUCATION|PHY ED)\b/i.test(rawSubjStr)) return true;
+    if (isArts && !rawSubjStr) return true;
+  }
+  if (codeUpper === 'HT') {
+    if (rawSubjStr.includes('HT') || rawSubjStr.includes('HISTORY') || rawSubjStr.includes('HIST')) return true;
+    if (isArts && !rawSubjStr) return true;
+  }
+  if (codeUpper === 'SO') {
+    if (rawSubjStr.includes('SO') || rawSubjStr.includes('SOCIOLOGY') || rawSubjStr.includes('SOC')) return true;
+    if (isArts && !rawSubjStr) return true;
+  }
+  if (codeUpper === 'PY') {
+    if (rawSubjStr.includes('PY') || rawSubjStr.includes('PSYCHOLOGY') || rawSubjStr.includes('PSYCH')) return true;
+    if (isArts && !rawSubjStr) return true;
+  }
+  if (codeUpper === 'UR') {
+    if (rawSubjStr.includes('UR') || rawSubjStr.includes('URDU')) return true;
+    if (isArts && !rawSubjStr) return true;
+  }
+  if (codeUpper === 'AR') {
+    if (rawSubjStr.includes('AR') || rawSubjStr.includes('ARABIC')) return true;
+  }
+  if (codeUpper === 'PE') {
+    if (rawSubjStr.includes('PE') || rawSubjStr.includes('PERSIAN')) return true;
+  }
+  if (codeUpper === 'KS') {
+    if (rawSubjStr.includes('KS') || rawSubjStr.includes('KASHMIRI')) return true;
+  }
+  if (codeUpper === 'EC') {
+    if (rawSubjStr.includes('EC') || rawSubjStr.includes('ECONOMICS') || rawSubjStr.includes('ECO')) return true;
+    if ((isArts || isCommerce) && !rawSubjStr) return true;
+  }
+
+  // 9. Commerce Subjects
+  if (codeUpper === 'AY') {
+    if (rawSubjStr.includes('AY') || rawSubjStr.includes('ACCOUNTANCY') || rawSubjStr.includes('ACCOUNTS') || rawSubjStr.includes('ACC')) return true;
+    if (isCommerce) return true;
+  }
+  if (codeUpper === 'BS') {
+    if (rawSubjStr.includes('BS') || rawSubjStr.includes('BUSINESS STUDIES') || rawSubjStr.includes('BUSINESS')) return true;
+    if (isCommerce) return true;
+  }
+  if (codeUpper === 'EP') {
+    if (rawSubjStr.includes('EP') || rawSubjStr.includes('ENTREPRENEURSHIP')) return true;
+    if (isCommerce) return true;
+  }
+
+  // Explicit token match in raw string
   if (rawSubjStr) {
     if (codeUpper && (rawSubjStr.includes(codeUpper) || rawSubjStr.split(/[\s,+/()]+/).includes(codeUpper))) return true;
     if (nameUpper && rawSubjStr.includes(nameUpper)) return true;
-    if (['BO', 'ZO', 'BI'].includes(codeUpper) && (rawSubjStr.includes('BI') || rawSubjStr.includes('BIOLOGY') || rawSubjStr.includes('BOTANY') || rawSubjStr.includes('ZOOLOGY'))) return true;
-    if (codeUpper === 'PD' && (rawSubjStr.includes('PD') || rawSubjStr.includes('PHYSICAL EDUCATION') || rawSubjStr.includes('PHYSICAL ED'))) return true;
-    if (codeUpper === 'ES' && (rawSubjStr.includes('ES') || rawSubjStr.includes('ENV'))) return true;
-    if (codeUpper === 'EN' && (rawSubjStr.includes('EN') || rawSubjStr.includes('ENGLISH'))) return true;
-    return false; // Student has explicit subject list, but target subject is not in it
+    return false;
   }
 
-  // 2. Fallback only if rawSubjStr is completely empty
-  if (streamStr) {
-    if (['EN', 'ES', 'PD'].includes(codeUpper)) return true; // Physical Education is an elective in all streams
-    if (['PH', 'CH', 'BI', 'BO', 'ZO', 'CS', 'ITE'].includes(codeUpper)) {
-      if (streamStr.includes('SCIENCE') || streamStr.includes('MEDICAL') || streamStr.includes('NON-MEDICAL') || streamStr.includes('NON MEDICAL')) return true;
-    }
-    if (['HT', 'PS', 'ED', 'SO', 'EC', 'PY', 'UR', 'AR', 'PE', 'PD'].includes(codeUpper)) {
-      if (streamStr.includes('ARTS') || streamStr.includes('HUMANITIES')) return true;
-    }
-    if (['AY', 'BS', 'EP', 'PD'].includes(codeUpper)) {
-      if (streamStr.includes('COMMERCE')) return true;
-    }
-  }
-
-  if (['EN', 'ES', 'PD'].includes(codeUpper)) return true;
   if (!rawSubjStr && !streamStr) return true;
-
   return false;
 }
 
@@ -711,54 +801,15 @@ function renderSubjectsWithHighlight(subjectsStr, currentSubjObj) {
   });
 }
 
-// Helper: Precise Subject Matcher — exact token + word-boundary match only, no stream-level fallback
+// Helper: Precise Subject Matcher
 function isSubjectMatch(student, targetSubjectCode) {
   if (!targetSubjectCode) return true;
 
   const targetObj = SUBJECT_MAP.find(s => s.code === targetSubjectCode || s.name.toLowerCase() === targetSubjectCode.toLowerCase());
-  const code = targetObj ? targetObj.code.toLowerCase() : targetSubjectCode.toLowerCase();
-  const name = targetObj ? targetObj.name.toLowerCase() : targetSubjectCode.toLowerCase();
+  const code = targetObj ? targetObj.code : targetSubjectCode;
+  const name = targetObj ? targetObj.name : targetSubjectCode;
 
-  const abbr = String(student.subjectsAbbr || '').toLowerCase();
-  const raw = String(student.rawSubjects || '').toLowerCase();
-
-  // 1. Biology / Botany / Zoology equivalence — ONLY by explicit token, not stream
-  if (['bi', 'bo', 'zo'].includes(code)) {
-    const abbrTokens = abbr.split(/[\s,()]+/).filter(Boolean);
-    if (abbrTokens.includes('bi') || abbrTokens.includes('bo') || abbrTokens.includes('zo')) return true;
-    if (raw) {
-      if (/\b(biology|botany|zoology)\b/i.test(raw)) return true;
-    }
-    // Only use stream fallback if student has NO subject data at all
-    if (!raw && !abbr.replace(/[\s,()\.]/g, '')) return true;
-    return false;
-  }
-
-  // 2. Exact token match in abbreviated string
-  const abbrTokens = abbr.split(/[\s,()]+/).filter(Boolean);
-  if (abbrTokens.includes(code)) return true;
-
-  // 3. Word-boundary match in raw subjects.
-  //    Negative lookbehind: 'Education' (ED) won't match inside 'Physical Education' (PD),
-  //    'Science' won't match inside 'Computer/Political/Environmental Science', etc.
-  if (raw) {
-    const COMPOUND_EXCLUSIONS = {
-      education: 'physical\\s+',
-      science:   'computer\\s+|political\\s+|environmental\\s+',
-      studies:   'business\\s+',
-    };
-    const escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const lookbehind = COMPOUND_EXCLUSIONS[name.toLowerCase()];
-    const nameRegex = lookbehind
-      ? new RegExp(`(?<!(?:${lookbehind}))\\b${escapedName}\\b`, 'i')
-      : new RegExp(`\\b${escapedName}\\b`, 'i');
-    if (nameRegex.test(raw)) return true;
-  }
-
-  // 4. Only include if truly no subject data (can't determine)
-  if (!raw && !abbr.replace(/[\s,()\.]/g, '')) return true;
-
-  return false;
+  return isSubjectOrStreamMatch(student, code, name);
 }
 
 // Custom Subject Dropdown (prevents native Chrome select popovers from shooting up to header)
