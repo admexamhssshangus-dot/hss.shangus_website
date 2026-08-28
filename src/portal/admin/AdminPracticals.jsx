@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import {
   Settings, ClipboardCheck, Printer, RefreshCw, CheckCircle2, AlertCircle,
   Award, AlertTriangle, X, Sliders, Users, Mail, Phone, MessageCircle, Edit2, Check, Search,
-  Download, Upload, FileSpreadsheet, FileText, Trash2, Eye, Save, Shield,
+  Download, Upload, FileSpreadsheet, FileText, Trash2, Eye, Save, Shield, ShieldAlert,
   ChevronDown, BookOpen, SlidersHorizontal, Filter, Layers, Plus, Minus, RotateCcw, Sparkles
 } from 'lucide-react';
 import { db, functions } from '../../services/firebase';
@@ -489,6 +489,20 @@ export default function AdminPracticals() {
   const [grantSubject, setGrantSubject] = useState('PH');
   const [emailSt, setEmailSt] = useState({});
 
+  // Custom Confirmation Modal State
+  const [generalConfirmModal, setGeneralConfirmModal] = useState({
+    isOpen: false,
+    title: '',
+    subtitle: '',
+    badgeText: '',
+    confirmText: 'Confirm',
+    cancelText: 'Cancel',
+    confirmBtnStyle: 'danger',
+    icon: AlertCircle,
+    children: null,
+    onConfirm: () => {}
+  });
+
   const showAlert = (type, text) => {
     setAlertMsg({ type, text });
     setTimeout(() => setAlertMsg(null), 5000);
@@ -829,17 +843,27 @@ export default function AdminPracticals() {
     }
   }, []);
 
-  const handleExcludeTeacher = async (teacher) => {
+  const handleExcludeTeacher = (teacher) => {
     const tEmail = String(teacher.email || '').toLowerCase().trim();
     if (!tEmail) return;
-    if (!window.confirm(`Are you sure you want to remove ${teacher.name || tEmail} from the Practical Portal faculty list?`)) return;
-
-    const currentEx = Array.isArray(settings.excludedTeacherEmails) ? settings.excludedTeacherEmails : DEFAULT_EXCLUDED_TEACHERS;
-    const updated = Array.from(new Set([...currentEx, tEmail]));
-
-    const newSettings = { ...settings, excludedTeacherEmails: updated };
-    await saveSettingsDoc('Faculty Exclusions', newSettings);
-    setTeachers(prev => prev.filter(t => String(t.email || '').toLowerCase().trim() !== tEmail));
+    setGeneralConfirmModal({
+      isOpen: true,
+      title: 'Remove Faculty Member?',
+      subtitle: `Are you sure you want to remove ${teacher.name || tEmail} from the Practical Portal faculty list?`,
+      badgeText: 'Faculty Account',
+      confirmText: 'Remove Faculty',
+      cancelText: 'Cancel',
+      confirmBtnStyle: 'danger',
+      icon: Trash2,
+      onConfirm: async () => {
+        setGeneralConfirmModal(p => ({ ...p, isOpen: false }));
+        const currentEx = Array.isArray(settings.excludedTeacherEmails) ? settings.excludedTeacherEmails : DEFAULT_EXCLUDED_TEACHERS;
+        const updated = Array.from(new Set([...currentEx, tEmail]));
+        const newSettings = { ...settings, excludedTeacherEmails: updated };
+        await saveSettingsDoc('Faculty Exclusions', newSettings);
+        setTeachers(prev => prev.filter(t => String(t.email || '').toLowerCase().trim() !== tEmail));
+      }
+    });
   };
 
   useEffect(() => {
@@ -871,17 +895,29 @@ export default function AdminPracticals() {
     }
   };
 
-  const handleDeleteSubmission = async (subId) => {
+  const handleDeleteSubmission = (subId) => {
     if (!subId) return;
-    if (!window.confirm(`Are you sure you want to delete submission record "${subId}"?`)) return;
-    try {
-      await deleteDoc(doc(db, 'practicalsData', subId));
-      setSubmissions(prev => prev.filter(s => s.id !== subId));
-      showAlert('success', `Submission "${subId}" deleted successfully.`);
-    } catch (e) {
-      console.error(e);
-      showAlert('error', `Failed to delete submission "${subId}".`);
-    }
+    setGeneralConfirmModal({
+      isOpen: true,
+      title: 'Delete Submission Record?',
+      subtitle: `Are you sure you want to delete submission record "${subId}"? This action cannot be undone.`,
+      badgeText: 'Permanent Deletion',
+      confirmText: 'Delete Record',
+      cancelText: 'Cancel',
+      confirmBtnStyle: 'danger',
+      icon: Trash2,
+      onConfirm: async () => {
+        setGeneralConfirmModal(p => ({ ...p, isOpen: false }));
+        try {
+          await deleteDoc(doc(db, 'practicalsData', subId));
+          setSubmissions(prev => prev.filter(s => s.id !== subId));
+          showAlert('success', `Submission "${subId}" deleted successfully.`);
+        } catch (e) {
+          console.error(e);
+          showAlert('error', `Failed to delete submission "${subId}".`);
+        }
+      }
+    });
   };
 
   const grantPerm = async (e) => {
@@ -894,11 +930,26 @@ export default function AdminPracticals() {
     setGrantEmail('');
   };
 
-  const revokePerm = async (idx) => {
-    const upd = [...(settings.permissions || [])];
-    upd.splice(idx, 1);
-    const newSt = { ...settings, permissions: upd };
-    await saveSettingsDoc('Permission Revoked', newSt);
+  const revokePerm = (idx) => {
+    const p = (settings.permissions || [])[idx];
+    if (!p) return;
+    setGeneralConfirmModal({
+      isOpen: true,
+      title: 'Revoke Teacher Permission?',
+      subtitle: `Are you sure you want to revoke evaluation access for ${p.email} (Class ${p.className} • ${NAMES[p.subject] || p.subject})?`,
+      badgeText: 'Revoke Access',
+      confirmText: 'Revoke Permission',
+      cancelText: 'Cancel',
+      confirmBtnStyle: 'danger',
+      icon: ShieldAlert,
+      onConfirm: async () => {
+        setGeneralConfirmModal(p => ({ ...p, isOpen: false }));
+        const upd = [...(settings.permissions || [])];
+        upd.splice(idx, 1);
+        const newSt = { ...settings, permissions: upd };
+        await saveSettingsDoc('Permission Revoked', newSt);
+      }
+    });
   };
 
   const getPD = (cls) => settings.printDetails?.[cls] || {};
@@ -1188,6 +1239,23 @@ export default function AdminPracticals() {
             }}
           />
         )}
+
+        {/* General Admin Action Confirmation Modal */}
+        <ConfirmationModal
+          isOpen={generalConfirmModal.isOpen}
+          onClose={() => setGeneralConfirmModal(p => ({ ...p, isOpen: false }))}
+          onConfirm={generalConfirmModal.onConfirm}
+          title={generalConfirmModal.title}
+          subtitle={generalConfirmModal.subtitle}
+          badgeText={generalConfirmModal.badgeText}
+          confirmText={generalConfirmModal.confirmText}
+          cancelText={generalConfirmModal.cancelText}
+          confirmBtnStyle={generalConfirmModal.confirmBtnStyle}
+          icon={generalConfirmModal.icon}
+          loading={saving}
+        >
+          {generalConfirmModal.children}
+        </ConfirmationModal>
       </div>
     </div>
   );
@@ -3175,6 +3243,112 @@ function FacultySubmissionsView({
 }
 
 // ─────────────────────────────────────────────────────────────
+// CUSTOM EXECUTIVE CONFIRMATION MODAL POPUP
+// ─────────────────────────────────────────────────────────────
+function ConfirmationModal({
+  isOpen,
+  onClose,
+  onConfirm,
+  title,
+  subtitle,
+  badgeText,
+  confirmText = 'Confirm',
+  cancelText = 'Cancel',
+  confirmBtnStyle = 'indigo', // 'danger' | 'success' | 'indigo'
+  icon: Icon = AlertCircle,
+  children,
+  loading = false
+}) {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in duration-200">
+      <div 
+        className="fixed inset-0"
+        onClick={loading ? undefined : onClose}
+      />
+      <div 
+        role="dialog"
+        aria-modal="true"
+        className="relative z-10 w-full max-w-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl overflow-hidden p-5 sm:p-6 text-left transform animate-in zoom-in-95 duration-200"
+      >
+        {/* Decorative Top Gradient Accent */}
+        <div className={`absolute top-0 left-0 right-0 h-1.5 ${
+          confirmBtnStyle === 'danger'
+            ? 'bg-gradient-to-r from-rose-500 via-red-500 to-rose-600'
+            : confirmBtnStyle === 'success'
+            ? 'bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600'
+            : 'bg-gradient-to-r from-indigo-500 via-purple-500 to-indigo-600'
+        }`} />
+
+        <div className="flex items-start gap-4">
+          <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 shadow-inner ${
+            confirmBtnStyle === 'danger'
+              ? 'bg-rose-50 dark:bg-rose-950/50 text-rose-600 dark:text-rose-400 border border-rose-200/60 dark:border-rose-800/60'
+              : confirmBtnStyle === 'success'
+              ? 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 border border-emerald-200/60 dark:border-emerald-800/60'
+              : 'bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 border border-indigo-200/60 dark:border-indigo-800/60'
+          }`}>
+            <Icon size={24} strokeWidth={2.3} />
+          </div>
+
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h3 className="text-base font-black text-slate-900 dark:text-white">
+                {title}
+              </h3>
+              {badgeText && (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 border border-indigo-200/60 dark:border-indigo-800/60">
+                  {badgeText}
+                </span>
+              )}
+            </div>
+
+            {subtitle && (
+              <p className="mt-1 text-xs text-slate-600 dark:text-slate-400 font-semibold leading-relaxed">
+                {subtitle}
+              </p>
+            )}
+          </div>
+        </div>
+
+        {children && (
+          <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 text-xs text-slate-600 dark:text-slate-300 space-y-2">
+            {children}
+          </div>
+        )}
+
+        <div className="mt-6 flex items-center justify-end gap-2.5 pt-3.5 border-t border-slate-100 dark:border-slate-800">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={loading}
+            className="px-4 py-2 rounded-xl text-xs font-bold border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/60 cursor-pointer transition-colors"
+          >
+            {cancelText}
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={loading}
+            className={`px-4 py-2 rounded-xl text-xs font-black text-white shadow-md transition-all cursor-pointer flex items-center gap-1.5 active:scale-95 ${
+              confirmBtnStyle === 'danger'
+                ? 'bg-rose-600 hover:bg-rose-500 shadow-rose-600/20'
+                : confirmBtnStyle === 'success'
+                ? 'bg-emerald-600 hover:bg-emerald-500 shadow-emerald-600/20'
+                : 'bg-indigo-600 hover:bg-indigo-500 shadow-indigo-600/20'
+            }`}
+          >
+            {loading ? <RefreshCw size={13} className="animate-spin" /> : null}
+            {confirmText}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
 // SUBJECT MARKS & EVALUATION CRITERIA SETTINGS CARD
 // ─────────────────────────────────────────────────────────────
 function SubjectMarksSettingsCard({ settings, setSettings, saveSettingsDoc, saving }) {
@@ -3183,6 +3357,7 @@ function SubjectMarksSettingsCard({ settings, setSettings, saveSettingsDoc, savi
   const [searchQuery, setSearchQuery] = useState('');
   const [streamFilter, setStreamFilter] = useState('all');
   const [marksSaved, setMarksSaved] = useState(false);
+  const [isResetModalOpen, setIsResetModalOpen] = useState(false);
 
   const evalMarksConfig = settings.evaluationMarksConfig || DEFAULT_PRACTICAL_MARKS_CONFIG;
   const currentClassConfig = evalMarksConfig[activeClassTab] || DEFAULT_PRACTICAL_MARKS_CONFIG[activeClassTab];
@@ -3197,7 +3372,8 @@ function SubjectMarksSettingsCard({ settings, setSettings, saveSettingsDoc, savi
       if (!cfg[activeClassTab]) cfg[activeClassTab] = {};
       if (!cfg[activeClassTab][activeTypeTab]) cfg[activeClassTab][activeTypeTab] = {};
 
-      const currentSub = { ...(cfg[activeClassTab][activeTypeTab][code] || { max: 20, min: 7 }) };
+      const defaultSub = DEFAULT_PRACTICAL_MARKS_CONFIG[activeClassTab]?.[activeTypeTab]?.[code] || { max: 20, min: 7 };
+      const currentSub = { ...(cfg[activeClassTab][activeTypeTab][code] || defaultSub) };
 
       if (field === 'max') {
         const newMax = num === '' ? '' : Math.max(1, isNaN(num) ? 0 : num);
@@ -3233,8 +3409,9 @@ function SubjectMarksSettingsCard({ settings, setSettings, saveSettingsDoc, savi
   };
 
   const adjustMarks = (code, field, delta) => {
-    const currentSub = currentTypeConfig?.[code] || { max: 20, min: 7 };
-    const currentVal = Number(currentSub[field] ?? (field === 'max' ? 20 : 7));
+    const defaultSub = DEFAULT_PRACTICAL_MARKS_CONFIG[activeClassTab]?.[activeTypeTab]?.[code] || { max: 20, min: 7 };
+    const currentSub = currentTypeConfig?.[code] || defaultSub;
+    const currentVal = Number(currentSub[field] ?? (field === 'max' ? defaultSub.max : defaultSub.min));
     const nextVal = Math.max(field === 'min' ? 0 : 1, currentVal + delta);
     handleUpdateMarks(code, field, nextVal);
   };
@@ -3247,8 +3424,8 @@ function SubjectMarksSettingsCard({ settings, setSettings, saveSettingsDoc, savi
     }
   };
 
-  const handleResetDefaults = async () => {
-    if (!window.confirm('Reset all subject marks for all classes and evaluation types to official JKBOSE standard defaults?')) return;
+  const handleConfirmResetDefaults = async () => {
+    setIsResetModalOpen(false);
     const defaultCfg = JSON.parse(JSON.stringify(DEFAULT_PRACTICAL_MARKS_CONFIG));
     const updatedSettings = {
       ...settings,
@@ -3311,7 +3488,7 @@ function SubjectMarksSettingsCard({ settings, setSettings, saveSettingsDoc, savi
         <div className="flex items-center gap-2 self-start md:self-auto">
           <button
             type="button"
-            onClick={handleResetDefaults}
+            onClick={() => setIsResetModalOpen(true)}
             className="px-3 py-1.5 rounded-xl text-xs font-bold border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/80 cursor-pointer transition-all flex items-center gap-1.5 shadow-2xs"
             title="Reset marks matrix to official JKBOSE standard defaults"
           >
@@ -3593,6 +3770,35 @@ function SubjectMarksSettingsCard({ settings, setSettings, saveSettingsDoc, savi
           </table>
         </div>
       </div>
+
+      {/* Official JKBOSE Reset Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={isResetModalOpen}
+        onClose={() => setIsResetModalOpen(false)}
+        onConfirm={handleConfirmResetDefaults}
+        title="Reset to Official JKBOSE Scheme?"
+        subtitle="This will restore official Board maximum marks and passing criteria across all 61 subjects for Class 10th, 11th, and 12th."
+        badgeText="2024-25 Board Scheme"
+        confirmText="Reset & Save Defaults"
+        confirmBtnStyle="indigo"
+        icon={RotateCcw}
+        loading={saving}
+      >
+        <div className="bg-slate-50 dark:bg-slate-950/60 p-3.5 rounded-2xl border border-slate-200/80 dark:border-slate-800/80 space-y-2 text-[11.5px]">
+          <div className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+            <Sparkles size={14} className="text-amber-500" /> Key Board Regulations to be Applied:
+          </div>
+          <ul className="list-disc list-inside space-y-1 text-slate-600 dark:text-slate-400 font-medium pl-1">
+            <li><strong>Lab Science Practicals (Physics, Chem, Bio, etc.):</strong> External = <strong>20 Max (Min 7)</strong>, Internal = <strong>10 Max (Min 4)</strong></li>
+            <li><strong>Mathematics, Humanities & Languages:</strong> Project Work / IA = <strong>20 Max (Min 7)</strong></li>
+            <li><strong>Commerce Skill (Accountancy, Entrepreneurship, Sociology):</strong> External = <strong>15 Max (Min 5)</strong>, IA = <strong>5 Max (Min 2)</strong></li>
+            <li><strong>Physical Education:</strong> Class 11th (10 IA / 20 Ext) | Class 12th (15 IA / 25 Ext)</li>
+          </ul>
+        </div>
+        <p className="text-[11px] text-slate-500 dark:text-slate-400 italic">
+          * Changes will immediately sync to the cloud database and update all evaluation award rolls.
+        </p>
+      </ConfirmationModal>
     </div>
   );
 }
@@ -3843,11 +4049,7 @@ function SettingsPermissionsView({
                   </div>
                   <button
                     type="button"
-                    onClick={() => {
-                      if (window.confirm(`Revoke practicals permission for ${p.email}?`)) {
-                        revokePerm(idx);
-                      }
-                    }}
+                    onClick={() => revokePerm(idx)}
                     className="px-2.5 py-1 rounded-lg text-rose-600 hover:text-white hover:bg-rose-600 dark:hover:bg-rose-600 font-black text-[11px] cursor-pointer transition-all border border-rose-200 dark:border-rose-800/60"
                   >
                     Revoke
