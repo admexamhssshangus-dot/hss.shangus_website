@@ -1,17 +1,16 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useOutletContext, Link } from 'react-router-dom';
 import { 
-  UserCheck, CalendarCheck, RefreshCw, LogOut,
+  UserCheck, CalendarCheck, LogOut,
   ArrowRight, ShieldCheck, CheckCircle2, Award, Users, BookOpen
 } from 'lucide-react';
 import SEO from '../../components/SEO';
 import LogoutConfirmModal from '../components/LogoutConfirmModal';
-import { getCachedCollection, getCachedCollectionSync } from '../../services/dbCache';
+import { getCachedCollection } from '../../services/dbCache';
 
 export default function TeacherDashboard() {
   const { user, onLogout } = useOutletContext();
 
-  const [loading, setLoading] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const handleLogoutRequest = () => setShowLogoutConfirm(true);
   const [stats, setStats] = useState(() => {
@@ -40,9 +39,6 @@ export default function TeacherDashboard() {
   // Fetch Teacher Stats & Today's Attendance overview (Fast 0ms SWR)
   const fetchDashboardStats = useCallback(async () => {
     try {
-      const cachedAdmissions = getCachedCollectionSync('admissions');
-      if (!cachedAdmissions) setLoading(true);
-
       const todayStr = new Date().toISOString().split('T')[0];
       const countSet = new Set();
 
@@ -130,8 +126,6 @@ export default function TeacherDashboard() {
       } catch (e) {}
     } catch (err) {
       console.error('Failed to load dashboard stats:', err);
-    } finally {
-      setLoading(false);
     }
   }, []);
 
@@ -172,15 +166,6 @@ export default function TeacherDashboard() {
             </div>
 
             <div className="flex items-center gap-1.5 flex-shrink-0">
-              <button
-                type="button"
-                onClick={fetchDashboardStats}
-                disabled={loading}
-                className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:bg-slate-100 cursor-pointer"
-                title="Refresh stats"
-              >
-                <RefreshCw size={13} className={loading ? 'animate-spin text-teal-600' : ''} />
-              </button>
               <button
                 type="button"
                 onClick={handleLogoutRequest}
