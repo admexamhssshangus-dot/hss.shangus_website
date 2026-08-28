@@ -8,6 +8,7 @@
  */
 
 import { toTitleCase } from './textFormatting';
+import { getSubjectMarksConfig } from './practicalsSettingsManager';
 
 export function numberToWordsInr(num) {
   if (!num || num === 'AB' || num === 'A' || String(num).toUpperCase() === 'ABSENT') return '-';
@@ -1117,8 +1118,9 @@ export function printAllIndividualAwardRolls({
       return codeStr === sub.code || codeStr.includes(sub.code);
     });
 
-    const maxMarks = subDoc?.maxMarks || (sub.code === 'HTC' || sub.code === 'ITE' ? 50 : 10);
-    const minMarks = Math.ceil(maxMarks * 0.36);
+    const markCfg = getSubjectMarksConfig(printDetails?.settings || printDetails, className, isExternal ? 'external' : 'internal', sub.code);
+    const maxMarks = subDoc?.maxMarks || markCfg.max;
+    const minMarks = markCfg.min || Math.ceil(maxMarks * 0.36);
 
     const subjectStudents = [];
 
@@ -1327,7 +1329,7 @@ export function printAllIndividualAwardRolls({
 /**
  * 5. Print Fail / Absent Student List
  */
-export function printFailList({ className = '11th', session = 'Annual Regular 2025', students = [], submissions = [], selectedSubjectCodes = null, isExternal = false }) {
+export function printFailList({ className = '11th', session = 'Annual Regular 2025', students = [], submissions = [], selectedSubjectCodes = null, isExternal = false, printDetails = null }) {
   if (!students || students.length === 0) return false;
   const hseText = className === '11th' ? 'HSE-I (Class 11th)' : 'HSE-II (Class 12th)';
   const examType = isExternal ? 'External Practical' : 'Internal Assessment';
@@ -1355,11 +1357,17 @@ export function printFailList({ className = '11th', session = 'Annual Regular 20
         const codeStr = String(s.subjectCode || s.subject || s.Subject || '').toUpperCase();
         return codeStr === sub.code || codeStr.includes(sub.code);
       });
+
+      const markCfg = getSubjectMarksConfig(printDetails?.settings || printDetails, className, isExternal ? 'external' : 'internal', sub.code);
+      const minMarks = markCfg.min || Math.ceil(markCfg.max * 0.36);
+
       const rec = findStudentMarkRecord(subDoc, st);
       if (rec) {
         const rawMark = String(rec.totalMarks ?? rec.practicalMarks ?? '').trim().toUpperCase();
-        if (rawMark === 'AB' || rawMark === 'A' || rawMark === 'ABSENT' || rawMark === 'FAIL') {
-          failRecords.push({ rollNo, name, subject: `${sub.name} (${sub.code})`, status: 'ABSENT / FAIL' });
+        if (rawMark === 'AB' || rawMark === 'A' || rawMark === 'ABSENT') {
+          failRecords.push({ rollNo, name, subject: `${sub.name} (${sub.code})`, status: 'ABSENT' });
+        } else if (!isNaN(Number(rawMark)) && Number(rawMark) < minMarks) {
+          failRecords.push({ rollNo, name, subject: `${sub.name} (${sub.code})`, status: `FAIL (${rawMark}/${markCfg.max}M, Min: ${minMarks}M)` });
         }
       }
     });
