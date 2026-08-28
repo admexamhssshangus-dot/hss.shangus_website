@@ -1982,8 +1982,8 @@ export default function PracticalsPage() {
             />
           ) : displayedStudents.length > 0 ? (
             <>
-              {/* ── MOBILE CARDS (hidden on sm+) — Ultra Compact 2-Line Format ── */}
-              <div className="sm:hidden space-y-1.5">
+              {/* ── MOBILE CARDS (hidden on sm+) — True Mobile-First Ergonomic Layout ── */}
+              <div className="sm:hidden space-y-2">
                 {displayedStudents.map((st, idx) => {
                   const isAbsent = st.practicalMarks === 'A' || st.practicalMarks === 'AB';
                   const valToConvert = isAbsent ? 'A' : (st.practicalMarks !== '' ? st.practicalMarks : '');
@@ -1992,45 +1992,91 @@ export default function PracticalsPage() {
                   const allSubjs = st.subjectsAbbr || st.rawSubjects || st.subjects || 'N/A';
 
                   return (
-                    <div key={idx} className={`rounded-xl border p-2 space-y-1 ${isAbsent ? 'border-amber-400/40 bg-amber-500/5' : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900'}`}>
-                      {/* Line 1: S.No, Roll, Name, Form & Adm */}
-                      <div className="flex items-center justify-between gap-1.5">
-                        <div className="flex items-center gap-1.5 min-w-0">
-                          <span className="px-1.5 h-5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-mono font-extrabold text-[10px] flex items-center justify-center border border-slate-200 dark:border-slate-700 shrink-0" title="Serial Number">
+                    <div 
+                      key={idx} 
+                      className={`rounded-2xl border p-3 transition-all shadow-xs space-y-2 ${
+                        isAbsent 
+                          ? 'border-amber-400/50 bg-amber-500/5 dark:border-amber-500/30 dark:bg-amber-950/20' 
+                          : 'border-slate-200/90 dark:border-slate-800 bg-white dark:bg-slate-900'
+                      }`}
+                    >
+                      {/* Row 1: Student S.No, Class Roll, Name & Marks Input Target */}
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                          <span className="w-5.5 h-5.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-mono font-extrabold text-[10px] flex items-center justify-center border border-slate-200 dark:border-slate-700 shrink-0" title="Serial Number">
                             #{idx + 1}
                           </span>
-                          <span className="w-5 h-5 rounded-md bg-indigo-600/10 text-indigo-600 dark:text-indigo-400 font-mono font-black text-[11px] flex items-center justify-center border border-indigo-500/20 shrink-0" title={`Class Roll: ${st.rollNo}`}>{st.rollNo}</span>
-                          <span className="font-extrabold text-xs text-slate-900 dark:text-white truncate">{st.name}</span>
-                        </div>
-                        <div className="flex items-center gap-1 shrink-0 text-[9px] flex-wrap justify-end">
-                          {st.formNo && <span className="px-1 py-0.2 rounded font-mono bg-slate-100 dark:bg-slate-800 text-slate-500 border border-slate-200 dark:border-slate-700">Form #{st.formNo}</span>}
-                          {st.regNo && <span className="px-1 py-0.2 rounded font-mono bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 font-bold border border-indigo-500/20">Reg #{st.regNo}</span>}
-                          <span className="px-1 py-0.2 rounded font-mono font-black bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30">
-                            Exam Roll: {st.examRollNo || '-'}
+                          <span className="min-w-6 h-5.5 px-1.5 rounded-lg bg-indigo-600/10 text-indigo-600 dark:text-indigo-400 font-mono font-black text-[11px] flex items-center justify-center border border-indigo-500/20 shrink-0" title={`Class Roll: ${st.rollNo}`}>
+                            {st.rollNo}
                           </span>
+                          <span className="font-extrabold text-xs text-slate-900 dark:text-white truncate">
+                            {st.name}
+                          </span>
+                        </div>
+
+                        {/* Marks Input + Quick Absent Toggle */}
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <input
+                            type="text"
+                            placeholder={`0-${subjectMaxMarks}/A`}
+                            value={st.practicalMarks}
+                            onChange={(e) => handleMarkChange(originalIdx !== -1 ? originalIdx : idx, 'practicalMarks', e.target.value)}
+                            className={`w-20 px-2 py-1 rounded-xl border text-xs font-black h-7.5 text-center focus:outline-none focus:ring-2 focus:ring-indigo-500 uppercase tracking-wide transition-all shadow-2xs ${
+                              isAbsent
+                                ? 'bg-amber-50 dark:bg-amber-950/50 border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300 font-black'
+                                : st.practicalMarks !== ''
+                                ? 'bg-indigo-50/50 dark:bg-indigo-950/40 border-indigo-300 dark:border-indigo-700 text-indigo-700 dark:text-indigo-300'
+                                : 'bg-slate-50 dark:bg-slate-950 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white'
+                            }`}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleMarkChange(originalIdx !== -1 ? originalIdx : idx, 'practicalMarks', isAbsent ? '' : 'A')}
+                            className={`px-2 h-7.5 rounded-xl font-mono text-[10.5px] font-black border transition-all cursor-pointer flex items-center justify-center shrink-0 active:scale-95 ${
+                              isAbsent
+                                ? 'bg-amber-500 text-white border-amber-600 shadow-xs'
+                                : 'bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-amber-600 dark:hover:text-amber-400 border-slate-200 dark:border-slate-700'
+                            }`}
+                            title="Toggle Absent"
+                          >
+                            AB
+                          </button>
                         </div>
                       </div>
 
-                      {/* Line 2: Subjects & Marks Entry */}
-                      <div className="flex items-center justify-between gap-2 pt-0.5">
-                        <div className="text-[9.5px] font-bold text-teal-700 dark:text-teal-300 truncate max-w-[58%]" title={`Subs: ${allSubjs}`}>
-                          <span className="font-mono font-black text-teal-800 dark:text-teal-200 bg-teal-500/15 px-1 py-0.2 rounded border border-teal-500/30 mr-1">Subs:</span>
-                          {renderSubjectsWithHighlight(allSubjs, currentSubjectObj)}
+                      {/* Row 2: In-Words Award Feedback (Shown when marks entered) */}
+                      {inWords && (
+                        <div className="flex items-center justify-end">
+                          <span className="px-2 py-0.5 rounded-lg bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 border border-indigo-200/70 dark:border-indigo-800/70 text-[9.5px] font-black">
+                            Award: {inWords} {(!isNaN(parseInt(valToConvert, 10)) && parseInt(valToConvert, 10) > 0) ? 'Only' : ''}
+                          </span>
                         </div>
+                      )}
 
-                        <div className="flex items-center gap-1 shrink-0">
-                          <input
-                            type="text"
-                            placeholder={`0-${subjectMaxMarks} / A`}
-                            value={st.practicalMarks}
-                            onChange={(e) => handleMarkChange(originalIdx !== -1 ? originalIdx : idx, 'practicalMarks', e.target.value)}
-                            className="w-16 px-1 py-0.5 rounded-lg border text-xs font-black h-6.5 text-center focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white dark:bg-slate-950 border-slate-300 dark:border-slate-700 uppercase"
-                          />
-                          {inWords && (
-                            <span className="px-1.5 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 text-[9.5px] font-black whitespace-nowrap">
-                              {inWords} {(!isNaN(parseInt(valToConvert, 10)) && parseInt(valToConvert, 10) > 0) ? 'Only' : ''}
-                            </span>
-                          )}
+                      {/* Row 3: Metadata Badges (Wraps naturally on any screen size) */}
+                      <div className="flex items-center gap-1.5 flex-wrap text-[9.5px] font-semibold pt-1 border-t border-slate-100 dark:border-slate-800/80">
+                        {st.formNo && (
+                          <span className="px-1.5 py-0.5 rounded-md font-mono bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                            Form #{st.formNo}
+                          </span>
+                        )}
+                        {st.regNo && (
+                          <span className="px-1.5 py-0.5 rounded-md font-mono bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 font-bold border border-indigo-200/60 dark:border-indigo-800/60">
+                            Reg: {st.regNo}
+                          </span>
+                        )}
+                        <span className="px-1.5 py-0.5 rounded-md font-mono font-black bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200/80 dark:border-amber-800/80">
+                          Exam Roll: {st.examRollNo || '—'}
+                        </span>
+                      </div>
+
+                      {/* Row 4: Subject Combination */}
+                      <div className="text-[9.5px] font-bold text-teal-700 dark:text-teal-300 flex items-center gap-1.5 flex-wrap">
+                        <span className="font-mono font-black text-teal-800 dark:text-teal-200 bg-teal-500/15 px-1.5 py-0.5 rounded-md border border-teal-500/30">
+                          Subs:
+                        </span>
+                        <div className="flex-1 min-w-0">
+                          {renderSubjectsWithHighlight(allSubjs, currentSubjectObj)}
                         </div>
                       </div>
                     </div>
