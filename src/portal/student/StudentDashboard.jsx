@@ -1,15 +1,17 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useOutletContext, useNavigate } from 'react-router-dom';
-import { FileText, Edit3, RefreshCw, LogOut, ShieldCheck, CheckCircle2, Clock, AlertCircle, Sparkles, ArrowRight, X, Trash2, Printer, CreditCard } from 'lucide-react';
+import { FileText, Edit3, RefreshCw, LogOut, ShieldCheck, CheckCircle2, Clock, AlertCircle, Sparkles, ArrowRight, X, Trash2, Printer, CreditCard, Mail } from 'lucide-react';
 import SEO from '../../components/SEO';
 import ModernLoader from '../../components/ModernLoader';
 import LogoutConfirmModal from '../components/LogoutConfirmModal';
 import { auth, db } from '../../services/firebase';
+import { sendEmailVerification } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { generateStudentAdmissionPdf, generateProvisionalAdmissionPdf } from '../../utils/pdfGenerator';
 import appsScriptApi from '../../services/appsScriptApi';
 import { withdrawAdmission } from '../../services/admissionWorkflowApi';
 import { getStudentPhotoUrl, formatPhotoDisplayUrl } from '../../utils/imageCompressor';
+import { checkEmailRateLimit, recordEmailSent, getRemainingCooldown } from '../../utils/emailRateLimiter';
 
 function getCurrentAcademicSession() {
   const now = new Date();
@@ -34,6 +36,14 @@ export default function StudentDashboard() {
   const [sessionInfo, setSessionInfo] = useState(() => getCurrentAcademicSession());
   const [alert, setAlert] = useState(null);
 
+  // Email Verification State (On-demand with Cooldown)
+  const [isEmailVerified, setIsEmailVerified] = useState(() => Boolean(auth.currentUser?.emailVerified));
+  const [sendingVerification, setSendingVerification] = useState(false);
+  const [verificationCooldown, setVerificationCooldown] = useState(() => {
+    const email = auth.currentUser?.email || user?.email || '';
+    return getRemainingCooldown('email_verification', email, 60);
+  });
+
   // Edit Profile Modal State
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [profileName, setProfileName] = useState(user?.name || '');
@@ -43,6 +53,77 @@ export default function StudentDashboard() {
 
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const handleLogoutRequest = () => setShowLogoutConfirm(true);
+
+  // Cooldown countdown interval
+  useEffect(() => {
+    if (verificationCooldown <= 0) return;
+    const timer = setInterval(() => {
+      setVerificationCooldown((prev) => Math.max(0, prev - 1));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [verificationCooldown]);
+
+  // Check auth user status on load
+  useEffect(() => {
+    if (auth.currentUser) {
+      auth.currentUser.reload().then(() => {
+        setIsEmailVerified(Boolean(auth.currentUser?.emailVerified));
+      }).catch(() => {});
+    }
+  }, []);
+
+  const handleSendVerificationEmail = async () => {
+    const currUser = auth.currentUser;
+    if (!currUser) {
+      setAlert({ type: 'error', text: 'You must be logged in to verify email.' });
+      return;
+    }
+    const cleanEmail = String(currUser.email || user?.email || '').trim().toLowerCase();
+
+    // Check rate limit (60s cooldown + 4 daily max)
+    const check = checkEmailRateLimit('email_verification', cleanEmail, { cooldownSeconds: 60, maxDaily: 4 });
+    if (!check.allowed) {
+      setAlert({ type: 'error', text: check.message });
+      if (check.remainingCooldown > 0) setVerificationCooldown(check.remainingCooldown);
+      return;
+    }
+
+    setSendingVerification(true);
+    setAlert(null);
+    try {
+      await sendEmailVerification(currUser, {
+        url: `${window.location.origin}/portal/login`,
+        handleCodeInApp: false,
+      });
+      recordEmailSent('email_verification', cleanEmail);
+      setVerificationCooldown(60);
+      setAlert({ type: 'success', text: `Verification link sent to ${cleanEmail}! Please check your inbox and spam folder.` });
+    } catch (err) {
+      console.error('Email verification error:', err);
+      if (err.code === 'auth/too-many-requests' || err.code === 'auth/quota-exceeded') {
+        setAlert({ type: 'error', text: 'Too many verification attempts. Please wait 15 minutes before requesting again.' });
+      } else {
+        setAlert({ type: 'error', text: err.message || 'Failed to send verification email.' });
+      }
+    } finally {
+      setSendingVerification(false);
+    }
+  };
+
+  const handleRefreshVerificationStatus = async () => {
+    try {
+      await auth.currentUser?.reload();
+      const verified = Boolean(auth.currentUser?.emailVerified);
+      setIsEmailVerified(verified);
+      if (verified) {
+        setAlert({ type: 'success', text: '🎉 Email verified successfully!' });
+      } else {
+        setAlert({ type: 'error', text: 'Email is not yet verified. Please click the link sent to your inbox first.' });
+      }
+    } catch (err) {
+      console.warn('Reload user note:', err);
+    }
+  };
 
   // Fetch student application & initial data (Fast SWR Firestore Workflow)
   const loadDashboardData = useCallback(async () => {
@@ -304,6 +385,57 @@ export default function StudentDashboard() {
             </button>
           </div>
         </div>
+
+        {/* On-Demand Email Verification Banner (Compact, Rate-Limited & Non-Blocking) */}
+        {!isEmailVerified && user?.email && (
+          <div className="p-3.5 sm:p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-900 dark:text-amber-200 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs animate-fadeIn">
+            <div className="flex items-start gap-2.5 min-w-0">
+              <div className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center flex-shrink-0 mt-0.5 border border-amber-500/30">
+                <Mail size={16} />
+              </div>
+              <div className="space-y-0.5 min-w-0">
+                <div className="font-extrabold text-xs sm:text-sm text-amber-900 dark:text-amber-100 flex items-center gap-1.5 flex-wrap">
+                  <span>Email Unverified</span>
+                  <span className="px-1.5 py-0.2 rounded-md text-[9px] font-black bg-amber-500/20 text-amber-800 dark:text-amber-200 border border-amber-500/30">
+                    Recommended
+                  </span>
+                </div>
+                <p className="text-[11px] text-amber-800/90 dark:text-amber-300 leading-relaxed">
+                  Verify <strong className="underline decoration-amber-500/50">{user?.email}</strong> to secure self-service password recovery.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 flex-shrink-0 self-end sm:self-center">
+              <button
+                type="button"
+                onClick={handleRefreshVerificationStatus}
+                className="px-2.5 py-1.5 rounded-xl border border-amber-500/40 bg-white dark:bg-slate-900 text-amber-900 dark:text-amber-200 hover:bg-amber-500/15 font-bold text-[11px] cursor-pointer transition-all shadow-2xs"
+                title="Check if you have already clicked the verification link"
+              >
+                Check Status ↻
+              </button>
+              <button
+                type="button"
+                disabled={sendingVerification || verificationCooldown > 0}
+                onClick={handleSendVerificationEmail}
+                className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white font-black text-[11px] shadow-xs cursor-pointer transition-all disabled:opacity-50 flex items-center gap-1.5"
+              >
+                {sendingVerification ? (
+                  <>
+                    <RefreshCw size={12} className="animate-spin" />
+                    <span>Sending…</span>
+                  </>
+                ) : (
+                  <>
+                    <Mail size={12} />
+                    <span>{verificationCooldown > 0 ? `Resend in ${verificationCooldown}s` : 'Send Verification Link'}</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Global Alert Notification */}
         {alert && (

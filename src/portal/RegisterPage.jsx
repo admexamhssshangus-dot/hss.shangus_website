@@ -99,16 +99,8 @@ export default function RegisterPage() {
         console.warn('Profile name update note:', err);
       });
 
-      // 3. Non-blocking verification email trigger (runs in background)
-      sendEmailVerification(fbUser, {
-        url: `${window.location.origin}/portal/login`,
-        handleCodeInApp: false,
-      }).catch((emailErr) => {
-        console.warn('Email verification send note:', emailErr);
-      });
-
-      // 4. Save user demographic profile to Firestore using UID as document ID
-      // NOTE: We only send requestedRole: 'Student'. Privilege escalation is blocked on server.
+      // 3. Save user demographic profile to Firestore using UID as document ID
+      // NOTE: Email verification is available on-demand inside the portal to preserve daily quotas.
       const userData = {
         uid: fbUser.uid,
         email: cleanEmail,

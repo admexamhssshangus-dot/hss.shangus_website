@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Mail, Lock, ArrowLeft, CheckCircle, AlertCircle, RefreshCw } from 'lucide-react';
+import { Mail, Lock, ArrowLeft, CheckCircle, AlertCircle, RefreshCw, Clock } from 'lucide-react';
 import SEO from '../components/SEO';
 import { auth } from '../services/firebase';
 import { sendPasswordResetEmail } from 'firebase/auth';
+import { checkEmailRateLimit, recordEmailSent, getRemainingCooldown } from '../utils/emailRateLimiter';
 
 function maskEmailAddress(value) {
   const [localPart, domain] = String(value || '').trim().split('@');
@@ -24,14 +25,42 @@ export default function ForgotPasswordPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [alert, setAlert] = useState(null);
   const [emailSent, setEmailSent] = useState(false);
+  const [cooldown, setCooldown] = useState(0);
 
   const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
-  // Send Firebase Auth password reset email (secure, no plain-text storage)
+  useEffect(() => {
+    if (email && isEmailValid) {
+      const rem = getRemainingCooldown('password_reset', email.trim().toLowerCase(), 60);
+      setCooldown(rem);
+    }
+  }, [email, isEmailValid]);
+
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const timer = setInterval(() => {
+      setCooldown((prev) => Math.max(0, prev - 1));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [cooldown]);
+
+  // Send Firebase Auth password reset email (secure, rate-limited, no plain-text storage)
   const handleSendResetEmail = async (e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
     if (!email || !isEmailValid) {
       setAlert({ type: 'error', text: 'Please enter a valid registered email address.' });
+      return;
+    }
+
+    const emailClean = email.trim().toLowerCase();
+
+    // 1. Check rate limits (60s cooldown + 4 daily limit per email)
+    const rateCheck = checkEmailRateLimit('password_reset', emailClean, { cooldownSeconds: 60, maxDaily: 4 });
+    if (!rateCheck.allowed) {
+      setAlert({ type: 'error', text: rateCheck.message });
+      if (rateCheck.remainingCooldown > 0) {
+        setCooldown(rateCheck.remainingCooldown);
+      }
       return;
     }
 
@@ -39,22 +68,26 @@ export default function ForgotPasswordPage() {
     setAlert(null);
 
     try {
-      const emailClean = email.trim().toLowerCase();
-
-      // Verify email exists in Firestore
       // Send Firebase Auth password reset email — NO plain-text passwords stored
       await sendPasswordResetEmail(auth, emailClean, {
         url: `${window.location.origin}/portal/login`,
         handleCodeInApp: false,
       });
+
+      recordEmailSent('password_reset', emailClean);
+      setCooldown(60);
       setEmailSent(true);
       setAlert({ type: 'success', text: 'If an account exists, a password reset link has been sent. Please check your inbox or spam folder.' });
     } catch (err) {
       console.error('Password reset error:', err);
       if (err.code === 'auth/user-not-found') {
-        // User exists in Firestore but not in Firebase Auth — send anyway silently
+        // User not found in Firebase Auth — send anyway silently for security & avoid account enumeration
+        recordEmailSent('password_reset', emailClean);
+        setCooldown(60);
         setEmailSent(true);
         setAlert({ type: 'success', text: 'If an account exists with this email, a password reset link has been sent. Please check your inbox or spam folder.' });
+      } else if (err.code === 'auth/too-many-requests' || err.code === 'auth/quota-exceeded') {
+        setAlert({ type: 'error', text: 'Too many reset requests have been made. Please wait 15 minutes before trying again.' });
       } else {
         setAlert({ type: 'error', text: err.message || 'Failed to send password reset email. Please try again.' });
       }
@@ -131,8 +164,17 @@ export default function ForgotPasswordPage() {
               <div className="flex flex-col gap-2 pt-2">
                 <button
                   type="button"
+                  disabled={isLoading || cooldown > 0}
+                  onClick={() => handleSendResetEmail(null)}
+                  className="w-full py-2.5 rounded-2xl font-bold text-xs border border-teal-500/40 bg-teal-500/10 text-teal-700 dark:text-teal-300 hover:bg-teal-500/20 cursor-pointer transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
+                >
+                  <Mail size={14} />
+                  <span>{cooldown > 0 ? `Resend link in ${cooldown}s` : 'Resend Reset Link'}</span>
+                </button>
+                <button
+                  type="button"
                   onClick={() => { setEmailSent(false); setAlert(null); }}
-                  className="w-full py-3 rounded-2xl font-bold text-xs border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer transition-colors"
+                  className="w-full py-2.5 rounded-2xl font-bold text-xs border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer transition-colors"
                   style={{ color: 'var(--text-main, #334155)' }}
                 >
                   <RefreshCw size={14} className="inline mr-1.5" />
@@ -140,7 +182,7 @@ export default function ForgotPasswordPage() {
                 </button>
                 <Link
                   to="/portal/login"
-                  className="w-full py-3.5 rounded-2xl font-black text-xs text-white bg-teal-600 hover:bg-teal-500 shadow-lg transition-all flex items-center justify-center gap-2 text-center"
+                  className="w-full py-3 rounded-2xl font-black text-xs text-white bg-teal-600 hover:bg-teal-500 shadow-lg transition-all flex items-center justify-center gap-2 text-center"
                 >
                   <ArrowLeft size={14} />
                   Back to Login
