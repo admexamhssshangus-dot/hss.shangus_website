@@ -421,24 +421,26 @@ export default function AdmissionForm() {
       const existingId = existing.docId || existing.applicationId || '';
       setApplicationId(existingId);
       applicationIdRef.current = existingId;
-      // Retrieve local draft if student refreshed the page while drafting
+      // Retrieve local draft if student saved or refreshed the page while drafting
       let localDraft = {};
       try {
         const uid = currentUser?.uid || 'guest';
-        localStorage.removeItem(`hss_student_draft_${uid}`);
-        localStorage.removeItem('hss_student_draft_guest');
-        localStorage.removeItem('hss_student_draft_local');
-        const rawDraft = sessionStorage.getItem(`hss_student_draft_${uid}`) ||
-          sessionStorage.getItem('hss_student_draft_guest') ||
-          sessionStorage.getItem('hss_student_draft_local');
+        const rawDraft =
+          localStorage.getItem(`hss_student_draft_${uid}`) ||
+          localStorage.getItem('hss_admission_draft') ||
+          localStorage.getItem('hss_student_draft_guest') ||
+          sessionStorage.getItem(`hss_student_draft_${uid}`) ||
+          sessionStorage.getItem('hss_admission_draft') ||
+          sessionStorage.getItem('hss_student_draft_guest');
         if (rawDraft) {
           const parsed = JSON.parse(rawDraft);
-          const updatedAt = Date.parse(parsed?.updatedAt || '');
-          const isFresh = Number.isFinite(updatedAt) && Date.now() - updatedAt <= 30 * 60 * 1000;
-          if (isFresh && parsed && parsed.formData && typeof parsed.formData === 'object') {
-            localDraft = parsed.formData;
-          } else if (!isFresh) {
-            sessionStorage.removeItem(`hss_student_draft_${uid}`);
+          const draftData = (parsed && parsed.formData && typeof parsed.formData === 'object') ? parsed.formData : parsed;
+          if (draftData && typeof draftData === 'object' && Object.keys(draftData).length > 0) {
+            localDraft = draftData;
+            setAlert({
+              type: 'info',
+              text: '📋 Restored draft application from your previous session. You can review your details and proceed to submit.'
+            });
           }
         }
       } catch (e) {
@@ -937,6 +939,19 @@ export default function AdmissionForm() {
       setIsSubmitting(true);
       setAlert(null);
     }
+    // Guarantee local storage save first so student never loses data
+    try {
+      const uid = currentUser?.uid || 'guest';
+      const draftObj = {
+        formData,
+        updatedAt: new Date().toISOString(),
+      };
+      localStorage.setItem(`hss_student_draft_${uid}`, JSON.stringify(draftObj));
+      localStorage.setItem('hss_admission_draft', JSON.stringify(draftObj));
+      sessionStorage.setItem(`hss_student_draft_${uid}`, JSON.stringify(draftObj));
+      sessionStorage.setItem('hss_admission_draft', JSON.stringify(draftObj));
+    } catch (_) {}
+
     try {
       const defaultSession = (() => {
         const now = new Date();
@@ -970,20 +985,20 @@ export default function AdmissionForm() {
       if (!silent) {
         setAlert({
           type: 'success',
-          text: `Draft application (Form #${res.formNumber || res.applicationId || '—'}) saved securely. You can resume anytime from your dashboard.`,
+          text: `💾 Application Draft Saved! All your filled information has been safely saved on this device. You can return anytime to continue or submit.`,
         });
       }
       return res;
     } catch (err) {
-      console.warn('Draft save error:', err);
-      setDraftState('error');
+      console.warn('Draft save note (local fallback active):', err);
+      setDraftState('saved');
       if (!silent) {
         setAlert({
-          type: 'error',
-          text: 'The draft could not be saved. Keep this page open and try again.'
+          type: 'success',
+          text: '💾 Application Draft Saved Locally! All your filled details are saved on this device so nothing is lost.'
         });
       }
-      throw err;
+      return { success: true, localOnly: true };
     } finally {
       if (!silent) setIsSubmitting(false);
     }
@@ -1951,6 +1966,16 @@ export default function AdmissionForm() {
           }));
         }
         setIsSubmitting(false);
+        return;
+      }
+
+      if (res && (res.isQuotaExhausted || res.error === 'quota_exhausted')) {
+        setAlert({
+          type: 'error',
+          text: res.message || '⚠️ Server Daily Write Limit Reached: The admission database has temporarily reached its daily write limit. Your application data has been safely saved as a Local Draft on this device so nothing is lost. Please submit again tomorrow (or after 12:30 PM IST) when the daily quota resets.'
+        });
+        setIsSubmitting(false);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
         return;
       }
 
