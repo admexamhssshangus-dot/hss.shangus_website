@@ -499,6 +499,29 @@ export default function AdmissionForm() {
         delete mergedData['formNo'];
       }
 
+      // Ensure class 11th/12th stream and admission types are cleanly defaulted if missing
+      const initCls = mergedData['Admission sought for class'];
+      if (initCls === '11th') {
+        if (!mergedData['Admission Type (Class 11th)'] && !mergedData['Admission Type']) {
+          mergedData['Admission Type (Class 11th)'] = 'Full';
+          mergedData['Admission Type'] = 'Full';
+        }
+        if (!mergedData['Stream for Class 11th'] && !mergedData['Stream']) {
+          mergedData['Stream for Class 11th'] = 'Science';
+          mergedData['Stream'] = 'Science';
+        }
+      } else if (initCls === '12th') {
+        if (!mergedData['Admission Type (Class 12th)'] && !mergedData['Admission Type']) {
+          mergedData['Admission Type (Class 12th)'] = 'Full';
+          mergedData['Admission Type'] = 'Full';
+        }
+        if (!mergedData['Stream opted in Class 11th'] && !mergedData['Stream for Class 11th'] && !mergedData['Stream']) {
+          mergedData['Stream opted in Class 11th'] = 'Science';
+          mergedData['Stream for Class 11th'] = 'Science';
+          mergedData['Stream'] = 'Science';
+        }
+      }
+
       if (Object.keys(localDraft).length > 0 && !isExistingSubmitted) {
         setHasConfirmedInstructions(true);
         setShowInstructions(false);
@@ -755,17 +778,28 @@ export default function AdmissionForm() {
           next['Subjects to be taken in Class 10th'] = '';
           next['Subjects to be taken in Class 11th'] = '';
           next['Stream & Subjects for Class 12th'] = '';
-          next['Stream for Class 11th'] = '';
-          next['Stream opted in Class 11th'] = '';
-          next['Stream'] = '';
-          next['Admission Type (Class 11th)'] = '';
-          next['Admission Type (Class 12th)'] = '';
           next['Reason for Provisional (Class 11th)'] = '';
           next['Reason for Provisional (Class 12th)'] = '';
           next['Subjects to Reappear (Class 10th)'] = '';
           next['Subjects to Reappear (Class 11th)'] = '';
           next['Year of Appearing (Class 10th)'] = '';
           next['Year of Appearing (Class 11th)'] = '';
+
+          if (value === '11th') {
+            next['Admission Type (Class 11th)'] = prev['Admission Type (Class 11th)'] || prev['Admission Type'] || 'Full';
+            next['Stream for Class 11th'] = prev['Stream for Class 11th'] || prev['Stream'] || 'Science';
+            next['Stream'] = next['Stream for Class 11th'];
+          } else if (value === '12th') {
+            next['Admission Type (Class 12th)'] = prev['Admission Type (Class 12th)'] || prev['Admission Type'] || 'Full';
+            next['Stream opted in Class 11th'] = prev['Stream opted in Class 11th'] || prev['Stream for Class 11th'] || prev['Stream'] || 'Science';
+            next['Stream for Class 11th'] = next['Stream opted in Class 11th'];
+            next['Stream'] = next['Stream opted in Class 11th'];
+          } else {
+            next['Admission Type'] = prev['Admission Type'] || 'Full';
+            next['Stream for Class 11th'] = '';
+            next['Stream opted in Class 11th'] = '';
+            next['Stream'] = '';
+          }
           setFieldErrors({});
         }
       }
@@ -2963,9 +2997,9 @@ export default function AdmissionForm() {
                                         { val: 'Commerce', label: 'Commerce' },
                                       ].map(st => {
                                         const currentStream = selectedClass === '12th'
-                                          ? (formData['Stream opted in Class 11th'] || formData['Stream for Class 11th'] || formData['Stream'])
-                                          : (formData['Stream for Class 11th'] || formData['Stream']);
-                                        const isSel = (currentStream || 'Science') === st.val;
+                                          ? (formData['Stream opted in Class 11th'] || formData['Stream for Class 11th'] || formData['Stream'] || '')
+                                          : (formData['Stream for Class 11th'] || formData['Stream'] || '');
+                                        const isSel = Boolean(currentStream) && currentStream.toLowerCase() === st.val.toLowerCase();
                                         return (
                                           <button
                                             key={st.val}
