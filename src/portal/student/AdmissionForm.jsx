@@ -226,6 +226,50 @@ export function validateSubjectSelection(targetClass = '11th', stream = 'Science
     return { valid: true, error: null, count: total, min: 5, max: 5 };
   }
 
+  const isCommerce = strm.toLowerCase() === 'commerce';
+  if (isCommerce) {
+    if (total > 5) {
+      return {
+        valid: false,
+        error: `Maximum 5 subjects allowed for Commerce Stream (3 Compulsory + 2 Options). Currently ${total} selected. Please uncheck ${total - 5} subject(s).`,
+        count: total,
+        min: 5,
+        max: 5
+      };
+    }
+
+    const groupB = ['economics', 'entrepreneurship', 'mathematics', 'maths'];
+    const optionals = allSubjects.filter(s => {
+      const lower = s.toLowerCase();
+      return !['general english', 'english', 'accountancy', 'business studies'].includes(lower);
+    });
+
+    const chosenGroupB = optionals.filter(s => groupB.some(b => s.toLowerCase().includes(b)));
+    const chosenGroupC = optionals.filter(s => !groupB.some(b => s.toLowerCase().includes(b)));
+
+    if (chosenGroupC.length >= 2 && chosenGroupB.length === 0) {
+      return {
+        valid: false,
+        error: `Commerce Stream Rule: Both options cannot be from Group C (${chosenGroupC.join(', ')}). You must select at least 1 subject from Group B (Economics, Entrepreneurship, or Mathematics).`,
+        count: total,
+        min: 5,
+        max: 5
+      };
+    }
+
+    if (total < 5) {
+      return {
+        valid: false,
+        error: `Commerce Stream requires exactly 5 subjects (3 Compulsory + 2 Options). Currently ${total}/5 selected.`,
+        count: total,
+        min: 5,
+        max: 5
+      };
+    }
+
+    return { valid: true, error: null, count: total, min: 5, max: 5 };
+  }
+
   if (total > 5) {
     return {
       valid: false,
@@ -654,7 +698,7 @@ export default function AdmissionForm() {
         // summary field synchronized without asking the student to type it again.
         next['Stream & Subjects for Class 12th'] = value;
         const stream11 = next['Stream opted in Class 11th'] || next['Stream for Class 11th'] || '';
-        const comp11 = (stream11 === 'Humanities' || stream11 === 'Arts') ? ["General English"] : ["General English", "Physics", "Chemistry"];
+        const comp11 = getCompulsorySubjects('11th', stream11);
         const studiedArr = (typeof value === 'string' ? value.split(', ') : (value || [])).map(s => s.trim()).filter(Boolean);
         const allStudied11 = [...new Set([...comp11, ...studiedArr])];
         const currentReappear = String(next['Subjects to Reappear (Class 11th)'] || '').split(', ').map(s => s.trim()).filter(Boolean);
@@ -975,14 +1019,14 @@ export default function AdmissionForm() {
     ? 'Admission Type (Class 12th)'
     : selectedClass === '11th' ? 'Admission Type (Class 11th)' : 'Admission Type';
   const selectedAdmissionType = formData[admissionTypeField] || formData['Admission Type'] || '';
-  const is11thClass = selectedClass === '11th';
-  const hasStreamIf11th = !is11thClass || Boolean(formData['Stream for Class 11th'] || formData['Stream']);
+  const isHigherSecondary = selectedClass === '11th' || selectedClass === '12th';
+  const hasStreamIfHigherSec = !isHigherSecondary || Boolean(formData['Stream opted in Class 11th'] || formData['Stream for Class 11th'] || formData['Stream']);
   const hasReasonIfProvisional = selectedAdmissionType !== 'Provisional' || Boolean(
     formData['Reason for Provisional (Class 11th)'] ||
     formData['Reason for Provisional (Class 12th)'] ||
     formData['Reason for Provisional']
   );
-  const hasAdmissionStart = Boolean(selectedClass && selectedAdmissionType && hasStreamIf11th && hasReasonIfProvisional);
+  const hasAdmissionStart = Boolean(selectedClass && selectedAdmissionType && hasStreamIfHigherSec && hasReasonIfProvisional);
 
   useEffect(() => {
     if (!hasAdmissionStart || typeof IntersectionObserver === 'undefined') return undefined;
@@ -1006,8 +1050,8 @@ export default function AdmissionForm() {
         ? 'First select the target class for admission.'
         : !selectedAdmissionType
         ? 'Please select the admission type (Full or Provisional).'
-        : is11thClass && !hasStreamIf11th
-        ? 'Please select your stream (Science or Humanities) for Class 11th.'
+        : isHigherSecondary && !hasStreamIfHigherSec
+        ? 'Please select your stream (Science, Humanities, or Commerce).'
         : 'Please select the reason for provisional admission.';
       setAlert({ type: 'error', text: msg });
       document.querySelector('#admission-start')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -1233,7 +1277,7 @@ export default function AdmissionForm() {
 
     // Subject Sub-groups
     "Stream for Class 11th": '📚 Stream & Subject Selection',
-    "Stream opted in Class 11th": '📚 Stream & Subject Selection',
+    "Stream opted in Class 11th": '🏫 Class 11th Examination Records',
     "Stream & Subjects for Class 12th": '📚 Stream & Subject Selection',
     "Subjects Studied in Class 8th": '🏫 Class 8th / 9th Examination Records',
     "Subjects to be taken in Class 9th": '📖 Subject Combinations',
@@ -1302,7 +1346,6 @@ export default function AdmissionForm() {
     // 6. Stream & Subject Selections
     "Stream for Class 11th",
     "Subjects to be taken in Class 11th",
-    "Stream opted in Class 11th",
     "Stream & Subjects for Class 12th",
     "Subjects to be taken in Class 10th",
     "Subjects to be taken in Class 9th",
@@ -1326,6 +1369,7 @@ export default function AdmissionForm() {
     "Total Max. Marks in Class 11th",
     "Name of Previous School (Class 11th)",
     "Board (Class 11th)",
+    "Stream opted in Class 11th",
     "Subjects Studied in Class 11th",
     "Subjects to Reappear (Class 11th)",
 
@@ -1722,15 +1766,19 @@ export default function AdmissionForm() {
       'Subjects to be taken in Class 11th',
       'Subjects to be taken in Class 12th',
       'Subjects to be taken in Class 10th',
-      'Subjects to be taken in Class 9th'
+      'Subjects to be taken in Class 9th',
+      'Subjects Studied in Class 11th'
     ];
 
     subjectFieldNames.forEach(sField => {
       const fieldCls = sField.includes('11th') ? '11th' : sField.includes('12th') ? '12th' : sField.includes('10th') ? '10th' : '9th';
-      const sStream = formData['Stream for Class 11th'] || formData['Stream opted in Class 11th'] || formData['Stream'] || 'Science';
+      const sStream = formData['Stream opted in Class 11th'] || formData['Stream for Class 11th'] || formData['Stream'] || 'Science';
       const rawVal = formData[sField];
       const soughtCls = formData['Admission sought for class'] || cls || '';
-      if (rawVal !== undefined && (soughtCls.includes(fieldCls) || cls?.includes(fieldCls))) {
+      const isRelevant = sField === 'Subjects Studied in Class 11th'
+        ? (soughtCls.includes('12') || (cls && cls.includes('12')))
+        : (soughtCls.includes(fieldCls) || (cls && cls.includes(fieldCls)));
+      if (rawVal !== undefined && isRelevant) {
         const valRes = validateSubjectSelection(fieldCls, sStream, rawVal, false);
         if (!valRes.valid) {
           addError(sField, valRes.error);
@@ -2771,9 +2819,9 @@ export default function AdmissionForm() {
                                 <span className="px-1.5 py-0.5 rounded text-[10.5px] font-bold bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-500/30">
                                   {formData['Admission Type (Class 11th)'] || formData['Admission Type (Class 12th)'] || formData['Admission Type'] || 'Full'}
                                 </span>
-                                {selectedClass === '11th' && (
+                                {(selectedClass === '11th' || selectedClass === '12th') && (
                                   <span className="px-1.5 py-0.5 rounded text-[10.5px] font-bold bg-purple-500/15 text-purple-800 dark:text-purple-300 border border-purple-500/30">
-                                    {formData['Stream for Class 11th'] || 'Science'}
+                                    {formData['Stream opted in Class 11th'] || formData['Stream for Class 11th'] || formData['Stream'] || 'Science'}
                                   </span>
                                 )}
                                 {selectedAdmissionType === 'Provisional' && (
@@ -2864,7 +2912,7 @@ export default function AdmissionForm() {
                               </div>
 
                               {/* 2. Admission Type & 3. Stream */}
-                              <div className={`grid grid-cols-1 ${selectedClass === '11th' ? 'sm:grid-cols-2' : 'sm:grid-cols-2'} gap-2.5`}>
+                              <div className={`grid grid-cols-1 ${(selectedClass === '11th' || selectedClass === '12th') ? 'sm:grid-cols-2' : 'sm:grid-cols-1'} gap-2.5`}>
                                 <div className="space-y-1">
                                   <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300 flex items-center justify-between">
                                     <span>2. Admission Type <span className="text-red-500">*</span></span>
@@ -2903,22 +2951,34 @@ export default function AdmissionForm() {
                                   </div>
                                 </div>
 
-                                {selectedClass === '11th' && (
+                                {(selectedClass === '11th' || selectedClass === '12th') && (
                                   <div className="space-y-1 animate-fadeIn">
                                     <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300 flex items-center justify-between">
-                                      <span>3. Stream Selection <span className="text-red-500">*</span></span>
+                                      <span>3. {selectedClass === '12th' ? 'Stream in Class 11th/12th' : 'Stream Selection'} <span className="text-red-500">*</span></span>
                                     </label>
-                                    <div className="grid grid-cols-2 gap-1.5 p-1 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                                    <div className="grid grid-cols-3 gap-1.5 p-1 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
                                       {[
                                         { val: 'Science', label: 'Science' },
                                         { val: 'Humanities', label: 'Humanities' },
+                                        { val: 'Commerce', label: 'Commerce' },
                                       ].map(st => {
-                                        const isSel = selectedStream === st.val;
+                                        const currentStream = selectedClass === '12th'
+                                          ? (formData['Stream opted in Class 11th'] || formData['Stream for Class 11th'] || formData['Stream'])
+                                          : (formData['Stream for Class 11th'] || formData['Stream']);
+                                        const isSel = (currentStream || 'Science') === st.val;
                                         return (
                                           <button
                                             key={st.val}
                                             type="button"
-                                            onClick={() => handleFieldChange('Stream for Class 11th', st.val)}
+                                            onClick={() => {
+                                              if (selectedClass === '12th') {
+                                                handleFieldChange('Stream opted in Class 11th', st.val);
+                                                handleFieldChange('Stream for Class 11th', st.val);
+                                              } else {
+                                                handleFieldChange('Stream for Class 11th', st.val);
+                                              }
+                                              handleFieldChange('Stream', st.val);
+                                            }}
                                             className={`h-8 sm:h-9 px-2 rounded-lg font-bold text-xs transition-all cursor-pointer flex items-center justify-center text-center ${
                                               isSel
                                                 ? 'bg-teal-600 text-white shadow-xs font-black'
@@ -2988,8 +3048,8 @@ export default function AdmissionForm() {
                               ? '👉 Please choose Full or Provisional Admission'
                               : selectedAdmissionType === 'Provisional' && !hasReasonIfProvisional
                               ? '👉 Please select Reason for Provisional Admission'
-                              : is11thClass && !hasStreamIf11th
-                              ? '👉 Please select your Stream (Science or Humanities) for Class 11th'
+                              : isHigherSecondary && !hasStreamIfHigherSec
+                              ? '👉 Please select your Stream (Science, Humanities, or Commerce)'
                               : 'Select your admission options above to open the application form'}
                           </div>
                           <p className="text-[10.5px] text-slate-500">The application form will unlock automatically once your initial setup is selected.</p>

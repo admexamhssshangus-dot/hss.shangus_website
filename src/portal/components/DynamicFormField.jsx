@@ -1568,9 +1568,12 @@ export default function DynamicFormField({
 
             const targetCls = cls11 ? '11th' : cls12 ? '12th' : cls10 ? '10th' : cls9 ? '9th' : '8th';
 
-            const strm = selectedStream ||
-              (formData && (formData['Stream for Class 11th'] || formData['Stream opted in Class 11th'] || formData['Stream'])) ||
+            const strmRaw = selectedStream ||
+              (formData && (name.includes('Studied in Class 11th')
+                ? (formData['Stream opted in Class 11th'] || formData['Stream for Class 11th'] || formData['Stream'])
+                : (formData['Stream for Class 11th'] || formData['Stream opted in Class 11th'] || formData['Stream']))) ||
               'Science';
+            const strm = strmRaw === 'Arts' ? 'Humanities' : strmRaw;
 
             const isReappearField = name.toLowerCase().includes('reappear');
             let groupA = [];
@@ -1587,6 +1590,8 @@ export default function DynamicFormField({
                 const prevStream = (formData && (formData['Stream opted in Class 11th'] || formData['Stream for Class 11th'] || formData['Stream'])) || strm;
                 if (prevStream === 'Humanities' || prevStream === 'Arts') {
                   prevCompulsory = ["General English"];
+                } else if (prevStream === 'Commerce') {
+                  prevCompulsory = ["General English", "Accountancy", "Business Studies"];
                 } else {
                   prevCompulsory = ["General English", "Physics", "Chemistry"];
                 }
@@ -1675,6 +1680,7 @@ export default function DynamicFormField({
 
             const isScience = strm.toLowerCase() === 'science' || strm.toLowerCase() === 'medical' || strm.toLowerCase() === 'non-medical';
             const isHumanities = strm.toLowerCase() === 'humanities' || strm.toLowerCase() === 'arts';
+            const isCommerce = strm.toLowerCase() === 'commerce';
             const isSecondary = cls9 || cls10 || cls8;
 
             const subjectValidation = validateSubjectSelection(targetCls, strm, allSelectedSubjects, isReappearField);
@@ -1705,6 +1711,25 @@ export default function DynamicFormField({
               } else {
                 groupBBadgeText = `${selectedB.length}/${targetB} Core`;
                 groupBBadgeStatus = selectedB.length >= 3 ? 'success' : 'pending';
+              }
+            } else if (isCommerce) {
+              const isBothGroupB = selectedB.length === 2 && selectedC.length === 0;
+              const isGroupBPlusC = selectedB.length === 1 && selectedC.length === 1;
+              if (isBothGroupB) {
+                groupBBadgeText = '2/2 Selected (Commerce Core) ✓';
+                groupBBadgeStatus = 'success';
+              } else if (isGroupBPlusC) {
+                groupBBadgeText = '1/1 Core Selected ✓';
+                groupBBadgeStatus = 'success';
+              } else if (selectedB.length === 0 && selectedC.length > 0) {
+                groupBBadgeText = '0/1 Required (Econ/Entr/Math)';
+                groupBBadgeStatus = 'warn';
+              } else if (selectedB.length > 2) {
+                groupBBadgeText = `${selectedB.length}/2 (Max 2)`;
+                groupBBadgeStatus = 'warn';
+              } else {
+                groupBBadgeText = `${selectedB.length} Selected`;
+                groupBBadgeStatus = selectedB.length >= 1 ? 'success' : 'pending';
               }
             } else if (isScience) {
               const isBothGroupB = selectedB.length === 2 && selectedC.length === 0;
@@ -1755,6 +1780,17 @@ export default function DynamicFormField({
                 groupCBadgeText = selectedB.length >= 4 ? '0/1 (Optional)' : 'Optional (0/1)';
                 groupCBadgeStatus = 'pending';
               }
+            } else if (isCommerce) {
+              if (selectedC.length === 1 && selectedB.length === 1) {
+                groupCBadgeText = '1/1 Elective ✓';
+                groupCBadgeStatus = 'success';
+              } else if (selectedC.length > 1) {
+                groupCBadgeText = `${selectedC.length}/1 (Max 1 Allowed)`;
+                groupCBadgeStatus = 'warn';
+              } else {
+                groupCBadgeText = selectedB.length >= 2 ? '0/1 (Optional)' : 'Optional (0/1)';
+                groupCBadgeStatus = 'pending';
+              }
             } else if (isScience) {
               if (selectedC.length === 1 && selectedB.length === 1) {
                 groupCBadgeText = '1/1 Elective ✓';
@@ -1780,7 +1816,57 @@ export default function DynamicFormField({
             }
 
             return (
-              <div className="space-y-4">
+              <div className="space-y-3">
+                {/* ── Interactive Stream Selector for 11th/12th Subjects ── */}
+                {(cls11 || cls12) && !isReappearField && (
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 shadow-2xs">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span className="w-2 h-2 rounded-full bg-teal-500 flex-shrink-0"></span>
+                      <span className="text-[11px] font-black text-slate-800 dark:text-slate-100 uppercase tracking-wide">
+                        {name.includes('Studied in Class 11th') ? 'Stream Studied in Class 11th:' : 'Selected Stream:'}
+                      </span>
+                      <span className="text-[10px] text-slate-500 dark:text-slate-400 hidden md:inline">
+                        (Choose stream to configure subjects)
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-1 p-0.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 sm:w-auto w-full">
+                      {[
+                        { val: 'Science', label: '🔬 Science' },
+                        { val: 'Humanities', label: '📚 Humanities' },
+                        { val: 'Commerce', label: '📊 Commerce' },
+                      ].map(s => {
+                        const isCurrent = strm.toLowerCase() === s.val.toLowerCase();
+                        return (
+                          <button
+                            key={s.val}
+                            type="button"
+                            disabled={disabled}
+                            onClick={() => {
+                              if (typeof onChange === 'function') {
+                                if (name.includes('Studied in Class 11th')) {
+                                  onChange('Stream opted in Class 11th', s.val);
+                                  onChange('Stream for Class 11th', s.val);
+                                } else {
+                                  onChange('Stream for Class 11th', s.val);
+                                }
+                                onChange('Stream', s.val);
+                                onChange(name, ''); // reset selected electives to avoid invalid stream combinations
+                              }
+                            }}
+                            className={`px-2.5 py-1 rounded-md text-xs font-bold transition-all cursor-pointer text-center flex items-center justify-center ${
+                              isCurrent
+                                ? 'bg-teal-600 text-white shadow-2xs font-black'
+                                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-slate-800'
+                            }`}
+                          >
+                            {s.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
                 {/* Combination Guidance Header */}
                 {!isReappearField && (
                   <div className="p-3 rounded-2xl bg-gradient-to-r from-teal-50/90 to-blue-50/90 dark:from-slate-800/90 dark:to-slate-800/60 border border-teal-200 dark:border-slate-700 text-xs leading-relaxed text-slate-700 dark:text-slate-300 shadow-xs">
@@ -1803,7 +1889,12 @@ export default function DynamicFormField({
                         <strong className="text-slate-900 dark:text-slate-100">Compulsory (1):</strong> General English. Choose <strong className="text-teal-700 dark:text-teal-300 font-bold">3 from Group B</strong> and <strong className="text-teal-700 dark:text-teal-300 font-bold">1 from Group C</strong> (or 4 from Group B). Maximum 1 subject allowed from Group C.
                       </p>
                     )}
-                    {!isScience && !isHumanities && isSecondary && (
+                    {isCommerce && (
+                      <p className="text-[11px] text-slate-600 dark:text-slate-300">
+                        <strong className="text-slate-900 dark:text-slate-100">Compulsory (3):</strong> General English, Accountancy, Business Studies. Choose <strong className="text-teal-700 dark:text-teal-300 font-bold">2 more options</strong>: either 2 from Group B (Economics/Entrepreneurship/Mathematics), or 1 from Group B and 1 from Group C.
+                      </p>
+                    )}
+                    {!isScience && !isHumanities && !isCommerce && isSecondary && (
                       <p className="text-[11px] text-slate-600 dark:text-slate-300">
                         <strong className="text-slate-900 dark:text-slate-100">Compulsory (4):</strong> English, Mathematics, Science, Social Science. Choose <strong className="text-teal-700 dark:text-teal-300 font-bold">1 Language</strong> from Group B and optionally <strong className="text-teal-700 dark:text-teal-300 font-bold">1 Vocational subject</strong> from Group C.
                       </p>
@@ -1870,6 +1961,8 @@ export default function DynamicFormField({
                               ? 'Choose exactly 1 language from the options below'
                               : isHumanities
                               ? 'Choose 3 core subjects (or 4 if taking no Group C elective)'
+                              : isCommerce
+                              ? 'Choose 2 core subjects (or 1 if taking a Group C elective)'
                               : isScience
                               ? 'Choose Biology, Mathematics, or both'
                               : 'Select core elective subjects'}
@@ -1935,7 +2028,7 @@ export default function DynamicFormField({
                               ? 'Optional 6th subject for vocational skill development'
                               : isHumanities
                               ? 'Choose maximum 1 elective from this group'
-                              : isScience
+                              : (isScience || isCommerce)
                               ? 'Choose maximum 1 elective from this group (combined with Group B)'
                               : 'Choose maximum 1 elective'}
                           </p>
