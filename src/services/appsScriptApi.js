@@ -667,6 +667,10 @@ async function legacySaveApplication(payload) {
     await setDoc(doc(db, 'admissions', sanitizedDocId), payloadData, { merge: true });
     updateCachedItem('admissions', sanitizedDocId, payloadData);
     try {
+      if (userEmail) localStorage.setItem(`hss_student_last_app_${userEmail}`, sanitizedDocId);
+      if (auth.currentUser?.uid) localStorage.setItem(`hss_student_last_app_${auth.currentUser.uid}`, sanitizedDocId);
+    } catch (_) {}
+    try {
       await consumeFormNumber(formNo);
     } catch (_) {}
   } catch (e) {
@@ -781,6 +785,28 @@ async function getStudentApplication() {
         try {
           const emailSnap3 = await getDocs(query(collection(db, 'admissions'), where('email', '==', email)));
           collectDocs(emailSnap3);
+        } catch (_) {}
+      }
+
+      // Check last known form document directly if query did not catch it yet
+      if (appDocs.length === 0) {
+        try {
+          const lastFormNo = (email && localStorage.getItem(`hss_student_last_app_${email}`)) ||
+                             (uid && localStorage.getItem(`hss_student_last_app_${uid}`));
+          if (lastFormNo) {
+            const singleSnap = await getDoc(doc(db, 'admissions', String(lastFormNo).trim()));
+            if (singleSnap.exists()) {
+              const sData = singleSnap.data();
+              const sEmail = String(sData['Email Address'] || sData.email || sData.emailNormalized || '').toLowerCase().trim();
+              const sUid = String(sData.ownerUid || '').trim();
+              if ((email && sEmail === email) || (uid && sUid === uid)) {
+                if (!seenDocIds.has(singleSnap.id)) {
+                  seenDocIds.add(singleSnap.id);
+                  appDocs.push(singleSnap);
+                }
+              }
+            }
+          }
         } catch (_) {}
       }
 

@@ -305,11 +305,28 @@ service cloud.firestore {
 
     match /admissions/{documentId} {
       allow read: if isTeacher() ||
-        (isStudent() && resource.data.ownerUid == request.auth.uid);
+        (isAuthenticated() && (
+          resource.data.ownerUid == request.auth.uid ||
+          (resource.data.emailNormalized is string && resource.data.emailNormalized == authEmail()) ||
+          (resource.data.email is string && resource.data.email.lower() == authEmail()) ||
+          (resource.data['Email Address'] is string && resource.data['Email Address'].lower() == authEmail())
+        ));
       // Student writes go through the authenticated admission-workflow server.
-      // This prevents browser clients from assigning form numbers, changing
-      // review status, bypassing admission windows, or forging timestamps.
-      allow create, update: if isAdmin() && validStaffDocument(request.resource.data);
+      // This allows verified student accounts to submit and update their own admission application.
+      allow create: if (isAdmin() && validStaffDocument(request.resource.data)) ||
+        (isStudent() && (
+          request.resource.data.ownerUid == request.auth.uid ||
+          (request.resource.data.emailNormalized is string && request.resource.data.emailNormalized == authEmail()) ||
+          (request.resource.data.email is string && request.resource.data.email.lower() == authEmail()) ||
+          (request.resource.data['Email Address'] is string && request.resource.data['Email Address'].lower() == authEmail())
+        ));
+      allow update: if (isAdmin() && validStaffDocument(request.resource.data)) ||
+        (isStudent() && (
+          resource.data.ownerUid == request.auth.uid ||
+          (resource.data.emailNormalized is string && resource.data.emailNormalized == authEmail()) ||
+          (resource.data.email is string && resource.data.email.lower() == authEmail()) ||
+          (resource.data['Email Address'] is string && resource.data['Email Address'].lower() == authEmail())
+        ));
       allow delete: if isAdmin();
     }
 
