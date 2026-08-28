@@ -1741,26 +1741,25 @@ export default function AttendancePage() {
           {/* Dynamic Dismissable Monthly Guidance Banner */}
           {showQuickRollBox && showQuickRollGuide && (
             <div className="p-2 rounded-xl bg-indigo-50/90 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 space-y-1.5 animate-fadeIn">
-                <div className="flex items-start justify-between gap-2 text-[10.5px] font-bold text-indigo-900 dark:text-indigo-100 p-2 rounded-xl bg-indigo-100/90 dark:bg-indigo-900/60 border border-indigo-300/80 dark:border-indigo-800/80 animate-fadeIn shadow-2xs">
-                  <div className="flex items-start gap-1.5 min-w-0 flex-1 leading-snug">
-                    <Info size={13} className="flex-shrink-0 text-indigo-600 dark:text-indigo-400 mt-0.5" />
-                    <div className="break-words">
-                      {quickRollMode === 'PRESENT_FIRST'
-                        ? <span>💡 <strong>Fill Present Mode:</strong> Typed roll numbers become <strong>Present (P)</strong>. All unlisted students are automatically marked <strong>Absent (A)</strong>.</span>
-                        : <span>💡 <strong>Fill Absent Mode:</strong> Typed roll numbers become <strong>Absent (A)</strong>. All unlisted students are automatically marked <strong>Present (P)</strong>.</span>
-                      }
-                    </div>
+              <div className="flex items-start justify-between gap-2 text-[10.5px] font-bold text-indigo-900 dark:text-indigo-100 p-2 rounded-xl bg-indigo-100/90 dark:bg-indigo-900/60 border border-indigo-300/80 dark:border-indigo-800/80 animate-fadeIn shadow-2xs">
+                <div className="flex items-start gap-1.5 min-w-0 flex-1 leading-snug">
+                  <Info size={13} className="flex-shrink-0 text-indigo-600 dark:text-indigo-400 mt-0.5" />
+                  <div className="break-words">
+                    {quickRollMode === 'PRESENT_FIRST'
+                      ? <span>💡 <strong>Fill Present Mode:</strong> Typed roll numbers become <strong>Present (P)</strong>. All unlisted students are automatically marked <strong>Absent (A)</strong>.</span>
+                      : <span>💡 <strong>Fill Absent Mode:</strong> Typed roll numbers become <strong>Absent (A)</strong>. All unlisted students are automatically marked <strong>Present (P)</strong>.</span>
+                    }
                   </div>
-                  <button
-                    type="button"
-                    onClick={handleDismissGuide}
-                    className="p-1 rounded-lg text-indigo-600 dark:text-indigo-300 hover:text-indigo-950 dark:hover:text-white hover:bg-indigo-200/60 dark:hover:bg-indigo-800/60 cursor-pointer flex-shrink-0 ml-1 transition-colors"
-                    title="Hide guide for this month"
-                  >
-                    <X size={13} />
-                  </button>
                 </div>
-              )}
+                <button
+                  type="button"
+                  onClick={handleDismissGuide}
+                  className="p-1 rounded-lg text-indigo-600 dark:text-indigo-300 hover:text-indigo-950 dark:hover:text-white hover:bg-indigo-200/60 dark:hover:bg-indigo-800/60 cursor-pointer flex-shrink-0 ml-1 transition-colors"
+                  title="Hide guide for this month"
+                >
+                  <X size={13} />
+                </button>
+              </div>
             </div>
           )}
 
