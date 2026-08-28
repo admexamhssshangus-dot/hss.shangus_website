@@ -663,18 +663,77 @@ async function legacySaveApplication(payload) {
   delete payloadData._upgradeMode;
   delete payloadData._provisionalFormNo;
 
+  let firestoreWriteSucceeded = false;
+  let firestoreWriteError = null;
+
   try {
     await setDoc(doc(db, 'admissions', sanitizedDocId), payloadData, { merge: true });
+    firestoreWriteSucceeded = true;
     updateCachedItem('admissions', sanitizedDocId, payloadData);
     try {
-      if (userEmail) localStorage.setItem(`hss_student_last_app_${userEmail}`, sanitizedDocId);
-      if (auth.currentUser?.uid) localStorage.setItem(`hss_student_last_app_${auth.currentUser.uid}`, sanitizedDocId);
+      if (userEmail) {
+        localStorage.setItem(`hss_student_last_app_${userEmail}`, sanitizedDocId);
+        const existingKey = `hss_student_all_apps_${userEmail}`;
+        const existingList = JSON.parse(localStorage.getItem(existingKey) || '[]');
+        if (!existingList.includes(sanitizedDocId)) {
+          existingList.push(sanitizedDocId);
+          localStorage.setItem(existingKey, JSON.stringify(existingList));
+        }
+      }
+      if (auth.currentUser?.uid) {
+        localStorage.setItem(`hss_student_last_app_${auth.currentUser.uid}`, sanitizedDocId);
+        const existingUidKey = `hss_student_all_apps_${auth.currentUser.uid}`;
+        const existingUidList = JSON.parse(localStorage.getItem(existingUidKey) || '[]');
+        if (!existingUidList.includes(sanitizedDocId)) {
+          existingUidList.push(sanitizedDocId);
+          localStorage.setItem(existingUidKey, JSON.stringify(existingUidList));
+        }
+      }
     } catch (_) {}
     try {
       await consumeFormNumber(formNo);
     } catch (_) {}
   } catch (e) {
     console.warn('Firestore saveApplication admissions write error:', e);
+    firestoreWriteError = e;
+  }
+
+  if (!firestoreWriteSucceeded && firestoreWriteError) {
+    const errText = String(firestoreWriteError?.message || firestoreWriteError?.code || '').toLowerCase();
+    const isQuotaExhausted = firestoreWriteError?.code === 'resource-exhausted' ||
+      errText.includes('quota') ||
+      errText.includes('resource_exhausted') ||
+      errText.includes('resource exhausted') ||
+      errText.includes('8 resource_exhausted');
+
+    // Save local draft fallback immediately so user loses nothing
+    try {
+      const draftObj = { formData: payloadData, updatedAt: new Date().toISOString() };
+      const uid = auth.currentUser?.uid || sessionUser?.uid || 'guest';
+      localStorage.setItem('hss_admission_draft', JSON.stringify(draftObj));
+      localStorage.setItem(`hss_student_draft_${uid}`, JSON.stringify(draftObj));
+      sessionStorage.setItem('hss_admission_draft', JSON.stringify(draftObj));
+      sessionStorage.setItem(`hss_student_draft_${uid}`, JSON.stringify(draftObj));
+    } catch (_) {}
+
+    if (isQuotaExhausted) {
+      return {
+        success: false,
+        error: 'quota_exhausted',
+        isQuotaExhausted: true,
+        draftSaved: true,
+        message: '⚠️ Server Daily Write Limit Reached: The admission database has temporarily reached its daily write capacity. Your complete application data has been safely saved as a Local Draft on this device. You will not lose any filled details. Please submit again tomorrow (or after 12:30 PM IST) when the server quota resets.',
+        formNumber: formNo,
+      };
+    }
+
+    return {
+      success: false,
+      error: 'write_failed',
+      draftSaved: true,
+      message: `Database submission failed (${firestoreWriteError.message || 'Server write error'}). Your details have been saved as a Draft on this device. Please try again shortly.`,
+      formNumber: formNo,
+    };
   }
 
   // ── ADMISSION HISTORY (upgrade only) ──
