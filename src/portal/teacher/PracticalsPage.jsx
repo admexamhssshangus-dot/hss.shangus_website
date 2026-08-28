@@ -13,38 +13,17 @@ import { printIndividualAwardRoll } from '../../utils/practicalsPdfGenerator';
 import { loadSiteSettings } from '../../utils/settingsLoader';
 import {
   getSubjectMarksConfig,
-  getAdminPracticalsSettings
+  getAdminPracticalsSettings,
+  SUBJECT_CONFIG_DEFS
 } from '../../utils/practicalsSettingsManager';
 import ModernLoader from '../../components/ModernLoader';
 
-// Subject Name to Code mapping (from legacy system)
-const SUBJECT_MAP = [
-  { name: 'General English', code: 'EN', defaultMax: 20 },
-  { name: 'Physics', code: 'PH', defaultMax: 10 },
-  { name: 'Chemistry', code: 'CH', defaultMax: 10 },
-  { name: 'Biology', code: 'BI', defaultMax: 20 },
-  { name: 'Botany', code: 'BO', defaultMax: 5 },
-  { name: 'Zoology', code: 'ZO', defaultMax: 5 },
-  { name: 'Environmental Science', code: 'ES', defaultMax: 10 },
-  { name: 'Physical Education', code: 'PD', defaultMax: 15 },
-  { name: 'IT And ITES', code: 'ITE', defaultMax: 50 },
-  { name: 'Healthcare', code: 'HTC', defaultMax: 50 },
-  { name: 'Computer Science', code: 'CS', defaultMax: 30 },
-  { name: 'Geography', code: 'GG', defaultMax: 20 },
-  { name: 'Mathematics', code: 'MA', defaultMax: 20 },
-  { name: 'Urdu', code: 'UR', defaultMax: 20 },
-  { name: 'Education', code: 'ED', defaultMax: 20 },
-  { name: 'History', code: 'HT', defaultMax: 20 },
-  { name: 'Political Science', code: 'PS', defaultMax: 20 },
-  { name: 'Economics', code: 'EC', defaultMax: 20 },
-  { name: 'Sociology', code: 'SO', defaultMax: 20 },
-  { name: 'Psychology', code: 'PY', defaultMax: 20 },
-  { name: 'Accountancy', code: 'AY', defaultMax: 20 },
-  { name: 'Business Studies', code: 'BS', defaultMax: 20 },
-  { name: 'Entrepreneurship', code: 'EP', defaultMax: 20 },
-  { name: 'Arabic', code: 'AR', defaultMax: 20 },
-  { name: 'Persian', code: 'PE', defaultMax: 20 },
-];
+// Comprehensive JKBOSE Subject List mapped for Teacher Evaluation Portal
+export const SUBJECT_MAP = SUBJECT_CONFIG_DEFS.map(s => ({
+  name: s.name,
+  code: s.code,
+  defaultMax: 20
+}));
 
 // Helper for Admission Number Formatting (handles numbers & sanitizes Excel formula errors)
 const cleanAdmNoVal = (val) => {
