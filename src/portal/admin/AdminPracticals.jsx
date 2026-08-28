@@ -32,6 +32,11 @@ import {
   VALID_SUBJECT_CODES
 } from '../../utils/practicalsCsvManager';
 import { toTitleCase } from '../../utils/textFormatting';
+import {
+  SUBJECT_CONFIG_DEFS,
+  DEFAULT_PRACTICAL_MARKS_CONFIG,
+  getSubjectMarksConfig
+} from '../../utils/practicalsSettingsManager';
 
 const CODES = ['EN', 'PH', 'CH', 'MA', 'UR', 'ED', 'HT', 'PS', 'EC', 'ES', 'PD', 'HTC', 'ITE', 'BO', 'ZO', 'BI'];
 const NAMES = {
@@ -448,6 +453,7 @@ export default function AdminPracticals() {
   const [students, setStudents] = useState([]);
   const [teachers, setTeachers] = useState([]);
   const [settings, setSettings] = useState({
+    evaluationMarksConfig: DEFAULT_PRACTICAL_MARKS_CONFIG,
     maxMarks11: DEFAULT_MX11,
     maxMarks12: DEFAULT_MX12,
     nonPractical11: '',
@@ -502,7 +508,13 @@ export default function AdminPracticals() {
 
       if (!setDocSnap.empty) {
         const d = setDocSnap.docs.find(x => x.id === 'config')?.data();
-        if (d) setSettings(p => ({ ...p, ...d }));
+        if (d) {
+          setSettings(p => ({
+            ...p,
+            ...d,
+            evaluationMarksConfig: d.evaluationMarksConfig || d.evaluationSettings || d.marksConfig || p.evaluationMarksConfig || DEFAULT_PRACTICAL_MARKS_CONFIG
+          }));
+        }
       }
 
       const studentsMap = new Map();
@@ -1710,7 +1722,7 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings }) {
                         submissions,
                         isExternal: localPrintOpts.practicalType === 'external',
                         selectedSubjectCodes: activeSubjects,
-                        printDetails: localPrintOpts
+                        printDetails: { ...localPrintOpts, settings }
                       });
                     }}
                     className="w-full px-2.5 py-1.5 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-950/40 text-left font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2 cursor-pointer transition-colors"
@@ -1843,7 +1855,8 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings }) {
                   students: listToPrint,
                   submissions,
                   selectedSubjectCodes: activeSubjects,
-                  isExternal: localPrintOpts.practicalType === 'external'
+                  isExternal: localPrintOpts.practicalType === 'external',
+                  printDetails: { ...localPrintOpts, settings }
                 });
               }}
               className="px-2 py-0.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-[11px] font-black cursor-pointer flex items-center gap-1 shadow-2xs"
@@ -3126,6 +3139,306 @@ function FacultySubmissionsView({
 }
 
 // ─────────────────────────────────────────────────────────────
+// SUBJECT MARKS & EVALUATION CRITERIA SETTINGS CARD
+// ─────────────────────────────────────────────────────────────
+function SubjectMarksSettingsCard({ settings, setSettings, saveSettingsDoc, saving }) {
+  const [activeClassTab, setActiveClassTab] = useState('11th');
+  const [activeTypeTab, setActiveTypeTab] = useState('internal');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [streamFilter, setStreamFilter] = useState('all');
+  const [marksSaved, setMarksSaved] = useState(false);
+
+  const evalMarksConfig = settings.evaluationMarksConfig || DEFAULT_PRACTICAL_MARKS_CONFIG;
+  const currentClassConfig = evalMarksConfig[activeClassTab] || DEFAULT_PRACTICAL_MARKS_CONFIG[activeClassTab];
+  const currentTypeConfig = currentClassConfig[activeTypeTab] || DEFAULT_PRACTICAL_MARKS_CONFIG[activeClassTab][activeTypeTab];
+
+  const handleUpdateMarks = (code, field, val) => {
+    const rawVal = val.trim();
+    const num = rawVal === '' ? '' : parseInt(rawVal, 10);
+
+    setSettings(prev => {
+      const cfg = JSON.parse(JSON.stringify(prev.evaluationMarksConfig || DEFAULT_PRACTICAL_MARKS_CONFIG));
+      if (!cfg[activeClassTab]) cfg[activeClassTab] = {};
+      if (!cfg[activeClassTab][activeTypeTab]) cfg[activeClassTab][activeTypeTab] = {};
+
+      const currentSub = { ...(cfg[activeClassTab][activeTypeTab][code] || { max: 20, min: 7 }) };
+
+      if (field === 'max') {
+        const newMax = num === '' ? '' : Math.max(1, isNaN(num) ? 0 : num);
+        currentSub.max = newMax;
+        if (typeof newMax === 'number' && newMax > 0) {
+          if (!currentSub.min || currentSub.min > newMax) {
+            currentSub.min = Math.ceil(0.36 * newMax);
+          }
+        }
+      } else if (field === 'min') {
+        currentSub.min = num === '' ? '' : Math.max(0, isNaN(num) ? 0 : num);
+      }
+
+      cfg[activeClassTab][activeTypeTab][code] = currentSub;
+
+      // Keep legacy maps in sync
+      const legacyMax11 = { ...(prev.maxMarks11 || DEFAULT_MX11) };
+      const legacyMax12 = { ...(prev.maxMarks12 || DEFAULT_MX12) };
+      if (activeClassTab === '11th' && activeTypeTab === 'internal' && typeof currentSub.max === 'number') {
+        legacyMax11[code] = currentSub.max;
+      }
+      if (activeClassTab === '12th' && activeTypeTab === 'internal' && typeof currentSub.max === 'number') {
+        legacyMax12[code] = currentSub.max;
+      }
+
+      return {
+        ...prev,
+        evaluationMarksConfig: cfg,
+        maxMarks11: legacyMax11,
+        maxMarks12: legacyMax12
+      };
+    });
+  };
+
+  const handleSaveMarks = async () => {
+    const ok = await saveSettingsDoc('Subject Marks Configuration', settings);
+    if (ok) {
+      setMarksSaved(true);
+      setTimeout(() => setMarksSaved(false), 3000);
+    }
+  };
+
+  const handleResetDefaults = () => {
+    if (!window.confirm('Reset all subject marks for all classes and evaluation types to JKBOSE standard defaults?')) return;
+    setSettings(prev => ({
+      ...prev,
+      evaluationMarksConfig: JSON.parse(JSON.stringify(DEFAULT_PRACTICAL_MARKS_CONFIG)),
+      maxMarks11: { ...DEFAULT_MX11 },
+      maxMarks12: { ...DEFAULT_MX12 }
+    }));
+  };
+
+  const filteredSubjects = SUBJECT_CONFIG_DEFS.filter(sub => {
+    if (streamFilter === 'science' && !sub.stream.toLowerCase().includes('science')) return false;
+    if (streamFilter === 'humanities' && !sub.stream.toLowerCase().includes('humanities')) return false;
+    if (streamFilter === 'commerce' && !sub.stream.toLowerCase().includes('commerce')) return false;
+    if (streamFilter === 'vocational' && !sub.stream.toLowerCase().includes('vocational')) return false;
+    if (streamFilter === 'lab' && !sub.isLab) return false;
+
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.toLowerCase();
+    return sub.name.toLowerCase().includes(q) || sub.code.toLowerCase().includes(q) || sub.stream.toLowerCase().includes(q);
+  });
+
+  return (
+    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-3.5 sm:p-4 shadow-xs space-y-3">
+      {/* Header & Main Save Bar */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
+        <div>
+          <h3 className="text-xs sm:text-sm font-black text-slate-900 dark:text-white flex items-center gap-2">
+            <Award size={16} className="text-indigo-500" /> Subject Marks & Evaluation Criteria
+          </h3>
+          <p className="text-[10.5px] font-semibold text-slate-500">
+            Configure Max Marks and Min / Pass Marks for Internal & External Practicals.
+          </p>
+        </div>
+        <div className="flex items-center gap-1.5 self-end sm:self-auto">
+          <button
+            type="button"
+            onClick={handleResetDefaults}
+            className="px-2.5 py-1 rounded-xl text-[11px] font-bold border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer transition-colors"
+            title="Reset marks matrix to official JKBOSE standard defaults"
+          >
+            Reset Defaults
+          </button>
+          <button
+            type="button"
+            onClick={handleSaveMarks}
+            disabled={saving}
+            className={`px-3 py-1 rounded-xl text-xs font-black cursor-pointer shadow-2xs flex items-center gap-1.5 transition-all ${
+              marksSaved ? 'bg-emerald-600 text-white' : 'bg-indigo-600 hover:bg-indigo-500 text-white'
+            }`}
+          >
+            {marksSaved ? <Check size={13} /> : <Save size={13} />} {marksSaved ? 'Saved!' : saving ? 'Saving...' : 'Save Marks'}
+          </button>
+        </div>
+      </div>
+
+      {/* Class and Evaluation Type Switcher Tabs */}
+      <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Class Switcher */}
+          <div className="flex items-center p-0.5 rounded-xl bg-slate-100 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700/80">
+            <button
+              type="button"
+              onClick={() => setActiveClassTab('11th')}
+              className={`px-3 py-1 rounded-lg text-xs font-black transition-all cursor-pointer ${
+                activeClassTab === '11th'
+                  ? 'bg-indigo-600 text-white shadow-xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              Class 11th
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveClassTab('12th')}
+              className={`px-3 py-1 rounded-lg text-xs font-black transition-all cursor-pointer ${
+                activeClassTab === '12th'
+                  ? 'bg-indigo-600 text-white shadow-xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              Class 12th
+            </button>
+          </div>
+
+          {/* Evaluation Type Switcher */}
+          <div className="flex items-center p-0.5 rounded-xl bg-slate-100 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700/80">
+            <button
+              type="button"
+              onClick={() => setActiveTypeTab('internal')}
+              className={`px-3 py-1 rounded-lg text-xs font-black transition-all cursor-pointer flex items-center gap-1 ${
+                activeTypeTab === 'internal'
+                  ? 'bg-indigo-600 text-white shadow-xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              <BookOpen size={12} /> Internal Assessment
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTypeTab('external')}
+              className={`px-3 py-1 rounded-lg text-xs font-black transition-all cursor-pointer flex items-center gap-1 ${
+                activeTypeTab === 'external'
+                  ? 'bg-indigo-600 text-white shadow-xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              <Award size={12} /> External Practical
+            </button>
+          </div>
+        </div>
+
+        {/* Filter / Search Bar */}
+        <div className="flex items-center gap-1.5 w-full sm:w-auto">
+          <div className="relative flex-1 sm:w-44">
+            <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Search subject..."
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              className="w-full pl-7 pr-2 py-1 rounded-xl text-xs font-bold border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 focus:outline-none"
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Stream Category Filters */}
+      <div className="flex flex-wrap items-center gap-1 text-[11px] font-bold">
+        {[
+          { id: 'all', label: 'All Subjects' },
+          { id: 'lab', label: 'Lab Practicals Only' },
+          { id: 'science', label: 'Science' },
+          { id: 'vocational', label: 'Vocational' },
+          { id: 'humanities', label: 'Humanities' },
+          { id: 'commerce', label: 'Commerce' },
+        ].map(cat => (
+          <button
+            key={cat.id}
+            type="button"
+            onClick={() => setStreamFilter(cat.id)}
+            className={`px-2 py-0.5 rounded-lg transition-colors cursor-pointer ${
+              streamFilter === cat.id
+                ? 'bg-indigo-100 text-indigo-800 dark:bg-indigo-950/60 dark:text-indigo-300 font-black'
+                : 'bg-slate-100 dark:bg-slate-800/60 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800'
+            }`}
+          >
+            {cat.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Responsive Subject Marks Table */}
+      <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-2xs">
+        <div className="max-h-[340px] overflow-y-auto">
+          <table className="w-full text-left border-collapse text-xs">
+            <thead className="bg-slate-100 dark:bg-slate-800/90 text-slate-700 dark:text-slate-300 uppercase text-[10px] font-black sticky top-0 z-10 border-b border-slate-200 dark:border-slate-700">
+              <tr>
+                <th className="py-2 px-3">Subject Name & Code</th>
+                <th className="py-2 px-2.5 text-center">Category / Stream</th>
+                <th className="py-2 px-3 text-center w-28">Max Marks</th>
+                <th className="py-2 px-3 text-center w-28">Min / Pass</th>
+                <th className="py-2 px-3 text-center hidden sm:table-cell">Pass % Ratio</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium">
+              {filteredSubjects.map(sub => {
+                const subConfig = currentTypeConfig?.[sub.code] || { max: 20, min: 7 };
+                const maxVal = subConfig.max ?? 20;
+                const minVal = subConfig.min ?? Math.ceil(0.36 * Number(maxVal || 20));
+                const passRatio = Number(maxVal) > 0 ? Math.round((Number(minVal) / Number(maxVal)) * 100) : 36;
+
+                return (
+                  <tr key={sub.code} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
+                    <td className="py-2 px-3">
+                      <div className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                        <span>{sub.name}</span>
+                        <span className="px-1.5 py-0.2 rounded text-[10px] font-black bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border border-indigo-100 dark:border-indigo-800">
+                          {sub.code}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="py-2 px-2.5 text-center">
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                        sub.isLab
+                          ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-100 dark:border-emerald-800'
+                          : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
+                      }`}>
+                        {sub.stream} {sub.isLab ? '• Lab' : ''}
+                      </span>
+                    </td>
+                    <td className="py-2 px-3 text-center">
+                      <input
+                        type="number"
+                        min="1"
+                        max="100"
+                        value={maxVal}
+                        onChange={e => handleUpdateMarks(sub.code, 'max', e.target.value)}
+                        className="w-20 px-2 py-1 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg text-center font-black text-xs text-indigo-600 dark:text-indigo-400 focus:ring-1 focus:ring-indigo-500 outline-none"
+                      />
+                    </td>
+                    <td className="py-2 px-3 text-center">
+                      <input
+                        type="number"
+                        min="0"
+                        max={maxVal || 100}
+                        value={minVal}
+                        onChange={e => handleUpdateMarks(sub.code, 'min', e.target.value)}
+                        className="w-20 px-2 py-1 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg text-center font-black text-xs text-emerald-600 dark:text-emerald-400 focus:ring-1 focus:ring-indigo-500 outline-none"
+                      />
+                    </td>
+                    <td className="py-2 px-3 text-center hidden sm:table-cell">
+                      <span className="text-[11px] font-bold text-slate-500">
+                        {passRatio}% ({minVal}/{maxVal})
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
+              {filteredSubjects.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="py-8 text-center text-slate-400 font-bold text-xs">
+                    No subjects match the search or filter criteria.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
 // SETTINGS & PERMISSIONS COMPONENT
 // ─────────────────────────────────────────────────────────────
 function SettingsPermissionsView({
@@ -3163,8 +3476,8 @@ function SettingsPermissionsView({
 
   return (
     <div className="grid grid-cols-1 xl:grid-cols-12 gap-3.5 items-start">
-      {/* LEFT COLUMN: Teacher Evaluation Permissions (xl:col-span-5) */}
-      <div className="xl:col-span-5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-3.5 sm:p-4 shadow-xs space-y-3">
+      {/* LEFT COLUMN: Teacher Evaluation Permissions (xl:col-span-4) */}
+      <div className="xl:col-span-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-3.5 sm:p-4 shadow-xs space-y-3">
         <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
           <h3 className="text-xs sm:text-sm font-black text-slate-900 dark:text-white flex items-center gap-2">
             <Shield size={16} className="text-indigo-500" /> Teacher Permissions
@@ -3232,9 +3545,17 @@ function SettingsPermissionsView({
         </div>
       </div>
 
-      {/* RIGHT COLUMN: Global Configuration & Print Defaults (xl:col-span-7) */}
-      <div className="xl:col-span-7 space-y-3.5">
-        {/* Card 1: Global System Configuration */}
+      {/* RIGHT COLUMN: Subject Marks Configuration, Global Configuration & Print Defaults (xl:col-span-8) */}
+      <div className="xl:col-span-8 space-y-3.5">
+        {/* Card 1: Dedicated Subject Marks Manager */}
+        <SubjectMarksSettingsCard
+          settings={settings}
+          setSettings={setSettings}
+          saveSettingsDoc={saveSettingsDoc}
+          saving={saving}
+        />
+
+        {/* Card 2: Global System Configuration */}
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-3.5 sm:p-4 shadow-xs space-y-3">
           <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
             <h3 className="text-xs sm:text-sm font-black text-slate-900 dark:text-white flex items-center gap-2">
@@ -3306,7 +3627,7 @@ function SettingsPermissionsView({
           </div>
         </div>
 
-        {/* Card 2: Print Document Defaults & Headers */}
+        {/* Card 3: Print Document Defaults & Headers */}
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-3.5 sm:p-4 shadow-xs space-y-3">
           <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
             <h3 className="text-xs sm:text-sm font-black text-slate-900 dark:text-white flex items-center gap-2">

@@ -11,6 +11,10 @@ import { collection, getDocs, doc, setDoc, addDoc } from 'firebase/firestore';
 import { getCachedCollection } from '../../services/dbCache';
 import { printIndividualAwardRoll } from '../../utils/practicalsPdfGenerator';
 import { loadSiteSettings } from '../../utils/settingsLoader';
+import {
+  getSubjectMarksConfig,
+  getAdminPracticalsSettings
+} from '../../utils/practicalsSettingsManager';
 import ModernLoader from '../../components/ModernLoader';
 
 // Subject Name to Code mapping (from legacy system)
@@ -707,11 +711,6 @@ function renderSubjectsWithHighlight(subjectsStr, currentSubjObj) {
   });
 }
 
-function getMinPassMarks(maxMarks) {
-  const m = parseInt(maxMarks, 10) || 30;
-  return Math.ceil(0.36 * m);
-}
-
 // Helper: Precise Subject Matcher — exact token + word-boundary match only, no stream-level fallback
 function isSubjectMatch(student, targetSubjectCode) {
   if (!targetSubjectCode) return true;
@@ -763,7 +762,7 @@ function isSubjectMatch(student, targetSubjectCode) {
 }
 
 // Custom Subject Dropdown (prevents native Chrome select popovers from shooting up to header)
-function CustomSubjectSelect({ selectedSubject, setSelectedSubject, subjectMap, currentSubjectObj }) {
+function CustomSubjectSelect({ selectedSubject, setSelectedSubject, subjectMap, currentSubjectObj, getSubjectMax, subjectMaxMarks, minPassMarks }) {
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState('');
   const containerRef = useRef(null);
@@ -788,14 +787,14 @@ function CustomSubjectSelect({ selectedSubject, setSelectedSubject, subjectMap, 
   return (
     <div className="space-y-0.5 relative" ref={containerRef}>
       <label className="text-[10px] font-black text-slate-700 dark:text-slate-300">
-        Subject ({currentSubjectObj.code})
+        Subject ({currentSubjectObj.code}) • {subjectMaxMarks}M (Pass: {minPassMarks}M)
       </label>
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
         className="w-full px-2 py-1.5 rounded-lg text-xs font-bold border flex items-center justify-between gap-1 bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 shadow-xs cursor-pointer focus:outline-none focus:ring-1 focus:ring-indigo-500"
       >
-        <span className="truncate">{selectedItem.name} ({selectedItem.code}) - {selectedItem.defaultMax}M</span>
+        <span className="truncate">{selectedItem.name} ({selectedItem.code}) - {subjectMaxMarks}M</span>
         <ChevronDown size={13} className={`text-slate-400 shrink-0 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 
@@ -812,6 +811,7 @@ function CustomSubjectSelect({ selectedSubject, setSelectedSubject, subjectMap, 
           <div className="overflow-y-auto max-h-48 space-y-0.5 pr-0.5 no-scrollbar">
             {filtered.map((s) => {
               const isSelected = s.name === selectedSubject;
+              const sMax = getSubjectMax ? getSubjectMax(s.code) : s.defaultMax;
               return (
                 <button
                   key={s.code}
@@ -827,7 +827,7 @@ function CustomSubjectSelect({ selectedSubject, setSelectedSubject, subjectMap, 
                       : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
                   }`}
                 >
-                  <span className="truncate">{s.name} ({s.code}) - {s.defaultMax}M</span>
+                  <span className="truncate">{s.name} ({s.code}) - {sMax}M</span>
                   {isSelected && <Check size={12} className="shrink-0 ml-1" />}
                 </button>
               );
@@ -854,12 +854,17 @@ export default function PracticalsPage() {
   const [sortBy, setSortBy] = useState('rollAsc'); // 'rollAsc' | 'rollDesc' | 'nameAsc' | 'formAsc'
   const [showFilterSettings, setShowFilterSettings] = useState(false);
   const [isSubmissionOpen, setIsSubmissionOpen] = useState(true);
+  const [practicalsSettings, setPracticalsSettings] = useState(null);
 
   useEffect(() => {
     loadSiteSettings().then(cfg => {
       if (cfg && cfg.practicalsSubmissionOpen !== undefined) {
         setIsSubmissionOpen(Boolean(cfg.practicalsSubmissionOpen));
       }
+    }).catch(() => {});
+
+    getAdminPracticalsSettings().then(cfg => {
+      if (cfg) setPracticalsSettings(cfg);
     }).catch(() => {});
   }, []);
 
@@ -932,8 +937,14 @@ export default function PracticalsPage() {
   }, []);
 
   const currentSubjectObj = SUBJECT_MAP.find(s => s.name === selectedSubject) || SUBJECT_MAP[1];
-  const subjectMaxMarks = currentSubjectObj.defaultMax;
-  const minPassMarks = getMinPassMarks(subjectMaxMarks);
+  const evalTypeNorm = String(practicalType || '').toLowerCase().includes('ext') ? 'external' : 'internal';
+  const currentMarksConfig = getSubjectMarksConfig(practicalsSettings, selectedClass, evalTypeNorm, currentSubjectObj.code);
+  const subjectMaxMarks = currentMarksConfig.max;
+  const minPassMarks = currentMarksConfig.min;
+
+  const getSubjectMax = useCallback((code) => {
+    return getSubjectMarksConfig(practicalsSettings, selectedClass, evalTypeNorm, code).max;
+  }, [practicalsSettings, selectedClass, evalTypeNorm]);
 
   // Fetch Roster strictly for confirmed students with assigned class roll numbers
   const fetchPracticalData = useCallback(async () => {
@@ -1657,7 +1668,8 @@ export default function PracticalsPage() {
       session: sessionStr,
       records: recordsForPrint,
       isExternal,
-      maxMarks: subjectMaxMarks
+      maxMarks: subjectMaxMarks,
+      minMarks: minPassMarks
     });
   };
 
@@ -1783,7 +1795,7 @@ export default function PracticalsPage() {
                 <div className="flex items-center gap-1.5 truncate">
                   <SlidersHorizontal size={13} className="text-indigo-600 dark:text-indigo-400 shrink-0" />
                   <span className="truncate text-[10.5px]">
-                    {selectedClass} • {currentSubjectObj.name} ({currentSubjectObj.code}) • {practicalType.split(' ')[0]} • {yearSuffix}
+                    {selectedClass} • {currentSubjectObj.name} ({currentSubjectObj.code}) • {practicalType.split(' ')[0]} ({subjectMaxMarks}M | Pass: {minPassMarks}M) • {yearSuffix}
                   </span>
                 </div>
                 <span className="text-[9.5px] font-extrabold px-1.5 py-0.5 rounded bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20 shrink-0 flex items-center gap-0.5">
@@ -1859,6 +1871,9 @@ export default function PracticalsPage() {
                   setSelectedSubject={setSelectedSubject}
                   subjectMap={SUBJECT_MAP}
                   currentSubjectObj={currentSubjectObj}
+                  getSubjectMax={getSubjectMax}
+                  subjectMaxMarks={subjectMaxMarks}
+                  minPassMarks={minPassMarks}
                 />
 
                 <div className="space-y-0.5">
