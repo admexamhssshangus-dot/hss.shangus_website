@@ -1829,11 +1829,10 @@ export default function DynamicFormField({
                         (Choose stream to configure subjects)
                       </span>
                     </div>
-                    <div className="grid grid-cols-3 gap-1 p-0.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 sm:w-auto w-full">
+                    <div className="grid grid-cols-2 gap-1 p-0.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 sm:w-auto w-full">
                       {[
                         { val: 'Science', label: '🔬 Science' },
                         { val: 'Humanities', label: '📚 Humanities' },
-                        { val: 'Commerce', label: '📊 Commerce' },
                       ].map(s => {
                         const isCurrent = strm.toLowerCase() === s.val.toLowerCase();
                         return (

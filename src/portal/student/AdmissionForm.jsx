@@ -1085,7 +1085,7 @@ export default function AdmissionForm() {
         : !selectedAdmissionType
         ? 'Please select the admission type (Full or Provisional).'
         : isHigherSecondary && !hasStreamIfHigherSec
-        ? 'Please select your stream (Science, Humanities, or Commerce).'
+        ? 'Please select your stream (Science or Humanities).'
         : 'Please select the reason for provisional admission.';
       setAlert({ type: 'error', text: msg });
       document.querySelector('#admission-start')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -2990,11 +2990,10 @@ export default function AdmissionForm() {
                                     <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300 flex items-center justify-between">
                                       <span>3. {selectedClass === '12th' ? 'Stream in Class 11th/12th' : 'Stream Selection'} <span className="text-red-500">*</span></span>
                                     </label>
-                                    <div className="grid grid-cols-3 gap-1.5 p-1 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                                    <div className="grid grid-cols-2 gap-1.5 p-1 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
                                       {[
                                         { val: 'Science', label: 'Science' },
                                         { val: 'Humanities', label: 'Humanities' },
-                                        { val: 'Commerce', label: 'Commerce' },
                                       ].map(st => {
                                         const currentStream = selectedClass === '12th'
                                           ? (formData['Stream opted in Class 11th'] || formData['Stream for Class 11th'] || formData['Stream'] || '')
@@ -3083,7 +3082,7 @@ export default function AdmissionForm() {
                               : selectedAdmissionType === 'Provisional' && !hasReasonIfProvisional
                               ? '👉 Please select Reason for Provisional Admission'
                               : isHigherSecondary && !hasStreamIfHigherSec
-                              ? '👉 Please select your Stream (Science, Humanities, or Commerce)'
+                              ? '👉 Please select your Stream (Science or Humanities)'
                               : 'Select your admission options above to open the application form'}
                           </div>
                           <p className="text-[10.5px] text-slate-500">The application form will unlock automatically once your initial setup is selected.</p>

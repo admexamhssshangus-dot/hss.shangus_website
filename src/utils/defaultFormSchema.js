@@ -92,10 +92,10 @@ export const DEFAULT_FORM_STRUCTURE = [
   { "Field Name": "Percentage Obtained in Vocational Subject", "Field Type": "text", "Is Required?": "FALSE", "Options / Range / Length": "10" },
 
   // 6. Subject Selections
-  { "Field Name": "Stream for Class 11th", "Field Type": "list", "Is Required?": "TRUE", "Classes": "11th", "Options / Range / Length": "Medical, Non-Medical, Science, Arts, Humanities, Commerce", "Help Text": "Choose your academic stream: Science (Medical/Non-Medical), Arts/Humanities, or Commerce." },
+  { "Field Name": "Stream for Class 11th", "Field Type": "list", "Is Required?": "TRUE", "Classes": "11th", "Options / Range / Length": "Science, Arts, Humanities", "Help Text": "Choose your academic stream: Science or Arts/Humanities." },
   { "Field Name": "Subjects to be taken in Class 11th", "Field Type": "checkbox_dynamic", "Is Required?": "TRUE", "Classes": "11th", "Help Text": "Select 5 subjects including General English (compulsory) plus your elective and skill subjects." },
   { "Field Name": "Subjects to Reappear (Class 10th)", "Field Type": "text", "Is Required?": "FALSE", "Classes": "11th", "Options / Range / Length": "150", "Help Text": "List the subject(s) in which you have reappear/compartment in Class 10th for provisional verification." },
-  { "Field Name": "Stream opted in Class 11th", "Field Type": "list", "Is Required?": "TRUE", "Classes": "12th", "Options / Range / Length": "Medical, Non-Medical, Science, Arts, Humanities, Commerce" },
+  { "Field Name": "Stream opted in Class 11th", "Field Type": "list", "Is Required?": "TRUE", "Classes": "12th", "Options / Range / Length": "Science, Arts, Humanities" },
   { "Field Name": "Subjects Studied in Class 11th", "Field Type": "checkbox_dynamic", "Is Required?": "TRUE", "Classes": "12th" },
   { "Field Name": "Stream & Subjects for Class 12th", "Field Type": "text", "Is Required?": "FALSE", "Classes": "12th", "Options / Range / Length": "150" },
   { "Field Name": "Subjects to Reappear (Class 11th)", "Field Type": "text", "Is Required?": "FALSE", "Classes": "12th", "Options / Range / Length": "150" },
