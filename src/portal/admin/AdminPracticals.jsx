@@ -3247,14 +3247,19 @@ function SubjectMarksSettingsCard({ settings, setSettings, saveSettingsDoc, savi
     }
   };
 
-  const handleResetDefaults = () => {
-    if (!window.confirm('Reset all subject marks for all classes and evaluation types to JKBOSE standard defaults?')) return;
-    setSettings(prev => ({
-      ...prev,
-      evaluationMarksConfig: JSON.parse(JSON.stringify(DEFAULT_PRACTICAL_MARKS_CONFIG)),
+  const handleResetDefaults = async () => {
+    if (!window.confirm('Reset all subject marks for all classes and evaluation types to official JKBOSE standard defaults?')) return;
+    const defaultCfg = JSON.parse(JSON.stringify(DEFAULT_PRACTICAL_MARKS_CONFIG));
+    const updatedSettings = {
+      ...settings,
+      evaluationMarksConfig: defaultCfg,
       maxMarks11: { ...DEFAULT_MX11 },
       maxMarks12: { ...DEFAULT_MX12 }
-    }));
+    };
+    setSettings(updatedSettings);
+    await saveSettingsDoc('Official JKBOSE Marks Reset', updatedSettings);
+    setMarksSaved(true);
+    setTimeout(() => setMarksSaved(false), 3000);
   };
 
   const streamCounts = useMemo(() => {
@@ -3450,9 +3455,10 @@ function SubjectMarksSettingsCard({ settings, setSettings, saveSettingsDoc, savi
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium">
               {filteredSubjects.map((sub, idx) => {
-                const subConfig = currentTypeConfig?.[sub.code] || { max: 20, min: 7 };
-                const maxVal = subConfig.max ?? 20;
-                const minVal = subConfig.min ?? Math.ceil(0.36 * Number(maxVal || 20));
+                const defaultSub = DEFAULT_PRACTICAL_MARKS_CONFIG[activeClassTab]?.[activeTypeTab]?.[sub.code] || { max: 20, min: 7 };
+                const subConfig = currentTypeConfig?.[sub.code] || defaultSub;
+                const maxVal = subConfig.max !== undefined && subConfig.max !== null ? subConfig.max : defaultSub.max;
+                const minVal = subConfig.min !== undefined && subConfig.min !== null ? subConfig.min : (defaultSub.min || Math.ceil(0.36 * Number(maxVal || 20)));
                 const numMax = Number(maxVal) || 20;
                 const numMin = Number(minVal) || 7;
                 const passRatio = numMax > 0 ? Math.round((numMin / numMax) * 100) : 36;
