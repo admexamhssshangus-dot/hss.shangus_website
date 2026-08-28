@@ -3463,174 +3463,130 @@ function SubjectMarksSettingsCard({ settings, setSettings, saveSettingsDoc, savi
   });
 
   return (
-    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-4 sm:p-6 shadow-sm space-y-4">
-      {/* Header & Main Actions */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3.5 border-b border-slate-100 dark:border-slate-800">
-        <div>
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-2xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shadow-xs">
-              <Award size={18} strokeWidth={2.5} />
-            </div>
-            <div>
-              <h3 className="text-sm sm:text-base font-black text-slate-900 dark:text-white flex items-center gap-2">
-                Subject Marks & Passing Criteria
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-800/60">
-                  JKBOSE Compliant
-                </span>
-              </h3>
-              <p className="text-[11px] font-semibold text-slate-500">
-                Configure Max Marks and Passing Thresholds for Class 11th & 12th evaluations.
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2 self-start md:self-auto">
-          <button
-            type="button"
-            onClick={() => setIsResetModalOpen(true)}
-            className="px-3 py-1.5 rounded-xl text-xs font-bold border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/80 cursor-pointer transition-all flex items-center gap-1.5 shadow-2xs"
-            title="Reset marks matrix to official JKBOSE standard defaults"
-          >
-            <RotateCcw size={12} /> Reset Defaults
-          </button>
-          <button
-            type="button"
-            onClick={handleSaveMarks}
-            disabled={saving}
-            className={`px-4 py-1.5 rounded-xl text-xs font-black cursor-pointer shadow-sm flex items-center gap-1.5 transition-all ${
-              marksSaved ? 'bg-emerald-600 text-white scale-[1.02]' : 'bg-indigo-600 hover:bg-indigo-500 text-white active:scale-95'
-            }`}
-          >
-            {marksSaved ? <Check size={14} /> : <Save size={14} />} {marksSaved ? 'Configuration Saved!' : saving ? 'Saving Changes...' : 'Save Marks Configuration'}
-          </button>
-        </div>
-      </div>
-
-      {/* Segmented Controls & Search Toolbar */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 bg-slate-50/70 dark:bg-slate-950/50 p-2.5 rounded-2xl border border-slate-150 dark:border-slate-800">
-        <div className="flex flex-wrap items-center gap-2.5">
+    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-2.5 sm:p-3.5 shadow-2xs space-y-2">
+      {/* Ultra-Compact Unified Toolbar */}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        {/* Left: Class + Evaluation Type + Stream Filter */}
+        <div className="flex items-center gap-1.5 flex-wrap">
           {/* Class Switcher */}
-          <div className="flex items-center p-1 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xs">
-            <button
-              type="button"
-              onClick={() => setActiveClassTab('11th')}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 ${
-                activeClassTab === '11th'
-                  ? 'bg-indigo-600 text-white shadow-xs'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-              }`}
-            >
-              <Award size={13} /> Class 11th
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveClassTab('12th')}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 ${
-                activeClassTab === '12th'
-                  ? 'bg-indigo-600 text-white shadow-xs'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-              }`}
-            >
-              <Award size={13} /> Class 12th
-            </button>
+          <div className="inline-flex items-center p-0.5 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+            {['11th', '12th'].map(c => (
+              <button
+                key={c}
+                type="button"
+                onClick={() => setActiveClassTab(c)}
+                className={`px-2.5 py-1 rounded-md text-xs font-bold transition-all cursor-pointer ${
+                  activeClassTab === c
+                    ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-2xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                Class {c}
+              </button>
+            ))}
           </div>
 
-          {/* Evaluation Type Switcher */}
-          <div className="flex items-center p-1 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xs">
+          {/* Type Switcher */}
+          <div className="inline-flex items-center p-0.5 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
             <button
               type="button"
               onClick={() => setActiveTypeTab('internal')}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 ${
+              className={`px-2.5 py-1 rounded-md text-xs font-bold transition-all cursor-pointer ${
                 activeTypeTab === 'internal'
-                  ? 'bg-indigo-600 text-white shadow-xs'
+                  ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-2xs'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
-              <BookOpen size={13} /> Internal Assessment
+              Internal Assessment
             </button>
             <button
               type="button"
               onClick={() => setActiveTypeTab('external')}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 ${
+              className={`px-2.5 py-1 rounded-md text-xs font-bold transition-all cursor-pointer ${
                 activeTypeTab === 'external'
-                  ? 'bg-indigo-600 text-white shadow-xs'
+                  ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-2xs'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
-              <Award size={13} /> External Practical
+              External Practical
             </button>
           </div>
+
+          {/* Stream Filter Dropdown */}
+          <select
+            value={streamFilter}
+            onChange={e => setStreamFilter(e.target.value)}
+            className="px-2 py-1 rounded-lg text-xs font-bold border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-700 dark:text-slate-300 cursor-pointer focus:outline-none"
+          >
+            <option value="all">All Subjects ({streamCounts.all})</option>
+            <option value="lab">Lab Practicals ({streamCounts.lab})</option>
+            <option value="science">Science ({streamCounts.science})</option>
+            <option value="vocational">Vocational ({streamCounts.vocational})</option>
+            <option value="humanities">Humanities ({streamCounts.humanities})</option>
+            <option value="commerce">Commerce ({streamCounts.commerce})</option>
+          </select>
         </div>
 
-        {/* Live Search */}
-        <div className="relative w-full lg:w-64">
-          <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input
-            type="text"
-            placeholder="Search subject by code or name..."
-            value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-            className="w-full pl-8 pr-7 py-1.5 rounded-xl text-xs font-bold border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-2xs"
-          />
-          {searchQuery && (
-            <button
-              type="button"
-              onClick={() => setSearchQuery('')}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
-            >
-              <X size={12} />
-            </button>
-          )}
-        </div>
-      </div>
+        {/* Right: Search + Reset + Save */}
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <div className="relative">
+            <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Search..."
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              className="w-32 sm:w-44 pl-7 pr-6 py-1 rounded-lg text-xs font-bold border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:outline-none"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+              >
+                <X size={11} />
+              </button>
+            )}
+          </div>
 
-      {/* Stream Category Filters Ribbon */}
-      <div className="flex flex-wrap items-center gap-1.5 text-xs font-bold pt-0.5">
-        {[
-          { id: 'all', label: 'All Subjects', count: streamCounts.all },
-          { id: 'lab', label: '🔬 Lab Practicals', count: streamCounts.lab },
-          { id: 'science', label: '🧪 Science', count: streamCounts.science },
-          { id: 'vocational', label: '💼 Vocational', count: streamCounts.vocational },
-          { id: 'humanities', label: '📚 Humanities', count: streamCounts.humanities },
-          { id: 'commerce', label: '📊 Commerce', count: streamCounts.commerce },
-        ].map(cat => (
           <button
-            key={cat.id}
             type="button"
-            onClick={() => setStreamFilter(cat.id)}
-            className={`px-3 py-1 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 ${
-              streamFilter === cat.id
-                ? 'bg-indigo-600 text-white font-black shadow-xs'
-                : 'bg-slate-100 dark:bg-slate-800/80 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 border border-transparent'
+            onClick={() => setIsResetModalOpen(true)}
+            className="px-2.5 py-1 rounded-lg text-xs font-bold border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer transition-all flex items-center gap-1"
+            title="Reset to official JKBOSE standard defaults"
+          >
+            <RotateCcw size={11} />
+            <span className="hidden sm:inline">Reset Defaults</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleSaveMarks}
+            disabled={saving}
+            className={`px-3 py-1 rounded-lg text-xs font-black cursor-pointer shadow-2xs flex items-center gap-1.5 transition-all ${
+              marksSaved ? 'bg-emerald-600 text-white' : 'bg-indigo-600 hover:bg-indigo-500 text-white active:scale-95'
             }`}
           >
-            <span>{cat.label}</span>
-            <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
-              streamFilter === cat.id ? 'bg-indigo-700/80 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
-            }`}>
-              {cat.count}
-            </span>
+            {marksSaved ? <Check size={12} /> : <Save size={12} />}
+            <span>{marksSaved ? 'Saved' : saving ? 'Saving...' : 'Save'}</span>
           </button>
-        ))}
+        </div>
       </div>
 
-      {/* Subject Marks Full-Width Table */}
-      <div className="border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-2xs bg-white dark:bg-slate-900">
-        <div className="max-h-[460px] overflow-y-auto">
+      {/* Subject Marks Minimal High-Density Table */}
+      <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-2xs bg-white dark:bg-slate-900">
+        <div className="max-h-[560px] overflow-y-auto">
           <table className="w-full text-left border-collapse text-xs">
-            <thead className="bg-slate-50 dark:bg-slate-950 text-slate-700 dark:text-slate-300 uppercase text-[10px] font-black sticky top-0 z-10 border-b border-slate-200 dark:border-slate-800 tracking-wider">
+            <thead className="bg-slate-50 dark:bg-slate-950 text-slate-600 dark:text-slate-400 uppercase text-[9.5px] font-black sticky top-0 z-10 border-b border-slate-200 dark:border-slate-800 tracking-wider">
               <tr>
-                <th className="py-3 px-4 w-12 text-center text-slate-400">#</th>
-                <th className="py-3 px-4">Subject Name & Code</th>
-                <th className="py-3 px-3 text-center">Category / Stream</th>
-                <th className="py-3 px-4 text-center w-40">Max Marks</th>
-                <th className="py-3 px-4 text-center w-40">Min / Pass Marks</th>
-                <th className="py-3 px-4 text-center w-48 hidden sm:table-cell">Passing Ratio</th>
-                <th className="py-3 px-4 text-center hidden md:table-cell w-36">Evaluation Target</th>
+                <th className="py-2 px-2.5 w-10 text-center text-slate-400">#</th>
+                <th className="py-2 px-3">Subject & Stream</th>
+                <th className="py-2 px-3 text-center w-36">Max Marks</th>
+                <th className="py-2 px-3 text-center w-36">Pass Marks</th>
+                <th className="py-2 px-3 text-center w-36 hidden sm:table-cell">Pass Ratio</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium">
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80 font-medium">
               {filteredSubjects.map((sub, idx) => {
                 const defaultSub = DEFAULT_PRACTICAL_MARKS_CONFIG[activeClassTab]?.[activeTypeTab]?.[sub.code] || { max: 20, min: 7 };
                 const subConfig = currentTypeConfig?.[sub.code] || defaultSub;
@@ -3640,48 +3596,36 @@ function SubjectMarksSettingsCard({ settings, setSettings, saveSettingsDoc, savi
                 const numMin = Number(minVal) || 7;
                 const passRatio = numMax > 0 ? Math.round((numMin / numMax) * 100) : 36;
 
-                // Stream color palette
-                const streamColor = sub.stream.toLowerCase().includes('science')
-                  ? 'text-cyan-700 dark:text-cyan-300 bg-cyan-50 dark:bg-cyan-950/40 border-cyan-200 dark:border-cyan-800'
-                  : sub.stream.toLowerCase().includes('vocational')
-                  ? 'text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/40 border-purple-200 dark:border-purple-800'
-                  : sub.stream.toLowerCase().includes('commerce')
-                  ? 'text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/40 border-blue-200 dark:border-blue-800'
-                  : 'text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800';
-
                 return (
-                  <tr key={sub.code} className="hover:bg-indigo-50/30 dark:hover:bg-indigo-950/20 transition-colors">
-                    <td className="py-2.5 px-4 text-center font-mono font-bold text-slate-400 text-[11px]">
+                  <tr key={sub.code} className="hover:bg-slate-50/70 dark:hover:bg-slate-800/30 transition-colors">
+                    <td className="py-1.5 px-2.5 text-center font-mono text-[11px] text-slate-400 font-bold">
                       {idx + 1}
                     </td>
-                    <td className="py-2.5 px-4">
-                      <div className="flex items-center gap-2">
+                    <td className="py-1.5 px-3">
+                      <div className="flex items-center gap-1.5 flex-wrap">
                         <span className="font-bold text-slate-900 dark:text-white text-xs">{sub.name}</span>
-                        <span className="px-2 py-0.5 rounded-md font-mono font-black text-[10.5px] bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200/80 dark:border-indigo-800/80">
+                        <span className="px-1.5 py-0.2 rounded font-mono font-black text-[10px] bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200/80 dark:border-indigo-800/80">
                           {sub.code}
                         </span>
+                        <span className="px-1.5 py-0.2 rounded text-[9.5px] font-bold text-slate-500 bg-slate-100 dark:bg-slate-800 border border-slate-200/60 dark:border-slate-700/60">
+                          {sub.stream}
+                        </span>
                         {sub.isLab && (
-                          <span className="px-1.5 py-0.2 rounded text-[9px] font-black uppercase tracking-tight bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                          <span className="px-1 py-0.2 rounded text-[8.5px] font-black uppercase tracking-tight bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
                             Lab
                           </span>
                         )}
                       </div>
                     </td>
-                    <td className="py-2.5 px-3 text-center">
-                      <span className={`px-2.5 py-0.5 rounded-full text-[10.5px] font-bold border ${streamColor}`}>
-                        {sub.stream}
-                      </span>
-                    </td>
-                    {/* Max Marks Stepper Input */}
-                    <td className="py-2.5 px-4 text-center">
-                      <div className="inline-flex items-center gap-1 bg-slate-50 dark:bg-slate-950 p-0.5 rounded-xl border border-slate-200 dark:border-slate-700/80">
+                    {/* Max Marks Stepper */}
+                    <td className="py-1.5 px-3 text-center">
+                      <div className="inline-flex items-center gap-0.5 bg-slate-50 dark:bg-slate-950 p-0.5 rounded-lg border border-slate-200 dark:border-slate-700/80">
                         <button
                           type="button"
                           onClick={() => adjustMarks(sub.code, 'max', -1)}
-                          className="w-6 h-6 rounded-lg bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 flex items-center justify-center font-black cursor-pointer shadow-2xs transition-colors"
-                          title="Decrease Max Marks"
+                          className="w-5 h-5 rounded bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 flex items-center justify-center font-black cursor-pointer shadow-2xs"
                         >
-                          <Minus size={11} />
+                          <Minus size={9} />
                         </button>
                         <input
                           type="number"
@@ -3689,28 +3633,26 @@ function SubjectMarksSettingsCard({ settings, setSettings, saveSettingsDoc, savi
                           max="100"
                           value={maxVal}
                           onChange={e => handleUpdateMarks(sub.code, 'max', e.target.value)}
-                          className="w-12 py-0.5 bg-transparent text-center font-mono font-black text-xs text-indigo-600 dark:text-indigo-400 focus:outline-none"
+                          className="w-9 py-0 bg-transparent text-center font-mono font-black text-xs text-indigo-600 dark:text-indigo-400 focus:outline-none"
                         />
                         <button
                           type="button"
                           onClick={() => adjustMarks(sub.code, 'max', 1)}
-                          className="w-6 h-6 rounded-lg bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 flex items-center justify-center font-black cursor-pointer shadow-2xs transition-colors"
-                          title="Increase Max Marks"
+                          className="w-5 h-5 rounded bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 flex items-center justify-center font-black cursor-pointer shadow-2xs"
                         >
-                          <Plus size={11} />
+                          <Plus size={9} />
                         </button>
                       </div>
                     </td>
-                    {/* Min / Pass Marks Stepper Input */}
-                    <td className="py-2.5 px-4 text-center">
-                      <div className="inline-flex items-center gap-1 bg-slate-50 dark:bg-slate-950 p-0.5 rounded-xl border border-slate-200 dark:border-slate-700/80">
+                    {/* Min / Pass Marks Stepper */}
+                    <td className="py-1.5 px-3 text-center">
+                      <div className="inline-flex items-center gap-0.5 bg-slate-50 dark:bg-slate-950 p-0.5 rounded-lg border border-slate-200 dark:border-slate-700/80">
                         <button
                           type="button"
                           onClick={() => adjustMarks(sub.code, 'min', -1)}
-                          className="w-6 h-6 rounded-lg bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 flex items-center justify-center font-black cursor-pointer shadow-2xs transition-colors"
-                          title="Decrease Pass Marks"
+                          className="w-5 h-5 rounded bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 flex items-center justify-center font-black cursor-pointer shadow-2xs"
                         >
-                          <Minus size={11} />
+                          <Minus size={9} />
                         </button>
                         <input
                           type="number"
@@ -3718,28 +3660,25 @@ function SubjectMarksSettingsCard({ settings, setSettings, saveSettingsDoc, savi
                           max={numMax}
                           value={minVal}
                           onChange={e => handleUpdateMarks(sub.code, 'min', e.target.value)}
-                          className="w-12 py-0.5 bg-transparent text-center font-mono font-black text-xs text-emerald-600 dark:text-emerald-400 focus:outline-none"
+                          className="w-9 py-0 bg-transparent text-center font-mono font-black text-xs text-emerald-600 dark:text-emerald-400 focus:outline-none"
                         />
                         <button
                           type="button"
                           onClick={() => adjustMarks(sub.code, 'min', 1)}
-                          className="w-6 h-6 rounded-lg bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 flex items-center justify-center font-black cursor-pointer shadow-2xs transition-colors"
-                          title="Increase Pass Marks"
+                          className="w-5 h-5 rounded bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 flex items-center justify-center font-black cursor-pointer shadow-2xs"
                         >
-                          <Plus size={11} />
+                          <Plus size={9} />
                         </button>
                       </div>
                     </td>
-                    {/* Visual Pass Ratio Progress Bar */}
-                    <td className="py-2.5 px-4 text-center hidden sm:table-cell">
-                      <div className="flex flex-col items-center gap-1">
-                        <div className="flex items-center justify-between w-28 text-[10.5px] font-bold text-slate-600 dark:text-slate-400">
-                          <span>{passRatio}%</span>
-                          <span className="font-mono text-[10px] text-slate-400">({minVal}/{maxVal})</span>
-                        </div>
-                        <div className="w-28 h-1.5 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
+                    {/* Visual Pass Ratio */}
+                    <td className="py-1.5 px-3 text-center hidden sm:table-cell">
+                      <div className="flex items-center justify-center gap-1.5">
+                        <span className="font-bold text-[11px] text-slate-700 dark:text-slate-300">{passRatio}%</span>
+                        <span className="font-mono text-[10px] text-slate-400">({minVal}/{maxVal})</span>
+                        <div className="w-12 h-1.5 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
                           <div
-                            className={`h-full rounded-full transition-all duration-300 ${
+                            className={`h-full rounded-full transition-all ${
                               passRatio >= 33 && passRatio <= 40
                                 ? 'bg-emerald-500'
                                 : passRatio > 40
@@ -3751,18 +3690,13 @@ function SubjectMarksSettingsCard({ settings, setSettings, saveSettingsDoc, savi
                         </div>
                       </div>
                     </td>
-                    <td className="py-2.5 px-4 text-center hidden md:table-cell">
-                      <span className="text-[11px] font-bold text-slate-500">
-                        {activeClassTab} • {toTitleCase(activeTypeTab)}
-                      </span>
-                    </td>
                   </tr>
                 );
               })}
               {filteredSubjects.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="py-12 text-center text-slate-400 font-bold text-xs">
-                    No subjects match your current search query or stream filter.
+                  <td colSpan={5} className="py-8 text-center text-slate-400 font-bold text-xs">
+                    No subjects match your search or filter.
                   </td>
                 </tr>
               )}
@@ -3854,22 +3788,22 @@ function SettingsPermissionsView({
   });
 
   return (
-    <div className="space-y-4">
-      {/* Top Executive Sub-Tabs Ribbon */}
-      <div className="bg-white dark:bg-slate-900 p-1.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-1.5 flex-wrap">
+    <div className="space-y-2.5">
+      {/* Top Compact Sub-Tabs Ribbon */}
+      <div className="bg-white dark:bg-slate-900 p-1 rounded-xl border border-slate-200 dark:border-slate-800 shadow-2xs flex flex-wrap items-center justify-between gap-1.5">
+        <div className="flex items-center gap-1 flex-wrap">
           <button
             type="button"
             onClick={() => setActiveSettingsTab('marks')}
-            className={`px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-2 ${
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
               activeSettingsTab === 'marks'
-                ? 'bg-indigo-600 text-white shadow-xs'
+                ? 'bg-indigo-600 text-white shadow-2xs'
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-slate-800/60'
             }`}
           >
-            <Award size={14} />
+            <Award size={13} />
             <span>Subject Marks Matrix</span>
-            <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
+            <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
               activeSettingsTab === 'marks' ? 'bg-indigo-700 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'
             }`}>
               {SUBJECT_CONFIG_DEFS.length}
@@ -3879,39 +3813,33 @@ function SettingsPermissionsView({
           <button
             type="button"
             onClick={() => setActiveSettingsTab('permissions')}
-            className={`px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-2 ${
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
               activeSettingsTab === 'permissions'
-                ? 'bg-indigo-600 text-white shadow-xs'
+                ? 'bg-indigo-600 text-white shadow-2xs'
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-slate-800/60'
             }`}
           >
-            <Shield size={14} />
+            <Shield size={13} />
             <span>Teacher Permissions</span>
-            <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
+            <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
               activeSettingsTab === 'permissions' ? 'bg-indigo-700 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'
             }`}>
-              {activePermissions.length} Active
+              {activePermissions.length}
             </span>
           </button>
 
           <button
             type="button"
             onClick={() => setActiveSettingsTab('system')}
-            className={`px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-2 ${
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
               activeSettingsTab === 'system'
-                ? 'bg-indigo-600 text-white shadow-xs'
+                ? 'bg-indigo-600 text-white shadow-2xs'
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-slate-800/60'
             }`}
           >
-            <Settings size={14} />
+            <Settings size={13} />
             <span>System & Print Defaults</span>
           </button>
-        </div>
-
-        <div className="text-[11px] font-bold text-slate-400 px-3 hidden sm:block">
-          {activeSettingsTab === 'marks' && 'Full Matrix View • 25 Electives & Compulsory Subjects'}
-          {activeSettingsTab === 'permissions' && 'Faculty Evaluation Access & Security Controls'}
-          {activeSettingsTab === 'system' && 'Academic Session, Absent Rules & Official Print Headers'}
         </div>
       </div>
 
