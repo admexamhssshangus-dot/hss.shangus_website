@@ -3,7 +3,7 @@ import {
   Settings, ClipboardCheck, Printer, RefreshCw, CheckCircle2, AlertCircle,
   Award, AlertTriangle, X, Sliders, Users, Mail, Phone, MessageCircle, Edit2, Check, Search,
   Download, Upload, FileSpreadsheet, FileText, Trash2, Eye, Save, Shield,
-  ChevronDown, BookOpen, SlidersHorizontal, Filter, Layers
+  ChevronDown, BookOpen, SlidersHorizontal, Filter, Layers, Plus, Minus, RotateCcw, Sparkles
 } from 'lucide-react';
 import { db, functions } from '../../services/firebase';
 import { collection, getDocs, doc, setDoc, deleteDoc } from 'firebase/firestore';
@@ -1172,6 +1172,7 @@ export default function AdminPracticals() {
               setGrantSubject={setGrantSubject}
               grantPerm={grantPerm}
               revokePerm={revokePerm}
+              teachers={teachers}
             />
           )}
         </div>
@@ -3198,7 +3199,7 @@ function SubjectMarksSettingsCard({ settings, setSettings, saveSettingsDoc, savi
   const currentTypeConfig = currentClassConfig[activeTypeTab] || DEFAULT_PRACTICAL_MARKS_CONFIG[activeClassTab][activeTypeTab];
 
   const handleUpdateMarks = (code, field, val) => {
-    const rawVal = val.trim();
+    const rawVal = typeof val === 'string' ? val.trim() : String(val);
     const num = rawVal === '' ? '' : parseInt(rawVal, 10);
 
     setSettings(prev => {
@@ -3241,6 +3242,13 @@ function SubjectMarksSettingsCard({ settings, setSettings, saveSettingsDoc, savi
     });
   };
 
+  const adjustMarks = (code, field, delta) => {
+    const currentSub = currentTypeConfig?.[code] || { max: 20, min: 7 };
+    const currentVal = Number(currentSub[field] ?? (field === 'max' ? 20 : 7));
+    const nextVal = Math.max(field === 'min' ? 0 : 1, currentVal + delta);
+    handleUpdateMarks(code, field, nextVal);
+  };
+
   const handleSaveMarks = async () => {
     const ok = await saveSettingsDoc('Subject Marks Configuration', settings);
     if (ok) {
@@ -3259,6 +3267,17 @@ function SubjectMarksSettingsCard({ settings, setSettings, saveSettingsDoc, savi
     }));
   };
 
+  const streamCounts = useMemo(() => {
+    return {
+      all: SUBJECT_CONFIG_DEFS.length,
+      lab: SUBJECT_CONFIG_DEFS.filter(s => s.isLab).length,
+      science: SUBJECT_CONFIG_DEFS.filter(s => s.stream.toLowerCase().includes('science')).length,
+      vocational: SUBJECT_CONFIG_DEFS.filter(s => s.stream.toLowerCase().includes('vocational')).length,
+      humanities: SUBJECT_CONFIG_DEFS.filter(s => s.stream.toLowerCase().includes('humanities')).length,
+      commerce: SUBJECT_CONFIG_DEFS.filter(s => s.stream.toLowerCase().includes('commerce')).length,
+    };
+  }, []);
+
   const filteredSubjects = SUBJECT_CONFIG_DEFS.filter(sub => {
     if (streamFilter === 'science' && !sub.stream.toLowerCase().includes('science')) return false;
     if (streamFilter === 'humanities' && !sub.stream.toLowerCase().includes('humanities')) return false;
@@ -3267,202 +3286,301 @@ function SubjectMarksSettingsCard({ settings, setSettings, saveSettingsDoc, savi
     if (streamFilter === 'lab' && !sub.isLab) return false;
 
     if (!searchQuery.trim()) return true;
-    const q = searchQuery.toLowerCase();
+    const q = searchQuery.toLowerCase().trim();
     return sub.name.toLowerCase().includes(q) || sub.code.toLowerCase().includes(q) || sub.stream.toLowerCase().includes(q);
   });
 
   return (
-    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-3.5 sm:p-4 shadow-xs space-y-3">
-      {/* Header & Main Save Bar */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
+    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-4 sm:p-6 shadow-sm space-y-4">
+      {/* Header & Main Actions */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3.5 border-b border-slate-100 dark:border-slate-800">
         <div>
-          <h3 className="text-xs sm:text-sm font-black text-slate-900 dark:text-white flex items-center gap-2">
-            <Award size={16} className="text-indigo-500" /> Subject Marks & Evaluation Criteria
-          </h3>
-          <p className="text-[10.5px] font-semibold text-slate-500">
-            Configure Max Marks and Min / Pass Marks for Internal & External Practicals.
-          </p>
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-2xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shadow-xs">
+              <Award size={18} strokeWidth={2.5} />
+            </div>
+            <div>
+              <h3 className="text-sm sm:text-base font-black text-slate-900 dark:text-white flex items-center gap-2">
+                Subject Marks & Passing Criteria
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-800/60">
+                  JKBOSE Compliant
+                </span>
+              </h3>
+              <p className="text-[11px] font-semibold text-slate-500">
+                Configure Max Marks and Passing Thresholds for Class 11th & 12th evaluations.
+              </p>
+            </div>
+          </div>
         </div>
-        <div className="flex items-center gap-1.5 self-end sm:self-auto">
+
+        <div className="flex items-center gap-2 self-start md:self-auto">
           <button
             type="button"
             onClick={handleResetDefaults}
-            className="px-2.5 py-1 rounded-xl text-[11px] font-bold border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer transition-colors"
+            className="px-3 py-1.5 rounded-xl text-xs font-bold border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/80 cursor-pointer transition-all flex items-center gap-1.5 shadow-2xs"
             title="Reset marks matrix to official JKBOSE standard defaults"
           >
-            Reset Defaults
+            <RotateCcw size={12} /> Reset Defaults
           </button>
           <button
             type="button"
             onClick={handleSaveMarks}
             disabled={saving}
-            className={`px-3 py-1 rounded-xl text-xs font-black cursor-pointer shadow-2xs flex items-center gap-1.5 transition-all ${
-              marksSaved ? 'bg-emerald-600 text-white' : 'bg-indigo-600 hover:bg-indigo-500 text-white'
+            className={`px-4 py-1.5 rounded-xl text-xs font-black cursor-pointer shadow-sm flex items-center gap-1.5 transition-all ${
+              marksSaved ? 'bg-emerald-600 text-white scale-[1.02]' : 'bg-indigo-600 hover:bg-indigo-500 text-white active:scale-95'
             }`}
           >
-            {marksSaved ? <Check size={13} /> : <Save size={13} />} {marksSaved ? 'Saved!' : saving ? 'Saving...' : 'Save Marks'}
+            {marksSaved ? <Check size={14} /> : <Save size={14} />} {marksSaved ? 'Configuration Saved!' : saving ? 'Saving Changes...' : 'Save Marks Configuration'}
           </button>
         </div>
       </div>
 
-      {/* Class and Evaluation Type Switcher Tabs */}
-      <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
-        <div className="flex flex-wrap items-center gap-2">
+      {/* Segmented Controls & Search Toolbar */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 bg-slate-50/70 dark:bg-slate-950/50 p-2.5 rounded-2xl border border-slate-150 dark:border-slate-800">
+        <div className="flex flex-wrap items-center gap-2.5">
           {/* Class Switcher */}
-          <div className="flex items-center p-0.5 rounded-xl bg-slate-100 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700/80">
+          <div className="flex items-center p-1 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xs">
             <button
               type="button"
               onClick={() => setActiveClassTab('11th')}
-              className={`px-3 py-1 rounded-lg text-xs font-black transition-all cursor-pointer ${
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 ${
                 activeClassTab === '11th'
                   ? 'bg-indigo-600 text-white shadow-xs'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
-              Class 11th
+              <Award size={13} /> Class 11th
             </button>
             <button
               type="button"
               onClick={() => setActiveClassTab('12th')}
-              className={`px-3 py-1 rounded-lg text-xs font-black transition-all cursor-pointer ${
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 ${
                 activeClassTab === '12th'
                   ? 'bg-indigo-600 text-white shadow-xs'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
-              Class 12th
+              <Award size={13} /> Class 12th
             </button>
           </div>
 
           {/* Evaluation Type Switcher */}
-          <div className="flex items-center p-0.5 rounded-xl bg-slate-100 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700/80">
+          <div className="flex items-center p-1 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xs">
             <button
               type="button"
               onClick={() => setActiveTypeTab('internal')}
-              className={`px-3 py-1 rounded-lg text-xs font-black transition-all cursor-pointer flex items-center gap-1 ${
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 ${
                 activeTypeTab === 'internal'
                   ? 'bg-indigo-600 text-white shadow-xs'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
-              <BookOpen size={12} /> Internal Assessment
+              <BookOpen size={13} /> Internal Assessment
             </button>
             <button
               type="button"
               onClick={() => setActiveTypeTab('external')}
-              className={`px-3 py-1 rounded-lg text-xs font-black transition-all cursor-pointer flex items-center gap-1 ${
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 ${
                 activeTypeTab === 'external'
                   ? 'bg-indigo-600 text-white shadow-xs'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
-              <Award size={12} /> External Practical
+              <Award size={13} /> External Practical
             </button>
           </div>
         </div>
 
-        {/* Filter / Search Bar */}
-        <div className="flex items-center gap-1.5 w-full sm:w-auto">
-          <div className="relative flex-1 sm:w-44">
-            <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input
-              type="text"
-              placeholder="Search subject..."
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-              className="w-full pl-7 pr-2 py-1 rounded-xl text-xs font-bold border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 focus:outline-none"
-            />
-          </div>
+        {/* Live Search */}
+        <div className="relative w-full lg:w-64">
+          <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <input
+            type="text"
+            placeholder="Search subject by code or name..."
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            className="w-full pl-8 pr-7 py-1.5 rounded-xl text-xs font-bold border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-2xs"
+          />
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => setSearchQuery('')}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+            >
+              <X size={12} />
+            </button>
+          )}
         </div>
       </div>
 
-      {/* Stream Category Filters */}
-      <div className="flex flex-wrap items-center gap-1 text-[11px] font-bold">
+      {/* Stream Category Filters Ribbon */}
+      <div className="flex flex-wrap items-center gap-1.5 text-xs font-bold pt-0.5">
         {[
-          { id: 'all', label: 'All Subjects' },
-          { id: 'lab', label: 'Lab Practicals Only' },
-          { id: 'science', label: 'Science' },
-          { id: 'vocational', label: 'Vocational' },
-          { id: 'humanities', label: 'Humanities' },
-          { id: 'commerce', label: 'Commerce' },
+          { id: 'all', label: 'All Subjects', count: streamCounts.all },
+          { id: 'lab', label: '🔬 Lab Practicals', count: streamCounts.lab },
+          { id: 'science', label: '🧪 Science', count: streamCounts.science },
+          { id: 'vocational', label: '💼 Vocational', count: streamCounts.vocational },
+          { id: 'humanities', label: '📚 Humanities', count: streamCounts.humanities },
+          { id: 'commerce', label: '📊 Commerce', count: streamCounts.commerce },
         ].map(cat => (
           <button
             key={cat.id}
             type="button"
             onClick={() => setStreamFilter(cat.id)}
-            className={`px-2 py-0.5 rounded-lg transition-colors cursor-pointer ${
+            className={`px-3 py-1 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 ${
               streamFilter === cat.id
-                ? 'bg-indigo-100 text-indigo-800 dark:bg-indigo-950/60 dark:text-indigo-300 font-black'
-                : 'bg-slate-100 dark:bg-slate-800/60 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800'
+                ? 'bg-indigo-600 text-white font-black shadow-xs'
+                : 'bg-slate-100 dark:bg-slate-800/80 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 border border-transparent'
             }`}
           >
-            {cat.label}
+            <span>{cat.label}</span>
+            <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
+              streamFilter === cat.id ? 'bg-indigo-700/80 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
+            }`}>
+              {cat.count}
+            </span>
           </button>
         ))}
       </div>
 
-      {/* Responsive Subject Marks Table */}
-      <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-2xs">
-        <div className="max-h-[340px] overflow-y-auto">
+      {/* Subject Marks Full-Width Table */}
+      <div className="border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-2xs bg-white dark:bg-slate-900">
+        <div className="max-h-[460px] overflow-y-auto">
           <table className="w-full text-left border-collapse text-xs">
-            <thead className="bg-slate-100 dark:bg-slate-800/90 text-slate-700 dark:text-slate-300 uppercase text-[10px] font-black sticky top-0 z-10 border-b border-slate-200 dark:border-slate-700">
+            <thead className="bg-slate-50 dark:bg-slate-950 text-slate-700 dark:text-slate-300 uppercase text-[10px] font-black sticky top-0 z-10 border-b border-slate-200 dark:border-slate-800 tracking-wider">
               <tr>
-                <th className="py-2 px-3">Subject Name & Code</th>
-                <th className="py-2 px-2.5 text-center">Category / Stream</th>
-                <th className="py-2 px-3 text-center w-28">Max Marks</th>
-                <th className="py-2 px-3 text-center w-28">Min / Pass</th>
-                <th className="py-2 px-3 text-center hidden sm:table-cell">Pass % Ratio</th>
+                <th className="py-3 px-4 w-12 text-center text-slate-400">#</th>
+                <th className="py-3 px-4">Subject Name & Code</th>
+                <th className="py-3 px-3 text-center">Category / Stream</th>
+                <th className="py-3 px-4 text-center w-40">Max Marks</th>
+                <th className="py-3 px-4 text-center w-40">Min / Pass Marks</th>
+                <th className="py-3 px-4 text-center w-48 hidden sm:table-cell">Passing Ratio</th>
+                <th className="py-3 px-4 text-center hidden md:table-cell w-36">Evaluation Target</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium">
-              {filteredSubjects.map(sub => {
+              {filteredSubjects.map((sub, idx) => {
                 const subConfig = currentTypeConfig?.[sub.code] || { max: 20, min: 7 };
                 const maxVal = subConfig.max ?? 20;
                 const minVal = subConfig.min ?? Math.ceil(0.36 * Number(maxVal || 20));
-                const passRatio = Number(maxVal) > 0 ? Math.round((Number(minVal) / Number(maxVal)) * 100) : 36;
+                const numMax = Number(maxVal) || 20;
+                const numMin = Number(minVal) || 7;
+                const passRatio = numMax > 0 ? Math.round((numMin / numMax) * 100) : 36;
+
+                // Stream color palette
+                const streamColor = sub.stream.toLowerCase().includes('science')
+                  ? 'text-cyan-700 dark:text-cyan-300 bg-cyan-50 dark:bg-cyan-950/40 border-cyan-200 dark:border-cyan-800'
+                  : sub.stream.toLowerCase().includes('vocational')
+                  ? 'text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/40 border-purple-200 dark:border-purple-800'
+                  : sub.stream.toLowerCase().includes('commerce')
+                  ? 'text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/40 border-blue-200 dark:border-blue-800'
+                  : 'text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800';
 
                 return (
-                  <tr key={sub.code} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
-                    <td className="py-2 px-3">
-                      <div className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
-                        <span>{sub.name}</span>
-                        <span className="px-1.5 py-0.2 rounded text-[10px] font-black bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border border-indigo-100 dark:border-indigo-800">
+                  <tr key={sub.code} className="hover:bg-indigo-50/30 dark:hover:bg-indigo-950/20 transition-colors">
+                    <td className="py-2.5 px-4 text-center font-mono font-bold text-slate-400 text-[11px]">
+                      {idx + 1}
+                    </td>
+                    <td className="py-2.5 px-4">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-slate-900 dark:text-white text-xs">{sub.name}</span>
+                        <span className="px-2 py-0.5 rounded-md font-mono font-black text-[10.5px] bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200/80 dark:border-indigo-800/80">
                           {sub.code}
                         </span>
+                        {sub.isLab && (
+                          <span className="px-1.5 py-0.2 rounded text-[9px] font-black uppercase tracking-tight bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                            Lab
+                          </span>
+                        )}
                       </div>
                     </td>
-                    <td className="py-2 px-2.5 text-center">
-                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                        sub.isLab
-                          ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-100 dark:border-emerald-800'
-                          : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
-                      }`}>
-                        {sub.stream} {sub.isLab ? '• Lab' : ''}
+                    <td className="py-2.5 px-3 text-center">
+                      <span className={`px-2.5 py-0.5 rounded-full text-[10.5px] font-bold border ${streamColor}`}>
+                        {sub.stream}
                       </span>
                     </td>
-                    <td className="py-2 px-3 text-center">
-                      <input
-                        type="number"
-                        min="1"
-                        max="100"
-                        value={maxVal}
-                        onChange={e => handleUpdateMarks(sub.code, 'max', e.target.value)}
-                        className="w-20 px-2 py-1 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg text-center font-black text-xs text-indigo-600 dark:text-indigo-400 focus:ring-1 focus:ring-indigo-500 outline-none"
-                      />
+                    {/* Max Marks Stepper Input */}
+                    <td className="py-2.5 px-4 text-center">
+                      <div className="inline-flex items-center gap-1 bg-slate-50 dark:bg-slate-950 p-0.5 rounded-xl border border-slate-200 dark:border-slate-700/80">
+                        <button
+                          type="button"
+                          onClick={() => adjustMarks(sub.code, 'max', -1)}
+                          className="w-6 h-6 rounded-lg bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 flex items-center justify-center font-black cursor-pointer shadow-2xs transition-colors"
+                          title="Decrease Max Marks"
+                        >
+                          <Minus size={11} />
+                        </button>
+                        <input
+                          type="number"
+                          min="1"
+                          max="100"
+                          value={maxVal}
+                          onChange={e => handleUpdateMarks(sub.code, 'max', e.target.value)}
+                          className="w-12 py-0.5 bg-transparent text-center font-mono font-black text-xs text-indigo-600 dark:text-indigo-400 focus:outline-none"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => adjustMarks(sub.code, 'max', 1)}
+                          className="w-6 h-6 rounded-lg bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 flex items-center justify-center font-black cursor-pointer shadow-2xs transition-colors"
+                          title="Increase Max Marks"
+                        >
+                          <Plus size={11} />
+                        </button>
+                      </div>
                     </td>
-                    <td className="py-2 px-3 text-center">
-                      <input
-                        type="number"
-                        min="0"
-                        max={maxVal || 100}
-                        value={minVal}
-                        onChange={e => handleUpdateMarks(sub.code, 'min', e.target.value)}
-                        className="w-20 px-2 py-1 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg text-center font-black text-xs text-emerald-600 dark:text-emerald-400 focus:ring-1 focus:ring-indigo-500 outline-none"
-                      />
+                    {/* Min / Pass Marks Stepper Input */}
+                    <td className="py-2.5 px-4 text-center">
+                      <div className="inline-flex items-center gap-1 bg-slate-50 dark:bg-slate-950 p-0.5 rounded-xl border border-slate-200 dark:border-slate-700/80">
+                        <button
+                          type="button"
+                          onClick={() => adjustMarks(sub.code, 'min', -1)}
+                          className="w-6 h-6 rounded-lg bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 flex items-center justify-center font-black cursor-pointer shadow-2xs transition-colors"
+                          title="Decrease Pass Marks"
+                        >
+                          <Minus size={11} />
+                        </button>
+                        <input
+                          type="number"
+                          min="0"
+                          max={numMax}
+                          value={minVal}
+                          onChange={e => handleUpdateMarks(sub.code, 'min', e.target.value)}
+                          className="w-12 py-0.5 bg-transparent text-center font-mono font-black text-xs text-emerald-600 dark:text-emerald-400 focus:outline-none"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => adjustMarks(sub.code, 'min', 1)}
+                          className="w-6 h-6 rounded-lg bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 flex items-center justify-center font-black cursor-pointer shadow-2xs transition-colors"
+                          title="Increase Pass Marks"
+                        >
+                          <Plus size={11} />
+                        </button>
+                      </div>
                     </td>
-                    <td className="py-2 px-3 text-center hidden sm:table-cell">
+                    {/* Visual Pass Ratio Progress Bar */}
+                    <td className="py-2.5 px-4 text-center hidden sm:table-cell">
+                      <div className="flex flex-col items-center gap-1">
+                        <div className="flex items-center justify-between w-28 text-[10.5px] font-bold text-slate-600 dark:text-slate-400">
+                          <span>{passRatio}%</span>
+                          <span className="font-mono text-[10px] text-slate-400">({minVal}/{maxVal})</span>
+                        </div>
+                        <div className="w-28 h-1.5 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all duration-300 ${
+                              passRatio >= 33 && passRatio <= 40
+                                ? 'bg-emerald-500'
+                                : passRatio > 40
+                                ? 'bg-amber-500'
+                                : 'bg-cyan-500'
+                            }`}
+                            style={{ width: `${Math.min(100, Math.max(5, passRatio))}%` }}
+                          />
+                        </div>
+                      </div>
+                    </td>
+                    <td className="py-2.5 px-4 text-center hidden md:table-cell">
                       <span className="text-[11px] font-bold text-slate-500">
-                        {passRatio}% ({minVal}/{maxVal})
+                        {activeClassTab} • {toTitleCase(activeTypeTab)}
                       </span>
                     </td>
                   </tr>
@@ -3470,8 +3588,8 @@ function SubjectMarksSettingsCard({ settings, setSettings, saveSettingsDoc, savi
               })}
               {filteredSubjects.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="py-8 text-center text-slate-400 font-bold text-xs">
-                    No subjects match the search or filter criteria.
+                  <td colSpan={7} className="py-12 text-center text-slate-400 font-bold text-xs">
+                    No subjects match your current search query or stream filter.
                   </td>
                 </tr>
               )}
@@ -3484,7 +3602,7 @@ function SubjectMarksSettingsCard({ settings, setSettings, saveSettingsDoc, savi
 }
 
 // ─────────────────────────────────────────────────────────────
-// SETTINGS & PERMISSIONS COMPONENT
+// REDESIGNED SETTINGS & PERMISSIONS MAIN COMPONENT
 // ─────────────────────────────────────────────────────────────
 function SettingsPermissionsView({
   settings,
@@ -3498,10 +3616,13 @@ function SettingsPermissionsView({
   grantSubject,
   setGrantSubject,
   grantPerm,
-  revokePerm
+  revokePerm,
+  teachers
 }) {
+  const [activeSettingsTab, setActiveSettingsTab] = useState('marks'); // 'marks' | 'permissions' | 'system'
   const [sysSaved, setSysSaved] = useState(false);
   const [printSaved, setPrintSaved] = useState(false);
+  const [permSearch, setPermSearch] = useState('');
 
   const handleSaveSys = async () => {
     const ok = await saveSettingsDoc('Global Configuration', settings);
@@ -3519,244 +3640,431 @@ function SettingsPermissionsView({
     }
   };
 
+  const activePermissions = settings.permissions || [];
+  const filteredPermissions = activePermissions.filter(p => {
+    if (!permSearch.trim()) return true;
+    const q = permSearch.toLowerCase().trim();
+    const email = String(p.email || '').toLowerCase();
+    const cls = String(p.className || '').toLowerCase();
+    const subj = String(p.subject || '').toLowerCase();
+    const subjName = String(NAMES[p.subject] || '').toLowerCase();
+    return email.includes(q) || cls.includes(q) || subj.includes(q) || subjName.includes(q);
+  });
+
   return (
-    <div className="grid grid-cols-1 xl:grid-cols-12 gap-3.5 items-start">
-      {/* LEFT COLUMN: Teacher Evaluation Permissions (xl:col-span-4) */}
-      <div className="xl:col-span-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-3.5 sm:p-4 shadow-xs space-y-3">
-        <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
-          <h3 className="text-xs sm:text-sm font-black text-slate-900 dark:text-white flex items-center gap-2">
-            <Shield size={16} className="text-indigo-500" /> Teacher Permissions
-          </h3>
-          <span className="px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 text-[10px] font-black border border-indigo-100 dark:border-indigo-800">
-            {(settings.permissions || []).length} Active
-          </span>
+    <div className="space-y-4">
+      {/* Top Executive Sub-Tabs Ribbon */}
+      <div className="bg-white dark:bg-slate-900 p-1.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <button
+            type="button"
+            onClick={() => setActiveSettingsTab('marks')}
+            className={`px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-2 ${
+              activeSettingsTab === 'marks'
+                ? 'bg-indigo-600 text-white shadow-xs'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-slate-800/60'
+            }`}
+          >
+            <Award size={14} />
+            <span>Subject Marks Matrix</span>
+            <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
+              activeSettingsTab === 'marks' ? 'bg-indigo-700 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'
+            }`}>
+              {SUBJECT_CONFIG_DEFS.length}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveSettingsTab('permissions')}
+            className={`px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-2 ${
+              activeSettingsTab === 'permissions'
+                ? 'bg-indigo-600 text-white shadow-xs'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-slate-800/60'
+            }`}
+          >
+            <Shield size={14} />
+            <span>Teacher Permissions</span>
+            <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
+              activeSettingsTab === 'permissions' ? 'bg-indigo-700 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'
+            }`}>
+              {activePermissions.length} Active
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveSettingsTab('system')}
+            className={`px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-2 ${
+              activeSettingsTab === 'system'
+                ? 'bg-indigo-600 text-white shadow-xs'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-slate-800/60'
+            }`}
+          >
+            <Settings size={14} />
+            <span>System & Print Defaults</span>
+          </button>
         </div>
 
-        <form onSubmit={grantPerm} className="space-y-2 text-xs">
-          <input
-            type="email"
-            placeholder="Teacher Email Address..."
-            value={grantEmail}
-            onChange={e => setGrantEmail(e.target.value)}
-            className="w-full px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 font-bold outline-none focus:ring-2 focus:ring-indigo-500 text-xs"
-          />
-          <div className="grid grid-cols-2 gap-2">
-            <select
-              value={grantClass}
-              onChange={e => setGrantClass(e.target.value)}
-              className="w-full px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 font-bold outline-none text-xs cursor-pointer"
-            >
-              <option value="11th">Class 11th</option>
-              <option value="12th">Class 12th</option>
-            </select>
-            <select
-              value={grantSubject}
-              onChange={e => setGrantSubject(e.target.value)}
-              className="w-full px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 font-bold outline-none text-xs cursor-pointer truncate"
-            >
-              {CODES.map(c => <option key={c} value={c}>{NAMES[c]} ({c})</option>)}
-            </select>
-          </div>
-          <button
-            type="submit"
-            disabled={saving}
-            className="w-full py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-black text-xs cursor-pointer shadow-2xs transition-all flex items-center justify-center gap-1"
-          >
-            <Shield size={13} /> Grant Evaluation Permission
-          </button>
-        </form>
-
-        <div className="max-h-[360px] overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800 text-xs pr-1">
-          {(settings.permissions || []).map((p, idx) => (
-            <div key={idx} className="py-2 flex items-center justify-between gap-2">
-              <div className="min-w-0 flex-1">
-                <div className="font-bold text-slate-900 dark:text-white truncate text-[11px]">{p.email}</div>
-                <div className="text-[10px] text-slate-500 font-semibold flex items-center gap-1.5">
-                  <span className="text-indigo-600 font-bold">{p.className}</span> • <span>{NAMES[p.subject] || p.subject}</span>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => revokePerm(idx)}
-                className="text-rose-600 hover:text-rose-700 hover:underline font-black text-[10.5px] cursor-pointer shrink-0"
-              >
-                Revoke
-              </button>
-            </div>
-          ))}
-          {(!settings.permissions || settings.permissions.length === 0) && (
-            <div className="py-6 text-slate-400 text-center font-bold text-xs">No active teacher permissions granted yet.</div>
-          )}
+        <div className="text-[11px] font-bold text-slate-400 px-3 hidden sm:block">
+          {activeSettingsTab === 'marks' && 'Full Matrix View • 25 Electives & Compulsory Subjects'}
+          {activeSettingsTab === 'permissions' && 'Faculty Evaluation Access & Security Controls'}
+          {activeSettingsTab === 'system' && 'Academic Session, Absent Rules & Official Print Headers'}
         </div>
       </div>
 
-      {/* RIGHT COLUMN: Subject Marks Configuration, Global Configuration & Print Defaults (xl:col-span-8) */}
-      <div className="xl:col-span-8 space-y-3.5">
-        {/* Card 1: Dedicated Subject Marks Manager */}
+      {/* VIEW 1: DEDICATED FULL-WIDTH SUBJECT MARKS MATRIX */}
+      {activeSettingsTab === 'marks' && (
         <SubjectMarksSettingsCard
           settings={settings}
           setSettings={setSettings}
           saveSettingsDoc={saveSettingsDoc}
           saving={saving}
         />
+      )}
 
-        {/* Card 2: Global System Configuration */}
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-3.5 sm:p-4 shadow-xs space-y-3">
-          <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
-            <h3 className="text-xs sm:text-sm font-black text-slate-900 dark:text-white flex items-center gap-2">
-              <Settings size={16} className="text-indigo-500" /> Global System Configuration
-            </h3>
-            <button
-              onClick={handleSaveSys}
-              disabled={saving}
-              className={`px-3 py-1 rounded-xl text-xs font-black cursor-pointer shadow-2xs flex items-center gap-1.5 transition-all ${
-                sysSaved ? 'bg-emerald-600 text-white' : 'bg-indigo-600 hover:bg-indigo-500 text-white'
-              }`}
-            >
-              {sysSaved ? <Check size={13} /> : <Save size={13} />} {sysSaved ? 'Saved!' : saving ? 'Saving...' : 'Save Configuration'}
-            </button>
+      {/* VIEW 2: DEDICATED TEACHER PERMISSIONS MANAGEMENT */}
+      {activeSettingsTab === 'permissions' && (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
+          {/* Grant Permission Form Card (lg:col-span-5) */}
+          <div className="lg:col-span-5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-5 shadow-xs space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-2xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shadow-xs">
+                  <Shield size={16} strokeWidth={2.5} />
+                </div>
+                <div>
+                  <h3 className="text-xs sm:text-sm font-black text-slate-900 dark:text-white">
+                    Grant Evaluation Permission
+                  </h3>
+                  <p className="text-[10.5px] font-semibold text-slate-500">
+                    Authorize a faculty member for specific class and subject marks entry.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <form onSubmit={grantPerm} className="space-y-3 text-xs">
+              <div>
+                <label className="text-[10.5px] font-black text-slate-500 uppercase tracking-wider block mb-1">
+                  Teacher Email Address
+                </label>
+                <input
+                  type="email"
+                  list="faculty-email-suggestions"
+                  placeholder="e.g. teacher@hssshangus.in"
+                  value={grantEmail}
+                  onChange={e => setGrantEmail(e.target.value)}
+                  className="w-full px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-bold text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-2xs"
+                  required
+                />
+                <datalist id="faculty-email-suggestions">
+                  {(teachers || []).map(t => (
+                    <option key={t.id || t.email} value={t.email}>{t.name ? `${t.name} (${t.email})` : t.email}</option>
+                  ))}
+                </datalist>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2.5">
+                <div>
+                  <label className="text-[10.5px] font-black text-slate-500 uppercase tracking-wider block mb-1">
+                    Target Class
+                  </label>
+                  <select
+                    value={grantClass}
+                    onChange={e => setGrantClass(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-bold text-xs text-slate-900 dark:text-white cursor-pointer shadow-2xs focus:outline-none"
+                  >
+                    <option value="11th">Class 11th</option>
+                    <option value="12th">Class 12th</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-[10.5px] font-black text-slate-500 uppercase tracking-wider block mb-1">
+                    Evaluation Subject
+                  </label>
+                  <select
+                    value={grantSubject}
+                    onChange={e => setGrantSubject(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-bold text-xs text-slate-900 dark:text-white cursor-pointer shadow-2xs focus:outline-none truncate"
+                  >
+                    {CODES.map(c => (
+                      <option key={c} value={c}>
+                        {NAMES[c] || c} ({c})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={saving}
+                className="w-full py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-black text-xs cursor-pointer shadow-sm transition-all flex items-center justify-center gap-1.5 active:scale-98"
+              >
+                <Shield size={14} /> Grant Evaluation Permission
+              </button>
+            </form>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs">
-            <div>
-              <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider block mb-1">Academic Session</label>
-              <input
-                type="text"
-                value={settings.currentAcademicSession || '2025-26'}
-                onChange={e => setSettings({ ...settings, currentAcademicSession: e.target.value })}
-                className="w-full px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 font-bold outline-none text-xs"
-                placeholder="2025-26"
-              />
+          {/* Active Permissions List Card (lg:col-span-7) */}
+          <div className="lg:col-span-7 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-5 shadow-xs space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+              <div>
+                <h3 className="text-xs sm:text-sm font-black text-slate-900 dark:text-white flex items-center gap-2">
+                  Active Teacher Permissions ({activePermissions.length})
+                </h3>
+                <p className="text-[10.5px] font-semibold text-slate-500">
+                  Current faculty members authorized for online marks entry.
+                </p>
+              </div>
+
+              <div className="relative w-44">
+                <Search size={11} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Filter permissions..."
+                  value={permSearch}
+                  onChange={e => setPermSearch(e.target.value)}
+                  className="w-full pl-7 pr-2 py-1 rounded-xl text-xs font-bold border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 focus:outline-none"
+                />
+              </div>
             </div>
-            <div>
-              <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider block mb-1">Evaluation Type</label>
-              <select
-                value={settings.defaultEvaluationType || 'internal'}
-                onChange={e => setSettings({ ...settings, defaultEvaluationType: e.target.value })}
-                className="w-full px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 font-bold outline-none text-xs cursor-pointer"
-              >
-                <option value="internal">Internal Assessment</option>
-                <option value="external">External / Outside Assessment</option>
-              </select>
-            </div>
-            <div>
-              <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider block mb-1">Absent Symbol</label>
-              <input
-                type="text"
-                value={settings.absentMarker || 'AB'}
-                onChange={e => setSettings({ ...settings, absentMarker: e.target.value })}
-                className="w-full px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 font-bold outline-none text-xs"
-                placeholder="AB"
-              />
-            </div>
-            <div className="sm:col-span-1.5">
-              <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider block mb-1">Class 11th Non-Practical Subjects</label>
-              <input
-                type="text"
-                value={settings.nonPractical11 || ''}
-                onChange={e => setSettings({ ...settings, nonPractical11: e.target.value })}
-                className="w-full px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 font-bold outline-none text-xs"
-                placeholder="Codes (e.g. HTC, ITE)"
-              />
-            </div>
-            <div className="sm:col-span-1.5">
-              <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider block mb-1">Class 12th Non-Practical Subjects</label>
-              <input
-                type="text"
-                value={settings.nonPractical12 || ''}
-                onChange={e => setSettings({ ...settings, nonPractical12: e.target.value })}
-                className="w-full px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 font-bold outline-none text-xs"
-                placeholder="Codes (e.g. HTC, ITE)"
-              />
+
+            <div className="max-h-[380px] overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800 text-xs pr-1">
+              {filteredPermissions.map((p, idx) => (
+                <div key={idx} className="py-2.5 flex items-center justify-between gap-3 hover:bg-slate-50/50 dark:hover:bg-slate-800/30 px-2 rounded-xl transition-colors">
+                  <div className="min-w-0 flex-1">
+                    <div className="font-bold text-slate-900 dark:text-white truncate text-xs">{p.email}</div>
+                    <div className="text-[10.5px] text-slate-500 font-semibold flex items-center gap-1.5 mt-0.5">
+                      <span className="px-1.5 py-0.2 rounded bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 font-black text-[10px]">
+                        Class {p.className}
+                      </span>
+                      <span>•</span>
+                      <span className="font-bold text-slate-700 dark:text-slate-300">{NAMES[p.subject] || p.subject} ({p.subject})</span>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (window.confirm(`Revoke practicals permission for ${p.email}?`)) {
+                        revokePerm(idx);
+                      }
+                    }}
+                    className="px-2.5 py-1 rounded-lg text-rose-600 hover:text-white hover:bg-rose-600 dark:hover:bg-rose-600 font-black text-[11px] cursor-pointer transition-all border border-rose-200 dark:border-rose-800/60"
+                  >
+                    Revoke
+                  </button>
+                </div>
+              ))}
+              {filteredPermissions.length === 0 && (
+                <div className="py-12 text-slate-400 text-center font-bold text-xs">
+                  {activePermissions.length === 0
+                    ? 'No active teacher evaluation permissions granted yet.'
+                    : 'No permissions match your search filter.'}
+                </div>
+              )}
             </div>
           </div>
         </div>
+      )}
 
-        {/* Card 3: Print Document Defaults & Headers */}
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-3.5 sm:p-4 shadow-xs space-y-3">
-          <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
-            <h3 className="text-xs sm:text-sm font-black text-slate-900 dark:text-white flex items-center gap-2">
-              <Printer size={16} className="text-emerald-500" /> Print Document Defaults & Headers
-            </h3>
-            <button
-              onClick={handleSavePrint}
-              disabled={saving}
-              className={`px-3 py-1 rounded-xl text-xs font-black cursor-pointer shadow-2xs flex items-center gap-1.5 transition-all ${
-                printSaved ? 'bg-indigo-600 text-white' : 'bg-emerald-600 hover:bg-emerald-500 text-white'
-              }`}
-            >
-              {printSaved ? <Check size={13} /> : <Save size={13} />} {printSaved ? 'Saved!' : saving ? 'Saving...' : 'Save Print Defaults'}
-            </button>
+      {/* VIEW 3: GLOBAL CONFIGURATION & OFFICIAL PRINT DEFAULTS */}
+      {activeSettingsTab === 'system' && (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
+          {/* Card 1: Global System Configuration (lg:col-span-5) */}
+          <div className="lg:col-span-5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-5 shadow-xs space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-2xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shadow-xs">
+                  <Settings size={16} strokeWidth={2.5} />
+                </div>
+                <div>
+                  <h3 className="text-xs sm:text-sm font-black text-slate-900 dark:text-white">
+                    Global System Configuration
+                  </h3>
+                  <p className="text-[10.5px] font-semibold text-slate-500">
+                    System evaluation parameters, absent codes, and rules.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={handleSaveSys}
+                disabled={saving}
+                className={`px-3 py-1 rounded-xl text-xs font-black cursor-pointer shadow-2xs flex items-center gap-1.5 transition-all ${
+                  sysSaved ? 'bg-emerald-600 text-white' : 'bg-indigo-600 hover:bg-indigo-500 text-white'
+                }`}
+              >
+                {sysSaved ? <Check size={13} /> : <Save size={13} />} {sysSaved ? 'Saved!' : saving ? 'Saving...' : 'Save Settings'}
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider block mb-1">
+                  Active Academic Session
+                </label>
+                <input
+                  type="text"
+                  value={settings.currentAcademicSession || '2025-26'}
+                  onChange={e => setSettings({ ...settings, currentAcademicSession: e.target.value })}
+                  className="w-full px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-bold outline-none text-xs"
+                  placeholder="2025-26"
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider block mb-1">
+                  Default Evaluation Type
+                </label>
+                <select
+                  value={settings.defaultEvaluationType || 'internal'}
+                  onChange={e => setSettings({ ...settings, defaultEvaluationType: e.target.value })}
+                  className="w-full px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-bold outline-none text-xs cursor-pointer"
+                >
+                  <option value="internal">Internal Assessment</option>
+                  <option value="external">External / Outside Assessment</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider block mb-1">
+                  Absent Candidate Symbol
+                </label>
+                <input
+                  type="text"
+                  value={settings.absentMarker || 'AB'}
+                  onChange={e => setSettings({ ...settings, absentMarker: e.target.value })}
+                  className="w-full px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-bold outline-none text-xs"
+                  placeholder="AB"
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider block mb-1">
+                  Class 11th Non-Practical Subjects
+                </label>
+                <input
+                  type="text"
+                  value={settings.nonPractical11 || ''}
+                  onChange={e => setSettings({ ...settings, nonPractical11: e.target.value })}
+                  className="w-full px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-bold outline-none text-xs"
+                  placeholder="Codes (e.g. HTC, ITE)"
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider block mb-1">
+                  Class 12th Non-Practical Subjects
+                </label>
+                <input
+                  type="text"
+                  value={settings.nonPractical12 || ''}
+                  onChange={e => setSettings({ ...settings, nonPractical12: e.target.value })}
+                  className="w-full px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-bold outline-none text-xs"
+                  placeholder="Codes (e.g. HTC, ITE)"
+                />
+              </div>
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
-            {['11th', '12th'].map(c => (
-              <div key={c} className="p-2.5 bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800 space-y-2">
-                <h4 className="font-black text-slate-800 dark:text-slate-200 text-xs flex items-center gap-1">
-                  <Award size={13} className="text-indigo-500" /> Class {c} Print Headers
-                </h4>
-                <div className="space-y-1.5">
-                  <div>
-                    <label className="text-[9.5px] font-black text-slate-500 uppercase tracking-wider block mb-0.5">Institution Name</label>
-                    <input
-                      type="text"
-                      placeholder="Institution Name"
-                      value={settings.printDetails?.[c]?.instName || 'Govt. Higher Secondary School Shangus'}
-                      onChange={e => setSettings(s => ({ ...s, printDetails: { ...s.printDetails, [c]: { ...s.printDetails?.[c], instName: e.target.value } } }))}
-                      className="w-full px-2 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 font-bold text-xs"
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
+          {/* Card 2: Official Document Print Headers (lg:col-span-7) */}
+          <div className="lg:col-span-7 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-5 shadow-xs space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shadow-xs">
+                  <Printer size={16} strokeWidth={2.5} />
+                </div>
+                <div>
+                  <h3 className="text-xs sm:text-sm font-black text-slate-900 dark:text-white">
+                    Print Document Defaults & Official Headers
+                  </h3>
+                  <p className="text-[10.5px] font-semibold text-slate-500">
+                    Header information stamped on generated award rolls and sheets.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={handleSavePrint}
+                disabled={saving}
+                className={`px-3 py-1 rounded-xl text-xs font-black cursor-pointer shadow-2xs flex items-center gap-1.5 transition-all ${
+                  printSaved ? 'bg-indigo-600 text-white' : 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                }`}
+              >
+                {printSaved ? <Check size={13} /> : <Save size={13} />} {printSaved ? 'Saved!' : saving ? 'Saving...' : 'Save Print Headers'}
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 text-xs">
+              {['11th', '12th'].map(c => (
+                <div key={c} className="p-3.5 bg-slate-50 dark:bg-slate-950 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-2.5">
+                  <h4 className="font-black text-slate-800 dark:text-slate-200 text-xs flex items-center gap-1.5">
+                    <Award size={13} className="text-indigo-500" /> Class {c} Print Headers
+                  </h4>
+                  <div className="space-y-2">
                     <div>
-                      <label className="text-[9.5px] font-black text-slate-500 uppercase tracking-wider block mb-0.5">Session Text</label>
+                      <label className="text-[9.5px] font-black text-slate-500 uppercase tracking-wider block mb-0.5">Institution Name</label>
                       <input
                         type="text"
-                        placeholder="Session (e.g. 2025-26)"
-                        value={settings.printDetails?.[c]?.sessionText || '2025-26'}
-                        onChange={e => setSettings(s => ({ ...s, printDetails: { ...s.printDetails, [c]: { ...s.printDetails?.[c], sessionText: e.target.value } } }))}
-                        className="w-full px-2 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 font-bold text-xs"
+                        placeholder="Institution Name"
+                        value={settings.printDetails?.[c]?.instName || 'Govt. Higher Secondary School Shangus'}
+                        onChange={e => setSettings(s => ({ ...s, printDetails: { ...s.printDetails, [c]: { ...s.printDetails?.[c], instName: e.target.value } } }))}
+                        className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 font-bold text-xs"
                       />
                     </div>
-                    <div>
-                      <label className="text-[9.5px] font-black text-slate-500 uppercase tracking-wider block mb-0.5">Incharge Name</label>
-                      <input
-                        type="text"
-                        placeholder="Incharge Name"
-                        value={settings.printDetails?.[c]?.inchargeName || (c === '12th' ? 'Mr. Bilal Ahmad Khandy' : 'Mr. Majid Hassan Najar')}
-                        onChange={e => setSettings(s => ({ ...s, printDetails: { ...s.printDetails, [c]: { ...s.printDetails?.[c], inchargeName: e.target.value } } }))}
-                        className="w-full px-2 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 font-bold text-xs"
-                      />
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-[9.5px] font-black text-slate-500 uppercase tracking-wider block mb-0.5">Session Text</label>
+                        <input
+                          type="text"
+                          placeholder="Session (e.g. 2025-26)"
+                          value={settings.printDetails?.[c]?.sessionText || '2025-26'}
+                          onChange={e => setSettings(s => ({ ...s, printDetails: { ...s.printDetails, [c]: { ...s.printDetails?.[c], sessionText: e.target.value } } }))}
+                          className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 font-bold text-xs"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[9.5px] font-black text-slate-500 uppercase tracking-wider block mb-0.5">Incharge Name</label>
+                        <input
+                          type="text"
+                          placeholder="Incharge Name"
+                          value={settings.printDetails?.[c]?.inchargeName || (c === '12th' ? 'Mr. Bilal Ahmad Khandy' : 'Mr. Majid Hassan Najar')}
+                          onChange={e => setSettings(s => ({ ...s, printDetails: { ...s.printDetails, [c]: { ...s.printDetails?.[c], inchargeName: e.target.value } } }))}
+                          className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 font-bold text-xs"
+                        />
+                      </div>
                     </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="text-[9.5px] font-black text-slate-500 uppercase tracking-wider block mb-0.5">Incharge CPIS</label>
-                      <input
-                        type="text"
-                        placeholder="CPIS Code"
-                        value={settings.printDetails?.[c]?.inchargeCpis || (c === '12th' ? 'KGLEDU00120015' : 'SHGEDU00220017')}
-                        onChange={e => setSettings(s => ({ ...s, printDetails: { ...s.printDetails, [c]: { ...s.printDetails?.[c], inchargeCpis: e.target.value } } }))}
-                        className="w-full px-2 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 font-bold text-xs"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[9.5px] font-black text-slate-500 uppercase tracking-wider block mb-0.5">Incharge Mobile</label>
-                      <input
-                        type="tel"
-                        maxLength={10}
-                        placeholder="10-digit mobile"
-                        value={settings.printDetails?.[c]?.inchargeMobile || (c === '12th' ? '9596165142' : '7006537425')}
-                        onChange={e => setSettings(s => ({ ...s, printDetails: { ...s.printDetails, [c]: { ...s.printDetails?.[c], inchargeMobile: e.target.value.replace(/\D/g, '') } } }))}
-                        className="w-full px-2 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 font-bold text-xs"
-                      />
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-[9.5px] font-black text-slate-500 uppercase tracking-wider block mb-0.5">Incharge CPIS</label>
+                        <input
+                          type="text"
+                          placeholder="CPIS Code"
+                          value={settings.printDetails?.[c]?.inchargeCpis || (c === '12th' ? 'KGLEDU00120015' : 'SHGEDU00220017')}
+                          onChange={e => setSettings(s => ({ ...s, printDetails: { ...s.printDetails, [c]: { ...s.printDetails?.[c], inchargeCpis: e.target.value } } }))}
+                          className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 font-bold text-xs"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[9.5px] font-black text-slate-500 uppercase tracking-wider block mb-0.5">Incharge Mobile</label>
+                        <input
+                          type="tel"
+                          maxLength={10}
+                          placeholder="10-digit mobile"
+                          value={settings.printDetails?.[c]?.inchargeMobile || (c === '12th' ? '9596165142' : '7006537425')}
+                          onChange={e => setSettings(s => ({ ...s, printDetails: { ...s.printDetails, [c]: { ...s.printDetails?.[c], inchargeMobile: e.target.value.replace(/\D/g, '') } } }))}
+                          className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 font-bold text-xs"
+                        />
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
