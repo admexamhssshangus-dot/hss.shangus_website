@@ -38,28 +38,18 @@ import {
   getSubjectMarksConfig
 } from '../../utils/practicalsSettingsManager';
 
-const CODES = ['EN', 'PH', 'CH', 'MA', 'UR', 'ED', 'HT', 'PS', 'EC', 'ES', 'PD', 'HTC', 'ITE', 'BO', 'ZO', 'BI'];
-const NAMES = {
-  BO: 'Botany',
-  ZO: 'Zoology',
-  BI: 'Biology (Botany & Zoology)',
-  CH: 'Chemistry',
-  EC: 'Economics',
-  ED: 'Education',
-  ES: 'Environmental Science',
-  EN: 'General English',
-  HTC: 'Healthcare',
-  HT: 'History',
-  ITE: 'IT and ITES',
-  MA: 'Mathematics',
-  PD: 'Physical Education',
-  PH: 'Physics',
-  PS: 'Political Science',
-  UR: 'Urdu'
-};
+export const CODES = SUBJECT_CONFIG_DEFS.map(s => s.code);
+export const NAMES = SUBJECT_CONFIG_DEFS.reduce((acc, s) => {
+  acc[s.code] = s.name;
+  return acc;
+}, {});
 
-const DEFAULT_MX11 = { BI: 20, BO: 10, ZO: 10, CH: 10, EC: 20, ED: 20, EN: 20, ES: 10, HT: 20, MA: 20, PD: 15, PH: 10, PS: 20, UR: 20, HTC: 50, ITE: 50 };
-const DEFAULT_MX12 = { BI: 20, BO: 10, ZO: 10, CH: 10, EC: 20, ED: 20, EN: 20, ES: 10, HT: 20, MA: 20, PD: 15, PH: 10, PS: 20, UR: 20, HTC: 50, ITE: 50 };
+export const DEFAULT_MX11 = Object.fromEntries(
+  Object.entries(DEFAULT_PRACTICAL_MARKS_CONFIG['11th'].internal).map(([k, v]) => [k, v.max])
+);
+export const DEFAULT_MX12 = Object.fromEntries(
+  Object.entries(DEFAULT_PRACTICAL_MARKS_CONFIG['12th'].internal).map(([k, v]) => [k, v.max])
+);
 
 export const DEFAULT_EXCLUDED_TEACHERS = [
   'teacher@hssshangus.in',
