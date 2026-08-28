@@ -24,6 +24,7 @@
     "security:check": "node scripts/security-regression-check.js",
     "eject": "react-scripts eject",
     "firestore:reset": "node scripts/reset_and_seed_firestore.js",
+    "deploy:rules": "firebase deploy --only firestore:rules",
     "deploy:firebase": "npm run build && firebase deploy --only hosting"
   },
   "eslintConfig": {
