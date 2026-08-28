@@ -340,18 +340,24 @@ function getRegNo(st) {
   };
 
   const newReg = clean(
-    st['Board Registration No. (Class 11th)'] ||
     st['Board Registration No. (Class 12th)'] ||
+    st['Board Registration No. (Class 11th)'] ||
     st['Board Registration No.'] ||
     st['Board Registration Number'] ||
     st['Board Reg. No.'] ||
     st['Board Reg. No'] ||
     st['Board Reg No'] ||
+    st['Registration No. (allotted by JKBOSE)'] ||
+    st['Registration No. (allotted by JKBOSE )'] ||
+    st['Registration No. (allotted by JKBOSE  )'] ||
+    st['Registration No.'] ||
+    st['Registration No'] ||
+    st['Registration Number'] ||
     st['Reg. No.'] ||
     st['Reg. No'] ||
     st['Reg No'] ||
-    st['Registration No'] ||
-    st['Registration Number'] ||
+    st['RR No.'] ||
+    st['R.R NO.'] ||
     st.boardRegNo ||
     st.regNo ||
     st.registrationNo ||
@@ -361,12 +367,29 @@ function getRegNo(st) {
   const oldReg = clean(
     st['Board Registration No. (Class 10th)'] ||
     st['Board Registration No. (Class 9th)'] ||
+    st['DIET Registration No.'] ||
     st['Old Registration No.'] ||
     st['Old Reg. No.'] ||
     st['Old Reg No'] ||
     st.oldRegNo ||
     st.prevRegNo
   );
+
+  // Dynamic fallback for custom headers
+  let dynamicReg = '';
+  if (!newReg && !oldReg && typeof st === 'object') {
+    for (const key of Object.keys(st)) {
+      const kLower = key.toLowerCase();
+      if ((kLower.includes('reg') && (kLower.includes('no') || kLower.includes('num') || kLower.includes('#'))) || kLower.includes('registration')) {
+        if (kLower.includes('date') || kLower.includes('status') || kLower.includes('fee') || kLower.includes('deadline')) continue;
+        const val = clean(st[key]);
+        if (val && !/^(yes|no|true|false)$/i.test(val)) {
+          dynamicReg = val;
+          break;
+        }
+      }
+    }
+  }
 
   // If a single reg field contains multiple reg numbers (e.g. "REG1 / REG2" or "REG1, REG2")
   if (newReg) {
@@ -381,7 +404,7 @@ function getRegNo(st) {
     return `${newReg} (${oldReg})`;
   }
 
-  return newReg || oldReg || '';
+  return newReg || oldReg || dynamicReg || '';
 }
 
 // Helper: Extract Exam Roll Badges (Exam R.No. (Current) + Exam R.no. (Prev.))
@@ -1386,7 +1409,7 @@ export default function PracticalsPage() {
             formNo: (st.formNo && String(st.formNo) !== String(roll) && String(st.formNo).length > 3)
               ? st.formNo
               : (st['Form No.'] || st['Form No'] || st['Form Number'] || st.form_no || ''),
-            admNo: extractRawAdmNo(st),
+            regNo: getRegNo(st) || st.regNo || '',
             practicalMarks: draft.practicalMarks ?? saved.practicalMarks ?? '',
             vivaMarks: draft.vivaMarks ?? saved.vivaMarks ?? '',
           };
@@ -1936,7 +1959,7 @@ export default function PracticalsPage() {
                         </div>
                         <div className="flex items-center gap-1 shrink-0 text-[9px] flex-wrap justify-end">
                           {st.formNo && <span className="px-1 py-0.2 rounded font-mono bg-slate-100 dark:bg-slate-800 text-slate-500 border border-slate-200 dark:border-slate-700">Form #{st.formNo}</span>}
-                          {st.admNo && <span className="px-1 py-0.2 rounded font-mono bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 font-bold border border-indigo-500/20">Adm #{st.admNo}</span>}
+                          {st.regNo && <span className="px-1 py-0.2 rounded font-mono bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 font-bold border border-indigo-500/20">Reg #{st.regNo}</span>}
                           <span className="px-1 py-0.2 rounded font-mono font-black bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30">
                             Exam Roll: {st.examRollNo || '-'}
                           </span>
@@ -2003,8 +2026,8 @@ export default function PracticalsPage() {
                               {st.formNo && String(st.formNo) !== String(st.rollNo) && String(st.formNo).length > 3 && (
                                 <span className="px-1.5 py-0.2 rounded font-mono bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold border border-slate-200 dark:border-slate-700 text-[9px]">Form #{st.formNo}</span>
                               )}
-                              {st.admNo && (
-                                <span className="px-1.5 py-0.2 rounded font-mono bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 font-bold border border-indigo-500/20 text-[9px]">Adm #{st.admNo}</span>
+                              {st.regNo && (
+                                <span className="px-1.5 py-0.2 rounded font-mono bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 font-bold border border-indigo-500/20 text-[9px]">Reg #{st.regNo}</span>
                               )}
                               <span className="px-1.5 py-0.2 rounded font-mono font-black bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30 text-[9px]">
                                 Exam Roll: {st.examRollNo || '-'}
