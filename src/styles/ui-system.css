@@ -117,7 +117,7 @@ button, input, select, textarea { font: inherit; }
   .ui-skeleton--feature { min-height: 12rem; }
   .ui-skeleton--card { height: 9rem; }
   .ui-mobile-progressive-item:nth-child(n + 5) { display: none; }
-  .public-page a.ui-touch-target { min-height: 2.75rem; }
+  .public-page a.ui-touch-target:not(.aspect-square):not(.rounded-full) { min-height: 2.75rem; }
 }
 
 .ui-mobile-only { display: none; }
@@ -294,6 +294,6 @@ button, input, select, textarea { font: inherit; }
 }
 
 @media (pointer: coarse) {
-  .ui-touch-target,
+  .ui-touch-target:not(.aspect-square):not(.rounded-full),
   .portal-auth-page button { min-height: 2.75rem; }
 }

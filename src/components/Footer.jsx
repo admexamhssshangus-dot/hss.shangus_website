@@ -111,10 +111,11 @@ export default function Footer() {
                     href={settings.socialLinks.facebook}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="ui-touch-target p-2 rounded-full bg-slate-900 text-slate-400 hover:text-white hover:bg-[#961c14] border border-slate-800 transition-all duration-200 flex items-center justify-center"
+                    className="w-9 h-9 min-w-[2.25rem] max-w-[2.25rem] min-h-[2.25rem] max-h-[2.25rem] aspect-square rounded-full bg-slate-900 text-slate-300 hover:text-white hover:bg-[#961c14] border border-slate-800 transition-all duration-200 flex items-center justify-center shrink-0 shadow-sm hover:scale-110 active:scale-95"
                     title="Facebook"
+                    aria-label="Facebook"
                   >
-                    <FacebookIcon size={14} />
+                    <FacebookIcon size={15} />
                   </a>
                 )}
                 {settings.socialLinks.youtube && settings.socialLinks.youtube !== '#' && (
@@ -122,10 +123,11 @@ export default function Footer() {
                     href={settings.socialLinks.youtube}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="ui-touch-target p-2 rounded-full bg-slate-900 text-slate-400 hover:text-white hover:bg-[#961c14] border border-slate-800 transition-all duration-200 flex items-center justify-center"
+                    className="w-9 h-9 min-w-[2.25rem] max-w-[2.25rem] min-h-[2.25rem] max-h-[2.25rem] aspect-square rounded-full bg-slate-900 text-slate-300 hover:text-white hover:bg-[#961c14] border border-slate-800 transition-all duration-200 flex items-center justify-center shrink-0 shadow-sm hover:scale-110 active:scale-95"
                     title="YouTube"
+                    aria-label="YouTube"
                   >
-                    <YoutubeIcon size={14} />
+                    <YoutubeIcon size={15} />
                   </a>
                 )}
                 {settings.socialLinks.twitter && settings.socialLinks.twitter !== '#' && (
@@ -133,10 +135,11 @@ export default function Footer() {
                     href={settings.socialLinks.twitter}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="ui-touch-target p-2 rounded-full bg-slate-900 text-slate-400 hover:text-white hover:bg-[#961c14] border border-slate-800 transition-all duration-200 flex items-center justify-center"
+                    className="w-9 h-9 min-w-[2.25rem] max-w-[2.25rem] min-h-[2.25rem] max-h-[2.25rem] aspect-square rounded-full bg-slate-900 text-slate-300 hover:text-white hover:bg-[#961c14] border border-slate-800 transition-all duration-200 flex items-center justify-center shrink-0 shadow-sm hover:scale-110 active:scale-95"
                     title="Twitter / X"
+                    aria-label="Twitter / X"
                   >
-                    <TwitterIcon size={14} />
+                    <TwitterIcon size={15} />
                   </a>
                 )}
                 {settings.socialLinks.instagram && settings.socialLinks.instagram !== '#' && (
@@ -144,10 +147,11 @@ export default function Footer() {
                     href={settings.socialLinks.instagram}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="ui-touch-target p-2 rounded-full bg-slate-900 text-slate-400 hover:text-white hover:bg-[#961c14] border border-slate-800 transition-all duration-200 flex items-center justify-center"
+                    className="w-9 h-9 min-w-[2.25rem] max-w-[2.25rem] min-h-[2.25rem] max-h-[2.25rem] aspect-square rounded-full bg-slate-900 text-slate-300 hover:text-white hover:bg-[#961c14] border border-slate-800 transition-all duration-200 flex items-center justify-center shrink-0 shadow-sm hover:scale-110 active:scale-95"
                     title="Instagram"
+                    aria-label="Instagram"
                   >
-                    <InstagramIcon size={14} />
+                    <InstagramIcon size={15} />
                   </a>
                 )}
               </div>
@@ -155,34 +159,34 @@ export default function Footer() {
           </div>
 
           {/* Quick Links */}
-          <div className="text-center">
-            <h2 className="text-white font-bold mb-4 text-base tracking-wide font-sans">Quick Links</h2>
-            <ul className="space-y-2 text-sm flex flex-col font-sans">
-              <li><Link to="/" onClick={() => window.scrollTo(0, 0)} className="ui-touch-target inline-flex items-center hover:text-teal-400 transition-colors">Home</Link></li>
-              <li><Link to="/about" onClick={() => window.scrollTo(0, 0)} className="ui-touch-target inline-flex items-center hover:text-teal-400 transition-colors">About Us</Link></li>
-              <li><Link to="/admissions" onClick={() => window.scrollTo(0, 0)} className="ui-touch-target inline-flex items-center hover:text-teal-400 transition-colors">Admissions</Link></li>
-              <li><Link to="/login" onClick={() => window.scrollTo(0, 0)} className="ui-touch-target inline-flex items-center hover:text-teal-400 transition-colors">Login / Portal</Link></li>
-              <li><Link to="/academics" onClick={() => window.scrollTo(0, 0)} className="ui-touch-target inline-flex items-center hover:text-teal-400 transition-colors">Academics</Link></li>
+          <div className="text-center md:text-left">
+            <h2 className="text-white font-bold mb-3 text-base tracking-wide font-sans">Quick Links</h2>
+            <ul className="space-y-1 text-sm flex flex-col items-center md:items-start font-sans">
+              <li><Link to="/" onClick={() => window.scrollTo(0, 0)} className="text-slate-400 hover:text-teal-400 py-1 px-1 inline-block transition-colors">Home</Link></li>
+              <li><Link to="/about" onClick={() => window.scrollTo(0, 0)} className="text-slate-400 hover:text-teal-400 py-1 px-1 inline-block transition-colors">About Us</Link></li>
+              <li><Link to="/admissions" onClick={() => window.scrollTo(0, 0)} className="text-slate-400 hover:text-teal-400 py-1 px-1 inline-block transition-colors">Admissions</Link></li>
+              <li><Link to="/login" onClick={() => window.scrollTo(0, 0)} className="text-slate-400 hover:text-teal-400 py-1 px-1 inline-block transition-colors">Login / Portal</Link></li>
+              <li><Link to="/academics" onClick={() => window.scrollTo(0, 0)} className="text-slate-400 hover:text-teal-400 py-1 px-1 inline-block transition-colors">Academics</Link></li>
             </ul>
           </div>
 
           {/* Contact Us - With Real Google Maps & Custom Spacing */}
-          <div className="flex flex-col items-center gap-0 text-center md:items-center md:text-center font-sans">
+          <div className="flex flex-col items-center gap-0 text-center font-sans">
             {/* 1. Heading + quick contact button */}
-            <div className="flex items-center gap-3 mb-3">
-              <h2 className="text-white font-bold text-base mb-0 mt-0 leading-[1.2] tracking-wide font-sans">Contact Us</h2>
+            <div className="flex items-center justify-center gap-2.5 mb-3">
+              <h2 className="text-white font-bold text-base mb-0 mt-0 leading-tight tracking-wide font-sans">Contact Us</h2>
               <button
                 onClick={() => setActiveModal('contactForm')}
                 aria-label="Open contact form"
-                className="ui-touch-target btn-primary-custom rounded-md px-3 py-1 text-xs font-bold shadow-md flex items-center justify-center transition-all duration-200"
-                style={{ boxShadow: '0 6px 18px rgba(16,185,129,0.12)' }}
+                className="btn-primary-custom rounded-lg w-7 h-7 min-w-[1.75rem] min-h-[1.75rem] aspect-square flex items-center justify-center text-xs font-bold shadow-md transition-all duration-200 hover:scale-105 shrink-0"
+                style={{ boxShadow: '0 4px 12px rgba(16,185,129,0.18)' }}
               >
-                <Mail size={14} />
+                <Mail size={13} />
               </button>
             </div>
 
             {/* 2. Map */}
-            <div className="w-full rounded-xl overflow-hidden border-2 border-slate-800 leading-none m-0 mt-4 shadow-md hover:border-teal-500/50 transition-colors duration-300">
+            <div className="w-full max-w-xs md:max-w-none rounded-xl overflow-hidden border-2 border-slate-800 leading-none m-0 mt-1 shadow-md hover:border-teal-500/50 transition-colors duration-300">
               <iframe
                 src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d651.5363008761467!2d75.28722872804701!3d33.697775316694695!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x38e20b9b41c3c13b%3A0xcf46d931eae137a!2sGovt%20Higher%20Secondry%20School%20Shangus!5e1!3m2!1sen!2sin!4v1776567033858!5m2!1sen!2sin"
                 width="100%"
@@ -199,7 +203,7 @@ export default function Footer() {
             <div className="w-[2px] h-[10px] bg-[#10b981] m-0 mt-3"></div>
 
             {/* 3. Address Box */}
-            <div className="text-center w-full m-0 p-0 mt-2 md:mt-0">
+            <div className="text-center w-full m-0 p-0 mt-2">
               <div className="text-slate-400 text-[14px] leading-[1.4] m-0 p-0 font-sans">
                 Main Road, Shangus,<br />Anantnag, J&K - 192201
               </div>
@@ -207,19 +211,19 @@ export default function Footer() {
           </div>
 
           {/* Legal & Compliance Menu */}
-          <div className="text-center">
-            <h2 className="text-white font-bold mb-4 text-base tracking-wide font-sans">Legal & Compliance</h2>
-            <ul className="space-y-2 text-sm flex flex-col items-center font-sans">
-              <li><button onClick={() => setActiveModal('privacy')} className="ui-touch-target hover:text-teal-400 transition-colors focus:outline-none">
+          <div className="text-center md:text-left">
+            <h2 className="text-white font-bold mb-3 text-base tracking-wide font-sans">Legal & Compliance</h2>
+            <ul className="space-y-1 text-sm flex flex-col items-center md:items-start font-sans">
+              <li><button onClick={() => setActiveModal('privacy')} className="text-slate-400 hover:text-teal-400 py-1 px-1 inline-block transition-colors focus:outline-none cursor-pointer">
                 Privacy Policy
               </button></li>
-              <li><button onClick={() => setActiveModal('terms')} className="ui-touch-target hover:text-teal-400 transition-colors focus:outline-none">
+              <li><button onClick={() => setActiveModal('terms')} className="text-slate-400 hover:text-teal-400 py-1 px-1 inline-block transition-colors focus:outline-none cursor-pointer">
                 Terms & Conditions
               </button></li>
-              <li><button onClick={() => setActiveModal('refund')} className="ui-touch-target hover:text-teal-400 transition-colors focus:outline-none">
+              <li><button onClick={() => setActiveModal('refund')} className="text-slate-400 hover:text-teal-400 py-1 px-1 inline-block transition-colors focus:outline-none cursor-pointer">
                 Refund Policy
               </button></li>
-              <li><button onClick={() => setActiveModal('contact')} className="ui-touch-target hover:text-teal-400 transition-colors focus:outline-none">
+              <li><button onClick={() => setActiveModal('contact')} className="text-slate-400 hover:text-teal-400 py-1 px-1 inline-block transition-colors focus:outline-none cursor-pointer">
                 Contact Us
               </button></li>
             </ul>
@@ -274,7 +278,7 @@ export default function Footer() {
                 <button
                   type="button"
                   onClick={() => setActiveModal('companyInfo')}
-                  className="ui-touch-target inline-flex items-center justify-center text-cyan-400 hover:text-cyan-200 transition-colors cursor-pointer p-0.5"
+                  className="inline-flex items-center justify-center text-cyan-400 hover:text-cyan-200 transition-colors cursor-pointer p-0.5"
                   title="About Next Life Technologies (NexLifTech)"
                   aria-label="About Company Info"
                 >
