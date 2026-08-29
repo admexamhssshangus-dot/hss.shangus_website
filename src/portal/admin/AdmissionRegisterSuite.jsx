@@ -703,9 +703,9 @@ export function hasAssignedClassRollNo(s) {
 
 // Business status evaluation: Approved strictly means those assigned a Class Roll Number
 function resolveEffectiveStatus(s) {
-  if (hasAssignedClassRollNo(s)) return 'Approved';
-
   const rawStat = cleanStr(s.status || s.Status || s.admissionStatus || s['Status'] || s['Admission Status'] || '').toLowerCase();
+  if (rawStat.includes('withdrawn') || rawStat.includes('withdraw') || rawStat.includes('wthd')) return 'Withdrawn';
+  if (hasAssignedClassRollNo(s)) return 'Approved';
   if (rawStat.includes('reject') || rawStat.includes('rejt')) return 'Rejected';
   if (rawStat.includes('draft')) return 'Draft';
   if (rawStat.includes('provis')) return 'Provisional';
