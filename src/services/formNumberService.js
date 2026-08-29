@@ -103,62 +103,120 @@ export async function getFormNumberConfig() {
 export async function getNextAvailableFormNumber() {
   const config = await getFormNumberConfig();
 
-  // If recycled form numbers exist from deleted applications, assign the oldest valid recycled number first
-  const recycled = (Array.isArray(config.recycledFormNumbers) ? config.recycledFormNumbers : [])
-    .map(s => String(s || '').trim())
-    .filter(s => /^\d{6}$/.test(s) && !s.startsWith('0'));
-  if (recycled.length > 0) {
-    const firstRecycled = recycled[0];
-    if (firstRecycled) return firstRecycled;
+  const now = new Date();
+  const calYear = now.getFullYear();
+  const calMonth = now.getMonth() + 1;
+  const calDay = now.getDate();
+  const cutoffMonth = config.cutoffMonth !== undefined ? Number(config.cutoffMonth) : 10;
+  const cutoffDay = config.cutoffDay !== undefined ? Number(config.cutoffDay) : 31;
+  let sessionEndYear = calYear;
+  if (calMonth > cutoffMonth || (calMonth === cutoffMonth && calDay > cutoffDay)) {
+    sessionEndYear = calYear + 1;
   }
+  const sessionStartYear = sessionEndYear - 1;
+  const yearPrefix = config.digitFormat === 'YYYY0000' ? String(sessionStartYear) : String(sessionStartYear).slice(-2);
+  const defaultStartingSeries = parseInt(`${yearPrefix}0001`, 10);
 
-  // Scan admissions and masterRegisters in memory/cache & Firestore to get max existing form number
+  const consumedNumbers = new Set();
   let maxFormNum = 0;
 
-  const checkRecord = (rec) => {
-    if (!rec) return;
-    const fNoStr = String(rec['Form Number'] || rec['Form No.'] || rec['FormNo'] || rec.formNo || rec.fNo || '').replace(/[^0-9]/g, '');
-    if (fNoStr && fNoStr.length >= 4 && fNoStr.length <= 8) {
-      const num = parseInt(fNoStr, 10);
-      if (!isNaN(num) && num > maxFormNum) {
-        maxFormNum = num;
+  const checkVal = (rawVal) => {
+    if (!rawVal) return;
+    const cleanStr = String(rawVal).replace(/[^0-9]/g, '');
+    if (cleanStr.length >= 4 && cleanStr.length <= 8) {
+      const num = parseInt(cleanStr, 10);
+      if (!isNaN(num) && num > 0) {
+        consumedNumbers.add(cleanStr);
+        consumedNumbers.add(String(num));
+        // If it matches the current session series prefix (e.g. '25' for 2025-26) or standard length
+        if (cleanStr.startsWith(yearPrefix) || !yearPrefix) {
+          if (num > maxFormNum) {
+            maxFormNum = num;
+          }
+        }
       }
     }
   };
 
+  const checkRecord = (rec, docId = '') => {
+    if (!rec && !docId) return;
+    if (docId) checkVal(docId);
+    if (!rec || typeof rec !== 'object') return;
+    checkVal(rec['Form Number']);
+    checkVal(rec['Form No.']);
+    checkVal(rec['Form No']);
+    checkVal(rec['FormNo']);
+    checkVal(rec['formNo']);
+    checkVal(rec['formNumber']);
+    checkVal(rec['form_no']);
+    checkVal(rec['fNo']);
+    checkVal(rec['docId']);
+    checkVal(rec['id']);
+    checkVal(rec['_docId']);
+  };
+
+  // 1. Scan memory/sync caches
   const cachedAdmissions = getCachedCollectionSync('admissions');
   if (Array.isArray(cachedAdmissions)) {
     cachedAdmissions.forEach(item => {
-      if (Array.isArray(item.items)) item.items.forEach(checkRecord);
-      else checkRecord(item);
+      if (Array.isArray(item.items)) {
+        item.items.forEach(inner => checkRecord(inner, inner?.id || inner?.docId));
+      } else {
+        checkRecord(item, item?.id || item?.docId);
+      }
     });
   }
 
   const cachedMaster = getCachedCollectionSync('masterRegisters');
   if (Array.isArray(cachedMaster)) {
     cachedMaster.forEach(item => {
-      if (Array.isArray(item.items)) item.items.forEach(checkRecord);
-      else checkRecord(item);
+      if (Array.isArray(item.items)) {
+        item.items.forEach(inner => checkRecord(inner, inner?.id || inner?.docId));
+      } else {
+        checkRecord(item, item?.id || item?.docId);
+      }
     });
   }
 
-  // Check localStorage for the highest seen form number
+  // 2. Query Firestore admissions collection directly
+  try {
+    const snap = await getDocs(collection(db, 'admissions'));
+    if (!snap.empty) {
+      snap.forEach(d => {
+        checkRecord(d.data(), d.id);
+      });
+    }
+  } catch (e) {
+    console.warn('Firestore admissions scan for form numbers note:', e);
+  }
+
+  // 3. Check localStorage for highest seen form number
   try {
     const localMax = localStorage.getItem('hss_last_max_form_no');
     if (localMax && /^\d+$/.test(localMax)) {
       const num = parseInt(localMax, 10);
-      if (!isNaN(num) && num > maxFormNum) maxFormNum = num;
+      if (!isNaN(num) && num > 0) {
+        checkVal(localMax);
+      }
     }
   } catch (_) {}
 
-  // Also query Firestore admissions collection directly if admin permissions are active
-  try {
-    const snap = await getDocs(collection(db, 'admissions'));
-    snap.forEach(d => checkRecord(d.data()));
-  } catch (e) {}
+  // 4. Check recycled deleted form numbers (only if not already consumed in database)
+  const recycled = (Array.isArray(config.recycledFormNumbers) ? config.recycledFormNumbers : [])
+    .map(s => String(s || '').trim())
+    .filter(s => /^\d{6}$/.test(s) && !s.startsWith('0') && !consumedNumbers.has(s));
+  
+  if (recycled.length > 0) {
+    const firstRecycled = recycled[0];
+    if (firstRecycled) return firstRecycled;
+  }
 
-  const configNext = Number(config.nextFormNumber) || Number(config.startingSeries) || 250001;
-  const candidate = Math.max(configNext, maxFormNum > 0 ? maxFormNum + 1 : configNext);
+  const configNext = Number(config.nextFormNumber) || Number(config.startingSeries) || defaultStartingSeries;
+  const candidate = maxFormNum > 0 ? maxFormNum + 1 : Math.max(configNext, defaultStartingSeries);
+
+  try {
+    localStorage.setItem('hss_last_max_form_no', String(candidate));
+  } catch (_) {}
 
   return String(candidate);
 }
