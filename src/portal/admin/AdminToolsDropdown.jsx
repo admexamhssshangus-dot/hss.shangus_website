@@ -3,7 +3,7 @@ import {
   BarChart2, Contact, ShieldCheck, Settings, ClipboardCheck, 
   CalendarCheck, Hash, Layers, Mail, CreditCard, Edit3, PlusCircle, 
   Wrench, Check, ChevronRight, Zap, PanelsTopLeft, FileSpreadsheet, FileText,
-  GitMerge, BookOpen, Award
+  GitMerge, BookOpen, Award, X
 } from 'lucide-react';
 
 export const ADMIN_TOOL_MODULES = [
@@ -97,21 +97,39 @@ export default function AdminToolsDropdown({
   const currentCategoryItems = permittedModules.filter(m => m.category === activeCategoryKey);
 
   return (
-    <div
-      ref={dropdownRef}
-      onMouseDown={(e) => e.stopPropagation()}
-      className={`absolute ${align === 'right' ? 'right-0' : 'left-0'} mt-1.5 w-[520px] max-w-[calc(100vw-12px)] max-h-[min(76vh,460px)] overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800 shadow-2xl z-[9999] p-2 space-y-1.5 animate-fadeIn bg-white/98 dark:bg-slate-900/98 backdrop-blur-md text-slate-900 dark:text-slate-100 text-xs font-bold`}
-    >
-      {/* Menu Header */}
-      <div className="px-2.5 py-1 border-b border-slate-200 dark:border-slate-800 text-[10px] font-black text-slate-500 uppercase tracking-wider flex items-center justify-between">
-        <span className="flex items-center gap-1.5">
-          <Wrench size={13} className="text-amber-600 dark:text-amber-400" />
-          <span>Administrative Modules</span>
-        </span>
-        <span className="text-amber-700 dark:text-amber-400 font-mono bg-amber-100 dark:bg-amber-950/80 border border-amber-300 dark:border-amber-700/60 px-1.5 py-0.2 rounded-md">
-          {permittedModules.length} Available
-        </span>
-      </div>
+    <>
+      {/* Mobile Backdrop Overlay for Clean Dismissal */}
+      <div
+        className="fixed inset-0 bg-slate-950/50 backdrop-blur-xs z-[99998] sm:hidden animate-fadeIn"
+        onClick={() => setIsOpen(false)}
+      />
+
+      <div
+        ref={dropdownRef}
+        onMouseDown={(e) => e.stopPropagation()}
+        className={`fixed inset-x-2 top-16 sm:top-auto sm:mt-1.5 sm:absolute sm:inset-x-auto sm:left-0 sm:right-auto w-auto sm:w-[520px] max-w-[calc(100vw-16px)] max-h-[min(82vh,480px)] overflow-hidden rounded-2xl sm:rounded-xl border border-slate-200 dark:border-slate-800 shadow-2xl z-[99999] p-2.5 sm:p-2 space-y-1.5 animate-fadeIn bg-white/98 dark:bg-slate-900/98 backdrop-blur-md text-slate-900 dark:text-slate-100 text-xs font-bold`}
+      >
+        {/* Menu Header */}
+        <div className="px-2.5 py-1 border-b border-slate-200 dark:border-slate-800 text-[10px] font-black text-slate-500 uppercase tracking-wider flex items-center justify-between">
+          <span className="flex items-center gap-1.5">
+            <Wrench size={13} className="text-amber-600 dark:text-amber-400" />
+            <span>Administrative Modules</span>
+          </span>
+          <div className="flex items-center gap-2">
+            <span className="text-amber-700 dark:text-amber-400 font-mono bg-amber-100 dark:bg-amber-950/80 border border-amber-300 dark:border-amber-700/60 px-1.5 py-0.2 rounded-md">
+              {permittedModules.length} Available
+            </span>
+            <button
+              type="button"
+              onClick={() => setIsOpen(false)}
+              className="p-1 rounded-md text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 sm:hidden cursor-pointer"
+              title="Close Menu"
+              aria-label="Close Menu"
+            >
+              <X size={14} />
+            </button>
+          </div>
+        </div>
 
       {/* 2-Column Side-by-Side Mega Menu Panel */}
       <div className="flex flex-col sm:flex-row gap-2 min-h-0 sm:min-h-[220px]">
@@ -277,5 +295,6 @@ export default function AdminToolsDropdown({
         </div>
       </div>
     </div>
+    </>
   );
 }

@@ -765,93 +765,112 @@ function UnifiedFiltersGroupDropdown({
       </button>
 
       {isOpen && (
-        <div className="absolute -left-24 sm:left-0 mt-1.5 w-[280px] sm:w-[310px] max-w-[calc(100vw-16px)] rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl z-50 p-2.5 sm:p-3 space-y-2 animate-fadeIn bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">
-          <div className="flex items-center justify-between pb-1.5 border-b border-slate-200 dark:border-slate-800 text-xs font-black gap-2">
-            <span className="text-amber-700 dark:text-amber-400 uppercase tracking-wider text-[10px] whitespace-nowrap">Filter Student Records</span>
-            {totalActiveFilters > 0 && (
-              <button
-                type="button"
-                onClick={clearAllFilters}
-                className="text-[10px] text-rose-600 hover:underline font-bold cursor-pointer whitespace-nowrap"
-              >
-                Clear All
-              </button>
-            )}
-          </div>
+        <>
+          {/* Mobile Backdrop Overlay for Filters */}
+          <div
+            className="fixed inset-0 bg-slate-950/50 backdrop-blur-xs z-[99998] sm:hidden animate-fadeIn"
+            onClick={() => setIsOpen(false)}
+          />
 
-          <div className="grid grid-cols-2 gap-1.5 w-full">
-            {availableSessions.length > 1 && (
-              <MultiSelectCheckboxDropdown
-                label="Sessions"
-                options={availableSessions}
-                selected={selectedSessions}
-                onChange={(val) => { setSelectedSessions(val); setCurrentPage(1); }}
-                align="left"
-              />
-            )}
-
-            <MultiSelectCheckboxDropdown
-              label="Classes"
-              options={availableClasses}
-              selected={selectedClasses}
-              onChange={(val) => { setSelectedClasses(val); setCurrentPage(1); }}
-              align="left"
-            />
-
-            <MultiSelectCheckboxDropdown
-              label="Gender"
-              options={availableGenders}
-              selected={selectedGenders}
-              onChange={(val) => { setSelectedGenders(val); setCurrentPage(1); }}
-              align="right"
-            />
-
-            <MultiSelectCheckboxDropdown
-              label="Streams"
-              options={availableStreams}
-              selected={selectedStreams}
-              onChange={(val) => { setSelectedStreams(val); setCurrentPage(1); }}
-              align="left"
-            />
-
-            <MultiSelectCheckboxDropdown
-              label="Status"
-              options={availableStatuses}
-              selected={selectedStatuses}
-              onChange={(val) => { setSelectedStatuses(val); setCurrentPage(1); }}
-              align="right"
-            />
-          </div>
-
-          {/* Sort Controls inside Filter popover */}
-          {setSortBy && (
-            <div className="pt-2 border-t border-slate-200 dark:border-slate-800 space-y-1.5">
-              <div className="text-[10px] font-black uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center justify-between">
-                <span>Sort Records By</span>
+          <div className="fixed inset-x-2 top-16 sm:top-auto sm:mt-1.5 sm:absolute sm:inset-x-auto sm:left-0 w-auto sm:w-[310px] max-w-[calc(100vw-16px)] rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl z-[99999] p-2.5 sm:p-3 space-y-2 animate-fadeIn bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">
+            <div className="flex items-center justify-between pb-1.5 border-b border-slate-200 dark:border-slate-800 text-xs font-black gap-2">
+              <span className="text-amber-700 dark:text-amber-400 uppercase tracking-wider text-[10px] whitespace-nowrap">Filter Student Records</span>
+              <div className="flex items-center gap-2">
+                {totalActiveFilters > 0 && (
+                  <button
+                    type="button"
+                    onClick={clearAllFilters}
+                    className="text-[10px] text-rose-600 hover:underline font-bold cursor-pointer whitespace-nowrap"
+                  >
+                    Clear All
+                  </button>
+                )}
                 <button
                   type="button"
-                  onClick={() => setSortOrder && setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')}
-                  className="text-amber-700 dark:text-amber-400 font-extrabold hover:underline cursor-pointer flex items-center gap-1"
-                  title="Toggle Sort Order"
+                  onClick={() => setIsOpen(false)}
+                  className="p-1 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 sm:hidden cursor-pointer"
+                  title="Close Filters"
+                  aria-label="Close Filters"
                 >
-                  <span>{sortOrder === 'asc' ? 'Asc ⬆️' : 'Desc ⬇️'}</span>
+                  <X size={14} />
                 </button>
               </div>
-              <select
-                value={sortBy}
-                onChange={(e) => { setSortBy(e.target.value); if (setCurrentPage) setCurrentPage(1); }}
-                className="w-full px-2.5 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-black text-xs text-slate-900 dark:text-white focus:ring-2 focus:ring-amber-500 focus:outline-none"
-              >
-                <option value="classRollNo">🔢 Class Roll No (Default)</option>
-                <option value="formNo">📄 Form Number</option>
-                <option value="admNo">🎓 Admission Number (Adm. No.)</option>
-                <option value="studentName">👤 Student's Name (A-Z)</option>
-                <option value="boardRegNo">🆔 Board Registration No.</option>
-                <option value="onlineSubmDate">📅 Online Submission Date</option>
-              </select>
             </div>
-          )}
-        </div>
+
+            <div className="grid grid-cols-2 gap-1.5 w-full">
+              {availableSessions.length > 1 && (
+                <MultiSelectCheckboxDropdown
+                  label="Sessions"
+                  options={availableSessions}
+                  selected={selectedSessions}
+                  onChange={(val) => { setSelectedSessions(val); setCurrentPage(1); }}
+                  align="left"
+                />
+              )}
+
+              <MultiSelectCheckboxDropdown
+                label="Classes"
+                options={availableClasses}
+                selected={selectedClasses}
+                onChange={(val) => { setSelectedClasses(val); setCurrentPage(1); }}
+                align="left"
+              />
+
+              <MultiSelectCheckboxDropdown
+                label="Gender"
+                options={availableGenders}
+                selected={selectedGenders}
+                onChange={(val) => { setSelectedGenders(val); setCurrentPage(1); }}
+                align="right"
+              />
+
+              <MultiSelectCheckboxDropdown
+                label="Streams"
+                options={availableStreams}
+                selected={selectedStreams}
+                onChange={(val) => { setSelectedStreams(val); setCurrentPage(1); }}
+                align="left"
+              />
+
+              <MultiSelectCheckboxDropdown
+                label="Status"
+                options={availableStatuses}
+                selected={selectedStatuses}
+                onChange={(val) => { setSelectedStatuses(val); setCurrentPage(1); }}
+                align="right"
+              />
+            </div>
+
+            {/* Sort Controls inside Filter popover */}
+            {setSortBy && (
+              <div className="pt-2 border-t border-slate-200 dark:border-slate-800 space-y-1.5">
+                <div className="text-[10px] font-black uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center justify-between">
+                  <span>Sort Records By</span>
+                  <button
+                    type="button"
+                    onClick={() => setSortOrder && setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')}
+                    className="text-amber-700 dark:text-amber-400 font-extrabold hover:underline cursor-pointer flex items-center gap-1"
+                    title="Toggle Sort Order"
+                  >
+                    <span>{sortOrder === 'asc' ? 'Asc ⬆️' : 'Desc ⬇️'}</span>
+                  </button>
+                </div>
+                <select
+                  value={sortBy}
+                  onChange={(e) => { setSortBy(e.target.value); if (setCurrentPage) setCurrentPage(1); }}
+                  className="w-full px-2.5 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-black text-xs text-slate-900 dark:text-white focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                >
+                  <option value="classRollNo">🔢 Class Roll No (Default)</option>
+                  <option value="formNo">📄 Form Number</option>
+                  <option value="admNo">🎓 Admission Number (Adm. No.)</option>
+                  <option value="studentName">👤 Student's Name (A-Z)</option>
+                  <option value="boardRegNo">🆔 Board Registration No.</option>
+                  <option value="onlineSubmDate">📅 Online Submission Date</option>
+                </select>
+              </div>
+            )}
+          </div>
+        </>
       )}
     </div>
   );
@@ -8948,9 +8967,9 @@ export default function AdvancedReports({
       </div>
 
       {/* MODAL 1: Column Manager & Presets (☰ Cols) */}
-      {showColumnManager && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
-          <div className="w-full max-w-4xl lg:max-w-5xl p-5 sm:p-6 rounded-3xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-2xl space-y-4 max-h-[92vh] flex flex-col">
+      {showColumnManager && createPortal(
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center p-2.5 sm:p-5 bg-slate-950/80 backdrop-blur-md animate-fadeIn overflow-y-auto">
+          <div className="w-full max-w-4xl lg:max-w-5xl p-3.5 sm:p-6 rounded-2xl sm:rounded-3xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-2xl space-y-4 max-h-[94vh] sm:max-h-[92vh] flex flex-col my-auto">
             <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3 flex-shrink-0">
               <h3 className="font-black text-base flex items-center gap-2 text-slate-900 dark:text-white">
                 <Columns size={18} className="text-amber-600" /> Manage Table Columns & Layout Presets
@@ -9279,18 +9298,19 @@ export default function AdvancedReports({
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* MODAL 2: Admin Tools (🛠 Tools) */}
-      {showToolsModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
-          <div className="w-full max-w-4xl lg:max-w-5xl p-5 sm:p-6 rounded-3xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-2xl space-y-5 max-h-[92vh] overflow-y-auto">
+      {showToolsModal && createPortal(
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center p-2.5 sm:p-5 bg-slate-950/80 backdrop-blur-md animate-fadeIn overflow-y-auto">
+          <div className="w-full max-w-4xl lg:max-w-5xl p-3.5 sm:p-6 rounded-2xl sm:rounded-3xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-2xl space-y-4 max-h-[94vh] sm:max-h-[92vh] overflow-y-auto my-auto">
             <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
               <h3 className="font-black text-base flex items-center gap-2 text-slate-900 dark:text-white">
                 <Wrench size={18} className="text-amber-600" /> Administrative Tools Suite
               </h3>
-              <button type="button" onClick={() => setShowToolsModal(false)} className="p-1 hover:opacity-70">
+              <button type="button" onClick={() => setShowToolsModal(false)} className="p-1 hover:opacity-70 cursor-pointer">
                 <X size={18} />
               </button>
             </div>
@@ -10230,7 +10250,8 @@ export default function AdvancedReports({
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Admin Full Student Field Editor Modal */}
@@ -10255,9 +10276,9 @@ export default function AdvancedReports({
           quickEditCell.column.key.toLowerCase().startsWith('subject') ||
           quickEditCell.column.key.toLowerCase().startsWith('sub');
 
-        return (
-          <div className="fixed inset-0 z-[10001] flex items-center justify-center p-3 sm:p-4 bg-slate-950/60 backdrop-blur-xs animate-fadeIn">
-            <div className={`w-full ${isSubjectEdit ? 'max-w-xl' : 'max-w-sm'} p-4 sm:p-4.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xl space-y-3 max-h-[92vh] overflow-y-auto`}>
+        return createPortal(
+          <div className="fixed inset-0 z-[100000] flex items-center justify-center p-2.5 sm:p-4 bg-slate-950/80 backdrop-blur-md animate-fadeIn overflow-y-auto">
+            <div className={`w-full ${isSubjectEdit ? 'max-w-xl' : 'max-w-sm'} p-3.5 sm:p-4.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl space-y-3 max-h-[94vh] sm:max-h-[92vh] overflow-y-auto my-auto`}>
               <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2.5">
                 <div className="flex items-center gap-2 text-amber-700 dark:text-amber-400 font-bold text-xs sm:text-sm">
                   <BookOpen size={16} />
@@ -10501,7 +10522,8 @@ export default function AdvancedReports({
                 </div>
               )}
             </div>
-          </div>
+          </div>,
+          document.body
         );
       })()}
 

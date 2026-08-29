@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Save, PlusCircle, CheckCircle2, ShieldCheck, User, BookOpen, Phone, Landmark, Image as ImageIcon, RefreshCw, Download, FileSpreadsheet, History, Info, Upload, Trash2, Edit3, Eye, EyeOff, RotateCcw, CheckSquare, Square, Camera, FolderUp, Layers, AlertTriangle, Sparkles, ListChecks, Bot, Wand2, FileText, UploadCloud, Copy, Check, Cpu, Key, ExternalLink, ChevronDown, ChevronUp, Table, Columns, Maximize2, Minimize2 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { db } from '../../services/firebase';
@@ -1771,9 +1772,11 @@ CRITICAL INSTRUCTIONS:
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-[99999] flex items-center justify-center p-2 sm:p-3 bg-slate-950/75 backdrop-blur-md animate-fadeIn" style={{ fontFamily: 'var(--font-admin-sans, "Plus Jakarta Sans", sans-serif)' }}>
-      <div className="w-full max-w-4xl rounded-2xl border border-amber-500/40 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-2xl flex flex-col max-h-[92vh] overflow-hidden">
+  if (!isOpen) return null;
+
+  return createPortal(
+    <div className="fixed inset-0 z-[99999] flex items-center justify-center p-2 sm:p-4 bg-slate-950/80 backdrop-blur-md animate-fadeIn overflow-y-auto" style={{ fontFamily: 'var(--font-admin-sans, "Plus Jakarta Sans", sans-serif)' }}>
+      <div className="w-full max-w-4xl rounded-2xl sm:rounded-3xl border border-amber-500/40 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-2xl flex flex-col max-h-[94vh] sm:max-h-[92vh] overflow-hidden my-auto">
         
         {/* Clean Minimal Header Bar */}
         <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-950/80 flex items-center justify-between flex-shrink-0">
@@ -4121,6 +4124,7 @@ CRITICAL INSTRUCTIONS:
         )}
 
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

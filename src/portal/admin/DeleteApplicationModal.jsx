@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Trash2, AlertTriangle, CheckCircle2, ShieldAlert, CheckSquare, Square, Search, RefreshCw, Archive, RotateCcw } from 'lucide-react';
 import { moveToRecycleBin } from '../../services/recycleBinService';
 import { extractRegNoClean, getStudentName, getFatherName } from './AdvancedReports';
@@ -152,10 +153,10 @@ export default function DeleteApplicationModal({
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-md animate-fadeIn">
+  return createPortal(
+    <div className="fixed inset-0 z-[99999] flex items-center justify-center p-2.5 sm:p-4 bg-slate-950/80 backdrop-blur-md animate-fadeIn overflow-y-auto">
       {deleting && (
-        <div className="absolute inset-0 z-[10000] flex flex-col items-center justify-center bg-slate-950/85 backdrop-blur-md rounded-3xl p-6">
+        <div className="absolute inset-0 z-[100000] flex flex-col items-center justify-center bg-slate-950/85 backdrop-blur-md rounded-2xl sm:rounded-3xl p-6">
           <ModernLoader
             moduleKey="trash"
             text={archiveStep || 'Archiving to Recycle Bin...'}
@@ -165,13 +166,13 @@ export default function DeleteApplicationModal({
         </div>
       )}
 
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl w-full max-w-xl overflow-hidden flex flex-col max-h-[90vh]">
-        <div className="p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800 bg-rose-50/60 dark:bg-rose-950/30 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-rose-100 dark:bg-rose-900/60 text-rose-600 dark:text-rose-400 flex items-center justify-center font-bold">
-              <Trash2 size={20} />
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl sm:rounded-3xl shadow-2xl w-full max-w-xl overflow-hidden flex flex-col max-h-[94vh] sm:max-h-[90vh] my-auto">
+        <div className="p-3.5 sm:p-5 border-b border-slate-100 dark:border-slate-800 bg-rose-50/60 dark:bg-rose-950/30 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-rose-100 dark:bg-rose-900/60 text-rose-600 dark:text-rose-400 flex items-center justify-center font-bold flex-shrink-0">
+              <Trash2 size={18} />
             </div>
-            <div>
+            <div className="min-w-0 flex-1">
               <h3 className="text-base font-black text-slate-900 dark:text-slate-100 flex items-center gap-2">
                 Delete & Archive Application
               </h3>
@@ -451,6 +452,7 @@ export default function DeleteApplicationModal({
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

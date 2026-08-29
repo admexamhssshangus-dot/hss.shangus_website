@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X, RotateCcw, Trash2, Search, RefreshCw, Archive, Clock, ShieldCheck, CheckCircle2, Flame, Loader2, ShieldAlert, Sparkles } from 'lucide-react';
 import { getRecycleBinItems, restoreFromRecycleBin, restoreMultipleFromRecycleBin, purgeFromRecycleBin } from '../../services/recycleBinService';
 import { logAdminActivity } from '../../services/adminActivityLogger';
@@ -372,24 +373,26 @@ export default function RecycleBinModal({ isOpen, onClose, onRestoreSuccess }) {
 
   if (!isOpen) return null;
 
-  return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-2 sm:p-4 bg-slate-950/75 backdrop-blur-md animate-fadeIn" style={{ fontFamily: 'var(--font-admin-sans, "Plus Jakarta Sans", sans-serif)' }}>
-      <div className="bg-white dark:bg-slate-900 border border-amber-500/30 rounded-2xl sm:rounded-3xl shadow-2xl w-full max-w-4xl overflow-hidden flex flex-col max-h-[90vh]">
+  return createPortal(
+    <div className="fixed inset-0 z-[99999] flex items-center justify-center p-2 sm:p-4 bg-slate-950/80 backdrop-blur-md animate-fadeIn overflow-y-auto" style={{ fontFamily: 'var(--font-admin-sans, "Plus Jakarta Sans", sans-serif)' }}>
+      <div className="bg-white dark:bg-slate-900 border border-amber-500/30 rounded-2xl sm:rounded-3xl shadow-2xl w-full max-w-4xl overflow-hidden flex flex-col max-h-[94vh] sm:max-h-[90vh] my-auto">
         
         {/* Compact Modal Header */}
-        <div className="px-3.5 py-2.5 border-b border-slate-200 dark:border-slate-800 bg-gradient-to-r from-amber-500/15 via-orange-500/10 to-amber-500/15 flex items-center justify-between flex-shrink-0">
-          <div className="flex items-center gap-2.5">
+        <div className="px-3.5 py-2.5 sm:px-4 sm:py-3 border-b border-slate-200 dark:border-slate-800 bg-gradient-to-r from-amber-500/15 via-orange-500/10 to-amber-500/15 flex items-center justify-between flex-shrink-0 gap-2">
+          <div className="flex items-center gap-2.5 min-w-0 flex-1">
             <div className="w-8 h-8 rounded-xl bg-amber-600 text-white flex items-center justify-center font-black shadow-xs flex-shrink-0">
               <Archive size={16} />
             </div>
-            <div>
-              <h3 className="text-xs sm:text-sm font-black text-slate-900 dark:text-slate-100 flex items-center gap-1.5 leading-tight">
-                <span>90-Day Application Recycle Bin</span>
-                <span className="px-2 py-0.2 rounded-full bg-amber-600 text-white text-[9px] font-mono font-black uppercase tracking-wider">
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <h3 className="text-xs sm:text-sm font-black text-slate-900 dark:text-slate-100 truncate">
+                  90-Day Application Recycle Bin
+                </h3>
+                <span className="px-2 py-0.5 rounded-full bg-amber-600 text-white text-[9px] font-mono font-black uppercase tracking-wider flex-shrink-0">
                   {items.length} Archived
                 </span>
-              </h3>
-              <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 leading-none mt-0.5">
+              </div>
+              <p className="text-[9.5px] sm:text-[10px] font-semibold text-slate-500 dark:text-slate-400 leading-tight mt-0.5 line-clamp-1 sm:line-clamp-none">
                 Deleted student applications are retained for 90 days and changed only through explicit admin actions.
               </p>
             </div>
@@ -400,32 +403,33 @@ export default function RecycleBinModal({ isOpen, onClose, onRestoreSuccess }) {
             onClick={onClose}
             className="p-1.5 rounded-full bg-rose-500 hover:bg-rose-600 text-white shadow-xs transition-transform hover:scale-110 cursor-pointer shrink-0 ml-1"
             title="Close Recycle Bin Modal"
+            aria-label="Close Recycle Bin Modal"
           >
             <X size={15} strokeWidth={3} />
           </button>
         </div>
 
         {/* Super Compact Toolbar & Search */}
-        <div className="px-3 py-2 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/50 flex flex-wrap items-center justify-between gap-2 flex-shrink-0">
-          <div className="relative flex-1 min-w-[200px] max-w-md">
+        <div className="px-3 py-2 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/50 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 flex-shrink-0">
+          <div className="relative flex-1 w-full sm:max-w-md">
             <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Search name, roll, class, session, form or reg #..."
-              className="w-full pl-8 pr-2.5 py-1 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-bold text-slate-900 dark:text-slate-100 outline-none focus:ring-2 focus:ring-amber-500/50"
+              className="w-full pl-8 pr-2.5 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-bold text-slate-900 dark:text-slate-100 outline-none focus:ring-2 focus:ring-amber-500/50"
             />
           </div>
 
-          <div className="flex items-center gap-1.5">
+          <div className="flex flex-wrap items-center gap-1.5 justify-end">
             {selectedTrashIds.length > 0 && (
               <div className="flex items-center gap-1.5">
-                <button type="button" disabled={loading || Boolean(actionProgress)} onClick={handleBulkRestore} className="px-2.5 py-1 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-black flex items-center gap-1 cursor-pointer shadow-xs transition-all disabled:opacity-50" title="Bulk restore selected records">
+                <button type="button" disabled={loading || Boolean(actionProgress)} onClick={handleBulkRestore} className="px-2.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-black flex items-center gap-1 cursor-pointer shadow-xs transition-all disabled:opacity-50" title="Bulk restore selected records">
                   <RotateCcw size={12} />
                   <span>Bulk Restore ({selectedTrashIds.length})</span>
                 </button>
-                <button type="button" disabled={loading || Boolean(actionProgress)} onClick={handleBulkPurge} className="px-2.5 py-1 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-[11px] font-black flex items-center gap-1 cursor-pointer shadow-xs transition-all disabled:opacity-50" title="Permanently purge selected recycle-bin records">
+                <button type="button" disabled={loading || Boolean(actionProgress)} onClick={handleBulkPurge} className="px-2.5 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-[11px] font-black flex items-center gap-1 cursor-pointer shadow-xs transition-all disabled:opacity-50" title="Permanently purge selected recycle-bin records">
                   <Trash2 size={12} />
                   <span>Purge Selected ({selectedTrashIds.length})</span>
                 </button>
@@ -436,7 +440,7 @@ export default function RecycleBinModal({ isOpen, onClose, onRestoreSuccess }) {
               <button
                 type="button"
                 onClick={handleEmptyRecycleBin}
-                className="px-2.5 py-1 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-700 dark:text-rose-300 border border-rose-500/40 text-[11px] font-black flex items-center gap-1 cursor-pointer transition-all"
+                className="px-2.5 py-1.5 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-700 dark:text-rose-300 border border-rose-500/40 text-[11px] font-black flex items-center gap-1 cursor-pointer transition-all"
                 title="Empty and purge entire recycle bin"
               >
                 <Trash2 size={12} />
@@ -447,7 +451,7 @@ export default function RecycleBinModal({ isOpen, onClose, onRestoreSuccess }) {
             <button
               type="button"
               onClick={fetchItems}
-              className="px-2.5 py-1 rounded-xl border border-slate-300 dark:border-slate-700 hover:bg-white dark:hover:bg-slate-800 text-[11px] font-black flex items-center gap-1 cursor-pointer text-slate-700 dark:text-slate-300"
+              className="px-2.5 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 hover:bg-white dark:hover:bg-slate-800 text-[11px] font-black flex items-center gap-1 cursor-pointer text-slate-700 dark:text-slate-300"
             >
               <RefreshCw size={12} className={loading ? 'animate-spin' : ''} />
               <span>Refresh</span>
@@ -466,7 +470,7 @@ export default function RecycleBinModal({ isOpen, onClose, onRestoreSuccess }) {
         )}
 
         {/* High Density Compact Content Table */}
-        <div className="p-2 sm:p-3 overflow-y-auto flex-1 text-xs">
+        <div className="p-2 sm:p-3 overflow-x-auto overflow-y-auto flex-1 text-xs">
           {loading ? (
             <ModernLoader
               moduleKey="trash"
@@ -475,7 +479,7 @@ export default function RecycleBinModal({ isOpen, onClose, onRestoreSuccess }) {
               className="py-10"
             />
           ) : filteredItems.length > 0 ? (
-            <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-xs">
+            <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-xs min-w-[560px] sm:min-w-full">
               <table className="w-full text-left text-xs">
                 <thead className="bg-slate-100 dark:bg-slate-800/90 font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider text-[9.5px]">
                   <tr>
@@ -677,6 +681,7 @@ export default function RecycleBinModal({ isOpen, onClose, onRestoreSuccess }) {
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

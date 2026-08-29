@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { X, CheckCircle2, XCircle, Unlock, Download, User, Phone, BookOpen, GraduationCap, MapPin, RefreshCw, Camera, Upload, Eye, Printer } from 'lucide-react';
 import appsScriptApi from '../../services/appsScriptApi';
 import { db } from '../../services/firebase';
@@ -246,9 +247,9 @@ export default function ApplicationReviewModal({ app, onClose, onRefresh }) {
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
-      <div className="w-full max-w-3xl lg:max-w-4xl max-h-[90vh] overflow-y-auto rounded-3xl p-6 sm:p-8 border shadow-2xl space-y-6 animate-fadeIn" style={{ backgroundColor: 'var(--bg-card, #ffffff)', borderColor: 'var(--border-ui, #e2e8f0)' }}>
+  return createPortal(
+    <div className="fixed inset-0 z-[99999] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 animate-fadeIn overflow-y-auto">
+      <div className="w-full max-w-3xl lg:max-w-4xl max-h-[94vh] sm:max-h-[90vh] overflow-y-auto rounded-2xl sm:rounded-3xl p-4 sm:p-6 md:p-8 border shadow-2xl space-y-4 sm:space-y-6 my-auto" style={{ backgroundColor: 'var(--bg-card, #ffffff)', borderColor: 'var(--border-ui, #e2e8f0)' }}>
         {/* Header */}
         <div className="flex items-center justify-between border-b pb-4" style={{ borderColor: 'var(--border-ui, #e2e8f0)' }}>
           <div>
@@ -589,6 +590,7 @@ export default function ApplicationReviewModal({ app, onClose, onRefresh }) {
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
