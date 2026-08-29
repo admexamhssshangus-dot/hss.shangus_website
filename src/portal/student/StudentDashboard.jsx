@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { useOutletContext, useNavigate } from 'react-router-dom';
-import { FileText, Edit3, RefreshCw, LogOut, ShieldCheck, CheckCircle2, Clock, AlertCircle, Sparkles, ArrowRight, X, Trash2, Printer, CreditCard, Mail, Plus } from 'lucide-react';
+import { FileText, Edit3, RefreshCw, LogOut, ShieldCheck, CheckCircle2, Clock, AlertCircle, Sparkles, ArrowRight, X, Trash2, Printer, CreditCard, Mail, Plus, UserCog } from 'lucide-react';
 import SEO from '../../components/SEO';
 import ModernLoader from '../../components/ModernLoader';
 import LogoutConfirmModal from '../components/LogoutConfirmModal';
@@ -338,16 +339,41 @@ export default function StudentDashboard() {
               );
             })()}
 
-            <div className="space-y-0.5">
+            <div className="space-y-1">
               <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-teal-500/10 text-teal-600">
                 <ShieldCheck size={12} /> Student Account
               </div>
               <h1 className="text-xl sm:text-2xl font-extrabold" style={{ color: 'var(--text-main, #0f172a)' }}>
                 Welcome, {user?.name || 'Student'}
               </h1>
-              <p className="text-xs font-medium" style={{ color: 'var(--text-muted, #64748b)' }}>
-                {user?.email} • {user?.mobile || 'No Phone registered'}
-              </p>
+              <div className="flex items-center gap-2 flex-wrap text-xs font-medium" style={{ color: 'var(--text-muted, #64748b)' }}>
+                <span className="flex items-center gap-1.5">
+                  <span>{user?.email}</span>
+                  {isEmailVerified ? (
+                    <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded-md bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 text-[10px] font-bold border border-emerald-500/30" title="Email is verified for password recovery">
+                      <CheckCircle2 size={10} className="text-emerald-500" />
+                      <span>Verified</span>
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setProfileName(user?.name || '');
+                        setProfileMobile(user?.mobile || '');
+                        setProfileResidence(user?.residence || '');
+                        setShowEditProfile(true);
+                      }}
+                      className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded-md bg-amber-500/15 text-amber-800 dark:text-amber-300 text-[10px] font-bold border border-amber-500/30 hover:bg-amber-500/25 cursor-pointer transition-colors"
+                      title="Click to verify email in Profile & Account settings"
+                    >
+                      <AlertCircle size={10} className="text-amber-500" />
+                      <span>Unverified</span>
+                    </button>
+                  )}
+                </span>
+                <span>•</span>
+                <span>{user?.mobile || 'No Phone registered'}</span>
+              </div>
             </div>
           </div>
 
@@ -360,10 +386,15 @@ export default function StudentDashboard() {
                 setProfileResidence(user?.residence || '');
                 setShowEditProfile(true);
               }}
-              className="px-3.5 py-2 rounded-xl text-xs font-bold border flex items-center gap-1.5 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800"
-              style={{ borderColor: 'var(--border-ui, #cbd5e1)', color: 'var(--text-main, #334155)' }}
+              className="relative px-3.5 py-2 rounded-xl text-xs font-bold border flex items-center gap-1.5 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-all shadow-2xs"
+              style={{ borderColor: 'var(--border-ui, #cbd5e1)', color: 'var(--text-main, #334155)', backgroundColor: 'var(--bg-card, #ffffff)' }}
+              title="Manage student profile and account recovery security"
             >
-              <Edit3 size={14} /> Edit Profile
+              <UserCog size={14} className="text-teal-600 dark:text-teal-400" />
+              <span>Profile & Account</span>
+              {!isEmailVerified && user?.email && (
+                <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" title="Action recommended: Verify email" />
+              )}
             </button>
 
             <button
@@ -387,57 +418,6 @@ export default function StudentDashboard() {
             </button>
           </div>
         </div>
-
-        {/* On-Demand Email Verification Banner (Compact, Rate-Limited & Non-Blocking) */}
-        {!isEmailVerified && user?.email && (
-          <div className="p-3.5 sm:p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-900 dark:text-amber-200 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs animate-fadeIn">
-            <div className="flex items-start gap-2.5 min-w-0">
-              <div className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center flex-shrink-0 mt-0.5 border border-amber-500/30">
-                <Mail size={16} />
-              </div>
-              <div className="space-y-0.5 min-w-0">
-                <div className="font-extrabold text-xs sm:text-sm text-amber-900 dark:text-amber-100 flex items-center gap-1.5 flex-wrap">
-                  <span>Email Unverified</span>
-                  <span className="px-1.5 py-0.2 rounded-md text-[9px] font-black bg-amber-500/20 text-amber-800 dark:text-amber-200 border border-amber-500/30">
-                    Recommended
-                  </span>
-                </div>
-                <p className="text-[11px] text-amber-800/90 dark:text-amber-300 leading-relaxed">
-                  Verify <strong className="underline decoration-amber-500/50">{user?.email}</strong> to secure self-service password recovery.
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2 flex-shrink-0 self-end sm:self-center">
-              <button
-                type="button"
-                onClick={handleRefreshVerificationStatus}
-                className="px-2.5 py-1.5 rounded-xl border border-amber-500/40 bg-white dark:bg-slate-900 text-amber-900 dark:text-amber-200 hover:bg-amber-500/15 font-bold text-[11px] cursor-pointer transition-all shadow-2xs"
-                title="Check if you have already clicked the verification link"
-              >
-                Check Status ↻
-              </button>
-              <button
-                type="button"
-                disabled={sendingVerification || verificationCooldown > 0}
-                onClick={handleSendVerificationEmail}
-                className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white font-black text-[11px] shadow-xs cursor-pointer transition-all disabled:opacity-50 flex items-center gap-1.5"
-              >
-                {sendingVerification ? (
-                  <>
-                    <RefreshCw size={12} className="animate-spin" />
-                    <span>Sending…</span>
-                  </>
-                ) : (
-                  <>
-                    <Mail size={12} />
-                    <span>{verificationCooldown > 0 ? `Resend in ${verificationCooldown}s` : 'Send Verification Link'}</span>
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        )}
 
         {/* Global Alert Notification */}
         {alert && (
@@ -782,62 +762,162 @@ export default function StudentDashboard() {
         )}
       </div>
 
-      {/* Edit Profile Modal */}
-      {showEditProfile && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="w-full max-w-md rounded-3xl p-6 border shadow-2xl space-y-4 animate-fadeIn" style={{ backgroundColor: 'var(--bg-card, #ffffff)', borderColor: 'var(--border-ui, #e2e8f0)' }}>
-            <div className="flex items-center justify-between border-b pb-3" style={{ borderColor: 'var(--border-ui, #e2e8f0)' }}>
-              <h3 className="font-extrabold text-base flex items-center gap-2" style={{ color: 'var(--text-main, #0f172a)' }}>
-                <Edit3 size={18} className="text-teal-500" /> Edit Student Profile
-              </h3>
-              <button onClick={() => setShowEditProfile(false)} className="text-slate-400 hover:text-slate-600 cursor-pointer">
+      {/* Profile & Account Settings Modal */}
+      {showEditProfile && createPortal(
+        <div className="fixed inset-0 z-[99999] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 animate-fadeIn overflow-y-auto">
+          <div
+            className="w-full max-w-lg rounded-2xl sm:rounded-3xl p-5 sm:p-6 border shadow-2xl space-y-4 animate-scaleUp my-auto text-slate-900 dark:text-slate-100"
+            style={{ backgroundColor: 'var(--bg-card, #ffffff)', borderColor: 'var(--border-ui, #e2e8f0)' }}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between border-b pb-3.5 border-slate-200 dark:border-slate-800">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-9 h-9 rounded-xl bg-teal-500/15 border border-teal-500/30 flex items-center justify-center text-teal-600 dark:text-teal-400 flex-shrink-0">
+                  <UserCog size={20} />
+                </div>
+                <div className="min-w-0">
+                  <h3 className="font-extrabold text-base tracking-tight truncate" style={{ color: 'var(--text-main, #0f172a)' }}>
+                    Profile & Account Settings
+                  </h3>
+                  <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400 truncate">
+                    Manage contact info & account security
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowEditProfile(false)}
+                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                title="Close"
+              >
                 <X size={18} />
               </button>
             </div>
 
-            <form onSubmit={handleSaveProfile} className="space-y-4 text-xs">
+            {/* Account Recovery & Email Security Card */}
+            <div className="space-y-1.5">
+              <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                Account Recovery & Security
+              </span>
+
+              {isEmailVerified ? (
+                <div className="p-3 rounded-2xl bg-emerald-500/10 dark:bg-emerald-950/30 border border-emerald-500/30 flex items-center justify-between gap-2.5">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center flex-shrink-0 border border-emerald-500/30">
+                      <ShieldCheck size={16} />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-extrabold text-xs text-emerald-900 dark:text-emerald-100 truncate">{user?.email}</span>
+                        <span className="px-1.5 py-0.2 rounded text-[9px] font-black uppercase bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30">
+                          Verified
+                        </span>
+                      </div>
+                      <p className="text-[10.5px] text-emerald-700/90 dark:text-emerald-400">
+                        Self-service password recovery is enabled and secure.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-3 rounded-2xl bg-amber-500/10 dark:bg-amber-950/30 border border-amber-500/30 space-y-2">
+                  <div className="flex items-start gap-2.5 min-w-0">
+                    <div className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center flex-shrink-0 mt-0.5 border border-amber-500/30">
+                      <Mail size={15} />
+                    </div>
+                    <div className="space-y-0.5 min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="font-extrabold text-xs text-amber-900 dark:text-amber-100 truncate">{user?.email}</span>
+                        <span className="px-1.5 py-0.2 rounded text-[9px] font-black uppercase bg-amber-500/20 text-amber-800 dark:text-amber-200 border border-amber-500/30">
+                          Unverified
+                        </span>
+                      </div>
+                      <p className="text-[10.5px] text-amber-800/90 dark:text-amber-300 leading-tight">
+                        Verify <strong className="underline decoration-amber-500/50">{user?.email}</strong> to secure self-service password recovery.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-end gap-2 pt-1 border-t border-amber-500/20 flex-wrap">
+                    <button
+                      type="button"
+                      onClick={handleRefreshVerificationStatus}
+                      className="px-2.5 py-1 rounded-xl border border-amber-500/40 bg-white dark:bg-slate-900 text-amber-900 dark:text-amber-200 hover:bg-amber-500/15 font-bold text-[10.5px] cursor-pointer transition-all shadow-2xs"
+                      title="Check if you have clicked the link in your inbox"
+                    >
+                      Check Status ↻
+                    </button>
+                    <button
+                      type="button"
+                      disabled={sendingVerification || verificationCooldown > 0}
+                      onClick={handleSendVerificationEmail}
+                      className="px-3 py-1 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-black text-[10.5px] shadow-2xs cursor-pointer transition-all disabled:opacity-50 flex items-center gap-1.5"
+                    >
+                      {sendingVerification ? (
+                        <>
+                          <RefreshCw size={11} className="animate-spin" />
+                          <span>Sending...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Mail size={11} />
+                          <span>{verificationCooldown > 0 ? `Resend in ${verificationCooldown}s` : 'Send Verification Link'}</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Profile Information Form */}
+            <form onSubmit={handleSaveProfile} className="space-y-3 pt-1 text-xs">
+              <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
+                Personal & Contact Details
+              </span>
+
               <div className="space-y-1">
-                <label className="font-bold" style={{ color: 'var(--text-main, #1e293b)' }}>Full Name *</label>
+                <label className="font-bold block" style={{ color: 'var(--text-main, #1e293b)' }}>Full Name *</label>
                 <input
                   type="text"
                   required
                   value={profileName}
                   onChange={(e) => setProfileName(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl border focus:outline-none focus:ring-2 focus:ring-teal-500"
+                  className="w-full px-3.5 py-2 rounded-xl border focus:outline-none focus:ring-2 focus:ring-teal-500"
                   style={{ backgroundColor: 'var(--bg-page, #f8fafc)', borderColor: 'var(--border-ui, #cbd5e1)', color: 'var(--text-main, #0f172a)' }}
                 />
               </div>
 
               <div className="space-y-1">
-                <label className="font-bold" style={{ color: 'var(--text-main, #1e293b)' }}>Mobile Number *</label>
+                <label className="font-bold block" style={{ color: 'var(--text-main, #1e293b)' }}>Mobile Number *</label>
                 <input
                   type="tel"
                   required
                   maxLength={10}
                   value={profileMobile}
                   onChange={(e) => setProfileMobile(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl border focus:outline-none focus:ring-2 focus:ring-teal-500 font-mono"
+                  className="w-full px-3.5 py-2 rounded-xl border focus:outline-none focus:ring-2 focus:ring-teal-500 font-mono"
                   style={{ backgroundColor: 'var(--bg-page, #f8fafc)', borderColor: 'var(--border-ui, #cbd5e1)', color: 'var(--text-main, #0f172a)' }}
                 />
               </div>
 
               <div className="space-y-1">
-                <label className="font-bold" style={{ color: 'var(--text-main, #1e293b)' }}>Residence Address</label>
+                <label className="font-bold block" style={{ color: 'var(--text-main, #1e293b)' }}>Residence Address</label>
                 <input
                   type="text"
                   value={profileResidence}
                   onChange={(e) => setProfileResidence(e.target.value)}
                   placeholder="Village / Town, District"
-                  className="w-full px-3.5 py-2.5 rounded-xl border focus:outline-none focus:ring-2 focus:ring-teal-500"
+                  className="w-full px-3.5 py-2 rounded-xl border focus:outline-none focus:ring-2 focus:ring-teal-500"
                   style={{ backgroundColor: 'var(--bg-page, #f8fafc)', borderColor: 'var(--border-ui, #cbd5e1)', color: 'var(--text-main, #0f172a)' }}
                 />
               </div>
 
-              <div className="flex items-center justify-end gap-2 pt-2">
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-200 dark:border-slate-800">
                 <button
                   type="button"
                   onClick={() => setShowEditProfile(false)}
-                  className="px-4 py-2.5 rounded-xl font-bold border cursor-pointer"
+                  className="px-4 py-2 rounded-xl font-bold border cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                   style={{ borderColor: 'var(--border-ui, #cbd5e1)', color: 'var(--text-main, #334155)' }}
                 >
                   Cancel
@@ -845,14 +925,22 @@ export default function StudentDashboard() {
                 <button
                   type="submit"
                   disabled={savingProfile}
-                  className="px-5 py-2.5 rounded-xl font-extrabold text-white bg-teal-500 hover:bg-teal-400 shadow-md cursor-pointer disabled:opacity-50"
+                  className="px-5 py-2 rounded-xl font-extrabold text-white bg-teal-600 hover:bg-teal-500 shadow-md cursor-pointer disabled:opacity-50 transition-all flex items-center gap-1.5"
                 >
-                  {savingProfile ? 'Saving...' : 'Save Profile'}
+                  {savingProfile ? (
+                    <>
+                      <RefreshCw size={13} className="animate-spin" />
+                      <span>Saving...</span>
+                    </>
+                  ) : (
+                    <span>Save Profile Changes</span>
+                  )}
                 </button>
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Logout Confirmation Dialog */}
