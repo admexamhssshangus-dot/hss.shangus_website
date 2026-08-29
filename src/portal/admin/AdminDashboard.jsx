@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { Lock, Hash, Layers, RefreshCw, LogOut, ShieldCheck, BarChart2, Mail, CreditCard, Settings, ChevronDown, Wrench, ClipboardCheck, CalendarCheck, Contact, PanelsTopLeft, FileSpreadsheet, FileText, Award, Sliders, BookOpen, GitMerge, ArrowLeft } from 'lucide-react';
 import SEO from '../../components/SEO';
@@ -239,6 +239,11 @@ export default function AdminDashboard() {
       if (typeof unsubscribe === 'function') unsubscribe();
     };
   }, [loadAdminData]);
+
+  const identityStudents = useMemo(() => {
+    const master = getCachedCollectionSync('masterRegisters') || [];
+    return [...(applications || []), ...master];
+  }, [applications]);
 
   const handleRecordDeleted = (student) => {
     if (!student) return;
@@ -519,7 +524,7 @@ export default function AdminDashboard() {
                   {(activeTab === 'certStudio' || activeTab === 'certificate') && (
                     <StudentCertificateStudioView
                       allStudents={applications}
-                      identityStudents={[...(applications || []), ...(getCachedCollectionSync('masterRegisters') || [])]}
+                      identityStudents={identityStudents}
                       onClose={() => setActiveTab('reports')}
                       showSettingsDrawerProp={isStudioSetupOpen}
                       onToggleSettingsDrawer={() => setIsStudioSetupOpen(prev => !prev)}

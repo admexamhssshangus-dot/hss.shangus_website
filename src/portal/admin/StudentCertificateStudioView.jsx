@@ -52,6 +52,7 @@ import {
   savePreferredGeminiModel,
   generateCertificateWithGemini
 } from '../../services/geminiLetterService';
+import DOMPurify from 'dompurify';
 import { sanitizeRichHtml } from '../../utils/sanitizeRichHtml';
 import {
   extractStudentName,
@@ -81,6 +82,27 @@ import { saveGeneratedDocToHistory } from '../../services/docHistoryService';
 import { recordApplicationPrint } from '../../services/printTrackerService';
 import DocumentHistoryModal from './DocumentHistoryModal';
 import TabLoadingOverlay from '../../components/TabLoadingOverlay';
+
+export const sanitizeCertificateHtml = (rawHtml) => {
+  if (!rawHtml || typeof rawHtml !== 'string') return '';
+  return DOMPurify.sanitize(rawHtml, {
+    ALLOWED_TAGS: [
+      'p', 'br', 'strong', 'b', 'em', 'i', 'u', 's', 'strike',
+      'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'blockquote',
+      'ol', 'ul', 'li', 'table', 'thead', 'tbody', 'tfoot',
+      'tr', 'th', 'td', 'span', 'div', 'hr', 'sub', 'sup',
+      'font', 'center'
+    ],
+    ALLOWED_ATTR: [
+      'class', 'style', 'colspan', 'rowspan', 'scope', 'align',
+      'valign', 'border', 'cellpadding', 'cellspacing', 'width',
+      'height', 'color', 'face', 'size'
+    ],
+    FORBID_TAGS: ['script', 'iframe', 'object', 'embed', 'form', 'input', 'button', 'svg', 'math', 'link', 'meta', 'base'],
+    FORBID_ATTR: ['onerror', 'onload', 'onclick', 'onmouseover', 'onfocus', 'formaction', 'src', 'href', 'data'],
+    ALLOW_DATA_ATTR: false,
+  });
+};
 
 const cleanStudentIdentity = (value) => String(value || '').trim().toLowerCase().replace(/\s+/g, '');
 
@@ -296,6 +318,7 @@ export default function StudentCertificateStudioView({
       
       if (!seenKeys.has(dedupeKey)) {
         seenKeys.add(dedupeKey);
+        const searchToken = `${name} ${father} ${mother} ${rollNo} ${regNo} ${formNo} ${mobile} ${cls} ${stream} ${address} ${session}`.toLowerCase();
         list.push({
           sourceType: isPast ? 'past' : 'present',
           sourceBadge: isPast ? 'Master Register' : 'Present Student',
@@ -314,7 +337,8 @@ export default function StudentCertificateStudioView({
           address,
           mobile: mobile !== '—' ? mobile : '',
           photo: directPhoto,
-          raw: effectiveStudent.raw || effectiveStudent
+          raw: effectiveStudent.raw || effectiveStudent,
+          searchToken
         });
       }
     });
@@ -350,7 +374,7 @@ export default function StudentCertificateStudioView({
 
   const deferredStudentQuery = useDeferredValue(debouncedStudentQuery);
 
-  // Filtered search list with real cohort filters and multi-field matching
+  // Filtered search list with real cohort filters and ultra-fast pre-indexed searchToken matching
   const filteredStudents = useMemo(() => {
     let pool = unifiedStudentDirectory;
 
@@ -377,21 +401,7 @@ export default function StudentCertificateStudioView({
     const q = deferredStudentQuery.trim().toLowerCase();
     if (!q) return pool.slice(0, 30);
 
-    return pool.filter(st => {
-      return (
-        st.name.toLowerCase().includes(q) ||
-        st.father.toLowerCase().includes(q) ||
-        st.mother.toLowerCase().includes(q) ||
-        st.rollNo.toLowerCase().includes(q) ||
-        st.regNo.toLowerCase().includes(q) ||
-        st.formNo.toLowerCase().includes(q) ||
-        st.mobile.toLowerCase().includes(q) ||
-        st.cls.toLowerCase().includes(q) ||
-        st.stream.toLowerCase().includes(q) ||
-        st.address.toLowerCase().includes(q) ||
-        st.session.toLowerCase().includes(q)
-      );
-    }).slice(0, 40);
+    return pool.filter(st => (st.searchToken || '').includes(q)).slice(0, 40);
   }, [unifiedStudentDirectory, deferredStudentQuery, activeCohortFilter, activeSessionFilter]);
 
   // ─── Active Certificate Form State (Auto-filled + Manual Overrides) ───
@@ -1872,7 +1882,7 @@ export default function StudentCertificateStudioView({
   // Sync interpolated content into editorRef whenever active content changes
   useEffect(() => {
     if (editorRef.current && document.activeElement !== editorRef.current) {
-      editorRef.current.innerHTML = activeDisplayHtml;
+      editorRef.current.innerHTML = sanitizeCertificateHtml(activeDisplayHtml);
       pushSnapshot();
     }
   }, [activeDisplayHtml]);
