@@ -154,18 +154,18 @@ export default function Slideshow({ slides: customSlides = null, images = [], in
 
       {/* Controls */}
       <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-        <div className="flex items-center gap-1 sm:gap-1.5 absolute bottom-2.5 right-2.5 sm:right-auto sm:left-1/2 sm:-translate-x-1/2 sm:bottom-8 md:bottom-20 pointer-events-auto z-20">
+        <div className="flex items-center gap-1 sm:gap-1.5 absolute bottom-2 right-2 sm:right-auto sm:left-1/2 sm:-translate-x-1/2 sm:bottom-8 md:bottom-20 pointer-events-auto z-20">
           <button
             aria-label="previous"
             onClick={() => setIndex((i) => (i - 1 + slides.length) % slides.length)}
-            className="bg-black/60 hover:bg-black/80 active:scale-95 text-white rounded-full border border-white/80 shadow-md text-xs sm:text-lg flex items-center justify-center w-7 h-7 sm:w-10 sm:h-10 transition-all cursor-pointer"
+            className="bg-black/10 sm:bg-black/60 hover:bg-black/30 sm:hover:bg-black/80 active:scale-90 text-white rounded-full border border-white/60 sm:border-white/80 shadow-xs sm:shadow-md text-[10px] sm:text-lg flex items-center justify-center w-5 h-5 sm:w-10 sm:h-10 transition-all cursor-pointer backdrop-blur-[1px]"
           >
             <span aria-hidden="true" className="font-bold select-none leading-none -translate-x-[0.5px]">‹</span><span className="sr-only">Previous slide</span>
           </button>
           <button
             aria-label="next"
             onClick={() => setIndex((i) => (i + 1) % slides.length)}
-            className="bg-black/60 hover:bg-black/80 active:scale-95 text-white rounded-full border border-white/80 shadow-md text-xs sm:text-lg flex items-center justify-center w-7 h-7 sm:w-10 sm:h-10 transition-all cursor-pointer"
+            className="bg-black/10 sm:bg-black/60 hover:bg-black/30 sm:hover:bg-black/80 active:scale-90 text-white rounded-full border border-white/60 sm:border-white/80 shadow-xs sm:shadow-md text-[10px] sm:text-lg flex items-center justify-center w-5 h-5 sm:w-10 sm:h-10 transition-all cursor-pointer backdrop-blur-[1px]"
           >
             <span aria-hidden="true" className="font-bold select-none leading-none translate-x-[0.5px]">›</span><span className="sr-only">Next slide</span>
           </button>
@@ -173,7 +173,7 @@ export default function Slideshow({ slides: customSlides = null, images = [], in
       </div>
 
       {/* Left caption (matches screenshot) */}
-      <div className="absolute left-2.5 sm:left-6 right-auto bottom-2.5 sm:bottom-6 md:bottom-20 text-left text-white z-20 pointer-events-none max-w-[calc(100%-72px)] sm:max-w-[60%] flex flex-col items-start gap-[1px] sm:gap-1">
+      <div className="absolute left-2.5 sm:left-6 right-auto bottom-2 sm:bottom-6 md:bottom-20 text-left text-white z-20 pointer-events-none max-w-[calc(100%-56px)] sm:max-w-[60%] flex flex-col items-start gap-[1px] sm:gap-1">
         {slides[index].title && (
           <h3 className="text-[10px] sm:text-sm font-bold text-teal-300 leading-none m-0 p-0 drop-shadow-[0_1.5px_2px_rgba(0,0,0,0.85)] pl-0.5">{slides[index].title}</h3>
         )}
