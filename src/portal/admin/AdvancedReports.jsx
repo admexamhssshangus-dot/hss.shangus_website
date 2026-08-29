@@ -6539,14 +6539,18 @@ export default function AdvancedReports({
       const targetSession = normalizeSessionVal(a['Session'] || '2025-26');
       const activeClassRoll = extractClassRoll(a);
 
-      const activeRawStatus = String(a['Status'] || a['status'] || '').trim().toLowerCase();
+      const activeRawStatus = String(a['Status'] || a['status'] || a['admissionStatus'] || '').trim().toLowerCase();
       let activeResolvedStatus = 'Submitted';
-      if (activeClassRoll && activeClassRoll !== '—' && activeClassRoll !== 'N/A') {
+      if (activeRawStatus.includes('withdrawn') || activeRawStatus.includes('withdraw') || activeRawStatus.includes('wthd')) {
+        activeResolvedStatus = 'Withdrawn';
+      } else if (activeClassRoll && activeClassRoll !== '—' && activeClassRoll !== 'N/A') {
         activeResolvedStatus = 'Approved';
       } else if (activeRawStatus.includes('reject') || activeRawStatus.includes('rejt')) {
         activeResolvedStatus = 'Rejected';
       } else if (activeRawStatus.includes('draft') || activeRawStatus.includes('dft')) {
         activeResolvedStatus = 'Draft';
+      } else if (activeRawStatus.includes('provis')) {
+        activeResolvedStatus = 'Provisional';
       }
 
       const sanitizedRecord = { ...mergedRec };
