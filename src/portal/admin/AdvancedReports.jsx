@@ -747,7 +747,7 @@ function UnifiedFiltersGroupDropdown({
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className={`px-3 py-1.5 rounded-xl font-black text-xs flex items-center gap-1.5 transition-all cursor-pointer shadow-sm ${totalActiveFilters > 0
+        className={`px-2 py-1 sm:px-3 sm:py-1.5 rounded-lg sm:rounded-xl font-black text-[10.5px] sm:text-xs flex items-center gap-1 sm:gap-1.5 transition-all cursor-pointer shadow-sm ${totalActiveFilters > 0
           ? 'bg-amber-700 text-white border border-amber-800'
           : 'bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 border border-slate-300 dark:border-slate-700 hover:bg-slate-50'
           }`}
@@ -757,11 +757,11 @@ function UnifiedFiltersGroupDropdown({
           <span className="hidden sm:inline">Filters</span>
         </span>
         {totalActiveFilters > 0 && (
-          <span className="bg-white text-amber-900 px-1.5 py-0.2 rounded-full text-[10px] font-black shadow-2xs">
+          <span className="bg-white text-amber-900 px-1 py-0.2 rounded-full text-[9px] sm:text-[10px] font-black shadow-2xs">
             {totalActiveFilters}
           </span>
         )}
-        <ChevronDown size={13} className={`transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+        <ChevronDown size={12} className={`transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 
       {isOpen && (
@@ -890,11 +890,11 @@ function MoreActionsDropdown({
         type="button"
         onClick={() => setIsOpen(!isOpen)}
         title="More Actions & Display Settings"
-        className="relative p-1.5 rounded-xl font-black bg-gradient-to-r from-indigo-700 to-indigo-800 hover:from-indigo-600 hover:to-indigo-700 text-white flex items-center justify-center shadow-sm transition-all cursor-pointer text-xs"
+        className="relative p-1 sm:p-1.5 rounded-lg sm:rounded-xl font-black bg-gradient-to-r from-indigo-700 to-indigo-800 hover:from-indigo-600 hover:to-indigo-700 text-white flex items-center justify-center shadow-sm transition-all cursor-pointer text-xs"
       >
-        <Settings size={15} />
+        <Settings size={13} className="sm:w-3.5 sm:h-3.5" />
         {unreadRecycleBinCount > 0 && (
-          <span className="absolute -top-1.5 -right-1.5 px-1.5 py-0.5 rounded-full bg-rose-600 text-white text-[9px] font-black font-mono shadow-sm animate-bounce">
+          <span className="absolute -top-1.5 -right-1.5 px-1 sm:px-1.5 py-0.2 sm:py-0.5 rounded-full bg-rose-600 text-white text-[8px] sm:text-[9px] font-black font-mono shadow-sm animate-bounce">
             {unreadRecycleBinCount}
           </span>
         )}
@@ -2092,10 +2092,10 @@ function StatusActionDropdown({ student, onViewEdit, onRefresh, onDeleteRecord, 
           setIsOpen(!isOpen);
         }}
         title="Click to view & execute form actions"
-        className={`inline-flex items-center justify-center gap-1 px-1.5 py-0.5 rounded-md text-[9px] font-black text-white ${bg} tracking-tight uppercase cursor-pointer shadow-2xs transition-all hover:scale-105 active:scale-95`}
+        className={`inline-flex items-center justify-center gap-0.5 px-1 py-0.5 sm:px-1.5 rounded text-[8px] sm:text-[9px] font-black text-white ${bg} tracking-tight uppercase cursor-pointer shadow-2xs transition-all hover:scale-105 active:scale-95 leading-none`}
       >
         <span>{actionLoading ? '...' : abbr}</span>
-        <ChevronDown size={10} className={`transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+        <ChevronDown size={8} className={`transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 
       {isOpen && createPortal(
@@ -3681,9 +3681,9 @@ function SubjectStreamCell({ val, student }) {
 }
 
 const COLUMN_DEFS = [
-  { key: 'sno', label: 'S.No.', isSticky: true, className: 'font-mono font-black text-amber-700 dark:text-amber-400 border-r border-slate-200 dark:border-slate-800/50' },
+  { key: 'sno', label: 'S.No.', isSticky: true, className: 'font-mono font-black text-amber-700 dark:text-amber-400 border-r border-slate-200 dark:border-slate-800/50 whitespace-nowrap text-center' },
   {
-    key: 'formNo', label: 'F.No.', className: 'font-mono font-bold', render: (val, student) => {
+    key: 'formNo', label: 'F.No.', className: 'font-mono font-bold whitespace-nowrap text-center', render: (val, student) => {
       const raw = String(val || student?.['Form Number'] || student?.FormNo || student?.['Form No.'] || '').trim();
       if (!raw || raw === '—' || raw === 'N/A' || raw.length > 10 || raw.startsWith('doc_') || raw.startsWith('FORM_')) {
         return <span className="font-mono text-slate-400 dark:text-slate-600">—</span>;
@@ -3692,7 +3692,7 @@ const COLUMN_DEFS = [
     }
   },
   {
-    key: 'status', label: 'Status', className: 'text-center', render: (val, student) => {
+    key: 'status', label: 'Status', className: 'text-center whitespace-nowrap', render: (val, student) => {
       return (
         <StatusActionDropdown
           student={student}
@@ -3710,9 +3710,9 @@ const COLUMN_DEFS = [
       );
     }
   },
-  { key: 'classRollNo', label: 'R.NO.', className: 'font-mono font-black text-teal-700 dark:text-teal-400' },
+  { key: 'classRollNo', label: 'R.NO.', className: 'font-mono font-black text-teal-700 dark:text-teal-400 whitespace-nowrap text-center' },
   {
-    key: 'admNo', label: 'Adm. No.', className: 'font-mono font-black', render: (val, student) => {
+    key: 'admNo', label: 'Adm. No.', className: 'font-mono font-black whitespace-nowrap text-center', render: (val, student) => {
       const formatted = formatStudentAdmNo(student) || cleanAdmNoVal(val);
       if (!formatted) return <span className="font-mono text-slate-400 dark:text-slate-600">—</span>;
 
@@ -3735,18 +3735,18 @@ const COLUMN_DEFS = [
 
       if (isRe && oldAdm && oldAdm !== formatted) {
         return (
-          <span className="font-mono font-black text-slate-900 dark:text-white" title={`Re-admission student. New Adm No: ${formatted}, Old Adm No: ${oldAdm}`}>
+          <span className="font-mono font-black text-slate-900 dark:text-white whitespace-nowrap" title={`Re-admission student. New Adm No: ${formatted}, Old Adm No: ${oldAdm}`}>
             <span className="text-amber-800 dark:text-amber-300 font-extrabold">{formatted}</span>
             <span className="ml-1 text-[10px] text-indigo-700 dark:indigo-400 font-black">({oldAdm})</span>
           </span>
         );
       }
 
-      return <span className="font-mono font-black text-slate-900 dark:text-white">{formatted}</span>;
+      return <span className="font-mono font-black text-slate-900 dark:text-white whitespace-nowrap">{formatted}</span>;
     }
   },
-  { key: 'class', label: 'Class', className: 'font-black' },
-  { key: 'session', label: 'Session', className: 'font-black text-purple-700 dark:text-purple-400' },
+  { key: 'class', label: 'Class', className: 'font-black whitespace-nowrap text-center' },
+  { key: 'session', label: 'Session', className: 'font-black text-purple-700 dark:text-purple-400 whitespace-nowrap text-center' },
   { key: 'boardRegNo', label: 'Reg. No.', className: 'font-mono text-[11px] leading-tight text-slate-700 dark:text-slate-300 whitespace-normal break-all' },
   {
     key: 'photoId', label: 'Photo', className: 'text-center', render: (val, student) => {
@@ -3840,10 +3840,10 @@ const COLUMN_DEFS = [
       );
     }
   },
-  { key: 'dob', label: 'DoB', className: 'text-slate-600 dark:text-slate-400 whitespace-nowrap' },
+  { key: 'dob', label: 'DoB', className: 'text-slate-600 dark:text-slate-400 whitespace-nowrap text-center' },
   { key: 'village', label: 'Village/Town', className: 'whitespace-normal break-words leading-tight text-slate-700 dark:text-slate-300', render: (val) => formatProperName(val) },
-  { key: 'gender', label: 'Gender', className: 'font-black whitespace-nowrap' },
-  { key: 'category', label: 'Category', className: 'font-extrabold text-amber-800 dark:text-amber-300 whitespace-nowrap' },
+  { key: 'gender', label: 'Gender', className: 'font-black whitespace-nowrap text-center' },
+  { key: 'category', label: 'Category', className: 'font-extrabold text-amber-800 dark:text-amber-300 whitespace-nowrap text-center' },
   {
     key: 'subs', label: 'SUBS (STREAM)', className: 'whitespace-normal break-words leading-tight', render: (val, student) => (
       <SubjectStreamCell val={val} student={student} />
@@ -8251,16 +8251,16 @@ export default function AdvancedReports({
 
   // Cell padding class based on density state (comfortable legible font sizes to prevent eye strain)
   const cellPaddingClass = density === 'fit'
-    ? 'px-2 py-1.5 text-xs font-bold leading-normal'
+    ? 'px-1.5 py-1 text-[11px] sm:px-2 sm:py-1.5 sm:text-xs font-bold leading-tight sm:leading-normal'
     : density === 'compact'
-      ? 'px-2.5 py-2 text-xs sm:text-[13px] font-extrabold leading-normal'
-      : 'px-3.5 py-2.5 text-xs sm:text-sm font-black leading-normal';
+      ? 'px-1.5 py-1 text-[11px] sm:px-2.5 sm:py-2 sm:text-[13px] font-extrabold leading-tight sm:leading-normal'
+      : 'px-2 py-1.5 text-xs sm:px-3.5 sm:py-2.5 sm:text-sm font-black leading-tight sm:leading-normal';
 
   return (
     <div className="space-y-0.5 text-xs sm:text-sm animate-fadeIn relative">
       {/* Sleek Ultra-Compact Control Bar */}
       {/* Ultra-Responsive Control Bar: Single Row on Desktop / Minimal 2-Rows on Mobile */}
-      <div className="px-1.5 py-0.5 sm:py-1 rounded-xl border shadow-2xs space-y-1 sm:space-y-0 sm:flex sm:items-center sm:justify-between sm:gap-1.5 text-xs font-extrabold" style={{ backgroundColor: 'var(--bg-card, #ffffff)', borderColor: 'var(--border-ui, #cbd5e1)' }}>
+      <div className="px-1 py-0.5 sm:px-1.5 sm:py-1 rounded-lg sm:rounded-xl border shadow-2xs space-y-0.5 sm:space-y-0 sm:flex sm:items-center sm:justify-between sm:gap-1.5 text-xs font-extrabold" style={{ backgroundColor: 'var(--bg-card, #ffffff)', borderColor: 'var(--border-ui, #cbd5e1)' }}>
 
         {/* ROW 1 (Mobile) / LEFT SECTION (Desktop): Search Bar + Desktop Filters + Total Records Counter */}
         <div className="flex items-center justify-between gap-1 sm:gap-1.5 flex-1 min-w-0">
@@ -8270,9 +8270,9 @@ export default function AdvancedReports({
             {/* Search Input Bar with Shortcut Tooltip Popover */}
             <div className="relative flex-1 min-w-[100px] sm:min-w-[240px] md:min-w-[320px] lg:min-w-[380px] lg:max-w-[480px]" ref={searchHelpRef}>
               {isSearching || searchTerm !== deferredSearchTerm ? (
-                <RefreshCw size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-amber-500 animate-spin pointer-events-none" />
+                <RefreshCw size={12} className="absolute left-2 sm:left-2.5 top-1/2 -translate-y-1/2 text-amber-500 animate-spin pointer-events-none" />
               ) : (
-                <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                <Search size={12} className="absolute left-2 sm:left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
               )}
               <input
                 type="text"
@@ -8286,7 +8286,7 @@ export default function AdvancedReports({
                 onKeyDown={() => {
                   if (showSearchHelp) setShowSearchHelp(false);
                 }}
-                className="w-full pl-7 pr-12 py-1 sm:py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 font-black text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-amber-500 text-[11px] sm:text-xs bg-slate-50 dark:bg-slate-950 shadow-2xs leading-normal"
+                className="w-full pl-6 sm:pl-7 pr-10 sm:pr-12 py-0.5 sm:py-1.5 rounded-lg sm:rounded-xl border border-slate-300 dark:border-slate-700 font-black text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-amber-500 text-[10.5px] sm:text-xs bg-slate-50 dark:bg-slate-950 shadow-2xs leading-normal"
               />
               <div className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-0.5">
                 {searchTerm ? (
@@ -8391,30 +8391,30 @@ export default function AdvancedReports({
             </div>
 
             {/* Interactive Real-Time Data Sync & Records Counter Badge */}
-            <div className="relative overflow-hidden flex items-center px-2.5 py-1 rounded-xl border text-[11px] sm:text-xs font-black bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 shadow-2xs flex-shrink-0 gap-1.5 text-slate-800 dark:text-slate-100 transition-all">
+            <div className="relative overflow-hidden flex items-center px-1.5 py-0.5 sm:px-2.5 sm:py-1 rounded-lg sm:rounded-xl border text-[10px] sm:text-xs font-black bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 shadow-2xs flex-shrink-0 gap-1 text-slate-800 dark:text-slate-100 transition-all">
               {isFetchingData || loading ? (
-                <div className="flex items-center gap-1.5 text-amber-700 dark:text-amber-400 animate-pulse">
-                  <RefreshCw size={12} className="animate-spin text-amber-600 shrink-0" />
+                <div className="flex items-center gap-1 sm:gap-1.5 text-amber-700 dark:text-amber-400 animate-pulse">
+                  <RefreshCw size={11} className="animate-spin text-amber-600 shrink-0" />
                   <span>Syncing...</span>
                   <span className="font-mono text-slate-900 dark:text-white font-extrabold">({filteredStudents.length})</span>
                 </div>
               ) : (isSearching || searchTerm !== deferredSearchTerm) ? (
-                <div className="flex items-center gap-1.5 text-amber-700 dark:text-amber-400 animate-pulse">
-                  <RefreshCw size={12} className="animate-spin text-amber-600 shrink-0" />
+                <div className="flex items-center gap-1 sm:gap-1.5 text-amber-700 dark:text-amber-400 animate-pulse">
+                  <RefreshCw size={11} className="animate-spin text-amber-600 shrink-0" />
                   <span>Searching...</span>
                   <span className="font-mono text-slate-900 dark:text-white font-extrabold">({filteredStudents.length})</span>
                 </div>
               ) : searchTerm.trim() ? (
-                <div className="flex items-center gap-1 text-sky-700 dark:text-sky-400">
+                <div className="flex items-center gap-0.5 sm:gap-1 text-sky-700 dark:text-sky-400">
                   <span className="font-black">🔍 Records:</span>
                   <span className="font-mono text-slate-900 dark:text-white font-extrabold">{filteredStudents.length}</span>
-                  <span className="text-[10px] text-slate-400 font-mono">/ {allStudents.length}</span>
+                  <span className="text-[9px] sm:text-[10px] text-slate-400 font-mono">/ {allStudents.length}</span>
                 </div>
               ) : (
-                <div className="flex items-center gap-1.5 text-emerald-700 dark:text-emerald-400" title="Connected to Cloud Firestore in Real-Time">
-                  <span className="relative flex h-2 w-2 shrink-0">
+                <div className="flex items-center gap-1 sm:gap-1.5 text-emerald-700 dark:text-emerald-400" title="Connected to Cloud Firestore in Real-Time">
+                  <span className="relative flex h-1.5 w-1.5 sm:h-2 sm:w-2 shrink-0">
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                    <span className="relative inline-flex rounded-full h-1.5 w-1.5 sm:h-2 sm:w-2 bg-emerald-500"></span>
                   </span>
                   <span className="font-black">Live:</span>
                   <span className="font-mono font-black text-slate-900 dark:text-slate-50">{filteredStudents.length}</span>
@@ -8425,10 +8425,10 @@ export default function AdvancedReports({
         </div>
 
         {/* ROW 2 (Mobile) / RIGHT SECTION (Desktop): Administrative Tools + Mobile Filters + Pagination + Settings */}
-        <div className="flex items-center justify-between sm:justify-end gap-1.5 w-full sm:w-auto pt-1 sm:pt-0 border-t sm:border-t-0 border-slate-200/60 dark:border-slate-800/60 flex-shrink-0">
+        <div className="flex items-center justify-between sm:justify-end gap-1 sm:gap-1.5 w-full sm:w-auto pt-0.5 sm:pt-0 border-t sm:border-t-0 border-slate-200/60 dark:border-slate-800/60 flex-shrink-0">
 
           {/* Left Sub-Group on Mobile: Administrative Tools Suite + Mobile Filters Dropdown */}
-          <div className="flex items-center gap-1 flex-shrink-0">
+          <div className="flex items-center gap-0.5 sm:gap-1 flex-shrink-0">
             {/* Wrench Tools Suite Dropdown Button */}
             <div className="relative inline-block text-left flex-shrink-0" ref={toolsDropdownRef}>
               <button
@@ -8439,11 +8439,11 @@ export default function AdvancedReports({
                   if (nextState) handleMarkToolsSeen();
                 }}
                 title="Administrative Tools Suite"
-                className="relative p-1.5 rounded-xl flex items-center justify-center transition-all whitespace-nowrap cursor-pointer bg-indigo-700 hover:bg-indigo-600 text-white shadow-sm font-extrabold text-xs"
+                className="relative p-1 sm:p-1.5 rounded-lg sm:rounded-xl flex items-center justify-center transition-all whitespace-nowrap cursor-pointer bg-indigo-700 hover:bg-indigo-600 text-white shadow-sm font-extrabold text-xs"
               >
-                <Wrench size={14} />
+                <Wrench size={13} className="sm:w-3.5 sm:h-3.5" />
                 {hasUnseenToolsUpdate && (
-                  <span className="absolute -top-1.5 -right-1.5 px-1.5 py-0.5 rounded-full bg-rose-600 text-white text-[9px] font-black font-mono shadow-sm animate-pulse">
+                  <span className="absolute -top-1.5 -right-1.5 px-1 sm:px-1.5 py-0.2 sm:py-0.5 rounded-full bg-rose-600 text-white text-[8px] sm:text-[9px] font-black font-mono shadow-sm animate-pulse">
                     NEW
                   </span>
                 )}
@@ -8494,7 +8494,7 @@ export default function AdvancedReports({
           </div>
 
           {/* Right Sub-Group: Pagination + Table Settings */}
-          <div className="flex items-center gap-1 flex-shrink-0">
+          <div className="flex items-center gap-0.5 sm:gap-1 flex-shrink-0">
 
             {/* Temporary Column Order Reset Badge */}
             {isColumnOrderCustom && (
@@ -8502,21 +8502,21 @@ export default function AdvancedReports({
                 type="button"
                 onClick={handleResetColumnOrder}
                 title="Reset column positions back to official default order"
-                className="px-2 py-1 rounded-lg bg-amber-100 dark:bg-amber-950/60 hover:bg-amber-200 text-amber-900 dark:text-amber-300 font-black text-[10px] sm:text-xs flex items-center gap-1 border border-amber-300 dark:border-amber-700 cursor-pointer shadow-2xs transition-all animate-fadeIn"
+                className="px-1.5 py-0.5 sm:px-2 sm:py-1 rounded-md sm:rounded-lg bg-amber-100 dark:bg-amber-950/60 hover:bg-amber-200 text-amber-900 dark:text-amber-300 font-black text-[9px] sm:text-xs flex items-center gap-1 border border-amber-300 dark:border-amber-700 cursor-pointer shadow-2xs transition-all animate-fadeIn"
               >
-                <RotateCcw size={11} />
+                <RotateCcw size={10} className="sm:w-3 sm:h-3" />
                 <span>Reset Order</span>
               </button>
             )}
 
             {/* Compact Pagination */}
             {pageSize !== 'All' && totalPages > 1 && (
-              <div className="flex items-center gap-0.5 font-black text-[10px]">
+              <div className="flex items-center gap-0.5 font-black text-[9px] sm:text-[10px]">
                 <button
                   type="button"
                   disabled={currentPage === 1}
                   onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                  className="px-1.5 py-0.5 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 disabled:opacity-30 cursor-pointer"
+                  className="px-1 py-0.2 sm:px-1.5 sm:py-0.5 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 disabled:opacity-30 cursor-pointer"
                 >
                   ‹
                 </button>
@@ -8525,7 +8525,7 @@ export default function AdvancedReports({
                   type="button"
                   disabled={currentPage >= totalPages}
                   onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                  className="px-1.5 py-0.5 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 disabled:opacity-30 cursor-pointer"
+                  className="px-1 py-0.2 sm:px-1.5 sm:py-0.5 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 disabled:opacity-30 cursor-pointer"
                 >
                   ›
                 </button>
@@ -8675,9 +8675,9 @@ export default function AdvancedReports({
                       onDrop={(e) => handleColumnDrop(e, col.key)}
                       className={`relative group/th group-hover/th:z-50 select-none px-1.5 py-1 text-xs sm:text-[12px] leading-tight whitespace-normal break-all overflow-visible cursor-grab active:cursor-grabbing transition-colors ${stickyClasses} ${draggedColKey === col.key ? 'opacity-40 bg-amber-200 dark:bg-amber-900' : ''}`}
                     >
-                      {/* Prominent Column Shift Arrows (Centered, z-50 elevated, uncropped) */}
+                      {/* Prominent Column Shift Arrows (Centered, z-50 elevated, uncropped, hidden on mobile touch) */}
                       {!col.isSticky && (
-                        <div className="absolute left-1/2 -translate-x-1/2 top-0.5 opacity-0 group-hover/th:opacity-100 flex items-center gap-0.5 transition-all z-50 pointer-events-auto bg-amber-100/95 dark:bg-slate-800/95 text-[#800000] dark:text-rose-300 px-1 py-0.5 rounded-full border border-amber-600/50 dark:border-rose-400/50 shadow-lg hover:scale-110">
+                        <div className="hidden sm:flex absolute left-1/2 -translate-x-1/2 top-0.5 opacity-0 group-hover/th:opacity-100 items-center gap-0.5 transition-all z-50 pointer-events-auto bg-amber-100/95 dark:bg-slate-800/95 text-[#800000] dark:text-rose-300 px-1 py-0.5 rounded-full border border-amber-600/50 dark:border-rose-400/50 shadow-lg hover:scale-110">
                           <button
                             type="button"
                             disabled={isFirstShiftable}
