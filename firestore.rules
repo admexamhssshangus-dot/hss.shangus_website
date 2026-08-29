@@ -304,41 +304,9 @@ service cloud.firestore {
     }
 
     match /admissions/{documentId} {
-      allow get: if isTeacher() ||
-        (isAuthenticated() && (
-          resource.data.ownerUid == request.auth.uid ||
-          (resource.data.emailNormalized is string && resource.data.emailNormalized == authEmail()) ||
-          (resource.data.email is string && resource.data.email == authEmail()) ||
-          (resource.data['Email Address'] is string && resource.data['Email Address'] == authEmail()) ||
-          (resource.data.email is string && resource.data.email == request.auth.token.email) ||
-          (resource.data['Email Address'] is string && resource.data['Email Address'] == request.auth.token.email)
-        ));
-      allow list: if isTeacher() ||
-        (isAuthenticated() && (
-          resource.data.ownerUid == request.auth.uid ||
-          (resource.data.emailNormalized is string && resource.data.emailNormalized == authEmail()) ||
-          (resource.data.email is string && resource.data.email == authEmail()) ||
-          (resource.data['Email Address'] is string && resource.data['Email Address'] == authEmail())
-        ));
-      // Student writes allow verified/authenticated student accounts to submit and update their own admission application.
-      allow create: if (isAdmin() && validStaffDocument(request.resource.data)) ||
-        (isStudent() && (
-          request.resource.data.ownerUid == request.auth.uid ||
-          (request.resource.data.emailNormalized is string && request.resource.data.emailNormalized == authEmail()) ||
-          (request.resource.data.email is string && request.resource.data.email == authEmail()) ||
-          (request.resource.data['Email Address'] is string && request.resource.data['Email Address'] == authEmail()) ||
-          (request.resource.data.email is string && request.resource.data.email == request.auth.token.email) ||
-          (request.resource.data['Email Address'] is string && request.resource.data['Email Address'] == request.auth.token.email)
-        ));
-      allow update: if (isAdmin() && validStaffDocument(request.resource.data)) ||
-        (isStudent() && (
-          resource.data.ownerUid == request.auth.uid ||
-          (resource.data.emailNormalized is string && resource.data.emailNormalized == authEmail()) ||
-          (resource.data.email is string && resource.data.email == authEmail()) ||
-          (resource.data['Email Address'] is string && resource.data['Email Address'] == authEmail()) ||
-          (resource.data.email is string && resource.data.email == request.auth.token.email) ||
-          (resource.data['Email Address'] is string && resource.data['Email Address'] == request.auth.token.email)
-        ));
+      allow get, list: if isTeacher() || isAuthenticated();
+      allow create, update: if (isAdmin() && validStaffDocument(request.resource.data)) ||
+        isAuthenticated();
       allow delete: if isAdmin();
     }
 
@@ -390,13 +358,13 @@ service cloud.firestore {
     }
 
     match /formStructure/{documentId} {
-      allow read: if isAuthenticated();
+      allow read: if true;
       allow create, update: if isAdmin() && validStaffDocument(request.resource.data);
       allow delete: if isAdmin();
     }
 
     match /subjectsConfig/{documentId} {
-      allow read: if isAuthenticated();
+      allow read: if true;
       allow create, update: if isAdmin() && validStaffDocument(request.resource.data);
       allow delete: if isAdmin();
     }
@@ -418,8 +386,15 @@ service cloud.firestore {
     }
 
     match /studentPhotos/{documentId} {
+      allow read: if true;
+      allow create, update: if isAuthenticated() || isTeacher();
+      allow delete: if isAdmin();
+    }
+
+    match /admissionHistory/{documentId} {
       allow read: if isTeacher();
-      allow write: if isAdmin();
+      allow create, update: if isAuthenticated() || isTeacher();
+      allow delete: if isAdmin();
     }
 
     match /adminPracticalsSettings/{documentId} {
