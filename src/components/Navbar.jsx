@@ -120,15 +120,11 @@ export default function Navbar() {
 
   const getDashboardPath = (role) => {
     const r = String(role || '').toLowerCase();
-    if (r.includes('admin')) {
-      return '/portal/admin';
-    }
+    if (r.includes('admin')) return '/portal/admin';
     if (r.includes('teacher') || r.includes('faculty')) return '/portal/teacher';
     if (r.includes('student')) return '/portal/student';
     return '/portal/admin';
   };
-
-
 
   const loadDynamicPages = async () => {
     try {
@@ -160,25 +156,6 @@ export default function Navbar() {
     }
   }, []);
 
-
-
-
-
-  const APPSCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxklDr4jb25tAiDDrIoU2pjEBe9UXmJxkbXY-jp-BXLjkq9FppA1NlE2Or-gCpwjp8B1g/exec';
-
-  const handleLoginClick = () => {
-    try {
-      const w = (typeof window !== 'undefined' && window.screen && window.screen.width) ? window.screen.width : 1024;
-      const h = (typeof window !== 'undefined' && window.screen && window.screen.height) ? window.screen.height : 768;
-      const features = `left=0,top=0,width=${w},height=${h},toolbar=no,location=no,menubar=no,resizable=yes,scrollbars=yes,noopener,noreferrer`;
-      const newWin = window.open(APPSCRIPT_URL, '_blank', features);
-      if (newWin) newWin.focus();
-      else window.open(APPSCRIPT_URL, '_blank');
-    } catch (e) {
-      window.open(APPSCRIPT_URL, '_blank');
-    }
-  };
-
   const location = useLocation();
   const isAwayFromDashboard = currentUser && !location.pathname.startsWith('/portal/admin') && !location.pathname.startsWith('/portal/teacher') && !location.pathname.startsWith('/portal/student') && !location.pathname.startsWith('/admin');
 
@@ -186,8 +163,6 @@ export default function Navbar() {
     if (path === '/') return location.pathname === '/';
     return location.pathname.startsWith(path);
   }
-
-  // no modal Escape-key handler anymore
 
   useEffect(() => {
     let lastScrollY = window.scrollY;

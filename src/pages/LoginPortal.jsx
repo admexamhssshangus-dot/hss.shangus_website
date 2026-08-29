@@ -4,21 +4,6 @@ import { Link } from 'react-router-dom';
 import SEO from '../components/SEO';
 
 export default function LoginPortal() {
-  const APPSCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxklDr4jb25tAiDDrIoU2pjEBe9UXmJxkbXY-jp-BXLjkq9FppA1NlE2Or-gCpwjp8B1g/exec';
-
-  const openPortalWindow = () => {
-    try {
-      const w = (typeof window !== 'undefined' && window.screen && window.screen.width) ? window.screen.width : 1024;
-      const h = (typeof window !== 'undefined' && window.screen && window.screen.height) ? window.screen.height : 768;
-      const features = `left=0,top=0,width=${w},height=${h},toolbar=no,location=no,menubar=no,resizable=yes,scrollbars=yes`;
-      const newWin = window.open(APPSCRIPT_URL, '_blank', features);
-      if (newWin) newWin.focus();
-      else window.open(APPSCRIPT_URL, '_blank');
-    } catch (e) {
-      window.open(APPSCRIPT_URL, '_blank');
-    }
-  };
-
   // Theme-aware styles using CSS custom properties from index.css theme system
   const cardStyle = {
     backgroundColor: 'var(--bg-card)',
@@ -65,13 +50,6 @@ export default function LoginPortal() {
               <span>Open Online Portal</span>
               <ArrowRight size={18} className="animate-bounce-x" />
             </Link>
-
-            <button
-              onClick={openPortalWindow}
-              className="px-4 py-2 text-xs font-semibold text-teal-300 hover:text-white transition-colors cursor-pointer bg-transparent border-none underline"
-            >
-              Open Legacy Apps Script Window ↗
-            </button>
           </div>
         </div>
 
