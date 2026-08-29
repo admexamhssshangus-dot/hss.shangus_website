@@ -313,15 +313,15 @@ export default function Navbar() {
           </div>
 
           {/* ROW 2: Logo and School Name (Centered in standard container width for professional alignment) */}
-          <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 md:px-8 py-1.5 md:py-2 flex items-center justify-between gap-4">
-            <Link to="/" className="ui-touch-target flex items-center min-w-0 shrink">
-              <img src={schoolLogo} alt="Govt HSS Shangus Logo" className="h-9 w-9 md:h-11 md:w-11 mr-3.5 object-contain" />
-              <div className="min-w-0">
-                <div className="truncate text-[15px] md:text-xl font-bold text-teal-800 tracking-tight leading-tight font-title" aria-label="Govt. Higher Secondary School Shangus">
+          <div className="w-full max-w-7xl mx-auto px-2.5 sm:px-6 md:px-8 py-1.5 md:py-2 flex items-center justify-between gap-1.5 sm:gap-4">
+            <Link to="/" className="flex items-center min-w-0 flex-1 shrink mr-1 sm:mr-0">
+              <img src={schoolLogo} alt="Govt HSS Shangus Logo" className="h-8 w-8 sm:h-9 sm:w-9 md:h-11 md:w-11 mr-2 sm:mr-3.5 object-contain shrink-0" />
+              <div className="min-w-0 flex-1">
+                <div className="text-[13px] xs:text-[14px] sm:text-[15px] md:text-xl font-bold text-teal-800 tracking-tight leading-snug font-title" aria-label="Govt. Higher Secondary School Shangus">
                   <span className="hidden md:inline">Govt. Higher Secondary School Shangus</span>
                   <span className="inline md:hidden">Govt. Hr. Sec. School Shangus</span>
                 </div>
-                <p className="text-[10.6px] md:text-xs text-slate-500 not-italic mt-0.5 font-slogan">nurturing minds, shaping futures</p>
+                <p className="text-[9.5px] sm:text-[10.6px] md:text-xs text-slate-500 not-italic mt-0 font-slogan truncate">nurturing minds, shaping futures</p>
               </div>
             </Link>
 
@@ -401,17 +401,17 @@ export default function Navbar() {
             )}
 
             {/* Mobile top right actions: Hamburger Menu */}
-            <div className="md:hidden flex items-center gap-2">
+            <div className="md:hidden flex items-center shrink-0">
               <button
                 aria-label="Toggle menu"
                 onClick={() => setMobileOpen((s) => !s)}
-                className="ui-touch-target w-11 h-11 flex items-center justify-center rounded-xl text-slate-800 bg-slate-100 border border-slate-200 shadow-sm relative"
+                className="w-8 h-8 min-w-[2rem] min-h-[2rem] flex items-center justify-center rounded-lg text-slate-800 bg-slate-100 hover:bg-slate-200 border border-slate-200/80 shadow-xs relative transition-all active:scale-95 shrink-0"
               >
-                {mobileOpen ? <X size={18} /> : <Menu size={18} />}
+                {mobileOpen ? <X size={16} /> : <Menu size={16} />}
                 {currentUser && (
-                  <span className="absolute -top-1 -right-1 flex h-3 w-3">
+                  <span className="absolute -top-0.5 -right-0.5 flex h-2.5 w-2.5">
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-3 w-3 bg-rose-600 border-2 border-white shadow-2xs"></span>
+                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-rose-600 border border-white shadow-2xs"></span>
                   </span>
                 )}
               </button>
