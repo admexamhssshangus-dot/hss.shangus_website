@@ -1480,18 +1480,11 @@ export default function DynamicFormField({
                         <span className="font-mono text-slate-500 dark:text-slate-400">
                           {value.length}/10 digits
                         </span>
-                        {value.length === 10 && /^[6-9]\d{9}$/.test(value) && (
-                          error ? (
-                            <span className="text-rose-600 dark:text-rose-400 font-bold flex items-center gap-1">
-                              <AlertCircle size={11} className="flex-shrink-0" />
-                              <span className="truncate max-w-[280px] sm:max-w-[420px]">{error}</span>
-                            </span>
-                          ) : (
-                            <span className="text-emerald-700 dark:text-emerald-300 font-black flex items-center gap-1">
-                              <CheckCircle2 size={11} className="text-emerald-600 dark:text-emerald-400" />
-                              <span>Valid Mobile Number</span>
-                            </span>
-                          )
+                        {value.length === 10 && /^[6-9]\d{9}$/.test(value) && !error && (
+                          <span className="text-emerald-700 dark:text-emerald-300 font-black flex items-center gap-1">
+                            <CheckCircle2 size={11} className="text-emerald-600 dark:text-emerald-400" />
+                            <span>Valid Mobile Number</span>
+                          </span>
                         )}
                       </div>
                     )}
@@ -2130,8 +2123,9 @@ export default function DynamicFormField({
 
       {/* Field-level error */}
       {!lowerName.includes('photo') && error && (
-        <div id={errorId} role="alert" className="text-[10px] text-red-500 font-bold flex items-center gap-1 mt-0.5">
-          <AlertCircle size={11} /> {error}
+        <div id={errorId} role="alert" className="text-[11px] text-rose-600 dark:text-rose-400 font-bold flex items-start gap-1.5 mt-1 p-2 rounded-xl bg-rose-500/10 border border-rose-500/20 leading-tight animate-fadeIn">
+          <AlertCircle size={13} className="flex-shrink-0 mt-0.5 text-rose-500" />
+          <span className="flex-1">{error}</span>
         </div>
       )}
     </div>

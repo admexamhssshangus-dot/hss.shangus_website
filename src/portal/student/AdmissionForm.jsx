@@ -9,6 +9,7 @@ import StandardTooltip from '../../components/StandardTooltip';
 import appsScriptApi from '../../services/appsScriptApi';
 import { sessionManager } from '../../services/sessionManager';
 import { generateStudentAdmissionPdf, generateProvisionalAdmissionPdf } from '../../utils/pdfGenerator';
+import { auth } from '../../services/firebase';
 import { saveAdmissionDraft } from '../../services/admissionWorkflowApi';
 import { getNextAvailableFormNumber, consumeFormNumber } from '../../services/formNumberService';
 import { isValidAadhaar, areAadhaarsDistinct, isStrictIsoDate, normalizeDobToIso, validateMinimumAge, MIN_ADMISSION_AGE, isPersonNameField, sanitizePersonName, validatePersonName } from '../../utils/admissionValidation';
@@ -873,9 +874,10 @@ export default function AdmissionForm() {
             const res = await appsScriptApi.checkDuplicateMobileInSession({
               mobile: mobileDigits,
               session: formData.Session || formData.session,
-              currentApplicationId: applicationIdRef.current || applicationId,
+              currentApplicationId: applicationIdRef.current || applicationId || formData['Form Number'] || formData.FormNo || formData.formNo,
               currentFormNo: formData['Form Number'] || formData.FormNo || formData.formNo,
-              currentOwnerUid: currentUser?.uid,
+              currentOwnerUid: currentUser?.uid || auth.currentUser?.uid,
+              currentEmail: currentUser?.email || auth.currentUser?.email || formData['Email Address'] || formData.email,
             });
             if (res.isDuplicate) {
               setFieldErrors((prev) => ({
@@ -1629,9 +1631,10 @@ export default function AdmissionForm() {
         const studentDup = await appsScriptApi.checkDuplicateMobileInSession({
           mobile,
           session: formData.Session || formData.session,
-          currentApplicationId: applicationIdRef.current || applicationId,
+          currentApplicationId: applicationIdRef.current || applicationId || formData['Form Number'] || formData.FormNo || formData.formNo,
           currentFormNo: formData['Form Number'] || formData.FormNo || formData.formNo,
-          currentOwnerUid: currentUser?.uid,
+          currentOwnerUid: currentUser?.uid || auth.currentUser?.uid,
+          currentEmail: currentUser?.email || auth.currentUser?.email || formData['Email Address'] || formData.email,
         });
         if (studentDup.isDuplicate) {
           addError("Mobile No. (with working WhatsApp)", studentDup.message);
@@ -1646,9 +1649,10 @@ export default function AdmissionForm() {
         const parentDup = await appsScriptApi.checkDuplicateMobileInSession({
           mobile: parentMobile,
           session: formData.Session || formData.session,
-          currentApplicationId: applicationIdRef.current || applicationId,
+          currentApplicationId: applicationIdRef.current || applicationId || formData['Form Number'] || formData.FormNo || formData.formNo,
           currentFormNo: formData['Form Number'] || formData.FormNo || formData.formNo,
-          currentOwnerUid: currentUser?.uid,
+          currentOwnerUid: currentUser?.uid || auth.currentUser?.uid,
+          currentEmail: currentUser?.email || auth.currentUser?.email || formData['Email Address'] || formData.email,
         });
         if (parentDup.isDuplicate) {
           addError("Parent's Mobile No. (must be working)", parentDup.message);
