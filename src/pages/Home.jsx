@@ -400,11 +400,11 @@ export default function Home() {
           >
             nurturing minds, shaping futures
           </h1>
-          <div className="flex flex-row justify-center items-center space-x-1.5">
-            <Link to="/admissions" className="ui-touch-target min-h-11 px-4 sm:px-5 py-2 font-bold rounded-lg transition-all shadow-lg inline-flex items-center text-xs sm:text-sm btn-hero-primary">
+          <div className="flex flex-row justify-center items-center gap-1.5 sm:gap-2">
+            <Link to="/admissions" className="px-2.5 py-1 sm:px-5 sm:py-2 font-bold rounded-md sm:rounded-lg transition-all shadow-md sm:shadow-lg inline-flex items-center text-[10.5px] sm:text-sm btn-hero-primary leading-tight">
               {settings?.globalAdmissionsClosed ? 'Admissions Closed' : 'Admissions Open 2026'}
             </Link>
-            <Link to="/about" className="ui-touch-target min-h-11 px-3 sm:px-3.5 py-1.5 font-bold rounded-md transition-all shadow-md inline-flex items-center text-[11px] sm:text-xs btn-hero-secondary">
+            <Link to="/about" className="px-2.5 py-1 sm:px-3.5 sm:py-2 font-bold rounded-md transition-all shadow-md inline-flex items-center text-[10.5px] sm:text-xs btn-hero-secondary leading-tight">
               Learn More
             </Link>
           </div>
