@@ -640,7 +640,7 @@ function MultiSelectCheckboxDropdown({ label, options = [], selected = [], onCha
       </button>
 
       {isOpen && (
-        <div className={`absolute ${align === 'right' ? 'right-0' : 'left-0'} mt-1 w-48 sm:w-52 max-w-[calc(100vw-32px)] rounded-2xl border border-slate-300 dark:border-slate-700 shadow-2xl z-50 p-2 space-y-1.5 animate-fadeIn bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100`}>
+        <div className={`absolute ${align === 'right' ? 'right-0' : 'left-0'} mt-1 w-48 sm:w-52 max-w-[calc(100vw-32px)] rounded-2xl border border-slate-300 dark:border-slate-700 shadow-2xl z-[100000] p-2 space-y-1.5 animate-fadeIn bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100`}>
           <div className="flex items-center justify-between px-1 py-0.5 border-b border-slate-200 dark:border-slate-800 text-[11px] font-black gap-1">
             <span className="text-[10px] text-amber-700 dark:text-amber-400 uppercase tracking-wider font-extrabold truncate flex-1 min-w-0">{label}</span>
             <div className="flex items-center gap-1 flex-shrink-0">
@@ -922,7 +922,7 @@ function MoreActionsDropdown({
       {isOpen && (
         <div
           onMouseDown={(e) => e.stopPropagation()}
-          className={`absolute ${align === 'left' ? 'left-0 sm:right-0 sm:left-auto' : 'right-0'} mt-1.5 w-60 max-w-[calc(100vw-24px)] rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl z-50 p-2 space-y-1 animate-fadeIn bg-white/95 dark:bg-slate-900/95 backdrop-blur-md text-slate-900 dark:text-slate-100 text-xs font-extrabold`}
+          className={`absolute ${align === 'left' ? 'left-0 sm:right-0 sm:left-auto' : 'right-0'} mt-1.5 w-60 max-w-[calc(100vw-24px)] rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl z-[99999] p-2 space-y-1 animate-fadeIn bg-white/95 dark:bg-slate-900/95 backdrop-blur-md text-slate-900 dark:text-slate-100 text-xs font-extrabold`}
         >
           <div className="px-2 py-1 border-b border-slate-200 dark:border-slate-800 text-[10px] uppercase font-black tracking-wider text-slate-400">
             Layout & Display Controls

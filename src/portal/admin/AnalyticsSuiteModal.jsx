@@ -1419,7 +1419,7 @@ export default function AnalyticsSuiteModal({ isOpen, onClose, students = [] }) 
               </button>
 
               {showBatchMenu && (
-                <div className="absolute right-0 mt-2 w-72 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 z-50 p-3 space-y-3 animate-fadeIn">
+                <div className="absolute right-0 mt-2 w-72 max-w-[calc(100vw-32px)] bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 z-[100000] p-3 space-y-3 animate-fadeIn">
                   <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
                     <span className="text-[11px] font-black text-slate-700 dark:text-slate-200 uppercase tracking-wider">Select Reports to Generate</span>
                     <button
