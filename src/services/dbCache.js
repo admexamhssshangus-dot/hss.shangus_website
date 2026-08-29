@@ -1189,13 +1189,13 @@ export async function fetchStudentPhotoOnDemand(student) {
     docCandidates.push(`photo_${rawBoardReg}`);
     docCandidates.push(rawBoardReg);
   }
-  if (!reg && fNo) {
+  if (fNo) {
     docCandidates.push(`photo_form_${fNo}`);
     docCandidates.push(`photo_${fNo}`);
     docCandidates.push(`form_${fNo}`);
     docCandidates.push(fNo);
   }
-  if (!reg && rawId) {
+  if (rawId) {
     docCandidates.push(`photo_${rawId}`);
     docCandidates.push(rawId);
   }
