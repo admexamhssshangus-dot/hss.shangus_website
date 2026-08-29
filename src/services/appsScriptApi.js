@@ -706,6 +706,30 @@ async function legacySaveApplication(payload) {
       errText.includes('resource exhausted') ||
       errText.includes('8 resource_exhausted');
 
+    // Attempt direct institutional Apps Script sync before failing
+    if (!isQuotaExhausted) {
+      try {
+        const serverRes = await call('saveApplicationData', payload, { timeout: 45000 });
+        if (serverRes && serverRes.success !== false) {
+          firestoreWriteSucceeded = true;
+          try {
+            updateCachedItem('admissions', sanitizedDocId, payloadData);
+          } catch (_) {}
+          return {
+            success: true,
+            applicationId: sanitizedDocId,
+            formNumber: formNo,
+            'Form Number': formNo,
+            FormNo: formNo,
+            data: payloadData,
+            message: 'Application saved and submitted successfully!',
+          };
+        }
+      } catch (serverSyncErr) {
+        console.warn('Fallback server sync attempt note:', serverSyncErr);
+      }
+    }
+
     // Save local draft fallback immediately so user loses nothing
     try {
       const draftObj = { formData: payloadData, updatedAt: new Date().toISOString() };

@@ -2040,7 +2040,7 @@ export default function AdmissionForm() {
       />
 
       {/* Submission Progress & Animation Fullscreen Overlay */}
-      {isSubmitting && (
+      {isSubmitting && createPortal(
         <div
           role="dialog"
           aria-modal="true"
@@ -2064,23 +2064,24 @@ export default function AdmissionForm() {
               />
 
               {/* Step checklist */}
-              <div className="space-y-2.5 text-left pt-2 text-xs font-bold text-slate-100 bg-slate-800/90 p-4 rounded-2xl border border-slate-700/80 shadow-inner">
-                <div className="flex items-center gap-2.5 text-teal-300">
-                  <CheckCircle2 size={16} className="flex-shrink-0 text-teal-400" />
-                  <span className="font-bold">Validating student profile &amp; subjects</span>
+              <div className="space-y-2.5 text-left pt-2 text-xs font-bold text-slate-100 bg-slate-950/80 p-4 rounded-2xl border border-slate-700/90 shadow-inner">
+                <div className="flex items-center gap-2.5 text-emerald-400">
+                  <CheckCircle2 size={16} className="flex-shrink-0 text-emerald-400" />
+                  <span className="font-bold text-emerald-300">Validating student profile &amp; subjects</span>
                 </div>
-                <div className="flex items-center gap-2.5 text-emerald-300">
-                  <Loader2 size={16} className="animate-spin flex-shrink-0 text-emerald-400" />
-                  <span className="font-bold">Encrypting photos &amp; identity details</span>
+                <div className="flex items-center gap-2.5 text-teal-300">
+                  <Loader2 size={16} className="animate-spin flex-shrink-0 text-teal-400" />
+                  <span className="font-bold text-teal-200">Encrypting photos &amp; identity details</span>
                 </div>
                 <div className="flex items-center gap-2.5 text-slate-200">
-                  <div className="w-4 h-4 rounded-full border-2 border-slate-400 flex-shrink-0" />
-                  <span className="font-semibold text-slate-300">Generating cryptographic verification QR</span>
+                  <div className="w-4 h-4 rounded-full border-2 border-teal-400/60 flex-shrink-0" />
+                  <span className="font-semibold text-slate-200">Generating cryptographic verification QR</span>
                 </div>
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Instructions Modal Overlay (Only shown when form is editable) */}
