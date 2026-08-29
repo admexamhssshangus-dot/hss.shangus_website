@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { BarChart2, PieChart, Printer, Download, X, Filter, Users, CheckCircle2, Sparkles, BookOpen, Layers, ShieldCheck, FileSpreadsheet, ChevronDown, CheckSquare, Square } from 'lucide-react';
 
 import { normalizeClassVal, normalizeSessionVal } from './AdvancedReports';
@@ -1388,9 +1389,9 @@ export default function AnalyticsSuiteModal({ isOpen, onClose, students = [] }) 
 
   if (!isOpen) return null;
 
-  return (
-    <div className="fixed inset-0 z-[9999] bg-slate-950/75 backdrop-blur-md flex items-center justify-center p-1.5 sm:p-4 animate-fadeIn overflow-y-auto">
-      <div className="bg-white dark:bg-slate-900 rounded-2xl sm:rounded-3xl max-w-6xl w-full p-3 sm:p-6 shadow-2xl border border-slate-300 dark:border-slate-800 space-y-3 sm:space-y-4 max-h-[96vh] sm:max-h-[92vh] flex flex-col">
+  return createPortal(
+    <div className="fixed inset-0 z-[99999] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-1.5 sm:p-4 animate-fadeIn overflow-y-auto">
+      <div className="bg-white dark:bg-slate-900 rounded-2xl sm:rounded-3xl max-w-6xl w-full p-3 sm:p-6 shadow-2xl border border-slate-300 dark:border-slate-800 space-y-3 sm:space-y-4 max-h-[94vh] sm:max-h-[92vh] flex flex-col my-auto">
         {/* Top Title Bar */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2.5 sm:pb-3 gap-2">
           <div>
@@ -1821,6 +1822,7 @@ export default function AnalyticsSuiteModal({ isOpen, onClose, students = [] }) 
           </table>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

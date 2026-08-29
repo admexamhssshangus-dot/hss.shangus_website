@@ -4,6 +4,7 @@
 // =================================================================
 
 import React, { useState, useMemo, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import {
   X, Award, Printer, Search,
   FileSpreadsheet, AlertCircle, RefreshCw, CheckCircle2, Lock, Edit3, Save
@@ -781,10 +782,10 @@ export default function BulkCertificateGeneratorModal({
   const newSelectedCount = selectedRows.filter(student => !student.certificateNo).length;
   const sequentialEndNo = (parseInt(startCertNo, 10) || 1368) + Math.max(newSelectedCount - 1, 0);
 
-  return (
+  return createPortal(
     <>
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-slate-950/80 backdrop-blur-md animate-fadeIn">
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-[1280px] h-[92vh] max-h-[850px] shadow-2xl flex flex-col overflow-hidden">
+    <div className="fixed inset-0 z-[99999] flex items-center justify-center p-2 sm:p-4 bg-slate-950/80 backdrop-blur-md animate-fadeIn overflow-y-auto">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl sm:rounded-3xl w-full max-w-[1280px] max-h-[94vh] sm:max-h-[90vh] shadow-2xl flex flex-col overflow-hidden my-auto">
         
         {/* ════════ MODAL HEADER ════════ */}
         <div className="p-3 sm:p-3.5 bg-gradient-to-r from-teal-950 via-slate-900 to-slate-900 text-white flex items-center justify-between gap-3 border-b border-teal-800/40">
@@ -1322,6 +1323,7 @@ export default function BulkCertificateGeneratorModal({
         </div>
       </div>
     )}
-    </>
+    </>,
+    document.body
   );
 }

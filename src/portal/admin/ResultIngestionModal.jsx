@@ -7,6 +7,7 @@
 // =================================================================
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import {
   X,
   Upload,
@@ -684,9 +685,9 @@ export default function ResultIngestionModal({
 
   if (!isOpen) return null;
 
-  return (
-    <div className="fixed inset-0 z-[999999] bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 animate-fadeIn">
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl max-w-6xl w-full flex flex-col max-h-[96vh] overflow-hidden text-xs">
+  return createPortal(
+    <div className="fixed inset-0 z-[99999] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 animate-fadeIn overflow-y-auto">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl sm:rounded-3xl shadow-2xl max-w-6xl w-full flex flex-col max-h-[94vh] sm:max-h-[92vh] overflow-hidden text-xs my-auto">
         
         {/* Minimal Header */}
         <div className="px-4 py-2.5 bg-slate-900 text-white flex items-center justify-between border-b border-slate-800 shrink-0">
@@ -1901,6 +1902,7 @@ export default function ResultIngestionModal({
         </div>
       )}
 
-    </div>
+    </div>,
+    document.body
   );
 }

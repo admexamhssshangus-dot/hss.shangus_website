@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   Database, ShieldAlert, CheckCircle2, AlertTriangle, X, RefreshCw, 
   ArrowRight, Search, Users, Archive, Trash2, FileCheck, Layers, Sparkles, Check
@@ -227,9 +228,9 @@ export default function SessionArchivalModal({ isOpen, onClose, currentSession =
 
   if (!isOpen) return null;
 
-  return (
-    <div className="fixed inset-0 z-[9999] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-3 animate-fadeIn">
-      <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-4xl w-full max-h-[92vh] flex flex-col shadow-2xl border border-slate-300 dark:border-slate-800 overflow-hidden text-slate-900 dark:text-white">
+  return createPortal(
+    <div className="fixed inset-0 z-[99999] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 animate-fadeIn overflow-y-auto">
+      <div className="bg-white dark:bg-slate-900 rounded-2xl sm:rounded-3xl max-w-4xl w-full max-h-[94vh] sm:max-h-[92vh] flex flex-col shadow-2xl border border-slate-300 dark:border-slate-800 overflow-hidden text-slate-900 dark:text-white my-auto">
         
         {/* Header */}
         <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-950 flex-wrap gap-2">
@@ -571,6 +572,7 @@ export default function SessionArchivalModal({ isOpen, onClose, currentSession =
         </div>
 
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
