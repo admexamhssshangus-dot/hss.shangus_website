@@ -213,6 +213,7 @@ async function checkDuplicateMobileInSession({
   currentApplicationId,
   currentFormNo,
   currentOwnerUid,
+  currentEmail,
 }) {
   if (!mobile) return { isDuplicate: false };
   const cleanMobile = String(mobile).replace(/\D/g, '');
@@ -220,21 +221,27 @@ async function checkDuplicateMobileInSession({
   const targetMobile10 = cleanMobile.slice(-10);
 
   const targetSession = String(session || getCurrentAcademicSession()).trim();
-  const currentUid = currentOwnerUid || auth.currentUser?.uid || sessionManager.getUser()?.uid || '';
+  const currentUid = String(currentOwnerUid || auth.currentUser?.uid || sessionManager.getUser()?.uid || sessionManager.getUser()?.id || '').trim();
+  const emailNorm = String(currentEmail || auth.currentUser?.email || sessionManager.getUser()?.email || '').toLowerCase().trim();
   const currentCleanFormNo = String(currentFormNo || '').replace(/^(N\/A|#N\/A|—|-|null|undefined)$/i, '').trim();
+  const cleanAppId = String(currentApplicationId || '').replace(/^(N\/A|#N\/A|—|-|null|undefined)$/i, '').trim();
 
   try {
     const snap = await getDocs(collection(db, 'admissions'));
     if (!snap.empty) {
       for (const d of snap.docs) {
-        // Skip current application doc if editing
-        if (currentApplicationId && d.id === currentApplicationId) continue;
-        if (currentCleanFormNo && d.id === currentCleanFormNo.replace(/\//g, '_')) continue;
-
         const data = d.data() || {};
+        const docFormNo = String(data['Form Number'] || data.FormNo || data.formNo || d.id || '').trim();
 
-        // If it's the applicant's own record (same user uid), skip
-        if (currentUid && data.ownerUid && data.ownerUid === currentUid) continue;
+        // Skip current application doc if editing
+        if (cleanAppId && (d.id === cleanAppId || docFormNo === cleanAppId)) continue;
+        if (currentCleanFormNo && (d.id === currentCleanFormNo || d.id === currentCleanFormNo.replace(/\//g, '_') || docFormNo === currentCleanFormNo)) continue;
+
+        // If it's the applicant's own record (same user uid or same email), skip
+        if (currentUid && data.ownerUid && String(data.ownerUid).trim() === currentUid) continue;
+
+        const docEmail = String(data['Email Address'] || data.email || data.emailNormalized || '').toLowerCase().trim();
+        if (emailNorm && docEmail && docEmail === emailNorm) continue;
 
         // Skip withdrawn/deleted/purged/rejected records
         const status = String(data.Status || data.status || '').trim();
@@ -576,7 +583,9 @@ async function legacySaveApplication(payload) {
           const ex = d.data() || {};
 
           // Skip if exact same user editing their own document
-          if (currentUid && ex.ownerUid && ex.ownerUid === currentUid) continue;
+          if (currentUid && ex.ownerUid && String(ex.ownerUid).trim() === String(currentUid).trim()) continue;
+          const exEmail = String(ex['Email Address'] || ex['email'] || ex['emailNormalized'] || '').toLowerCase().trim();
+          if (userEmail && exEmail && userEmail === exEmail) continue;
 
           const exStatus = String(ex['Status'] || ex['status'] || '').trim();
           if (['Withdrawn', 'Purged', 'Deleted', 'Rejected'].includes(exStatus) || ex._deleted === true || ex._purged === true) {
@@ -588,7 +597,6 @@ async function legacySaveApplication(payload) {
           const targetSession = session || computedSession;
           const isSameSession = (!session || !exSession || exSession === targetSession);
 
-          const exEmail = String(ex['Email Address'] || ex['email'] || '').toLowerCase().trim();
           const exMobile = String(ex['Mobile No. (with working WhatsApp)'] || ex['mobile'] || ex['Mobile Number'] || '').replace(/[^0-9]/g, '');
           const exParentMobile = String(ex["Parent's Mobile No. (must be working)"] || ex['parentMobile'] || ex['Parent Mobile'] || '').replace(/[^0-9]/g, '');
           const exMobileNorm = exMobile.slice(-10);
