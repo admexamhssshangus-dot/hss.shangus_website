@@ -1706,16 +1706,16 @@ function StatusActionDropdown({ student, onViewEdit, onRefresh, onDeleteRecord, 
 
   const roll = String(student?.classRollNo || student?.['Class Roll No'] || student?.['Class Roll No.'] || student?.['RL. NO.'] || student?.['RL. NO'] || student?.['Class R.No.'] || student?.['Class R.No'] || student?.rollNo || student?.['Roll No.'] || student?.['Roll No'] || student?.roll || '').trim();
   const hasRoll = roll && roll !== '—' && roll !== 'N/A' && roll !== 'null' && roll !== 'undefined';
-  const val = student?.status || student?.Status || 'Submitted';
-  const isApp = hasRoll;
-  const isDft = !hasRoll && (val === 'Draft' || val === 'DRAFT' || val === 'dft');
-  const isProv = !hasRoll && (val === 'Provisional' || val === 'PROV');
-  const isRejt = !hasRoll && (val === 'Rejected' || val === 'REJT');
-  const isWithdrawn = !hasRoll && (val === 'Withdrawn' || val === 'WITHDRAWN' || val === 'withdrawn' || val === 'Adm Withdrawn' || val === 'ADM WITHDRAWN');
+  const val = String(student?.status || student?.Status || student?.onlineStatus || 'Submitted').trim();
+  const isWithdrawn = val === 'Withdrawn' || val === 'WITHDRAWN' || val === 'withdrawn' || val === 'Adm Withdrawn' || val === 'ADM WITHDRAWN' || val.toLowerCase().includes('withdraw');
+  const isApp = hasRoll && !isWithdrawn;
+  const isDft = !hasRoll && !isWithdrawn && (val === 'Draft' || val === 'DRAFT' || val === 'dft');
+  const isProv = !hasRoll && !isWithdrawn && (val === 'Provisional' || val === 'PROV');
+  const isRejt = !hasRoll && !isWithdrawn && (val === 'Rejected' || val === 'REJT');
   const isSub = !hasRoll && !isDft && !isProv && !isRejt && !isWithdrawn;
 
-  const bg = isApp ? 'bg-green-600 hover:bg-green-700' : isSub ? 'bg-blue-600 hover:bg-blue-700' : isProv ? 'bg-indigo-600 hover:bg-indigo-700' : isDft ? 'bg-yellow-500 hover:bg-yellow-600 !text-slate-900' : isWithdrawn ? 'bg-rose-600 hover:bg-rose-700 font-extrabold' : 'bg-red-600 hover:bg-red-700';
-  const abbr = isApp ? 'APPR' : isSub ? 'SUBM' : isProv ? 'PROV' : isDft ? 'DRAFT' : isWithdrawn ? 'WTHD' : 'REJT';
+  const bg = isWithdrawn ? 'bg-rose-600 hover:bg-rose-700 font-extrabold text-white shadow-sm' : isApp ? 'bg-green-600 hover:bg-green-700 text-white' : isSub ? 'bg-blue-600 hover:bg-blue-700 text-white' : isProv ? 'bg-indigo-600 hover:bg-indigo-700 text-white' : isDft ? 'bg-yellow-500 hover:bg-yellow-600 !text-slate-900 font-bold' : 'bg-red-600 hover:bg-red-700 text-white';
+  const abbr = isWithdrawn ? 'WTHD' : isApp ? 'APPR' : isSub ? 'SUBM' : isProv ? 'PROV' : isDft ? 'DRAFT' : 'REJT';
 
   const handleAssignFormNo = (e) => {
     e.stopPropagation();
@@ -2234,6 +2234,53 @@ function StatusActionDropdown({ student, onViewEdit, onRefresh, onDeleteRecord, 
               <AlertOctagon size={13} className="text-rose-600 dark:text-rose-400" />
               <span>Reject Application</span>
             </button>
+
+            {!isWithdrawn && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsOpen(false);
+                  setDialogConfig({
+                    type: 'confirm',
+                    title: 'Mark as Withdrawn',
+                    message: `Mark admission application for ${student?.studentName || 'student'} (Form #${student?.formNo || '—'}) as Withdrawn?`,
+                    icon: AlertOctagon,
+                    iconColor: 'text-rose-600 dark:text-rose-400',
+                    btnColor: 'bg-rose-700 hover:bg-rose-600 text-white',
+                    confirmText: 'Confirm Withdrawal',
+                    onConfirm: async () => {
+                      try {
+                        setActionLoading(true);
+                        await updateStudentDocument(student, {
+                          'Status': 'Withdrawn',
+                          'status': 'Withdrawn',
+                          'withdrawnAt': new Date().toISOString(),
+                          'withdrawnBy': 'Admin'
+                        });
+                        if (onRefresh) onRefresh();
+                        setDialogConfig({
+                          type: 'alert',
+                          title: 'Application Withdrawn',
+                          message: `Application for ${student?.studentName} is now marked as Withdrawn.`,
+                          icon: CheckCircle2,
+                          iconColor: 'text-rose-600 dark:text-rose-400',
+                          btnColor: 'bg-rose-700 hover:bg-rose-600 text-white'
+                        });
+                      } catch (err) {
+                        console.warn(err);
+                      } finally {
+                        setActionLoading(false);
+                      }
+                    }
+                  });
+                }}
+                className="w-full text-left px-2.5 py-1.5 rounded-xl flex items-center gap-2.5 hover:bg-rose-500/15 dark:hover:bg-rose-500/25 border border-transparent hover:border-rose-500/30 text-rose-700 dark:text-rose-400 cursor-pointer font-extrabold transition-all hover:scale-[1.01]"
+              >
+                <AlertOctagon size={13} className="text-rose-600 dark:text-rose-400" />
+                <span>Mark as Withdrawn</span>
+              </button>
+            )}
 
             <button
               type="button"

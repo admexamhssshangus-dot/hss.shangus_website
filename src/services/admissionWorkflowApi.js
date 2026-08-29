@@ -106,13 +106,26 @@ export async function withdrawAdmission(applicationId) {
   const user = auth.currentUser;
   try {
     const sanitizedId = String(applicationId).replace(/\//g, '_').trim();
-    await setDoc(doc(db, 'admissions', sanitizedId), {
+    const updatePayload = {
       Status: 'Withdrawn',
       status: 'Withdrawn',
       withdrawnAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       withdrawnBy: user?.email || 'Student Self Withdrawal',
-    }, { merge: true });
+    };
+    await setDoc(doc(db, 'admissions', sanitizedId), updatePayload, { merge: true });
+
+    // Also update raw numeric form number doc ID if different
+    const numericOnly = sanitizedId.replace(/[^0-9]/g, '');
+    if (numericOnly && numericOnly !== sanitizedId) {
+      setDoc(doc(db, 'admissions', numericOnly), updatePayload, { merge: true }).catch(() => {});
+    }
+
+    try {
+      const { updateCachedItem } = require('./dbCache');
+      updateCachedItem('admissions', sanitizedId, updatePayload);
+      if (numericOnly) updateCachedItem('admissions', numericOnly, updatePayload);
+    } catch (_) {}
 
     try {
       localStorage.removeItem(getLocalDraftKey(user?.uid));
