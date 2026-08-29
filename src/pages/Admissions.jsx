@@ -68,19 +68,6 @@ export default function Admissions() {
     return () => document.removeEventListener('keydown', onKey);
   }, []);
 
-  function openLoginWindow() {
-    const LOGIN_URL = 'https://script.google.com/macros/s/AKfycbxklDr4jb25tAiDDrIoU2pjEBe9UXmJxkbXY-jp-BXLjkq9FppA1NlE2Or-gCpwjp8B1g/exec';
-    try {
-      const w = (typeof window !== 'undefined' && window.screen && window.screen.width) ? window.screen.width : (typeof window !== 'undefined' ? window.innerWidth : 1024);
-      const h = (typeof window !== 'undefined' && window.screen && window.screen.height) ? window.screen.height : (typeof window !== 'undefined' ? window.innerHeight : 768);
-      const features = `left=0,top=0,width=${w},height=${h},toolbar=no,location=no,menubar=no,resizable=yes,scrollbars=yes`;
-      const newWin = window.open(LOGIN_URL, '_blank', features);
-      if (newWin) newWin.focus(); else window.open(LOGIN_URL, '_blank');
-    } catch (e) {
-      window.open(LOGIN_URL, '_blank');
-    }
-  }
-
   function DocumentsModal() {
     const closeBtnRef = useRef(null);
     useEffect(() => {
@@ -181,7 +168,7 @@ export default function Admissions() {
                         Closed
                       </span>
                     ) : (
-                      <button onClick={openLoginWindow} className="btn-primary-custom px-4 py-2 rounded-full text-xs font-bold shadow transition-all duration-200 hover:-translate-y-0.5 tracking-wide uppercase">Register</button>
+                      <Link to="/portal/login" className="btn-primary-custom px-4 py-2 rounded-full text-xs font-bold shadow transition-all duration-200 hover:-translate-y-0.5 tracking-wide uppercase inline-block no-underline">Register</Link>
                     )}
                   </div>
                 )}
@@ -366,4 +353,3 @@ export default function Admissions() {
     </div>
   );
 }
-
