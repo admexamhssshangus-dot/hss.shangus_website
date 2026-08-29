@@ -130,6 +130,7 @@ service cloud.firestore {
         validEmail(data.email) && data.email.lower() == authEmail() &&
         data.name is string && data.name.size() >= 1 && data.name.size() <= 100 &&
         (!('mobile' in data) || (data.mobile is string && data.mobile.size() <= 20)) &&
+        (!('residence' in data) || (data.residence is string && data.residence.size() <= 256)) &&
         (!('requestedRole' in data) || data.requestedRole in ['Student', 'Teacher']) &&
         (!('assignedClass' in data) || (data.assignedClass is string && data.assignedClass.size() <= 30)) &&
         (!('teachingSubject' in data) || (data.teachingSubject is string && data.teachingSubject.size() <= 100)) &&

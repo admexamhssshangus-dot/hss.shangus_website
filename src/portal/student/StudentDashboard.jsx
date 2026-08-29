@@ -12,6 +12,7 @@ import { generateStudentAdmissionPdf, generateProvisionalAdmissionPdf } from '..
 import appsScriptApi from '../../services/appsScriptApi';
 import { withdrawAdmission } from '../../services/admissionWorkflowApi';
 import { getStudentPhotoUrl, formatPhotoDisplayUrl } from '../../utils/imageCompressor';
+import { fetchStudentPhotoOnDemand } from '../../services/dbCache';
 import { checkEmailRateLimit, recordEmailSent, getRemainingCooldown } from '../../utils/emailRateLimiter';
 
 function getCurrentAcademicSession() {
@@ -153,13 +154,29 @@ export default function StudentDashboard() {
         const applicationResult = await appsScriptApi.getStudentApplication();
         const applications = applicationResult?.data?.applications || applicationResult?.applications || [];
         setAllApplications(applications);
-        const currentApp = applications.find(a => (a.Session || a.session || a['Academic Session']) === activeSession) || applications[0] || null;
+        let currentApp = applications.find(a => (a.Session || a.session || a['Academic Session']) === activeSession) || applications[0] || null;
         if (currentApp && (currentApp.Session || currentApp.session || currentApp['Academic Session'])) {
           activeSession = currentApp.Session || currentApp.session || currentApp['Academic Session'];
         } else {
           activeSession = applicationResult?.data?.activeSession || applicationResult?.activeSession || activeSession;
         }
         setSessionInfo(activeSession);
+
+        if (currentApp) {
+          try {
+            const photo = await fetchStudentPhotoOnDemand(currentApp);
+            if (photo && photo.length > 20 && photo !== '/logo.png') {
+              currentApp = {
+                ...currentApp,
+                photo_id: photo,
+                photoUrl: photo,
+                'Student Photo': photo,
+              };
+            }
+          } catch (pErr) {
+            console.warn('Student dashboard photo load note:', pErr);
+          }
+        }
         setAppData(currentApp);
       } catch (appErr) {
         console.warn('Student applications load note:', appErr);
@@ -219,9 +236,24 @@ export default function StudentDashboard() {
   };
 
   // Handle View PDF Print Preview
-  const handleViewPdf = () => {
+  const handleViewPdf = async () => {
     if (!appData) return;
-    generateStudentAdmissionPdf(appData);
+    let dataToPrint = { ...appData };
+    const currentPhoto = getStudentPhotoUrl(dataToPrint);
+    if (!currentPhoto || currentPhoto === '/logo.png' || currentPhoto.length < 20) {
+      try {
+        const photo = await fetchStudentPhotoOnDemand(dataToPrint);
+        if (photo && photo.length > 20 && photo !== '/logo.png') {
+          dataToPrint = {
+            ...dataToPrint,
+            photo_id: photo,
+            photoUrl: photo,
+            'Student Photo': photo,
+          };
+        }
+      } catch (_) {}
+    }
+    generateStudentAdmissionPdf(dataToPrint);
   };
 
   // Delete Application Modal State
