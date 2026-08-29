@@ -107,7 +107,7 @@ export default function AdminToolsDropdown({
       <div
         ref={dropdownRef}
         onMouseDown={(e) => e.stopPropagation()}
-        className={`fixed inset-x-2 top-16 sm:top-auto sm:mt-1.5 sm:absolute sm:inset-x-auto sm:left-0 sm:right-auto w-auto sm:w-[520px] max-w-[calc(100vw-16px)] max-h-[min(82vh,480px)] overflow-hidden rounded-2xl sm:rounded-xl border border-slate-200 dark:border-slate-800 shadow-2xl z-[99999] p-2.5 sm:p-2 space-y-1.5 animate-fadeIn bg-white/98 dark:bg-slate-900/98 backdrop-blur-md text-slate-900 dark:text-slate-100 text-xs font-bold`}
+        className={`fixed inset-x-2 top-16 sm:top-auto sm:mt-1.5 sm:absolute sm:inset-x-auto ${align === 'left' ? 'sm:left-0 sm:right-auto' : 'sm:right-0 sm:left-auto'} w-auto sm:w-[520px] max-w-[calc(100vw-16px)] max-h-[min(82vh,480px)] overflow-hidden rounded-2xl sm:rounded-xl border border-slate-200 dark:border-slate-800 shadow-2xl z-[99999] p-2.5 sm:p-2 space-y-1.5 animate-fadeIn bg-white/98 dark:bg-slate-900/98 backdrop-blur-md text-slate-900 dark:text-slate-100 text-xs font-bold`}
       >
         {/* Menu Header */}
         <div className="px-2.5 py-1 border-b border-slate-200 dark:border-slate-800 text-[10px] font-black text-slate-500 uppercase tracking-wider flex items-center justify-between">
