@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { BookOpen, X, Mail, Info, Lock, Unlock, Code, Terminal, Sparkles, Cpu, GraduationCap, Plane, Wallet, Zap, Globe, ExternalLink, ShieldCheck, MapPin, Layers, Building2 } from 'lucide-react';
-
 import { Link } from 'react-router-dom';
 import { loadSiteSettings, DEFAULT_SETTINGS } from '../utils/settingsLoader';
 import { db, auth } from '../firebase';
@@ -90,7 +89,7 @@ export default function Footer() {
 
   return (
     <>
-      <footer className="site-footer bg-slate-950 text-slate-300 pt-12 pb-16 md:pb-6 mt-0 border-t-[3px] footer-theme-border">
+      <footer className="site-footer bg-slate-950 text-slate-300 pt-12 pb-24 md:pb-8 mt-0 border-t-[3px] footer-theme-border">
         <div className="max-w-7xl mx-auto px-4 grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
 
           {/* Brand */}
@@ -99,7 +98,7 @@ export default function Footer() {
               <BookOpen className="text-teal-500 mr-2" size={24} />
               <h2 className="text-white font-bold text-lg tracking-wide font-title">Govt. H.S.S. Shangus</h2>
             </div>
-            <p className="text-sm text-slate-500 leading-relaxed max-w-xl">
+            <p className="text-sm text-slate-500 leading-relaxed max-w-xl font-sans">
               Since 1971, Govt HSS Shangus provides Science, Humanities and Secondary education with experienced faculty, well-equipped labs, a library and active sports programs.
               We emphasise leadership, critical thinking and community engagement to prepare students for higher education and civic life.
             </p>
@@ -157,8 +156,8 @@ export default function Footer() {
 
           {/* Quick Links */}
           <div className="text-center">
-            <h2 className="text-white font-bold mb-4">Quick Links</h2>
-            <ul className="space-y-2 text-sm flex flex-col">
+            <h2 className="text-white font-bold mb-4 text-base tracking-wide font-sans">Quick Links</h2>
+            <ul className="space-y-2 text-sm flex flex-col font-sans">
               <li><Link to="/" onClick={() => window.scrollTo(0, 0)} className="ui-touch-target inline-flex items-center hover:text-teal-400 transition-colors">Home</Link></li>
               <li><Link to="/about" onClick={() => window.scrollTo(0, 0)} className="ui-touch-target inline-flex items-center hover:text-teal-400 transition-colors">About Us</Link></li>
               <li><Link to="/admissions" onClick={() => window.scrollTo(0, 0)} className="ui-touch-target inline-flex items-center hover:text-teal-400 transition-colors">Admissions</Link></li>
@@ -168,10 +167,10 @@ export default function Footer() {
           </div>
 
           {/* Contact Us - With Real Google Maps & Custom Spacing */}
-          <div className="flex flex-col items-center gap-0 text-center md:items-center md:text-center">
+          <div className="flex flex-col items-center gap-0 text-center md:items-center md:text-center font-sans">
             {/* 1. Heading + quick contact button */}
             <div className="flex items-center gap-3 mb-3">
-              <h2 className="text-white font-semibold text-[20px] mb-0 mt-0 leading-[1.2]">Contact Us</h2>
+              <h2 className="text-white font-bold text-base mb-0 mt-0 leading-[1.2] tracking-wide font-sans">Contact Us</h2>
               <button
                 onClick={() => setActiveModal('contactForm')}
                 aria-label="Open contact form"
@@ -201,7 +200,7 @@ export default function Footer() {
 
             {/* 3. Address Box */}
             <div className="text-center w-full m-0 p-0 mt-2 md:mt-0">
-              <div className="text-slate-400 text-[14px] leading-[1.4] m-0 p-0">
+              <div className="text-slate-400 text-[14px] leading-[1.4] m-0 p-0 font-sans">
                 Main Road, Shangus,<br />Anantnag, J&K - 192201
               </div>
             </div>
@@ -209,8 +208,8 @@ export default function Footer() {
 
           {/* Legal & Compliance Menu */}
           <div className="text-center">
-            <h2 className="text-white font-bold mb-4">Legal & Compliance</h2>
-            <ul className="space-y-2 text-sm flex flex-col items-center">
+            <h2 className="text-white font-bold mb-4 text-base tracking-wide font-sans">Legal & Compliance</h2>
+            <ul className="space-y-2 text-sm flex flex-col items-center font-sans">
               <li><button onClick={() => setActiveModal('privacy')} className="ui-touch-target hover:text-teal-400 transition-colors focus:outline-none">
                 Privacy Policy
               </button></li>
@@ -229,7 +228,7 @@ export default function Footer() {
         </div>
 
         {/* Bottom Bar - Developer Credit, Contact Links & Admin Portal Trigger */}
-        <div className="max-w-7xl mx-auto px-4 pt-6 border-t border-slate-800 flex flex-col items-center text-center gap-2 text-xs text-white">
+        <div className="max-w-7xl mx-auto px-4 pt-6 border-t border-slate-800 flex flex-col items-center text-center gap-2 text-xs text-white font-sans">
           
           {/* Mobile Only: Admin Portal Lock Button placed ABOVE Copyright */}
           <div className="flex md:hidden items-center justify-center mb-1 pt-0.5">
@@ -256,14 +255,13 @@ export default function Footer() {
           {/* Line 1: Copyright */}
           <p className="text-slate-400 font-medium text-xs sm:text-sm">© 2023 Govt HSS Shangus. All Rights Reserved.</p>
 
-          {/* Line 2: Developer Credit Badge (Developer Code/Terminal Style with Premium Brighter Border & Cyan Neon Glow) */}
+          {/* Line 2: Developer Credit Badge */}
           <div className="pt-2 flex flex-col items-center justify-center">
             <div className="inline-flex flex-wrap items-center justify-center gap-2.5 px-4 py-1.5 rounded-full bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 border border-cyan-400/80 hover:border-cyan-300 shadow-[0_0_15px_rgba(6,182,212,0.25)] hover:shadow-[0_0_22px_rgba(6,182,212,0.45)] transition-all duration-300 font-mono text-xs backdrop-blur-md">
               <span className="flex items-center gap-1.5 text-cyan-400 font-bold">
                 <Terminal size={14} className="text-cyan-400 animate-pulse" />
                 <span className="text-slate-500 text-[11px] font-bold">&lt;dev&gt;</span>
               </span>
-
               <div className="flex items-center gap-1">
                 <a 
                   href="https://nexliftech.netlify.app/" 
@@ -320,8 +318,6 @@ export default function Footer() {
 
 
       </footer>
-
-      {/* --- MODAL POPUPS --- */}
       {/* If activeModal is NOT null, draw this dark background overlay */}
       {activeModal && (
         <div
