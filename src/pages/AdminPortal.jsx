@@ -4377,8 +4377,8 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
 
       setSavePopupResult({
         success: true,
-        title: 'Synchronized Successfully!',
-        message: `Cloud content is updated in Cloud Database and the local preview cache is refreshed. Target sync result: ${fileSyncStatus}.`
+        title: 'Synchronized successfully',
+        message: `Cloud content updated in Cloud Database & local preview cache refreshed (${fileSyncStatus}).`
       });
     } catch (err) {
       console.error('Save sync failed:', err);
@@ -6104,86 +6104,88 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
           </div>
         </div>}
 
-        {/* Save & Sync Inline Bar */}
+        {/* Save & Sync Minimal Status Banner */}
         {saveProgress !== null && (
-          <div className="bg-slate-900 border-2 border-slate-600 rounded-xl p-3 mb-4 shadow-xl animate-in fade-in slide-in-from-top-2 duration-200 relative overflow-hidden">
-            {/* Glowing top line indicating active process */}
-            <div className="absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r from-orange-500 via-yellow-500 to-emerald-500 animate-pulse" />
+          <div className="bg-slate-900/90 dark:bg-slate-950/90 backdrop-blur-md border border-slate-800 dark:border-slate-800/80 rounded-xl p-3 sm:px-4 sm:py-3 mb-4 shadow-lg animate-in fade-in slide-in-from-top-2 duration-200 relative overflow-hidden">
+            {/* Minimal top indicator accent line */}
+            <div
+              className={`absolute top-0 left-0 right-0 h-[2px] transition-all duration-500 ${
+                !savePopupResult
+                  ? 'bg-gradient-to-r from-teal-500 via-emerald-400 to-teal-500 animate-pulse'
+                  : savePopupResult.success
+                  ? 'bg-emerald-500'
+                  : 'bg-rose-500'
+              }`}
+            />
 
-            <div className="flex flex-col md:flex-row justify-between items-stretch md:items-center gap-3">
-              {/* Left Side: status info & compact checklist dots */}
-              <div className="flex flex-wrap items-center gap-3 min-w-0">
-                <div className="flex items-center gap-2">
+            <div className="flex items-center justify-between gap-3">
+              {/* Left: Icon, Title & Concise Subtext */}
+              <div className="flex items-start gap-2.5 min-w-0">
+                <div className="mt-0.5 flex-shrink-0">
                   {!savePopupResult ? (
-                    <Loader2 className="w-4 h-4 text-orange-400 animate-spin flex-shrink-0" />
+                    <Loader2 className="w-4 h-4 text-teal-400 animate-spin" />
                   ) : savePopupResult.success ? (
-                    <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400" />
                   ) : (
-                    <XCircle className="w-4 h-4 text-red-400 flex-shrink-0" />
+                    <XCircle className="w-4 h-4 text-rose-400" />
                   )}
-                  <span className="text-[11px] font-black uppercase tracking-wider text-slate-100">
-                    {!savePopupResult ? 'Saving Changes...' : savePopupResult.title}
-                  </span>
                 </div>
 
-                <span className="text-[10px] text-slate-500 hidden sm:inline">|</span>
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-xs sm:text-sm font-semibold text-slate-100">
+                      {!savePopupResult ? 'Saving Changes...' : savePopupResult.title}
+                    </span>
 
-                {/* Slim Checklist inline */}
-                <div className="flex flex-wrap items-center gap-2">
-                  {saveStages.map((stage) => {
-                    let color = "text-slate-500 border-slate-800 bg-slate-950/40";
-                    let dotColor = "bg-slate-600";
-                    if (stage.status === 'loading') {
-                      color = "text-orange-400 border-orange-500/30 bg-orange-950/20 animate-pulse";
-                      dotColor = "bg-orange-400 animate-ping";
-                    } else if (stage.status === 'success') {
-                      color = "text-emerald-400 border-emerald-500/30 bg-emerald-950/20";
-                      dotColor = "bg-emerald-400";
-                    } else if (stage.status === 'error') {
-                      color = "text-red-400 border-red-500/30 bg-red-950/20 font-bold";
-                      dotColor = "bg-red-400";
-                    }
-
-                    return (
-                      <span
-                        key={stage.id}
-                        className={`text-[9px] font-bold px-2 py-0.5 rounded border flex items-center gap-1.5 transition-all ${color}`}
-                        title={stage.label + (stage.details ? `: ${stage.details}` : '')}
-                      >
-                        <span className={`w-1.5 h-1.5 rounded-full ${dotColor}`} />
-                        <span>{stage.label.split(' ')[0]}</span>
+                    {/* In-progress active stage hint */}
+                    {!savePopupResult && (
+                      <span className="text-[11px] text-teal-400/90 font-medium hidden sm:inline">
+                        • {saveStages.find(s => s.status === 'loading')?.label || 'Processing...'}
                       </span>
-                    );
-                  })}
+                    )}
+                  </div>
+
+                  {/* Concise subtext message */}
+                  {savePopupResult && savePopupResult.message && (
+                    <p className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">
+                      {savePopupResult.message}
+                    </p>
+                  )}
                 </div>
               </div>
 
-              {/* Right Side: Progress Bar & Dismiss/Retry */}
-              <div className="flex items-center gap-3 w-full md:w-auto justify-between md:justify-end">
-                <div className="flex-grow md:w-48">
-                  <div className="w-full h-2 bg-slate-950 border border-slate-700 rounded-full overflow-hidden">
-                    <div
-                      className="h-full rounded-full bg-gradient-to-r from-orange-500 via-yellow-500 to-emerald-500 transition-all duration-300 ease-out"
-                      style={{ width: `${saveProgress}%` }}
-                    />
+              {/* Right: Progress Bar & Action */}
+              <div className="flex items-center gap-2.5 flex-shrink-0">
+                {!savePopupResult && (
+                  <div className="flex items-center gap-2">
+                    <div className="w-16 sm:w-28 h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-gradient-to-r from-teal-400 to-emerald-400 rounded-full transition-all duration-300 ease-out"
+                        style={{ width: `${saveProgress}%` }}
+                      />
+                    </div>
+                    <span className="text-[11px] font-mono text-slate-400 w-7 text-right">
+                      {saveProgress}%
+                    </span>
                   </div>
-                </div>
-                <span className="text-xs font-black text-slate-100 font-mono w-8 text-right">{saveProgress}%</span>
+                )}
 
                 {savePopupResult && (
-                  <div className="flex items-center gap-1.5 ml-2">
+                  <div className="flex items-center gap-1.5">
                     {!savePopupResult.success && (
                       <button
+                        type="button"
                         onClick={() => {
                           setSaveProgress(null);
                           setSavePopupResult(null);
                         }}
-                        className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-600 text-[10px] font-bold transition-all"
+                        className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium transition-all"
                       >
                         Dismiss
                       </button>
                     )}
                     <button
+                      type="button"
                       onClick={() => {
                         if (savePopupResult.success) {
                           setSaveProgress(null);
@@ -6192,7 +6194,11 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
                           handleSaveToLocalStorage();
                         }
                       }}
-                      className={`px-3 py-1 rounded text-[10px] font-extrabold transition-all ${savePopupResult.success ? 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 border border-emerald-400' : 'bg-red-600 hover:bg-red-500 text-white border border-red-500'}`}
+                      className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${
+                        savePopupResult.success
+                          ? 'bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 border border-emerald-500/30'
+                          : 'bg-rose-500/15 hover:bg-rose-500/25 text-rose-400 border border-rose-500/30'
+                      }`}
                     >
                       {savePopupResult.success ? 'OK' : 'Retry'}
                     </button>
@@ -6200,13 +6206,6 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
                 )}
               </div>
             </div>
-
-            {/* Detailed message/error if present */}
-            {savePopupResult && savePopupResult.message && (
-              <div className="mt-2 text-[10px] text-slate-300 bg-slate-950/60 border border-slate-800 rounded p-2 font-medium leading-relaxed">
-                {savePopupResult.message}
-              </div>
-            )}
           </div>
         )}
 
