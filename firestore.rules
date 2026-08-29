@@ -280,6 +280,11 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    match /siteSettings/{documentId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+
     // Explicitly published, data-minimised faculty directory.
     match /facultyPublic/{documentId} {
       allow get, list: if true;

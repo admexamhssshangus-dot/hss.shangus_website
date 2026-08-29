@@ -1409,7 +1409,6 @@ export default function DynamicFormField({
                       max={computedMax}
                       maxLength={effectiveMaxLength}
                       list={datalistId}
-                      pattern={isNameField ? "[a-zA-Z .'-]+" : undefined}
                       title={isNameField ? "Name must contain only English letters, spaces, and dots. Numbers and special characters are not allowed." : undefined}
                       autoComplete={isEmail ? 'email' : (lowerName.includes("student's name") || lowerName === 'name' ? 'name' : undefined)}
                       inputMode={isEmail ? 'email' : (type === 'text_numeric' ? 'numeric' : (type === 'number' || type === 'number_range') ? 'decimal' : isNameField ? 'text' : undefined)}

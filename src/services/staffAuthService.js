@@ -85,7 +85,9 @@ export async function resolveStaffRoleAndPerms(emailOrUser) {
       }
     }
   } catch (err) {
-    console.warn('resolveStaffRoleAndPerms permissions lookup note:', err);
+    if (err?.code !== 'permission-denied' && !String(err?.message || '').includes('insufficient permissions')) {
+      console.warn('resolveStaffRoleAndPerms permissions lookup note:', err);
+    }
   }
 
   // 3. Check master institutional fallback super admins (only if not found in Firestore)
