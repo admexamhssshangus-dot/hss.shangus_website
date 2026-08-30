@@ -28,8 +28,12 @@ function safePhoto(value) {
   return '';
 }
 
-export function toPublicFacultyMember(member) {
+export function toPublicFacultyMember(member, index = 0) {
   if (!member || typeof member !== 'object' || member.hidden === true) return null;
+
+  const orderVal = typeof member.order === 'number'
+    ? member.order
+    : (typeof index === 'number' ? index : 0);
 
   const projected = {
     name: cleanString(member.name, PUBLIC_FACULTY_LIMITS.name),
@@ -37,6 +41,7 @@ export function toPublicFacultyMember(member) {
     subject: cleanString(member.subject, PUBLIC_FACULTY_LIMITS.subject),
     department: cleanString(member.department, PUBLIC_FACULTY_LIMITS.department),
     photo: safePhoto(member.photo),
+    order: orderVal,
   };
 
   return projected.name && projected.designation ? projected : null;
@@ -44,7 +49,11 @@ export function toPublicFacultyMember(member) {
 
 export function toPublicFacultyList(faculty) {
   if (!Array.isArray(faculty)) return [];
-  return faculty.map(toPublicFacultyMember).filter(Boolean).slice(0, 150);
+  return faculty
+    .map((m, idx) => toPublicFacultyMember(m, typeof m?.order === 'number' ? m.order : idx))
+    .filter(Boolean)
+    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+    .slice(0, 150);
 }
 
 function stableHash(value) {
@@ -57,12 +66,14 @@ function stableHash(value) {
 }
 
 export function publicFacultyDocumentId(member, index = 0) {
+  const orderNum = typeof member?.order === 'number' ? member.order : index;
+  const prefix = String(orderNum).padStart(4, '0');
   const base = cleanString(`${member?.name || ''}-${member?.designation || ''}`, 160)
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
-    .slice(0, 70) || 'staff';
-  return `${base}-${stableHash(`${base}:${index}`)}`.slice(0, 96);
+    .slice(0, 65) || 'staff';
+  return `${prefix}-${base}-${stableHash(`${base}:${index}`)}`.slice(0, 96);
 }
 
 export { PUBLIC_FACULTY_LIMITS };
