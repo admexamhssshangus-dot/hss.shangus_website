@@ -152,7 +152,7 @@ const saveToFirebase = async ({ settings, noticesText, faculty, slides, recycleB
   // Write core documents
   await setDoc(doc(db, 'site', 'settings'), sanitizePublicSettings(settings));
   await setDoc(doc(db, 'site', 'notices'), { text: noticesText || '' });
-  const privateFaculty = (faculty || []).map(({ id, ...record }) => record).slice(0, 150);
+  const privateFaculty = (faculty || []).map(({ id, ...record }, idx) => ({ ...record, order: typeof record.order === 'number' ? record.order : idx })).slice(0, 150);
   const publicFaculty = toPublicFacultyList(privateFaculty);
   await setDoc(doc(db, 'systemSettings', 'facultyPrivate'), {
     items: privateFaculty,
