@@ -4,7 +4,7 @@
     "designation": "Principal",
     "subject": "",
     "department": "Administration",
-    "photo": ""
+    "photo": "/slides/Principal.jpg"
   },
   {
     "name": "Ab Majid Bhat",
@@ -32,7 +32,7 @@
     "designation": "Lecturer",
     "subject": "Botany",
     "department": "Science",
-    "photo": ""
+    "photo": "/slides/Gulfam.jpg"
   },
   {
     "name": "Gh Mohi-Ud Din Allie",
