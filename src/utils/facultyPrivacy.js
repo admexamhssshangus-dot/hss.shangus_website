@@ -3,7 +3,7 @@ const PUBLIC_FACULTY_LIMITS = Object.freeze({
   designation: 120,
   subject: 120,
   department: 80,
-  photo: 2048,
+  photo: 500000,
 });
 
 function cleanString(value, maxLength) {
@@ -19,9 +19,12 @@ function cleanString(value, maxLength) {
 }
 
 function safePhoto(value) {
-  const photo = cleanString(value, PUBLIC_FACULTY_LIMITS.photo);
-  if (/^\/slides\/[a-zA-Z0-9._-]+\.(?:jpe?g|png|webp)$/i.test(photo)) return photo;
-  if (/^https:\/\/(?:firebasestorage\.googleapis\.com|[^/]+\.googleusercontent\.com)\//i.test(photo)) return photo;
+  if (!value || typeof value !== 'string') return '';
+  const photo = value.trim();
+  if (photo.length > PUBLIC_FACULTY_LIMITS.photo) return '';
+  if (/^\/slides\/[a-zA-Z0-9._-]+\.(?:jpe?g|png|webp|gif)$/i.test(photo)) return photo;
+  if (/^https?:\/\//i.test(photo)) return photo;
+  if (/^data:image\/(?:jpe?g|png|webp|gif);base64,[A-Za-z0-9+/=]+$/i.test(photo)) return photo;
   return '';
 }
 
