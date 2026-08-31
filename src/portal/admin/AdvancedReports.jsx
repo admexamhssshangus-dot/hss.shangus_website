@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback, useDeferredValue } from 'react';
 import { createPortal } from 'react-dom';
-import { RefreshCw, Search, SearchX, Wrench, Columns, Printer, Check, X, Play, ChevronDown, ChevronLeft, ChevronRight, CheckSquare, Square, FileSpreadsheet, FileText, Maximize2, Settings, Hash, Layers, Mail, CreditCard, Camera, Upload, Image as ImageIcon, Download, Copy, Save, RotateCcw, Lock, LogOut, Unlock, Eye, History, Key, MessageSquare, AlertOctagon, Trash2, CheckCircle2, ClipboardCheck, CalendarCheck, Edit3, UserCheck, User, BookOpen, Landmark, CheckCircle, Loader2, PlusCircle, ShieldCheck, ShieldAlert, BarChart2, Building2, Database, Zap, Sliders, Sparkles, Star } from 'lucide-react';
+import JSZip from 'jszip';
+import { RefreshCw, Search, SearchX, Wrench, Columns, Printer, Check, X, Play, ChevronDown, ChevronLeft, ChevronRight, CheckSquare, Square, FileSpreadsheet, FileText, Maximize2, Settings, Hash, Layers, Mail, CreditCard, Camera, Upload, Image as ImageIcon, Download, Copy, Save, RotateCcw, Lock, LogOut, Unlock, Eye, History, Key, MessageSquare, AlertOctagon, Trash2, CheckCircle2, ClipboardCheck, CalendarCheck, Edit3, UserCheck, User, BookOpen, Landmark, CheckCircle, Loader2, PlusCircle, ShieldCheck, ShieldAlert, BarChart2, Building2, Database, Zap, Sliders, Sparkles, Star, FolderDown } from 'lucide-react';
 import appsScriptApi from '../../services/appsScriptApi';
 import { db, auth } from '../../services/firebase';
 import { collection, getDocs, doc, updateDoc, setDoc, deleteDoc, deleteField, writeBatch, query, where } from 'firebase/firestore';
@@ -5852,6 +5853,25 @@ export default function AdvancedReports({
   const [reconcileProgress, setReconcileProgress] = useState({ active: false, current: 0, total: 0, percent: 0, stats: null });
   const [isBackingUpPdfs, setIsBackingUpPdfs] = useState(false);
 
+  // Photo Exporter States (Session / Class / Roll No Range / Selected)
+  const [photoExportSession, setPhotoExportSession] = useState('ALL');
+  const [photoExportClass, setPhotoExportClass] = useState('ALL');
+  const [photoExportStream, setPhotoExportStream] = useState('ALL');
+  const [photoExportMode, setPhotoExportMode] = useState('all_filtered'); // 'all_filtered' | 'roll_range' | 'selected_table'
+  const [photoExportRollStart, setPhotoExportRollStart] = useState('');
+  const [photoExportRollEnd, setPhotoExportRollEnd] = useState('');
+  const [photoExportOnlyWithPhoto, setPhotoExportOnlyWithPhoto] = useState(true);
+  const [photoExporting, setPhotoExporting] = useState(false);
+  const [photoExportProgress, setPhotoExportProgress] = useState({
+    active: false,
+    current: 0,
+    total: 0,
+    percent: 0,
+    currentName: '',
+    successCount: 0,
+    skippedCount: 0
+  });
+
   const handleBackupPdfsToDrive = async () => {
     setIsBackingUpPdfs(true);
     try {
@@ -8321,6 +8341,313 @@ export default function AdvancedReports({
     URL.revokeObjectURL(url);
   };
 
+  // ─── PHOTO EXPORTER: Scope Filtering, Statistics & ZIP Download Engine ───
+  const photoExportCandidates = useMemo(() => {
+    let list = allStudents;
+
+    // 1. Session Filter
+    if (photoExportSession && photoExportSession !== 'ALL') {
+      const sLower = String(photoExportSession).trim().toLowerCase();
+      list = list.filter(s => String(s.session || '').trim().toLowerCase() === sLower);
+    }
+
+    // 2. Class Filter
+    if (photoExportClass && photoExportClass !== 'ALL') {
+      const cNorm = normalizeClassVal(photoExportClass);
+      list = list.filter(s => normalizeClassVal(s.class) === cNorm);
+    }
+
+    // 3. Stream Filter
+    if (photoExportStream && photoExportStream !== 'ALL') {
+      const stLower = String(photoExportStream).trim().toLowerCase();
+      list = list.filter(s => String(s.stream || '').trim().toLowerCase() === stLower);
+    }
+
+    // 4. Target Mode Filter
+    if (photoExportMode === 'selected_table') {
+      const activeSelected = selectedBulkFormIds.size > 0 ? selectedBulkFormIds : selectedTableDocIds;
+      if (activeSelected.size > 0) {
+        list = list.filter(s => activeSelected.has(s.id) || activeSelected.has(s.formNo) || activeSelected.has(s._docId) || activeSelected.has(s.docId));
+      }
+    } else if (photoExportMode === 'roll_range') {
+      const minRoll = parseInt(photoExportRollStart, 10);
+      const maxRoll = parseInt(photoExportRollEnd, 10);
+      if (!isNaN(minRoll) || !isNaN(maxRoll)) {
+        list = list.filter(s => {
+          const rawRoll = String(s.classRollNo || s['Class Roll No'] || s['Class Roll No.'] || s.rollNo || '').trim();
+          const rNum = parseInt(rawRoll.replace(/\D/g, ''), 10);
+          if (isNaN(rNum)) return false;
+          if (!isNaN(minRoll) && rNum < minRoll) return false;
+          if (!isNaN(maxRoll) && rNum > maxRoll) return false;
+          return true;
+        });
+      }
+    }
+
+    // Sort naturally by Class, then Session, then numeric Roll No
+    return [...list].sort((a, b) => {
+      const clsA = normalizeClassVal(a.class);
+      const clsB = normalizeClassVal(b.class);
+      if (clsA !== clsB) return clsA.localeCompare(clsB);
+
+      const sessA = String(a.session || '');
+      const sessB = String(b.session || '');
+      if (sessA !== sessB) return sessA.localeCompare(sessB);
+
+      const rA = parseInt(String(a.classRollNo || a.rollNo || '0').replace(/\D/g, ''), 10) || 0;
+      const rB = parseInt(String(b.classRollNo || b.rollNo || '0').replace(/\D/g, ''), 10) || 0;
+      if (rA !== rB) return rA - rB;
+
+      const fA = parseInt(String(a.formNo || '0').replace(/\D/g, ''), 10) || 0;
+      const fB = parseInt(String(b.formNo || '0').replace(/\D/g, ''), 10) || 0;
+      return fA - fB;
+    });
+  }, [allStudents, photoExportSession, photoExportClass, photoExportStream, photoExportMode, photoExportRollStart, photoExportRollEnd, selectedBulkFormIds, selectedTableDocIds]);
+
+  const photoExportStats = useMemo(() => {
+    let withPhoto = 0;
+    let missingPhoto = 0;
+    for (let i = 0; i < photoExportCandidates.length; i++) {
+      const p = getStudentPhotoUrl(photoExportCandidates[i]);
+      if (p && typeof p === 'string' && p.length > 20 && p !== '/logo.png') {
+        withPhoto++;
+      } else {
+        missingPhoto++;
+      }
+    }
+    return { total: photoExportCandidates.length, withPhoto, missingPhoto };
+  }, [photoExportCandidates]);
+
+  // Strict Naming Format requested: class roll no_registration no_name_class_session.ext
+  const formatPhotoExportFilename = (student, ext = 'jpg') => {
+    const cleanSegment = (val, fallback) => {
+      if (!val) return fallback;
+      const s = String(val)
+        .trim()
+        .replace(/[\\/:*?"<>|\r\n\t]+/g, '-') // Replace illegal filesystem chars
+        .replace(/\s+/g, ' ')
+        .trim();
+      return (s && s !== '—' && s !== 'N/A' && s !== 'null' && s !== 'undefined' && s !== '-') ? s : fallback;
+    };
+
+    const roll = cleanSegment(
+      student.classRollNo || 
+      student['Class Roll No'] || 
+      student['Class Roll No.'] || 
+      student.rollNo || 
+      student['RL. NO.'] || 
+      student['RL. NO'], 
+      'NoRoll'
+    );
+
+    const reg = cleanSegment(
+      student.boardRegNo || 
+      student['Board Registration Number'] || 
+      student['Board Registration No.'] || 
+      student['Registration No.'] || 
+      student.regNo || 
+      student.registrationNo, 
+      'NoReg'
+    );
+
+    const name = cleanSegment(
+      student.studentName || 
+      student["Student's Name (as per school records)"] || 
+      student["Student's Name"] || 
+      student['Student Name'] || 
+      student.name, 
+      'Student'
+    );
+
+    const cls = cleanSegment(
+      student.class || 
+      student.Class || 
+      student['Admission sought for class'], 
+      'Class'
+    );
+
+    const session = cleanSegment(
+      student.session || 
+      student.Session || 
+      student['Academic Session'], 
+      'Session'
+    );
+
+    return `${roll}_${reg}_${name}_${cls}_${session}.${ext}`;
+  };
+
+  const handleExportPhotosZip = async () => {
+    let targetList = photoExportCandidates;
+    if (photoExportOnlyWithPhoto) {
+      targetList = targetList.filter(s => {
+        const p = getStudentPhotoUrl(s);
+        return p && typeof p === 'string' && p.length > 20 && p !== '/logo.png';
+      });
+    }
+
+    if (!targetList || targetList.length === 0) {
+      alert('No student photos found matching the selected export parameters.');
+      return;
+    }
+
+    setPhotoExporting(true);
+    setPhotoExportProgress({
+      active: true,
+      current: 0,
+      total: targetList.length,
+      percent: 0,
+      currentName: 'Initializing ZIP compression engine...',
+      successCount: 0,
+      skippedCount: 0
+    });
+
+    try {
+      const zip = new JSZip();
+      const manifestLines = [
+        `========================================================================================`,
+        `GOVT. HIGHER SECONDARY SCHOOL SHANGUS — BULK STUDENT PHOTOS EXPORT MANIFEST`,
+        `Generated At : ${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}`,
+        `Scope Filter : Session: ${photoExportSession} | Class: ${photoExportClass} | Stream: ${photoExportStream}`,
+        `Export Mode  : ${photoExportMode === 'roll_range' ? `Roll Range: ${photoExportRollStart} to ${photoExportRollEnd}` : photoExportMode === 'selected_table' ? 'Selected Records' : 'All In Scope'}`,
+        `Total Records In Scope : ${targetList.length}`,
+        `File Naming Template   : <ClassRollNo>_<BoardRegistrationNo>_<StudentName>_<Class>_<Session>.jpg`,
+        `========================================================================================`,
+        ``
+      ];
+
+      let successCount = 0;
+      let skippedCount = 0;
+
+      for (let i = 0; i < targetList.length; i++) {
+        const student = targetList[i];
+        const sName = student.studentName || student["Student's Name"] || 'Student';
+        const sRoll = student.classRollNo || student['Class Roll No'] || 'NoRoll';
+        const sClass = student.class || 'Class';
+        const sSess = student.session || 'Session';
+
+        setPhotoExportProgress(prev => ({
+          ...prev,
+          current: i + 1,
+          percent: Math.round(((i + 1) / targetList.length) * 100),
+          currentName: `${sName} (${sClass} - Roll #${sRoll})`,
+          successCount,
+          skippedCount
+        }));
+
+        try {
+          const rawPhoto = getStudentPhotoUrl(student);
+          if (!rawPhoto || typeof rawPhoto !== 'string' || rawPhoto.length < 20 || rawPhoto === '/logo.png') {
+            skippedCount++;
+            manifestLines.push(`[SKIPPED - NO PHOTO] Roll: ${sRoll} | Name: ${sName} | Class: ${sClass} | Reg: ${student.boardRegNo || '—'} | Form: #${student.formNo || '—'}`);
+            continue;
+          }
+
+          let ext = 'jpg';
+          let fileData = null;
+          let isBase64 = false;
+
+          if (rawPhoto.startsWith('data:image/')) {
+            const matches = rawPhoto.match(/^data:image\/([a-zA-Z0-9+]+);base64,(.+)$/);
+            if (matches) {
+              ext = matches[1].includes('png') ? 'png' : 'jpg';
+              fileData = matches[2];
+              isBase64 = true;
+            }
+          } else if (rawPhoto.startsWith('http://') || rawPhoto.startsWith('https://')) {
+            try {
+              const resp = await fetch(rawPhoto, { mode: 'cors' });
+              if (resp.ok) {
+                const blob = await resp.blob();
+                const buf = await blob.arrayBuffer();
+                ext = blob.type.includes('png') ? 'png' : 'jpg';
+                fileData = buf;
+                isBase64 = false;
+              }
+            } catch (fetchErr) {
+              console.warn(`Remote photo fetch error for ${sName}:`, fetchErr);
+            }
+          }
+
+          if (fileData) {
+            const filename = formatPhotoExportFilename(student, ext);
+            if (isBase64) {
+              zip.file(filename, fileData, { base64: true });
+            } else {
+              zip.file(filename, fileData);
+            }
+            successCount++;
+            manifestLines.push(`[EXPORTED] ${filename} — Form #${student.formNo || '—'}`);
+          } else {
+            skippedCount++;
+            manifestLines.push(`[SKIPPED - UNRESOLVED] Roll: ${sRoll} | Name: ${sName} | Class: ${sClass} | Form: #${student.formNo || '—'}`);
+          }
+        } catch (itemErr) {
+          console.error(`Error processing photo for student ${sName}:`, itemErr);
+          skippedCount++;
+          manifestLines.push(`[ERROR] Roll: ${sRoll} | Name: ${sName} — ${itemErr.message}`);
+        }
+
+        // Periodic micro-yield every 6 photos to keep browser UI fast and fluid
+        if (i % 6 === 0) {
+          await new Promise(res => setTimeout(res, 0));
+        }
+      }
+
+      manifestLines.push(``);
+      manifestLines.push(`----------------------------------------------------------------------------------------`);
+      manifestLines.push(`EXPORT SUMMARY: ${successCount} Photos Exported Successfully, ${skippedCount} Records Skipped / Missing Photo.`);
+      manifestLines.push(`----------------------------------------------------------------------------------------`);
+      zip.file('PHOTO_EXPORT_MANIFEST.txt', manifestLines.join('\r\n'));
+
+      setPhotoExportProgress(prev => ({
+        ...prev,
+        currentName: `Compiling ${successCount} photos into ZIP archive...`,
+        percent: 100,
+        successCount,
+        skippedCount
+      }));
+
+      const zipBlob = await zip.generateAsync({
+        type: 'blob',
+        compression: 'DEFLATE',
+        compressionOptions: { level: 6 }
+      });
+
+      const cleanCls = String(photoExportClass !== 'ALL' ? photoExportClass : 'AllClasses').replace(/[^a-zA-Z0-9-]/g, '');
+      const cleanSess = String(photoExportSession !== 'ALL' ? photoExportSession : 'AllSessions').replace(/[^a-zA-Z0-9-]/g, '');
+      const zipFilename = `HSS_Shangus_Photos_${cleanCls}_${cleanSess}_${Date.now()}.zip`;
+
+      const downloadUrl = URL.createObjectURL(zipBlob);
+      const tempLink = document.createElement('a');
+      tempLink.href = downloadUrl;
+      tempLink.download = zipFilename;
+      document.body.appendChild(tempLink);
+      tempLink.click();
+      document.body.removeChild(tempLink);
+      setTimeout(() => URL.revokeObjectURL(downloadUrl), 5000);
+
+      try {
+        logAdminActivity(
+          user?.email || 'Admin',
+          'PHOTO_EXPORT_ZIP',
+          `Exported ${successCount} student photos into ZIP archive (${zipFilename}). Scope: Class ${photoExportClass}, Session ${photoExportSession}, Mode ${photoExportMode}.`
+        );
+      } catch (_) {}
+
+      setToast({
+        type: 'success',
+        message: `🎉 Successfully downloaded ZIP archive with ${successCount} student photos (${zipFilename})!`
+      });
+      setTimeout(() => setToast(null), 6000);
+    } catch (err) {
+      console.error('ZIP Export error:', err);
+      alert('Photo export failed: ' + err.message);
+    } finally {
+      setPhotoExporting(false);
+      setPhotoExportProgress({ active: false, current: 0, total: 0, percent: 0, currentName: '', successCount: 0, skippedCount: 0 });
+    }
+  };
+
   // Cell padding class based on density state (comfortable legible font sizes to prevent eye strain)
   const cellPaddingClass = density === 'fit'
     ? 'px-1.5 py-1 text-[11px] sm:px-2 sm:py-1.5 sm:text-xs font-bold leading-tight sm:leading-normal'
@@ -8651,6 +8978,20 @@ export default function AdvancedReports({
             title="Open the selected applications as one printable document"
           >
             <Printer size={12} /> Print selected
+          </button>
+
+          <button
+            type="button"
+            disabled={bulkTableActionBusy}
+            onClick={() => {
+              setActiveToolsTab('photo_export');
+              setPhotoExportMode('selected_table');
+              setShowToolsModal(true);
+            }}
+            className="px-2.5 py-1.5 rounded-lg border border-amber-300 dark:border-amber-700 bg-amber-100/70 dark:bg-amber-950/60 text-amber-900 dark:text-amber-200 font-black text-[10px] flex items-center gap-1.5 cursor-pointer disabled:opacity-50 hover:bg-amber-200/80 transition-colors"
+            title="Export photos of the selected applications into a ZIP folder"
+          >
+            <FolderDown size={12} /> Export Photos ({selectedTableStudents.length})
           </button>
 
           <button
@@ -9373,7 +9714,8 @@ export default function AdvancedReports({
               {[
                 { id: 'bulk_forms', label: '📄 Bulk Forms Generator' },
                 { id: 'db_editor', label: '🔄 Bulk Class & Session' },
-                { id: 'photo_manager', label: '📷 Photo Sync & Manager' },
+                { id: 'photo_export', label: '📦 Bulk Photo Exporter (ZIP)' },
+                { id: 'photo_manager', label: '📷 Photo Upload & Sync' },
               ].map(t => (
                 <button
                   key={t.id}
@@ -10092,6 +10434,321 @@ export default function AdvancedReports({
 
 
 
+            {/* Tool Content: Bulk Photo Exporter (ZIP) */}
+            {activeToolsTab === 'photo_export' && (
+              <div className="space-y-4 p-4 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 animate-fadeIn">
+                <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3 flex-wrap gap-2">
+                  <div>
+                    <div className="font-black text-sm text-slate-900 dark:text-white flex items-center gap-2">
+                      <FolderDown size={18} className="text-amber-600" />
+                      Bulk Student Photo Downloader & ZIP Folder Exporter
+                    </div>
+                    <p className="text-slate-600 dark:text-slate-400 text-xs font-bold mt-0.5">
+                      Export photos for any Session/Class (All or Roll No. Range) selected or bulk into a folder named <code className="bg-slate-200 dark:bg-slate-800 px-1.5 py-0.5 rounded text-purple-700 dark:text-purple-300 font-mono text-[11px]">class roll no_registration no_name_class_session.jpg</code>.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setActiveToolsTab('photo_manager')}
+                      className="px-3 py-1.5 rounded-xl font-black text-xs text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 hover:bg-slate-100 cursor-pointer flex items-center gap-1.5"
+                    >
+                      <Camera size={13} />
+                      <span>Upload & Sync Photos</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* ─── 1. SCOPE & FILTER CONTROLS ─── */}
+                <div className="p-3.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs space-y-3">
+                  <div className="font-black text-xs text-slate-900 dark:text-white flex items-center gap-1.5">
+                    <Sliders size={14} className="text-amber-600" />
+                    <span>Select Target Session, Class & Export Range</span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-[11px] font-black text-slate-600 dark:text-slate-400 mb-1">
+                        Academic Session:
+                      </label>
+                      <select
+                        value={photoExportSession}
+                        onChange={(e) => setPhotoExportSession(e.target.value)}
+                        className="w-full p-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-xs font-black text-slate-900 dark:text-white"
+                      >
+                        <option value="ALL">All Academic Sessions</option>
+                        {availableSessions.map(s => (
+                          <option key={s} value={s}>Session {s}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-black text-slate-600 dark:text-slate-400 mb-1">
+                        Target Class:
+                      </label>
+                      <select
+                        value={photoExportClass}
+                        onChange={(e) => setPhotoExportClass(e.target.value)}
+                        className="w-full p-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-xs font-black text-slate-900 dark:text-white"
+                      >
+                        <option value="ALL">All Classes</option>
+                        {availableClasses.map(c => (
+                          <option key={c} value={c}>Class {c}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-black text-slate-600 dark:text-slate-400 mb-1">
+                        Academic Stream:
+                      </label>
+                      <select
+                        value={photoExportStream}
+                        onChange={(e) => setPhotoExportStream(e.target.value)}
+                        className="w-full p-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-xs font-black text-slate-900 dark:text-white"
+                      >
+                        <option value="ALL">All Streams</option>
+                        {availableStreams.map(st => (
+                          <option key={st} value={st}>{st}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Export Target Mode Selector */}
+                  <div className="pt-2 border-t border-slate-200 dark:border-slate-800 space-y-2">
+                    <label className="block text-[11px] font-black text-slate-600 dark:text-slate-400">
+                      Export Scope / Mode:
+                    </label>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                      <label className={`p-2.5 rounded-xl border flex items-center gap-2 cursor-pointer transition-all ${photoExportMode === 'all_filtered' ? 'border-amber-500 bg-amber-50 dark:bg-amber-950/40 text-amber-900 dark:text-amber-200 font-black' : 'border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 text-xs font-bold'}`}>
+                        <input
+                          type="radio"
+                          name="photoExportMode"
+                          value="all_filtered"
+                          checked={photoExportMode === 'all_filtered'}
+                          onChange={() => setPhotoExportMode('all_filtered')}
+                          className="accent-amber-600"
+                        />
+                        <span className="text-xs">All Students in Filter ({photoExportCandidates.length})</span>
+                      </label>
+
+                      <label className={`p-2.5 rounded-xl border flex items-center gap-2 cursor-pointer transition-all ${photoExportMode === 'roll_range' ? 'border-amber-500 bg-amber-50 dark:bg-amber-950/40 text-amber-900 dark:text-amber-200 font-black' : 'border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 text-xs font-bold'}`}>
+                        <input
+                          type="radio"
+                          name="photoExportMode"
+                          value="roll_range"
+                          checked={photoExportMode === 'roll_range'}
+                          onChange={() => setPhotoExportMode('roll_range')}
+                          className="accent-amber-600"
+                        />
+                        <span className="text-xs">Roll Number Range (From - To)</span>
+                      </label>
+
+                      <label className={`p-2.5 rounded-xl border flex items-center gap-2 cursor-pointer transition-all ${photoExportMode === 'selected_table' ? 'border-amber-500 bg-amber-50 dark:bg-amber-950/40 text-amber-900 dark:text-amber-200 font-black' : 'border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 text-xs font-bold'}`}>
+                        <input
+                          type="radio"
+                          name="photoExportMode"
+                          value="selected_table"
+                          checked={photoExportMode === 'selected_table'}
+                          onChange={() => setPhotoExportMode('selected_table')}
+                          className="accent-amber-600"
+                        />
+                        <span className="text-xs">Table Selected ({selectedBulkFormIds.size > 0 ? selectedBulkFormIds.size : selectedTableDocIds.size})</span>
+                      </label>
+                    </div>
+                  </div>
+
+                  {/* Roll Number Range Inputs (Shown when mode is 'roll_range') */}
+                  {photoExportMode === 'roll_range' && (
+                    <div className="p-3 rounded-xl bg-amber-50/80 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-800 space-y-2 animate-fadeIn">
+                      <div className="flex items-center gap-2 text-xs font-black text-amber-900 dark:text-amber-200">
+                        <Hash size={14} className="text-amber-600" />
+                        <span>Specify Class Roll Number Range:</span>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">
+                            From Roll No:
+                          </label>
+                          <input
+                            type="number"
+                            min="1"
+                            value={photoExportRollStart}
+                            onChange={(e) => setPhotoExportRollStart(e.target.value)}
+                            placeholder="e.g. 1 or 101"
+                            className="w-full p-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-mono font-bold"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">
+                            To Roll No:
+                          </label>
+                          <input
+                            type="number"
+                            min="1"
+                            value={photoExportRollEnd}
+                            onChange={(e) => setPhotoExportRollEnd(e.target.value)}
+                            placeholder="e.g. 150 or 250"
+                            className="w-full p-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-mono font-bold"
+                          />
+                        </div>
+                      </div>
+                      <p className="text-[10px] text-amber-800 dark:text-amber-300 font-bold">
+                        Filters students whose assigned Class Roll Number falls between the starting and ending roll numbers.
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Option: Only With Photo */}
+                  <div className="pt-2 flex items-center justify-between flex-wrap gap-2 text-xs font-bold">
+                    <label className="flex items-center gap-2 cursor-pointer text-slate-800 dark:text-slate-200">
+                      <input
+                        type="checkbox"
+                        checked={photoExportOnlyWithPhoto}
+                        onChange={(e) => setPhotoExportOnlyWithPhoto(e.target.checked)}
+                        className="w-4 h-4 accent-amber-600 rounded cursor-pointer"
+                      />
+                      <span>Only include students who have an active passport photo</span>
+                    </label>
+
+                    <div className="flex items-center gap-2 text-[11px] font-black">
+                      <span className="px-2 py-0.5 rounded-lg bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                        Total: {photoExportCandidates.length}
+                      </span>
+                      <span className="px-2 py-0.5 rounded-lg bg-teal-100 dark:bg-teal-950/80 text-teal-800 dark:text-teal-300 border border-teal-300 dark:border-teal-700">
+                        Ready: {photoExportStats.withPhoto}
+                      </span>
+                      {photoExportStats.missingPhoto > 0 && (
+                        <span className="px-2 py-0.5 rounded-lg bg-rose-100 dark:bg-rose-950/80 text-rose-800 dark:text-rose-300 border border-rose-300 dark:border-rose-700">
+                          Missing: {photoExportStats.missingPhoto}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* ─── 2. LIVE FILENAME FORMAT PREVIEW ─── */}
+                <div className="p-3 rounded-2xl bg-purple-50 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800 text-xs space-y-1.5">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <span className="font-black text-purple-900 dark:text-purple-200 flex items-center gap-1.5">
+                      <FileText size={14} className="text-purple-600" />
+                      File Naming Standard:
+                    </span>
+                    <span className="text-[11px] font-mono text-purple-800 dark:text-purple-300 bg-purple-100 dark:bg-purple-900/60 px-2 py-0.5 rounded-md font-bold">
+                      &lt;ClassRollNo&gt;_&lt;RegistrationNo&gt;_&lt;StudentName&gt;_&lt;Class&gt;_&lt;Session&gt;.jpg
+                    </span>
+                  </div>
+                  <div className="text-[11px] font-bold text-slate-600 dark:text-slate-400">
+                    Sample Output File:{' '}
+                    <span className="font-mono text-purple-700 dark:text-purple-300 font-extrabold break-all">
+                      {photoExportCandidates[0] ? formatPhotoExportFilename(photoExportCandidates[0]) : '101_22N-123456_Aadil Ahmad_11th_2024-25.jpg'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* ─── 3. CANDIDATE PHOTO PREVIEW TABLE ─── */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-xs font-black text-slate-900 dark:text-white">
+                    <span>Target Students Preview (First {Math.min(photoExportCandidates.length, 6)} of {photoExportCandidates.length}):</span>
+                    <span className="text-[11px] text-slate-500 font-bold">
+                      Sorted naturally by Class & Roll No.
+                    </span>
+                  </div>
+
+                  <div className="max-h-56 overflow-y-auto space-y-1.5 p-2 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                    {photoExportCandidates.length === 0 ? (
+                      <div className="py-6 text-center text-xs font-bold text-slate-400">
+                        No students match the current filter criteria.
+                      </div>
+                    ) : (
+                      photoExportCandidates.slice(0, 8).map((st, idx) => {
+                        const pUrl = getStudentPhotoUrl(st);
+                        const hasPhoto = pUrl && typeof pUrl === 'string' && pUrl.length > 20 && pUrl !== '/logo.png';
+                        const computedFilename = formatPhotoExportFilename(st);
+
+                        return (
+                          <div key={idx} className="flex items-center justify-between p-2 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800 text-xs font-bold gap-2">
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <div className="w-8 h-10 rounded-md border border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 overflow-hidden shrink-0 flex items-center justify-center">
+                                {hasPhoto ? (
+                                  <img src={pUrl} alt="" className="w-full h-full object-cover" />
+                                ) : (
+                                  <User size={14} className="text-slate-400" />
+                                )}
+                              </div>
+                              <div className="min-w-0">
+                                <div className="font-black text-slate-900 dark:text-white truncate">
+                                  {st.studentName || st["Student's Name (as per school records)"] || 'Student'}
+                                </div>
+                                <div className="text-[10px] text-slate-500 font-mono truncate">
+                                  Roll: <strong className="text-slate-700 dark:text-slate-300">{st.classRollNo || st['Class Roll No'] || '—'}</strong> • Reg: <strong className="text-slate-700 dark:text-slate-300">{st.boardRegNo || '—'}</strong> • {st.class} ({st.session})
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="text-right shrink-0">
+                              <div className="text-[10px] font-mono text-purple-700 dark:text-purple-300 font-black truncate max-w-[240px]">
+                                {computedFilename}
+                              </div>
+                              <span className={`text-[9px] font-black px-1.5 py-0.2 rounded ${hasPhoto ? 'bg-teal-100 dark:bg-teal-950/80 text-teal-800 dark:text-teal-300' : 'bg-rose-100 dark:bg-rose-950/80 text-rose-800 dark:text-rose-300'}`}>
+                                {hasPhoto ? '✅ Photo Ready' : '⚠️ No Photo'}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+
+                {/* Real-time Progress HUD */}
+                {photoExportProgress.active && (
+                  <div className="p-3.5 rounded-2xl bg-amber-500/15 border border-amber-500/30 space-y-2 animate-fadeIn">
+                    <div className="flex justify-between items-center text-xs font-black text-amber-900 dark:text-amber-200">
+                      <span>⏳ Packaging Photo {photoExportProgress.current} of {photoExportProgress.total} ({photoExportProgress.percent}%)</span>
+                      <span className="truncate max-w-[220px]">{photoExportProgress.currentName}</span>
+                    </div>
+                    <div className="w-full h-2.5 bg-amber-950/20 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-amber-500 transition-all duration-150 rounded-full"
+                        style={{ width: `${photoExportProgress.percent}%` }}
+                      />
+                    </div>
+                    <div className="flex justify-between items-center text-[10px] font-bold text-slate-500">
+                      <span>Exported: {photoExportProgress.successCount} photos</span>
+                      <span>Skipped: {photoExportProgress.skippedCount}</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* ─── 4. DOWNLOAD ACTION BUTTON ─── */}
+                <div className="pt-2">
+                  <button
+                    type="button"
+                    onClick={handleExportPhotosZip}
+                    disabled={photoExporting || (photoExportOnlyWithPhoto ? photoExportStats.withPhoto === 0 : photoExportCandidates.length === 0)}
+                    className="w-full py-3.5 rounded-xl font-black text-white bg-amber-700 hover:bg-amber-600 shadow-md flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 transition-all text-xs"
+                  >
+                    {photoExporting ? (
+                      <>
+                        <RefreshCw size={16} className="animate-spin" />
+                        <span>Compiling ZIP Folder Archive...</span>
+                      </>
+                    ) : (
+                      <>
+                        <FolderDown size={16} />
+                        <span>
+                          Download {photoExportOnlyWithPhoto ? photoExportStats.withPhoto : photoExportCandidates.length} Student Photos as ZIP Folder
+                        </span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Tool Content 6: Photo Sync & Manager */}
             {activeToolsTab === 'photo_manager' && (
               <div className="space-y-4 p-4 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800">
@@ -10103,8 +10760,16 @@ export default function AdvancedReports({
                   <div className="flex items-center gap-2">
                     <button
                       type="button"
+                      onClick={() => setActiveToolsTab('photo_export')}
+                      className="px-3 py-1.5 rounded-xl font-black text-xs text-amber-900 dark:text-amber-200 bg-amber-100 dark:bg-amber-950/80 border border-amber-300 dark:border-amber-700 hover:bg-amber-200 cursor-pointer flex items-center gap-1.5"
+                    >
+                      <FolderDown size={13} />
+                      <span>Bulk Export Photos (ZIP)</span>
+                    </button>
+                    <button
+                      type="button"
                       onClick={handleDownloadMissingPhotosReport}
-                      className="px-3 py-1.5 rounded-xl font-black text-xs text-amber-800 dark:text-amber-300 bg-amber-100 dark:bg-amber-950/80 border border-amber-300 dark:border-amber-700 hover:bg-amber-200 cursor-pointer flex items-center gap-1.5"
+                      className="px-3 py-1.5 rounded-xl font-black text-xs text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 hover:bg-slate-100 cursor-pointer flex items-center gap-1.5"
                     >
                       <Download size={13} />
                       <span>Missing Photos List (.txt)</span>
