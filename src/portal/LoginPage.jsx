@@ -135,7 +135,7 @@ export default function LoginPage() {
     
     // Resolve role from Firestore permissions & users collection & bootstrap (use cached if available)
     const staffProfile = cachedStaffProfile || await resolveStaffRoleAndPerms(emailLower);
-    const isBootstrapAdmin = emailLower === 'adm.exam.hss.shangus@gmail.com' || emailLower === 'e.educational.24@gmail.com';
+    const isBootstrapAdmin = emailLower === 'adm.exam.hss.shangus@gmail.com';
 
     const rawRole = String(
       staffProfile?.role ||
@@ -483,7 +483,7 @@ export default function LoginPage() {
       
       // 2. Resolve account profile from Firestore (configured strictly by Super Admin)
       const staffProfile = await resolveStaffRoleAndPerms(cleanEmail);
-      const isSuper = staffProfile?.role === 'SuperAdmin' || selectedRole === 'superadmin' || cleanEmail === 'adm.exam.hss.shangus@gmail.com' || cleanEmail === 'e.educational.24@gmail.com';
+      const isSuper = staffProfile?.role === 'SuperAdmin' || selectedRole === 'superadmin' || cleanEmail === 'adm.exam.hss.shangus@gmail.com';
       const isAdmin = isSuper || staffProfile?.role === 'Admin';
       const isTeacher = staffProfile?.role === 'Teacher' || staffProfile?.role === 'Faculty';
 

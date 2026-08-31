@@ -53,10 +53,10 @@ const DEFAULT_ADMIN_USERS = [
     perms: ALL_ADMIN_MODULES.map(m => m.code),
   },
   {
-    name: 'Sheikh Gulfam (SuperAdmin)',
+    name: 'Sheikh Gulfam',
     email: 'e.educational.24@gmail.com',
-    role: 'SuperAdmin',
-    perms: ALL_ADMIN_MODULES.map(m => m.code),
+    role: 'Admin',
+    perms: ['reports', 'admRegisterSuite'],
   },
   {
     name: 'Nawaz Ahmad Shah (Admin)',
