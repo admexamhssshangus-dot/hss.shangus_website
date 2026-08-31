@@ -273,8 +273,7 @@ export default function AdminDashboard() {
     if (
       role === 'superadmin' || 
       email === 'adm.exam.hss.shangus@gmail.com' ||
-      email === 'socialshiftz@gmail.com' ||
-      email === 'e.educational.24@gmail.com'
+      email === 'socialshiftz@gmail.com'
     ) {
       return true;
     }

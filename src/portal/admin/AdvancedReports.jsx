@@ -6092,6 +6092,7 @@ export default function AdvancedReports({
       if (!isMounted) return;
       const filtered = flattenAdmissionsList(initialData);
       setCurrentAdmissions(filtered);
+      setLoading(false);
 
       const buildIndex = () => {
         if (isMounted) buildLocalSearchIndex(filtered, masterHistoricalRecords);

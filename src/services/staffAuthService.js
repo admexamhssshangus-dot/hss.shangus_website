@@ -16,7 +16,6 @@ import { auth, db, firebaseConfig } from './firebase';
 
 const BOOTSTRAP_SUPERADMINS = [
   'adm.exam.hss.shangus@gmail.com',
-  'e.educational.24@gmail.com',
 ];
 
 /**

@@ -18,7 +18,7 @@ async function resolveUserProfile(firebaseUser) {
   
   // Resolve role from Firestore permissions & users collection & bootstrap
   const staffProfile = await resolveStaffRoleAndPerms(emailLower);
-  const isBootstrapAdmin = emailLower === 'adm.exam.hss.shangus@gmail.com' || emailLower === 'e.educational.24@gmail.com';
+  const isBootstrapAdmin = emailLower === 'adm.exam.hss.shangus@gmail.com';
 
   const rawRole = String(
     staffProfile?.role ||
