@@ -182,91 +182,45 @@ export default function Academics() {
   useEffect(() => {
     let active = true;
     async function loadFaculty() {
-      // 1. Use only the public, allow-listed preview written by the admin portal.
+      // 1. Initial fast local preview cache (without returning early so Firestore can revalidate)
       const local = localStorage.getItem('hss_public_faculty');
       if (local) {
         try {
           const parsed = toPublicFacultyList(JSON.parse(local));
           if (parsed.length > 0 && active) {
             setFaculty(parsed);
-            return;
           }
         } catch (e) {
           console.warn('Error reading the public faculty preview:', e);
         }
       }
 
-      // 2. Read the public projection. The private faculty record is admin-only.
+      // 2. Fetch live public projection from Firestore
       try {
         const snapshot = await getDocs(collection(db, 'facultyPublic'));
         const publicFaculty = toPublicFacultyList(snapshot.docs.map((facultyDoc) => facultyDoc.data()));
         if (publicFaculty.length > 0) {
-          if (active) setFaculty(publicFaculty);
+          if (active) {
+            setFaculty(publicFaculty);
+            try {
+              localStorage.setItem('hss_public_faculty', JSON.stringify(publicFaculty));
+            } catch (_) {}
+          }
           return;
         }
       } catch (e) {
-        // ignore and fallback
-      }
-
-      try {
-        const res = await fetch('/slides/faculty.json?t=' + Date.now(), { cache: 'no-cache' });
-        if (!res.ok) throw new Error('Faculty config file not found');
-        const data = toPublicFacultyList(await res.json());
-        if (active) setFaculty(data);
-      } catch (err) {
-        console.warn('Failed to fetch faculty.json, using fallback mock data:', err);
-        if (active) {
-          setFaculty(toPublicFacultyList([
-            {
-              "name": "Mr. Aijaz Ahmad Wagay",
-              "designation": "Principal",
-              "subject": "Chemistry",
-              "photo": "/slides/Principal.jpg",
-              "department": "Administration"
-            },
-            {
-              "name": "Mr. Sheikh Gulfam",
-              "designation": "Lecturer",
-              "subject": "Botany",
-              "photo": "/slides/Gulfam.jpg",
-              "department": "Science"
-            },
-            {
-              "name": "Dr. Tariq Ahmad",
-              "designation": "Lecturer",
-              "subject": "Physics",
-              "photo": "",
-              "department": "Science"
-            },
-            {
-              "name": "Mrs. Shazia Kouser",
-              "designation": "Lecturer",
-              "subject": "Chemistry",
-              "photo": "",
-              "department": "Science"
-            },
-            {
-              "name": "Mr. Mohammad Yousuf",
-              "designation": "Lecturer",
-              "subject": "Economics",
-              "photo": "",
-              "department": "Humanities"
-            },
-            {
-              "name": "Mrs. Rukhsana Akhtar",
-              "designation": "Lecturer",
-              "subject": "English",
-              "photo": "",
-              "department": "Humanities"
-            },
-            {
-              "name": "Mr. Fayaz Ahmad",
-              "designation": "Teacher",
-              "subject": "Information Technology",
-              "photo": "",
-              "department": "Secondary"
-            }
-          ]));
+        try {
+          const res = await fetch('/slides/faculty.json?t=' + Date.now(), { cache: 'no-cache' });
+          if (!res.ok) throw new Error('Faculty config file not found');
+          const data = toPublicFacultyList(await res.json());
+          if (active) {
+            setFaculty(data);
+            try {
+              localStorage.setItem('hss_public_faculty', JSON.stringify(data));
+            } catch (_) {}
+          }
+        } catch (err) {
+          console.warn('Failed to fetch faculty.json:', err);
         }
       }
     }
