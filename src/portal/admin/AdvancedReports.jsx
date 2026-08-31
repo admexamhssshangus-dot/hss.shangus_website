@@ -2466,7 +2466,8 @@ function StatusActionDropdown({ student, onViewEdit, onRefresh, onDeleteRecord, 
             </div>
 
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
@@ -10232,7 +10233,8 @@ export default function AdvancedReports({
               </div>
             )}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* MODAL 3: Photo Preview Modal Popup */}
