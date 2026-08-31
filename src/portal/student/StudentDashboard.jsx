@@ -277,8 +277,13 @@ export default function StudentDashboard() {
       const res = await withdrawAdmission(appData.docId || appData.id || String(formNo));
       if (res && res.success !== false) {
         setShowDeleteModal(false);
-        setAppData(null);
-        setAlert({ type: 'success', text: `Application #${formNo} has been withdrawn. Its audit record and form number were retained, and you may now start a new application.` });
+        setAppData(prev => ({
+          ...prev,
+          Status: 'Withdrawn',
+          status: 'Withdrawn',
+          withdrawnAt: new Date().toISOString()
+        }));
+        setAlert({ type: 'success', text: `Application #${formNo} has been withdrawn. You can now re-apply or edit your application details whenever you are ready.` });
       } else {
         setAlert({ type: 'error', text: res?.error || res?.message || 'Failed to withdraw application.' });
       }
@@ -707,6 +712,23 @@ export default function StudentDashboard() {
                     >
                       <Edit3 size={16} />
                       <span>Start New Online Admission Application</span>
+                      <ArrowRight size={16} />
+                    </button>
+                  ) : status === 'Withdrawn' ? (
+                    <button
+                      onClick={() => {
+                        try {
+                          if (appData) {
+                            sessionStorage.setItem('hss_admission_draft', JSON.stringify(appData));
+                          }
+                        } catch (e) {}
+                        navigate('/portal/student/application');
+                      }}
+                      className="px-6 py-3.5 rounded-2xl font-extrabold text-xs shadow-md transition-all flex items-center gap-2 cursor-pointer bg-amber-600 hover:bg-amber-500 text-white"
+                      title="Re-apply or edit your application details and submit afresh"
+                    >
+                      <Edit3 size={16} />
+                      <span>Re-apply & Edit Application</span>
                       <ArrowRight size={16} />
                     </button>
                   ) : status === 'Draft' ? (

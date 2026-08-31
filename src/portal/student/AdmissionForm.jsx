@@ -384,32 +384,36 @@ export default function AdmissionForm() {
       let requestedUpgradeFormNo = '';
       try { requestedUpgradeFormNo = JSON.parse(sessionStorage.getItem('hss_admission_upgrade') || '{}').formNo || ''; } catch (e) { }
 
-      const isInactive = (item) => ['Withdrawn', 'Purged', 'Deleted', 'Wiped'].includes(item.Status || item.status) || item._deleted === true;
+      const isInactive = (item) => ['Purged', 'Deleted', 'Wiped'].includes(item.Status || item.status) || item._deleted === true;
+
+      const pickBestApplication = (apps) => {
+        if (!Array.isArray(apps) || apps.length === 0) return {};
+        const valid = apps.filter(item => !isInactive(item));
+        if (valid.length === 0) return {};
+        return valid.find(item => String(item['Form Number'] || item.FormNo || item.formNo || '') === String(requestedUpgradeFormNo)) ||
+               valid.find(item => ['Submitted', 'Approved', 'Under Review', 'Draft'].includes(item.Status || item.status)) ||
+               valid.find(item => ['Withdrawn', 'Rejected'].includes(item.Status || item.status)) ||
+               valid[0];
+      };
 
       if (appDataRes && appDataRes.data) {
         if (Array.isArray(appDataRes.data.applications) && appDataRes.data.applications.length > 0) {
-          const active = appDataRes.data.applications.filter(item => !isInactive(item));
-          if (active.length > 0) {
-            existing = active.find(item => String(item['Form Number'] || item.FormNo || item.formNo || '') === String(requestedUpgradeFormNo)) || active[0];
-          }
+          existing = pickBestApplication(appDataRes.data.applications);
         }
         if (Array.isArray(appDataRes.data.historicalRecords) && appDataRes.data.historicalRecords.length > 0) {
           historical = appDataRes.data.historicalRecords[appDataRes.data.historicalRecords.length - 1];
         }
       } else if (appDataRes) {
         if (Array.isArray(appDataRes.applications) && appDataRes.applications.length > 0) {
-          const active = appDataRes.applications.filter(item => !isInactive(item));
-          if (active.length > 0) {
-            existing = active.find(item => String(item['Form Number'] || item.FormNo || item.formNo || '') === String(requestedUpgradeFormNo)) || active[0];
-          }
+          existing = pickBestApplication(appDataRes.applications);
         }
         if (Array.isArray(appDataRes.historicalRecords) && appDataRes.historicalRecords.length > 0) {
           historical = appDataRes.historicalRecords[appDataRes.historicalRecords.length - 1];
         }
       }
 
-      // If no active application exists, clear stale upgrade & draft mode so form opens fresh
-      if (Object.keys(existing).length === 0) {
+      // If no application exists at all, clear stale upgrade & draft mode so form opens fresh
+      if (Object.keys(existing).length === 0 && Object.keys(historical).length === 0) {
         try {
           sessionStorage.removeItem('hss_admission_upgrade');
           sessionStorage.removeItem('hss_admission_draft');
@@ -419,7 +423,21 @@ export default function AdmissionForm() {
       }
 
       setAdmissionAvailability(appDataRes?.data?.admissionAvailability || appDataRes?.admissionAvailability || { globalClosed: false, classesClosed: {} });
-      const existingId = existing.docId || existing.applicationId || '';
+      
+      // Helper to strip placeholder/dummy form numbers
+      const cleanFNoVal = (val) => {
+        if (!val) return '';
+        const s = String(val).replace(/^(N\/A|#N\/A|—|-|null|undefined)$/i, '').trim();
+        if (s.startsWith('FORM_') || /^draft/i.test(s) || !/^\d{4,8}$/.test(s)) return '';
+        return s;
+      };
+
+      const assignedFormNo = cleanFNoVal(
+        existing['Form Number'] || existing['FormNo'] || existing['Form No.'] || existing['formNo'] ||
+        historical['Form Number'] || historical['FormNo'] || historical['Form No.'] || historical['formNo']
+      );
+
+      const existingId = existing.docId || existing.applicationId || assignedFormNo || '';
       setApplicationId(existingId);
       applicationIdRef.current = existingId;
       // Retrieve local draft if student saved or refreshed the page while drafting
@@ -455,22 +473,9 @@ export default function AdmissionForm() {
         historical['Student Photo'] || historical['photo_id'] || historical['photoUrl'] || historical['photo'] ||
         currentUser?.['Student Photo'] || currentUser?.photo_id || currentUser?.photoUrl || currentUser?.photoURL || '';
 
-      // Helper to strip placeholder/dummy form numbers
-      const cleanFNoVal = (val) => {
-        if (!val) return '';
-        const s = String(val).replace(/^(N\/A|#N\/A|—|-|null|undefined)$/i, '').trim();
-        if (s.startsWith('FORM_') || /^draft/i.test(s) || !/^\d{4,8}$/.test(s)) return '';
-        return s;
-      };
-
-      // Dynamically get next sequential Form Number if not already assigned in existing/draft
-      const assignedFormNo = cleanFNoVal(
-        existing['Form Number'] || existing['FormNo'] || existing['Form No.'] || existing['formNo']
-      );
-
-      // If filling a NEW form, merge historical student records for instant pre-fill
+      // If filling a form, merge existing/historical student records for instant pre-fill
       const isExistingSubmitted = ['Submitted', 'Approved', 'Under Review'].includes(existing.Status || existing.status);
-      const prefillSource = isExistingSubmitted ? existing : (Object.keys(localDraft).length > 0 ? { ...historical, ...localDraft } : (Object.keys(existing).length > 0 ? existing : historical));
+      const prefillSource = isExistingSubmitted ? existing : (Object.keys(localDraft).length > 0 ? { ...existing, ...historical, ...localDraft } : (Object.keys(existing).length > 0 ? existing : historical));
 
       const defaultSession = (() => {
         const now = new Date();
@@ -492,14 +497,13 @@ export default function AdmissionForm() {
         'photoUrl': preloadedPhoto,
       };
 
-      // Clear previous status if creating a fresh form from historical record or applying afresh
-      if (Object.keys(existing).length === 0) {
-        delete mergedData.Status;
-        delete mergedData.status;
-        delete mergedData.submittedAt;
-        delete mergedData['Form Number'];
-        delete mergedData['FormNo'];
-        delete mergedData['formNo'];
+      // If re-applying afresh from a withdrawn or historical record, preserve the form number and doc id
+      if (assignedFormNo) {
+        mergedData['Form Number'] = assignedFormNo;
+        mergedData.FormNo = assignedFormNo;
+        mergedData.formNo = assignedFormNo;
+        setApplicationId(String(assignedFormNo));
+        applicationIdRef.current = String(assignedFormNo);
       }
 
       // Ensure class 11th/12th stream and admission types are cleanly defaulted if missing
@@ -1951,9 +1955,13 @@ export default function AdmissionForm() {
       if (!submissionKeyRef.current) {
         submissionKeyRef.current = window.crypto?.randomUUID?.() || `${Date.now()}_${Math.random().toString(36).slice(2)}`;
       }
+      const currentAssignedFNo = applicationIdRef.current || applicationId || formData['Form Number'] || formData.FormNo || formData.formNo || '';
       const res = await appsScriptApi.saveApplication({
         ...formData,
-        applicationId: applicationIdRef.current || applicationId,
+        'Form Number': currentAssignedFNo || formData['Form Number'],
+        FormNo: currentAssignedFNo || formData.FormNo,
+        formNo: currentAssignedFNo || formData.formNo,
+        applicationId: currentAssignedFNo || applicationIdRef.current || applicationId,
         submissionKey: submissionKeyRef.current,
         ...(upgradeMode ? { _upgradeMode: true, _provisionalFormNo: upgradeSourceFormNo || '' } : {}),
       });
