@@ -549,7 +549,48 @@ async function legacySaveApplication(payload) {
     return s;
   };
 
-  let formNo = cleanFNoVal(provisionalFormNo || data['Form Number'] || data['FormNo'] || data['Form No.'] || data.formNumber || data.formNo);
+  let formNo = cleanFNoVal(
+    payload.applicationId ||
+    data.applicationId ||
+    provisionalFormNo ||
+    data['Form Number'] ||
+    data['FormNo'] ||
+    data['Form No.'] ||
+    data.formNumber ||
+    data.formNo
+  );
+
+  const admissionClass = String(data['Admission sought for class'] || data['class'] || '').trim();
+  const computedSession = getCurrentAcademicSession();
+  const sessionUser = sessionManager.getUser();
+  const session = String(data['Session'] || data['session'] || '').trim() || computedSession;
+  const userEmail = String(data['Email Address'] || data['email'] || '').toLowerCase().trim();
+  const userMobile = String(data['Mobile No. (with working WhatsApp)'] || data['mobile'] || '').replace(/[^0-9]/g, '');
+  const currentUid = auth.currentUser?.uid || sessionUser?.uid || sessionUser?.id || data.ownerUid;
+
+  // Safety Check: If formNo is still missing, lookup any existing application for this student in Firestore
+  if (!formNo) {
+    try {
+      if (currentUid || userEmail) {
+        const snap = await getDocs(collection(db, 'admissions'));
+        for (const d of snap.docs) {
+          const ex = d.data() || {};
+          const exUid = String(ex.ownerUid || '').trim();
+          const exEmail = String(ex['Email Address'] || ex.email || ex.emailNormalized || '').toLowerCase().trim();
+          if ((currentUid && exUid && exUid === currentUid) || (userEmail && exEmail && exEmail === userEmail)) {
+            const foundFNo = cleanFNoVal(ex['Form Number'] || ex.FormNo || ex.formNo || d.id);
+            if (foundFNo) {
+              formNo = foundFNo;
+              break;
+            }
+          }
+        }
+      }
+    } catch (lookupErr) {
+      console.warn('Existing student doc lookup note:', lookupErr);
+    }
+  }
+
   if (!formNo) {
     try {
       formNo = await getNextAvailableFormNumber();
@@ -558,13 +599,6 @@ async function legacySaveApplication(payload) {
     }
   }
   const sanitizedDocId = formNo.replace(/\//g, '_');
-
-  const admissionClass = String(data['Admission sought for class'] || data['class'] || '').trim();
-  const computedSession = getCurrentAcademicSession();
-  const sessionUser = sessionManager.getUser();
-  const session = String(data['Session'] || data['session'] || '').trim() || computedSession;
-  const userEmail = String(data['Email Address'] || data['email'] || '').toLowerCase().trim();
-  const userMobile = String(data['Mobile No. (with working WhatsApp)'] || data['mobile'] || '').replace(/[^0-9]/g, '');
   const isProvisional = data['Admission Type (Class 11th)'] === 'Provisional' ||
     data['Admission Type (Class 12th)'] === 'Provisional' ||
     data['Admission Type'] === 'Provisional' ||
@@ -912,7 +946,7 @@ async function getStudentApplication() {
 
       const applications = appDocs
         .map(item => ({ docId: item.id, ...item.data() }))
-        .filter(item => item.Status !== 'Deleted' && item.Status !== 'Withdrawn' && item._deleted !== true);
+        .filter(item => item.Status !== 'Deleted' && item.status !== 'Deleted' && item._deleted !== true && item._purged !== true);
 
       if (applications.length > 0) {
         return {
