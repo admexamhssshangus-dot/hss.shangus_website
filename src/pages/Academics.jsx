@@ -22,7 +22,6 @@ function WhatsAppIcon({ size = 14, className = '' }) {
   );
 }
 
-
 // Fix roman numeral casing (e.g. "Ii" → "II", "Iii" → "III") and strip "in Subject" for senior roles
 const ROMAN_NUMERALS = new Set(['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X']);
 function fixDesignation(desig) {
@@ -100,23 +99,45 @@ function FacultyCard({ member, faculty, setActiveProfileMember }) {
       {/* Actions */}
       <div className="mt-auto w-full border-t border-slate-200 pt-2 flex items-center justify-center gap-2">
         {member.profile && (
-          <button onClick={() => setActiveProfileMember(member)} className="ui-touch-target w-11 h-11 rounded-full bg-white border border-slate-200 text-slate-600 hover:text-teal-700 hover:border-teal-500 hover:shadow flex items-center justify-center transition-all cursor-pointer" title="View Full Profile" aria-label={`View profile for ${member.name}`}>
-            <User size={14} />
+          <button
+            onClick={() => setActiveProfileMember(member)}
+            className="w-8 h-8 rounded-full bg-white border border-slate-200 text-slate-600 hover:text-teal-700 hover:border-teal-500 hover:shadow-sm flex items-center justify-center shrink-0 transition-all hover:scale-110 active:scale-95 cursor-pointer"
+            title="View Full Profile"
+            aria-label={`View profile for ${member.name}`}
+          >
+            <User size={13} />
           </button>
         )}
         {member.mobile && (
-          <a href={`tel:${member.mobile}`} className="ui-touch-target w-11 h-11 rounded-full bg-white border border-slate-200 text-slate-600 hover:text-teal-700 hover:border-teal-500 hover:shadow flex items-center justify-center transition-all" title="Call" aria-label={`Call ${member.name}`}>
-            <Phone size={14} />
+          <a
+            href={`tel:${member.mobile}`}
+            className="w-8 h-8 rounded-full bg-white border border-slate-200 text-slate-600 hover:text-blue-700 hover:border-blue-500 hover:shadow-sm flex items-center justify-center shrink-0 transition-all hover:scale-110 active:scale-95"
+            title={`Call ${member.name}`}
+            aria-label={`Call ${member.name}`}
+          >
+            <Phone size={13} />
           </a>
         )}
         {member.mobile && (
-          <a href={`https://wa.me/${member.mobile.replace(/[^0-9]/g, '')}`} target="_blank" rel="noopener noreferrer" className="w-8 h-8 rounded-full bg-white border border-slate-200 text-slate-600 hover:text-emerald-600 hover:border-emerald-500 hover:shadow flex items-center justify-center transition-all" title="WhatsApp">
-            <WhatsAppIcon size={14} />
+          <a
+            href={`https://wa.me/${member.mobile.replace(/[^0-9]/g, '')}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-8 h-8 rounded-full bg-white border border-slate-200 text-slate-600 hover:text-emerald-600 hover:border-emerald-500 hover:shadow-sm flex items-center justify-center shrink-0 transition-all hover:scale-110 active:scale-95"
+            title={`WhatsApp ${member.name}`}
+            aria-label={`WhatsApp ${member.name}`}
+          >
+            <WhatsAppIcon size={13} />
           </a>
         )}
         {member.email && (
-          <a href={`mailto:${member.email}`} className="w-8 h-8 rounded-full bg-white border border-slate-200 text-slate-600 hover:text-teal-700 hover:border-teal-500 hover:shadow flex items-center justify-center transition-all" title="Email">
-            <Mail size={14} />
+          <a
+            href={`mailto:${member.email}`}
+            className="w-8 h-8 rounded-full bg-white border border-slate-200 text-slate-600 hover:text-rose-600 hover:border-rose-500 hover:shadow-sm flex items-center justify-center shrink-0 transition-all hover:scale-110 active:scale-95"
+            title={`Email ${member.name}`}
+            aria-label={`Email ${member.name}`}
+          >
+            <Mail size={13} />
           </a>
         )}
       </div>
@@ -149,7 +170,6 @@ export default function Academics() {
 
   const [modalOpen, setModalOpen] = useState(false);
   const [modalTitle, setModalTitle] = useState('');
-
   const [modalItems, setModalItems] = useState([]);
   const [copied, setCopied] = useState(false);
   const [activeTab, setActiveTab] = useState('science');

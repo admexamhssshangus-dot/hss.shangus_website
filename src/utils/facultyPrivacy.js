@@ -3,6 +3,10 @@ const PUBLIC_FACULTY_LIMITS = Object.freeze({
   designation: 120,
   subject: 120,
   department: 80,
+  email: 120,
+  mobile: 30,
+  profile: 5000,
+  if_deployed: 20,
   photo: 500000,
 });
 
@@ -16,6 +20,16 @@ function cleanString(value, maxLength) {
     .join('')
     .trim()
     .slice(0, maxLength);
+}
+
+function safeEmail(value) {
+  const email = cleanString(value, PUBLIC_FACULTY_LIMITS.email);
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : '';
+}
+
+function safeMobile(value) {
+  const mobile = cleanString(value, PUBLIC_FACULTY_LIMITS.mobile);
+  return /^[+0-9\s-]{7,25}$/.test(mobile) ? mobile : '';
 }
 
 function safePhoto(value) {
@@ -40,6 +54,10 @@ export function toPublicFacultyMember(member, index = 0) {
     designation: cleanString(member.designation, PUBLIC_FACULTY_LIMITS.designation),
     subject: cleanString(member.subject, PUBLIC_FACULTY_LIMITS.subject),
     department: cleanString(member.department, PUBLIC_FACULTY_LIMITS.department),
+    email: safeEmail(member.email),
+    mobile: safeMobile(member.mobile),
+    profile: cleanString(member.profile, PUBLIC_FACULTY_LIMITS.profile),
+    if_deployed: cleanString(member.if_deployed, PUBLIC_FACULTY_LIMITS.if_deployed),
     photo: safePhoto(member.photo),
     order: orderVal,
   };
