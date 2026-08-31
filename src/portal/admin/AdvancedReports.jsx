@@ -10957,7 +10957,7 @@ export default function AdvancedReports({
       )}
 
       {/* MODAL 3: Photo Preview Modal Popup */}
-      {previewPhotoModal && (
+      {previewPhotoModal && createPortal(
         <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-md animate-fadeIn"
           onClick={() => setPreviewPhotoModal(null)}
