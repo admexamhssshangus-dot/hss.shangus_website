@@ -5441,6 +5441,7 @@ export default function AdvancedReports({
   });
 
 
+  // Default System Visible Columns (Strictly matches the 16 standard table columns)
   const DEFAULT_VISIBLE_COLS = {
     sno: true,
     formNo: true,
@@ -5455,22 +5456,72 @@ export default function AdvancedReports({
     fatherName: true,
     dob: true,
     village: true,
-    gender: false,
-    stream: false,
     subs: true,
     mobile: true,
-    category: false,
     aadhar: true,
+    gender: false,
+    stream: false,
+    category: false,
     fatherAadhar: false,
     bankAccount: false,
     bankName: false,
     ifsc: false,
+    onlineSubmDate: false,
+    admDate: false,
+    boardName: false,
+    dobWords: false,
+    block: false,
+    tehsil: false,
+    district: false,
+    pinCode: false,
+    state: false,
+    residence: false,
+    religion: false,
+    disabilityStatus: false,
+    disabilityType: false,
+    subjects1: false,
+    subjects2: false,
+    subjects3: false,
+    subjects4: false,
+    subjects5: false,
+    subjects6: false,
+    email1: false,
+    email2: false,
+    parentContact: false,
+    bloodType: false,
+    height: false,
+    weight: false,
+    socialCategory: false,
+    socioEconomicCategory: false,
+    houseNo: false,
+    vocationalPercentage: false,
+    prevComplexHead: false,
+    prevSchool: false,
+    prevCcDc: false,
+    prevExamMode: false,
+    prevExamRollNo: false,
+    prevMarksObt: false,
+    prevMaxMarks: false,
+    prevPercentage: false,
+    prevDivision: false,
+    currExamMode: false,
+    currExamRollNo: false,
+    currResult: false,
+    currMarksReapp: false,
+    withdrawalDate: false,
+    currCcDc: false,
+    remarks: false,
+    pdfUrl: false,
+    readmission: false,
+    apaarId: false,
   };
 
   const [visibleCols, setVisibleCols] = useState(() => {
     try {
-      const saved = localStorage.getItem('hss_admin_table_cols_v1');
-      if (saved) return JSON.parse(saved);
+      const saved = localStorage.getItem('hss_admin_table_cols_v2');
+      if (saved) {
+        return { ...DEFAULT_VISIBLE_COLS, ...JSON.parse(saved) };
+      }
     } catch (e) {
       console.warn('Could not load saved layout cols', e);
     }
@@ -5657,6 +5708,7 @@ export default function AdvancedReports({
   const saveAsDefault2 = () => {
     try {
       localStorage.setItem('hss_admin_table_widths_v2', JSON.stringify(colWidths));
+      localStorage.setItem('hss_admin_table_cols_v2', JSON.stringify(visibleCols));
       localStorage.setItem('hss_admin_table_cols_v1', JSON.stringify(visibleCols));
       localStorage.setItem('hss_admin_table_density_v1', density);
       setLayoutNotice({ type: 'success', msg: 'Current column widths saved as Default 2 preset!' });
@@ -5673,6 +5725,7 @@ export default function AdvancedReports({
     setDensity('fit');
     try {
       localStorage.removeItem('hss_admin_table_widths_v2');
+      localStorage.removeItem('hss_admin_table_cols_v2');
       localStorage.removeItem('hss_admin_table_cols_v1');
       localStorage.removeItem('hss_admin_table_density_v1');
     } catch (err) {
@@ -9681,6 +9734,7 @@ export default function AdvancedReports({
                 type="button"
                 onClick={() => {
                   try {
+                    localStorage.setItem('hss_admin_table_cols_v2', JSON.stringify(visibleCols));
                     localStorage.setItem('hss_admin_table_cols_v1', JSON.stringify(visibleCols));
                     localStorage.setItem('hss_admin_table_widths_v2', JSON.stringify(colWidths));
                   } catch (e) { }
