@@ -2165,6 +2165,54 @@ function StatusActionDropdown({ student, onViewEdit, onRefresh, onDeleteRecord, 
             {isWithdrawn && (
               <button
                 type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsOpen(false);
+                  setDialogConfig({
+                    type: 'confirm',
+                    title: 'Reactivate & Restore Application',
+                    message: `Restore and reactivate admission application for ${student?.studentName || 'student'} (Form #${student?.formNo || '—'}) as Submitted?`,
+                    icon: CheckCircle2,
+                    iconColor: 'text-emerald-600 dark:text-emerald-400',
+                    btnColor: 'bg-emerald-700 hover:bg-emerald-600 text-white',
+                    confirmText: 'Reactivate & Restore',
+                    onConfirm: async () => {
+                      try {
+                        setActionLoading(true);
+                        await updateStudentDocument(student, {
+                          'Status': 'Submitted',
+                          'status': 'Submitted',
+                          'withdrawnAt': null,
+                          'withdrawnBy': null,
+                          'reopenedAt': new Date().toISOString()
+                        });
+                        if (onRefresh) onRefresh();
+                        setDialogConfig({
+                          type: 'alert',
+                          title: 'Application Reactivated',
+                          message: `Application for ${student?.studentName} has been restored and marked as Submitted.`,
+                          icon: CheckCircle2,
+                          iconColor: 'text-emerald-600 dark:text-emerald-400',
+                          btnColor: 'bg-emerald-700 hover:bg-emerald-600 text-white'
+                        });
+                      } catch (err) {
+                        console.warn(err);
+                      } finally {
+                        setActionLoading(false);
+                      }
+                    }
+                  });
+                }}
+                className="w-full text-left px-2.5 py-1.5 rounded-xl flex items-center gap-2.5 hover:bg-emerald-500/20 dark:hover:bg-emerald-500/30 border border-transparent hover:border-emerald-500/30 text-emerald-700 dark:text-emerald-400 cursor-pointer font-extrabold transition-all hover:scale-[1.01]"
+              >
+                <CheckCircle2 size={13} className="text-emerald-600 dark:text-emerald-400" />
+                <span>Reactivate &amp; Restore Form</span>
+              </button>
+            )}
+
+            {isWithdrawn && (
+              <button
+                type="button"
                 onClick={handlePurgeSensitiveData}
                 className="w-full text-left px-2.5 py-1.5 rounded-xl flex items-center gap-2.5 hover:bg-rose-500/20 dark:hover:bg-rose-500/30 border border-transparent hover:border-rose-500/30 text-rose-700 dark:text-rose-300 cursor-pointer font-extrabold transition-all hover:scale-[1.01]"
               >
@@ -2297,7 +2345,7 @@ function StatusActionDropdown({ student, onViewEdit, onRefresh, onDeleteRecord, 
       )}
 
       {/* Sleek Custom Action Dialog Modal (Replaces browser window.prompt / alert) */}
-      {dialogConfig && (
+      {dialogConfig && createPortal(
         <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
           <div className="w-full max-w-md p-5 sm:p-6 rounded-3xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-2xl space-y-4">
 
