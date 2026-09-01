@@ -337,46 +337,54 @@ export default function Navbar() {
                 />
 
                 <div className="flex max-w-[42vw] items-center gap-1.5 rounded-2xl bg-slate-900/95 border border-emerald-500/40 p-1.5 shadow-xl backdrop-blur-xl text-white transition-all duration-300 hover:shadow-emerald-500/20 hover:border-emerald-400/60">
+                  {/* Avatar with Green Logged-In Active Dot */}
                   <button
                     type="button"
                     onClick={() => profileInputRef.current?.click()}
-                    className="relative flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl border-2 border-emerald-400/50 bg-emerald-500/20 text-emerald-300 font-black shadow-sm transition-transform hover:scale-105 focus-visible:scale-105"
-                    title="Upload or change profile photo (maximum 10 KB)"
+                    className="relative flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl border-2 border-emerald-400/50 bg-emerald-500/20 text-emerald-300 font-black shadow-sm transition-transform hover:scale-105 focus-visible:scale-105 cursor-pointer"
+                    title="Click to change profile photo (maximum 10 KB)"
                     aria-label="Upload or change profile photo"
                   >
                     {profilePhoto ? (
-                      <img src={profilePhoto} alt="" className="h-full w-full rounded-lg object-cover" />
+                      <img src={profilePhoto} alt="User Avatar" className="h-full w-full rounded-lg object-cover" />
                     ) : (
                       <User size={16} className="stroke-[2.5]" aria-hidden="true" />
                     )}
-                    {isAwayFromDashboard && (
-                      <span className="absolute bottom-0 right-0 flex h-2.5 w-2.5" aria-hidden="true">
-                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-75" />
-                        <span className="relative inline-flex h-2.5 w-2.5 rounded-full border border-slate-900 bg-amber-500" />
-                      </span>
-                    )}
+                    {/* Active Logged-In Online Dot */}
+                    <span className="absolute bottom-0 right-0 flex h-2.5 w-2.5" title="Online / Logged In" aria-hidden="true">
+                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                      <span className="relative inline-flex h-2.5 w-2.5 rounded-full border border-slate-900 bg-emerald-500 shadow-xs" />
+                    </span>
                   </button>
 
+                  {/* Clickable User Information Area -> Returns to Dashboard */}
                   <Link
                     to={getDashboardPath(currentUser.role)}
-                    className="group min-w-0 flex-1 rounded-xl px-1.5 py-1 transition-all duration-200 hover:bg-white/10"
-                    title={`Return to Dashboard workspace (${currentUser.role})`}
+                    className="group min-w-0 flex-1 rounded-xl px-2 py-1 transition-all duration-200 hover:bg-white/10 hover:border-emerald-400/30 cursor-pointer"
+                    title={`Click to return to Dashboard workspace (${currentUser.role === 'SuperAdmin' ? 'Admin' : currentUser.role})`}
                   >
                     <div className="flex min-w-0 flex-col text-left leading-tight">
                       <div className="flex min-w-0 items-center gap-1.5">
+                        {/* Status Pulse Indicator */}
+                        <span className="relative flex h-2 w-2 shrink-0" title="Active Logged In Session">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                        </span>
                         <span className="max-w-24 truncate font-black text-xs tracking-tight text-white transition-colors group-hover:text-emerald-300">
                           {currentUser.name ? currentUser.name.split(' ')[0] : 'Sheikh'}
                         </span>
-                        <span className="shrink-0 rounded-md border border-emerald-400/40 bg-emerald-500/20 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wider text-emerald-300 shadow-2xs">
+                        <span className="shrink-0 inline-flex items-center gap-1 rounded-md border border-emerald-400/40 bg-emerald-500/20 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wider text-emerald-300 shadow-2xs group-hover:border-emerald-400 group-hover:bg-emerald-500/30 transition-colors">
+                          <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
                           {currentUser.role === 'SuperAdmin' ? 'ADMIN' : currentUser.role}
                         </span>
                       </div>
-                      <span className="mt-0.5 max-w-[7rem] truncate font-mono text-[9px] font-bold tracking-tighter text-slate-300 lg:max-w-[10rem] xl:max-w-[12rem]">
+                      <span className="mt-0.5 max-w-[7rem] truncate font-mono text-[9px] font-bold tracking-tighter text-slate-300 lg:max-w-[10rem] xl:max-w-[12rem] group-hover:text-emerald-200 transition-colors">
                         {currentUser.email || 'ghssshangus74@gmail.com'}
                       </span>
                     </div>
                   </Link>
 
+                  {/* Sign Out Button */}
                   <button
                     type="button"
                     onClick={handleGlobalLogout}
@@ -390,7 +398,7 @@ export default function Navbar() {
                       e.currentTarget.style.borderColor = '';
                       e.currentTarget.style.color = '';
                     }}
-                    className="group/btn flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-slate-700/80 bg-slate-800/90 text-slate-300 shadow-xs transition-all duration-200 hover:!border-rose-500 hover:!bg-rose-600 hover:!text-white"
+                    className="group/btn flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-slate-700/80 bg-slate-800/90 text-slate-300 shadow-xs transition-all duration-200 hover:!border-rose-500 hover:!bg-rose-600 hover:!text-white cursor-pointer"
                     title="Sign Out of Session"
                     aria-label="Sign out of session"
                   >
@@ -542,23 +550,34 @@ export default function Navbar() {
                       <Link
                         to={getDashboardPath(currentUser.role)}
                         onClick={() => setMobileOpen(false)}
-                        className="group flex min-w-0 flex-1 items-center gap-2.5 overflow-hidden rounded-xl p-1 hover:bg-white/5"
+                        className="group flex min-w-0 flex-1 items-center gap-2.5 overflow-hidden rounded-xl p-1 hover:bg-white/10 transition-colors cursor-pointer"
+                        title={`Click to return to Dashboard workspace (${currentUser.role === 'SuperAdmin' ? 'Admin' : currentUser.role})`}
                       >
-                        <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-emerald-400/40 bg-emerald-500/20 text-xs font-black text-emerald-300 shadow-xs">
+                        <div className="relative flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-emerald-400/40 bg-emerald-500/20 text-xs font-black text-emerald-300 shadow-xs">
                           {profilePhoto ? (
-                            <img src={profilePhoto} alt="" className="h-full w-full object-cover" />
+                            <img src={profilePhoto} alt="User Avatar" className="h-full w-full object-cover" />
                           ) : (
                             (currentUser.name || currentUser.email || 'U')[0].toUpperCase()
                           )}
+                          {/* Active Green Online Dot */}
+                          <span className="absolute bottom-0 right-0 flex h-2 w-2">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500 border border-slate-900"></span>
+                          </span>
                         </div>
                         <div className="flex min-w-0 flex-1 flex-col truncate text-left leading-tight">
                           <span className="flex min-w-0 items-center gap-1.5 truncate text-xs font-black text-white transition-colors group-hover:text-emerald-300">
+                            <span className="relative flex h-1.5 w-1.5 shrink-0">
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                              <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
+                            </span>
                             <span className="truncate">{currentUser.name ? currentUser.name.split(' ')[0] : 'Sheikh'}</span>
-                            <span className="shrink-0 rounded border border-emerald-500/40 bg-emerald-950/80 px-1.5 py-0.5 text-[8px] font-extrabold uppercase text-emerald-400">
+                            <span className="shrink-0 inline-flex items-center gap-1 rounded border border-emerald-500/40 bg-emerald-950/80 px-1.5 py-0.5 text-[8px] font-extrabold uppercase text-emerald-400">
+                              <span className="h-1 w-1 rounded-full bg-emerald-400 animate-pulse" />
                               {currentUser.role === 'SuperAdmin' ? 'Admin' : (currentUser.role || 'User')}
                             </span>
                           </span>
-                          <span className="truncate font-mono text-[9px] font-bold text-emerald-200/80">
+                          <span className="truncate font-mono text-[9px] font-bold text-emerald-200/80 group-hover:text-emerald-100 transition-colors">
                             {currentUser.email || 'ghssshangus74@gmail.com'}
                           </span>
                         </div>
@@ -566,8 +585,8 @@ export default function Navbar() {
                       <button
                         type="button"
                         onClick={handleGlobalLogout}
-                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-slate-600 bg-slate-800 text-slate-200 shadow-xs transition-colors hover:border-rose-500 hover:bg-rose-600 hover:text-white"
-                        title="Sign Out"
+                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-slate-600 bg-slate-800 text-slate-200 shadow-xs transition-colors hover:border-rose-500 hover:bg-rose-600 hover:text-white cursor-pointer"
+                        title="Sign Out of Session"
                         aria-label="Sign out of session"
                       >
                         <LogOut size={15} className="stroke-[2.5]" aria-hidden="true" />
