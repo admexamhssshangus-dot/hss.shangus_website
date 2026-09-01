@@ -509,16 +509,15 @@ export default function Footer() {
 
             {/* Privacy Policy Content */}
             {activeModal === 'privacy' && (
-
               <div>
                 <h2 className="text-xl font-bold font-title tracking-wider text-[var(--teal-accent)] border-b border-slate-100 pb-2.5 mb-2 uppercase">
                   Privacy Policy
                 </h2>
-                <p className="text-slate-400 text-[10px] uppercase font-mono tracking-wider mb-4">Last Updated: July 22, 2026</p>
+                <p className="text-slate-400 text-[10px] uppercase font-mono tracking-wider mb-4">Last Updated: September 2026</p>
                 <div className="space-y-3 text-[12px] md:text-sm text-slate-650 leading-relaxed">
-                  <p><strong className="text-slate-800">1. Information Collection & Scope:</strong> We collect student details (name, parentage, academic records) solely for admission, verification, fee transaction receipts, and administrative record-keeping.</p>
-                  <p><strong className="text-slate-800">2. Payment Gateway Processing:</strong> Online transactions are securely processed by PCI-DSS compliant third-party payment gateways (Razorpay / Cashfree). Sensitive financial credentials (card numbers, PINs, bank passwords) are never stored or accessed by our servers.</p>
-                  <p><strong className="text-slate-800">3. Usage & Zero Commercial Selling:</strong> All student data is processed strictly for educational and administrative purposes. We do not sell, rent, or trade student data to third-party commercial marketing platforms.</p>
+                  <p><strong className="text-slate-800">1. Information We Collect:</strong> We collect student and contact information solely for admissions, student records, fee receipts, and school communications.</p>
+                  <p><strong className="text-slate-800">2. Secure Online Payments:</strong> Fee payments are securely handled by authorized payment gateways (Razorpay / Cashfree). The school does not collect or store card numbers, CVV, or net banking passwords on our servers.</p>
+                  <p><strong className="text-slate-800">3. Data Protection:</strong> We do not sell, rent, or trade your personal information to third parties or marketing platforms.</p>
                 </div>
                 <div className="mt-6 pt-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3">
                   <Link
@@ -544,12 +543,12 @@ export default function Footer() {
                 <h2 className="text-xl font-bold font-title tracking-wider text-[var(--teal-accent)] border-b border-slate-100 pb-2.5 mb-2 uppercase">
                   Terms and Conditions
                 </h2>
-                <p className="text-slate-400 text-[10px] uppercase font-mono tracking-wider mb-4">Last Updated: July 22, 2026</p>
+                <p className="text-slate-400 text-[10px] uppercase font-mono tracking-wider mb-4">Last Updated: September 2026</p>
                 <div className="space-y-3 text-[12px] md:text-sm text-slate-650 leading-relaxed">
-                  <p><strong className="text-slate-800">1. Acceptance & Information Accuracy:</strong> By using this portal, you agree to provide complete and genuine information during registration. Presenting falsified credentials will result in immediate cancellation of registration.</p>
-                  <p><strong className="text-slate-800">2. Fee Payments in INR:</strong> All fees are specified in Indian Rupees (INR ₹). Payment completion is subject to successful transaction authorization by payment gateways.</p>
-                  <p><strong className="text-slate-800">3. System Security & Code of Conduct:</strong> Scraping, brute-forcing, or unauthorized access attempts to server consoles are strictly prohibited.</p>
-                  <p><strong className="text-slate-800">4. Governing Law:</strong> Governed by the laws of India and UT of Jammu & Kashmir. Jurisdiction: District Anantnag, J&K.</p>
+                  <p><strong className="text-slate-800">1. Accurate Information:</strong> Users agree to provide correct details during registration. Falsified documents will result in cancellation of admission.</p>
+                  <p><strong className="text-slate-800">2. Fee Payments in INR:</strong> All fees are charged in Indian Rupees (INR ₹) and are complete upon successful payment gateway confirmation.</p>
+                  <p><strong className="text-slate-800">3. Portal Use:</strong> Users must not attempt unauthorized access, misuse digital receipts, or disrupt website services.</p>
+                  <p><strong className="text-slate-800">4. Governing Law:</strong> Governed by laws applicable in Jammu & Kashmir and India (Jurisdiction: District Anantnag, J&K).</p>
                 </div>
                 <div className="mt-6 pt-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3">
                   <Link
@@ -575,11 +574,11 @@ export default function Footer() {
                 <h2 className="text-xl font-bold font-title tracking-wider text-[var(--teal-accent)] border-b border-slate-100 pb-2.5 mb-2 uppercase">
                   Refund & Cancellation Policy
                 </h2>
-                <p className="text-slate-400 text-[10px] uppercase font-mono tracking-wider mb-4">Last Updated: July 22, 2026</p>
+                <p className="text-slate-400 text-[10px] uppercase font-mono tracking-wider mb-4">Last Updated: September 2026</p>
                 <div className="space-y-3 text-[12px] md:text-sm text-slate-650 leading-relaxed">
-                  <p><strong className="text-slate-800">1. Refund Timeline (5-7 Working Days):</strong> Approved refunds for duplicate or failed technical drop transactions are credited back to the original payment source within <strong>5 to 7 working days</strong>.</p>
-                  <p><strong className="text-slate-800">2. Duplicate Payments:</strong> If debited twice for the same application, the duplicate transaction will be refunded upon verification.</p>
-                  <p><strong className="text-slate-800">3. Cancellation Policy:</strong> Session admission fees once confirmed in school records are non-refundable for that academic session.</p>
+                  <p><strong className="text-slate-800">1. Refund Timeline (5 to 7 Days):</strong> Approved refunds for duplicate payments or failed transactions are credited back to the original payment source within <strong>5 to 7 working days</strong>.</p>
+                  <p><strong className="text-slate-800">2. Duplicate Payments:</strong> If money was deducted multiple times for the same application, the extra amount will be refunded upon verification.</p>
+                  <p><strong className="text-slate-800">3. Confirmed Admissions:</strong> Once admission is confirmed and recorded by the school, session admission fees are generally non-refundable.</p>
                 </div>
                 <div className="mt-6 pt-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3">
                   <Link
@@ -603,14 +602,14 @@ export default function Footer() {
             {activeModal === 'contact' && (
               <div>
                 <h2 className="text-xl font-bold font-title tracking-wider text-[var(--teal-accent)] border-b border-slate-100 pb-2.5 mb-2 uppercase">
-                  Contact Us & Helpdesk
+                  Contact Us
                 </h2>
-                <p className="text-slate-400 text-[10px] uppercase font-mono tracking-wider mb-4">Admissions & Exams Desk</p>
+                <p className="text-slate-400 text-[10px] uppercase font-mono tracking-wider mb-4">School Office</p>
                 <div className="space-y-3 text-[12px] md:text-sm text-slate-650 leading-relaxed">
-                  <p><strong className="text-slate-800">Operational Address:</strong> Main Road, Shangus, Anantnag, Jammu & Kashmir - 192201</p>
-                  <p><strong className="text-slate-800">Official Email:</strong> <a href="mailto:adm.exam.hss.shangus@gmail.com" className="text-[var(--teal-accent)] font-bold hover:underline">adm.exam.hss.shangus@gmail.com</a></p>
-                  <p><strong className="text-slate-800">Helpline Numbers:</strong> +91 7006034501 / +91 9682547458</p>
-                  <p><strong className="text-slate-800">Support Response SLA:</strong> All inquiries are addressed within 24 to 48 business hours.</p>
+                  <p><strong className="text-slate-800">Address:</strong> Main Road, Shangus, Anantnag, Jammu & Kashmir - 192201</p>
+                  <p><strong className="text-slate-800">Email:</strong> <a href="mailto:adm.exam.hss.shangus@gmail.com" className="text-[var(--teal-accent)] font-bold hover:underline">adm.exam.hss.shangus@gmail.com</a></p>
+                  <p><strong className="text-slate-800">Phone:</strong> +91 7006034501 / +91 9682547458</p>
+                  <p><strong className="text-slate-800">Working Hours:</strong> Mon – Sat: 10:00 AM – 4:00 PM</p>
                 </div>
                 <div className="mt-6 pt-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3">
                   <Link
