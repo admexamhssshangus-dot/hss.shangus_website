@@ -171,14 +171,14 @@ export default function Footer() {
           </div>
 
           {/* Contact Us - With Real Google Maps & Custom Spacing */}
-          <div className="flex flex-col items-center gap-0 text-center font-sans">
+          <div className="flex flex-col items-center md:items-start text-center md:text-left font-sans">
             {/* 1. Heading + quick contact button */}
-            <div className="flex items-center justify-center gap-2.5 mb-3">
+            <div className="flex items-center justify-center md:justify-start gap-2.5 mb-3">
               <h2 className="text-white font-bold text-base mb-0 mt-0 leading-tight tracking-wide font-sans">Contact Us</h2>
               <button
                 onClick={() => setActiveModal('contactForm')}
                 aria-label="Open contact form"
-                className="btn-primary-custom rounded-lg w-7 h-7 min-w-[1.75rem] min-h-[1.75rem] aspect-square flex items-center justify-center text-xs font-bold shadow-md transition-all duration-200 hover:scale-105 shrink-0"
+                className="btn-primary-custom rounded-lg w-7 h-7 min-w-[1.75rem] min-h-[1.75rem] aspect-square flex items-center justify-center text-xs font-bold shadow-md transition-all duration-200 hover:scale-105 shrink-0 cursor-pointer"
                 style={{ boxShadow: '0 4px 12px rgba(16,185,129,0.18)' }}
               >
                 <Mail size={13} />
@@ -200,10 +200,10 @@ export default function Footer() {
             </div>
 
             {/* Line 1 */}
-            <div className="w-[2px] h-[10px] bg-[#10b981] m-0 mt-3"></div>
+            <div className="w-[2px] h-[10px] bg-[#10b981] m-0 mt-3 md:self-start"></div>
 
             {/* 3. Address Box */}
-            <div className="text-center w-full m-0 p-0 mt-2">
+            <div className="text-center md:text-left w-full m-0 p-0 mt-2">
               <div className="text-slate-400 text-[14px] leading-[1.4] m-0 p-0 font-sans">
                 Main Road, Shangus,<br />Anantnag, J&K - 192201
               </div>
