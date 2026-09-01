@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { BookOpen, X, Mail, Info, Lock, Unlock, Code, Terminal, Sparkles, Cpu, GraduationCap, Plane, Wallet, Zap, Globe, ExternalLink, ShieldCheck, MapPin, Layers, Building2 } from 'lucide-react';
+import { BookOpen, X, Mail, Info, Lock, Unlock, Code, Terminal, Sparkles, Cpu, GraduationCap, Plane, Wallet, Zap, Globe, ExternalLink, ShieldCheck, MapPin, Layers, Building2, FileText, RefreshCw } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { loadSiteSettings, DEFAULT_SETTINGS } from '../utils/settingsLoader';
 import { db, auth } from '../firebase';
@@ -330,7 +330,7 @@ export default function Footer() {
         >
           {/* Glassmorphic Popup Box */}
           <div
-            className="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 rounded-3xl border border-teal-500/20 dark:border-teal-500/30 shadow-[0_25px_70px_-15px_rgba(13,148,136,0.3)] max-w-2xl w-full p-5 md:p-7 relative animate-in zoom-in-95 duration-300 max-h-[90vh] overflow-y-auto custom-scrollbar overflow-hidden"
+            className="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 rounded-2xl sm:rounded-3xl border border-teal-500/20 dark:border-teal-500/30 shadow-[0_25px_70px_-15px_rgba(13,148,136,0.35)] max-w-2xl w-full relative animate-in zoom-in-95 duration-250 max-h-[88vh] sm:max-h-[85vh] flex flex-col overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Ambient Background Glows */}
@@ -338,307 +338,333 @@ export default function Footer() {
             <div className="absolute -top-20 -right-20 w-48 h-48 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
 
             {/* Top Accent Gradient Bar */}
-            <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-teal-500 via-emerald-400 to-cyan-500" />
+            <div className="h-1.5 w-full bg-gradient-to-r from-teal-500 via-emerald-400 to-cyan-500 shrink-0 z-30" />
 
-            {/* Close Button */}
-            <button
-              onClick={() => setActiveModal(null)}
-              className="absolute top-4 right-4 z-10 w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 transition-all flex items-center justify-center shadow-sm"
-              aria-label="Close Modal"
-            >
-              <X size={18} />
-            </button>
-
-            {/* Next Life Technologies (NexLifTech) Company Profile Modal */}
-            {activeModal === 'companyInfo' && (
-              <div className="space-y-5">
-                {/* Header */}
-                <div className="flex items-center gap-3.5 pb-4 border-b border-slate-100 dark:border-slate-800">
-                  <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-teal-600 via-emerald-500 to-teal-400 text-white shadow-lg shadow-teal-500/30 flex items-center justify-center flex-shrink-0">
-                    <Building2 size={24} />
+            {/* Standard Modal Sticky Header */}
+            <div className="flex items-center justify-between px-5 sm:px-7 py-3 sm:py-3.5 border-b border-slate-100 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm shrink-0 z-20">
+              <div className="flex items-center gap-2.5">
+                {activeModal === 'privacy' && (
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-xl bg-teal-50 dark:bg-teal-900/40 text-teal-600 dark:text-teal-400 flex items-center justify-center">
+                      <ShieldCheck size={18} />
+                    </div>
+                    <div>
+                      <h2 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white leading-none">Privacy Policy</h2>
+                      <span className="text-[10px] text-slate-400 uppercase font-mono tracking-wider">School Policy</span>
+                    </div>
                   </div>
-                  <div>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <h2 className="text-xl md:text-2xl font-black tracking-tight text-slate-900 dark:text-white font-title">
-                        Next Life Technologies
-                      </h2>
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-teal-500/10 text-teal-600 dark:text-teal-400 border border-teal-500/20">
-                        NexLifTech
+                )}
+                {activeModal === 'terms' && (
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-xl bg-teal-50 dark:bg-teal-900/40 text-teal-600 dark:text-teal-400 flex items-center justify-center">
+                      <FileText size={18} />
+                    </div>
+                    <div>
+                      <h2 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white leading-none">Terms & Conditions</h2>
+                      <span className="text-[10px] text-slate-400 uppercase font-mono tracking-wider">Portal Agreement</span>
+                    </div>
+                  </div>
+                )}
+                {activeModal === 'refund' && (
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-xl bg-teal-50 dark:bg-teal-900/40 text-teal-600 dark:text-teal-400 flex items-center justify-center">
+                      <RefreshCw size={18} />
+                    </div>
+                    <div>
+                      <h2 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white leading-none">Refund Policy</h2>
+                      <span className="text-[10px] text-slate-400 uppercase font-mono tracking-wider">Fee Refunds</span>
+                    </div>
+                  </div>
+                )}
+                {activeModal === 'contact' && (
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-xl bg-teal-50 dark:bg-teal-900/40 text-teal-600 dark:text-teal-400 flex items-center justify-center">
+                      <Mail size={18} />
+                    </div>
+                    <div>
+                      <h2 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white leading-none">Contact Us</h2>
+                      <span className="text-[10px] text-slate-400 uppercase font-mono tracking-wider">School Office</span>
+                    </div>
+                  </div>
+                )}
+                {activeModal === 'contactForm' && (
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-xl bg-teal-50 dark:bg-teal-900/40 text-teal-600 dark:text-teal-400 flex items-center justify-center">
+                      <Mail size={18} />
+                    </div>
+                    <div>
+                      <h2 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white leading-none">Send Us a Message</h2>
+                      <span className="text-[10px] text-slate-400 uppercase font-mono tracking-wider">Admissions & Exams</span>
+                    </div>
+                  </div>
+                )}
+                {activeModal === 'companyInfo' && (
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-teal-600 via-emerald-500 to-teal-400 text-white shadow-sm flex items-center justify-center flex-shrink-0">
+                      <Building2 size={17} />
+                    </div>
+                    <div>
+                      <h2 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white leading-none">Next Life Technologies</h2>
+                      <span className="text-[10px] text-teal-600 dark:text-teal-400 font-bold uppercase tracking-wider">NexLifTech</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Responsive Close Button */}
+              <button
+                type="button"
+                onClick={() => setActiveModal(null)}
+                className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white flex items-center justify-center transition-all duration-200 cursor-pointer shadow-2xs hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-teal-500/50"
+                aria-label="Close dialog"
+                title="Close"
+              >
+                <X size={18} className="stroke-[2.5]" />
+              </button>
+            </div>
+
+            {/* Scrollable Inner Body with Sleek Contained Scrollbar */}
+            <div className="flex-1 overflow-y-auto px-5 sm:px-7 py-4 sm:py-5 custom-scrollbar overscroll-contain relative z-10">
+
+              {/* Next Life Technologies (NexLifTech) Company Profile Modal */}
+              {activeModal === 'companyInfo' && (
+                <div className="space-y-4">
+                  {/* Hero / Company Profile Spotlight Card */}
+                  <div className="rounded-2xl bg-gradient-to-br from-teal-50/80 via-slate-50 to-emerald-50/80 dark:from-slate-800 dark:via-slate-850 dark:to-teal-950/40 p-4 md:p-5 border border-teal-200/80 dark:border-teal-800/60 shadow-xs space-y-3">
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <span className="inline-flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wider text-teal-800 dark:text-teal-300">
+                        <Sparkles size={14} className="text-teal-600 dark:text-teal-400" />
+                        Company Overview
+                      </span>
+                      <span className="inline-flex items-center gap-1 text-[10px] font-bold text-teal-700 dark:text-teal-300 bg-teal-100/70 dark:bg-teal-900/60 px-2.5 py-0.5 rounded-full border border-teal-200 dark:border-teal-700">
+                        <MapPin size={10} className="text-teal-600 dark:text-teal-400" />
+                        Anantnag, J&K
                       </span>
                     </div>
-                    <p className="text-slate-500 dark:text-slate-400 text-xs font-medium mt-0.5">
-                      Web Development • Automation • Enterprise IT Services
+
+                    <p className="text-xs md:text-sm leading-relaxed text-slate-800 dark:text-slate-200 font-medium">
+                      <strong className="text-slate-950 dark:text-white font-bold">NexLifTech</strong> provides digital transformation, custom software, ERP solutions, and web development services tailored to institutions and businesses.
                     </p>
-                  </div>
-                </div>
 
-                {/* Hero / Company Profile Spotlight Card */}
-                <div className="rounded-2xl bg-gradient-to-br from-teal-50/80 via-slate-50 to-emerald-50/80 p-4 md:p-5 border border-teal-200/80 shadow-xs space-y-3">
-                  <div className="flex items-center justify-between gap-2 flex-wrap">
-                    <span className="inline-flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wider text-teal-800">
-                      <Sparkles size={14} className="text-teal-600" />
-                      Company Profile & Overview
-                    </span>
-                    <span className="inline-flex items-center gap-1 text-[10px] font-bold text-teal-700 bg-teal-100/70 px-2.5 py-0.5 rounded-full border border-teal-200">
-                      <MapPin size={10} className="text-teal-600" />
-                      Anantnag, J&K
-                    </span>
+                    {/* Badges / Credentials */}
+                    <div className="pt-2 border-t border-teal-200/60 dark:border-teal-800/60 flex flex-wrap gap-1.5 text-[10px] font-bold">
+                      <span className="px-2.5 py-1 rounded-lg bg-teal-100/80 dark:bg-teal-900/50 text-teal-900 dark:text-teal-200 border border-teal-300/80 dark:border-teal-700 flex items-center gap-1">
+                        <Cpu size={11} className="text-teal-700 dark:text-teal-300" /> Enterprise ERP Solutions
+                      </span>
+                      <span className="px-2.5 py-1 rounded-lg bg-emerald-100/80 dark:bg-emerald-900/50 text-emerald-900 dark:text-emerald-200 border border-emerald-300/80 dark:border-emerald-700 flex items-center gap-1">
+                        <Code size={11} className="text-emerald-700 dark:text-emerald-300" /> Full-Stack & Automation
+                      </span>
+                    </div>
                   </div>
 
-                  <p className="text-xs md:text-sm leading-relaxed text-slate-800 font-medium">
-                    <strong className="text-slate-950 font-bold">NexLifTech</strong> is a premier digital transformation and web development services agency. We specialize in building high-performance, secure, and scalable web applications, custom enterprise ERP platforms, robust cloud database solutions, and intelligent workflow automation systems tailored to drive efficiency and modern growth.
-                  </p>
-
-                  {/* Badges / Credentials */}
-                  <div className="pt-2 border-t border-teal-200/60 flex flex-wrap gap-1.5 text-[10px] font-bold">
-                    <span className="px-2.5 py-1 rounded-lg bg-teal-100/80 text-teal-900 border border-teal-300/80 flex items-center gap-1">
-                      <Cpu size={11} className="text-teal-700" /> Enterprise ERP Solutions
-                    </span>
-                    <span className="px-2.5 py-1 rounded-lg bg-emerald-100/80 text-emerald-900 border border-emerald-300/80 flex items-center gap-1">
-                      <Code size={11} className="text-emerald-700" /> Full-Stack & Automation
-                    </span>
-                  </div>
-                </div>
-
-                {/* Tech Stack Banner */}
-                <div className="bg-slate-50 dark:bg-slate-800/50 p-3.5 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 space-y-2">
-                  <div className="flex items-center justify-between">
+                  {/* Tech Stack Banner */}
+                  <div className="bg-slate-50 dark:bg-slate-800/50 p-3.5 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 space-y-2">
                     <h4 className="text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
                       <Layers size={13} className="text-teal-600 dark:text-teal-400" />
                       Core Tech Stack & Frameworks
                     </h4>
-                  </div>
-                  <div className="flex flex-wrap gap-1.5 text-[11px] font-bold">
-                    {['React', 'Next.js', 'Vite', 'Cloud Architecture', 'Python', 'Tailwind CSS', 'Node.js', 'PostgreSQL'].map((tech) => (
-                      <span key={tech} className="px-2.5 py-1 rounded-xl bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 shadow-2xs hover:border-teal-400 transition-colors">
-                        {tech}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Portfolio Grid */}
-                <div className="space-y-2">
-                  <h4 className="text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                    <Globe size={13} className="text-teal-600 dark:text-teal-400" />
-                    Diverse Portfolio Solutions
-                  </h4>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
-                    <div className="p-3 rounded-2xl bg-gradient-to-br from-emerald-500/5 to-teal-500/10 dark:from-emerald-950/30 dark:to-teal-950/20 border border-emerald-500/20 hover:border-emerald-500/40 transition-all group">
-                      <div className="flex items-center gap-2 font-bold text-emerald-900 dark:text-emerald-300 mb-1">
-                        <div className="w-7 h-7 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center flex-shrink-0">
-                          <GraduationCap size={15} />
-                        </div>
-                        Education & ERP
-                      </div>
-                      <p className="text-slate-650 dark:text-slate-400 text-[11px] leading-relaxed pl-9">
-                        Comprehensive ERP & admission management portals for government & private schools.
-                      </p>
-                    </div>
-
-                    <div className="p-3 rounded-2xl bg-gradient-to-br from-sky-500/5 to-blue-500/10 dark:from-sky-950/30 dark:to-blue-950/20 border border-sky-500/20 hover:border-sky-500/40 transition-all group">
-                      <div className="flex items-center gap-2 font-bold text-sky-900 dark:text-sky-300 mb-1">
-                        <div className="w-7 h-7 rounded-xl bg-sky-500/10 text-sky-600 dark:text-sky-400 flex items-center justify-center flex-shrink-0">
-                          <Plane size={15} />
-                        </div>
-                        Travel & Tourism
-                      </div>
-                      <p className="text-slate-650 dark:text-slate-400 text-[11px] leading-relaxed pl-9">
-                        Custom booking engines, reservation portals & tour package platforms.
-                      </p>
-                    </div>
-
-                    <div className="p-3 rounded-2xl bg-gradient-to-br from-indigo-500/5 to-purple-500/10 dark:from-indigo-950/30 dark:to-purple-950/20 border border-indigo-500/20 hover:border-indigo-500/40 transition-all group">
-                      <div className="flex items-center gap-2 font-bold text-indigo-900 dark:text-indigo-300 mb-1">
-                        <div className="w-7 h-7 rounded-xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center flex-shrink-0">
-                          <Wallet size={15} />
-                        </div>
-                        Personal Finance
-                      </div>
-                      <p className="text-slate-650 dark:text-slate-400 text-[11px] leading-relaxed pl-9">
-                        Smart money management, budget tracking & financial analytics web apps.
-                      </p>
-                    </div>
-
-                    <div className="p-3 rounded-2xl bg-gradient-to-br from-amber-500/5 to-orange-500/10 dark:from-amber-950/30 dark:to-orange-950/20 border border-amber-500/20 hover:border-amber-500/40 transition-all group">
-                      <div className="flex items-center gap-2 font-bold text-amber-900 dark:text-amber-300 mb-1">
-                        <div className="w-7 h-7 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center flex-shrink-0">
-                          <Zap size={15} />
-                        </div>
-                        Workflow Automation
-                      </div>
-                      <p className="text-slate-650 dark:text-slate-400 text-[11px] leading-relaxed pl-9">
-                        Python, Selenium & Apps Script bots for automated record synchronization.
-                      </p>
+                    <div className="flex flex-wrap gap-1.5 text-[11px] font-bold">
+                      {['React', 'Next.js', 'Vite', 'Cloud Architecture', 'Python', 'Tailwind CSS', 'Node.js', 'PostgreSQL'].map((tech) => (
+                        <span key={tech} className="px-2.5 py-1 rounded-xl bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 shadow-2xs">
+                          {tech}
+                        </span>
+                      ))}
                     </div>
                   </div>
-                </div>
 
-                {/* Engineering Philosophy */}
-                <div className="p-3.5 rounded-2xl bg-teal-500/5 dark:bg-teal-500/10 border border-teal-500/20 space-y-1">
-                  <h4 className="font-bold text-teal-900 dark:text-teal-300 text-xs uppercase tracking-wider flex items-center gap-1.5">
-                    <ShieldCheck size={13} className="text-teal-600 dark:text-teal-400" />
-                    Engineering Philosophy
-                  </h4>
-                  <p className="text-slate-700 dark:text-slate-300 text-[11px] leading-relaxed">
-                    Combining scientific rigor with software excellence—delivering secure, scalable, high-performing web platforms tailored to client needs.
-                  </p>
-                </div>
+                  {/* Portfolio Grid */}
+                  <div className="space-y-2">
+                    <h4 className="text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                      <Globe size={13} className="text-teal-600 dark:text-teal-400" />
+                      Portfolio Solutions
+                    </h4>
 
-                {/* Action Footer */}
-                <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-2.5">
-                  <a
-                    href="https://nexliftech.netlify.app/"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="w-full sm:w-auto px-6 py-2.5 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 hover:to-emerald-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-teal-600/25 flex items-center justify-center gap-1.5 transition-all hover:scale-[1.02] active:scale-[0.98]"
-                  >
-                    Visit Official Website
-                    <ExternalLink size={13} />
-                  </a>
-                  <button
-                    onClick={() => setActiveModal(null)}
-                    className="w-full sm:w-auto px-5 py-2.5 text-xs font-bold text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                  >
-                    Close
-                  </button>
-                </div>
-              </div>
-            )}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
+                      <div className="p-3 rounded-2xl bg-gradient-to-br from-emerald-500/5 to-teal-500/10 dark:from-emerald-950/30 dark:to-teal-950/20 border border-emerald-500/20">
+                        <div className="flex items-center gap-2 font-bold text-emerald-900 dark:text-emerald-300 mb-1">
+                          <div className="w-6 h-6 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center flex-shrink-0">
+                            <GraduationCap size={14} />
+                          </div>
+                          Education & ERP
+                        </div>
+                        <p className="text-slate-600 dark:text-slate-400 text-[11px] leading-relaxed pl-8">
+                          Admission management portals, fee tracking & student reporting systems.
+                        </p>
+                      </div>
 
-            {/* Privacy Policy Content */}
-            {activeModal === 'privacy' && (
-              <div>
-                <h2 className="text-xl font-bold font-title tracking-wider text-[var(--teal-accent)] border-b border-slate-100 pb-2.5 mb-2 uppercase">
-                  Privacy Policy
-                </h2>
-                <p className="text-slate-400 text-[10px] uppercase font-mono tracking-wider mb-4">Last Updated: September 2026</p>
-                <div className="space-y-3 text-[12px] md:text-sm text-slate-650 leading-relaxed">
-                  <p><strong className="text-slate-800">1. Information We Collect:</strong> We collect student and contact information solely for admissions, student records, fee receipts, and school communications.</p>
-                  <p><strong className="text-slate-800">2. Secure Online Payments:</strong> Fee payments are securely handled by authorized payment gateways (Razorpay / Cashfree). The school does not collect or store card numbers, CVV, or net banking passwords on our servers.</p>
-                  <p><strong className="text-slate-800">3. Data Protection:</strong> We do not sell, rent, or trade your personal information to third parties or marketing platforms.</p>
-                </div>
-                <div className="mt-6 pt-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3">
-                  <Link
-                    to="/privacy-policy"
-                    onClick={() => { setActiveModal(null); window.scrollTo(0, 0); }}
-                    className="w-full sm:w-auto px-5 py-2.5 btn-primary-custom text-xs font-bold rounded-xl shadow-md text-center transition-transform hover:-translate-y-0.5"
-                  >
-                    Read Full Privacy Policy →
-                  </Link>
-                  <button
-                    onClick={() => setActiveModal(null)}
-                    className="w-full sm:w-auto px-4 py-2 text-xs font-bold text-slate-500 hover:text-slate-800 border border-slate-200 rounded-xl transition-colors"
-                  >
-                    Close
-                  </button>
-                </div>
-              </div>
-            )}
+                      <div className="p-3 rounded-2xl bg-gradient-to-br from-sky-500/5 to-blue-500/10 dark:from-sky-950/30 dark:to-blue-950/20 border border-sky-500/20">
+                        <div className="flex items-center gap-2 font-bold text-sky-900 dark:text-sky-300 mb-1">
+                          <div className="w-6 h-6 rounded-lg bg-sky-500/10 text-sky-600 dark:text-sky-400 flex items-center justify-center flex-shrink-0">
+                            <Plane size={14} />
+                          </div>
+                          Travel & Hospitality
+                        </div>
+                        <p className="text-slate-600 dark:text-slate-400 text-[11px] leading-relaxed pl-8">
+                          Custom booking engines, reservation portals & package systems.
+                        </p>
+                      </div>
 
-            {/* Terms and Conditions Content */}
-            {activeModal === 'terms' && (
-              <div>
-                <h2 className="text-xl font-bold font-title tracking-wider text-[var(--teal-accent)] border-b border-slate-100 pb-2.5 mb-2 uppercase">
-                  Terms and Conditions
-                </h2>
-                <p className="text-slate-400 text-[10px] uppercase font-mono tracking-wider mb-4">Last Updated: September 2026</p>
-                <div className="space-y-3 text-[12px] md:text-sm text-slate-650 leading-relaxed">
-                  <p><strong className="text-slate-800">1. Accurate Information:</strong> Users agree to provide correct details during registration. Falsified documents will result in cancellation of admission.</p>
-                  <p><strong className="text-slate-800">2. Fee Payments in INR:</strong> All fees are charged in Indian Rupees (INR ₹) and are complete upon successful payment gateway confirmation.</p>
-                  <p><strong className="text-slate-800">3. Portal Use:</strong> Users must not attempt unauthorized access, misuse digital receipts, or disrupt website services.</p>
-                  <p><strong className="text-slate-800">4. Governing Law:</strong> Governed by laws applicable in Jammu & Kashmir and India (Jurisdiction: District Anantnag, J&K).</p>
-                </div>
-                <div className="mt-6 pt-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3">
-                  <Link
-                    to="/terms-and-conditions"
-                    onClick={() => { setActiveModal(null); window.scrollTo(0, 0); }}
-                    className="w-full sm:w-auto px-5 py-2.5 btn-primary-custom text-xs font-bold rounded-xl shadow-md text-center transition-transform hover:-translate-y-0.5"
-                  >
-                    Read Full Terms & Conditions →
-                  </Link>
-                  <button
-                    onClick={() => setActiveModal(null)}
-                    className="w-full sm:w-auto px-4 py-2 text-xs font-bold text-slate-500 hover:text-slate-800 border border-slate-200 rounded-xl transition-colors"
-                  >
-                    Close
-                  </button>
-                </div>
-              </div>
-            )}
+                      <div className="p-3 rounded-2xl bg-gradient-to-br from-indigo-500/5 to-purple-500/10 dark:from-indigo-950/30 dark:to-purple-950/20 border border-indigo-500/20">
+                        <div className="flex items-center gap-2 font-bold text-indigo-900 dark:text-indigo-300 mb-1">
+                          <div className="w-6 h-6 rounded-lg bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center flex-shrink-0">
+                            <Wallet size={14} />
+                          </div>
+                          Finance & Accounts
+                        </div>
+                        <p className="text-slate-600 dark:text-slate-400 text-[11px] leading-relaxed pl-8">
+                          Ledger management, expense tracking & digital billing platforms.
+                        </p>
+                      </div>
 
-            {/* Refund Policy Content */}
-            {activeModal === 'refund' && (
-              <div>
-                <h2 className="text-xl font-bold font-title tracking-wider text-[var(--teal-accent)] border-b border-slate-100 pb-2.5 mb-2 uppercase">
-                  Refund & Cancellation Policy
-                </h2>
-                <p className="text-slate-400 text-[10px] uppercase font-mono tracking-wider mb-4">Last Updated: September 2026</p>
-                <div className="space-y-3 text-[12px] md:text-sm text-slate-650 leading-relaxed">
-                  <p><strong className="text-slate-800">1. Refund Timeline (5 to 7 Days):</strong> Approved refunds for duplicate payments or failed transactions are credited back to the original payment source within <strong>5 to 7 working days</strong>.</p>
-                  <p><strong className="text-slate-800">2. Duplicate Payments:</strong> If money was deducted multiple times for the same application, the extra amount will be refunded upon verification.</p>
-                  <p><strong className="text-slate-800">3. Confirmed Admissions:</strong> Once admission is confirmed and recorded by the school, session admission fees are generally non-refundable.</p>
-                </div>
-                <div className="mt-6 pt-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3">
-                  <Link
-                    to="/refund-policy"
-                    onClick={() => { setActiveModal(null); window.scrollTo(0, 0); }}
-                    className="w-full sm:w-auto px-5 py-2.5 btn-primary-custom text-xs font-bold rounded-xl shadow-md text-center transition-transform hover:-translate-y-0.5"
-                  >
-                    Read Full Refund Policy →
-                  </Link>
-                  <button
-                    onClick={() => setActiveModal(null)}
-                    className="w-full sm:w-auto px-4 py-2 text-xs font-bold text-slate-500 hover:text-slate-800 border border-slate-200 rounded-xl transition-colors"
-                  >
-                    Close
-                  </button>
-                </div>
-              </div>
-            )}
+                      <div className="p-3 rounded-2xl bg-gradient-to-br from-amber-500/5 to-orange-500/10 dark:from-amber-950/30 dark:to-orange-950/20 border border-amber-500/20">
+                        <div className="flex items-center gap-2 font-bold text-amber-900 dark:text-amber-300 mb-1">
+                          <div className="w-6 h-6 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center flex-shrink-0">
+                            <Zap size={14} />
+                          </div>
+                          Workflow Automation
+                        </div>
+                        <p className="text-slate-600 dark:text-slate-400 text-[11px] leading-relaxed pl-8">
+                          Automated data extraction, spreadsheet syncing & database workflows.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
 
-            {/* Contact Us Content */}
-            {activeModal === 'contact' && (
-              <div>
-                <h2 className="text-xl font-bold font-title tracking-wider text-[var(--teal-accent)] border-b border-slate-100 pb-2.5 mb-2 uppercase">
-                  Contact Us
-                </h2>
-                <p className="text-slate-400 text-[10px] uppercase font-mono tracking-wider mb-4">School Office</p>
-                <div className="space-y-3 text-[12px] md:text-sm text-slate-650 leading-relaxed">
-                  <p><strong className="text-slate-800">Address:</strong> Main Road, Shangus, Anantnag, Jammu & Kashmir - 192201</p>
-                  <p><strong className="text-slate-800">Email:</strong> <a href="mailto:adm.exam.hss.shangus@gmail.com" className="text-[var(--teal-accent)] font-bold hover:underline">adm.exam.hss.shangus@gmail.com</a></p>
-                  <p><strong className="text-slate-800">Phone:</strong> +91 7006034501 / +91 9682547458</p>
-                  <p><strong className="text-slate-800">Working Hours:</strong> Mon – Sat: 10:00 AM – 4:00 PM</p>
+                  {/* Action Footer */}
+                  <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-2.5">
+                    <a
+                      href="https://nexliftech.netlify.app/"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="w-full sm:w-auto px-5 py-2.5 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 hover:to-emerald-500 text-white text-xs font-bold rounded-xl shadow-md flex items-center justify-center gap-1.5 transition-all hover:scale-[1.02] active:scale-[0.98]"
+                    >
+                      Visit Official Website
+                      <ExternalLink size={13} />
+                    </a>
+                    <button
+                      onClick={() => setActiveModal(null)}
+                      className="w-full sm:w-auto px-5 py-2.5 text-xs font-bold text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                    >
+                      Close
+                    </button>
+                  </div>
                 </div>
-                <div className="mt-6 pt-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3">
-                  <Link
-                    to="/contact-us"
-                    onClick={() => { setActiveModal(null); window.scrollTo(0, 0); }}
-                    className="w-full sm:w-auto px-5 py-2.5 btn-primary-custom text-xs font-bold rounded-xl shadow-md text-center transition-transform hover:-translate-y-0.5"
-                  >
-                    Go to Full Contact Page →
-                  </Link>
-                  <button
-                    onClick={() => setActiveModal('contactForm')}
-                    className="w-full sm:w-auto px-4 py-2.5 bg-teal-50 text-teal-700 hover:bg-teal-100 border border-teal-200 text-xs font-bold rounded-xl text-center transition-colors font-semibold"
-                  >
-                    Send Quick Message
-                  </button>
+              )}
+
+              {/* Privacy Policy Content */}
+              {activeModal === 'privacy' && (
+                <div className="space-y-4">
+                  <div className="space-y-3 text-[12px] md:text-sm text-slate-650 dark:text-slate-300 leading-relaxed">
+                    <p><strong className="text-slate-800 dark:text-white">1. Information We Collect:</strong> We collect student and contact information solely for admissions, student records, fee receipts, and school communications.</p>
+                    <p><strong className="text-slate-800 dark:text-white">2. Secure Online Payments:</strong> Fee payments are securely handled by authorized payment gateways (Razorpay / Cashfree). The school does not collect or store card numbers, CVV, or net banking passwords on our servers.</p>
+                    <p><strong className="text-slate-800 dark:text-white">3. Data Protection:</strong> We do not sell, rent, or trade your personal information to third parties or marketing platforms.</p>
+                  </div>
+                  <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-2.5">
+                    <Link
+                      to="/privacy-policy"
+                      onClick={() => { setActiveModal(null); window.scrollTo(0, 0); }}
+                      className="w-full sm:w-auto px-5 py-2.5 btn-primary-custom text-xs font-bold rounded-xl shadow-md text-center transition-transform hover:-translate-y-0.5"
+                    >
+                      Read Full Privacy Policy →
+                    </Link>
+                    <button
+                      onClick={() => setActiveModal(null)}
+                      className="w-full sm:w-auto px-4 py-2 text-xs font-bold text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white border border-slate-200 dark:border-slate-700 rounded-xl transition-colors"
+                    >
+                      Close
+                    </button>
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
 
-            {/* Contact Form Content */}
-            {activeModal === 'contactForm' && (
-              <div>
-                <h2 className="text-xl font-bold font-title tracking-wider text-[var(--teal-accent)] border-b border-slate-100 pb-2.5 mb-5 uppercase">
-                  Send Us a Message
-                </h2>
-                <ContactForm onClose={() => setActiveModal(null)} />
-              </div>
-            )}
+              {/* Terms and Conditions Content */}
+              {activeModal === 'terms' && (
+                <div className="space-y-4">
+                  <div className="space-y-3 text-[12px] md:text-sm text-slate-650 dark:text-slate-300 leading-relaxed">
+                    <p><strong className="text-slate-800 dark:text-white">1. Accurate Information:</strong> Users agree to provide correct details during registration. Falsified documents will result in cancellation of admission.</p>
+                    <p><strong className="text-slate-800 dark:text-white">2. Fee Payments in INR:</strong> All fees are charged in Indian Rupees (INR ₹) and are complete upon successful payment gateway confirmation.</p>
+                    <p><strong className="text-slate-800 dark:text-white">3. Portal Use:</strong> Users must not attempt unauthorized access, misuse digital receipts, or disrupt website services.</p>
+                    <p><strong className="text-slate-800 dark:text-white">4. Governing Law:</strong> Governed by laws applicable in Jammu & Kashmir and India (Jurisdiction: District Anantnag, J&K).</p>
+                  </div>
+                  <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-2.5">
+                    <Link
+                      to="/terms-and-conditions"
+                      onClick={() => { setActiveModal(null); window.scrollTo(0, 0); }}
+                      className="w-full sm:w-auto px-5 py-2.5 btn-primary-custom text-xs font-bold rounded-xl shadow-md text-center transition-transform hover:-translate-y-0.5"
+                    >
+                      Read Full Terms & Conditions →
+                    </Link>
+                    <button
+                      onClick={() => setActiveModal(null)}
+                      className="w-full sm:w-auto px-4 py-2 text-xs font-bold text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white border border-slate-200 dark:border-slate-700 rounded-xl transition-colors"
+                    >
+                      Close
+                    </button>
+                  </div>
+                </div>
+              )}
 
+              {/* Refund Policy Content */}
+              {activeModal === 'refund' && (
+                <div className="space-y-4">
+                  <div className="space-y-3 text-[12px] md:text-sm text-slate-650 dark:text-slate-300 leading-relaxed">
+                    <p><strong className="text-slate-800 dark:text-white">1. Refund Timeline (5 to 7 Days):</strong> Approved refunds for duplicate payments or failed transactions are credited back to the original payment source within <strong>5 to 7 working days</strong>.</p>
+                    <p><strong className="text-slate-800 dark:text-white">2. Duplicate Payments:</strong> If money was deducted multiple times for the same application, the extra amount will be refunded upon verification.</p>
+                    <p><strong className="text-slate-800 dark:text-white">3. Confirmed Admissions:</strong> Once admission is confirmed and recorded by the school, session admission fees are generally non-refundable.</p>
+                  </div>
+                  <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-2.5">
+                    <Link
+                      to="/refund-policy"
+                      onClick={() => { setActiveModal(null); window.scrollTo(0, 0); }}
+                      className="w-full sm:w-auto px-5 py-2.5 btn-primary-custom text-xs font-bold rounded-xl shadow-md text-center transition-transform hover:-translate-y-0.5"
+                    >
+                      Read Full Refund Policy →
+                    </Link>
+                    <button
+                      onClick={() => setActiveModal(null)}
+                      className="w-full sm:w-auto px-4 py-2 text-xs font-bold text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white border border-slate-200 dark:border-slate-700 rounded-xl transition-colors"
+                    >
+                      Close
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Contact Us Content */}
+              {activeModal === 'contact' && (
+                <div className="space-y-4">
+                  <div className="space-y-3 text-[12px] md:text-sm text-slate-650 dark:text-slate-300 leading-relaxed">
+                    <p><strong className="text-slate-800 dark:text-white">Address:</strong> Main Road, Shangus, Anantnag, Jammu & Kashmir - 192201</p>
+                    <p><strong className="text-slate-800 dark:text-white">Email:</strong> <a href="mailto:adm.exam.hss.shangus@gmail.com" className="text-[var(--teal-accent)] font-bold hover:underline">adm.exam.hss.shangus@gmail.com</a></p>
+                    <p><strong className="text-slate-800 dark:text-white">Phone:</strong> +91 7006034501 / +91 9682547458</p>
+                    <p><strong className="text-slate-800 dark:text-white">Working Hours:</strong> Mon – Sat: 10:00 AM – 4:00 PM</p>
+                  </div>
+                  <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-2.5">
+                    <Link
+                      to="/contact-us"
+                      onClick={() => { setActiveModal(null); window.scrollTo(0, 0); }}
+                      className="w-full sm:w-auto px-5 py-2.5 btn-primary-custom text-xs font-bold rounded-xl shadow-md text-center transition-transform hover:-translate-y-0.5"
+                    >
+                      Go to Full Contact Page →
+                    </Link>
+                    <button
+                      onClick={() => setActiveModal('contactForm')}
+                      className="w-full sm:w-auto px-4 py-2.5 bg-teal-50 text-teal-700 hover:bg-teal-100 border border-teal-200 text-xs font-bold rounded-xl text-center transition-colors font-semibold"
+                    >
+                      Send Quick Message
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Contact Form Content */}
+              {activeModal === 'contactForm' && (
+                <div>
+                  <ContactForm onClose={() => setActiveModal(null)} />
+                </div>
+              )}
+
+            </div>
           </div>
         </div>
       )}
