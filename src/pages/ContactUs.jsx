@@ -16,18 +16,17 @@ export default function ContactUs() {
 
   const subjects = [
     'Admissions & Registrations',
-    'Fee Payments & Refunds',
-    'Examinations & Date Sheets',
-    'Certificates & Verification',
+    'Fee Payments & Receipts',
+    'Examinations',
+    'Certificates & Documents',
     'General Inquiry',
-    'Technical Support',
   ];
 
   async function handleSubmit(e) {
     e.preventDefault();
     setFormError('');
     if (!name.trim() || !phone.trim() || !message.trim() || subject === '') {
-      setFormError('Please complete all required fields (Name, Phone Number, Subject, and Message).');
+      setFormError('Please fill all required fields (Name, Phone, Subject, and Message).');
       return;
     }
 
@@ -69,7 +68,7 @@ export default function ContactUs() {
     <div className="w-full bg-slate-50 min-h-screen py-10 sm:py-14 text-slate-700">
       <SEO 
         title="Contact Us" 
-        description="Official contact details, operational physical address, phone numbers, and support email for Govt. Higher Secondary School Shangus. Send us a message or visit our admissions office."
+        description="Official contact details, address, phone numbers, and email for Govt. Higher Secondary School Shangus."
       />
 
       <div className="max-w-6xl mx-auto px-4 sm:px-6">
@@ -78,13 +77,13 @@ export default function ContactUs() {
         <div className="bg-white p-6 sm:p-10 rounded-3xl shadow-sm border border-slate-200/80 mb-8 relative overflow-hidden text-center sm:text-left">
           <div className="absolute top-0 right-0 w-40 h-40 bg-teal-500/5 rounded-bl-full pointer-events-none" />
           <div className="inline-flex items-center gap-2 px-3 py-1 bg-teal-50 text-teal-700 rounded-full text-xs font-bold uppercase tracking-wider mb-3">
-            <ShieldCheck size={16} /> Official Institution Desk
+            <ShieldCheck size={16} /> School Office
           </div>
           <h1 className="text-2xl sm:text-4xl font-extrabold text-slate-900 tracking-tight mb-3">
-            Contact Us & Admissions Helpdesk
+            Contact Us
           </h1>
-          <p className="text-sm sm:text-base text-slate-500 max-w-3xl leading-relaxed">
-            Have questions about admissions, session fee structures, subject combinations, or online receipts? Reach out to our Admissions & Examinations Department or visit our campus.
+          <p className="text-sm sm:text-base text-slate-600 max-w-3xl leading-relaxed">
+            For questions about admissions, school fees, subject choices, or documents, reach out to our office or visit our campus.
           </p>
         </div>
 
@@ -93,11 +92,11 @@ export default function ContactUs() {
           {/* Left Column: Contact Information Cards & Map (5 Cols) */}
           <div className="lg:col-span-5 space-y-6">
             
-            {/* Registered Operational Address Card */}
+            {/* School Address Card */}
             <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-200/80">
               <h3 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
                 <MapPin className="text-teal-600" size={22} />
-                Operational Physical Address
+                School Address
               </h3>
               <div className="space-y-3 text-xs sm:text-sm text-slate-600 leading-relaxed">
                 <p className="font-bold text-slate-800 text-sm sm:text-base">
@@ -105,23 +104,23 @@ export default function ContactUs() {
                 </p>
                 <p>
                   Main Road, Shangus, Tehsil Shangus,<br />
-                  District Anantnag, Jammu & Kashmir – 192201, India.
+                  District Anantnag, Jammu & Kashmir – 192201.
                 </p>
                 <div className="pt-2 border-t border-slate-100 flex items-center gap-2 text-slate-500">
                   <Clock size={16} className="text-teal-600 flex-shrink-0" />
-                  <span><strong>Working Hours:</strong> Mon - Sat: 10:00 AM – 4:00 PM IST</span>
+                  <span><strong>Working Hours:</strong> Mon – Sat: 10:00 AM – 4:00 PM</span>
                 </div>
               </div>
             </div>
 
-            {/* Official Support Channels */}
+            {/* Support Channels */}
             <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-200/80 space-y-4">
-              <h3 className="text-lg font-bold text-slate-900 mb-2">Support Channels</h3>
+              <h3 className="text-lg font-bold text-slate-900 mb-2">Get in Touch</h3>
               
               <div className="flex items-start gap-3 text-xs sm:text-sm">
                 <Mail size={18} className="text-teal-600 mt-0.5 flex-shrink-0" />
                 <div>
-                  <span className="text-slate-500 block text-[11px] font-bold uppercase tracking-wider">Official Email</span>
+                  <span className="text-slate-500 block text-[11px] font-bold uppercase tracking-wider">Email</span>
                   <a href="mailto:adm.exam.hss.shangus@gmail.com" className="text-teal-700 font-extrabold hover:underline text-sm sm:text-base">
                     adm.exam.hss.shangus@gmail.com
                   </a>
@@ -131,13 +130,13 @@ export default function ContactUs() {
               <div className="flex items-start gap-3 text-xs sm:text-sm">
                 <Phone size={18} className="text-teal-600 mt-0.5 flex-shrink-0" />
                 <div>
-                  <span className="text-slate-500 block text-[11px] font-bold uppercase tracking-wider">Helpline Numbers</span>
+                  <span className="text-slate-500 block text-[11px] font-bold uppercase tracking-wider">Phone / Helpline</span>
                   <p className="text-slate-900 font-extrabold text-sm sm:text-base">+91 7006034501 / +91 9682547458</p>
                 </div>
               </div>
 
               <div className="pt-3 border-t border-slate-100 text-[12px] text-slate-600 leading-relaxed">
-                <span className="text-teal-700 font-bold">Response SLA:</span> Inquiries and emails are acknowledged and addressed within <strong>24 to 48 business hours</strong>.
+                Messages and emails are usually answered within <strong>24 to 48 hours</strong>.
               </div>
             </div>
 

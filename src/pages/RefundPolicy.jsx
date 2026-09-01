@@ -6,8 +6,8 @@ export default function RefundPolicy() {
   return (
     <div className="w-full bg-slate-50 min-h-screen py-10 sm:py-14 text-slate-700">
       <SEO 
-        title="Refund & Cancellation Policy" 
-        description="Official Refund and Cancellation Policy for Govt. Higher Secondary School Shangus fee payments. Learn about refund eligibility, duplicate payment resolutions, and the 5-7 working days refund timeline."
+        title="Refund Policy" 
+        description="Refund Policy for Govt. Higher Secondary School Shangus. Learn about eligible fee refunds, duplicate payments, and the 5-7 working days refund process."
       />
       
       <div className="max-w-4xl mx-auto px-4 sm:px-6">
@@ -17,17 +17,17 @@ export default function RefundPolicy() {
           <div className="absolute top-0 right-0 w-40 h-40 bg-teal-500/5 rounded-bl-full pointer-events-none" />
           <div className="flex items-center gap-3 text-teal-600 mb-3">
             <RefreshCw size={28} className="stroke-[2]" />
-            <span className="text-xs font-bold uppercase tracking-widest">Mandatory Gateway Compliance</span>
+            <span className="text-xs font-bold uppercase tracking-wider">Fee Refunds</span>
           </div>
           <h1 className="text-2xl sm:text-4xl font-extrabold text-slate-900 tracking-tight mb-3">
             Refund & Cancellation Policy
           </h1>
-          <p className="text-sm sm:text-base text-slate-500 leading-relaxed">
-            This policy outlines the guidelines, eligibility criteria, cancellation rules, and refund turnaround timelines for online fee transactions conducted on the Govt. Higher Secondary School Shangus portal.
+          <p className="text-sm sm:text-base text-slate-600 leading-relaxed">
+            This policy explains when and how refunds are issued for online fee payments made on the Govt. Higher Secondary School (HSS) Shangus portal.
           </p>
           <div className="mt-4 pt-4 border-t border-slate-100 flex flex-wrap items-center justify-between text-xs text-slate-400 gap-2">
-            <span><strong>Effective Date:</strong> June 28, 2026</span>
-            <span><strong>Last Revised:</strong> July 22, 2026</span>
+            <span><strong>Effective Date:</strong> January 1, 2026</span>
+            <span><strong>Last Updated:</strong> September 2026</span>
           </div>
         </div>
 
@@ -41,18 +41,18 @@ export default function RefundPolicy() {
             </div>
             <div>
               <h2 className="text-lg sm:text-xl font-extrabold" style={{ color: '#5eead4' }}>
-                Standard Refund Processing Timeline
+                Refund Timeline: 5 to 7 Working Days
               </h2>
               <p className="text-xs sm:text-sm mt-1 leading-relaxed" style={{ color: '#ffffff' }}>
-                All approved refunds for eligible transactions will be credited back to the applicant's{' '}
+                All approved refunds are credited back to the applicant's{' '}
                 <strong style={{ color: '#ffffff', fontWeight: '800', textDecoration: 'underline' }}>
-                  original payment method / source bank account
+                  original bank account / payment method
                 </strong>{' '}
                 within{' '}
                 <strong style={{ color: '#6ee7b7', fontWeight: '800' }}>
                   5 to 7 working days
                 </strong>{' '}
-                from the date of verification.
+                after verification.
               </p>
             </div>
           </div>
@@ -61,41 +61,41 @@ export default function RefundPolicy() {
           <section>
             <h2 className="text-lg sm:text-xl font-bold text-slate-900 mb-3 flex items-center gap-2">
               <span className="w-7 h-7 rounded-lg bg-teal-100 text-teal-700 text-xs flex items-center justify-center font-extrabold">1</span>
-              Fee Refund Eligibility & Scenarios
+              When Can You Get a Refund?
             </h2>
             <p className="text-slate-600 mb-3">
-              Refunds are strictly governed by institutional guidelines and are applicable under the following specific transaction scenarios:
+              Refunds are issued under the following circumstances:
             </p>
             
-            <div className="space-y-4">
+            <div className="space-y-3.5">
               
               <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200">
-                <h3 className="font-bold text-slate-800 flex items-center gap-2 mb-1.5 text-sm sm:text-base">
+                <h3 className="font-bold text-slate-800 flex items-center gap-2 mb-1 text-sm sm:text-base">
                   <CheckCircle2 size={18} className="text-teal-600" />
-                  A. Duplicate / Multiple Payments
+                  Duplicate Payments
                 </h3>
                 <p className="text-slate-600 text-xs sm:text-sm leading-relaxed">
-                  If an applicant/parent inadvertently makes duplicate payments for the same student admission form or examination fee due to internet latency or multiple clicks, the excess duplicate amount will be verified and refunded in full.
+                  If money was deducted more than once for the same admission form due to a network delay or accidental double click, the extra payment will be refunded in full.
                 </p>
               </div>
 
               <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200">
-                <h3 className="font-bold text-slate-800 flex items-center gap-2 mb-1.5 text-sm sm:text-base">
+                <h3 className="font-bold text-slate-800 flex items-center gap-2 mb-1 text-sm sm:text-base">
                   <CheckCircle2 size={18} className="text-teal-600" />
-                  B. Technical Drop / Failed Transactions
+                  Failed or Incomplete Transactions
                 </h3>
                 <p className="text-slate-600 text-xs sm:text-sm leading-relaxed">
-                  If money is debited from your bank account or card but the portal displays a transaction failure or fails to generate an admission acknowledgement receipt, the payment gateway (Razorpay / Cashfree) will automatically reconcile the transaction. If un-reconciled within 48 hours, the debited amount will be refunded directly to your source bank account within 5 to 7 working days.
+                  If funds were debited from your account but the website showed an error or did not produce a receipt, payment gateways usually auto-refund within 48 hours. If not, we will process your refund upon receipt of proof.
                 </p>
               </div>
 
               <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200">
-                <h3 className="font-bold text-slate-800 flex items-center gap-2 mb-1.5 text-sm sm:text-base">
+                <h3 className="font-bold text-slate-800 flex items-center gap-2 mb-1 text-sm sm:text-base">
                   <CheckCircle2 size={18} className="text-teal-600" />
-                  C. Application Rejection by Institution
+                  Application Not Accepted
                 </h3>
                 <p className="text-slate-600 text-xs sm:text-sm leading-relaxed">
-                  In rare cases where an application cannot be accepted due to seat unavailability or administrative decision before enrollment confirmation, refundable components of the session fee will be returned as per school committee guidelines.
+                  If an application cannot be approved prior to enrollment confirmation, the applicable fee will be refunded according to school rules.
                 </p>
               </div>
 
@@ -106,11 +106,11 @@ export default function RefundPolicy() {
           <section>
             <h2 className="text-lg sm:text-xl font-bold text-slate-900 mb-3 flex items-center gap-2">
               <span className="w-7 h-7 rounded-lg bg-teal-100 text-teal-700 text-xs flex items-center justify-center font-extrabold">2</span>
-              Cancellation Policy
+              Non-Refundable Cases
             </h2>
-            <div className="p-4 bg-amber-50/80 border border-amber-200 rounded-2xl text-slate-700 text-xs sm:text-sm space-y-2">
-              <p><strong>Admission Registration Fees:</strong> Once an admission application is successfully processed, verified, and confirmed in the school records, the session admission fee is generally <strong>non-refundable and non-transferable</strong> for that academic year.</p>
-              <p>Cancellation requests submitted after class roll numbers have been allocated will be processed according to the Department of School Education Kashmir rules.</p>
+            <div className="p-4 bg-amber-50/80 border border-amber-200 rounded-2xl text-slate-700 text-xs sm:text-sm space-y-1.5">
+              <p>Once admission is verified and officially confirmed on school records, session admission fees are generally <strong>non-refundable</strong> for that academic year.</p>
+              <p>Cancellation requests after roll number allocation are handled as per education department guidelines.</p>
             </div>
           </section>
 
@@ -118,12 +118,11 @@ export default function RefundPolicy() {
           <section>
             <h2 className="text-lg sm:text-xl font-bold text-slate-900 mb-3 flex items-center gap-2">
               <CreditCard size={20} className="text-teal-600" />
-              Mode of Refund & Turnaround Time
+              Refund Method
             </h2>
-            <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 space-y-3 text-xs sm:text-sm text-slate-600">
-              <p><strong>Payment Channel:</strong> All approved refunds will be credited exclusively back to the <strong>original source of payment</strong> (e.g. original Net Banking account, Debit/Credit Card, or UPI ID used during checkout).</p>
-              <p><strong>Processing Window:</strong> Refund processing by our accounts office is completed within 2 to 3 business days of approval. Depending on your bank's clearing cycle, funds will reflect in your account within <strong>5 to 7 working days</strong>.</p>
-              <p><strong>No Cash Refunds:</strong> In compliance with financial regulations, no cash refunds will be issued for online transactions under any circumstances.</p>
+            <div className="bg-slate-50 p-4.5 rounded-2xl border border-slate-200 space-y-2 text-xs sm:text-sm text-slate-600">
+              <p><strong>Original Payment Method:</strong> Refunds are credited directly back to the card, UPI ID, or bank account used during checkout.</p>
+              <p><strong>No Cash Refunds:</strong> To maintain transparent accounting records, all online payment refunds are processed electronically.</p>
             </div>
           </section>
 
@@ -131,38 +130,34 @@ export default function RefundPolicy() {
           <section>
             <h2 className="text-lg sm:text-xl font-bold text-slate-900 mb-3 flex items-center gap-2">
               <HelpCircle size={20} className="text-teal-600" />
-              How to Claim a Refund
+              How to Request a Refund
             </h2>
             <p className="text-slate-600 mb-3">
-              To request a refund for a duplicate or failed transaction, please submit an official request by following these steps:
+              If you experienced a duplicate payment or failed transaction, please follow these steps:
             </p>
             <ol className="list-decimal pl-6 space-y-2 text-slate-600 text-xs sm:text-sm">
-              <li>Send an email to <a href="mailto:adm.exam.hss.shangus@gmail.com" className="text-teal-600 font-bold hover:underline">adm.exam.hss.shangus@gmail.com</a> with the subject line <strong>"Refund Request - [Student Name] - [Transaction ID]"</strong>.</li>
-              <li>Provide the following mandatory details in your email:
+              <li>Send an email to <a href="mailto:adm.exam.hss.shangus@gmail.com" className="text-teal-600 font-bold hover:underline">adm.exam.hss.shangus@gmail.com</a> with the subject: <strong>"Refund Request - [Student Name]"</strong>.</li>
+              <li>Include:
                 <ul className="list-disc pl-5 mt-1 space-y-1 text-slate-500">
-                  <li>Full Student Name & Class applied for</li>
-                  <li>Payment Gateway Transaction ID / Order ID</li>
-                  <li>Bank Reference Number / UTR Number</li>
-                  <li>Date and Amount of Transaction</li>
-                  <li>Clear screenshot of the payment receipt or bank debit notification</li>
+                  <li>Student Name and Class</li>
+                  <li>Transaction ID / Order ID</li>
+                  <li>Date and amount deducted</li>
+                  <li>Screenshot or copy of the bank debit message</li>
                 </ul>
               </li>
-              <li>Our Admissions & Examinations accounts team will verify the claim with payment gateway records and update you within 24 to 48 business hours.</li>
+              <li>Our team will verify with the payment records and respond within 24 to 48 business hours.</li>
             </ol>
           </section>
 
           {/* Contact Section */}
           <section className="pt-4 border-t border-slate-100">
             <h2 className="text-lg sm:text-xl font-bold text-slate-900 mb-3">
-              Need Help with Fee Payments or Refunds?
+              Contact Fee Helpdesk
             </h2>
-            <p className="text-slate-600 mb-4 text-xs sm:text-sm">
-              If you have any questions regarding pending refunds or fee receipts, reach out to our dedicated accounts helpdesk:
-            </p>
             <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200/80 text-xs sm:text-sm space-y-2 text-slate-700">
-              <p className="text-slate-900 font-bold text-sm sm:text-base">Admissions & Examinations Helpdesk</p>
-              <p className="text-slate-600">Govt. Higher Secondary School Shangus, Anantnag, J&K - 192201</p>
-              <div className="pt-2 flex flex-col sm:flex-row gap-3 sm:gap-6 text-slate-700">
+              <p className="text-slate-900 font-bold text-sm sm:text-base">Govt. Higher Secondary School Shangus</p>
+              <p className="text-slate-600">Main Road, Shangus, Anantnag, J&K - 192201</p>
+              <div className="pt-1 flex flex-col sm:flex-row gap-3 sm:gap-6 text-slate-700">
                 <span className="flex items-center gap-2">
                   <Mail size={16} className="text-teal-600" />
                   <a href="mailto:adm.exam.hss.shangus@gmail.com" className="text-teal-700 font-bold hover:underline">adm.exam.hss.shangus@gmail.com</a>
