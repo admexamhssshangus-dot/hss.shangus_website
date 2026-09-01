@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 // Slideshow supports three ways to provide slides:
 // 1. `images` prop: an array of image URLs (legacy/simple usage).
@@ -156,18 +157,22 @@ export default function Slideshow({ slides: customSlides = null, images = [], in
       <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
         <div className="flex items-center gap-1 sm:gap-1.5 absolute bottom-2 right-2 sm:right-auto sm:left-1/2 sm:-translate-x-1/2 sm:bottom-8 md:bottom-20 pointer-events-auto z-20">
           <button
-            aria-label="previous"
+            type="button"
+            aria-label="Previous slide"
             onClick={() => setIndex((i) => (i - 1 + slides.length) % slides.length)}
-            className="bg-black/10 sm:bg-black/60 hover:bg-black/30 sm:hover:bg-black/80 active:scale-90 text-white rounded-full border border-white/60 sm:border-white/80 shadow-xs sm:shadow-md text-[10px] sm:text-lg flex items-center justify-center w-5 h-5 sm:w-10 sm:h-10 transition-all cursor-pointer backdrop-blur-[1px]"
+            className="bg-black/25 sm:bg-black/50 hover:bg-black/40 sm:hover:bg-black/75 active:scale-90 text-white rounded-full border border-white/60 sm:border-white/75 hover:border-white shadow-xs flex items-center justify-center w-5 h-5 sm:w-6 sm:h-6 md:w-6 md:h-6 transition-all duration-200 cursor-pointer backdrop-blur-xs"
+            title="Previous slide"
           >
-            <span aria-hidden="true" className="font-bold select-none leading-none -translate-x-[0.5px]">‹</span><span className="sr-only">Previous slide</span>
+            <ChevronLeft size={13} className="stroke-[2.5] -translate-x-[0.5px]" />
           </button>
           <button
-            aria-label="next"
+            type="button"
+            aria-label="Next slide"
             onClick={() => setIndex((i) => (i + 1) % slides.length)}
-            className="bg-black/10 sm:bg-black/60 hover:bg-black/30 sm:hover:bg-black/80 active:scale-90 text-white rounded-full border border-white/60 sm:border-white/80 shadow-xs sm:shadow-md text-[10px] sm:text-lg flex items-center justify-center w-5 h-5 sm:w-10 sm:h-10 transition-all cursor-pointer backdrop-blur-[1px]"
+            className="bg-black/25 sm:bg-black/50 hover:bg-black/40 sm:hover:bg-black/75 active:scale-90 text-white rounded-full border border-white/60 sm:border-white/75 hover:border-white shadow-xs flex items-center justify-center w-5 h-5 sm:w-6 sm:h-6 md:w-6 md:h-6 transition-all duration-200 cursor-pointer backdrop-blur-xs"
+            title="Next slide"
           >
-            <span aria-hidden="true" className="font-bold select-none leading-none translate-x-[0.5px]">›</span><span className="sr-only">Next slide</span>
+            <ChevronRight size={13} className="stroke-[2.5] translate-x-[0.5px]" />
           </button>
         </div>
       </div>
