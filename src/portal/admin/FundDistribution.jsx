@@ -50,7 +50,8 @@ import {
   setDoc,
   deleteDoc,
   getDocs,
-  onSnapshot
+  onSnapshot,
+  writeBatch
 } from 'firebase/firestore';
 import { getCachedCollectionSync } from '../../services/dbCache';
 import {
@@ -69,6 +70,10 @@ import {
   printTransactionAnalysisLetter
 } from '../../utils/fundDistributionPdfGenerator';
 import { getCanonicalSubjectCodes, resolveStudentStream } from './AdvancedReports';
+import {
+  validateFundAccountsConfig,
+  validateFundDistributionEntry,
+} from '../../utils/fundDistributionValidation';
 
 /**
  * Reusable Live Report Preview Card for both Entry and History views
@@ -506,7 +511,7 @@ export default function FundDistribution() {
 
       // 2. Fetch distributions
       const distSnap = await getDocs(collection(db, 'fund_distributions')).catch(() => null);
-      if (distSnap && !distSnap.empty) {
+      if (distSnap) {
         const distList = distSnap.docs.map(d => ({ id: d.id, ...d.data() }));
         distList.sort((a, b) => {
           const tA = new Date(a.timestamp || a.generatedDate || 0).getTime() || 0;
@@ -514,7 +519,7 @@ export default function FundDistribution() {
           return tB - tA;
         });
         setDistributions(distList);
-        if (distList.length > 0) setPreviewReport(current => current || distList[0]);
+        setPreviewReport(current => current || distList[0] || null);
       }
 
       // 3. Fetch live admissions and masterRegisters
@@ -540,6 +545,7 @@ export default function FundDistribution() {
       }
     } catch (e) {
       console.error('Error fetching fund distribution data:', e);
+      showNotification(`Could not fully synchronize fee accounts: ${e.message}`, 'error');
     } finally {
       setIsLoading(false);
       setIsSyncing(false);
@@ -551,7 +557,7 @@ export default function FundDistribution() {
 
     // Real-time listener for distributions
     const unsubDist = onSnapshot(collection(db, 'fund_distributions'), (snap) => {
-      if (snap && !snap.empty) {
+      if (snap) {
         const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
         list.sort((a, b) => {
           const tA = new Date(a.timestamp || a.generatedDate || 0).getTime() || 0;
@@ -559,6 +565,7 @@ export default function FundDistribution() {
           return tB - tA;
         });
         setDistributions(list);
+        if (list.length === 0) setPreviewReport(null);
       }
     }, (err) => {
       console.warn('Real-time distributions note:', err);
@@ -875,15 +882,28 @@ export default function FundDistribution() {
   // Generate and Save new Fund Distribution Report
   const handleGenerateReport = async (e) => {
     e.preventDefault();
-    if (!formPaidCount || parseInt(formPaidCount, 10) <= 0) {
-      showNotification('Please enter a valid student paid count.', 'error');
+    const progress = feeDistributionProgress[formClass] || {};
+    const validation = validateFundDistributionEntry({
+      className: formClass,
+      paidStudents: formPaidCount,
+      scienceStudents: formScienceCount,
+      academicSession: formSession,
+      date: formDate,
+      remainingTotal: progress.remainingTotal,
+      remainingScience: formClass === '9th' || formClass === '10th'
+        ? progress.remainingTotal
+        : progress.remainingSci,
+      enforceRemaining: Number(progress.approvedTotal) > 0,
+    });
+    if (!validation.isValid) {
+      showNotification(validation.errors[0], 'error');
       return;
     }
 
     setIsSubmitting(true);
     try {
-      const pCount = parseInt(formPaidCount, 10) || 0;
-      const sCount = parseInt(formScienceCount, 10) || 0;
+      const pCount = validation.paid;
+      const sCount = validation.science;
       const dateObj = formDate ? new Date(formDate) : new Date();
       const monthName = MONTH_NAMES[dateObj.getMonth()] || 'April';
       const calYear = String(dateObj.getFullYear());
@@ -927,10 +947,22 @@ export default function FundDistribution() {
   // Save Edit Report with Confirmation and Recalculation
   const handleSaveEdit = async () => {
     if (!editReport) return;
+    const validation = validateFundDistributionEntry({
+      className: editReport.class,
+      paidStudents: editReport.paidStudents,
+      scienceStudents: editReport.scienceStudents,
+      academicSession: editReport.academicSession || editReport.session,
+      date: editReport.date,
+      enforceRemaining: false,
+    });
+    if (!validation.isValid) {
+      showNotification(validation.errors[0], 'error');
+      return;
+    }
     setIsUpdating(true);
     try {
-      const pCount = parseInt(editReport.paidStudents, 10) || 0;
-      const sCount = parseInt(editReport.scienceStudents, 10) || 0;
+      const pCount = validation.paid;
+      const sCount = validation.science;
       const dateObj = editReport.date ? new Date(editReport.date) : new Date();
       const monthName = editReport.month || MONTH_NAMES[dateObj.getMonth()] || 'April';
       const calYear = editReport.calendarYear || String(dateObj.getFullYear());
@@ -1079,20 +1111,25 @@ export default function FundDistribution() {
 
   // Save Rate Table & Custom Subsidiary Accounts Updates to Firestore
   const handleSaveRates = async () => {
+    const validation = validateFundAccountsConfig(tempAccounts, tempRates);
+    if (!validation.isValid) {
+      showNotification(validation.errors[0], 'error');
+      return;
+    }
     setIsSavingRates(true);
     try {
-      // 1. Save rates for each class
-      await Promise.all(['9th', '10th', '11th', '12th'].map(cls => {
-        const classRatesToSave = tempRates[cls] || {};
-        return setDoc(doc(db, 'fund_rates', cls), classRatesToSave);
-      }));
-
-      // 2. Save subsidiary accounts list to Firestore config with default session
-      await setDoc(doc(db, 'fund_config', 'subsidiary_accounts'), {
+      // Commit rates and their account definitions together so the ledger can
+      // never observe a partially updated financial configuration.
+      const batch = writeBatch(db);
+      ['9th', '10th', '11th', '12th'].forEach(cls => {
+        batch.set(doc(db, 'fund_rates', cls), tempRates[cls] || {});
+      });
+      batch.set(doc(db, 'fund_config', 'subsidiary_accounts'), {
         accounts: tempAccounts,
         defaultSession: fundSession,
         updatedAt: new Date().toISOString()
       });
+      await batch.commit();
 
       setRates({ ...tempRates });
       setAccounts([...tempAccounts]);

@@ -149,10 +149,10 @@ export const ADMIN_MODULE_CATALOG = Object.freeze([
   {
     id: 'funds',
     label: 'Funds & Fee Accounts',
-    description: 'Fee structures, student ledgers and account distribution',
+    description: 'Reconciled fee structures, student ledgers and account distribution',
     category: 'Operations & Automation',
-    maturity: 'beta',
-    maturityNote: 'Large-cohort read cost and financial reconciliation controls are still being hardened.',
+    maturity: 'optimized',
+    maturityNote: 'Atomic account configuration, live ledger synchronization and over-distribution safeguards are regression-checked.',
     launcher: true,
   },
   {
