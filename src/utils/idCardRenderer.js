@@ -234,6 +234,8 @@ export function normalizeStudentClass(val) {
  */
 export function getStudentRollVal(st) {
   if (!st) return '';
+  const assignedRoll = getAssignedClassRollNumber(st);
+  if (assignedRoll) return assignedRoll;
   const keys = [
     'Class Roll No', 'Class Roll No.', 'classRollNo', 'rollNo', 'currExamRollNo',
     'examRollNo', 'Roll No', 'Roll No.', 'RollNumber', 'Roll_No', 'Roll', 'roll', 'classRoll'

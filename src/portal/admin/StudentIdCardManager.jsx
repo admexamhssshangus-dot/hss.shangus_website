@@ -53,6 +53,7 @@ function preloadPhotoWithTimeout(photoUrl, timeoutMs = 6000) {
     const timeout = setTimeout(() => finish(false), timeoutMs);
     image.onload = () => finish(true);
     image.onerror = () => finish(false);
+    image.referrerPolicy = 'no-referrer';
     image.src = photoUrl;
   });
 }
@@ -205,7 +206,7 @@ export default function StudentIdCardManager({ students = [], onClose }) {
 
   // ─── Advanced Filters & Theme State ───
   const [selectedSession, setSelectedSession] = useState(initialSettings?.selectedSession ?? 'All');
-  const [selectedStatus, setSelectedStatus] = useState(initialSettings?.selectedStatus ?? 'Approved');
+  const [selectedStatus, setSelectedStatus] = useState(initialSettings?.selectedStatus === 'All' ? 'All' : 'Approved');
   const [printMode, setPrintMode] = useState(initialSettings?.printMode ?? 'normal');
   const [selectedTheme, setSelectedTheme] = useState(initialSettings?.selectedTheme ?? 'classified');
   const [classThemes, setClassThemes] = useState(() => {
@@ -225,14 +226,17 @@ export default function StudentIdCardManager({ students = [], onClose }) {
   const [showCropMarks, setShowCropMarks] = useState(initialSettings?.showCropMarks ?? true);
   const [showThemePicker, setShowThemePicker] = useState(false);
   const cancelGenerationRef = useRef(false);
+  const generationIdRef = useRef(0);
 
   useEffect(() => () => {
     cancelGenerationRef.current = true;
+    generationIdRef.current += 1;
     document.body.classList.remove('id-card-print-mode');
   }, []);
 
   const handleCancelGeneration = () => {
     cancelGenerationRef.current = true;
+    generationIdRef.current += 1;
     setIsGenerating(false);
     setIsPrintingActive(false);
   };
@@ -362,8 +366,10 @@ export default function StudentIdCardManager({ students = [], onClose }) {
 
   const handleSaveSealConfig = async () => {
     setIsSavingSealConfig(true);
+    let savedLocally = false;
     try {
       localStorage.setItem(SEAL_LOCAL_KEY, JSON.stringify(sealConfig));
+      savedLocally = true;
       
       // Update history with active config (strictly max 3 sets)
       setSealHistory(prev => {
@@ -389,7 +395,9 @@ export default function StudentIdCardManager({ students = [], onClose }) {
       }, 1200);
     } catch (e) {
       console.error('Failed to save ID card settings:', e);
-      alert(`Settings were saved locally, but cloud synchronization failed: ${e.message}`);
+      alert(savedLocally
+        ? `Settings were saved locally, but cloud synchronization failed: ${e.message}`
+        : `Settings could not be saved: ${e.message}`);
     } finally {
       setIsSavingSealConfig(false);
     }
@@ -639,7 +647,9 @@ export default function StudentIdCardManager({ students = [], onClose }) {
 
   // ─── Fast Cache Photo Pre-Loader & Automatic Print Launcher ───
   const handleGenerateAndPrint = async () => {
-    if (targetStudents.length === 0) return;
+    if (targetStudents.length === 0 || isGenerating) return;
+    const generationId = ++generationIdRef.current;
+    const isCancelled = () => cancelGenerationRef.current || generationId !== generationIdRef.current;
     cancelGenerationRef.current = false;
     setIsPrintingActive(true);
     setIsGenerating(true);
@@ -663,7 +673,7 @@ export default function StudentIdCardManager({ students = [], onClose }) {
     await new Promise(r => setTimeout(r, 100));
 
     const prepareStudent = async (i) => {
-      if (cancelGenerationRef.current) return;
+      if (isCancelled()) return;
       const st = generationStudents[i];
       const studentKey = getIdCardStudentKey(st, i);
       let photoUrl = resolveStudentPhoto(st, photoIndex);
@@ -681,13 +691,18 @@ export default function StudentIdCardManager({ students = [], onClose }) {
         }
       }
 
+      if (isCancelled()) return;
       if (photoUrl && photoUrl !== '/logo.png') {
         const loaded = await preloadPhotoWithTimeout(photoUrl);
-        if (!loaded) missingPhotos += 1;
+        if (!loaded) {
+          missingPhotos += 1;
+          hydratedPhotos.set(studentKey, '/logo.png');
+        }
       } else if (!photoUrl || photoUrl === '/logo.png' || photoUrl === '—') {
         missingPhotos += 1;
       }
 
+      if (isCancelled()) return;
       completed += 1;
       const percent = Math.round((completed / total) * 100);
       setGenerationProgress({
@@ -702,7 +717,7 @@ export default function StudentIdCardManager({ students = [], onClose }) {
     // without flooding Firestore or the browser's image decoder.
     let nextIndex = 0;
     const worker = async () => {
-      while (!cancelGenerationRef.current) {
+      while (!isCancelled()) {
         const index = nextIndex;
         nextIndex += 1;
         if (index >= total) return;
@@ -711,11 +726,7 @@ export default function StudentIdCardManager({ students = [], onClose }) {
     };
     await Promise.all(Array.from({ length: Math.min(4, total) }, () => worker()));
 
-    if (cancelGenerationRef.current) {
-      setIsGenerating(false);
-      setIsPrintingActive(false);
-      return;
-    }
+    if (isCancelled()) return;
 
     if (hydratedPhotos.size > 0) {
       setLiveStudents(prev => prev.map((student, index) => {
@@ -725,11 +736,7 @@ export default function StudentIdCardManager({ students = [], onClose }) {
       }));
     }
 
-    if (cancelGenerationRef.current) {
-      setIsGenerating(false);
-      setIsPrintingActive(false);
-      return;
-    }
+    if (isCancelled()) return;
 
     setGenerationProgress({
       current: total,
@@ -744,6 +751,7 @@ export default function StudentIdCardManager({ students = [], onClose }) {
     }
 
     await new Promise(r => setTimeout(r, 300));
+    if (isCancelled()) return;
     setIsGenerating(false);
 
     // Trigger print mode instantly
@@ -1294,7 +1302,6 @@ export default function StudentIdCardManager({ students = [], onClose }) {
                   className="w-full px-2 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-black text-[10.5px]"
                 >
                   <option value="Approved">Approved only</option>
-                  <option value="Submitted">Submitted with assigned roll</option>
                   <option value="All">All records with assigned roll</option>
                 </select>
               </label>
@@ -2605,7 +2612,7 @@ export default function StudentIdCardManager({ students = [], onClose }) {
           allStudents={photoIndex}
           theme={resolveClassTheme(
             previewStudent['Admission sought for class'] || previewStudent['Class'] || previewStudent.class,
-            previewStudent['Stream for Class 11th'] || previewStudent['Stream'] || previewStudent.stream,
+            getStudentStreamVal(previewStudent),
             (selectedTheme !== 'auto' && selectedTheme !== 'classified') ? selectedTheme : classThemes,
             previewStudent
           )}
@@ -2987,7 +2994,6 @@ const SingleIdCardPortrait = React.memo(function SingleIdCardPortrait({
             className="w-full h-full object-cover"
             referrerPolicy="no-referrer"
             loading="eager"
-            crossOrigin="anonymous"
             onError={(e) => {
               e.target.onerror = null;
               e.target.src = '/logo.png';
