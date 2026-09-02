@@ -6616,15 +6616,9 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
                             className="w-full px-3 py-1.5 rounded bg-slate-900 border border-slate-800 text-xs font-mono text-slate-200 focus:outline-none focus:border-emerald-500"
                           />
                         </div>
-                        <div>
-                          <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Cashfree Secret Key</label>
-                          <input
-                            type="password"
-                            placeholder="••••••••••••••••"
-                            value={settings.paymentGatewayConfig?.cashfree?.secretKey || ''}
-                            onChange={(e) => handlePaymentGatewayChange('cashfree.secretKey', e.target.value)}
-                            className="w-full px-3 py-1.5 rounded bg-slate-900 border border-slate-800 text-xs font-mono text-slate-200 focus:outline-none focus:border-emerald-500"
-                          />
+                        <div className="rounded-lg border border-emerald-800/70 bg-emerald-950/30 px-3 py-2">
+                          <div className="text-[10px] font-black uppercase tracking-wide text-emerald-300">Secret: server managed</div>
+                          <p className="mt-1 text-[9.5px] leading-snug text-slate-400">Configure the Cashfree secret only as a protected Netlify environment variable; it is never stored in website settings.</p>
                         </div>
                         <div>
                           <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Environment</label>
@@ -6663,15 +6657,9 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
                             className="w-full px-3 py-1.5 rounded bg-slate-900 border border-slate-800 text-xs font-mono text-slate-200 focus:outline-none focus:border-sky-500"
                           />
                         </div>
-                        <div>
-                          <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Razorpay Key Secret</label>
-                          <input
-                            type="password"
-                            placeholder="••••••••••••••••"
-                            value={settings.paymentGatewayConfig?.razorpay?.keySecret || ''}
-                            onChange={(e) => handlePaymentGatewayChange('razorpay.keySecret', e.target.value)}
-                            className="w-full px-3 py-1.5 rounded bg-slate-900 border border-slate-800 text-xs font-mono text-slate-200 focus:outline-none focus:border-sky-500"
-                          />
+                        <div className="rounded-lg border border-sky-800/70 bg-sky-950/30 px-3 py-2">
+                          <div className="text-[10px] font-black uppercase tracking-wide text-sky-300">Secret: server managed</div>
+                          <p className="mt-1 text-[9.5px] leading-snug text-slate-400">Configure the Razorpay secret only as a protected Netlify environment variable; it is never stored in website settings.</p>
                         </div>
                         <div>
                           <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Environment</label>

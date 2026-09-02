@@ -1,41 +1,46 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useMemo, useState } from 'react';
 import { 
   BarChart2, Contact, ShieldCheck, Settings, ClipboardCheck, 
   CalendarCheck, Hash, Layers, Mail, CreditCard, Edit3, PlusCircle, 
   Wrench, Check, ChevronRight, Zap, PanelsTopLeft, FileSpreadsheet, FileText,
   GitMerge, BookOpen, Award, X
 } from 'lucide-react';
+import {
+  ADMIN_MODULE_CATALOG,
+  getModuleMaturity,
+  MODULE_MATURITY,
+} from './adminModuleCatalog';
 
-export const ADMIN_TOOL_MODULES = [
-  { id: 'reports', label: 'Student Records & Reports', desc: 'Master register, student records and reports', category: 'Records & Registers', icon: BarChart2 },
-  { id: 'admRegisterSuite', label: 'Admission Register & Sentup Suite', desc: 'Official ledger, JKBOSE sentup roll, bulk assign IDs & dates', category: 'Records & Registers', icon: BookOpen },
-  { id: 'customRoster', label: 'Student Roster & Registers', desc: 'Custom student lists, fee sheets, class registers & tabular sheets', category: 'Records & Registers', icon: FileSpreadsheet },
-  { id: 'officialLetter', label: 'Official Letterhead Writer', desc: 'Compose, format & print official school letters with institutional header', category: 'Records & Registers', icon: FileText },
-  { id: 'certStudio', label: 'Student Bonafides & Certificates', desc: 'Generate batch bonafide, character, DOB & achievement certificates', category: 'Records & Registers', icon: Award },
-  { id: 'idCards', label: 'Student ID Cards', desc: 'Generate and print student identity cards', category: 'Records & Registers', icon: Contact },
-  { id: 'gkTest', label: 'Competitive Exams', desc: 'Exam preparation and registrations', category: 'Records & Registers', icon: ShieldCheck },
+const MODULE_ICONS = {
+  reports: BarChart2,
+  admRegisterSuite: BookOpen,
+  customRoster: FileSpreadsheet,
+  officialLetter: FileText,
+  certStudio: Award,
+  idCards: Contact,
+  gkTest: ShieldCheck,
+  controls: Settings,
+  practicals: ClipboardCheck,
+  attendanceMgmt: CalendarCheck,
+  rollNo: Hash,
+  mergeStudio: GitMerge,
+  automations: Mail,
+  funds: CreditCard,
+  cms: PanelsTopLeft,
+};
 
-  { id: 'controls', label: 'Academic Controls & Subjects', desc: 'Subjects, allocations and institutional rules', category: 'Academics & Controls', icon: Settings },
-  { id: 'practicals', label: 'Practicals & Awards', desc: 'Practical marks and award rolls', category: 'Academics & Controls', icon: ClipboardCheck },
-  { id: 'attendanceMgmt', label: 'Student Attendance', desc: 'Record and review daily attendance', category: 'Academics & Controls', icon: CalendarCheck },
-  { id: 'rollNo', label: 'Roll Number Manager', desc: 'Assign and sequence class roll numbers', category: 'Academics & Controls', icon: Hash },
-
-  { id: 'mergeStudio', label: 'Application Merger & Deduplication', desc: 'Scan, review side-by-side & merge duplicate records by Reg No', category: 'Operations & Automation', icon: GitMerge },
-  { id: 'automations', label: 'Messages & Automations', desc: 'Group email and parent notifications', category: 'Operations & Automation', icon: Mail },
-  { id: 'funds', label: 'Funds & Fee Accounts', desc: 'Student fees and institutional funds', category: 'Operations & Automation', icon: CreditCard },
-  { id: 'cms', label: 'Website CMS & Administration', desc: 'Website content, access and publishing', category: 'Operations & Automation', icon: PanelsTopLeft },
-];
+export const ADMIN_TOOL_MODULES = ADMIN_MODULE_CATALOG
+  .filter(module => module.launcher)
+  .map(module => ({ ...module, desc: module.description, icon: MODULE_ICONS[module.id] || PanelsTopLeft }));
 
 export const isUserPermittedForModule = (user, moduleId) => {
-  if (!user) return true;
+  if (!user) return false;
   const role = String(user.role || '').toLowerCase().trim();
   const email = String(user.email || '').toLowerCase().trim();
 
   if (
     role === 'superadmin' ||
-    email === 'adm.exam.hss.shangus@gmail.com' ||
-    email === 'socialshiftz@gmail.com' ||
-    email === 'e.educational.24@gmail.com'
+    email === 'adm.exam.hss.shangus@gmail.com'
   ) {
     return true;
   }
@@ -68,22 +73,39 @@ export default function AdminToolsDropdown({
   // Active category selection tab for 2-column side flyout menu
   const [activeCategoryKey, setActiveCategoryKey] = useState('Records & Registers');
 
+  const permittedModules = useMemo(
+    () => ADMIN_TOOL_MODULES.filter(t => isUserPermittedForModule(user, t.id)),
+    [user],
+  );
+
   useEffect(() => {
     function handleClickOutside(e) {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
         setIsOpen(false);
       }
     }
+    function handleKeyDown(e) {
+      if (e.key === 'Escape') setIsOpen(false);
+    }
     if (isOpen) {
       document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('keydown', handleKeyDown);
     }
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
   }, [isOpen, setIsOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const activeModule = permittedModules.find(module => module.id === activeTab);
+    if (activeModule?.category) setActiveCategoryKey(activeModule.category);
+  }, [activeTab, isOpen, permittedModules]);
 
   if (!isOpen) return null;
 
-  const permittedModules = ADMIN_TOOL_MODULES.filter(t => isUserPermittedForModule(user, t.id));
-  const isSuper = user?.role?.toLowerCase() === 'superadmin' || user?.email === 'adm.exam.hss.shangus@gmail.com';
+  const isSuper = user?.role?.toLowerCase() === 'superadmin' || user?.email?.toLowerCase() === 'adm.exam.hss.shangus@gmail.com';
   const canReports = isUserPermittedForModule(user, 'reports');
   const canBulk = isUserPermittedForModule(user, 'controls') || isUserPermittedForModule(user, 'reports') || isSuper;
 
@@ -107,15 +129,29 @@ export default function AdminToolsDropdown({
       <div
         ref={dropdownRef}
         onMouseDown={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Administrative modules"
         className={`fixed inset-x-2 top-16 sm:top-auto sm:mt-1.5 sm:absolute sm:inset-x-auto ${align === 'left' ? 'sm:left-0 sm:right-auto' : 'sm:right-0 sm:left-auto'} w-auto sm:w-[520px] max-w-[calc(100vw-16px)] max-h-[min(82vh,480px)] overflow-hidden rounded-2xl sm:rounded-xl border border-slate-200 dark:border-slate-800 shadow-2xl z-[99999] p-2.5 sm:p-2 space-y-1.5 animate-fadeIn bg-white/98 dark:bg-slate-900/98 backdrop-blur-md text-slate-900 dark:text-slate-100 text-xs font-bold`}
       >
         {/* Menu Header */}
-        <div className="px-2.5 py-1 border-b border-slate-200 dark:border-slate-800 text-[10px] font-black text-slate-500 uppercase tracking-wider flex items-center justify-between">
+        <div className="px-2.5 py-1 border-b border-slate-200 dark:border-slate-800 text-[10px] font-black text-slate-500 uppercase tracking-wider flex items-center justify-between gap-2">
           <span className="flex items-center gap-1.5">
             <Wrench size={13} className="text-amber-600 dark:text-amber-400" />
             <span>Administrative Modules</span>
           </span>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
+            <div className="hidden md:flex items-center gap-1" aria-label="Module maturity legend">
+              {Object.entries(MODULE_MATURITY).map(([key, status]) => (
+                <span
+                  key={key}
+                  title={`${status.label}: ${status.description}`}
+                  className={`rounded border px-1 py-px text-[7.5px] leading-none tracking-wide ${status.badgeClass}`}
+                >
+                  {status.shortLabel}
+                </span>
+              ))}
+            </div>
             <span className="text-amber-700 dark:text-amber-400 font-mono bg-amber-100 dark:bg-amber-950/80 border border-amber-300 dark:border-amber-700/60 px-1.5 py-0.2 rounded-md">
               {permittedModules.length} Available
             </span>
@@ -152,6 +188,7 @@ export default function AdminToolsDropdown({
                 type="button"
                 onMouseEnter={() => setActiveCategoryKey(cat.key)}
                 onClick={() => setActiveCategoryKey(cat.key)}
+                aria-pressed={isSelected}
                 className={`min-w-max sm:min-w-0 sm:w-full text-left px-2 py-1.5 rounded-lg flex items-center justify-between gap-1.5 transition-all cursor-pointer font-extrabold text-[10px] sm:text-[11px] ${
                   isSelected
                     ? 'bg-amber-500/15 dark:bg-amber-500/20 text-amber-900 dark:text-amber-200 border border-amber-400/50 shadow-2xs'
@@ -185,6 +222,7 @@ export default function AdminToolsDropdown({
                 {currentCategoryItems.map((t) => {
                   const Icon = t.icon;
                   const isActive = activeTab === t.id;
+                  const maturity = getModuleMaturity(t.maturity);
                   return (
                     <button
                       key={t.id}
@@ -194,6 +232,8 @@ export default function AdminToolsDropdown({
                         else if (onOpenCustomRoster) onOpenCustomRoster();
                         setIsOpen(false);
                       }}
+                      aria-current={isActive ? 'page' : undefined}
+                      title={`${maturity.label}: ${t.maturityNote}`}
                       className={`w-full text-left p-2 rounded-xl flex items-start justify-between gap-2 transition-all cursor-pointer font-bold text-[11px] ${
                         isActive
                           ? 'bg-white dark:bg-slate-900 text-amber-900 dark:text-amber-200 border border-amber-400/80 shadow-md ring-1 ring-amber-400/30'
@@ -205,7 +245,12 @@ export default function AdminToolsDropdown({
                           <Icon size={14} />
                         </div>
                         <div className="min-w-0 flex-1">
-                          <div className="font-extrabold text-[11px] truncate">{t.label}</div>
+                          <div className="flex min-w-0 items-center gap-1.5">
+                            <span className="min-w-0 truncate font-extrabold text-[11px]">{t.label}</span>
+                            <span className={`flex-shrink-0 rounded border px-1 py-px text-[7.5px] font-black leading-none tracking-wide ${maturity.badgeClass}`}>
+                              {maturity.label}
+                            </span>
+                          </div>
                           <div className="text-[9.5px] font-normal text-slate-500 dark:text-slate-400 truncate">{t.desc}</div>
                         </div>
                       </div>

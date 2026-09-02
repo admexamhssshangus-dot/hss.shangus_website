@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { Lock, Hash, Layers, RefreshCw, LogOut, ShieldCheck, BarChart2, Mail, CreditCard, Settings, ChevronDown, Wrench, ClipboardCheck, CalendarCheck, Contact, PanelsTopLeft, FileSpreadsheet, FileText, Award, Sliders, BookOpen, GitMerge, ArrowLeft } from 'lucide-react';
+import { Lock, Layers, RefreshCw, LogOut, ChevronDown, Wrench, Sliders, ArrowLeft } from 'lucide-react';
 import SEO from '../../components/SEO';
 import ApplicationReviewModal from './ApplicationReviewModal';
 import AdvancedReports from './AdvancedReports';
 import ModernLoader from '../../components/ModernLoader';
 import GlobalDataSyncHUD from '../../components/GlobalDataSyncHUD';
-import AdminToolsDropdown from './AdminToolsDropdown';
+import AdminToolsDropdown, { ADMIN_TOOL_MODULES } from './AdminToolsDropdown';
 import LogoutConfirmModal from '../components/LogoutConfirmModal';
 import TabLoadingOverlay from '../../components/TabLoadingOverlay';
 import { getCachedCollection, getCachedCollectionSync, subscribeToCollection, preloadStudentPhotosCache, getCollectionCount, getPaginatedCollection, hydrateRemainingPages, mergeDuplicateStudentApplications } from '../../services/dbCache';
@@ -272,8 +272,7 @@ export default function AdminDashboard() {
     // Genuine SuperAdmins have unconditional access to all modules
     if (
       role === 'superadmin' || 
-      email === 'adm.exam.hss.shangus@gmail.com' ||
-      email === 'socialshiftz@gmail.com'
+      email === 'adm.exam.hss.shangus@gmail.com'
     ) {
       return true;
     }
@@ -306,23 +305,7 @@ export default function AdminDashboard() {
   const draftCount = applications.filter((a) => !hasClassRollVal(a) && (a['Status'] === 'Draft' || !a['Status'])).length;
   const rejectedCount = applications.filter((a) => !hasClassRollVal(a) && a['Status'] === 'Rejected').length;
 
-  const TOOL_MODULES = [
-    { id: 'reports', label: 'Student Records & Reports', icon: BarChart2 },
-    { id: 'admRegisterSuite', label: 'Admission Register & Sentup Suite', icon: BookOpen },
-    { id: 'customRoster', label: 'Student Roster & Registers', icon: FileSpreadsheet },
-    { id: 'officialLetter', label: 'Official Letterhead Writer', icon: FileText },
-    { id: 'certStudio', label: 'Student Bonafides & Certificates', icon: Award },
-    { id: 'idCards', label: 'Student ID Cards', icon: Contact },
-    { id: 'gkTest', label: 'Competitive Exams', icon: ShieldCheck },
-    { id: 'controls', label: 'Academic Controls & Subjects', icon: Settings },
-    { id: 'practicals', label: 'Practicals & Awards', icon: ClipboardCheck },
-    { id: 'attendanceMgmt', label: 'Student Attendance', icon: CalendarCheck },
-    { id: 'rollNo', label: 'Roll Number Manager', icon: Hash },
-    { id: 'mergeStudio', label: 'Application Merger & Deduplication', icon: GitMerge },
-    { id: 'automations', label: 'Messages & Automations', icon: Mail },
-    { id: 'funds', label: 'Funds & Fee Accounts', icon: CreditCard },
-    { id: 'cms', label: 'Website CMS & Administration', icon: PanelsTopLeft },
-  ];
+  const TOOL_MODULES = ADMIN_TOOL_MODULES;
 
   const allowedToolModules = TOOL_MODULES.filter((mod) => isTabPermitted(mod.id));
 

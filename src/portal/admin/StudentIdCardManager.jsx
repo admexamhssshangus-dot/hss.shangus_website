@@ -29,7 +29,7 @@ import {
   generateVerificationQrUrl
 } from '../../utils/idCardRenderer';
 import { compressImageFile, getStudentPhotoUrl } from '../../utils/imageCompressor';
-import { getCachedCollection, getCachedCollectionSync, getPhotoUrlFromCache } from '../../services/dbCache';
+import { fetchStudentPhotoOnDemand, getCachedCollection, getCachedCollectionSync, getPhotoUrlFromCache } from '../../services/dbCache';
 import { db } from '../../services/firebase';
 import { collection, getDocs, doc, getDoc, setDoc } from 'firebase/firestore';
 
@@ -547,9 +547,9 @@ export default function StudentIdCardManager({ students = [], onClose }) {
         console.warn('[IDCards] Background photo recovery note:', e);
       }
     };
-    // Run photo recovery after a short delay to not block initial render
-    const photoTimer = setTimeout(recoverPhotos, 800);
-    return () => clearTimeout(photoTimer);
+    // Do not run a collection-wide photo recovery when this module opens. Photos
+    // are fetched by exact student key only for the selected print cohort.
+    void recoverPhotos;
   }, []);
 
   const handleSaveSealConfig = async () => {
@@ -878,6 +878,7 @@ export default function StudentIdCardManager({ students = [], onClose }) {
     setIsGenerating(true);
     const total = targetStudents.length;
     window._studentPhotoCache = window._studentPhotoCache || {};
+    const hydratedPhotos = new Map();
 
     setGenerationProgress({
       current: 0,
@@ -896,7 +897,24 @@ export default function StudentIdCardManager({ students = [], onClose }) {
       }
 
       const st = targetStudents[i];
-      const photoUrl = resolveStudentPhoto(st, liveStudents);
+      const studentKey = String(
+        st.id || st._docId || st.docId || st['Form Number'] || st.formNo ||
+        st['Board Registration Number'] || st.boardRegNo || `row_${i}`
+      );
+      let photoUrl = resolveStudentPhoto(st, liveStudents);
+
+      if (!photoUrl || photoUrl === '/logo.png' || photoUrl === '—') {
+        try {
+          const fetchedPhoto = await fetchStudentPhotoOnDemand(st);
+          const formattedPhoto = formatPhotoDisplayUrl(fetchedPhoto);
+          if (formattedPhoto && formattedPhoto !== '/logo.png') {
+            photoUrl = formattedPhoto;
+            hydratedPhotos.set(studentKey, formattedPhoto);
+          }
+        } catch (error) {
+          console.warn('[IDCards] Targeted photo lookup note:', error);
+        }
+      }
       
       if (photoUrl && photoUrl !== '/logo.png' && !window._studentPhotoCache[photoUrl]) {
         await new Promise((resolve) => {
@@ -929,6 +947,17 @@ export default function StudentIdCardManager({ students = [], onClose }) {
       if (i % 3 === 0) {
         await new Promise(r => setTimeout(r, 15));
       }
+    }
+
+    if (hydratedPhotos.size > 0) {
+      setLiveStudents(prev => prev.map((student, index) => {
+        const key = String(
+          student.id || student._docId || student.docId || student['Form Number'] || student.formNo ||
+          student['Board Registration Number'] || student.boardRegNo || `row_${index}`
+        );
+        const photo = hydratedPhotos.get(key);
+        return photo ? { ...student, photo_id: photo } : student;
+      }));
     }
 
     if (cancelGenerationRef.current) {

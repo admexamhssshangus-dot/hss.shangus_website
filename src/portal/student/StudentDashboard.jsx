@@ -9,8 +9,7 @@ import { auth, db } from '../../services/firebase';
 import { sendEmailVerification } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { generateStudentAdmissionPdf, generateProvisionalAdmissionPdf } from '../../utils/pdfGenerator';
-import appsScriptApi from '../../services/appsScriptApi';
-import { withdrawAdmission } from '../../services/admissionWorkflowApi';
+import { loadAdmissionWorkspace, withdrawAdmission } from '../../services/admissionWorkflowApi';
 import { getStudentPhotoUrl, formatPhotoDisplayUrl } from '../../utils/imageCompressor';
 import { fetchStudentPhotoOnDemand } from '../../services/dbCache';
 import { checkEmailRateLimit, recordEmailSent, getRemainingCooldown } from '../../utils/emailRateLimiter';
@@ -151,7 +150,7 @@ export default function StudentDashboard() {
       setSessionInfo(activeSession);
 
       try {
-        const applicationResult = await appsScriptApi.getStudentApplication();
+        const applicationResult = await loadAdmissionWorkspace();
         const applications = applicationResult?.data?.applications || applicationResult?.applications || [];
         setAllApplications(applications);
         let currentApp = applications.find(a => (a.Session || a.session || a['Academic Session']) === activeSession) || applications[0] || null;
@@ -331,18 +330,18 @@ export default function StudentDashboard() {
   // Editability Check
   const isFormEditable = status === 'Draft' || isWithin3DaysRejection;
 
+  const applicationRoute = (mode = '') => {
+    const key = appData?.docId || appData?.applicationId || appData?.['Form Number'] || appData?.FormNo || appData?.formNo || '';
+    const params = new URLSearchParams();
+    if (key) params.set('application', String(key));
+    if (mode) params.set('mode', mode);
+    const query = params.toString();
+    return `/portal/student/application${query ? `?${query}` : ''}`;
+  };
+
   const handleConvertToFull = () => {
     if (!appData) return;
-    try {
-      const upgradeCtx = {
-        formNo: appData['Form Number'] || appData['FormNo'] || appData.docId,
-        classSought: appData['Admission sought for class'],
-        session: appData['Session'] || appData['session'] || '',
-      };
-      sessionStorage.setItem('hss_admission_upgrade', JSON.stringify(upgradeCtx));
-      sessionStorage.setItem('hss_admission_draft', JSON.stringify(appData));
-    } catch (e) {}
-    navigate('/portal/student/application');
+    navigate(applicationRoute('upgrade'));
   };
 
   return (
@@ -714,26 +713,9 @@ export default function StudentDashboard() {
                       <span>Start New Online Admission Application</span>
                       <ArrowRight size={16} />
                     </button>
-                  ) : status === 'Withdrawn' ? (
-                    <button
-                      onClick={() => {
-                        try {
-                          if (appData) {
-                            sessionStorage.setItem('hss_admission_draft', JSON.stringify(appData));
-                          }
-                        } catch (e) {}
-                        navigate('/portal/student/application');
-                      }}
-                      className="px-6 py-3.5 rounded-2xl font-extrabold text-xs shadow-md transition-all flex items-center gap-2 cursor-pointer bg-amber-600 hover:bg-amber-500 text-white"
-                      title="Re-apply or edit your application details and submit afresh"
-                    >
-                      <Edit3 size={16} />
-                      <span>Re-apply & Edit Application</span>
-                      <ArrowRight size={16} />
-                    </button>
                   ) : status === 'Draft' ? (
                     <button
-                      onClick={() => navigate('/portal/student/application')}
+                      onClick={() => navigate(applicationRoute())}
                       className="px-6 py-3.5 rounded-2xl font-extrabold text-xs shadow-md transition-all flex items-center gap-2 cursor-pointer bg-teal-600 hover:bg-teal-500 text-white"
                     >
                       <Edit3 size={16} />
@@ -742,14 +724,7 @@ export default function StudentDashboard() {
                     </button>
                   ) : isFormEditable ? (
                     <button
-                      onClick={() => {
-                        try {
-                          if (appData) {
-                            sessionStorage.setItem('hss_admission_draft', JSON.stringify(appData));
-                          }
-                        } catch (e) {}
-                        navigate('/portal/student/application');
-                      }}
+                      onClick={() => navigate(applicationRoute())}
                       disabled={isRejectionExpired}
                       className={`px-6 py-3.5 rounded-2xl font-extrabold text-xs shadow-md transition-all flex items-center gap-2 cursor-pointer ${
                         isRejectionExpired ? 'bg-slate-400 text-slate-200 cursor-not-allowed opacity-60' : 'bg-teal-600 hover:bg-teal-500 text-white'

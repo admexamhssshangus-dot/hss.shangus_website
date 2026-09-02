@@ -514,23 +514,27 @@ export default function FundDistribution() {
           return tB - tA;
         });
         setDistributions(distList);
-        if (!previewReport && distList.length > 0) {
-          setPreviewReport(distList[0]);
-        }
+        if (distList.length > 0) setPreviewReport(current => current || distList[0]);
       }
 
       // 3. Fetch live admissions and masterRegisters
+      const cachedAdmissions = getCachedCollectionSync('admissions') || [];
+      const cachedMasterRegisters = getCachedCollectionSync('masterRegisters') || [];
       const [admSnap, mrSnap] = await Promise.all([
-        getDocs(collection(db, 'admissions')).catch(() => null),
-        getDocs(collection(db, 'masterRegisters')).catch(() => null)
+        cachedAdmissions.length ? Promise.resolve(null) : getDocs(collection(db, 'admissions')).catch(() => null),
+        cachedMasterRegisters.length ? Promise.resolve(null) : getDocs(collection(db, 'masterRegisters')).catch(() => null)
       ]);
 
-      if (admSnap && !admSnap.empty) {
+      if (cachedAdmissions.length) {
+        setRawStudents(cachedAdmissions);
+      } else if (admSnap && !admSnap.empty) {
         const admList = admSnap.docs.map(d => ({ id: d.id, ...d.data() }));
         setRawStudents(admList);
       }
 
-      if (mrSnap && !mrSnap.empty) {
+      if (cachedMasterRegisters.length) {
+        setMasterRegisters(cachedMasterRegisters);
+      } else if (mrSnap && !mrSnap.empty) {
         const mrList = mrSnap.docs.map(d => ({ id: d.id, ...d.data() }));
         setMasterRegisters(mrList);
       }
@@ -540,7 +544,7 @@ export default function FundDistribution() {
       setIsLoading(false);
       setIsSyncing(false);
     }
-  }, [previewReport]);
+  }, []);
 
   useEffect(() => {
     fetchData();
@@ -576,31 +580,9 @@ export default function FundDistribution() {
       console.warn('Real-time config note:', err);
     });
 
-    // Real-time listener for admissions (live database enrollment)
-    const unsubAdmissions = onSnapshot(collection(db, 'admissions'), (snap) => {
-      if (snap && !snap.empty) {
-        const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        setRawStudents(list);
-      }
-    }, (err) => {
-      console.warn('Real-time admissions note in FundDistribution:', err);
-    });
-
-    // Real-time listener for masterRegisters (historical / archived datasets)
-    const unsubMaster = onSnapshot(collection(db, 'masterRegisters'), (snap) => {
-      if (snap && !snap.empty) {
-        const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        setMasterRegisters(list);
-      }
-    }, (err) => {
-      console.warn('Real-time masterRegisters note in FundDistribution:', err);
-    });
-
     return () => {
       unsubDist();
       unsubConfig();
-      unsubAdmissions();
-      unsubMaster();
     };
   }, [fetchData]);
 
