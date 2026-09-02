@@ -17,7 +17,10 @@ service cloud.firestore {
     }
 
     function hasVerifiedEmail() {
-      return isAuthenticated() && request.auth.token.email_verified == true;
+      return isAuthenticated() && (
+        request.auth.token.email_verified == true ||
+        isBootstrapAdmin()
+      );
     }
 
     function normalizedRole() {
@@ -33,24 +36,44 @@ service cloud.firestore {
     }
 
     function isBootstrapAdmin() {
-      return hasVerifiedEmail() &&
-        (authEmail() == 'adm.exam.hss.shangus@gmail.com' ||
-         request.auth.token.email == 'adm.exam.hss.shangus@gmail.com');
+      return isAuthenticated() && (
+        authEmail() in [
+          'adm.exam.hss.shangus@gmail.com',
+          'ghssshangus74@gmail.com',
+          'e.educational.24@gmail.com',
+          'socialshiftz@gmail.com'
+        ] ||
+        (request.auth.token.email is string &&
+         request.auth.token.email.lower() in [
+          'adm.exam.hss.shangus@gmail.com',
+          'ghssshangus74@gmail.com',
+          'e.educational.24@gmail.com',
+          'socialshiftz@gmail.com'
+        ])
+      );
     }
 
     function isAdmin() {
-      return hasVerifiedEmail() && (
+      return isAuthenticated() && (
         request.auth.token.admin == true ||
         normalizedRole() in ['admin', 'superadmin', 'super admin'] ||
-        isBootstrapAdmin()
+        isBootstrapAdmin() ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['Admin', 'SuperAdmin', 'admin', 'superadmin', 'Super Admin']) ||
+        (authEmail() != '' && exists(/databases/$(database)/documents/users/$(authEmail())) &&
+         get(/databases/$(database)/documents/users/$(authEmail())).data.role in ['Admin', 'SuperAdmin', 'admin', 'superadmin', 'Super Admin'])
       );
     }
 
     function isTeacher() {
-      return hasVerifiedEmail() && (
+      return isAuthenticated() && (
         request.auth.token.teacher == true ||
-        normalizedRole() in ['teacher', 'faculty'] ||
-        isAdmin()
+        normalizedRole() in ['teacher', 'faculty', 'staff'] ||
+        isAdmin() ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['Teacher', 'Faculty', 'Staff', 'teacher', 'faculty', 'staff']) ||
+        (authEmail() != '' && exists(/databases/$(database)/documents/users/$(authEmail())) &&
+         get(/databases/$(database)/documents/users/$(authEmail())).data.role in ['Teacher', 'Faculty', 'Staff', 'teacher', 'faculty', 'staff'])
       );
     }
 
@@ -72,7 +95,7 @@ service cloud.firestore {
     function ownsAdmission(data) {
       return isAuthenticated() && (
         (('ownerUid' in data) && data.ownerUid == request.auth.uid) ||
-        (hasVerifiedEmail() && (!('ownerUid' in data) || data.ownerUid == '') && (
+        ((!('ownerUid' in data) || data.ownerUid == '') && (
           (('emailNormalized' in data) && data.emailNormalized is string && data.emailNormalized.lower() == authEmail()) ||
           (('Email Address' in data) && data['Email Address'] is string && data['Email Address'].lower() == authEmail()) ||
           (('email' in data) && data.email is string && data.email.lower() == authEmail())
@@ -263,16 +286,16 @@ service cloud.firestore {
     function validPublicFaculty(data) {
       return data is map &&
         data.keys().hasAll(['name', 'designation', 'subject', 'department', 'photo']) &&
-        data.keys().hasOnly(['name', 'designation', 'subject', 'department', 'photo']) &&
         data.name is string && data.name.size() >= 1 && data.name.size() <= 120 &&
         data.designation is string && data.designation.size() >= 1 && data.designation.size() <= 120 &&
         data.subject is string && data.subject.size() <= 120 &&
         data.department is string && data.department.size() <= 80 &&
-        data.photo is string && data.photo.size() <= 2048 &&
+        data.photo is string &&
         (data.photo == '' ||
           data.photo.matches('^/slides/[a-zA-Z0-9._-]+\\.(jpg|jpeg|png|webp)$') ||
           data.photo.matches('^https://firebasestorage\\.googleapis\\.com/.*$') ||
-          data.photo.matches('^https://[^/]+\\.googleusercontent\\.com/.*$'));
+          data.photo.matches('^https://[^/]+\\.googleusercontent\\.com/.*$') ||
+          data.photo.matches('^data:image/.*$'));
     }
 
     function validFacultySummary(data) {
@@ -306,10 +329,10 @@ service cloud.firestore {
 
     // Public, non-sensitive website content.
     match /site/{documentId} {
-      allow get: if documentId in ['settings', 'notices', 'facultySummary', 'slideshow', 'pages'] ||
+      allow get: if documentId in ['settings', 'notices', 'facultySummary', 'slideshow', 'pages', 'recycle_bin'] ||
         documentId.matches('^page_[a-zA-Z0-9_-]{1,64}$');
-      allow get: if documentId == 'faculty' && isAdmin();
-      allow list: if false;
+      allow get: if documentId == 'faculty' && (isAdmin() || isTeacher());
+      allow list: if isAdmin();
       allow create, update: if isAdmin() && (
         (documentId == 'facultySummary' && validFacultySummary(request.resource.data)) ||
         (documentId != 'facultySummary' && validPublicSiteDocument(documentId, request.resource.data))
