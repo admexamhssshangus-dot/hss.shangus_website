@@ -4,6 +4,7 @@ import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import ThemeSelector from './components/ThemeSelector';
 import PublicPageSkeleton from './components/PublicPageSkeleton';
+import SEOHead from './components/SEOHead';
 import Home from './pages/Home';
 import { initSecurityGuardrails } from './utils/securityGuardrails';
 import './portal/portal.css';
@@ -117,6 +118,7 @@ function App() {
 
   return (
     <>
+      <SEOHead />
       <ScrollToTop />
       <div className="flex flex-col min-h-screen w-full max-w-full">
         <a className="ui-skip-link" href="#main-content">Skip to main content</a>
