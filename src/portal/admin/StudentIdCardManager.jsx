@@ -29,6 +29,10 @@ import {
   generateVerificationQrUrl
 } from '../../utils/idCardRenderer';
 import { compressImageFile, getStudentPhotoUrl } from '../../utils/imageCompressor';
+import {
+  getAssignedClassRollNumber,
+  resolveStudentAdmissionStatus
+} from '../../utils/studentApprovalStatus';
 import { fetchStudentPhotoOnDemand, getCachedCollectionSync, getPhotoUrlFromCache } from '../../services/dbCache';
 import { db } from '../../services/firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
@@ -564,9 +568,9 @@ export default function StudentIdCardManager({ students = [], onClose }) {
       const session = String(st['Session'] || st.session || '2025-26').trim();
       const cls = normalizeStudentClass(st['Admission sought for class'] || st['Class'] || st.class);
       const stm = String(st['Stream for Class 11th'] || st['Stream'] || st.stream || '').toLowerCase().trim();
-      const stat = String(st['Status'] || st.status || 'Approved').toLowerCase();
+      const effectiveStatus = resolveStudentAdmissionStatus(st);
       const name = String(st["Student's Name (as per school records)"] || st["Student's Name"] || st.studentName || '').toLowerCase();
-      const roll = getStudentRollVal(st);
+      const roll = getAssignedClassRollNumber(st);
       const reg = String(st['Board Registration Number'] || st.boardRegNo || '').toLowerCase();
       const fNo = String(st['Form Number'] || st['Form No.'] || st.formNo || '').toLowerCase();
 
@@ -579,10 +583,9 @@ export default function StudentIdCardManager({ students = [], onClose }) {
       }
 
       if (selectedStatus === 'Approved') {
-        const isApproved = stat.includes('appr') || stat.includes('approve') || (roll && roll !== '—' && roll !== 'null');
-        if (!isApproved) return false;
+        if (effectiveStatus !== 'Approved') return false;
       } else if (selectedStatus === 'Submitted') {
-        if (!stat.includes('subm')) return false;
+        if (effectiveStatus !== 'Submitted') return false;
       }
 
       if (selectedClass !== 'All') {

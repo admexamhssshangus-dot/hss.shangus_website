@@ -572,7 +572,7 @@ export default function BulkCertificateGeneratorModal({
       const isPassed = st.resultStatus === 'Passed';
       const targetTpl = isPassed ? qualifiedTpl : reappearTpl;
 
-      let dobWordsObj = { figures: st.dobRaw || '—', words: '—', standard: st.dobRaw || '—' };
+      let dobWordsObj = { figures: '----------------', words: '------------------------------------------------', standard: '----------------' };
       try {
         if (typeof dobToWords === 'function') {
           dobWordsObj = dobToWords(st.dobRaw) || dobWordsObj;
@@ -597,11 +597,11 @@ export default function BulkCertificateGeneratorModal({
         refNo: assignedCertNo,
         date: issueDate,
         examName: `Class ${st.className} Examination`,
-        examRollNo: st.examRollNo || '—',
+        examRollNo: st.examRollNo || '',
         examSession: examSessionOverride || st.session,
-        resultStatus: isPassed ? 'Pass' : (st.isReap ? 'Re-appear' : (st.hasResult ? 'Did Not Qualify' : '—')),
-        divisionDistinction: st.division || (isPassed ? 'Distinction' : '—'),
-        marksObtained: st.marksObtained || (isPassed ? '—' : ''),
+        resultStatus: isPassed ? 'Pass' : (st.isReap ? 'Re-appear' : (st.hasResult ? 'Did Not Qualify' : '')),
+        divisionDistinction: st.division || (isPassed ? 'Distinction' : ''),
+        marksObtained: st.marksObtained || (isPassed ? '' : ''),
         maxMarks: st.maxMarks || '500',
         reappSubjects: st.reappSubjects || '',
         conductStatus: 'Satisfactory',
@@ -628,24 +628,11 @@ export default function BulkCertificateGeneratorModal({
     });
   };
 
-  const getPackageReadinessError = (packages) => {
-    const pending = packages.filter(pkg => pkg.student.pendingFields.length > 0);
-    if (pending.length > 0) {
-      return `${pending.length} selected student(s) have required certificate fields pending. Use the Pending Fields editor before assignment or printing.`;
-    }
-    return '';
-  };
-
   // Assign once in Firestore. Every subsequent print reuses the locked serial.
   const handleAssignCertificateNumbers = async () => {
     const packages = compileBatchPackages();
     if (packages.length === 0) {
       showToast('Please select at least 1 student.', 'warning');
-      return;
-    }
-    const readinessError = getPackageReadinessError(packages);
-    if (readinessError) {
-      showToast(readinessError, 'warning');
       return;
     }
     const newAssignments = packages.filter(pkg => pkg.isNewAssignment);
@@ -658,11 +645,16 @@ export default function BulkCertificateGeneratorModal({
       return;
     }
 
+    const pendingCount = packages.filter(pkg => pkg.student?.pendingFields?.length > 0).length;
+
     setIsCommittingToDb(true);
     try {
       const commitRes = await commitIssuedCertificateBatch(newAssignments, issueDate);
       if (commitRes.success) {
-        showToast(`Locked ${commitRes.count} certificate number(s) permanently. Reprints will reuse the same numbers.`, 'success');
+        const msg = pendingCount > 0
+          ? `Locked ${commitRes.count} certificate number(s). Missing fields (${pendingCount} students) will print with '-------' manual write-in blanks.`
+          : `Locked ${commitRes.count} certificate number(s) permanently. Reprints will reuse the same numbers.`;
+        showToast(msg, 'success');
         setLastIssuedCertNo(commitRes.lastIssuedCertNo);
         setStartCertNo(commitRes.lastIssuedCertNo + 1);
       }
@@ -681,17 +673,18 @@ export default function BulkCertificateGeneratorModal({
       showToast('Please select at least 1 student for bulk print.', 'warning');
       return;
     }
-    const readinessError = getPackageReadinessError(packages);
-    if (readinessError) {
-      showToast(readinessError, 'warning');
-      return;
-    }
     if (packages.some(pkg => pkg.isNewAssignment)) {
       showToast('Assign & Lock certificate numbers first. Printing never creates or changes a certificate number.', 'warning');
       return;
     }
 
-    showToast(`🖨️ Opening print stream for ${packages.length} certificates (${packages.length * 2} pages)...`, 'info');
+    const pendingCount = packages.filter(pkg => pkg.student?.pendingFields?.length > 0).length;
+    if (pendingCount > 0) {
+      showToast(`🖨️ Printing ${packages.length} certificates (${pendingCount} with '-------' manual handwriting blanks)...`, 'info');
+    } else {
+      showToast(`🖨️ Opening print stream for ${packages.length} certificates (${packages.length * 2} pages)...`, 'info');
+    }
+
     printBatchStudentCertificates(packages, {
       officeTitle,
       institutionName,

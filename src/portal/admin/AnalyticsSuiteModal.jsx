@@ -3,6 +3,10 @@ import { createPortal } from 'react-dom';
 import { BarChart2, PieChart, Printer, Download, X, Filter, Users, CheckCircle2, Sparkles, BookOpen, Layers, ShieldCheck, FileSpreadsheet, ChevronDown, CheckSquare, Square } from 'lucide-react';
 
 import { normalizeClassVal, normalizeSessionVal } from './AdvancedReports';
+import {
+  getAssignedClassRollNumber,
+  resolveStudentAdmissionStatus
+} from '../../utils/studentApprovalStatus';
 
 // ─── Reusable Multi-Select Checkbox Dropdown Component for Analytics Suite ───
 function MultiSelectDropdown({ label, options = [], selected = [], onChange, align = 'left', customAllLabel }) {
@@ -164,21 +168,7 @@ export default function AnalyticsSuiteModal({ isOpen, onClose, students = [] }) 
   // Helper to test if a field value is a valid unique identifier (excluding placeholders like '0', '1', 'n/a', 'none')
   // Helper to extract assigned Class Roll No cell value across all possible database keys
   const getAssignedRollNo = (s) => {
-    if (!s) return '';
-    const keys = [
-      'Class Roll No', 'Class Roll No.', 'RL. NO.', 'RL. NO', 
-      'Class R.No.', 'Class R.No', 'Class R. No.', 'Class R. No', 
-      'classRollNo', 'rollNo', 'Roll No.', 'Roll No', 'roll'
-    ];
-    for (const k of keys) {
-      if (s[k] !== undefined && s[k] !== null) {
-        const val = String(s[k]).trim();
-        if (val && !/^(N\/A|—|-|null|undefined)$/i.test(val)) {
-          return val;
-        }
-      }
-    }
-    return '';
+    return getAssignedClassRollNumber(s);
   };
 
   // Helper to test if a field value is a valid unique identifier (excluding placeholders like '0', '1', 'n/a', 'none')
@@ -188,7 +178,6 @@ export default function AnalyticsSuiteModal({ isOpen, onClose, students = [] }) 
     return (
       str !== '' &&
       str !== '0' &&
-      str !== '1' &&
       str !== '—' &&
       str !== '-' &&
       str !== 'n/a' &&
@@ -255,27 +244,7 @@ export default function AnalyticsSuiteModal({ isOpen, onClose, students = [] }) 
 
   // Helper to determine effective status (Approved = Class Roll No assigned in student roll no cell)
   const getEffectiveStatus = (s) => {
-    if (s && s.status && String(s.status).trim() !== '—') {
-      const st = String(s.status).trim();
-      if (st.toLowerCase().includes('appr')) return 'Approved';
-      if (st.toLowerCase().includes('subm')) return 'Submitted';
-      if (st.toLowerCase().includes('dft') || st.toLowerCase().includes('draft')) return 'Draft';
-      if (st.toLowerCase().includes('rejt') || st.toLowerCase().includes('reject')) return 'Rejected';
-    }
-    // Approved means assigned class roll no present in student roll cell
-    const rollVal = getAssignedRollNo(s);
-    const hasValidRoll = isValidUniqueVal(rollVal);
-
-    if (hasValidRoll) {
-      return 'Approved';
-    }
-
-    const rawStatus = String(s.Status || s.status || s['Status'] || '').trim().toLowerCase();
-
-    if (rawStatus === 'draft' || rawStatus.includes('dft')) return 'Draft';
-    if (rawStatus.includes('reject') || rawStatus.includes('rejt')) return 'Rejected';
-
-    return 'Submitted';
+    return resolveStudentAdmissionStatus(s);
   };
 
   // Helper to resolve accurate Student Enrolled Stream (Science, Humanities, Commerce, General)
