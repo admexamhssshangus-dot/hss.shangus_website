@@ -271,6 +271,36 @@ service cloud.firestore {
         hasNoAuthorityOrSecretFields(data);
     }
 
+    function validFundRates(data) {
+      return validStaffDocument(data) && data.keys().size() >= 1 && data.keys().size() <= 50;
+    }
+
+    function validFundConfig(documentId, data) {
+      return documentId == 'subsidiary_accounts' && validStaffDocument(data) &&
+        data.keys().hasAll(['accounts', 'defaultSession', 'updatedAt']) &&
+        data.keys().hasOnly(['accounts', 'defaultSession', 'updatedAt']) &&
+        data.accounts is list && data.accounts.size() >= 1 && data.accounts.size() <= 50 &&
+        data.defaultSession is string && data.defaultSession.size() >= 7 && data.defaultSession.size() <= 20 &&
+        (data.updatedAt is string || data.updatedAt is timestamp);
+    }
+
+    function validFundDistribution(data) {
+      return validStaffDocument(data) &&
+        data.keys().hasAll([
+          'id', 'class', 'date', 'academicSession', 'paidStudents',
+          'scienceStudents', 'totalAmount', 'timestamp'
+        ]) &&
+        data.id is string && data.id.size() >= 8 && data.id.size() <= 120 &&
+        data.class in ['9th', '10th', '11th', '12th'] &&
+        data.date is string && data.date.size() == 10 &&
+        data.academicSession is string && data.academicSession.size() >= 7 && data.academicSession.size() <= 20 &&
+        data.paidStudents is int && data.paidStudents > 0 && data.paidStudents <= 5000 &&
+        data.scienceStudents is int && data.scienceStudents >= 0 &&
+        data.scienceStudents <= data.paidStudents &&
+        data.totalAmount is number && data.totalAmount >= 0 &&
+        (data.timestamp is string || data.timestamp is timestamp);
+    }
+
     function validPublicSiteDocument(documentId, data) {
       return validStaffDocument(data) &&
         (documentId != 'settings' || !('paymentGatewayConfig' in data) ||
@@ -451,12 +481,21 @@ service cloud.firestore {
 
     match /fund_rates/{documentId} {
       allow read: if isTeacher();
-      allow write: if isAdmin();
+      allow create, update: if isAdmin() && validFundRates(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    match /fund_config/{documentId} {
+      allow read: if isTeacher();
+      allow create, update: if isAdmin() && validFundConfig(documentId, request.resource.data);
+      allow delete: if isAdmin();
     }
 
     match /fund_distributions/{documentId} {
       allow read: if isTeacher();
-      allow write: if isAdmin();
+      allow create, update: if isAdmin() && documentId == request.resource.data.id &&
+        validFundDistribution(request.resource.data);
+      allow delete: if isAdmin();
     }
 
     match /studentPhotos/{documentId} {

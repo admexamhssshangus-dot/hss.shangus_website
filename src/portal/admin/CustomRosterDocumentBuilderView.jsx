@@ -1565,7 +1565,7 @@ export default function CustomRosterDocumentBuilderView({
     const map = new Map();
 
     unifiedStudentPool.forEach(st => {
-      const raw = extractSubjects(st, false);
+      const raw = st.rawSubjects || extractSubjects(st._rawStudent, false);
       if (!raw || raw === '—') return;
       const parts = raw.split(/[,+;]/).map(s => s.trim()).filter(Boolean);
       parts.forEach(p => {
@@ -1627,6 +1627,7 @@ export default function CustomRosterDocumentBuilderView({
   }, [globalSession]);
   const [selectedClass, setSelectedClass] = useState('ALL');
   const [selectedStream, setSelectedStream] = useState('ALL');
+  const [selectedSubject, setSelectedSubject] = useState('ALL');
   const [selectedGender, setSelectedGender] = useState('ALL');
   const [selectedStatus, setSelectedStatus] = useState('ALL');
   const [useAbbreviatedSubjects, setUseAbbreviatedSubjects] = useState(true);
@@ -2135,6 +2136,33 @@ export default function CustomRosterDocumentBuilderView({
       : sessionClassStudents.filter(st => st.stream.toLowerCase().includes(selectedStream.toLowerCase()));
   }, [sessionClassStudents, selectedStream]);
 
+  const dynamicRosterSubjects = useMemo(() => {
+    const subjects = new Map();
+    sessionClassStreamStudents.forEach(st => {
+      String(st.rawSubjects || '')
+        .split(/[,+;]/)
+        .map(subject => subject.trim().replace(/\s+/g, ' '))
+        .filter(subject => subject && subject !== '—')
+        .forEach(subject => {
+          const key = subject.toLowerCase();
+          const current = subjects.get(key) || { value: subject, count: 0 };
+          current.count += 1;
+          subjects.set(key, current);
+        });
+    });
+    return Array.from(subjects.values())
+      .sort((a, b) => b.count - a.count || a.value.localeCompare(b.value));
+  }, [sessionClassStreamStudents]);
+
+  useEffect(() => {
+    if (
+      selectedSubject !== 'ALL' &&
+      !dynamicRosterSubjects.some(subject => subject.value.toLowerCase() === selectedSubject.toLowerCase())
+    ) {
+      setSelectedSubject('ALL');
+    }
+  }, [dynamicRosterSubjects, selectedSubject]);
+
   const dynamicStatuses = useMemo(() => {
     const counts = {};
     sessionClassStreamStudents.forEach(st => {
@@ -2163,6 +2191,7 @@ export default function CustomRosterDocumentBuilderView({
     const normSession = selectedSession !== 'ALL' ? selectedSession.toLowerCase() : null;
     const normClass = selectedClass !== 'ALL' ? selectedClass.toLowerCase() : null;
     const normStream = selectedStream !== 'ALL' ? selectedStream.toLowerCase() : null;
+    const normSubject = selectedSubject !== 'ALL' ? selectedSubject.toLowerCase() : null;
     const normStatus = selectedStatus !== 'ALL' ? selectedStatus.toLowerCase() : null;
 
     return unifiedStudentPool.filter(st => {
@@ -2170,6 +2199,12 @@ export default function CustomRosterDocumentBuilderView({
       if (normSession && !st.session.toLowerCase().includes(normSession)) return false;
       if (normClass && !st.className.toLowerCase().includes(normClass)) return false;
       if (normStream && !st.stream.toLowerCase().includes(normStream)) return false;
+      if (normSubject) {
+        const hasSubject = String(st.rawSubjects || '')
+          .split(/[,+;]/)
+          .some(subject => subject.trim().toLowerCase() === normSubject);
+        if (!hasSubject) return false;
+      }
       if (selectedGender !== 'ALL') {
         const g = st.gender.toLowerCase();
         if (selectedGender === 'M' && !g.startsWith('m')) return false;
@@ -2178,7 +2213,7 @@ export default function CustomRosterDocumentBuilderView({
       if (normStatus && st.status.toLowerCase() !== normStatus) return false;
       return true;
     });
-  }, [unifiedStudentPool, selectedSession, selectedClass, selectedStream, selectedGender, selectedStatus]);
+  }, [unifiedStudentPool, selectedSession, selectedClass, selectedStream, selectedSubject, selectedGender, selectedStatus]);
 
   // Active Columns for Table
   const activeTableColumns = activeColumns;
@@ -2262,6 +2297,7 @@ export default function CustomRosterDocumentBuilderView({
     selectedClass !== 'ALL' ? `Class: ${selectedClass}` : 'All Classes',
     displaySession,
     selectedStream !== 'ALL' ? `Stream: ${selectedStream}` : null,
+    selectedSubject !== 'ALL' ? `Subject: ${selectedSubject}` : null,
     `Total Students: ${filteredStudents.length}`,
     `Date: ${new Date().toLocaleDateString('en-GB')}`
   ].filter(Boolean);
@@ -2487,7 +2523,7 @@ export default function CustomRosterDocumentBuilderView({
               </span>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-1">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-1">
               {/* Session */}
               <div>
                 <label className="block text-[8.5px] font-extrabold text-slate-400 uppercase tracking-tight">Session</label>
@@ -2529,6 +2565,30 @@ export default function CustomRosterDocumentBuilderView({
                   <option value="ALL">All Streams ({sessionClassStudents.length})</option>
                   {dynamicStreams.map((stm) => (
                     <option key={stm.value} value={stm.value}>{stm.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Subject-wise official list filter */}
+              <div>
+                <label className="block text-[8.5px] font-extrabold text-slate-400 uppercase tracking-tight">Subject</label>
+                <select
+                  value={selectedSubject}
+                  onChange={(e) => {
+                    const subject = e.target.value;
+                    setSelectedSubject(subject);
+                    if (subject !== 'ALL') {
+                      setDocTitle(`SUBJECT-WISE STUDENT LIST — ${subject.toUpperCase()}`);
+                    }
+                  }}
+                  className="w-full px-1.5 py-0.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-extrabold text-[10px]"
+                  title="Create an export-ready list containing only students enrolled in one subject"
+                >
+                  <option value="ALL">All Subjects ({sessionClassStreamStudents.length})</option>
+                  {dynamicRosterSubjects.map(subject => (
+                    <option key={subject.value} value={subject.value}>
+                      {subject.value} ({subject.count})
+                    </option>
                   ))}
                 </select>
               </div>

@@ -26,7 +26,7 @@ The application displays these labels from the single source of truth in `src/po
 | Class Roll Number Manager | Optimized | Exact-record updates and approved-record safeguards are present. |
 | Application Merge & Deduplication | Beta | Identity merges are destructive and must remain preview-and-confirm operations. |
 | Communications & Automations | Beta | Provider quotas, delivery failures, and retries require monitoring. |
-| Funds & Fee Accounts | Beta | Reconciliation and large-cohort cost controls need additional hardening. |
+| Funds & Fee Accounts | Optimized | Atomic rate/account saves, live empty-ledger synchronization, rules coverage, and reconciliation validation are in place. |
 | Website CMS & Administration | Production | Public/private content separation and controlled publishing are established. |
 | Direct Entry & CSV Import | Beta | Input schemas vary, so preview and administrator confirmation remain mandatory. |
 | Administrator Access & Permissions | Beta | Custom claims and the current email-link handshake require server-verifiable second-factor hardening. |
@@ -44,6 +44,9 @@ The application displays these labels from the single source of truth in `src/po
 - Prevented ambiguous public lookups by class roll number alone; roll numbers remain signed document context, while verification uses unique registration, form, or certificate identifiers.
 - Reduced eager full-cohort reads in ID-card and fund-distribution workflows.
 - Centralized module names, descriptions, categories, permissions, and maturity labels.
+- Added subject-wise roster filtering across class, stream, gender, and status with the existing Word, Excel, and print/PDF outputs.
+- Closed the missing `fund_config` rules path, made fee configuration writes atomic, and added regression-tested over-distribution validation.
+- Added visible maturity labels to every Quick Action so administrators can distinguish optimized workflows from reviewed Beta entry tools.
 
 ## Remaining essential work
 

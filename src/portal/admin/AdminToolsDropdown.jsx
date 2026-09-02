@@ -301,6 +301,7 @@ export default function AdminToolsDropdown({
                         </div>
                         <div>
                           <div className="font-black text-xs text-slate-900 dark:text-white">Quick Cell Edit Hover</div>
+                          <span className={`inline-flex mt-0.5 rounded-md border px-1.5 py-0.2 text-[8px] font-black leading-none tracking-wide ${getModuleMaturity('optimized').badgeClass}`}>Optimized</span>
                           <div className="text-[10px] text-slate-400 font-normal">Click directly on report cells to edit student records</div>
                         </div>
                       </span>
@@ -327,7 +328,10 @@ export default function AdminToolsDropdown({
                         <BarChart2 size={14} />
                       </div>
                       <div>
-                        <div className="font-black text-xs text-slate-900 dark:text-white">Analytics & Reports Suite</div>
+                        <div className="flex items-center gap-1.5">
+                          <div className="font-black text-xs text-slate-900 dark:text-white">Analytics & Statistical Reports Suite</div>
+                          <span className={`rounded-md border px-1.5 py-0.2 text-[8px] font-black leading-none tracking-wide ${getModuleMaturity('optimized').badgeClass}`}>Optimized</span>
+                        </div>
                         <div className="text-[10px] text-slate-400 font-normal">View gender breakdown, stream stats and intake reports</div>
                       </div>
                     </button>
@@ -347,7 +351,10 @@ export default function AdminToolsDropdown({
                         <PlusCircle size={14} />
                       </div>
                       <div>
-                        <div className="font-black text-xs text-slate-900 dark:text-white">Express Direct Record Entry</div>
+                        <div className="flex items-center gap-1.5">
+                          <div className="font-black text-xs text-slate-900 dark:text-white">Express Direct Record Entry</div>
+                          <span className={`rounded-md border px-1.5 py-0.2 text-[8px] font-black leading-none tracking-wide ${getModuleMaturity('beta').badgeClass}`}>Beta</span>
+                        </div>
                         <div className="text-[10px] text-slate-400 font-normal">Add a single student application directly into active intake</div>
                       </div>
                     </button>
@@ -367,7 +374,10 @@ export default function AdminToolsDropdown({
                         <Wrench size={14} />
                       </div>
                       <div>
-                        <div className="font-black text-xs text-slate-900 dark:text-white">Bulk Tools & Photo Suite</div>
+                        <div className="flex items-center gap-1.5">
+                          <div className="font-black text-xs text-slate-900 dark:text-white">Bulk Tools & Photo Suite</div>
+                          <span className={`rounded-md border px-1.5 py-0.2 text-[8px] font-black leading-none tracking-wide ${getModuleMaturity('optimized').badgeClass}`}>Optimized</span>
+                        </div>
                         <div className="text-[10px] text-slate-400 font-normal">Bulk status updates, photo batch exports and recovery</div>
                       </div>
                     </button>
