@@ -7547,10 +7547,9 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
                             )}
                             {hoveredSlidePreview.caption && (
                               <div
-                                className="px-1.5 py-[1px] rounded-[3px] border"
+                                className="px-1.5 py-[1px] rounded-[3px]"
                                 style={{
-                                  backgroundColor: 'rgba(2, 6, 23, 0.85)',
-                                  borderColor: 'rgba(255, 255, 255, 0.25)'
+                                  backgroundColor: 'rgba(2, 6, 23, 0.85)'
                                 }}
                               >
                                 <span
