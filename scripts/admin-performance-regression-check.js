@@ -38,6 +38,21 @@ forbidMatch(
   /getDocs\(collection\(db,\s*['"](?:studentPhotos|admissions|masterRegisters)['"]\)\)/,
   'ID Card Studio must fetch photos by exact student key, not full collections.'
 );
+requireMatch(
+  'src/portal/admin/StudentIdCardManager.jsx',
+  /Promise\.all\(Array\.from\(\{ length: Math\.min\(4, total\) \}/,
+  'ID Card Studio must retain bounded concurrent photo preparation.'
+);
+requireMatch(
+  'src/portal/admin/StudentIdCardManager.jsx',
+  /selectIdCardStudents\(filteredStudents, selectedStudentIds, hasManuallySelected/,
+  'ID Card Studio must preserve intentional manual selections, including an empty selection.'
+);
+requireMatch(
+  'src/utils/idCardRenderer.js',
+  /studentSession\.toLowerCase\(\) !== String\(session\)\.trim\(\)\.toLowerCase\(\)/,
+  'ID Card Studio session filtering must remain exact.'
+);
 forbidMatch(
   'src/portal/admin/CustomRosterDocumentBuilderView.jsx',
   /preloadStudentPhotosCache/,

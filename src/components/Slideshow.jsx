@@ -1,26 +1,23 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 // Slideshow supports three ways to provide slides:
 // 1. `images` prop: an array of image URLs (legacy/simple usage).
 // 2. `configUrl` prop: a public URL to a text or JSON file that describes slides.
-//    - If `configUrl` points to a `.json` file, it should be an array of objects
-//      [{ image: '1.jpg', title: 'Header', caption: 'subtext' }, ...]
-//    - If `configUrl` points to a plain text file, each non-empty line maps to a slide.
-//      By default the parser will split the line by the first comma into `title,caption`.
-//      The corresponding image will be taken from `imageFolder` as `1.jpg`, `2.jpg`, ...
-// 3. If a text file line includes the image filename as the first value (contains a dot),
-//    it will be used directly: `image.jpg,Header,Caption`.
-// Usage (place files under `public/slides/`):
-// - public/slides/1.jpg
-// - public/slides/2.jpg
-// - public/slides/slides.txt    (each line: `Header,Caption`)
-// Then in your page: <Slideshow configUrl="/slides/slides.txt" imageFolder="/slides/" />
+// 3. `slides` prop: an array of slide objects [{ image, title, caption, fit, animation }]
 
-export default function Slideshow({ slides: customSlides = null, images = [], interval = 6000, configUrl = null, imageFolder = '/slides/', imageExt = '.jpg' }) {
+export default function Slideshow({
+  slides: customSlides = null,
+  images = [],
+  interval = 6000,
+  configUrl = null,
+  imageFolder = '/slides/',
+  imageExt = '.jpg'
+}) {
   const [index, setIndex] = useState(0);
-  const [slides, setSlides] = useState([]); // array of { image, title, caption }
+  const [slides, setSlides] = useState([]); // array of { image, title, caption, fit, animation }
   const [loadedIndices, setLoadedIndices] = useState(new Set([0]));
+  const [isHovered, setIsHovered] = useState(false);
 
   // Reset loaded indices if slides list changes
   useEffect(() => {
@@ -49,7 +46,7 @@ export default function Slideshow({ slides: customSlides = null, images = [], in
   // Build slides from images prop if provided
   useEffect(() => {
     if (images && images.length > 0 && !configUrl && (!customSlides || customSlides.length === 0)) {
-      setSlides(images.map((src) => ({ image: src, title: '', caption: '' })));
+      setSlides(images.map((src) => ({ image: src, title: '', caption: '', fit: 'ambient', animation: 'kenburns' })));
     }
   }, [images, configUrl, customSlides]);
 
@@ -74,7 +71,13 @@ export default function Slideshow({ slides: customSlides = null, images = [], in
               const imageUrl = (image.startsWith('http://') || image.startsWith('https://') || image.startsWith('data:'))
                 ? image
                 : (image.startsWith('/') ? image : imageFolder + image);
-              return { image: imageUrl, title: s.title || '', caption: s.caption || '' };
+              return {
+                image: imageUrl,
+                title: s.title || '',
+                caption: s.caption || '',
+                fit: s.fit || 'ambient',
+                animation: s.animation || 'kenburns'
+              };
             });
             if (!cancelled) setSlides(mapped);
             return;
@@ -95,18 +98,17 @@ export default function Slideshow({ slides: customSlides = null, images = [], in
             const imageUrl = (image.startsWith('http://') || image.startsWith('https://') || image.startsWith('data:'))
               ? image
               : (image.startsWith('/') ? image : imageFolder + image);
-            return { image: imageUrl, title, caption };
+            return { image: imageUrl, title, caption, fit: 'ambient', animation: 'kenburns' };
           }
           // Otherwise, treat line as `title,caption` and image as numbered file
           const title = (parts[0] || '').trim();
           const caption = (parts.slice(1).join(',') || '').trim();
           const image = `${imageFolder}${idx + 1}${imageExt}`;
-          return { image, title, caption };
+          return { image, title, caption, fit: 'ambient', animation: 'kenburns' };
         });
 
         if (!cancelled) setSlides(mapped);
       } catch (err) {
-        // on error, fallback to empty slides
         console.error('Slideshow: failed to load config', err);
         if (!cancelled) setSlides([]);
       }
@@ -116,78 +118,182 @@ export default function Slideshow({ slides: customSlides = null, images = [], in
     return () => { cancelled = true; };
   }, [configUrl, imageFolder, imageExt, customSlides]);
 
-  // autoplay index rotation
+  // Next / Prev slide handlers
+  const handlePrev = useCallback(() => {
+    setIndex((i) => (i - 1 + slides.length) % slides.length);
+  }, [slides.length]);
+
+  const handleNext = useCallback(() => {
+    setIndex((i) => (i + 1) % slides.length);
+  }, [slides.length]);
+
+  // Autoplay index rotation (pauses on user hover for better reading)
   useEffect(() => {
-    if (!slides || slides.length <= 1) return;
+    if (!slides || slides.length <= 1 || isHovered) return;
     const id = setInterval(() => setIndex((i) => (i + 1) % slides.length), interval);
     return () => clearInterval(id);
-  }, [slides, interval]);
+  }, [slides, interval, isHovered]);
 
   if (!slides || slides.length === 0) return null;
 
   return (
-    <div className="absolute inset-0 overflow-hidden">
+    <div
+      className="absolute inset-0 overflow-hidden select-none"
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+    >
       {slides.map((s, i) => {
         const isLoaded = loadedIndices.has(i);
+        const isActive = i === index;
+        const fitMode = s.fit || 'ambient'; // 'ambient' | 'cover' | 'contain'
+        const animMode = s.animation || 'kenburns'; // 'kenburns' | 'fade' | 'zoom' | 'pan'
+
+        // Determine animation class
+        let animClass = '';
+        if (isActive) {
+          if (animMode === 'kenburns') animClass = 'animate-slide-kenburns';
+          else if (animMode === 'zoom') animClass = 'animate-slide-zoom';
+          else if (animMode === 'pan') animClass = 'animate-slide-pan';
+        }
+
         return (
           <div
             key={i}
             role="img"
-            aria-label={`slide-${i}`}
-            className={`absolute inset-0 bg-cover bg-center transition-opacity duration-700 ease-out ${i === index ? 'opacity-100 z-0' : 'opacity-0 z-0'}`}
-            style={isLoaded ? { backgroundImage: `url(${s.image})` } : {}}
+            aria-label={s.title || `Slide ${i + 1}`}
+            className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${
+              isActive ? 'opacity-100 z-0 pointer-events-auto' : 'opacity-0 z-0 pointer-events-none'
+            }`}
           >
-            {i === 0 && isLoaded && (
-              <img
-                src={s.image}
-                alt={s.title || "Govt HSS Shangus"}
-                fetchPriority="high"
-                decoding="async"
-                className="w-full h-full object-cover opacity-0 pointer-events-none"
-              />
+            {isLoaded && (
+              <>
+                {/* 1. AMBIENT GLOW MODE: Full uncropped photo + ambient blurred background */}
+                {fitMode === 'ambient' && (
+                  <>
+                    {/* Ambient backdrop */}
+                    <div
+                      className="absolute inset-0 bg-cover bg-center filter blur-2xl scale-125 opacity-60 brightness-75 transform-gpu"
+                      style={{ backgroundImage: `url(${s.image})` }}
+                    />
+                    {/* Foreground uncropped full photo with animation */}
+                    <div className="absolute inset-0 flex items-center justify-center p-2 sm:p-4 md:p-6 pb-14 sm:pb-16 md:pb-20">
+                      <img
+                        src={s.image}
+                        alt={s.title || "Govt HSS Shangus"}
+                        fetchPriority={i === 0 ? "high" : "auto"}
+                        decoding="async"
+                        className={`max-w-full max-h-full object-contain rounded-md sm:rounded-lg shadow-[0_15px_40px_rgba(0,0,0,0.85)] drop-shadow-2xl border border-white/10 ${animClass}`}
+                      />
+                    </div>
+                  </>
+                )}
+
+                {/* 2. COVER MODE: Widescreen filled banner */}
+                {fitMode === 'cover' && (
+                  <div
+                    className={`absolute inset-0 bg-cover bg-center ${animClass}`}
+                    style={{ backgroundImage: `url(${s.image})` }}
+                  >
+                    {i === 0 && (
+                      <img
+                        src={s.image}
+                        alt={s.title || "Govt HSS Shangus"}
+                        fetchPriority="high"
+                        decoding="async"
+                        className="w-full h-full object-cover opacity-0 pointer-events-none"
+                      />
+                    )}
+                  </div>
+                )}
+
+                {/* 3. CONTAIN MODE: Centered uncropped with dark backdrop */}
+                {fitMode === 'contain' && (
+                  <div className="absolute inset-0 bg-slate-950/80 flex items-center justify-center p-2 sm:p-4 md:p-6 pb-14 sm:pb-16 md:pb-20">
+                    <img
+                      src={s.image}
+                      alt={s.title || "Govt HSS Shangus"}
+                      fetchPriority={i === 0 ? "high" : "auto"}
+                      decoding="async"
+                      className={`max-w-full max-h-full object-contain rounded-md shadow-2xl ${animClass}`}
+                    />
+                  </div>
+                )}
+              </>
             )}
           </div>
         );
       })}
 
-      {/* dark overlay above slides but below page content */}
-      <div className="absolute inset-0 bg-black/45 z-10 pointer-events-none" />
+      {/* Dark vignette & readability gradient overlay above slides but below text slogans */}
+      <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-black/30 to-black/45 z-10 pointer-events-none" />
 
-      {/* Controls */}
+      {/* Interactive Controls & Slide Indicator Dots */}
       <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-        <div className="flex items-center gap-1 sm:gap-1.5 absolute bottom-2 right-2 sm:right-auto sm:left-1/2 sm:-translate-x-1/2 sm:bottom-8 md:bottom-20 pointer-events-auto z-20">
+        <div className="flex items-center gap-2 sm:gap-3 absolute bottom-2.5 right-2 sm:right-auto sm:left-1/2 sm:-translate-x-1/2 sm:bottom-6 md:bottom-20 pointer-events-auto z-20 bg-slate-950/60 backdrop-blur-md px-2 sm:px-3 py-1 sm:py-1.5 rounded-full border border-white/15 shadow-xl">
+          {/* Prev button */}
           <button
             type="button"
             aria-label="Previous slide"
-            onClick={() => setIndex((i) => (i - 1 + slides.length) % slides.length)}
-            className="bg-black/25 sm:bg-black/50 hover:bg-black/40 sm:hover:bg-black/75 active:scale-90 text-white rounded-full border border-white/60 sm:border-white/75 hover:border-white shadow-xs flex items-center justify-center w-5 h-5 sm:w-6 sm:h-6 md:w-6 md:h-6 transition-all duration-200 cursor-pointer backdrop-blur-xs"
+            onClick={handlePrev}
+            className="text-white/80 hover:text-white hover:bg-white/15 active:scale-90 rounded-full flex items-center justify-center w-5 h-5 sm:w-6 sm:h-6 transition-all duration-200 cursor-pointer"
             title="Previous slide"
           >
-            <ChevronLeft size={13} className="stroke-[2.5] -translate-x-[0.5px]" />
+            <ChevronLeft size={14} className="stroke-[2.5]" />
           </button>
+
+          {/* Indicator dots */}
+          {slides.length > 1 && (
+            <div className="flex items-center gap-1 sm:gap-1.5 px-0.5">
+              {slides.map((_, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => setIndex(i)}
+                  aria-label={`Jump to slide ${i + 1}`}
+                  className={`h-1.5 rounded-full transition-all duration-300 cursor-pointer ${
+                    i === index
+                      ? 'w-5 sm:w-6 bg-teal-400 shadow-[0_0_10px_rgba(45,212,191,0.8)]'
+                      : 'w-1.5 bg-white/40 hover:bg-white/70'
+                  }`}
+                  title={`Slide ${i + 1}`}
+                />
+              ))}
+            </div>
+          )}
+
+          {/* Next button */}
           <button
             type="button"
             aria-label="Next slide"
-            onClick={() => setIndex((i) => (i + 1) % slides.length)}
-            className="bg-black/25 sm:bg-black/50 hover:bg-black/40 sm:hover:bg-black/75 active:scale-90 text-white rounded-full border border-white/60 sm:border-white/75 hover:border-white shadow-xs flex items-center justify-center w-5 h-5 sm:w-6 sm:h-6 md:w-6 md:h-6 transition-all duration-200 cursor-pointer backdrop-blur-xs"
+            onClick={handleNext}
+            className="text-white/80 hover:text-white hover:bg-white/15 active:scale-90 rounded-full flex items-center justify-center w-5 h-5 sm:w-6 sm:h-6 transition-all duration-200 cursor-pointer"
             title="Next slide"
           >
-            <ChevronRight size={13} className="stroke-[2.5] translate-x-[0.5px]" />
+            <ChevronRight size={14} className="stroke-[2.5]" />
           </button>
         </div>
       </div>
 
-      {/* Left caption (matches screenshot) */}
-      <div className="absolute left-2.5 sm:left-6 right-auto bottom-2 sm:bottom-6 md:bottom-20 text-left text-white z-20 pointer-events-none max-w-[calc(100%-56px)] sm:max-w-[60%] flex flex-col items-start gap-[1px] sm:gap-1">
-        {slides[index].title && (
-          <h3 className="text-[10px] sm:text-sm font-bold text-teal-300 leading-none m-0 p-0 drop-shadow-[0_1.5px_2px_rgba(0,0,0,0.85)] pl-0.5">{slides[index].title}</h3>
-        )}
-        {slides[index].caption && (
-          <div className="-skew-x-12 bg-black/45 px-1 py-[1.5px] sm:px-2 sm:py-0.5 rounded-sm backdrop-blur-sm">
-            <span className="skew-x-12 block text-[9.5px] sm:text-xs italic text-white/90 leading-none m-0 p-0">{slides[index].caption}</span>
-          </div>
-        )}
-      </div>
+      {/* Left caption badge with smooth animated entrance */}
+      {(slides[index]?.title || slides[index]?.caption) && (
+        <div
+          key={`caption-${index}`}
+          className="animate-badge-fade-up absolute left-2.5 sm:left-6 right-auto bottom-2.5 sm:bottom-6 md:bottom-20 text-left text-white z-20 pointer-events-none max-w-[calc(100%-140px)] sm:max-w-[55%] flex flex-col items-start gap-[2px] sm:gap-1"
+        >
+          {slides[index].title && (
+            <h3 className="text-[11px] sm:text-sm md:text-base font-bold text-teal-300 leading-tight m-0 p-0 drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)] pl-0.5 tracking-wide">
+              {slides[index].title}
+            </h3>
+          )}
+          {slides[index].caption && (
+            <div className="-skew-x-6 bg-black/60 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded backdrop-blur-md border border-white/15 shadow-lg">
+              <span className="skew-x-6 block text-[9.5px] sm:text-xs font-medium text-slate-200 leading-tight m-0 p-0">
+                {slides[index].caption}
+              </span>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

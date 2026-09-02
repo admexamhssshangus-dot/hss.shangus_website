@@ -17,7 +17,7 @@ The application displays these labels from the single source of truth in `src/po
 | Student Rosters & Registers | Optimized | Canonical photo resolution and print/export safeguards are regression-checked. |
 | Official Letterhead Writer | Production | Secure server-side AI path and controlled output workflow. |
 | Student Bonafides & Certificates | Production | Controlled generation with record verification before issue. |
-| Student ID Card Studio | Beta | Large-cohort photo resolution and print edge cases need more scale testing. |
+| Student ID Card Studio | Optimized | Strict cohort filtering, stable selection keys, bounded concurrent photo preparation, upload limits, and page-range printing are regression-checked. |
 | Competitive Exams & OMR | Beta | Public registration, lookup, OMR, and quota behavior need broader load testing. |
 | Academic Controls & Subjects | Production | Central configuration with admission-time validation. |
 | Subject Rules & Streams | Production | Central rules are used by the admission workflow. |
@@ -47,6 +47,7 @@ The application displays these labels from the single source of truth in `src/po
 - Added subject-wise roster filtering across class, stream, gender, and status with the existing Word, Excel, and print/PDF outputs.
 - Closed the missing `fund_config` rules path, made fee configuration writes atomic, and added regression-tested over-distribution validation.
 - Added visible maturity labels to every Quick Action so administrators can distinguish optimized workflows from reviewed Beta entry tools.
+- Hardened ID-card session/status/stream filters, preserved intentional empty selections, made selection keys stable across filtering, and prepared large photo batches with bounded concurrency and timeouts.
 
 ## Remaining essential work
 

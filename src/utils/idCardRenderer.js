@@ -3,6 +3,10 @@
  * Govt. Higher Secondary School Shangus
  */
 import { createQrSvgDataUri } from './qrSvgGenerator';
+import {
+  getAssignedClassRollNumber,
+  resolveStudentAdmissionStatus,
+} from './studentApprovalStatus';
 
 // ─── THEME PALETTES ───
 export const ID_CARD_THEMES = {
@@ -218,10 +222,10 @@ export const ID_CARD_THEMES = {
 export function normalizeStudentClass(val) {
   if (!val) return '';
   const str = String(val).trim().toLowerCase();
-  if (str.includes('12') || str.includes('xii')) return '12th';
-  if (str.includes('11') || str.includes('xi')) return '11th';
-  if (str.includes('10') || str.includes('x')) return '10th';
-  if (str.includes('9') || str.includes('ix')) return '9th';
+  if (/\b(?:12(?:th)?|xii)\b/.test(str)) return '12th';
+  if (/\b(?:11(?:th)?|xi)\b/.test(str)) return '11th';
+  if (/\b(?:10(?:th)?|x)\b/.test(str)) return '10th';
+  if (/\b(?:9(?:th)?|ix)\b/.test(str)) return '9th';
   return val;
 }
 
@@ -245,9 +249,97 @@ export function getStudentRollVal(st) {
   return '';
 }
 
+export function getIdCardStudentKey(student, fallbackIndex = 0) {
+  if (!student) return `row_${fallbackIndex}`;
+  const directId = student.id || student.docId || student._docId;
+  if (directId) return `id_${String(directId).trim()}`;
+
+  const registration = student['Board Registration Number'] || student['Board Reg No'] || student.boardRegNo || student.regNo;
+  if (registration) return `reg_${String(registration).replace(/[^a-z0-9]/gi, '').toLowerCase()}`;
+
+  const formNumber = student['Form Number'] || student['Form No.'] || student.formNo;
+  if (formNumber) return `form_${String(formNumber).replace(/[^a-z0-9]/gi, '').toLowerCase()}`;
+
+  const name = student["Student's Name (as per school records)"] || student["Student's Name"] || student.studentName || '';
+  const className = normalizeStudentClass(student['Admission sought for class'] || student.Class || student.class || '');
+  const roll = getAssignedClassRollNumber(student);
+  const composite = `${name}_${className}_${roll}`.replace(/[^a-z0-9]/gi, '').toLowerCase();
+  return composite ? `student_${composite}` : `row_${fallbackIndex}`;
+}
+
+export function filterIdCardStudents(students, filters = {}) {
+  const {
+    session = 'All',
+    className = 'All',
+    stream = 'All',
+    status = 'Approved',
+    search = '',
+  } = filters;
+  const searchNeedle = String(search).trim().toLowerCase();
+
+  return (Array.isArray(students) ? students : []).filter(student => {
+    const studentSession = String(student.Session || student.session || '').trim();
+    const studentClass = normalizeStudentClass(student['Admission sought for class'] || student.Class || student.class);
+    const studentStream = getStudentStreamVal(student).toLowerCase().trim();
+    const effectiveStatus = resolveStudentAdmissionStatus(student);
+    const name = String(student["Student's Name (as per school records)"] || student["Student's Name"] || student.studentName || '').toLowerCase();
+    const roll = getAssignedClassRollNumber(student);
+    const registration = String(student['Board Registration Number'] || student.boardRegNo || '').toLowerCase();
+    const formNumber = String(student['Form Number'] || student['Form No.'] || student.formNo || '').toLowerCase();
+
+    if (!roll) return false;
+    if (session !== 'All' && studentSession.toLowerCase() !== String(session).trim().toLowerCase()) return false;
+    if (status !== 'All' && effectiveStatus !== status) return false;
+    if (className !== 'All' && studentClass !== className) return false;
+    if (stream !== 'All') {
+      const targetStream = String(stream).toLowerCase().trim();
+      if (studentStream !== targetStream && !studentStream.includes(targetStream)) return false;
+    }
+    if (searchNeedle && ![name, roll, registration, formNumber].some(value => String(value).toLowerCase().includes(searchNeedle))) {
+      return false;
+    }
+    return true;
+  }).sort((a, b) => {
+    const rollA = getAssignedClassRollNumber(a);
+    const rollB = getAssignedClassRollNumber(b);
+    return rollA.localeCompare(rollB, undefined, { numeric: true, sensitivity: 'base' });
+  });
+}
+
+export function selectIdCardStudents(students, selectedIds, hasManualSelection, rangeMode, rangeFrom, rangeTo) {
+  let selected = Array.isArray(students) ? students : [];
+  if (hasManualSelection) {
+    const ids = selectedIds instanceof Set ? selectedIds : new Set(selectedIds || []);
+    selected = selected.filter((student, index) => ids.has(getIdCardStudentKey(student, index)));
+  }
+  if (rangeMode !== 'range') return selected;
+
+  const fromIndex = Math.max(0, (Number.parseInt(rangeFrom, 10) || 1) - 1);
+  const toIndex = Math.min(selected.length, Math.max(fromIndex + 1, Number.parseInt(rangeTo, 10) || selected.length));
+  return selected.slice(fromIndex, toIndex);
+}
+
+export function paginateIdCardStudents(students, cardsPerPage) {
+  const pageSize = Math.max(1, Number.parseInt(cardsPerPage, 10) || 1);
+  const pages = [];
+  for (let index = 0; index < students.length; index += pageSize) {
+    pages.push(students.slice(index, index + pageSize));
+  }
+  return pages;
+}
+
 /**
  * Global Helper to extract authentic Stream across all database keys or infer from subjects
  */
+export function getIdCardSubjectText(student) {
+  if (!student) return '';
+  const className = normalizeStudentClass(student['Admission sought for class'] || student.Class || student.class);
+  const raw = student[`Subjects to be taken in Class ${className}`] ||
+    student.selectedSubjects || student.subs || student.Subjects || student.subjects ||
+    student['Subject Choice'] || student['Subjects Offered'] || student.subject || '';
+  return Array.isArray(raw) ? raw.join(', ') : String(raw);
+}
+
 export function getStudentStreamVal(st) {
   if (!st) return '';
   const streamKeys = [
@@ -255,37 +347,24 @@ export function getStudentStreamVal(st) {
     'Faculty', 'Faculty/Stream', 'Stream Name', 'Subject Group', 'academicStream'
   ];
   for (const k of streamKeys) {
-    if (st[k] && String(st[k]).trim() !== '' && String(st[k]).trim() !== 'undefined' && String(st[k]).trim() !== 'null') {
+    if (st[k] && !/^(?:—|n\/a|null|undefined|\s*)$/i.test(String(st[k]).trim()) && !/same as/i.test(String(st[k]))) {
       return String(st[k]).trim();
     }
   }
 
-  // Infer stream from subjects (including st.subs) if stream field is missing
-  const subjStr = String(
-    st.subs || st['Subjects'] || st.subjects || st['Subject Choice'] || st['Subjects Offered'] || st.subject || ''
-  ).toLowerCase();
-
-  if (
-    subjStr.includes('ph') || subjStr.includes('phys') || subjStr.includes('ch') || 
-    subjStr.includes('chem') || subjStr.includes('bio') || subjStr.includes('biol') || 
-    subjStr.includes('ma') || subjStr.includes('math') || subjStr.includes('ite') || 
-    subjStr.includes('computer') || subjStr.includes('ip')
-  ) {
+  const className = normalizeStudentClass(st['Admission sought for class'] || st.Class || st.class);
+  if (className === '9th' || className === '10th') return 'General';
+  const subjects = getIdCardSubjectText(st).toLowerCase().split(/[,;+]/).map(subject => subject.trim());
+  if (subjects.some(subject => /^(?:ph|physics|ch|chemistry|bio|biology|bot|botany|zoo|zoology)$/.test(subject))) {
     return 'Science';
   }
-  if (
-    subjStr.includes('acc') || subjStr.includes('bus') || subjStr.includes('com') || subjStr.includes('eco')
-  ) {
+  if (subjects.some(subject => /^(?:acc|accountancy|bst|business studies|commerce)$/.test(subject))) {
     return 'Commerce';
   }
-  if (
-    subjStr.includes('ps') || subjStr.includes('pol') || subjStr.includes('ht') || 
-    subjStr.includes('hist') || subjStr.includes('soc') || subjStr.includes('ed') || 
-    subjStr.includes('urdu') || subjStr.includes('kash') || subjStr.includes('evs')
-  ) {
+  if (subjects.some(subject => /^(?:ps|political science|ht|history|soc|sociology|ed|education|geography)$/.test(subject))) {
     return 'Humanities';
   }
-  return 'Science'; // Default to Science if subjects exist
+  return '';
 }
 
 /**
@@ -305,7 +384,7 @@ export function resolveClassTheme(studentClass, studentStream, customThemeKey = 
   }
 
   let streamCategory = 'Arts';
-  if (stm.includes('sci') || stm.includes('med') || stm.includes('non') || stm.includes('ph') || stm.includes('ch') || stm.includes('bio') || stm.includes('ma') || stm.includes('ite')) {
+  if (/science|medical|non[-\s]?medical/.test(stm)) {
     streamCategory = 'Science';
   } else if (stm.includes('com') || stm.includes('acc')) {
     streamCategory = 'Commerce';
@@ -426,22 +505,18 @@ export function generateVerificationSignature(reg = '', roll = '', fNo = '', cer
  */
 export function generateVerificationQrUrl(student, size = 160) {
   if (!student) return '';
-  const sName = student["Student's Name (as per school records)"] || student["Student's Name"] || student.studentName || 'Student';
   const reg = student['Board Registration Number'] || student.boardRegNo || student.regNo || '—';
   const roll = getStudentRollVal(student) || '—';
   const fNo = student['Form Number'] || student['Form No.'] || student.formNo || '—';
 
-  const uniqueId = student.id || student['Form Number'] || student.formNo || student['Board Registration Number'] || sName;
-  const cacheKey = `${uniqueId}_${roll}_${size}`;
-  if (qrMemoryCache.has(cacheKey)) {
-    return qrMemoryCache.get(cacheKey);
-  }
-
   const origin = (typeof window !== 'undefined' && window.location && window.location.origin) ? window.location.origin : 'https://admexamhssshangus.web.app';
   const sig = generateVerificationSignature(reg, roll, fNo);
   const verifyUrl = `${origin}/verify-student?reg=${encodeURIComponent(reg)}&roll=${encodeURIComponent(roll)}&fNo=${encodeURIComponent(fNo)}&sig=${encodeURIComponent(sig)}`;
+  const cacheKey = `${verifyUrl}_${size}`;
+  if (qrMemoryCache.has(cacheKey)) return qrMemoryCache.get(cacheKey);
 
   const uri = createQrSvgDataUri(verifyUrl, size);
+  if (qrMemoryCache.size >= 1000) qrMemoryCache.delete(qrMemoryCache.keys().next().value);
   qrMemoryCache.set(cacheKey, uri);
   return uri;
 }
