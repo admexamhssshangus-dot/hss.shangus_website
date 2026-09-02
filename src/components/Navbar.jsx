@@ -337,7 +337,7 @@ export default function Navbar() {
                 />
 
                 <div className="flex max-w-[42vw] items-center gap-1.5 rounded-2xl bg-slate-900/95 border border-emerald-500/40 p-1.5 shadow-xl backdrop-blur-xl text-white transition-all duration-300 hover:shadow-emerald-500/20 hover:border-emerald-400/60">
-                  {/* Avatar with Green Logged-In Active Dot */}
+                  {/* Avatar Profile Photo */}
                   <button
                     type="button"
                     onClick={() => profileInputRef.current?.click()}
@@ -350,11 +350,6 @@ export default function Navbar() {
                     ) : (
                       <User size={16} className="stroke-[2.5]" aria-hidden="true" />
                     )}
-                    {/* Active Logged-In Online Dot */}
-                    <span className="absolute bottom-0 right-0 flex h-2.5 w-2.5" title="Online / Logged In" aria-hidden="true">
-                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-                      <span className="relative inline-flex h-2.5 w-2.5 rounded-full border border-slate-900 bg-emerald-500 shadow-xs" />
-                    </span>
                   </button>
 
                   {/* Clickable User Information Area -> Returns to Dashboard */}
@@ -559,11 +554,6 @@ export default function Navbar() {
                           ) : (
                             (currentUser.name || currentUser.email || 'U')[0].toUpperCase()
                           )}
-                          {/* Active Green Online Dot */}
-                          <span className="absolute bottom-0 right-0 flex h-2 w-2">
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500 border border-slate-900"></span>
-                          </span>
                         </div>
                         <div className="flex min-w-0 flex-1 flex-col truncate text-left leading-tight">
                           <span className="flex min-w-0 items-center gap-1.5 truncate text-xs font-black text-white transition-colors group-hover:text-emerald-300">
