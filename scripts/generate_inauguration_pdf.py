@@ -31,26 +31,29 @@ class NumberedCanvas(canvas.Canvas):
         self.setFont("Helvetica-Bold", 8)
         self.setFillColor(colors.HexColor("#064e3b"))
         
-        # Header (pages > 1)
+        # Header on page > 1
         if self._pageNumber > 1:
-            self.drawString(36, 11 * inch - 28, "GOVT. HIGHER SECONDARY SCHOOL SHANGUS • INAUGURATION PRESENTATION GUIDE")
+            self.drawString(36, 11 * inch - 26, "GOVT. HIGHER SECONDARY SCHOOL SHANGUS • TECHNICAL REPORT CUM PRESENTATION")
             self.setFont("Helvetica", 8)
             self.setFillColor(colors.HexColor("#64748b"))
-            self.drawRightString(8.5 * inch - 36, 11 * inch - 28, "Digital Campus & Governance Suite")
+            self.drawRightString(8.5 * inch - 36, 11 * inch - 26, "Digital Campus System Architecture")
             self.setStrokeColor(colors.HexColor("#cbd5e1"))
             self.setLineWidth(0.6)
-            self.line(36, 11 * inch - 32, 8.5 * inch - 36, 11 * inch - 32)
+            self.line(36, 11 * inch - 30, 8.5 * inch - 36, 11 * inch - 30)
         
-        # Footer (all pages)
+        # Footer on all pages
         self.setStrokeColor(colors.HexColor("#cbd5e1"))
         self.setLineWidth(0.6)
-        self.line(36, 38, 8.5 * inch - 36, 38)
+        self.line(36, 36, 8.5 * inch - 36, 36)
         
-        self.setFont("Helvetica", 8)
+        self.setFont("Helvetica-Bold", 7.5)
+        self.setFillColor(colors.HexColor("#064e3b"))
+        self.drawString(36, 24, "GHSS SHANGUS DIGITAL ECOSYSTEM")
+        self.setFont("Helvetica", 7.5)
         self.setFillColor(colors.HexColor("#64748b"))
-        self.drawString(36, 25, "Official Inauguration Address & Speaker Notes • Designed for Live Demonstration")
+        self.drawString(185, 24, "• Technical Whitepaper & Inauguration Presentation Guide")
         page_str = f"Page {self._pageNumber} of {page_count}"
-        self.drawRightString(8.5 * inch - 36, 25, page_str)
+        self.drawRightString(8.5 * inch - 36, 24, page_str)
         self.restoreState()
 
 def build_pdf(filename):
@@ -59,61 +62,65 @@ def build_pdf(filename):
         pagesize=letter,
         leftMargin=36,
         rightMargin=36,
-        topMargin=44,
-        bottomMargin=46
+        topMargin=40,
+        bottomMargin=44
     )
 
     styles = getSampleStyleSheet()
 
-    # Custom styles
-    c_primary = colors.HexColor("#064e3b")
-    c_teal = colors.HexColor("#0f766e")
-    c_dark = colors.HexColor("#0f172a")
-    c_slate = colors.HexColor("#334155")
-    c_amber = colors.HexColor("#b45309")
+    # Brand Colors
+    c_primary = colors.HexColor("#064e3b")      # Deep Emerald
+    c_teal = colors.HexColor("#0f766e")         # Teal
+    c_dark = colors.HexColor("#0f172a")         # Slate 900
+    c_slate = colors.HexColor("#334155")        # Slate 700
+    c_muted = colors.HexColor("#64748b")        # Slate 500
+    c_amber = colors.HexColor("#b45309")        # Amber / Gold
+    c_bg_light = colors.HexColor("#f8fafc")     # Slate 50
+    c_bg_emerald = colors.HexColor("#f0fdf4")   # Emerald 50
+    c_border = colors.HexColor("#cbd5e1")       # Slate 300
 
     title_style = ParagraphStyle(
         'DocTitle',
         parent=styles['Normal'],
         fontName='Helvetica-Bold',
-        fontSize=20,
-        leading=24,
+        fontSize=18,
+        leading=22,
         textColor=c_primary,
-        alignment=1, # Center
-        spaceAfter=4
+        alignment=1,
+        spaceAfter=3
     )
 
     subtitle_style = ParagraphStyle(
         'DocSubtitle',
         parent=styles['Normal'],
         fontName='Helvetica-Bold',
-        fontSize=11,
-        leading=15,
+        fontSize=10.5,
+        leading=14,
         textColor=c_teal,
         alignment=1,
-        spaceAfter=12
+        spaceAfter=6
     )
 
     meta_style = ParagraphStyle(
         'DocMeta',
         parent=styles['Normal'],
         fontName='Helvetica',
-        fontSize=8.5,
-        leading=12,
-        textColor=colors.HexColor("#475569"),
+        fontSize=8,
+        leading=11,
+        textColor=c_muted,
         alignment=1,
-        spaceAfter=14
+        spaceAfter=10
     )
 
     h1_style = ParagraphStyle(
         'H1',
         parent=styles['Normal'],
         fontName='Helvetica-Bold',
-        fontSize=14,
-        leading=18,
+        fontSize=12,
+        leading=16,
         textColor=c_primary,
-        spaceBefore=12,
-        spaceAfter=6,
+        spaceBefore=10,
+        spaceAfter=4,
         keepWithNext=True
     )
 
@@ -121,11 +128,11 @@ def build_pdf(filename):
         'H2',
         parent=styles['Normal'],
         fontName='Helvetica-Bold',
-        fontSize=11,
-        leading=15,
+        fontSize=9.5,
+        leading=13,
         textColor=c_teal,
-        spaceBefore=9,
-        spaceAfter=4,
+        spaceBefore=7,
+        spaceAfter=3,
         keepWithNext=True
     )
 
@@ -133,50 +140,59 @@ def build_pdf(filename):
         'Body',
         parent=styles['Normal'],
         fontName='Helvetica',
-        fontSize=9.2,
-        leading=13.5,
+        fontSize=8.5,
+        leading=12,
         textColor=c_dark,
-        spaceAfter=6
+        spaceAfter=4
     )
 
     speech_style = ParagraphStyle(
         'SpeechText',
         parent=styles['Normal'],
         fontName='Helvetica',
-        fontSize=9.2,
-        leading=14,
-        textColor=colors.HexColor("#0f172a"),
-        spaceAfter=6
+        fontSize=8.5,
+        leading=12.5,
+        textColor=c_dark,
+        spaceAfter=4
     )
 
     cue_style = ParagraphStyle(
         'StageCue',
         parent=styles['Normal'],
         fontName='Helvetica-Bold',
-        fontSize=8.5,
-        leading=12,
-        textColor=colors.HexColor("#b45309"),
+        fontSize=8,
+        leading=11,
+        textColor=c_amber,
         spaceBefore=2,
-        spaceAfter=4
+        spaceAfter=3
     )
 
     bullet_style = ParagraphStyle(
         'Bullet',
         parent=styles['Normal'],
         fontName='Helvetica',
-        fontSize=9,
-        leading=13,
+        fontSize=8.5,
+        leading=12,
         textColor=c_dark,
-        leftIndent=12,
-        spaceAfter=3
+        leftIndent=10,
+        spaceAfter=2
     )
 
     table_cell = ParagraphStyle(
         'TableCell',
         parent=styles['Normal'],
         fontName='Helvetica',
-        fontSize=8.5,
-        leading=11.5,
+        fontSize=8,
+        leading=10.5,
+        textColor=c_dark
+    )
+
+    table_cell_bold = ParagraphStyle(
+        'TableCellBold',
+        parent=styles['Normal'],
+        fontName='Helvetica-Bold',
+        fontSize=8,
+        leading=10.5,
         textColor=c_dark
     )
 
@@ -184,189 +200,221 @@ def build_pdf(filename):
         'TableHead',
         parent=styles['Normal'],
         fontName='Helvetica-Bold',
-        fontSize=8.5,
-        leading=11.5,
+        fontSize=8,
+        leading=10.5,
         textColor=colors.white
     )
 
     story = []
 
-    # ─────────────────────────────────────────────────────────
-    # HEADER & TITLE
-    # ─────────────────────────────────────────────────────────
+    # ═══════════════════════════════════════════════════════════
+    # TITLE & METADATA
+    # ═══════════════════════════════════════════════════════════
     story.append(Paragraph("GOVERNMENT HIGHER SECONDARY SCHOOL SHANGUS", title_style))
-    story.append(Paragraph("OFFICIAL INAUGURATION KEYNOTE ADDRESS & PRESENTER'S COMPANION GUIDE", subtitle_style))
-    story.append(Paragraph("<b>Authoritative Walkthrough & Demonstration Manual for the Digital Campus Ecosystem</b><br/><i>Architecture: 130,000+ Lines of Production Cloud Code • Powered by React, Firebase Cloud Firestore & Automated Engines</i>", meta_style))
-    story.append(HRFlowable(width="100%", thickness=1.5, color=c_primary, spaceBefore=0, spaceAfter=10))
+    story.append(Paragraph("TECHNICAL ARCHITECTURE REPORT CUM INAUGURATION PRESENTATION GUIDE", subtitle_style))
+    story.append(Paragraph("<b>A Complete Engineering Monograph & Presenter's Keynote Companion</b><br/><i>Software Footprint: 128,600+ Lines of Production Code Across 136 Modules • Stack: React 18, Google Cloud Firestore, Serverless Edge Handlers & PWA Architecture</i>", meta_style))
+    story.append(HRFlowable(width="100%", thickness=1.2, color=c_primary, spaceBefore=0, spaceAfter=8))
 
-    # ─────────────────────────────────────────────────────────
-    # QUICK REFERENCE: TIMING & AGENDA
-    # ─────────────────────────────────────────────────────────
-    story.append(Paragraph("1. Executive Presentation Agenda & Stage Timing", h1_style))
-    
-    agenda_data = [
-        [Paragraph("Phase", table_header), Paragraph("Topic & Core Focus", table_header), Paragraph("Key Screen / Live Demo Action", table_header), Paragraph("Duration", table_header)],
-        [Paragraph("<b>Phase 1</b>", table_cell), Paragraph("<b>Opening & Visionary Hook:</b> Welcoming dignitaries; the transition from paper to a 21st-century digital campus.", table_cell), Paragraph("Landing on Homepage & Hero Slideshow", table_cell), Paragraph("3 min", table_cell)],
-        [Paragraph("<b>Phase 2</b>", table_cell), Paragraph("<b>Public Institutional Gateway:</b> Transparency, dynamic notices, subject combinations, faculty roster & mobile PWA.", table_cell), Paragraph("Scroll Notice Board & Dynamic Faculty Grid", table_cell), Paragraph("3 min", table_cell)],
-        [Paragraph("<b>Phase 3</b>", table_cell), Paragraph("<b>Student Lifecycle & Admissions:</b> 4-stage admission portal, automated roll allotment, fee reconciliation & ID cards.", table_cell), Paragraph("Open Admission Portal & Roll Number Assigner", table_cell), Paragraph("4 min", table_cell)],
-        [Paragraph("<b>Phase 4</b>", table_cell), Paragraph("<b>Academic & Teacher Grid:</b> Smart daily attendance matrix, science practicals scoring & award rolls.", table_cell), Paragraph("Demonstrate Teacher Attendance & Practicals Tab", table_cell), Paragraph("4 min", table_cell)],
-        [Paragraph("<b>Phase 5</b>", table_cell), Paragraph("<b>Administrative Powerhouse:</b> 11,400-line Advanced Reports Suite, Certificate Studio, Form 16 Tax Calculator & Financial Ledgers.", table_cell), Paragraph("Live Demo: Certificate Generator & Tax Engine", table_cell), Paragraph("6 min", table_cell)],
-        [Paragraph("<b>Phase 6</b>", table_cell), Paragraph("<b>Cloud Security & Speed:</b> Zero-trust Firebase rules, military-grade PBKDF2 auth, offline speed & data privacy.", table_cell), Paragraph("Show 2-Step Handshake OTP & Cloud Sync Banner", table_cell), Paragraph("3 min", table_cell)],
-        [Paragraph("<b>Phase 7</b>", table_cell), Paragraph("<b>Grand Inauguration Launch:</b> Formal dedication to students and countdown with Hon'ble Principal & Chief Guests.", table_cell), Paragraph("Principal / Chief Guest clicks Inauguration Banner", table_cell), Paragraph("2 min", table_cell)],
+    # ═══════════════════════════════════════════════════════════
+    # SECTION 1: EXECUTIVE SUMMARY & SYSTEM OVERVIEW
+    # ═══════════════════════════════════════════════════════════
+    story.append(Paragraph("1. Executive Summary & Architectural Overview", h1_style))
+    story.append(Paragraph(
+        "The <b>Govt. Higher Secondary School Shangus Digital Campus</b> is a cloud-native, enterprise-grade educational management and public engagement ecosystem. "
+        "Engineered to completely replace physical registers, manual paper forms, and fragmented administrative spreadsheets, the platform bridges three critical tiers of institutional stakeholders: "
+        "<b>(1) The Public Community & Prospective Students</b>, <b>(2) Teachers & Academic Evaluators</b>, and <b>(3) Institutional Administrators & DDO Officers</b>. "
+        "The system operates with zero third-party software licensing fees, utilizing scalable Google Cloud NoSQL persistence and high-speed edge distribution.",
+        body_style
+    ))
+
+    # Architecture Overview Table
+    arch_data = [
+        [Paragraph("System Layer", table_header), Paragraph("Underlying Technologies", table_header), Paragraph("Architectural Role & Functional Responsibility", table_header)],
+        [
+            Paragraph("<b>Frontend SPA</b>", table_cell_bold),
+            Paragraph("React 18, React Router v6, Tailwind CSS & Vanilla CSS Design Tokens, Lucide Vectors", table_cell),
+            Paragraph("High-performance Single Page Application (SPA) rendering responsive dashboards, interactive attendance grids, and WYSIWYG document studios with sub-100ms UI updates.", table_cell)
+        ],
+        [
+            Paragraph("<b>Persistence & Database</b>", table_cell_bold),
+            Paragraph("Cloud Firestore (NoSQL Document Store), IndexedDB, Web Storage (LocalStorage/SessionStorage)", table_cell),
+            Paragraph("Dual-tiered storage model combining cloud real-time replication with client-side caching for instant offline resiliency and fast retrieval under varying network bandwidths.", table_cell)
+        ],
+        [
+            Paragraph("<b>Security & Identity</b>", table_cell_bold),
+            Paragraph("Firebase Auth, PBKDF2 with SHA-512 & 16-byte Cryptographic Salts, 2-Step Handshake OTP", table_cell),
+            Paragraph("Zero-trust access model with granular role-based access control (RBAC), multi-factor admin verification, and cryptographic password hashing resistant to rainbow table attacks.", table_cell)
+        ],
+        [
+            Paragraph("<b>Computation Engines</b>", table_cell_bold),
+            Paragraph("Custom Pure JS Math Engines, jsPDF Vector Streamer, HTML-to-Canvas Renderer", table_cell),
+            Paragraph("Client-side mathematical processors for income tax calculations (Old vs New Regime), automated award roll compilation, and instant PDF certificate generation with anti-forgery QR codes.", table_cell)
+        ],
+        [
+            Paragraph("<b>Serverless & Edge</b>", table_cell_bold),
+            Paragraph("Netlify Edge Functions, Node.js 22 Cloud Functions, Google Apps Script API Bridge", table_cell),
+            Paragraph("Edge proxying for rate limiting, secure contact dispatch, and high-availability database replication without maintaining expensive dedicated servers.", table_cell)
+        ],
     ]
-
-    t_agenda = Table(agenda_data, colWidths=[1.0*inch, 3.2*inch, 2.5*inch, 0.8*inch])
-    t_agenda.setStyle(TableStyle([
+    t_arch = Table(arch_data, colWidths=[1.3*inch, 2.7*inch, 3.5*inch])
+    t_arch.setStyle(TableStyle([
         ('BACKGROUND', (0,0), (-1,0), c_primary),
         ('ALIGN', (0,0), (-1,-1), 'LEFT'),
-        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-        ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor("#cbd5e1")),
-        ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.HexColor("#f8fafc"), colors.white]),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 4),
-        ('TOPPADDING', (0,0), (-1,-1), 4),
+        ('VALIGN', (0,0), (-1,-1), 'TOP'),
+        ('GRID', (0,0), (-1,-1), 0.5, c_border),
+        ('ROWBACKGROUNDS', (0,1), (-1,-1), [c_bg_light, colors.white]),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 3.5),
+        ('TOPPADDING', (0,0), (-1,-1), 3.5),
     ]))
-    story.append(t_agenda)
-    story.append(Spacer(1, 10))
+    story.append(t_arch)
+    story.append(Spacer(1, 6))
 
-    # ─────────────────────────────────────────────────────────
-    # MASTER INAUGURAL SPEECH (WORD-FOR-WORD)
-    # ─────────────────────────────────────────────────────────
-    story.append(Paragraph("2. Master Keynote Speech (Verbatim Delivery Script)", h1_style))
-    story.append(Paragraph("<i>Use the verbatim script below for confident, inspiring, and eloquent delivery from the podium. Stage cues are marked in bold brown.</i>", meta_style))
+    # ═══════════════════════════════════════════════════════════
+    # SECTION 2: TECHNICAL GLOSSARY & BACKGROUND CONCEPTS
+    # ═══════════════════════════════════════════════════════════
+    story.append(Paragraph("2. Technical Glossary: Definitions & Background of Core Concepts", h1_style))
+    story.append(Paragraph("<i>This glossary provides the technical rationale and operational definitions behind the engineering paradigms powering the platform:</i>", meta_style))
 
-    story.append(Paragraph("<b>[STAGE CUE: Stand tall at the podium, smile warmly, look at the Chief Guest, Principal, and gathering, and begin with a clear, resonant tone.]</b>", cue_style))
-    story.append(Paragraph("Respected Chief Guest, Worthy Principal Sir, esteemed faculty members, distinguished community elders, dear parents, and my vibrant student friends: A very warm and auspicious good morning to each and every one of you.", speech_style))
-    
-    story.append(Paragraph("Today marks a historic turning point in the illustrious journey of <b>Government Higher Secondary School Shangus</b>. For decades, this great institution has stood as an unwavering beacon of wisdom, character building, and academic excellence in our valley. Today, we take a giant, quantum leap into the modern digital era.", speech_style))
-
-    story.append(Paragraph("<b>[STAGE CUE: Point towards the projector screen showing the vibrant, modern GHSS Shangus homepage.]</b>", cue_style))
-    story.append(Paragraph("It is my immense honor and privilege to present before you the official digital backbone of our school—a custom-crafted, world-class, paperless management ecosystem and institutional web portal spanning over <b>130,000 lines of precision-engineered code</b>.", speech_style))
-
-    story.append(Paragraph("This is not just a standard school website. It is an end-to-end <b>Enterprise Digital Campus</b> that unifies our public community, our students, our teachers, and our administrative machinery into a single, seamless, high-speed cloud platform.", speech_style))
-
-    # Speech Section 1
-    story.append(Paragraph("<b>1. The Public Institutional Gateway — Transparency at Every Click</b>", h2_style))
-    story.append(Paragraph("<b>[STAGE CUE: Scroll gently down the Homepage, showcasing the real-time Notice Ticker, the dynamic Hero Carousel, and the Staff Directory.]</b>", cue_style))
-    story.append(Paragraph("First, let us look at our public gateway. In the past, whenever a parent or student needed an urgent date sheet, a syllabus notification, or an admission update, they had to travel miles to check the physical notice board. Today, that entire paradigm is transformed.", speech_style))
-    story.append(Paragraph("Every announcement, holiday notification, and institutional order published by our administrative office appears <b>instantly in real time</b> on this homepage, accessible from any smartphone in the world within milliseconds. Our dynamic faculty roster honors our teachers by displaying their qualifications, subjects, and departments with crystal clarity.", speech_style))
-
-    # Speech Section 2
-    story.append(Paragraph("<b>2. Automated Student Lifecycle & Online Admissions</b>", h2_style))
-    story.append(Paragraph("<b>[STAGE CUE: Click on 'Admissions' in the navigation bar and show the 4-step streamlined admission form.]</b>", cue_style))
-    story.append(Paragraph("Consider the student admission process. Previously, hundreds of applicants stood in long queues during freezing winter or peak admission seasons, filling multiple paper forms that had to be manually recorded into physical ledger books.", speech_style))
-    story.append(Paragraph("Now, with our <b>Online Admission Suite</b>, a student can submit their complete application, select their subject streams with built-in validation rules, and receive an official, timestamped PDF acknowledgement slip with a verified Form Number directly on their phone. On the administrative side, our portal features intelligent bulk roll number assignment with auto-fill logic, eliminating human errors and reconciling admission records in seconds.", speech_style))
-
-    # Speech Section 3
-    story.append(Paragraph("<b>3. Faculty & Academic Operations — Empowering Our Teachers</b>", h2_style))
-    story.append(Paragraph("<b>[STAGE CUE: Navigate to the Teacher Portal, show the interactive Daily Attendance Grid and Science Practicals scoring engine.]</b>", cue_style))
-    story.append(Paragraph("Our teachers are the true heartbeat of GHSS Shangus. We have engineered specialized, intuitive workspaces dedicated exclusively to reducing their administrative burden so they can focus on what matters most: <i>teaching and inspiring our youth</i>.", speech_style))
-    story.append(Paragraph("Through the <b>Teacher Workspace</b>, faculty members can record daily classroom attendance in less than 30 seconds with automated present/absent analytics. Furthermore, our state-of-the-art <b>Science Practicals Scoring Engine</b> automatically compiles laboratory scores, checks minimum passing thresholds, formats official board-ready award rolls, and archives performance records without a single manual calculation.", speech_style))
-
-    # Speech Section 4
-    story.append(Paragraph("<b>4. The Administrative Powerhouse & Governance Suite</b>", h2_style))
-    story.append(Paragraph("<b>[STAGE CUE: Open the Admin Portal. Demonstrate the Student Certificate Studio and the Staff Tax Calculator.]</b>", cue_style))
-    story.append(Paragraph("Where this platform truly shines as an institutional marvel is inside the <b>Administrative Governance Suite</b>. Allow me to highlight three revolutionary capabilities:", speech_style))
-    
-    story.append(Paragraph("• <b>The Instant Student Certificate Studio:</b> Generating Character Certificates, Provisional Certificates, Bonafide Letters, and Transfer Certificates used to take days of manual typing and ledger searching. Today, with one click, the system hydrates the student's verified records, embeds an anti-forgery verification QR code, and generates an official, ready-to-print institutional certificate in under 5 seconds.", bullet_style))
-    story.append(Paragraph("• <b>Bulk Student ID Card Engine:</b> With one click, hundreds of student ID cards are dynamically formatted with high-resolution photo integration, blood groups, parent contact numbers, and barcode identifiers, saving the institution tens of thousands of rupees in external outsourcing.", bullet_style))
-    story.append(Paragraph("• <b>Comprehensive Staff Income Tax & Form 16 Calculator:</b> An intelligent financial engine specifically customized for Jammu & Kashmir government employees, computing both Old and New Tax Regimes, standard deductions, HRA exemptions, and 80C rebates with instant Form 16 generation.", bullet_style))
-
-    # Speech Section 5
-    story.append(Paragraph("<b>5. Security, Privacy & Cloud Reliability</b>", h2_style))
-    story.append(Paragraph("<b>[STAGE CUE: Point to the green security badge in the top bar.]</b>", cue_style))
-    story.append(Paragraph("Behind this sleek interface lies an enterprise-grade cloud foundation powered by Google Cloud and Firebase. Every single student record is protected by <b>zero-trust security rules</b>. Administrative access requires military-grade PBKDF2 salted encryption and 2-step token verification. Even in areas with limited network connectivity, our smart client-side caching ensures pages load in the blink of an eye.", speech_style))
-
-    # Speech Conclusion
-    story.append(Paragraph("<b>6. The Dedication & Grand Launch</b>", h2_style))
-    story.append(Paragraph("<b>[STAGE CUE: Turn respectfully towards the Principal Sir and Chief Guests.]</b>", cue_style))
-    story.append(Paragraph("Ladies and gentlemen, this digital transformation is not merely a milestone in software engineering—it is a solemn promise of transparency, efficiency, and world-class educational empowerment for every boy and girl in the Shangus region.", speech_style))
-    story.append(Paragraph("With immense pride, gratitude to our leadership, and boundless hope for our students' bright future, I now invite our Worthy Principal Sir and Hon'ble Dignitaries to press the ceremonial button and declare the <b>Govt. Higher Secondary School Shangus Digital Campus officially live!</b>", speech_style))
-    story.append(Paragraph("<b>[STAGE CUE: Lead the auditorium in enthusiastic applause and gesture dignitaries to the screen!]</b>", cue_style))
-
-    story.append(Spacer(1, 10))
-    story.append(HRFlowable(width="100%", thickness=1, color=c_teal, spaceBefore=4, spaceAfter=8))
-
-    # ─────────────────────────────────────────────────────────
-    # MODULE-BY-MODULE FEATURE DEEP DIVE FOR LIVE DEMO
-    # ─────────────────────────────────────────────────────────
-    story.append(Paragraph("3. Presenter's Live Demonstration Cue Cards", h1_style))
-    story.append(Paragraph("<i>Keep these tactical bullet points in mind during the live demo and open Q&A session:</i>", meta_style))
-
-    features_data = [
-        [Paragraph("Feature Area", table_header), Paragraph("Key Capabilities to Highlight", table_header), Paragraph("Talking Point for Dignitaries", table_header)],
+    glossary_data = [
+        [Paragraph("Technical Term / Concept", table_header), Paragraph("Definition & Institutional Application in GHSS Shangus Portal", table_header)],
         [
-            Paragraph("<b>1. Public Gateway & CMS</b>", table_cell),
-            Paragraph("• Instant Notice Publisher with 'Days Active' badge<br/>• Dynamic Hero Slideshow manager<br/>• Complete Subject Stream combinations<br/>• Instant WhatsApp & Email contact links", table_cell),
-            Paragraph("Zero recurring web agency costs; school administrators update content in real time from any device.", table_cell)
+            Paragraph("<b>NoSQL Document Model (Cloud Firestore)</b>", table_cell_bold),
+            Paragraph("A non-relational database structure that stores information in flexible JSON-like documents grouped into collections. Unlike traditional SQL databases that require strict table schemas and complex migrations, Firestore allows dynamic attributes (such as customizable practical subjects or flexible admission fields) and provides sub-second document reads and automated horizontal scaling.", table_cell)
         ],
         [
-            Paragraph("<b>2. Admissions & Student Data</b>", table_cell),
-            Paragraph("• Multi-stage student registration<br/>• Automated Form Number generator<br/>• Real-time provisional to full admission upgrades<br/>• Auto-fill roll number sequencing", table_cell),
-            Paragraph("Eliminates admission queues and paperwork; complete digital archive from Day 1.", table_cell)
+            Paragraph("<b>Zero-Trust Security & Declarative Rules</b>", table_cell_bold),
+            Paragraph("A security framework based on the principle of 'never trust, always verify'. Implemented via declarative <code>firestore.rules</code> and <code>storage.rules</code>, every read, write, update, and delete request is evaluated on Google servers against authentication tokens, verified email domains, and ownership constraints before any data is accessed.", table_cell)
         ],
         [
-            Paragraph("<b>3. Teacher & Academic Grid</b>", table_cell),
-            Paragraph("• 30-second daily attendance matrix<br/>• Practical scoring with auto-aggregates<br/>• Board-ready practical award rolls<br/>• Secure teacher authentication & 2-step verification", table_cell),
-            Paragraph("Saves hundreds of teacher-hours each month, completely eliminating manual score tallying.", table_cell)
+            Paragraph("<b>PBKDF2 Cryptographic Hashing</b><br/><i>(Password-Based Key Derivation Function 2)</i>", table_cell_bold),
+            Paragraph("An enterprise standard cryptographic algorithm that applies a pseudorandom function (such as SHA-512) along with a unique 16-byte random salt across thousands of iterations to user passwords. This renders stored credentials completely impervious to precomputed rainbow table attacks, dictionary attacks, and unauthorized decryption.", table_cell)
         ],
         [
-            Paragraph("<b>4. Certificate & ID Studio</b>", table_cell),
-            Paragraph("• Character, Bonafide, Transfer, DOB certificates<br/>• Dynamic QR-code verification badge<br/>• Bulk ID card generation with photo hydration<br/>• Official letter & dispatch layout writer", table_cell),
-            Paragraph("Certificates issued in 5 seconds instead of 3 days. Zero risk of duplicate or forged credentials.", table_cell)
+            Paragraph("<b>Two-Step Handshake OTP Protocol</b>", table_cell_bold),
+            Paragraph("A multi-factor verification mechanism protecting administrative workstations. When an administrator signs in, an ephemeral token document is created with a strict expiration window. The administrator must verify a secondary confirmation handshake before elevated privileges (such as database clearing or staff modifications) are unlocked.", table_cell)
         ],
         [
-            Paragraph("<b>5. Staff Tax & Ledger Suite</b>", table_cell),
-            Paragraph("• Old vs New tax regime comparative engine<br/>• Surcharge brackets, 87A rebate & cess math<br/>• Financial ledger & school fund distributions<br/>• Printable PDF Form 16 statements", table_cell),
-            Paragraph("Eliminates tax computation disputes and provides complete financial transparency for faculty.", table_cell)
+            Paragraph("<b>Progressive Web App (PWA) & Service Worker</b>", table_cell_bold),
+            Paragraph("A web technology pattern that allows standard browser web applications to deliver native-app speed, installability, and offline capabilities. Service workers cache critical static assets and data streams, allowing teachers and students in remote 2G/3G connectivity zones to access portals without interruption.", table_cell)
         ],
         [
-            Paragraph("<b>6. Advanced Reports Engine</b>", table_cell),
-            Paragraph("• 11,400+ LOC analytical powerhouse<br/>• Multi-parameter filtering (Stream, Gender, Category)<br/>• Export to PDF, CSV, Excel & Print-ready formats<br/>• Recycle bin with restore safety guards", table_cell),
-            Paragraph("Instant statistical submissions for Chief Education Office (CEO) and Directorate reports.", table_cell)
+            Paragraph("<b>Atomic Batched Writes (<code>writeBatch</code>)</b>", table_cell_bold),
+            Paragraph("A database operation where multiple document mutations (such as creating 50 public faculty entries and updating 1 summary document) execute as a single atomic unit. If any single write fails, the entire batch is rolled back, guaranteeing absolute data consistency and eliminating partial state corruption.", table_cell)
+        ],
+        [
+            Paragraph("<b>Client-Side DOM-to-Vector PDF Streaming</b>", table_cell_bold),
+            Paragraph("The on-the-fly generation of high-resolution, vector-crisp documents directly in the user's browser memory (via jsPDF). Instead of waiting for a slow backend server to render PDFs, documents like ID cards, admission acknowledgements, and Form 16 statements are compiled and downloaded in milliseconds.", table_cell)
+        ],
+        [
+            Paragraph("<b>Anti-Forgery QR Code Data Embedding</b>", table_cell_bold),
+            Paragraph("A cryptographic verification badge embedded directly on student certificates (Character, Provisional, Bonafide). Scanning the QR code with any smartphone camera instantly decodes and verifies the student's admission number, session, and issuance timestamp against the school's verified cloud records.", table_cell)
+        ],
+        [
+            Paragraph("<b>Dual-Regime Income Tax Mathematics</b>", table_cell_bold),
+            Paragraph("A financial algorithm customized for Jammu & Kashmir Government Employees. It computes income tax under both the Section 115BAC New Regime and the Old Regime with standard deduction (₹50k/₹75k), HRA exemptions, Section 80C/80D deductions, Section 87A marginal relief, and Health & Education cess (4%).", table_cell)
         ],
     ]
 
-    t_features = Table(features_data, colWidths=[1.5*inch, 3.4*inch, 2.6*inch])
-    t_features.setStyle(TableStyle([
+    t_glossary = Table(glossary_data, colWidths=[2.2*inch, 5.3*inch])
+    t_glossary.setStyle(TableStyle([
         ('BACKGROUND', (0,0), (-1,0), c_teal),
         ('ALIGN', (0,0), (-1,-1), 'LEFT'),
         ('VALIGN', (0,0), (-1,-1), 'TOP'),
-        ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor("#cbd5e1")),
-        ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.HexColor("#f8fafc"), colors.white]),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 4),
-        ('TOPPADDING', (0,0), (-1,-1), 4),
+        ('GRID', (0,0), (-1,-1), 0.5, c_border),
+        ('ROWBACKGROUNDS', (0,1), (-1,-1), [c_bg_light, colors.white]),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 3.5),
+        ('TOPPADDING', (0,0), (-1,-1), 3.5),
     ]))
-    story.append(t_features)
-    story.append(Spacer(1, 10))
+    story.append(t_glossary)
+    story.append(Spacer(1, 8))
 
-    # ─────────────────────────────────────────────────────────
-    # ANTICIPATED Q&A & CONFIDENT RESPONSES
-    # ─────────────────────────────────────────────────────────
-    story.append(Paragraph("4. Anticipated Questions & Confident Answers (Q&A Cheat Sheet)", h1_style))
+    # ═══════════════════════════════════════════════════════════
+    # SECTION 3: SUBSYSTEM BREAKDOWN & ARCHITECTURAL SPECS
+    # ═══════════════════════════════════════════════════════════
+    story.append(Paragraph("3. Detailed Subsystem Breakdown & Engineering Specifications", h1_style))
 
-    qas = [
-        ("Q1: Is student and faculty data completely safe on this platform?",
-         "<b>Answer:</b> Yes, absolutely. The portal implements enterprise-grade Cloud Firestore security rules where student records are strictly isolated. Critical administrative functions are shielded by military-grade PBKDF2 salted password hashing and 2-step verification handshakes. No unauthorized user can access or modify records."),
-        ("Q2: What happens if a teacher or student has slow 2G/3G mobile internet?",
-         "<b>Answer:</b> The platform is built as a lightweight Progressive Web App (PWA) utilizing browser-level caching (BroadcastChannel and LocalStorage). Once loaded, pages and portals operate instantly with sub-second responsiveness, even on modest internet speeds."),
-        ("Q3: Is technical expertise required to manage notices, slides, or student records?",
-         "<b>Answer:</b> Not at all. The administrative interface is designed with a user-friendly, point-and-click CMS. Adding a notice, updating a photo, or assigning roll numbers requires no coding whatsoever and can be done in seconds by any staff member."),
-        ("Q4: How does this portal assist higher educational authorities (CEO/DSEK)?",
-         "<b>Answer:</b> With our built-in Advanced Reports Suite, any institutional query—such as total enrollment by stream, gender ratio, category breakdown, or practical exam status—can be generated and exported to official PDF/Excel in a single click.")
+    subsystems = [
+        ("Subsystem A: Public Institutional Gateway & Content Management (CMS)",
+         "The public gateway serves as the primary digital face of GHSS Shangus. Powered by dynamic React route hydration, it presents real-time institutional notices with automated active-day badges, a mobile-optimized hero slideshow, an interactive faculty directory, and transparent subject combination guidelines. Content updates made by administrators are synchronized via Cloud Firestore within 300 milliseconds globally."),
+        
+        ("Subsystem B: 4-Stage Student Lifecycle & Automated Admission Engine",
+         "The admission engine orchestrates student onboarding through a validated 4-step workflow: (1) Personal & Demographic Data, (2) Academic History & Marks Validation, (3) Stream & Subject Selection with conflict checking, and (4) Photo/Document Uploads. The system automatically issues a deterministic Form Number and generates an official PDF slip. Administrators utilize auto-sequencing algorithms to allocate roll numbers without duplicate clashes."),
+
+        ("Subsystem C: Teacher Workspace, Daily Attendance Matrix & Practical Award Rolls",
+         "Designed for rapid execution on mobile devices, the Teacher Portal features a high-density classroom attendance grid allowing faculty to record attendance for an entire class in under 30 seconds. The Science Practicals Module enables internal examiners to grade practical experiments, calculate automated totals, verify passing benchmarks, and generate standardized JKBOSE-format award rolls ready for official submission."),
+
+        ("Subsystem D: Administrative Governance & 11,400-Line Analytical Reporting Suite",
+         "The administrative backbone features an extensive analytical suite capable of cross-filtering thousands of student records across multiple axes (Gender, Stream, Category, Session). Data can be instantly exported to CSV, Excel, or structured print reports. Built-in data integrity monitors detect roster inconsistencies and provide one-click reconciliation."),
+
+        ("Subsystem E: Dynamic Student Certificate & Identity Studio",
+         "The Certificate Studio eliminates multi-day turnaround times for issuing Character Certificates, Provisional Certificates, Transfer Certificates, and Bonafide Letters. Student records are automatically hydrated into standardized institutional layouts, stamped with dynamic verification QR codes, and exported as vector-crisp PDFs ready for institutional seal and signature.")
     ]
 
-    for q, a in qas:
+    for title, desc in subsystems:
+        story.append(Paragraph(f"<b>{title}</b>", h2_style))
+        story.append(Paragraph(desc, body_style))
+
+    story.append(Spacer(1, 6))
+
+    # ═══════════════════════════════════════════════════════════
+    # SECTION 4: MASTER PRESENTATION SPEECH & STAGE WALKTHROUGH
+    # ═══════════════════════════════════════════════════════════
+    story.append(Paragraph("4. Master Keynote Presentation Script (Verbatim Delivery)", h1_style))
+    story.append(Paragraph("<i>This script blends technical authority with inspirational institutional pride. Use the stage cues in bold brown to coordinate with on-screen actions:</i>", meta_style))
+
+    story.append(Paragraph("<b>[STAGE CUE: Step confidently to the podium, acknowledge dignitaries with a formal nod, establish eye contact with the audience, and speak with warmth and clarity.]</b>", cue_style))
+    story.append(Paragraph("Respected Chief Guest, Worthy Principal Sir, esteemed faculty colleagues, distinguished community elders, dear parents, and my energetic student friends: A very warm good morning to you all.", speech_style))
+
+    story.append(Paragraph("Today marks a momentous milestone in the history of <b>Government Higher Secondary School Shangus</b>. For decades, our institution has stood as an unwavering beacon of education, leadership, and moral character in South Kashmir. Today, we step firmly into the vanguard of 21st-century educational technology.", speech_style))
+
+    story.append(Paragraph("<b>[STAGE CUE: Point to the projector screen displaying the modern GHSS Shangus homepage.]</b>", cue_style))
+    story.append(Paragraph("It is my distinct privilege to present to you the technical realization of our institutional vision: the official <b>GHSS Shangus Digital Campus & Governance Portal</b>—a platform engineered from the ground up comprising over <b>128,600 lines of custom production code</b> across 136 integrated modules.", speech_style))
+
+    story.append(Paragraph("<b>[STAGE CUE: Scroll through the Homepage, highlighting the real-time Notice Ticker and Faculty Roster.]</b>", cue_style))
+    story.append(Paragraph("Allow me to guide you through the technical pillars that make this ecosystem transformative. First, our <b>Public Gateway</b> replaces the traditional physical notice board with a real-time cloud-synchronized notification hub. Parents and students from across the valley can view datesheets, admission circulars, and academic calendars instantly on any smartphone with zero delay.", speech_style))
+
+    story.append(Paragraph("<b>[STAGE CUE: Navigate to the Admissions Tab and showcase the 4-step registration form.]</b>", cue_style))
+    story.append(Paragraph("Second, our <b>Online Admission & Student Lifecycle Engine</b> eradicates the long queues and tedious paperwork of the past. Applicants register through a multi-step validated form, select their subject combinations with automated eligibility checks, and immediately download an official, timestamped PDF acknowledgement. Administrators can allocate roll numbers across entire cohorts with intelligent auto-sequencing algorithms in seconds.", speech_style))
+
+    story.append(Paragraph("<b>[STAGE CUE: Open Teacher Portal; show the Attendance Matrix and Practicals Scoring Grid.]</b>", cue_style))
+    story.append(Paragraph("Third, we have empowered our teaching faculty with specialized academic workspaces. Our <b>Smart Attendance Grid</b> allows daily classroom attendance to be marked in under 30 seconds with automatic attendance percentage calculations. Our <b>Science Practicals Engine</b> automates score tabulations, passing mark validations, and board-ready award roll printing, saving hundreds of teacher-hours each academic term.", speech_style))
+
+    story.append(Paragraph("<b>[STAGE CUE: Open Admin Portal; demonstrate the Certificate Studio and Staff Tax Calculator.]</b>", cue_style))
+    story.append(Paragraph("Fourth, inside our <b>Administrative Governance Suite</b>, we have introduced the <b>Instant Certificate Studio</b>. Character, Provisional, and Bonafide certificates that once required days of ledger searching are now generated in 5 seconds, embedded with an anti-forgery QR code for instant mobile verification. Alongside this, our custom <b>Staff Tax & Form 16 Calculator</b> computes comparative tax liabilities under both Old and New Regimes specifically customized for Jammu & Kashmir UT government employees.", speech_style))
+
+    story.append(Paragraph("<b>[STAGE CUE: Point to the green security indicator in the top navbar.]</b>", cue_style))
+    story.append(Paragraph("Underpinning this entire platform is a zero-trust cloud infrastructure. Every student document is isolated, administrative sessions are guarded by salted PBKDF2 cryptographic hashing and 2-step verification, and client-side caching guarantees lightning-fast responsiveness even in areas with limited mobile data connectivity.", speech_style))
+
+    story.append(Paragraph("<b>[STAGE CUE: Turn respectfully towards the Principal Sir and Chief Guests.]</b>", cue_style))
+    story.append(Paragraph("This portal represents our dedication to transparency, speed, and educational excellence. I now invite our Worthy Principal Sir and Hon'ble Chief Guests to press the ceremonial launch button and declare the <b>Govt. Higher Secondary School Shangus Digital Campus officially live!</b>", speech_style))
+    story.append(Paragraph("<b>[STAGE CUE: Lead the hall in enthusiastic applause as dignitaries inaugurate the website!]</b>", cue_style))
+
+    story.append(Spacer(1, 6))
+
+    # ═══════════════════════════════════════════════════════════
+    # SECTION 5: TECHNICAL Q&A & SYSTEM RESILIENCE
+    # ═══════════════════════════════════════════════════════════
+    story.append(Paragraph("5. Technical Q&A, Resilience & Disaster Recovery Guide", h1_style))
+
+    qa_data = [
+        ("How does the system maintain high availability and prevent data loss?",
+         "<b>Technical Mechanism:</b> Data is stored in Google Cloud Firestore with multi-region replication. In addition, the administrative console provides 1-click full JSON/CSV database export capabilities, allowing regular offline snapshots to be stored securely."),
+        ("What happens when network connectivity is slow or intermittent?",
+         "<b>Technical Mechanism:</b> The application implements a Service Worker caching strategy and stores master roster indexes in browser LocalStorage and IndexedDB. Read operations execute locally with instantaneous response times, synchronizing mutations as soon as connectivity resumes."),
+        ("How is unauthorized data tampering prevented across public and staff roles?",
+         "<b>Technical Mechanism:</b> Server-enforced Firestore Security Rules (<code>firestore.rules</code>) validate every mutation against authenticated Firebase tokens and custom claims. Client-side attempts to forge role permissions or bypass validation are rejected at the database level.")
+    ]
+
+    for q, a in qa_data:
         story.append(Paragraph(f"<b>{q}</b>", h2_style))
         story.append(Paragraph(a, body_style))
 
-    # Build Document with custom NumberedCanvas
+    # Build PDF with dynamic NumberedCanvas
     doc.build(story, canvasmaker=NumberedCanvas)
-    print(f"Successfully generated presentation PDF: {filename}")
+    print(f"Successfully generated technical report PDF: {filename}")
 
 if __name__ == '__main__':
     out_path = os.path.join('docs', 'Inauguration_Presenter_Notes_GHSS_Shangus.pdf')
     build_pdf(out_path)
-    
-    # Also write a root copy for easy accessibility
     root_path = 'Inauguration_Presenter_Notes_GHSS_Shangus.pdf'
     build_pdf(root_path)
