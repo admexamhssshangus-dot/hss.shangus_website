@@ -318,11 +318,11 @@ export default function Slideshow({
       {(slides[index]?.title || slides[index]?.caption) && (
         <div
           key={`caption-${index}`}
-          className="animate-badge-fade-up absolute left-2.5 sm:left-6 right-auto bottom-2.5 sm:bottom-6 md:bottom-20 text-left z-20 pointer-events-none max-w-[calc(100%-140px)] sm:max-w-[65%] flex flex-col items-start gap-1 sm:gap-1.5"
+          className="animate-badge-fade-up absolute left-2 sm:left-5 right-auto bottom-2 sm:bottom-5 md:bottom-20 text-left z-20 pointer-events-none max-w-[calc(100%-140px)] sm:max-w-[65%] flex flex-col items-start gap-0.5"
         >
           {slides[index].title && (
             <h3
-              className="text-[12px] sm:text-base md:text-lg font-extrabold leading-tight m-0 p-0 tracking-wide"
+              className="text-[11px] sm:text-sm md:text-base font-extrabold leading-tight m-0 p-0 tracking-wide"
               style={{
                 color: '#5eead4',
                 textShadow: '0 2px 8px rgba(0, 0, 0, 0.95), 0 0 14px rgba(0, 0, 0, 0.8)'
@@ -333,19 +333,19 @@ export default function Slideshow({
           )}
           {slides[index].caption && (
             <div
-              className="px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-md border shadow-2xl flex items-center"
+              className="px-2 py-0.5 rounded-[4px] border shadow-lg flex items-center m-0"
               style={{
-                backgroundColor: 'rgba(2, 6, 23, 0.88)',
-                borderColor: 'rgba(255, 255, 255, 0.3)',
-                backdropFilter: 'blur(12px)',
-                boxShadow: '0 8px 30px rgba(0, 0, 0, 0.85)'
+                backgroundColor: 'rgba(2, 6, 23, 0.85)',
+                borderColor: 'rgba(255, 255, 255, 0.25)',
+                backdropFilter: 'blur(8px)',
+                boxShadow: '0 4px 16px rgba(0, 0, 0, 0.75)'
               }}
             >
               <p
-                className="text-[10.5px] sm:text-xs md:text-sm font-semibold leading-snug m-0 p-0"
+                className="text-[9.5px] sm:text-[11px] md:text-xs italic font-medium leading-none m-0 p-0"
                 style={{
                   color: '#ffffff',
-                  textShadow: '0 1px 3px rgba(0, 0, 0, 0.95), 0 0 8px rgba(0, 0, 0, 0.7)'
+                  textShadow: '0 1px 3px rgba(0, 0, 0, 0.95)'
                 }}
               >
                 {slides[index].caption}
