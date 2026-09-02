@@ -7345,9 +7345,49 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
                                           ? '📐 Fill Screen'
                                           : '🎯 Fit Letterbox'}
                                       </span>
-                                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-medium bg-slate-800/80 text-slate-300 border border-slate-700/60">
-                                        {slideAnim === 'kenburns' ? '🎬 Ken Burns' : slideAnim === 'fade' ? '✨ Crossfade' : slideAnim === 'zoom' ? '🔍 Zoom' : '↔️ Pan'}
-                                      </span>
+                                      <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-medium border ${
+                                         slideAnim === 'none'
+                                           ? 'bg-slate-800/80 text-slate-400 border-slate-700/60'
+                                           : slideAnim === 'dissolve'
+                                           ? 'bg-amber-950/70 text-amber-300 border-amber-800/60'
+                                           : slideAnim === 'split' || slideAnim === 'split-v'
+                                           ? 'bg-cyan-950/70 text-cyan-300 border-cyan-800/60'
+                                           : slideAnim === 'bars'
+                                           ? 'bg-emerald-950/70 text-emerald-300 border-emerald-800/60'
+                                           : slideAnim === 'wipe'
+                                           ? 'bg-rose-950/70 text-rose-300 border-rose-800/60'
+                                           : slideAnim === 'circle'
+                                           ? 'bg-fuchsia-950/70 text-fuchsia-300 border-fuchsia-800/60'
+                                           : slideAnim === 'zoom'
+                                           ? 'bg-violet-950/70 text-violet-300 border-violet-800/60'
+                                           : slideAnim === 'pan'
+                                           ? 'bg-sky-950/70 text-sky-300 border-sky-800/60'
+                                           : slideAnim === 'fade'
+                                           ? 'bg-slate-800/80 text-slate-300 border-slate-700/60'
+                                           : 'bg-indigo-950/70 text-indigo-300 border-indigo-800/60'
+                                       }`}>
+                                         {slideAnim === 'none'
+                                           ? '🛑 None'
+                                           : slideAnim === 'dissolve'
+                                           ? '✨ Dissolve'
+                                           : slideAnim === 'split'
+                                           ? '🪟 Split (H)'
+                                           : slideAnim === 'split-v'
+                                           ? '🪟 Split (V)'
+                                           : slideAnim === 'bars'
+                                           ? '📊 Random Bars'
+                                           : slideAnim === 'wipe'
+                                           ? '📐 Wipe'
+                                           : slideAnim === 'circle'
+                                           ? '⭕ Circle'
+                                           : slideAnim === 'zoom'
+                                           ? '🔍 Zoom & Pop'
+                                           : slideAnim === 'pan'
+                                           ? '↔️ Pan'
+                                           : slideAnim === 'fade'
+                                           ? '🌫️ Crossfade'
+                                           : '🎬 Ken Burns'}
+                                       </span>
                                     </div>
                                   </td>
                                   <td className="p-1.5 px-2.5 text-center flex items-center justify-center gap-1">
