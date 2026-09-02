@@ -7,6 +7,8 @@ const CLASS_ROLL_NUMBER_KEYS = Object.freeze([
   'Class R.No',
   'Class R. No.',
   'Class R. No',
+  'Class Roll',
+  'class_roll',
   'RL. NO.',
   'RL. NO',
   'rollNo',
@@ -17,7 +19,12 @@ const CLASS_ROLL_NUMBER_KEYS = Object.freeze([
   'class_roll_no',
   'roll_no',
   'Class_Roll_No',
-  'roll'
+  'roll',
+  'R.No.',
+  'R.No',
+  'R. No.',
+  'R. No',
+  'Roll'
 ]);
 
 const INVALID_CLASS_ROLL_VALUES = /^(?:0|n\/?a|na|none|nil|null|undefined|unknown|pending|not\s*assigned|unassigned|—|-)$/i;
@@ -30,8 +37,9 @@ const INVALID_CLASS_ROLL_VALUES = /^(?:0|n\/?a|na|none|nil|null|undefined|unknow
 export function getAssignedClassRollNumber(student) {
   if (!student || typeof student !== 'object') return '';
 
+  const raw = student.raw || student._rawStudent || student;
   for (const key of CLASS_ROLL_NUMBER_KEYS) {
-    const rawValue = student[key];
+    const rawValue = student[key] !== undefined && student[key] !== null ? student[key] : raw[key];
     if (rawValue === undefined || rawValue === null) continue;
 
     const value = String(rawValue).trim();

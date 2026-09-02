@@ -1396,15 +1396,47 @@ export default function CustomRosterDocumentBuilderView({
     };
   }, []);
 
-  // Combine live intake with historical registers seamlessly
+  // Combine live intake with historical registers seamlessly with thorough deduplication
   const combinedRawStudents = useMemo(() => {
     const list = Array.isArray(allStudents) ? [...allStudents] : [];
     if (Array.isArray(masterRegistersList) && masterRegistersList.length > 0) {
-      const seenIds = new Set(list.map(s => String(s.formNo || s['Form Number'] || s['Form No.'] || s.boardRegNo || s.id || '').trim()).filter(Boolean));
+      const seenKeys = new Set();
+      list.forEach(s => {
+        const id = String(s.id || s.docId || '').trim().toLowerCase();
+        const fNo = String(s.formNo || s['Form Number'] || s['Form No.'] || '').trim().toLowerCase();
+        const reg = String(s.boardRegNo || s['Board Registration Number'] || s['Board Reg. No.'] || s.regNo || '').replace(/[^a-z0-9]/gi, '').toLowerCase();
+        const name = String(s.studentName || s['Student Name'] || s.name || '').trim().toLowerCase();
+        const father = String(s.fatherName || s["Father's Name"] || s.parentName || '').trim().toLowerCase();
+        const sess = String(s.session || s.Session || '').trim().toLowerCase();
+        const cls = String(s.className || s.class || s.Class || '').trim().toLowerCase();
+
+        if (id) seenKeys.add(`id:${id}`);
+        if (fNo) seenKeys.add(`fno:${fNo}`);
+        if (reg && reg !== '—') seenKeys.add(`reg:${reg}`);
+        if (name && father && cls) seenKeys.add(`name:${sess}:${cls}:${name}:${father}`);
+      });
+
       masterRegistersList.forEach(m => {
-        const key = String(m.formNo || m['Form Number'] || m['Form No.'] || m.boardRegNo || m.id || '').trim();
-        if (!key || !seenIds.has(key)) {
+        const id = String(m.id || m.docId || '').trim().toLowerCase();
+        const fNo = String(m.formNo || m['Form Number'] || m['Form No.'] || '').trim().toLowerCase();
+        const reg = String(m.boardRegNo || m['Board Registration Number'] || m['Board Reg. No.'] || m.regNo || '').replace(/[^a-z0-9]/gi, '').toLowerCase();
+        const name = String(m.studentName || m['Student Name'] || m.name || '').trim().toLowerCase();
+        const father = String(m.fatherName || m["Father's Name"] || m.parentName || '').trim().toLowerCase();
+        const sess = String(m.session || m.Session || '').trim().toLowerCase();
+        const cls = String(m.className || m.class || m.Class || '').trim().toLowerCase();
+
+        const isDuplicate = 
+          (id && seenKeys.has(`id:${id}`)) ||
+          (fNo && seenKeys.has(`fno:${fNo}`)) ||
+          (reg && reg !== '—' && seenKeys.has(`reg:${reg}`)) ||
+          (name && father && cls && seenKeys.has(`name:${sess}:${cls}:${name}:${father}`));
+
+        if (!isDuplicate) {
           list.push(m);
+          if (id) seenKeys.add(`id:${id}`);
+          if (fNo) seenKeys.add(`fno:${fNo}`);
+          if (reg && reg !== '—') seenKeys.add(`reg:${reg}`);
+          if (name && father && cls) seenKeys.add(`name:${sess}:${cls}:${name}:${father}`);
         }
       });
     }
@@ -1414,7 +1446,9 @@ export default function CustomRosterDocumentBuilderView({
   // ─── Direct High-Performance Pre-Indexed Student Pool (Runs Extraction Only Once) ───
   const unifiedStudentPool = useMemo(() => {
     if (!Array.isArray(combinedRawStudents) || combinedRawStudents.length === 0) return [];
-    return combinedRawStudents.map((rawSt, idx) => {
+    const poolMap = new Map();
+
+    combinedRawStudents.forEach((rawSt, idx) => {
       const st = rawSt || {};
       const session = extractSession(st) || '—';
       const className = extractClass(st) || '—';
@@ -1460,7 +1494,7 @@ export default function CustomRosterDocumentBuilderView({
       else if (fName !== '—') parentage = fName;
       else if (mName !== '—') parentage = mName;
 
-      return {
+      const studentRecord = {
         _originalIdx: idx + 1,
         _rawStudent: st,
         docId: st.docId || st.id || '',
@@ -1504,7 +1538,26 @@ export default function CustomRosterDocumentBuilderView({
         rawSubjectsWithStreamAbbr,
         rawSubjectsWithStreamFull
       };
+
+      // Create unique deduplication key for student pool
+      const regKey = boardRegNo && boardRegNo !== '—' ? boardRegNo.replace(/[^a-z0-9]/gi, '').toLowerCase() : '';
+      const fNoKey = formNo && formNo !== '—' ? formNo.toLowerCase() : '';
+      const nameKey = (studentName !== '—' && fName !== '—') ? `${session}_${className}_${studentName}_${fName}`.toLowerCase() : '';
+      
+      const dedupKey = regKey ? `reg_${regKey}` : (fNoKey ? `form_${fNoKey}` : (nameKey ? `name_${nameKey}` : `doc_${st.docId || st.id || idx}`));
+
+      if (!poolMap.has(dedupKey)) {
+        poolMap.set(dedupKey, studentRecord);
+      } else {
+        const existing = poolMap.get(dedupKey);
+        // Prefer the record that has an assigned class roll number or richer information
+        if (existing.classRollNo === '—' && classRollNo !== '—') {
+          poolMap.set(dedupKey, { ...existing, ...studentRecord });
+        }
+      }
     });
+
+    return Array.from(poolMap.values()).map((r, i) => ({ ...r, _originalIdx: i + 1 }));
   }, [combinedRawStudents, isReady]);
 
   // ─── Real Distinct Subjects Extracted Dynamically from Database Students ───
@@ -2098,7 +2151,7 @@ export default function CustomRosterDocumentBuilderView({
     return list.map(stat => ({
       value: stat,
       label: stat === 'Approved'
-        ? `Approved · Roll assigned (${counts[stat]})`
+        ? `Approved (${counts[stat]})`
         : `${stat} (${counts[stat]})`
     }));
   }, [sessionClassStreamStudents]);
