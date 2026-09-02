@@ -1,13 +1,21 @@
+import { TextEncoder } from 'util';
 import {
   filterIdCardStudents,
   getIdCardStudentKey,
   generateVerificationQrUrl,
   normalizeStudentClass,
   getStudentStreamVal,
+  getStudentRollVal,
   resolveClassTheme,
   paginateIdCardStudents,
   selectIdCardStudents,
 } from './idCardRenderer';
+
+// Exercise the same synchronous SVG implementation bundled for the web app.
+jest.mock('qrcode', () => jest.requireActual('qrcode/lib/browser'));
+const originalTextEncoder = global.TextEncoder;
+beforeAll(() => { global.TextEncoder = TextEncoder; });
+afterAll(() => { global.TextEncoder = originalTextEncoder; });
 
 const students = [
   { id: 'a', session: '2025-26', class: '11th', stream: 'Science', status: 'Approved', classRollNo: '2', studentName: 'Aamir' },
@@ -46,9 +54,14 @@ describe('optimized ID card cohort utilities', () => {
     expect(paginateIdCardStudents(students, 2).map(page => page.length)).toEqual([2, 1]);
   });
 
+  test('prints the authoritative class roll rather than an examination roll', () => {
+    expect(getStudentRollVal({ 'Class R.No.': '27', examRollNo: '901234' })).toBe('27');
+  });
+
   test('invalidates cached QR codes when registration identity changes', () => {
     const before = generateVerificationQrUrl({ ...students[0], boardRegNo: 'REG-A', formNo: '100' });
     const after = generateVerificationQrUrl({ ...students[0], boardRegNo: 'REG-B', formNo: '100' });
+    expect(before).toMatch(/^data:image\/svg\+xml/);
     expect(before).not.toBe(after);
   });
 });
