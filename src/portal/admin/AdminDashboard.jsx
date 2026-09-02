@@ -399,7 +399,7 @@ export default function AdminDashboard() {
                       activeTab={activeTab}
                       setActiveTab={setActiveTab}
                       user={user}
-                      onOpenCustomRoster={() => setShowCustomRosterModal(true)}
+                      onOpenCustomRoster={() => setActiveTab('customRoster')}
                       onOpenAnalytics={() => {
                         setActiveTab('reports');
                         setTriggerAction('analytics');
@@ -488,7 +488,7 @@ export default function AdminDashboard() {
                   {/* TAB: Student Roster & Registers Studio */}
                   {(activeTab === 'customRoster' || activeTab === 'docStudio') && (
                     <CustomRosterDocumentBuilderView
-                      allStudents={applications}
+                      allStudents={identityStudents}
                       onClose={() => setActiveTab('reports')}
                     />
                   )}

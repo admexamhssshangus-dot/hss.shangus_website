@@ -527,6 +527,78 @@ export function extractClass(st) {
   return '';
 }
 
+/**
+ * Standardize and flatten student records from masterRegisters chunk/group documents into standard student objects.
+ * Handles chunk_001..chunk_123, groupKey documents, and individual student documents.
+ * @param {Array<object>} masterDocs - Raw documents from Firestore masterRegisters collection
+ * @returns {Array<object>} Flat array of normalized student records
+ */
+export function unpackMasterRegisterStudents(masterDocs = []) {
+  const flatList = [];
+  if (!Array.isArray(masterDocs)) return flatList;
+
+  masterDocs.forEach(m => {
+    if (!m) return;
+    const chunkItems = m.items || m.students || m.records || m.data;
+    const docId = m.id || '';
+    const groupKey = m.groupKey || '';
+    
+    // Extract document-level fallback session, class, stream metadata
+    let docSession = m.Session || m.session || m['Academic Session'] || m['academicSession'] || '';
+    if (!docSession) {
+      if (groupKey) docSession = groupKey.split('_')[0];
+      else if (docId.startsWith('part_')) {
+        const parts = docId.replace(/^part_/, '').split('_');
+        docSession = parts[0];
+      }
+    }
+    const docClass = m.class || m.Class || m.className || m['Class'] || (groupKey ? groupKey.split('_')[1] : '') || '';
+    const docStream = m.stream || m.Stream || m['Stream'] || (groupKey ? groupKey.split('_')[2] : '') || '';
+
+    if (Array.isArray(chunkItems) && chunkItems.length > 0) {
+      chunkItems.forEach((item, itemIdx) => {
+        if (item && typeof item === 'object') {
+          const itemSession = item.Session || item.session || item['Academic Session'] || item['academicSession'] || item['Session / Batch'] || item['Batch'] || docSession || '';
+          const itemClass = item.Class || item.class || item['Class'] || item['Admission sought for class'] || docClass || '';
+          const itemStream = item.Stream || item.stream || item['Stream'] || docStream || '';
+          const itemId = item.id || item['Form Number'] || item['Form No.'] || item.formNo || item['Board Registration Number'] || `${docId}_${itemIdx}`;
+
+          flatList.push({
+            ...item,
+            id: itemId,
+            Session: itemSession,
+            session: itemSession,
+            Class: itemClass,
+            class: itemClass,
+            Stream: itemStream,
+            stream: itemStream,
+            _source: 'masterRegisters',
+            _srcCollection: 'masterRegisters',
+            _parentDocId: docId
+          });
+        }
+      });
+    } else if (typeof m === 'object' && !chunkItems) {
+      // Individual student document in masterRegisters
+      const itemSession = m.Session || m.session || m['Academic Session'] || docSession || '';
+      flatList.push({
+        ...m,
+        id: m.id || m['Form Number'] || m.formNo,
+        Session: itemSession,
+        session: itemSession,
+        Class: docClass || m.Class || m.class,
+        class: docClass || m.class || m.Class,
+        Stream: docStream || m.Stream || m.stream,
+        stream: docStream || m.stream || m.Stream,
+        _source: 'masterRegisters',
+        _srcCollection: 'masterRegisters'
+      });
+    }
+  });
+
+  return flatList;
+}
+
 export function extractSession(st) {
   if (!st) return '';
   const raw = st.raw || st;
@@ -1332,10 +1404,42 @@ export default function CustomRosterDocumentBuilderView({
     getStudentRegIndex().catch(() => {});
   }, []);
 
+  const [masterRegistersList, setMasterRegistersList] = useState(() => {
+    const cached = getCachedCollectionSync('masterRegisters');
+    return Array.isArray(cached) && cached.length > 0 ? unpackMasterRegisterStudents(cached) : [];
+  });
+
+  useEffect(() => {
+    let isMounted = true;
+    getCachedCollection('masterRegisters', false, 30 * 60 * 1000).then((docs) => {
+      if (!isMounted || !Array.isArray(docs)) return;
+      const flat = unpackMasterRegisterStudents(docs);
+      if (flat.length > 0) {
+        setMasterRegistersList(flat);
+      }
+    }).catch(() => {});
+    return () => { isMounted = false; };
+  }, []);
+
+  // Combine live intake with historical registers seamlessly
+  const combinedRawStudents = useMemo(() => {
+    const list = Array.isArray(allStudents) ? [...allStudents] : [];
+    if (Array.isArray(masterRegistersList) && masterRegistersList.length > 0) {
+      const seenIds = new Set(list.map(s => String(s.formNo || s['Form Number'] || s['Form No.'] || s.boardRegNo || s.id || '').trim()).filter(Boolean));
+      masterRegistersList.forEach(m => {
+        const key = String(m.formNo || m['Form Number'] || m['Form No.'] || m.boardRegNo || m.id || '').trim();
+        if (!key || !seenIds.has(key)) {
+          list.push(m);
+        }
+      });
+    }
+    return list;
+  }, [allStudents, masterRegistersList]);
+
   // ─── Direct High-Performance Pre-Indexed Student Pool (Runs Extraction Only Once) ───
   const unifiedStudentPool = useMemo(() => {
-    if (!Array.isArray(allStudents) || allStudents.length === 0) return [];
-    return allStudents.map((rawSt, idx) => {
+    if (!Array.isArray(combinedRawStudents) || combinedRawStudents.length === 0) return [];
+    return combinedRawStudents.map((rawSt, idx) => {
       const st = rawSt || {};
       const session = extractSession(st) || '—';
       const className = extractClass(st) || '—';
@@ -1426,7 +1530,7 @@ export default function CustomRosterDocumentBuilderView({
         rawSubjectsWithStreamFull
       };
     });
-  }, [allStudents, isReady]);
+  }, [combinedRawStudents, isReady]);
 
   // ─── Real Distinct Subjects Extracted Dynamically from Database Students ───
   const dynamicStudentSubjects = useMemo(() => {
@@ -1460,8 +1564,39 @@ export default function CustomRosterDocumentBuilderView({
     return Array.from(map.values()).sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
   }, [unifiedStudentPool]);
 
+  // ─── Detect Default Active / Current Academic Session (e.g. '2025-26') ───
+  const defaultCurrentSession = useMemo(() => {
+    if (globalSession && globalSession !== 'ALL') {
+      return String(globalSession).replace(/^(active_|master_)/, '');
+    }
+    if (Array.isArray(allStudents) && allStudents.length > 0) {
+      const counts = {};
+      for (const st of allStudents) {
+        const s = extractSession(st);
+        if (s && s !== '—') counts[s] = (counts[s] || 0) + 1;
+      }
+      const sorted = Object.entries(counts).sort((a, b) => {
+        const yearA = parseInt(a[0].match(/\d{4}/)?.[0] || '0', 10);
+        const yearB = parseInt(b[0].match(/\d{4}/)?.[0] || '0', 10);
+        if (yearB !== yearA) return yearB - yearA;
+        return b[1] - a[1];
+      });
+      if (sorted.length > 0 && sorted[0][0]) return sorted[0][0];
+    }
+    return '2025-26';
+  }, [globalSession, allStudents]);
+
   // ─── Filter States (Session, Class, Stream, Gender, Status) ───
-  const [selectedSession, setSelectedSession] = useState('ALL');
+  const [selectedSession, setSelectedSession] = useState(() => defaultCurrentSession);
+
+  // Synchronize when globalSession or defaultCurrentSession updates
+  useEffect(() => {
+    if (globalSession && globalSession !== 'ALL') {
+      setSelectedSession(String(globalSession).replace(/^(active_|master_)/, ''));
+    } else if (globalSession === 'ALL') {
+      setSelectedSession('ALL');
+    }
+  }, [globalSession]);
   const [selectedClass, setSelectedClass] = useState('ALL');
   const [selectedStream, setSelectedStream] = useState('ALL');
   const [selectedGender, setSelectedGender] = useState('ALL');
@@ -1918,14 +2053,22 @@ export default function CustomRosterDocumentBuilderView({
       const sess = st.session;
       if (sess && sess !== '—') counts[sess] = (counts[sess] || 0) + 1;
     });
-    const list = Object.keys(counts).sort((a, b) => b.localeCompare(a));
-    return list.map(sess => ({ value: sess, label: `Session ${sess} (${counts[sess]})` }));
+    const list = Object.keys(counts).sort((a, b) => {
+      const yearA = parseInt(a.match(/\d{4}/)?.[0] || '0', 10);
+      const yearB = parseInt(b.match(/\d{4}/)?.[0] || '0', 10);
+      if (yearB !== yearA) return yearB - yearA;
+      return b.localeCompare(a, undefined, { numeric: true });
+    });
+    return list.map(sess => ({ value: sess, label: `Session ${sess} (${counts[sess]})`, count: counts[sess] }));
   }, [unifiedStudentPool]);
 
   const sessionStudents = useMemo(() => {
-    return selectedSession === 'ALL'
-      ? unifiedStudentPool
-      : unifiedStudentPool.filter(st => st.session.toLowerCase().includes(selectedSession.toLowerCase()));
+    if (selectedSession === 'ALL') return unifiedStudentPool;
+    const norm = selectedSession.toLowerCase().trim();
+    return unifiedStudentPool.filter(st => {
+      const s = (st.session || '').toLowerCase().trim();
+      return s === norm || s.includes(norm) || norm.includes(s);
+    });
   }, [unifiedStudentPool, selectedSession]);
 
   const dynamicClasses = useMemo(() => {
