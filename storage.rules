@@ -17,25 +17,31 @@ service firebase.storage {
     }
 
     function admin() {
-      return verifiedEmail() && (
+      return signedIn() && (
         request.auth.token.admin == true ||
         role() in ['admin', 'superadmin', 'super admin'] ||
-        (request.auth.token.email_verified == true &&
-          request.auth.token.email == 'adm.exam.hss.shangus@gmail.com')
+        (request.auth.token.email is string &&
+         request.auth.token.email.lower() in [
+           'adm.exam.hss.shangus@gmail.com',
+           'ghssshangus74@gmail.com',
+           'e.educational.24@gmail.com',
+           'socialshiftz@gmail.com'
+         ])
       );
     }
 
     function teacher() {
-      return verifiedEmail() && (
+      return signedIn() && (
         request.auth.token.teacher == true ||
-        role() in ['teacher', 'faculty'] || admin()
+        role() in ['teacher', 'faculty', 'staff'] ||
+        admin()
       );
     }
 
     function validImage(maxBytes) {
       return request.resource != null &&
         request.resource.size > 0 && request.resource.size <= maxBytes &&
-        request.resource.contentType.matches('image/(jpeg|png|webp)');
+        request.resource.contentType.matches('image/(jpeg|png|webp|jpg)');
     }
 
     function validDocument(maxBytes) {
@@ -45,7 +51,7 @@ service firebase.storage {
     }
 
     // Public website media is readable, but only admins may mutate it.
-    match /slides/photos/{fileName} {
+    match /slides/{allPaths=**} {
       allow read: if true;
       allow create, update: if admin() && validImage(5 * 1024 * 1024);
       allow delete: if admin();

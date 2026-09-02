@@ -6103,27 +6103,27 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
             </button>}
           </div>
         </div>}
-
+        
         {/* Save & Sync Minimal Status Banner */}
         {saveProgress !== null && (
-          <div className="bg-slate-900/90 dark:bg-slate-950/90 backdrop-blur-md border border-slate-800 dark:border-slate-800/80 rounded-xl p-3 sm:px-4 sm:py-3 mb-4 shadow-lg animate-in fade-in slide-in-from-top-2 duration-200 relative overflow-hidden">
+          <div className="bg-slate-900 border border-teal-500/50 dark:border-teal-500/40 rounded-xl p-3 sm:px-4 sm:py-2.5 mb-3 shadow-2xl animate-in fade-in slide-in-from-top-2 duration-200 relative overflow-hidden">
             {/* Minimal top indicator accent line */}
             <div
-              className={`absolute top-0 left-0 right-0 h-[2px] transition-all duration-500 ${
+              className={`absolute top-0 left-0 right-0 h-[2.5px] transition-all duration-500 ${
                 !savePopupResult
-                  ? 'bg-gradient-to-r from-teal-500 via-emerald-400 to-teal-500 animate-pulse'
+                  ? 'bg-gradient-to-r from-teal-400 via-emerald-300 to-cyan-400 animate-pulse'
                   : savePopupResult.success
-                  ? 'bg-emerald-500'
-                  : 'bg-rose-500'
+                  ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]'
+                  : 'bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.8)]'
               }`}
             />
 
             <div className="flex items-center justify-between gap-3">
               {/* Left: Icon, Title & Concise Subtext */}
-              <div className="flex items-start gap-2.5 min-w-0">
-                <div className="mt-0.5 flex-shrink-0">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="flex-shrink-0">
                   {!savePopupResult ? (
-                    <Loader2 className="w-4 h-4 text-teal-400 animate-spin" />
+                    <Loader2 className="w-4 h-4 text-teal-300 animate-spin" />
                   ) : savePopupResult.success ? (
                     <CheckCircle2 className="w-4 h-4 text-emerald-400" />
                   ) : (
@@ -6131,23 +6131,24 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
                   )}
                 </div>
 
-                <div className="min-w-0">
+                <div className="min-w-0 flex flex-col justify-center">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-xs sm:text-sm font-semibold text-slate-100">
+                    <span className="text-xs sm:text-sm font-extrabold !text-white tracking-tight">
                       {!savePopupResult ? 'Saving Changes...' : savePopupResult.title}
                     </span>
 
                     {/* In-progress active stage hint */}
                     {!savePopupResult && (
-                      <span className="text-[11px] text-teal-400/90 font-medium hidden sm:inline">
-                        • {saveStages.find(s => s.status === 'loading')?.label || 'Processing...'}
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-teal-500/20 border border-teal-400/40 !text-teal-300 font-bold text-[10px] sm:text-[11px]">
+                        <span className="w-1.5 h-1.5 rounded-full bg-teal-400 animate-pulse" />
+                        {saveStages.find(s => s.status === 'loading')?.label || 'Pushing changes live to Cloud Database'}
                       </span>
                     )}
                   </div>
 
                   {/* Concise subtext message */}
                   {savePopupResult && savePopupResult.message && (
-                    <p className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">
+                    <p className="text-[11px] !text-slate-300 mt-0.5 leading-relaxed font-medium">
                       {savePopupResult.message}
                     </p>
                   )}
@@ -6158,13 +6159,13 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
               <div className="flex items-center gap-2.5 flex-shrink-0">
                 {!savePopupResult && (
                   <div className="flex items-center gap-2">
-                    <div className="w-16 sm:w-28 h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                    <div className="w-20 sm:w-36 h-2 bg-slate-800 rounded-full overflow-hidden border border-slate-700/60">
                       <div
-                        className="h-full bg-gradient-to-r from-teal-400 to-emerald-400 rounded-full transition-all duration-300 ease-out"
+                        className="h-full bg-gradient-to-r from-teal-400 via-emerald-400 to-cyan-400 rounded-full transition-all duration-300 ease-out shadow-[0_0_8px_rgba(45,212,191,0.6)]"
                         style={{ width: `${saveProgress}%` }}
                       />
                     </div>
-                    <span className="text-[11px] font-mono text-slate-400 w-7 text-right">
+                    <span className="text-xs font-mono font-black !text-emerald-300 w-8 text-right">
                       {saveProgress}%
                     </span>
                   </div>
@@ -6179,7 +6180,7 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
                           setSaveProgress(null);
                           setSavePopupResult(null);
                         }}
-                        className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium transition-all"
+                        className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 !text-slate-200 text-xs font-bold transition-all border border-slate-700"
                       >
                         Dismiss
                       </button>
@@ -6194,10 +6195,10 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
                           handleSaveToLocalStorage();
                         }
                       }}
-                      className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${
+                      className={`px-3 py-1 rounded-lg text-xs font-extrabold transition-all cursor-pointer ${
                         savePopupResult.success
-                          ? 'bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 border border-emerald-500/30'
-                          : 'bg-rose-500/15 hover:bg-rose-500/25 text-rose-400 border border-rose-500/30'
+                          ? 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-md shadow-emerald-900/30'
+                          : 'bg-rose-600 hover:bg-rose-500 text-white shadow-md shadow-rose-900/30'
                       }`}
                     >
                       {savePopupResult.success ? 'OK' : 'Retry'}
@@ -6211,9 +6212,19 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
 
         {/* Global Notifications */}
         {saveSuccess && (
-          <div className="bg-emerald-950/80 border border-emerald-200 text-emerald-400 p-4 rounded-xl text-sm mb-4 flex items-start gap-2.5 animate-in fade-in slide-in-from-top-3 duration-300">
-            <CheckCircle2 size={18} className="mt-0.5 flex-shrink-0" />
-            <span>{saveSuccess}</span>
+          <div className="bg-emerald-900/95 dark:bg-emerald-950/95 border border-emerald-400/50 shadow-lg !text-white p-3 sm:px-4 rounded-xl mb-3 flex items-center justify-between gap-3 animate-in fade-in slide-in-from-top-2 duration-200">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <CheckCircle2 size={16} className="text-emerald-300 flex-shrink-0" />
+              <span className="text-xs sm:text-sm font-bold text-emerald-100 leading-snug">{saveSuccess}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setSaveSuccess('')}
+              className="text-emerald-300 hover:text-white p-1 rounded-lg hover:bg-emerald-850 transition-colors flex-shrink-0 cursor-pointer"
+              title="Dismiss notification"
+            >
+              <X size={14} />
+            </button>
           </div>
         )}
 
