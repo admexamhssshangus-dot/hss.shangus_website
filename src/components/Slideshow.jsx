@@ -183,14 +183,20 @@ export default function Slideshow({
           }
         }
 
+        const isEntranceAnim = ['dissolve', 'split', 'split-v', 'bars', 'wipe', 'circle', 'zoom', 'fade'].includes(animMode);
+        const isContinuousAnim = ['kenburns', 'pan'].includes(animMode);
+
+        const containerAnimClass = isActive && isEntranceAnim ? animClass : '';
+        const imageAnimClass = isActive && isContinuousAnim ? animClass : (isActive && animMode === 'zoom' ? animClass : '');
+
         return (
           <div
-            key={i}
+            key={`slide-${i}-${isActive ? 'active' : 'idle'}`}
             role="img"
             aria-label={s.title || `Slide ${i + 1}`}
-            className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${
-              isActive ? 'opacity-100 z-0 pointer-events-auto' : 'opacity-0 z-0 pointer-events-none'
-            }`}
+            className={`absolute inset-0 select-none ${
+              isActive ? 'opacity-100 z-10 pointer-events-auto' : 'opacity-0 z-0 pointer-events-none'
+            } ${containerAnimClass}`}
           >
             {isLoaded && (
               <>
@@ -209,7 +215,7 @@ export default function Slideshow({
                         alt={s.title || "Govt HSS Shangus"}
                         fetchPriority={i === 0 ? "high" : "auto"}
                         decoding="async"
-                        className={`max-w-full max-h-full object-contain rounded-md sm:rounded-lg shadow-[0_15px_40px_rgba(0,0,0,0.85)] drop-shadow-2xl border border-white/10 ${animClass}`}
+                        className={`max-w-full max-h-full object-contain rounded-md sm:rounded-lg shadow-[0_15px_40px_rgba(0,0,0,0.85)] drop-shadow-2xl border border-white/10 ${imageAnimClass}`}
                       />
                     </div>
                   </>
@@ -218,7 +224,7 @@ export default function Slideshow({
                 {/* 2. COVER MODE: Widescreen filled banner */}
                 {fitMode === 'cover' && (
                   <div
-                    className={`absolute inset-0 bg-cover bg-center ${animClass}`}
+                    className={`absolute inset-0 bg-cover bg-center ${imageAnimClass}`}
                     style={{ backgroundImage: `url(${s.image})` }}
                   >
                     {i === 0 && (
@@ -241,7 +247,7 @@ export default function Slideshow({
                       alt={s.title || "Govt HSS Shangus"}
                       fetchPriority={i === 0 ? "high" : "auto"}
                       decoding="async"
-                      className={`max-w-full max-h-full object-contain rounded-md shadow-2xl ${animClass}`}
+                      className={`max-w-full max-h-full object-contain rounded-md shadow-2xl ${imageAnimClass}`}
                     />
                   </div>
                 )}
@@ -254,7 +260,7 @@ export default function Slideshow({
                       alt={s.title || "Govt HSS Shangus"}
                       fetchPriority={i === 0 ? "high" : "auto"}
                       decoding="async"
-                      className={`w-full h-full object-fill ${animClass}`}
+                      className={`w-full h-full object-fill ${imageAnimClass}`}
                     />
                   </div>
                 )}
