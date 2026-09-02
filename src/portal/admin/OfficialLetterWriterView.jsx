@@ -524,6 +524,9 @@ export default function OfficialLetterWriterView({
     let isMounted = true;
     const initCloudTemplates = async () => {
       try {
+        // Start independent cloud metadata requests together so AI controls do
+        // not wait behind template hydration.
+        const geminiConfigRequest = fetchCloudGeminiKeys();
         const { templates, defaultTemplateId: cloudDefaultId } = await fetchCloudDocTemplates('letter');
         if (!isMounted) return;
 
@@ -556,7 +559,7 @@ export default function OfficialLetterWriterView({
         }
 
         // Fetch Cloud Gemini Keys
-        fetchCloudGeminiKeys().then(keys => {
+        geminiConfigRequest.then(keys => {
           if (!isMounted) return;
           if (keys && keys.length > 0) {
             setGeminiKeys(keys);

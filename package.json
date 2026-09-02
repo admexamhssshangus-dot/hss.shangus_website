@@ -23,6 +23,7 @@
     "test": "react-scripts test",
     "admission:check": "node scripts/admission-regression-check.js",
     "security:check": "node scripts/security-regression-check.js",
+    "performance:check": "node scripts/admin-performance-regression-check.js",
     "eject": "react-scripts eject",
     "firestore:reset": "node scripts/reset_and_seed_firestore.js",
     "deploy:rules": "firebase deploy --only firestore:rules",

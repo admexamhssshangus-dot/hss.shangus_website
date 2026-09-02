@@ -29,9 +29,9 @@ import {
   generateVerificationQrUrl
 } from '../../utils/idCardRenderer';
 import { compressImageFile, getStudentPhotoUrl } from '../../utils/imageCompressor';
-import { fetchStudentPhotoOnDemand, getCachedCollection, getCachedCollectionSync, getPhotoUrlFromCache } from '../../services/dbCache';
+import { fetchStudentPhotoOnDemand, getCachedCollectionSync, getPhotoUrlFromCache } from '../../services/dbCache';
 import { db } from '../../services/firebase';
-import { collection, getDocs, doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 
 // Safe guard against React DevTools Performance.measure DataCloneError out-of-memory crash
 if (typeof window !== 'undefined' && window.performance && window.performance.measure) {
@@ -169,7 +169,13 @@ export default function StudentIdCardManager({ students = [], onClose }) {
     if (Array.isArray(students) && students.length > 0) return students;
     return getCachedCollectionSync('admissions') || [];
   });
-  const [isFetching, setIsFetching] = useState(false);
+
+  // The parent hydrates admissions progressively. Keep this module in sync
+  // without launching its own full-collection reads.
+  useEffect(() => {
+    if (!Array.isArray(students) || students.length === 0) return;
+    React.startTransition(() => setLiveStudents(students));
+  }, [students]);
 
   // ─── Settings Memory (localStorage Persistence) ───
   const SETTINGS_KEY = 'hss_id_card_suite_settings_v2';
@@ -343,46 +349,6 @@ export default function StudentIdCardManager({ students = [], onClose }) {
     return Math.round((stringLength * 3 / 4) / 1024 * 10) / 10;
   };
 
-  // ─── Multi-Collection Firestore Data Pipeline (Loads 11th, 12th, 10th, 9th) ───
-  const fetchAdmissionsData = async () => {
-    setIsFetching(true);
-    try {
-      const colls = ['admissions', 'students', 'masterRegisters'];
-      const docsMap = new Map();
-
-      for (const collName of colls) {
-        try {
-          const snap = await getDocs(collection(db, collName));
-          snap.forEach(d => {
-            const data = { id: d.id, ...d.data() };
-            const key = data['Board Registration Number'] || data.boardRegNo || data['Form Number'] || data.formNo || d.id;
-            if (!docsMap.has(key) || (data['Student Photo'] && !docsMap.get(key)['Student Photo'])) {
-              docsMap.set(key, data);
-            }
-          });
-        } catch (err) {
-          console.warn(`Fetch ${collName} note:`, err);
-        }
-      }
-
-      if (docsMap.size > 0) {
-        setLiveStudents(Array.from(docsMap.values()));
-      }
-    } catch (e) {
-      console.warn('Admissions fetch note:', e);
-      try {
-        const data = await getCachedCollection('admissions', true);
-        if (Array.isArray(data) && data.length > 0) {
-          setLiveStudents(data);
-        }
-      } catch (err) {
-        console.warn('Cache fallback note:', err);
-      }
-    } finally {
-      setIsFetching(false);
-    }
-  };
-
   useEffect(() => {
     // Load seal config from Firestore (1 read, small doc)
     const loadSealConfig = async () => {
@@ -401,155 +367,6 @@ export default function StudentIdCardManager({ students = [], onClose }) {
       }
     };
     loadSealConfig();
-
-    // ── Background Photo URL Recovery ──
-    // Check if liveStudents have photos already. If not, silently fetch admissions
-    // to recover photo URLs and save them to the persistent photo mini-cache.
-    const recoverPhotos = async () => {
-      try {
-        // Count how many students already have photos in memory
-        const PHOTO_FIELDS = [
-          'photo_id', 'photoId', 'Student Photo', 'Student Photo URL',
-          'Student Photograph', 'Photo', 'photoUrl', 'photo'
-        ];
-        const hasPhoto = (st) => PHOTO_FIELDS.some(f => {
-          const v = st?.[f];
-          return v && typeof v === 'string' && v.length > 5 && v !== '—';
-        });
-
-        const currentStudents = students.length > 0 ? students : (getCachedCollectionSync('admissions') || []);
-        const studentsWithPhotos = currentStudents.filter(hasPhoto);
-
-        // Save any found photos to persistent mini-cache right now
-        if (studentsWithPhotos.length > 0) {
-          try {
-            const { savePhotoUrlToCache } = await import('../../services/dbCache');
-            const existingCache = JSON.parse(localStorage.getItem('hss_photo_url_cache_v1') || '{}');
-            let cacheUpdated = false;
-            studentsWithPhotos.forEach(st => {
-              const docId = st.id || st['Form Number'] || st['Board Registration Number'];
-              if (!docId) return;
-              for (const f of PHOTO_FIELDS) {
-                const v = st[f];
-                if (v && typeof v === 'string' && v.length > 5 && v !== '—' && (v.startsWith('data:') ? v.length < 50000 : true)) {
-                  existingCache[String(docId)] = v;
-                  cacheUpdated = true;
-                  break;
-                }
-              }
-            });
-            if (cacheUpdated) {
-              const str = JSON.stringify(existingCache);
-              if (str.length < 3500000) localStorage.setItem('hss_photo_url_cache_v1', str);
-            }
-          } catch (_) {}
-        }
-
-        // Fetch fresh photos from centralized studentPhotos and admissions collections
-        console.info('[IDCards] Fetching student photos from central studentPhotos collection...');
-        const photoMap = {}; // docId / reg / formNo -> photoUrl
-
-        try {
-          const photosSnap = await getDocs(collection(db, 'studentPhotos'));
-          photosSnap.forEach(d => {
-            const data = d.data();
-            const docId = d.id;
-            const formNo = data['Form Number'] || data.formNo || data.formNumber;
-            const boardReg = data['Board Registration Number'] || data.boardRegNo || data.regNo;
-            const rawP = data.photo_id || data.photoData || data.photo || data.photoUrl || data.data || data.url || data.image || data.base64;
-            const formatted = formatPhotoDisplayUrl(rawP) || (typeof rawP === 'string' ? rawP.trim() : '');
-            if (formatted && formatted.length > 20 && formatted !== '/logo.png' && formatted !== '—') {
-              if (docId) photoMap[docId] = formatted;
-              if (formNo) photoMap[String(formNo)] = formatted;
-              if (formNo) photoMap[`photo_form_${formNo}`] = formatted;
-              if (boardReg) {
-                const sReg = String(boardReg).trim();
-                const cleanR = sReg.replace(/[^a-zA-Z0-9]/g, '');
-                photoMap[sReg] = formatted;
-                photoMap[cleanR] = formatted;
-                photoMap[`photo_${cleanR}`] = formatted;
-                photoMap[`reg_${cleanR}`] = formatted;
-              }
-              if (data.studentName) {
-                const cleanN = String(data.studentName).toLowerCase().replace(/[^a-z0-9]/g, '');
-                if (cleanN && cleanN.length >= 4) {
-                  photoMap[`name_${cleanN}`] = formatted;
-                }
-              }
-            }
-          });
-        } catch (e) {
-          console.warn('[IDCards] studentPhotos fetch note:', e);
-        }
-
-        try {
-          const snap = await getDocs(collection(db, 'admissions'));
-          snap.forEach(d => {
-            const data = d.data();
-            const docId = d.id;
-            const formNo = data['Form Number'] || data.formNo;
-            const boardReg = data['Board Registration Number'] || data.boardRegNo;
-            for (const f of PHOTO_FIELDS) {
-              const v = data[f];
-              if (v && typeof v === 'string' && v.length > 20 && v !== '—' && v !== '/logo.png') {
-                const formatted = formatPhotoDisplayUrl(v) || v.trim();
-                if (formatted) {
-                  if (docId) photoMap[docId] = formatted;
-                  if (formNo) photoMap[String(formNo)] = formatted;
-                  if (boardReg) photoMap[String(boardReg)] = formatted;
-                  if (boardReg) photoMap[String(boardReg).replace(/[^a-zA-Z0-9]/g, '')] = formatted;
-                  break;
-                }
-              }
-            }
-          });
-        } catch (e) {
-          console.warn('[IDCards] admissions fetch note:', e);
-        }
-
-        // Update liveStudents in memory immediately so UI refreshes with photos
-        if (Object.keys(photoMap).length > 0) {
-          setLiveStudents(prev => prev.map(s => {
-            const sReg = s['Board Registration Number'] || s.boardRegNo || s.regNo;
-            const cleanSReg = sReg ? String(sReg).replace(/[^a-zA-Z0-9]/g, '') : '';
-            const sForm = s['Form Number'] || s.formNo || s.formNumber;
-            const sId = s.id;
-            const sName = s["Student's Name (as per school records)"] || s["Student's Name"] || s.studentName;
-            const cleanName = sName ? String(sName).toLowerCase().replace(/[^a-z0-9]/g, '') : '';
-
-            const matchedPhoto =
-              (cleanSReg && photoMap[cleanSReg]) ||
-              (cleanSReg && photoMap[`photo_${cleanSReg}`]) ||
-              (cleanSReg && photoMap[`reg_${cleanSReg}`]) ||
-              (sReg && photoMap[String(sReg)]) ||
-              photoMap[sId] ||
-              photoMap[`photo_${sId}`] ||
-              (sForm && photoMap[String(sForm)]) ||
-              (sForm && photoMap[`photo_form_${sForm}`]) ||
-              (cleanName && photoMap[`name_${cleanName}`]) ||
-              s.photo_id;
-
-            if (matchedPhoto && matchedPhoto !== s.photo_id && matchedPhoto !== '/logo.png' && matchedPhoto.length > 20) {
-              return { ...s, photo_id: matchedPhoto };
-            }
-            return s;
-          }));
-
-          // Persist photo URLs to mini-cache
-          try {
-            const existing = JSON.parse(localStorage.getItem('hss_photo_url_cache_v1') || '{}');
-            const merged = { ...existing, ...photoMap };
-            const str = JSON.stringify(merged);
-            if (str.length < 3500000) localStorage.setItem('hss_photo_url_cache_v1', str);
-          } catch (_) {}
-        }
-      } catch (e) {
-        console.warn('[IDCards] Background photo recovery note:', e);
-      }
-    };
-    // Do not run a collection-wide photo recovery when this module opens. Photos
-    // are fetched by exact student key only for the selected print cohort.
-    void recoverPhotos;
   }, []);
 
   const handleSaveSealConfig = async () => {

@@ -17,6 +17,9 @@ const LEGACY_SECRET_STORAGE_KEYS = [
 ];
 const ENDPOINT = '/.netlify/functions/ai-generate';
 const GEMINI_CONFIG_PATH = ['systemSettings', 'geminiConfig'];
+const GEMINI_CONFIG_TTL_MS = 5 * 60 * 1000;
+let geminiConfigRefreshPromise = null;
+let geminiConfigRefreshedAt = 0;
 
 export function checkIsSuperAdmin(user = null) {
   return isSuperAdminUser(user);
@@ -157,23 +160,33 @@ export function saveGeminiKeys() {
 
 export async function fetchCloudGeminiKeys() {
   removeLegacyBrowserSecrets();
-  try {
-    const snapshot = await getDoc(doc(db, ...GEMINI_CONFIG_PATH));
-    if (snapshot.exists()) {
-      const data = snapshot.data() || {};
-      const customModels = Array.isArray(data.customModels)
-        ? data.customModels.map(cleanModel).filter(Boolean)
-        : [];
-      const deletedModels = Array.isArray(data.deletedModels)
-        ? data.deletedModels.map((id) => String(id || '').trim()).filter(Boolean)
-        : [];
-      writeJsonPreference(STORAGE_KEY_CUSTOM_MODELS, customModels);
-      writeJsonPreference(STORAGE_KEY_DELETED_MODELS, deletedModels);
+  if (Date.now() - geminiConfigRefreshedAt < GEMINI_CONFIG_TTL_MS) return [];
+  if (geminiConfigRefreshPromise) return geminiConfigRefreshPromise;
+
+  geminiConfigRefreshPromise = (async () => {
+    try {
+      const snapshot = await getDoc(doc(db, ...GEMINI_CONFIG_PATH));
+      if (snapshot.exists()) {
+        const data = snapshot.data() || {};
+        const customModels = Array.isArray(data.customModels)
+          ? data.customModels.map(cleanModel).filter(Boolean)
+          : [];
+        const deletedModels = Array.isArray(data.deletedModels)
+          ? data.deletedModels.map((id) => String(id || '').trim()).filter(Boolean)
+          : [];
+        writeJsonPreference(STORAGE_KEY_CUSTOM_MODELS, customModels);
+        writeJsonPreference(STORAGE_KEY_DELETED_MODELS, deletedModels);
+      }
+      geminiConfigRefreshedAt = Date.now();
+    } catch (error) {
+      console.warn('Could not refresh the non-secret AI model configuration:', error);
+    } finally {
+      geminiConfigRefreshPromise = null;
     }
-  } catch (error) {
-    console.warn('Could not refresh the non-secret AI model configuration:', error);
-  }
-  return [];
+    return [];
+  })();
+
+  return geminiConfigRefreshPromise;
 }
 
 export async function saveCloudGeminiKeys() {

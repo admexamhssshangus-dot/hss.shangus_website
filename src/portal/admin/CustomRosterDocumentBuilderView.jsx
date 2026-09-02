@@ -22,12 +22,13 @@ import {
   exportCustomRosterCsv
 } from '../../utils/customRosterExportUtils';
 import { getStudentPhotoUrl, formatPhotoDisplayUrl } from '../../utils/imageCompressor';
-import { getCachedCollection, getCachedCollectionSync, preloadStudentPhotosCache, getPhotoUrlFromCache, resolveStudentPhoto, fetchStudentPhotoOnDemand } from '../../services/dbCache';
+import { getCachedCollection, getCachedCollectionSync, getPhotoUrlFromCache, resolveStudentPhoto, fetchStudentPhotoOnDemand } from '../../services/dbCache';
 import { getStudentRegIndex, lookupStudentByRegSync } from '../../services/studentIndexService';
 import { db } from '../../services/firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { toTitleCase } from '../../utils/textFormatting';
 import TabLoadingOverlay from '../../components/TabLoadingOverlay';
+import { scheduleIdleWork } from '../../utils/scheduleIdleWork';
 
 // Standard Database Columns Grouped by Category (Primary core fields vs Advanced extended fields)
 const DB_COLUMN_GROUPS = [
@@ -1411,14 +1412,19 @@ export default function CustomRosterDocumentBuilderView({
 
   useEffect(() => {
     let isMounted = true;
-    getCachedCollection('masterRegisters', false, 30 * 60 * 1000).then((docs) => {
-      if (!isMounted || !Array.isArray(docs)) return;
-      const flat = unpackMasterRegisterStudents(docs);
-      if (flat.length > 0) {
-        setMasterRegistersList(flat);
-      }
-    }).catch(() => {});
-    return () => { isMounted = false; };
+    const cancelIdleWork = scheduleIdleWork(() => {
+      getCachedCollection('masterRegisters', false, 30 * 60 * 1000).then((docs) => {
+        if (!isMounted || !Array.isArray(docs)) return;
+        const flat = unpackMasterRegisterStudents(docs);
+        if (flat.length > 0) {
+          React.startTransition(() => setMasterRegistersList(flat));
+        }
+      }).catch(() => {});
+    });
+    return () => {
+      isMounted = false;
+      cancelIdleWork();
+    };
   }, []);
 
   // Combine live intake with historical registers seamlessly
@@ -1726,13 +1732,6 @@ export default function CustomRosterDocumentBuilderView({
   const [saveDefaultToast, setSaveDefaultToast] = useState(false);
   const [isSavingCustomToCloud, setIsSavingCustomToCloud] = useState(false);
   const [cloudFeeSaveToast, setCloudFeeSaveToast] = useState(false);
-  // Preload student photos cache silently in background without re-render cascades
-  useEffect(() => {
-    if (isReady) {
-      preloadStudentPhotosCache().catch(() => {});
-    }
-  }, [isReady]);
-
   // Preload and sync custom fee rules and column defaults from Firebase Cloud
   useEffect(() => {
     let isMounted = true;
@@ -1769,7 +1768,6 @@ export default function CustomRosterDocumentBuilderView({
       }
     };
     fetchCloudFeeRules();
-    preloadStudentPhotosCache().catch(() => {});
     return () => { isMounted = false; };
   }, []);
 

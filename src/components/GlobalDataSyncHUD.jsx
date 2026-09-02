@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { RefreshCw, CheckCircle2, AlertCircle, Wifi, WifiOff, Cloud, Database } from 'lucide-react';
+import { WifiOff } from 'lucide-react';
 
 /**
  * GlobalDataSyncHUD
@@ -45,12 +45,12 @@ export default function GlobalDataSyncHUD({
         message: message || prev.message,
         progress: progress || prev.progress
       }));
-    } else if (!isActive && syncState.active && !window._hssGlobalFetchActive) {
-      setSyncState(prev => ({
+    } else if (!isActive && !window._hssGlobalFetchActive) {
+      setSyncState(prev => prev.active ? ({
         ...prev,
         active: false,
         lastSyncTime: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
-      }));
+      }) : prev);
     }
   }, [isActive, message, progress]);
 
@@ -150,7 +150,7 @@ export default function GlobalDataSyncHUD({
         <div className="fixed bottom-4 left-4 z-[99999] animate-fadeIn">
           <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-rose-600 text-white shadow-xl text-xs font-black">
             <WifiOff size={14} />
-            <span>Offline Mode: Working with local records</span>
+            <span>Offline: Cloud records are temporarily unavailable</span>
           </div>
         </div>
       )}

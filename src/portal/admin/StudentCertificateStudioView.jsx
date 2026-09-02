@@ -37,7 +37,6 @@ import {
   getCachedCollectionSync,
   getCachedCollection,
   getPhotoUrlFromCache,
-  preloadCentralStudentPhotos,
   resolveStudentPhoto,
   fetchStudentPhotoOnDemand,
   fetchAllMatchingStudentPhotos
@@ -72,7 +71,7 @@ import {
   unpackMasterRegisterStudents
 } from './CustomRosterDocumentBuilderView';
 import { db } from '../../services/firebase';
-import { collection, getDocs, doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc } from 'firebase/firestore';
 import {
   fetchCloudDocTemplates,
   saveCloudDocTemplate,
@@ -83,6 +82,7 @@ import { saveGeneratedDocToHistory } from '../../services/docHistoryService';
 import { recordApplicationPrint } from '../../services/printTrackerService';
 import DocumentHistoryModal from './DocumentHistoryModal';
 import TabLoadingOverlay from '../../components/TabLoadingOverlay';
+import { scheduleIdleWork } from '../../utils/scheduleIdleWork';
 
 export const sanitizeCertificateHtml = (rawHtml) => {
   if (!rawHtml || typeof rawHtml !== 'string') return '';
@@ -252,11 +252,7 @@ export default function StudentCertificateStudioView({
   showSettingsDrawerProp,
   onToggleSettingsDrawer
 }) {
-  const [isReady, setIsReady] = useState(true);
-
-  useEffect(() => {
-    preloadCentralStudentPhotos().catch(() => {});
-  }, []);
+  const [isReady] = useState(true);
 
   // ─── Data Sources: Fed Directly & Instantaneously from Parent Global Session + Firestore Hydration ───
   const [masterRegistersList, setMasterRegistersList] = useState(() => {
@@ -266,14 +262,19 @@ export default function StudentCertificateStudioView({
 
   useEffect(() => {
     let isMounted = true;
-    getCachedCollection('masterRegisters', false, 30 * 60 * 1000).then((docs) => {
-      if (!isMounted || !Array.isArray(docs)) return;
-      const flat = unpackMasterRegisterStudents(docs);
-      if (flat.length > 0) {
-        setMasterRegistersList(flat);
-      }
-    }).catch(() => {});
-    return () => { isMounted = false; };
+    const cancelIdleWork = scheduleIdleWork(() => {
+      getCachedCollection('masterRegisters', false, 30 * 60 * 1000).then((docs) => {
+        if (!isMounted || !Array.isArray(docs)) return;
+        const flat = unpackMasterRegisterStudents(docs);
+        if (flat.length > 0) {
+          React.startTransition(() => setMasterRegistersList(flat));
+        }
+      }).catch(() => {});
+    });
+    return () => {
+      isMounted = false;
+      cancelIdleWork();
+    };
   }, []);
 
   const combinedStudentPool = useMemo(() => {
@@ -311,7 +312,6 @@ export default function StudentCertificateStudioView({
 
   const [activeCohortFilter, setActiveCohortFilter] = useState('ALL'); // 'ALL' | '12th' | '11th' | '10th' | '9th' | 'present' | 'past'
   const [activeSessionFilter, setActiveSessionFilter] = useState(() => defaultActiveSession);
-  const [photosVersion, setPhotosVersion] = useState(0);
   const [recentIngestedResults, setRecentIngestedResults] = useState([]);
   const isLoadingStudents = false;
 

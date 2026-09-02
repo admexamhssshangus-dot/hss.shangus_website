@@ -14,7 +14,6 @@ import {
   updateCachedItem,
   getCachedCollectionSync,
   getCachedCollection,
-  preloadStudentPhotosCache,
   fetchStudentPhotoOnDemand
 } from '../../services/dbCache';
 import { logAdminActivity } from '../../services/adminActivityLogger';
@@ -1334,12 +1333,6 @@ export default function AdmissionRegisterSuite({
       ? { ...window._hss_central_photo_map }
       : {};
   });
-
-  useEffect(() => {
-    try {
-      preloadStudentPhotosCache();
-    } catch (_) {}
-  }, []);
 
   // 2. Normalized Student Object Mapper with Re-admission Parsing & Complete Multi-Alias Firebase Field Resolution
   const normalizedStudents = useMemo(() => {
