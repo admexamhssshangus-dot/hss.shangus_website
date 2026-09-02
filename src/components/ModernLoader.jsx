@@ -226,7 +226,10 @@ export default function ModernLoader({
 
   const displayTitle = title || preset.title;
   const displayBadge = badge || preset.badge;
-  const hintsList = preset.hints || [preset.defaultText];
+  const hintsList = useMemo(
+    () => preset.hints || [preset.defaultText],
+    [preset]
+  );
 
   const [hintIdx, setHintIdx] = useState(0);
   const [logoSrc, setLogoSrc] = useState('/logo512.png');

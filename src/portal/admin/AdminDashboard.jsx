@@ -1,17 +1,16 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { Lock, Layers, RefreshCw, LogOut, ChevronDown, Wrench, Sliders, ArrowLeft } from 'lucide-react';
+import { Lock, ChevronDown, Wrench, Sliders, ArrowLeft } from 'lucide-react';
 import SEO from '../../components/SEO';
-import ApplicationReviewModal from './ApplicationReviewModal';
-import AdvancedReports from './AdvancedReports';
-import ModernLoader from '../../components/ModernLoader';
 import GlobalDataSyncHUD from '../../components/GlobalDataSyncHUD';
 import AdminToolsDropdown, { ADMIN_TOOL_MODULES } from './AdminToolsDropdown';
 import LogoutConfirmModal from '../components/LogoutConfirmModal';
 import TabLoadingOverlay from '../../components/TabLoadingOverlay';
-import { getCachedCollection, getCachedCollectionSync, subscribeToCollection, preloadStudentPhotosCache, getCollectionCount, getPaginatedCollection, hydrateRemainingPages, mergeDuplicateStudentApplications } from '../../services/dbCache';
+import { getCachedCollection, getCachedCollectionSync, subscribeToCollection, getPaginatedCollection, hydrateRemainingPages } from '../../services/dbCache';
 
 // Lazy load heavy admin modules to keep tab transitions ultra-fast with zero UI hangs
+const AdvancedReports = React.lazy(() => import('./AdvancedReports'));
+const ApplicationReviewModal = React.lazy(() => import('./ApplicationReviewModal'));
 const CustomRosterDocumentBuilderView = React.lazy(() => import('./CustomRosterDocumentBuilderView'));
 const OfficialLetterWriterView = React.lazy(() => import('./OfficialLetterWriterView'));
 const StudentCertificateStudioView = React.lazy(() => import('./StudentCertificateStudioView'));
@@ -26,6 +25,24 @@ const RollNoAssignment = React.lazy(() => import('./RollNoAssignment'));
 const AutomationsPage = React.lazy(() => import('./AutomationsPage'));
 const FundDistribution = React.lazy(() => import('./FundDistribution'));
 const AdministrativeCms = React.lazy(() => import('../../pages/AdminPortal'));
+
+// Only subscribe to the large admissions collection where live mutation is part
+// of the workflow. Read-only studios hydrate once and reuse the in-memory data.
+const ADMISSIONS_DATA_TABS = new Set([
+  'reports',
+  'gkTest',
+  'admRegisterSuite',
+  'idCards',
+  'customRoster',
+  'docStudio',
+  'certStudio',
+  'certificate',
+  'rollNo',
+  'mergeStudio',
+  'automations'
+]);
+const ADMISSIONS_REALTIME_TABS = new Set(['reports', 'rollNo', 'mergeStudio', 'automations']);
+const IDENTITY_DATA_TABS = new Set(['gkTest', 'customRoster', 'docStudio', 'certStudio', 'certificate']);
 
 
 // Helper to read initial activeTab from URL search params, hash or sessionStorage
@@ -104,7 +121,7 @@ export default function AdminDashboard() {
 
   const [isStudioSetupOpen, setIsStudioSetupOpen] = useState(false);
 
-  const [counts, setCounts] = useState(() => {
+  const [, setCounts] = useState(() => {
     const initialCachedApps = getCachedCollectionSync('admissions');
     return {
       active: initialCachedApps?.length || 0,
@@ -112,7 +129,6 @@ export default function AdminDashboard() {
     };
   });
   const [isToolsOpen, setIsToolsOpen] = useState(false);
-  const [showCustomRosterModal, setShowCustomRosterModal] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [triggerAction, setTriggerAction] = useState(null); // 'analytics' | 'directEntry' | 'bulkTools'
   const [enableQuickCellEdit, setEnableQuickCellEditState] = useState(() => {
@@ -136,10 +152,6 @@ export default function AdminDashboard() {
   const handleLogoutRequest = () => setShowLogoutConfirm(true);
 
   useEffect(() => {
-    preloadStudentPhotosCache().catch(() => {});
-  }, []);
-
-  useEffect(() => {
     if (!isToolsOpen) return;
     function handleClickOutside(event) {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
@@ -153,7 +165,7 @@ export default function AdminDashboard() {
   // Applications Data State with Instant Cache + Silent Background Sync
   const [loading, setLoading] = useState(() => {
     const cached = getCachedCollectionSync('admissions');
-    return !cached || cached.length === 0;
+    return ADMISSIONS_DATA_TABS.has(activeTab) && (!cached || cached.length === 0);
   });
   const [applications, setApplications] = useState(() => {
     return getCachedCollectionSync('admissions') || [];
@@ -161,9 +173,25 @@ export default function AdminDashboard() {
   const [selectedApp, setSelectedApp] = useState(null); // For ApplicationReviewModal
   const appsRef = useRef(applications);
   appsRef.current = applications;
+  const hydrationCancelRef = useRef(null);
+
+  const commitApplications = useCallback((list, urgent = false) => {
+    if (!Array.isArray(list)) return;
+    appsRef.current = list;
+    if (urgent) {
+      setApplications(list);
+      return;
+    }
+    React.startTransition(() => setApplications(list));
+  }, []);
 
   // Fetch Admin Dashboard Data: instant first-page load + non-blocking background hydration
-  const loadAdminData = useCallback(async (force = false) => {
+  const loadAdminData = useCallback(async (force = false, options = {}) => {
+    const progressive = options && typeof options === 'object' && options.progressive === true;
+    if (typeof hydrationCancelRef.current === 'function') {
+      hydrationCancelRef.current();
+      hydrationCancelRef.current = null;
+    }
     if (appsRef.current.length === 0) {
       setLoading(true);
     }
@@ -176,26 +204,34 @@ export default function AdminDashboard() {
       // 1. If we have cached data and not forcing, use cached and hydrate in background if needed
       const cached = getCachedCollectionSync('admissions');
       if (cached && cached.length > 0 && !force) {
-        setApplications(cached);
+        commitApplications(cached, true);
         setLoading(false);
       } else {
         // 2. Cold start / force sync: Fetch first 50 applications instantly
         const page1 = await getPaginatedCollection('admissions', 50);
         if (page1.docs && page1.docs.length > 0) {
-          setApplications(page1.docs);
+          commitApplications(page1.docs, true);
           setLoading(false);
 
           if (page1.hasMore && page1.lastDoc) {
-            // 3. Hydrate remaining pages in background without freezing UI
-            hydrateRemainingPages('admissions', page1.lastDoc, page1.docs, (batch) => {
-              setApplications(batch);
-            });
+            // 3. Hydrate remaining pages in the background. Document studios
+            // receive one completed update instead of re-rendering every batch.
+            hydrationCancelRef.current = hydrateRemainingPages(
+              'admissions',
+              page1.lastDoc,
+              page1.docs,
+              progressive ? (batch) => commitApplications(batch) : null,
+              (completeList) => {
+                hydrationCancelRef.current = null;
+                commitApplications(completeList);
+              }
+            );
           }
         } else {
           // Fallback to full fetch if paginated query returns empty
           const fullList = await getCachedCollection('admissions', force, 30 * 60 * 1000);
           if (fullList && Array.isArray(fullList)) {
-            setApplications(fullList);
+            commitApplications(fullList);
           }
         }
       }
@@ -205,45 +241,73 @@ export default function AdminDashboard() {
       clearTimeout(timeoutTimer);
       setLoading(false);
     }
-  }, []);
+  }, [commitApplications]);
 
-  // Real-time live synchronization for admissions (0ms updates when students submit, edit, or withdraw)
+  // Load admissions only for modules that consume them. Lightweight editors
+  // (letterhead, controls, CMS, etc.) must never download the entire collection.
   useEffect(() => {
+    if (typeof hydrationCancelRef.current === 'function') {
+      hydrationCancelRef.current();
+      hydrationCancelRef.current = null;
+    }
+
+    if (!ADMISSIONS_DATA_TABS.has(activeTab)) {
+      setLoading(false);
+      return undefined;
+    }
+
+    if (!ADMISSIONS_REALTIME_TABS.has(activeTab)) {
+      loadAdminData(false, { progressive: false });
+      return () => {
+        if (typeof hydrationCancelRef.current === 'function') {
+          hydrationCancelRef.current();
+          hydrationCancelRef.current = null;
+        }
+      };
+    }
+
     if (typeof subscribeToCollection !== 'function') {
-      loadAdminData();
+      loadAdminData(false, { progressive: activeTab === 'reports' });
       return undefined;
     }
     let unsubscribe = () => {};
     let receivedSnapshot = false;
     const fallbackTimer = setTimeout(() => {
-      if (!receivedSnapshot && appsRef.current.length === 0) loadAdminData();
+      if (!receivedSnapshot && appsRef.current.length === 0) {
+        loadAdminData(false, { progressive: activeTab === 'reports' });
+      }
     }, 2500);
     try {
       unsubscribe = subscribeToCollection('admissions', (liveList) => {
         if (Array.isArray(liveList)) {
           receivedSnapshot = true;
-          setApplications(liveList);
+          commitApplications(liveList);
           setLoading(false);
         }
       }, (err) => {
         console.warn('Realtime listener fallback note:', err);
-        if (!receivedSnapshot) loadAdminData();
+        if (!receivedSnapshot) loadAdminData(false, { progressive: activeTab === 'reports' });
       });
     } catch (err) {
       console.warn('subscribeToCollection initialization note:', err);
-      loadAdminData();
+      loadAdminData(false, { progressive: activeTab === 'reports' });
     }
 
     return () => {
       clearTimeout(fallbackTimer);
       if (typeof unsubscribe === 'function') unsubscribe();
+      if (typeof hydrationCancelRef.current === 'function') {
+        hydrationCancelRef.current();
+        hydrationCancelRef.current = null;
+      }
     };
-  }, [loadAdminData]);
+  }, [activeTab, commitApplications, loadAdminData]);
 
   const identityStudents = useMemo(() => {
+    if (!IDENTITY_DATA_TABS.has(activeTab)) return applications;
     const master = getCachedCollectionSync('masterRegisters') || [];
     return [...(applications || []), ...master];
-  }, [applications]);
+  }, [activeTab, applications]);
 
   const handleRecordDeleted = (student) => {
     if (!student) return;
@@ -298,16 +362,29 @@ export default function AdminDashboard() {
     return !!(roll && roll !== '—' && roll !== 'N/A' && roll !== 'null' && roll !== 'undefined');
   };
 
-  // Stats calculation
-  const totalCount = applications.length;
-  const approvedCount = applications.filter((a) => hasClassRollVal(a)).length;
-  const submittedCount = applications.filter((a) => !hasClassRollVal(a) && a['Status'] === 'Submitted').length;
-  const draftCount = applications.filter((a) => !hasClassRollVal(a) && (a['Status'] === 'Draft' || !a['Status'])).length;
-  const rejectedCount = applications.filter((a) => !hasClassRollVal(a) && a['Status'] === 'Rejected').length;
+  // Calculate all counters in one pass rather than scanning the full cohort five times.
+  const { totalCount, approvedCount, submittedCount, draftCount, rejectedCount } = useMemo(() => {
+    const next = {
+      totalCount: applications.length,
+      approvedCount: 0,
+      submittedCount: 0,
+      draftCount: 0,
+      rejectedCount: 0
+    };
+    if (activeTab !== 'reports') return next;
+    applications.forEach((application) => {
+      if (hasClassRollVal(application)) {
+        next.approvedCount += 1;
+        return;
+      }
+      if (application?.Status === 'Submitted') next.submittedCount += 1;
+      else if (application?.Status === 'Rejected') next.rejectedCount += 1;
+      else if (application?.Status === 'Draft' || !application?.Status) next.draftCount += 1;
+    });
+    return next;
+  }, [activeTab, applications]);
 
   const TOOL_MODULES = ADMIN_TOOL_MODULES;
-
-  const allowedToolModules = TOOL_MODULES.filter((mod) => isTabPermitted(mod.id));
 
   return (
     <div className="admin-dashboard-theme w-full min-h-[85vh] py-0.5 sm:py-1 px-1 sm:px-2" style={{ backgroundColor: 'var(--bg-page, #f8fafc)' }}>
@@ -442,8 +519,8 @@ export default function AdminDashboard() {
                 </div>
               ) : (
                 <React.Suspense fallback={<TabLoadingOverlay moduleKey={activeTab} />}>
-                  {/* TAB 1: Master Register & Database — always mounted, hidden via CSS to prevent re-fetch on tab switch */}
-                  <div className={activeTab === 'reports' ? '' : 'hidden'}>
+                  {/* TAB 1: Master Register & Database */}
+                  {activeTab === 'reports' && (
                     <AdvancedReports
                       setActiveTab={setActiveTab}
                       setCounts={setCounts}
@@ -458,7 +535,7 @@ export default function AdminDashboard() {
                       enableQuickCellEdit={enableQuickCellEdit}
                       setEnableQuickCellEdit={handleToggleQuickCellEdit}
                     />
-                  </div>
+                  )}
 
                   {/* TAB 2: Combined Controls & Subjects Config v2 */}
                   {activeTab === 'controls' && <ControlsAndSubjects />}
@@ -556,11 +633,13 @@ export default function AdminDashboard() {
 
         {/* Application Review Modal Popup */}
         {selectedApp && (
-          <ApplicationReviewModal
-            app={selectedApp}
-            onClose={() => setSelectedApp(null)}
-            onRefresh={loadAdminData}
-          />
+          <React.Suspense fallback={null}>
+            <ApplicationReviewModal
+              app={selectedApp}
+              onClose={() => setSelectedApp(null)}
+              onRefresh={loadAdminData}
+            />
+          </React.Suspense>
         )}
         {/* Logout Confirmation Dialog */}
         <LogoutConfirmModal

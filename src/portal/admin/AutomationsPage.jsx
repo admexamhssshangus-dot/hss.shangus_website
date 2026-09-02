@@ -7,7 +7,7 @@ import {
   RemoveFormatting, ShieldAlert, FileText
 } from 'lucide-react';
 import appsScriptApi from '../../services/appsScriptApi';
-import { getCachedCollectionSync, subscribeToCollection, getCachedCollection } from '../../services/dbCache';
+import { getCachedCollectionSync } from '../../services/dbCache';
 import { sanitizeRichHtml } from '../../utils/sanitizeRichHtml';
 
 const DEFAULT_FOOTER = 'Best regards, Admission & Examination Cell, Govt. Higher Secondary School Shangus';
@@ -120,29 +120,10 @@ export default function AutomationsPage({ applications: propApps = [], user = nu
     return getCachedCollectionSync('admissions') || [];
   });
 
-  // Sync prop changes or subscribe to real-time updates
+  // AdminDashboard owns the single admissions listener for this active module.
+  // Keeping the listener at the route boundary avoids duplicate initial reads.
   useEffect(() => {
-    if (Array.isArray(propApps) && propApps.length > 0) {
-      setLocalApps(propApps);
-      return;
-    }
-    const cached = getCachedCollectionSync('admissions');
-    if (cached && cached.length > 0) {
-      setLocalApps(cached);
-    } else {
-      getCachedCollection('admissions', false).then((data) => {
-        if (Array.isArray(data) && data.length > 0) setLocalApps(data);
-      });
-    }
-
-    if (typeof subscribeToCollection === 'function') {
-      const unsub = subscribeToCollection('admissions', (live) => {
-        if (Array.isArray(live) && live.length > 0) {
-          setLocalApps(live);
-        }
-      });
-      return () => { if (typeof unsub === 'function') unsub(); };
-    }
+    if (Array.isArray(propApps)) setLocalApps(propApps);
   }, [propApps]);
 
   // ---------------------------------------------------------------------------

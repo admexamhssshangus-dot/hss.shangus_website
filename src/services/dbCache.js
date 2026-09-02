@@ -16,7 +16,7 @@ const DEFAULT_TTL_MS = 4 * 60 * 60 * 1000; // 4 hours cache TTL (was 60 mins —
 
 // Separate lightweight photo URL cache (avoids stripping logic issues for photo fields)
 const PHOTO_CACHE_KEY = 'hss_photo_url_cache_v1';
-const MEMORY_ONLY_COLLECTIONS = new Set(['users', 'admissions', 'masterRegisters', 'legacyStudents', 'studentPhotos']);
+const MEMORY_ONLY_COLLECTIONS = new Set(['users', 'admissions', 'masterRegisters', 'legacyStudents', 'studentPhotos', 'omr_registrations']);
 
 // In-memory cache for instant zero-latency cross-tab access
 const memoryCache = new Map();
@@ -406,43 +406,56 @@ export function hydrateRemainingPages(collectionName, initialCursor, initialDocs
 export function subscribeToCollection(collectionName, onUpdate, onError) {
   try {
     const collRef = collection(db, collectionName);
+    const rowsByDocument = new Map();
+
+    const unpackDocument = (docSnap) => {
+      const data = docSnap.data();
+      if (
+        data.Status === 'Deleted' ||
+        data.status === 'Deleted' ||
+        data._deleted === true
+      ) return [];
+
+      const chunkItems = data.items || data.students || data.records || data.data;
+      if (Array.isArray(chunkItems) && chunkItems.length > 0) {
+        const docSession = data.Session || data.session || data['Academic Session'] || data.groupKey?.split('_')[0] || docSnap.id?.split('_')[0] || '';
+        const docClass = data.class || data.Class || data.className || data['Class'] || data.groupKey?.split('_')[1] || '';
+        const docStream = data.stream || data.Stream || data['Stream'] || data.groupKey?.split('_')[2] || '';
+
+        return chunkItems.flatMap((item, itemIdx) => {
+          if (!item || typeof item !== 'object') return [];
+          if (item.Status === 'Deleted' || item.status === 'Deleted' || item._deleted === true) return [];
+          return [{
+            ...item,
+            id: item.id || item['Form Number'] || item['Form No.'] || item.formNo || item['Board Registration Number'] || `${docSnap.id}_${itemIdx}`,
+            Session: item.Session || item.session || item['Academic Session'] || docSession || '',
+            session: item.session || item.Session || item['Academic Session'] || docSession || '',
+            Class: item.Class || item.class || item['Class'] || docClass || '',
+            class: item.class || item.Class || item['Class'] || docClass || '',
+            Stream: item.Stream || item.stream || item['Stream'] || docStream || '',
+            stream: item.stream || item.Stream || item['Stream'] || docStream || '',
+            _source: collectionName,
+            _parentDocId: docSnap.id
+          }];
+        });
+      }
+
+      return [{ ...data, id: data.id || docSnap.id, _docId: docSnap.id, _source: collectionName }];
+    };
+
     const unsubscribe = onSnapshot(collRef, (snapshot) => {
-      const list = [];
-      snapshot.forEach((docSnap) => {
-        const data = docSnap.data();
-        if (
-          data.Status === 'Deleted' ||
-          data.status === 'Deleted' ||
-          data._deleted === true
-        ) return;
-
-        const chunkItems = data.items || data.students || data.records || data.data;
-        if (Array.isArray(chunkItems) && chunkItems.length > 0) {
-          const docSession = data.Session || data.session || data['Academic Session'] || data.groupKey?.split('_')[0] || docSnap.id?.split('_')[0] || '';
-          const docClass = data.class || data.Class || data.className || data['Class'] || data.groupKey?.split('_')[1] || '';
-          const docStream = data.stream || data.Stream || data['Stream'] || data.groupKey?.split('_')[2] || '';
-
-          chunkItems.forEach((item, itemIdx) => {
-            if (item && typeof item === 'object') {
-              if (item.Status === 'Deleted' || item.status === 'Deleted' || item._deleted === true) return;
-              list.push({
-                ...item,
-                id: item.id || item['Form Number'] || item['Form No.'] || item.formNo || item['Board Registration Number'] || `${docSnap.id}_${itemIdx}`,
-                Session: item.Session || item.session || item['Academic Session'] || docSession || '',
-                session: item.session || item.Session || item['Academic Session'] || docSession || '',
-                Class: item.Class || item.class || item['Class'] || docClass || '',
-                class: item.class || item.Class || item['Class'] || docClass || '',
-                Stream: item.Stream || item.stream || item['Stream'] || docStream || '',
-                stream: item.stream || item.Stream || item['Stream'] || docStream || '',
-                _source: collectionName,
-                _parentDocId: docSnap.id
-              });
-            }
-          });
-        } else {
-          list.push({ ...data, id: data.id || docSnap.id, _docId: docSnap.id, _source: collectionName });
+      // Firestore supplies all documents as "added" on the first snapshot and
+      // only changed documents thereafter. Re-unpack those changed documents
+      // instead of decoding every unchanged admission on each small edit.
+      snapshot.docChanges().forEach((change) => {
+        if (change.type === 'removed') {
+          rowsByDocument.delete(change.doc.id);
+          return;
         }
+        rowsByDocument.set(change.doc.id, unpackDocument(change.doc));
       });
+
+      const list = Array.from(rowsByDocument.values()).flat();
 
       setCachedCollectionData(collectionName, list);
       if (onUpdate && typeof onUpdate === 'function') {

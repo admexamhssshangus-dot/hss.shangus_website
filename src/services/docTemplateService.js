@@ -11,11 +11,20 @@ import {
   getDocs,
   setDoc,
   deleteDoc,
-  serverTimestamp
+  serverTimestamp,
+  query,
+  where
 } from 'firebase/firestore';
 
 const COLLECTION_DOC_TEMPLATES = 'docStudioTemplates';
 const SETTINGS_DOC_STUDIO = 'docStudioDefaults';
+const TEMPLATE_CACHE_TTL_MS = 5 * 60 * 1000;
+const templateMemoryCache = new Map();
+const templateInflightFetches = new Map();
+
+function invalidateTemplateMemoryCache(type) {
+  templateMemoryCache.delete(type);
+}
 
 /**
  * Fetch all cloud custom templates for a specific module ('letter' | 'certificate').
@@ -24,7 +33,7 @@ const SETTINGS_DOC_STUDIO = 'docStudioDefaults';
  * @param {'letter' | 'certificate'} type
  * @returns {Promise<{ templates: Array<object>, defaultTemplateId: string | null }>}
  */
-export async function fetchCloudDocTemplates(type = 'letter') {
+async function fetchCloudDocTemplatesFresh(type = 'letter') {
   const localCacheKey = type === 'letter' ? 'hss_custom_letter_templates' : 'hss_custom_certificate_templates';
   const localDefaultKey = type === 'letter' ? 'hss_default_letter_template_id' : 'hss_default_cert_template_id';
   
@@ -51,17 +60,27 @@ export async function fetchCloudDocTemplates(type = 'letter') {
       } else if (type === 'certificate' && data.defaultCertificateTemplateId) {
         defaultTemplateId = data.defaultCertificateTemplateId;
         localStorage.setItem(localDefaultKey, defaultTemplateId);
+      } else {
+        defaultTemplateId = null;
+        localStorage.removeItem(localDefaultKey);
       }
+    } else {
+      defaultTemplateId = null;
+      localStorage.removeItem(localDefaultKey);
     }
 
-    // 2. Fetch all templates of this type from Firestore
-    const colRef = collection(db, COLLECTION_DOC_TEMPLATES);
-    const snapshot = await getDocs(colRef);
+    // 2. Filter in Firestore so each studio downloads only its own templates.
+    // Equality queries use Firestore's automatic single-field index.
+    const templatesQuery = query(
+      collection(db, COLLECTION_DOC_TEMPLATES),
+      where('type', '==', type)
+    );
+    const snapshot = await getDocs(templatesQuery);
     const cloudTemplates = [];
 
     snapshot.forEach(docSnap => {
       const tpl = docSnap.data();
-      if (tpl && tpl.type === type) {
+      if (tpl) {
         cloudTemplates.push({
           ...tpl,
           id: docSnap.id
@@ -69,26 +88,38 @@ export async function fetchCloudDocTemplates(type = 'letter') {
       }
     });
 
-    if (cloudTemplates.length > 0) {
-      // Merge unique by ID (cloud takes priority for updates)
-      const mergedMap = new Map();
-      cachedTemplates.forEach(t => mergedMap.set(t.id, t));
-      cloudTemplates.forEach(t => mergedMap.set(t.id, t));
-      
-      const mergedList = Array.from(mergedMap.values()).sort((a, b) => {
-        const timeA = new Date(a.updatedAt || a.createdAt || 0).getTime();
-        const timeB = new Date(b.updatedAt || b.createdAt || 0).getTime();
-        return timeB - timeA;
-      });
-
-      localStorage.setItem(localCacheKey, JSON.stringify(mergedList));
-      return { templates: mergedList, defaultTemplateId };
-    }
+    // A successful cloud response is authoritative, including an empty list.
+    // Local data is retained only as an offline/error fallback.
+    const cloudList = cloudTemplates.sort((a, b) => {
+      const timeA = new Date(a.updatedAt || a.createdAt || 0).getTime();
+      const timeB = new Date(b.updatedAt || b.createdAt || 0).getTime();
+      return timeB - timeA;
+    });
+    localStorage.setItem(localCacheKey, JSON.stringify(cloudList));
+    return { templates: cloudList, defaultTemplateId };
   } catch (err) {
     console.warn('Firebase template fetch error (using local cache):', err);
   }
 
   return { templates: cachedTemplates, defaultTemplateId };
+}
+
+export async function fetchCloudDocTemplates(type = 'letter') {
+  const cached = templateMemoryCache.get(type);
+  if (cached && Date.now() - cached.fetchedAt < TEMPLATE_CACHE_TTL_MS) {
+    return cached.value;
+  }
+  if (templateInflightFetches.has(type)) return templateInflightFetches.get(type);
+
+  const request = fetchCloudDocTemplatesFresh(type)
+    .then((value) => {
+      templateMemoryCache.set(type, { value, fetchedAt: Date.now() });
+      return value;
+    })
+    .finally(() => templateInflightFetches.delete(type));
+
+  templateInflightFetches.set(type, request);
+  return request;
 }
 
 /**
@@ -168,6 +199,8 @@ export async function saveCloudDocTemplate({ type = 'letter', template, makeDefa
     throw err;
   }
 
+  invalidateTemplateMemoryCache(type);
+
   return payload;
 }
 
@@ -198,6 +231,7 @@ export async function setCloudDefaultTemplate(templateId, type = 'letter') {
   } catch (err) {
     console.error('Failed to update default template in Firebase:', err);
   }
+  invalidateTemplateMemoryCache(type);
 }
 
 /**
@@ -234,4 +268,5 @@ export async function deleteCloudDocTemplate(templateId, type = 'letter') {
     console.error('Failed to delete template from Firebase:', err);
     throw err;
   }
+  invalidateTemplateMemoryCache(type);
 }

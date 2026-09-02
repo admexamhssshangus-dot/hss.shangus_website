@@ -6,12 +6,12 @@ import {
   Copy, Check, ArrowUpDown, CheckSquare, Square, Layers, UserX, School, Phone, CheckCircle
 } from 'lucide-react';
 import {
-  collection, getDocs, deleteDoc, doc, getDoc, setDoc, updateDoc, writeBatch, serverTimestamp
+  deleteDoc, doc, getDoc, setDoc, updateDoc, writeBatch, serverTimestamp
 } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import { generateGkTestAdmitCardPdf, generateBatchGkTestAdmitCardsPdf } from '../../utils/pdfGenerator';
 import { getStudentPhotoUrl, formatPhotoDisplayUrl } from '../../utils/imageCompressor';
-import { getCachedCollectionSync, getCachedCollection } from '../../services/dbCache';
+import { getCachedCollectionSync, getCachedCollection, setCachedCollectionData } from '../../services/dbCache';
 import ModernLoader from '../../components/ModernLoader';
 
 const EXAM_PRESETS = [
@@ -445,25 +445,37 @@ export default function AdminGkTestManager({ allStudents = [], onRefresh }) {
     }
   };
 
-  // Fetch all registrations from Firestore
-  const fetchRegistrations = useCallback(async () => {
+  const updateRegistrations = useCallback((updater) => {
+    setRegistrations((previous) => {
+      const next = typeof updater === 'function' ? updater(previous) : updater;
+      setCachedCollectionData('omr_registrations', next);
+      return next;
+    });
+  }, []);
+
+  // Firestore remains authoritative; the short-lived in-memory cache prevents
+  // repeated full reads when switching between administrative modules.
+  const fetchRegistrations = useCallback(async (forceRefresh = false) => {
     setLoading(true);
     try {
-      const snap = await getDocs(collection(db, 'omr_registrations'));
-      const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      const list = await getCachedCollection(
+        'omr_registrations',
+        forceRefresh === true,
+        5 * 60 * 1000
+      );
       list.sort((a, b) => {
         const timeA = a.submittedAt?.seconds || 0;
         const timeB = b.submittedAt?.seconds || 0;
         if (timeA && timeB) return timeB - timeA;
         return (a.examNumber || a.id).localeCompare(b.examNumber || b.id);
       });
-      setRegistrations(list);
+      updateRegistrations([...list]);
     } catch (err) {
       console.error('Failed to fetch OMR registrations:', err);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [updateRegistrations]);
 
   useEffect(() => {
     fetchRegistrations();
@@ -476,7 +488,7 @@ export default function AdminGkTestManager({ allStudents = [], onRefresh }) {
     setIsDeleting(true);
     try {
       await deleteDoc(doc(db, 'omr_registrations', revokingDoc.id));
-      setRegistrations(prev => prev.filter(r => r.id !== revokingDoc.id));
+      updateRegistrations(prev => prev.filter(r => r.id !== revokingDoc.id));
       setSelectedIds(prev => {
         const next = new Set(prev);
         next.delete(revokingDoc.id);
@@ -640,7 +652,7 @@ export default function AdminGkTestManager({ allStudents = [], onRefresh }) {
               <span>CSV</span>
             </button>
             <button
-              onClick={fetchRegistrations}
+              onClick={() => fetchRegistrations(true)}
               disabled={loading}
               className="px-3.5 py-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 active:bg-slate-900 text-teal-200 text-xs font-bold transition-all border border-teal-700/40 shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
               title="Refresh candidate records"
@@ -1214,7 +1226,7 @@ export default function AdminGkTestManager({ allStudents = [], onRefresh }) {
           allStudents={directoryStudents}
           onClose={() => setShowAddModal(false)}
           onCandidateAdded={(newCandidate) => {
-            setRegistrations(prev => [newCandidate, ...prev]);
+            updateRegistrations(prev => [newCandidate, ...prev]);
             setShowAddModal(false);
           }}
         />
@@ -1227,7 +1239,7 @@ export default function AdminGkTestManager({ allStudents = [], onRefresh }) {
           existingRegistrations={registrations}
           onClose={() => setShowBulkImportModal(false)}
           onImportComplete={(importedList) => {
-            setRegistrations(prev => [...importedList, ...prev]);
+            updateRegistrations(prev => [...importedList, ...prev]);
             setShowBulkImportModal(false);
           }}
         />
@@ -1239,7 +1251,7 @@ export default function AdminGkTestManager({ allStudents = [], onRefresh }) {
           candidate={editingDoc}
           onClose={() => setEditingDoc(null)}
           onCandidateUpdated={(updatedCandidate) => {
-            setRegistrations(prev => prev.map(r => r.id === updatedCandidate.id ? updatedCandidate : r));
+            updateRegistrations(prev => prev.map(r => r.id === updatedCandidate.id ? updatedCandidate : r));
             setEditingDoc(null);
           }}
         />
