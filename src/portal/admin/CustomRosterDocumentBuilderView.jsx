@@ -27,6 +27,10 @@ import { getStudentRegIndex, lookupStudentByRegSync } from '../../services/stude
 import { db } from '../../services/firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { toTitleCase } from '../../utils/textFormatting';
+import {
+  getAssignedClassRollNumber,
+  resolveStudentAdmissionStatus
+} from '../../utils/studentApprovalStatus';
 import TabLoadingOverlay from '../../components/TabLoadingOverlay';
 import { scheduleIdleWork } from '../../utils/scheduleIdleWork';
 
@@ -318,47 +322,12 @@ const ROW_HEIGHT_PRESETS = [
 
 // ─── Global Helper to extract authentic Class Roll No across all database keys ───
 export function getStudentRollNumber(st) {
-  if (!st) return '';
-  const keys = [
-    'classRollNo', 'rollNo', 'Class Roll No', 'Class Roll No.',
-    'RL. NO.', 'RL. NO', 'Class R.No.', 'Class R.No', 'Class R. No.',
-    'Class R. No', 'Roll No.', 'Roll No', 'roll', 'assignedRollNo',
-    'assignedRoll', 'class_roll_no', 'Class_Roll_No'
-  ];
-  for (const k of keys) {
-    if (st[k] !== undefined && st[k] !== null) {
-      const val = String(st[k]).trim();
-      if (val && !/^(N\/A|—|-|null|undefined)$/i.test(val)) {
-        return val;
-      }
-    }
-  }
-  return '';
+  return getAssignedClassRollNumber(st);
 }
 
 // ─── Global Helper to resolve canonical student status (Assigned Roll = Approved) ───
 export function resolveStudentStatus(st) {
-  if (!st) return 'Submitted';
-  const roll = getStudentRollNumber(st);
-  const rawStatus = String(st.status || st.Status || '').trim().toLowerCase();
-
-  // If student has an assigned class roll number or explicit approved status
-  if (roll && roll !== '—' && roll !== 'N/A') {
-    return 'Approved';
-  }
-  if (rawStatus.includes('appr') || st.isApproved === true) {
-    return 'Approved';
-  }
-  if (rawStatus.includes('draft') || rawStatus.includes('dft')) {
-    return 'Draft';
-  }
-  if (rawStatus.includes('prov')) {
-    return 'Provisional';
-  }
-  if (rawStatus.includes('rejt') || rawStatus.includes('reject')) {
-    return 'Rejected';
-  }
-  return 'Submitted';
+  return resolveStudentAdmissionStatus(st);
 }
 
 // ─── Extractors for Raw Database Documents ───
@@ -2126,7 +2095,12 @@ export default function CustomRosterDocumentBuilderView({
       if (ia !== -1 && ib !== -1) return ia - ib;
       return a.localeCompare(b);
     });
-    return list.map(stat => ({ value: stat, label: `${stat} (${counts[stat]})` }));
+    return list.map(stat => ({
+      value: stat,
+      label: stat === 'Approved'
+        ? `Approved · Roll assigned (${counts[stat]})`
+        : `${stat} (${counts[stat]})`
+    }));
   }, [sessionClassStreamStudents]);
 
   // ─── Filter Students (Ultra-Fast 0ms Lookup) ───

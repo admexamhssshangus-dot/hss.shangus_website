@@ -71,8 +71,8 @@ function yearToWords(year) {
  * Returns: { figures: '15-08-2006', words: 'Fifteenth Day of August, Two Thousand Six', standard: '15/08/2006' }
  */
 export function dobToWords(dobRaw) {
-  if (!dobRaw || String(dobRaw).trim() === '' || /^(—|none|null|undefined)$/i.test(String(dobRaw).trim())) {
-    return { figures: '—', words: '—', standard: '—' };
+  if (!dobRaw || String(dobRaw).trim() === '' || /^(—|-|none|null|undefined|n\/a)$/i.test(String(dobRaw).trim())) {
+    return { figures: '----------------', words: '------------------------------------------------', standard: '----------------' };
   }
 
   const str = String(dobRaw).trim();
@@ -227,10 +227,12 @@ export const BUILTIN_CERTIFICATE_TEMPLATES = [
 ];
 
 /**
- * Standardize any date input strictly to DD-MM-YYYY format
+ * Standardize any date input strictly to DD-MM-YYYY format or return dashes for manual write-in
  */
-export function formatToDDMMYYYY(dateInput) {
-  if (!dateInput || dateInput === '—' || dateInput === '-') return '—';
+export function formatToDDMMYYYY(dateInput, fallbackDashes = '----------------') {
+  if (!dateInput || dateInput === '—' || dateInput === '-' || String(dateInput).trim() === '' || /^(null|undefined|n\/a)$/i.test(String(dateInput).trim())) {
+    return fallbackDashes;
+  }
   const s = String(dateInput).trim();
   // If already dd-mm-yyyy or dd/mm/yyyy
   if (/^\d{1,2}[-/]\d{1,2}[-/]\d{4}$/.test(s)) {
@@ -253,20 +255,32 @@ export function formatToDDMMYYYY(dateInput) {
   return s;
 }
 
+/**
+ * Format missing or placeholder values with a standard length of dashes for handwriting after print
+ */
+export function formatBlank(val, defaultDashes = '------------------------') {
+  if (val === undefined || val === null) return defaultDashes;
+  const s = String(val).trim();
+  if (!s || s === '—' || s === '-' || /^(null|undefined|n\/a|none)$/i.test(s)) {
+    return defaultDashes;
+  }
+  return s;
+}
+
 // ─── REPLACES PLACEHOLDERS IN HTML TEMPLATES ───
 export function interpolateCertificateTemplate(templateHtml, studentData = {}, options = {}) {
   if (!templateHtml) return '';
 
   const {
-    studentName = '—',
-    fatherName = '—',
-    motherName = '—',
+    studentName = '',
+    fatherName = '',
+    motherName = '',
     className = '11th',
     stream = 'Medical',
-    rollNo = '—',
-    regNo = '—',
-    dobFigures = '—',
-    dobWords = '—',
+    rollNo = '',
+    regNo = '',
+    dobFigures = '',
+    dobWords = '',
     session = '2025-26',
     address = 'Shangus, Anantnag',
     gender = 'M',
@@ -278,21 +292,21 @@ export function interpolateCertificateTemplate(templateHtml, studentData = {}, o
     motherTitle = null,
     // TC / DC Specific tokens
     examName = 'Class 12th Examination',
-    examRollNo = '—',
+    examRollNo = '',
     examSession = 'Annual Regular 2025 (Oct.-Nov.)',
     resultStatus = 'Pass',
     divisionDistinction = 'Distinction',
-    marksObtained = '—',
+    marksObtained = '',
     maxMarks = '500',
-    reappSubjects = '—',
-    admissionDate = '—',
-    admissionNo = '—',
-    withdrawalDate = '—',
+    reappSubjects = '',
+    admissionDate = '',
+    admissionNo = '',
+    withdrawalDate = '',
     conductStatus = 'Satisfactory',
-    village = '—',
-    tehsil = '—',
+    village = '',
+    tehsil = '',
     district = 'Anantnag',
-    certificateNo = '—'
+    certificateNo = ''
   } = { ...studentData, ...options };
 
   const FEMALE_NAME_TOKENS = new Set([
@@ -354,9 +368,9 @@ export function interpolateCertificateTemplate(templateHtml, studentData = {}, o
     return String(nameStr).replace(/^(?:Mr\.|Mrs\.|Ms\.|Miss|Master|Smt\.|Shri)\s+/i, '').trim();
   };
 
-  const effStudentName = includeSalutations ? (studentName || '—') : cleanSalutation(studentName || '—');
-  const effFatherName = includeSalutations ? (fatherName || '—') : cleanSalutation(fatherName || '—');
-  const effMotherName = includeSalutations ? (motherName || '—') : cleanSalutation(motherName || '—');
+  const effStudentName = includeSalutations ? (studentName || '') : cleanSalutation(studentName || '');
+  const effFatherName = includeSalutations ? (fatherName || '') : cleanSalutation(fatherName || '');
+  const effMotherName = includeSalutations ? (motherName || '') : cleanSalutation(motherName || '');
 
   let result = templateHtml;
 
@@ -375,19 +389,20 @@ export function interpolateCertificateTemplate(templateHtml, studentData = {}, o
     result = result.replace(/\{MOTHER_TITLE\}/gi, effMotherTitle);
   }
 
-  result = result.replace(/\{STUDENT_NAME\}/gi, effStudentName);
-  result = result.replace(/\{FATHER_NAME\}/gi, effFatherName);
-  result = result.replace(/\{MOTHER_NAME\}/gi, effMotherName);
-  result = result.replace(/\{CLASS\}/gi, className || '—');
-  result = result.replace(/\{STREAM\}/gi, stream || '—');
-  result = result.replace(/\{ROLL_NO\}/gi, rollNo || '—');
-  result = result.replace(/\{REG_NO\}/gi, regNo || '—');
-  result = result.replace(/\{DOB_FIGURES\}/gi, formatToDDMMYYYY(dobFigures));
-  result = result.replace(/\{DOB_WORDS\}/gi, dobWords || '—');
-  result = result.replace(/\{SESSION\}/gi, session || '—');
-  result = result.replace(/\{ADDRESS\}/gi, address || '—');
-  result = result.replace(/\{REF_NO\}/gi, refNo || '—');
-  result = result.replace(/\{DATE\}/gi, formatToDDMMYYYY(date));
+  // Use proportional dashed lines (e.g. ----------------) for missing info to allow handwriting after print
+  result = result.replace(/\{STUDENT_NAME\}/gi, formatBlank(effStudentName, '----------------------------------------'));
+  result = result.replace(/\{FATHER_NAME\}/gi, formatBlank(effFatherName, '----------------------------------------'));
+  result = result.replace(/\{MOTHER_NAME\}/gi, formatBlank(effMotherName, '----------------------------------------'));
+  result = result.replace(/\{CLASS\}/gi, formatBlank(className, '------------'));
+  result = result.replace(/\{STREAM\}/gi, formatBlank(stream, '--------------------'));
+  result = result.replace(/\{ROLL_NO\}/gi, formatBlank(rollNo, '----------------'));
+  result = result.replace(/\{REG_NO\}/gi, formatBlank(regNo, '------------------------'));
+  result = result.replace(/\{DOB_FIGURES\}/gi, formatToDDMMYYYY(dobFigures, '----------------'));
+  result = result.replace(/\{DOB_WORDS\}/gi, formatBlank(dobWords, '------------------------------------------------'));
+  result = result.replace(/\{SESSION\}/gi, formatBlank(session, '----------------'));
+  result = result.replace(/\{ADDRESS\}/gi, formatBlank(address, '----------------------------------------'));
+  result = result.replace(/\{REF_NO\}/gi, formatBlank(refNo, '----------------'));
+  result = result.replace(/\{DATE\}/gi, formatToDDMMYYYY(date, '----------------'));
 
   // Robust marks resolution with fallbacks across all known schema keys
   const candidateMarks = (marksObtained && marksObtained !== '—' && marksObtained !== 'null' && marksObtained !== 'undefined')
@@ -408,16 +423,16 @@ export function interpolateCertificateTemplate(templateHtml, studentData = {}, o
       studentData?.['Marks Obtained'] ||
       studentData?.marks ||
       studentData?.['Marks'] ||
-      '—'
+      ''
     );
   const parsedCandidateMatch = String(candidateMarks).match(/(\d+)(?:\s*\/\s*(\d+))?/);
-  const effectiveMarksObt = parsedCandidateMatch ? parsedCandidateMatch[1] : (candidateMarks || '—');
+  const effectiveMarksObt = parsedCandidateMatch ? parsedCandidateMatch[1] : (candidateMarks || '');
   const effectiveMaxMarks = parsedCandidateMatch && parsedCandidateMatch[2] ? parsedCandidateMatch[2] : (maxMarks || '500');
 
   // TC / DC Token Replacements
-  result = result.replace(/\{EXAM_NAME\}/gi, examName || 'Class 12th Examination');
-  result = result.replace(/\{EXAM_ROLL_NO\}/gi, examRollNo || rollNo || '—');
-  result = result.replace(/\{EXAM_SESSION\}/gi, examSession || session || '—');
+  result = result.replace(/\{EXAM_NAME\}/gi, formatBlank(examName, 'Class 12th Examination'));
+  result = result.replace(/\{EXAM_ROLL_NO\}/gi, formatBlank(examRollNo || rollNo, '------------------------'));
+  result = result.replace(/\{EXAM_SESSION\}/gi, formatBlank(examSession || session, '----------------'));
   const computeDivision = (marksObt, maxMarksVal = 500) => {
     const obt = parseFloat(marksObt);
     const max = parseFloat(maxMarksVal) || 500;
@@ -430,10 +445,10 @@ export function interpolateCertificateTemplate(templateHtml, studentData = {}, o
   };
 
   const cleanResultStatus = (resultStatus === 'Pass' || resultStatus === 'Passed') ? 'Qualified' : (resultStatus || 'Qualified');
-  result = result.replace(/\{RESULT_STATUS\}/gi, cleanResultStatus);
-  const cleanDiv = (divisionDistinction && divisionDistinction !== '—') ? divisionDistinction : (effectiveMarksObt && effectiveMarksObt !== '—' ? computeDivision(effectiveMarksObt, effectiveMaxMarks) : 'Passed');
+  result = result.replace(/\{RESULT_STATUS\}/gi, formatBlank(cleanResultStatus, '------------'));
+  const cleanDiv = (divisionDistinction && divisionDistinction !== '—') ? divisionDistinction : (effectiveMarksObt && effectiveMarksObt !== '—' && effectiveMarksObt !== '' ? computeDivision(effectiveMarksObt, effectiveMaxMarks) : 'Passed');
   
-  const hasNumericMarks = Boolean(effectiveMarksObt && effectiveMarksObt !== '—' && !/^(—|-|null|undefined|0)$/i.test(effectiveMarksObt));
+  const hasNumericMarks = Boolean(effectiveMarksObt && effectiveMarksObt !== '—' && effectiveMarksObt !== '' && !/^(—|-|null|undefined|0)$/i.test(effectiveMarksObt));
   const hasSpecificDivision = Boolean(cleanDiv && !/^(—|-|pass|passed|qualified|null|undefined)$/i.test(cleanDiv));
 
   if (!hasNumericMarks) {
@@ -448,18 +463,18 @@ export function interpolateCertificateTemplate(templateHtml, studentData = {}, o
     }
   }
 
-  result = result.replace(/\{(?:DIVISION_DISTINCTION|DIVISION|DISTINCTION)\}/gi, cleanDiv);
-  result = result.replace(/\{MARKS_OBTAINED\}/gi, effectiveMarksObt);
-  result = result.replace(/\{MAX_MARKS\}/gi, effectiveMaxMarks);
-  result = result.replace(/\{REAPP_SUBJECTS\}/gi, reappSubjects || '—');
-  result = result.replace(/\{ADMISSION_DATE\}/gi, formatToDDMMYYYY(admissionDate));
-  result = result.replace(/\{ADMISSION_NO\}/gi, admissionNo || '—');
-  result = result.replace(/\{(?:WITHDRAWAL_DATE|RESULT_DATE)\}/gi, formatToDDMMYYYY(withdrawalDate));
-  result = result.replace(/\{CONDUCT_STATUS\}/gi, conductStatus || 'Satisfactory');
-  result = result.replace(/\{VILLAGE\}/gi, village || address || '—');
-  result = result.replace(/\{TEHSIL\}/gi, tehsil || 'Anantnag');
-  result = result.replace(/\{DISTRICT\}/gi, district || 'Anantnag');
-  result = result.replace(/\{(?:CERTIFICATE_NO|TC_DC_NO|CERT_NO)\}/gi, certificateNo || refNo || '—');
+  result = result.replace(/\{(?:DIVISION_DISTINCTION|DIVISION|DISTINCTION)\}/gi, formatBlank(cleanDiv, '----------------'));
+  result = result.replace(/\{MARKS_OBTAINED\}/gi, formatBlank(effectiveMarksObt, '------------'));
+  result = result.replace(/\{MAX_MARKS\}/gi, formatBlank(effectiveMaxMarks, '500'));
+  result = result.replace(/\{REAPP_SUBJECTS\}/gi, formatBlank(reappSubjects, '----------------------------------------'));
+  result = result.replace(/\{ADMISSION_DATE\}/gi, formatToDDMMYYYY(admissionDate, '----------------'));
+  result = result.replace(/\{ADMISSION_NO\}/gi, formatBlank(admissionNo, '------------------------'));
+  result = result.replace(/\{(?:WITHDRAWAL_DATE|RESULT_DATE)\}/gi, formatToDDMMYYYY(withdrawalDate, '----------------'));
+  result = result.replace(/\{CONDUCT_STATUS\}/gi, formatBlank(conductStatus, 'Satisfactory'));
+  result = result.replace(/\{VILLAGE\}/gi, formatBlank(village || address, '----------------------------------------'));
+  result = result.replace(/\{TEHSIL\}/gi, formatBlank(tehsil, '----------------'));
+  result = result.replace(/\{DISTRICT\}/gi, formatBlank(district, 'Anantnag'));
+  result = result.replace(/\{(?:CERTIFICATE_NO|TC_DC_NO|CERT_NO)\}/gi, formatBlank(certificateNo || refNo, '----------------'));
 
   // If salutations are disabled, also clean any literal salutations residing inside tags (e.g. <strong>Mr. ...</strong>)
   if (!includeSalutations) {
@@ -535,7 +550,7 @@ export function interpolateCertificateTemplate(templateHtml, studentData = {}, o
       if (f.label && f.value !== undefined) {
         const safeToken = f.label.toUpperCase().replace(/[^A-Z0-9]/g, '_');
         const regex = new RegExp(`\\{${safeToken}\\}`, 'g');
-        result = result.replace(regex, f.value || '—');
+        result = result.replace(regex, formatBlank(f.value, '------------------------'));
       }
     });
   }
@@ -685,19 +700,19 @@ export function printStudentCertificate({
             <div class="meta-grid-box">
               <div class="meta-grid-cell">
                 <span class="meta-label">Certificate No.:</span>
-                <span class="meta-val val-red">${metaDetails.certificateNo || refNo || '1276'}</span>
+                <span class="meta-val val-red">${formatBlank(metaDetails.certificateNo || refNo, '----------------')}</span>
               </div>
               <div class="meta-grid-cell">
                 <span class="meta-label">Registration No.:</span>
-                <span class="meta-val val-blue">${metaDetails.regNo || '—'}</span>
+                <span class="meta-val val-blue">${formatBlank(metaDetails.regNo, '------------------------')}</span>
               </div>
               <div class="meta-grid-cell">
                 <span class="meta-label">Admission No.:</span>
-                <span class="meta-val val-blue">${metaDetails.admissionNo || '—'}</span>
+                <span class="meta-val val-blue">${formatBlank(metaDetails.admissionNo, '------------------------')}</span>
               </div>
               <div class="meta-grid-cell">
                 <span class="meta-label">Date of Admission:</span>
-                <span class="meta-val val-blue">${metaDetails.admissionDate || '—'}</span>
+                <span class="meta-val val-blue">${formatBlank(formatToDDMMYYYY(metaDetails.admissionDate), '----------------')}</span>
               </div>
             </div>
 
@@ -1465,19 +1480,19 @@ export function printBatchStudentCertificates(studentsList = [], commonOptions =
               <div class="meta-grid-box">
                 <div class="meta-grid-cell">
                   <span class="meta-label">Certificate No.:</span>
-                  <span class="meta-val val-red">${metaDetails.certificateNo || '—'}</span>
+                  <span class="meta-val val-red">${formatBlank(metaDetails.certificateNo, '----------------')}</span>
                 </div>
                 <div class="meta-grid-cell">
                   <span class="meta-label">Registration No.:</span>
-                  <span class="meta-val val-blue">${metaDetails.regNo || '—'}</span>
+                  <span class="meta-val val-blue">${formatBlank(metaDetails.regNo, '------------------------')}</span>
                 </div>
                 <div class="meta-grid-cell">
                   <span class="meta-label">Admission No.:</span>
-                  <span class="meta-val val-blue">${metaDetails.admissionNo || '—'}</span>
+                  <span class="meta-val val-blue">${formatBlank(metaDetails.admissionNo, '------------------------')}</span>
                 </div>
                 <div class="meta-grid-cell">
                   <span class="meta-label">Date of Admission:</span>
-                  <span class="meta-val val-blue">${metaDetails.admissionDate || '—'}</span>
+                  <span class="meta-val val-blue">${formatBlank(formatToDDMMYYYY(metaDetails.admissionDate), '----------------')}</span>
                 </div>
               </div>
 

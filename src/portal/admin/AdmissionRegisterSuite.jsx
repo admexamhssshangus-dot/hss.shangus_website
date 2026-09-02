@@ -18,6 +18,10 @@ import {
 } from '../../services/dbCache';
 import { logAdminActivity } from '../../services/adminActivityLogger';
 import { getStudentPhotoUrl } from '../../utils/imageCompressor';
+import {
+  hasAssignedClassRollNumber,
+  resolveStudentAdmissionStatus
+} from '../../utils/studentApprovalStatus';
 
 const SCHOOL_NAME = 'GOVT. HIGHER SECONDARY SCHOOL SHANGUS';
 const SCHOOL_SUBTITLE = 'Nurturing Minds, Shaping Futures • District Anantnag';
@@ -696,19 +700,12 @@ export function extractStudentStream(s, subs = '') {
 
 // Check if student has been assigned a Class Roll Number
 export function hasAssignedClassRollNo(s) {
-  const roll = cleanStr(s.classRollNo || s['Class Roll No'] || s.rollNo || s.RollNo || s.roll_no || s['Roll No'] || s['Roll No.']);
-  return roll !== '' && roll !== '—' && roll !== '-' && roll !== 'N/A' && roll !== 'null' && roll !== 'undefined' && roll !== '0';
+  return hasAssignedClassRollNumber(s);
 }
 
 // Business status evaluation: Approved strictly means those assigned a Class Roll Number
 function resolveEffectiveStatus(s) {
-  const rawStat = cleanStr(s.status || s.Status || s.admissionStatus || s['Status'] || s['Admission Status'] || '').toLowerCase();
-  if (rawStat.includes('withdrawn') || rawStat.includes('withdraw') || rawStat.includes('wthd')) return 'Withdrawn';
-  if (hasAssignedClassRollNo(s)) return 'Approved';
-  if (rawStat.includes('reject') || rawStat.includes('rejt')) return 'Rejected';
-  if (rawStat.includes('draft')) return 'Draft';
-  if (rawStat.includes('provis')) return 'Provisional';
-  return 'Submitted';
+  return resolveStudentAdmissionStatus(s);
 }
 
 function matchesClassVal(selectedClasses, classVal) {
@@ -2841,7 +2838,7 @@ export default function AdmissionRegisterSuite({
                           onChange={(e) => setSelectedStatus(e.target.value)}
                           className="w-full py-1.5 px-2.5 text-xs rounded-xl font-bold bg-white text-slate-900 border border-slate-300 shadow-2xs focus:ring-2 focus:ring-indigo-500 cursor-pointer"
                         >
-                          <option value="Approved" className="bg-white text-slate-900 font-bold">Approved ({statusCounts.approved})</option>
+                          <option value="Approved" className="bg-white text-slate-900 font-bold">Approved · Roll assigned ({statusCounts.approved})</option>
                           <option value="Submitted" className="bg-white text-slate-900 font-bold">Submitted ({statusCounts.submitted})</option>
                           <option value="Provisional" className="bg-white text-slate-900 font-bold">Provisional ({statusCounts.provisional})</option>
                           <option value="ALL" className="bg-white text-slate-900 font-bold">All ({statusCounts.total})</option>

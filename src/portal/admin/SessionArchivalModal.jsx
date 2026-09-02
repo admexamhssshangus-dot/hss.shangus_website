@@ -8,6 +8,10 @@ import { db } from '../../services/firebase';
 import { collection, getDocs, doc, setDoc, deleteDoc, writeBatch } from 'firebase/firestore';
 import { clearAllMemoryCache, invalidateCache } from '../../services/dbCache';
 import ModernLoader from '../../components/ModernLoader';
+import {
+  getAssignedClassRollNumber,
+  resolveStudentAdmissionStatus
+} from '../../utils/studentApprovalStatus';
 
 export default function SessionArchivalModal({ isOpen, onClose, currentSession = '2025-26', onArchivalComplete }) {
   const [loading, setLoading] = useState(true);
@@ -69,10 +73,7 @@ export default function SessionArchivalModal({ isOpen, onClose, currentSession =
     let totalPhotos = 0;
 
     rawAdmissions.forEach(rec => {
-      const status = (rec.Status || rec.status || '').trim().toLowerCase();
-      const roll = String(rec['Class Roll No'] || rec['Class Roll No.'] || rec.classRollNo || rec.rollNo || '').trim();
-      const hasRoll = roll && roll !== '—' && roll !== 'N/A' && roll !== 'null';
-      const isApproved = status === 'approved' || hasRoll;
+      const effectiveStatus = resolveStudentAdmissionStatus(rec);
 
       const cls = String(rec['Admission sought for class'] || rec.Class || rec.class || '').toLowerCase();
       let classKey = 'Other';
@@ -86,10 +87,10 @@ export default function SessionArchivalModal({ isOpen, onClose, currentSession =
         totalPhotos++;
       }
 
-      if (isApproved) {
+      if (effectiveStatus === 'Approved') {
         approved.push(rec);
         byClass[classKey] = (byClass[classKey] || 0) + 1;
-      } else if (status === 'rejected') {
+      } else if (effectiveStatus === 'Rejected') {
         rejected.push(rec);
       } else {
         drafts.push(rec);
@@ -419,8 +420,8 @@ export default function SessionArchivalModal({ isOpen, onClose, currentSession =
                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                       {previewRecords.map((r, idx) => {
                         const status = (r.Status || r.status || '').trim().toLowerCase();
-                        const roll = String(r['Class Roll No'] || r.classRollNo || r.rollNo || '').trim();
-                        const isAppr = status === 'approved' || (roll && roll !== '—' && roll !== 'N/A');
+                        const roll = getAssignedClassRollNumber(r);
+                        const isAppr = resolveStudentAdmissionStatus(r) === 'Approved';
 
                         return (
                           <tr key={r.id || idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
