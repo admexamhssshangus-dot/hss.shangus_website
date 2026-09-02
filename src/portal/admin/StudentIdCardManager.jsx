@@ -15,7 +15,7 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
   Printer, CheckSquare, Square, Eye, RefreshCw, X,
-  Shield, Check, ArrowLeftRight, HelpCircle, Grid,
+  Shield, Check, ArrowLeftRight, Grid,
   Upload, Save, Sliders, ChevronDown, ChevronUp, Layers, RotateCcw, CheckCircle, Filter, Palette
 } from 'lucide-react';
 import ModernLoader from '../../components/ModernLoader';
@@ -26,29 +26,35 @@ import {
   abbreviateSubjectName,
   getStudentRollVal,
   getStudentStreamVal,
-  generateVerificationQrUrl
+  getIdCardSubjectText,
+  generateVerificationQrUrl,
+  filterIdCardStudents,
+  getIdCardStudentKey,
+  paginateIdCardStudents,
+  selectIdCardStudents
 } from '../../utils/idCardRenderer';
-import { compressImageFile, getStudentPhotoUrl } from '../../utils/imageCompressor';
-import {
-  getAssignedClassRollNumber,
-  resolveStudentAdmissionStatus
-} from '../../utils/studentApprovalStatus';
-import { fetchStudentPhotoOnDemand, getCachedCollectionSync, getPhotoUrlFromCache } from '../../services/dbCache';
+import { compressImageFile } from '../../utils/imageCompressor';
+import { fetchStudentPhotoOnDemand, getCachedCollectionSync, resolveStudentPhoto as resolveCanonicalStudentPhoto } from '../../services/dbCache';
 import { db } from '../../services/firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 
-// Safe guard against React DevTools Performance.measure DataCloneError out-of-memory crash
-if (typeof window !== 'undefined' && window.performance && window.performance.measure) {
-  try {
-    const _origMeasure = window.performance.measure.bind(window.performance);
-    window.performance.measure = function(...args) {
-      try {
-        return _origMeasure(...args);
-      } catch (e) {
-        // Intercept DevTools DataCloneError gracefully
-      }
+function preloadPhotoWithTimeout(photoUrl, timeoutMs = 6000) {
+  return new Promise(resolve => {
+    const image = new Image();
+    let settled = false;
+    const finish = success => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      image.onload = null;
+      image.onerror = null;
+      resolve(success);
     };
-  } catch (e) {}
+    const timeout = setTimeout(() => finish(false), timeoutMs);
+    image.onload = () => finish(true);
+    image.onerror = () => finish(false);
+    image.src = photoUrl;
+  });
 }
 
 /**
@@ -94,77 +100,50 @@ export function formatPhotoDisplayUrl(val) {
  * ─── 100% UNSTRIPPED PHOTO RESOLVER ───
  * Cross-references student object and cache across all collections and field names
  */
-function resolveStudentPhoto(student, allStudentsList = []) {
+const extractRawPhoto = student => student && (
+  student.photo_id || student.photoId || student['Student Photo'] ||
+  student['Student Photograph'] || student['Student Photo URL'] ||
+  student.Photo || student.photoUrl || student.photo || ''
+);
+
+function getPhotoLookupKeys(student) {
+  const normalize = value => String(value || '').replace(/[^a-z0-9]/gi, '').toLowerCase();
+  const className = normalizeStudentClass(student['Admission sought for class'] || student.Class || student.class);
+  const band = ['9th', '10th'].includes(className) ? 'secondary' : ['11th', '12th'].includes(className) ? 'higher' : className;
+  const registration = normalize(student['Board Registration Number'] || student.boardRegNo || student.regNo);
+  const formNumber = normalize(student['Form Number'] || student['Form No.'] || student.formNo);
+  const session = normalize(student.Session || student.session);
+  const documentId = student.id || student.docId || student._docId;
+  return [
+    documentId ? `id:${documentId}` : null,
+    registration && band ? `reg:${band}:${registration}` : null,
+    formNumber && session && className ? `form:${session}:${className}:${formNumber}` : null,
+  ].filter(Boolean);
+}
+
+function buildPhotoIndex(students) {
+  const index = new Map();
+  students.forEach(student => {
+    const photo = formatPhotoDisplayUrl(extractRawPhoto(student));
+    if (!photo) return;
+    getPhotoLookupKeys(student).forEach(key => {
+      // Conflicting identity matches are intentionally not guessed.
+      if (index.has(key) && index.get(key) !== photo) index.set(key, null);
+      else if (!index.has(key)) index.set(key, photo);
+    });
+  });
+  return index;
+}
+
+function resolveStudentPhoto(student, photoIndex = new Map()) {
   if (!student) return '/logo.png';
-
-  const extractRawPhoto = (st) => {
-    if (!st) return '';
-    // Prioritize photo_id (primary Firestore field used in AdvancedReports/admissions collection)
-    return (
-      st['photo_id'] ||      // PRIMARY: used by admissions collection uploads
-      st['photoId'] ||       // SECONDARY: normalized field name
-      st['Student Photo'] || // TERTIARY: display column name
-      st['Student Photograph'] ||
-      st['Student Photo URL'] ||
-      st['Photo'] ||
-      st['photoUrl'] ||
-      st['photo'] ||
-      st.photo ||
-      st.photoId ||
-      st.photo_id ||
-      st.photoUrl ||
-      ''
-    );
-  };
-
-  // 1. Direct photo on current student record
   const direct = formatPhotoDisplayUrl(extractRawPhoto(student));
   if (direct) return direct;
-
-  // 2. Cross-reference against all fetched students
-  if (Array.isArray(allStudentsList) && allStudentsList.length > 0) {
-    const cardId = String(student.id || '').trim();
-    const fNo = String(student['Form Number'] || student['Form No.'] || student.formNo || '').replace(/[^0-9]/g, '').trim();
-    const reg = String(student['Board Registration Number'] || student.boardRegNo || student.regNo || '').replace(/[^0-9]/g, '').trim();
-    const name = String(student["Student's Name (as per school records)"] || student["Student's Name"] || student.studentName || '').toLowerCase().replace(/[^a-z0-9]/g, '').trim();
-
-    if (cardId) {
-      const match = allStudentsList.find(s => s.id === cardId);
-      const photo = formatPhotoDisplayUrl(extractRawPhoto(match));
-      if (photo) return photo;
-    }
-
-    if (reg && reg.length >= 6) {
-      const match = allStudentsList.find(s => {
-        const sr = String(s['Board Registration Number'] || s.boardRegNo || s.regNo || '').replace(/[^0-9]/g, '').trim();
-        return sr === reg;
-      });
-      const photo = formatPhotoDisplayUrl(extractRawPhoto(match));
-      if (photo) return photo;
-    }
-
-    if (fNo && fNo.length >= 4) {
-      const match = allStudentsList.find(s => {
-        const sf = String(s['Form Number'] || s['Form No.'] || s.formNo || s.id || '').replace(/[^0-9]/g, '').trim();
-        return sf === fNo || sf.includes(fNo);
-      });
-      const photo = formatPhotoDisplayUrl(extractRawPhoto(match));
-      if (photo) return photo;
-    }
+  for (const key of getPhotoLookupKeys(student)) {
+    const photo = photoIndex.get(key);
+    if (photo) return photo;
   }
-
-  // 3. Try dedicated photo URL mini-cache (persists even when main cache strips long strings)
-  const docId = student.id || student['Form Number'] || student['Board Registration Number'];
-  if (docId) {
-    const cachedUrl = getPhotoUrlFromCache(String(docId));
-    if (cachedUrl) return formatPhotoDisplayUrl(cachedUrl) || cachedUrl;
-  }
-
-  // 4. Try centralized photo map in RAM
-  const centralResolved = getStudentPhotoUrl(student);
-  if (centralResolved && centralResolved !== '/logo.png' && centralResolved !== '—') return centralResolved;
-
-  return '/logo.png';
+  return formatPhotoDisplayUrl(resolveCanonicalStudentPhoto(student)) || '/logo.png';
 }
 
 export default function StudentIdCardManager({ students = [], onClose }) {
@@ -177,9 +156,11 @@ export default function StudentIdCardManager({ students = [], onClose }) {
   // The parent hydrates admissions progressively. Keep this module in sync
   // without launching its own full-collection reads.
   useEffect(() => {
-    if (!Array.isArray(students) || students.length === 0) return;
+    if (!Array.isArray(students)) return;
     React.startTransition(() => setLiveStudents(students));
   }, [students]);
+
+  const photoIndex = useMemo(() => buildPhotoIndex(liveStudents), [liveStudents]);
 
   // ─── Settings Memory (localStorage Persistence) ───
   const SETTINGS_KEY = 'hss_id_card_suite_settings_v2';
@@ -191,7 +172,7 @@ export default function StudentIdCardManager({ students = [], onClose }) {
     } catch (e) {}
     return null;
   };
-  const initialSettings = loadSavedSettings();
+  const [initialSettings] = useState(loadSavedSettings);
 
   // ─── Card Sizing & Sheet Capacity Settings (Default LANDSCAPE & 5 COLS × 2 ROWS = 10 Cards/Sheet) ───
   const [cardWidthMm, setCardWidthMm] = useState(initialSettings?.cardWidthMm ?? 56.0); // mm (5 Cols fit on Landscape A4)
@@ -219,6 +200,7 @@ export default function StudentIdCardManager({ students = [], onClose }) {
   const [rangeFrom, setRangeFrom] = useState(initialSettings?.rangeFrom ?? 1);
   const [rangeTo, setRangeTo] = useState(initialSettings?.rangeTo ?? 30);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [batchNotice, setBatchNotice] = useState('');
   const [generationProgress, setGenerationProgress] = useState({ current: 0, total: 0, percent: 0, status: '' });
 
   // ─── Advanced Filters & Theme State ───
@@ -243,6 +225,11 @@ export default function StudentIdCardManager({ students = [], onClose }) {
   const [showCropMarks, setShowCropMarks] = useState(initialSettings?.showCropMarks ?? true);
   const [showThemePicker, setShowThemePicker] = useState(false);
   const cancelGenerationRef = useRef(false);
+
+  useEffect(() => () => {
+    cancelGenerationRef.current = true;
+    document.body.classList.remove('id-card-print-mode');
+  }, []);
 
   const handleCancelGeneration = () => {
     cancelGenerationRef.current = true;
@@ -391,14 +378,10 @@ export default function StudentIdCardManager({ students = [], onClose }) {
         return updated;
       });
 
-      try {
-        await setDoc(doc(db, 'systemSettings', 'idCardConfig'), {
-          ...sealConfig,
-          updatedAt: new Date().toISOString()
-        }, { merge: true });
-      } catch (err) {
-        console.warn('Firestore seal save note:', err);
-      }
+      await setDoc(doc(db, 'systemSettings', 'idCardConfig'), {
+        ...sealConfig,
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
       setSealSavedSuccess(true);
       setTimeout(() => {
         setSealSavedSuccess(false);
@@ -406,7 +389,7 @@ export default function StudentIdCardManager({ students = [], onClose }) {
       }, 1200);
     } catch (e) {
       console.error('Failed to save ID card settings:', e);
-      alert('Saved locally on this browser!');
+      alert(`Settings were saved locally, but cloud synchronization failed: ${e.message}`);
     } finally {
       setIsSavingSealConfig(false);
     }
@@ -415,6 +398,10 @@ export default function StudentIdCardManager({ students = [], onClose }) {
   // Image Upload with Strict <= 15 KB Ceiling Compression
   const handleUploadImage = async (field, file) => {
     if (!file) return;
+    if (!String(file.type || '').startsWith('image/')) {
+      alert('Please choose a valid image file.');
+      return;
+    }
     try {
       let maxDim = 300;
       let quality = 0.80;
@@ -437,16 +424,15 @@ export default function StudentIdCardManager({ students = [], onClose }) {
         maxDim = 120;
         quality = 0.35;
         base64 = await compressImageFile(file, maxDim, maxDim, quality);
+        kb = getImageKbSize(base64);
       }
+
+      if (kb > 15) throw new Error(`Compressed image is still ${kb} KB; the limit is 15 KB.`);
 
       setSealConfig(prev => ({ ...prev, [field]: base64 }));
     } catch (e) {
       console.warn('Image compression note:', e);
-      const reader = new FileReader();
-      reader.onload = (evt) => {
-        setSealConfig(prev => ({ ...prev, [field]: evt.target.result }));
-      };
-      reader.readAsDataURL(file);
+      alert(`Could not prepare this image: ${e.message}`);
     }
   };
 
@@ -543,13 +529,24 @@ export default function StudentIdCardManager({ students = [], onClose }) {
     })).sort((a, b) => b.count - a.count);
   }, [liveStudents]);
 
+  const availableSessions = useMemo(() => {
+    const counts = new Map();
+    (liveStudents || []).forEach(student => {
+      const session = String(student.Session || student.session || '').trim();
+      if (session) counts.set(session, (counts.get(session) || 0) + 1);
+    });
+    return Array.from(counts.entries())
+      .map(([value, count]) => ({ value, count }))
+      .sort((a, b) => b.value.localeCompare(a.value, undefined, { numeric: true }));
+  }, [liveStudents]);
+
   const availableStreams = useMemo(() => {
     const streamCountMap = new Map();
     (liveStudents || []).forEach(st => {
       const cls = normalizeStudentClass(st['Admission sought for class'] || st['Class'] || st.class);
       if (selectedClass !== 'All' && cls !== selectedClass) return;
 
-      const raw = String(st['Stream for Class 11th'] || st['Stream'] || st.stream || '').trim();
+      const raw = getStudentStreamVal(st).trim();
       if (!raw || raw === 'null' || raw === '—' || raw === 'undefined') return;
 
       const count = streamCountMap.get(raw) || 0;
@@ -564,91 +561,46 @@ export default function StudentIdCardManager({ students = [], onClose }) {
   }, [liveStudents, selectedClass]);
 
   const filteredStudents = useMemo(() => {
-    const list = (liveStudents || []).filter(st => {
-      const session = String(st['Session'] || st.session || '2025-26').trim();
-      const cls = normalizeStudentClass(st['Admission sought for class'] || st['Class'] || st.class);
-      const stm = String(st['Stream for Class 11th'] || st['Stream'] || st.stream || '').toLowerCase().trim();
-      const effectiveStatus = resolveStudentAdmissionStatus(st);
-      const name = String(st["Student's Name (as per school records)"] || st["Student's Name"] || st.studentName || '').toLowerCase();
-      const roll = getAssignedClassRollNumber(st);
-      const reg = String(st['Board Registration Number'] || st.boardRegNo || '').toLowerCase();
-      const fNo = String(st['Form Number'] || st['Form No.'] || st.formNo || '').toLowerCase();
-
-      if (!roll || roll === '—' || roll === 'null') {
-        return false;
-      }
-
-      if (selectedSession !== 'All' && !session.includes(selectedSession)) {
-        if (!st.formNo && !st.id) return false;
-      }
-
-      if (selectedStatus === 'Approved') {
-        if (effectiveStatus !== 'Approved') return false;
-      } else if (selectedStatus === 'Submitted') {
-        if (effectiveStatus !== 'Submitted') return false;
-      }
-
-      if (selectedClass !== 'All') {
-        if (cls !== selectedClass) return false;
-      }
-
-      if (selectedStream !== 'All') {
-        const targetStm = selectedStream.toLowerCase().trim();
-        if (stm !== targetStm && !stm.includes(targetStm)) return false;
-      }
-
-      if (searchQuery.trim()) {
-        const q = searchQuery.trim().toLowerCase();
-        const matches = name.includes(q) || roll.toLowerCase().includes(q) || reg.includes(q) || fNo.includes(q);
-        if (!matches) return false;
-      }
-
-      return true;
-    });
-
-    return list.sort((a, b) => {
-      const rollA = parseInt(getStudentRollVal(a), 10);
-      const rollB = parseInt(getStudentRollVal(b), 10);
-      if (!isNaN(rollA) && !isNaN(rollB)) {
-        return rollA - rollB;
-      }
-      if (!isNaN(rollA)) return -1;
-      if (!isNaN(rollB)) return 1;
-      const strA = getStudentRollVal(a);
-      const strB = getStudentRollVal(b);
-      return strA.localeCompare(strB, undefined, { numeric: true, sensitivity: 'base' });
+    return filterIdCardStudents(liveStudents, {
+      session: selectedSession,
+      className: selectedClass,
+      stream: selectedStream,
+      status: selectedStatus,
+      search: searchQuery,
     });
   }, [liveStudents, selectedSession, selectedClass, selectedStream, selectedStatus, searchQuery]);
 
+  useEffect(() => {
+    setSelectedStudentIds(new Set());
+    setHasManuallySelected(false);
+  }, [selectedSession, selectedClass, selectedStream, selectedStatus, searchQuery]);
+
+  const allFilteredSelected = filteredStudents.length > 0 && (
+    !hasManuallySelected || filteredStudents.every((student, index) => selectedStudentIds.has(getIdCardStudentKey(student, index)))
+  );
+
   const handleToggleSelectAll = () => {
-    if (selectedStudentIds.size === filteredStudents.length && filteredStudents.length > 0) {
+    if (allFilteredSelected) {
       setSelectedStudentIds(new Set());
       setHasManuallySelected(true);
     } else {
-      setSelectedStudentIds(new Set(filteredStudents.map((st, i) => st.id || `st_${i}`)));
+      setSelectedStudentIds(new Set(filteredStudents.map((student, index) => getIdCardStudentKey(student, index))));
       setHasManuallySelected(true);
     }
   };
 
   const handleToggleStudent = (id) => {
     setHasManuallySelected(true);
-    const next = new Set(selectedStudentIds);
+    const next = hasManuallySelected
+      ? new Set(selectedStudentIds)
+      : new Set(filteredStudents.map((student, index) => getIdCardStudentKey(student, index)));
     if (next.has(id)) next.delete(id);
     else next.add(id);
     setSelectedStudentIds(next);
   };
 
   const targetStudents = useMemo(() => {
-    let list = filteredStudents;
-    if (hasManuallySelected && selectedStudentIds.size > 0) {
-      list = list.filter((st, i) => selectedStudentIds.has(st.id || `st_${i}`));
-    }
-    if (rangeMode === 'range') {
-      const fromIdx = Math.max(0, (parseInt(rangeFrom, 10) || 1) - 1);
-      const toIdx = Math.min(list.length, parseInt(rangeTo, 10) || list.length);
-      return list.slice(fromIdx, toIdx);
-    }
-    return list;
+    return selectIdCardStudents(filteredStudents, selectedStudentIds, hasManuallySelected, rangeMode, rangeFrom, rangeTo);
   }, [filteredStudents, selectedStudentIds, hasManuallySelected, rangeMode, rangeFrom, rangeTo]);
 
   // ─── Print Active Flag for Lightweight Dashboard Preview ───
@@ -656,11 +608,7 @@ export default function StudentIdCardManager({ students = [], onClose }) {
 
   const cardsPerPage = Math.max(1, cols * rows);
   const pages = useMemo(() => {
-    const chunks = [];
-    for (let i = 0; i < targetStudents.length; i += cardsPerPage) {
-      chunks.push(targetStudents.slice(i, i + cardsPerPage));
-    }
-    return chunks;
+    return paginateIdCardStudents(targetStudents, cardsPerPage);
   }, [targetStudents, cardsPerPage]);
 
   const displayPages = useMemo(() => {
@@ -694,11 +642,16 @@ export default function StudentIdCardManager({ students = [], onClose }) {
     if (targetStudents.length === 0) return;
     cancelGenerationRef.current = false;
     setIsPrintingActive(true);
-    setPrintPageRange('all'); // Ensure ALL pages for selected range are rendered without truncation
     setIsGenerating(true);
-    const total = targetStudents.length;
-    window._studentPhotoCache = window._studentPhotoCache || {};
+    setBatchNotice('');
+    const pageLimit = printPageRange === '1' ? 1 : printPageRange === '1-3' ? 3 : printPageRange === '1-5' ? 5 : null;
+    const generationStudents = pageLimit
+      ? targetStudents.slice(0, pageLimit * cardsPerPage)
+      : targetStudents;
+    const total = generationStudents.length;
     const hydratedPhotos = new Map();
+    let completed = 0;
+    let missingPhotos = 0;
 
     setGenerationProgress({
       current: 0,
@@ -709,19 +662,11 @@ export default function StudentIdCardManager({ students = [], onClose }) {
 
     await new Promise(r => setTimeout(r, 100));
 
-    for (let i = 0; i < total; i++) {
-      if (cancelGenerationRef.current) {
-        setIsGenerating(false);
-        setIsPrintingActive(false);
-        return;
-      }
-
-      const st = targetStudents[i];
-      const studentKey = String(
-        st.id || st._docId || st.docId || st['Form Number'] || st.formNo ||
-        st['Board Registration Number'] || st.boardRegNo || `row_${i}`
-      );
-      let photoUrl = resolveStudentPhoto(st, liveStudents);
+    const prepareStudent = async (i) => {
+      if (cancelGenerationRef.current) return;
+      const st = generationStudents[i];
+      const studentKey = getIdCardStudentKey(st, i);
+      let photoUrl = resolveStudentPhoto(st, photoIndex);
 
       if (!photoUrl || photoUrl === '/logo.png' || photoUrl === '—') {
         try {
@@ -735,46 +680,46 @@ export default function StudentIdCardManager({ students = [], onClose }) {
           console.warn('[IDCards] Targeted photo lookup note:', error);
         }
       }
-      
-      if (photoUrl && photoUrl !== '/logo.png' && !window._studentPhotoCache[photoUrl]) {
-        await new Promise((resolve) => {
-          const img = new Image();
-          img.onload = () => {
-            window._studentPhotoCache[photoUrl] = true;
-            resolve();
-          };
-          img.onerror = () => {
-            resolve();
-          };
-          img.src = photoUrl;
-        });
+
+      if (photoUrl && photoUrl !== '/logo.png') {
+        const loaded = await preloadPhotoWithTimeout(photoUrl);
+        if (!loaded) missingPhotos += 1;
+      } else if (!photoUrl || photoUrl === '/logo.png' || photoUrl === '—') {
+        missingPhotos += 1;
       }
 
-      if (cancelGenerationRef.current) {
-        setIsGenerating(false);
-        setIsPrintingActive(false);
-        return;
-      }
-
-      const percent = Math.round(((i + 1) / total) * 100);
+      completed += 1;
+      const percent = Math.round((completed / total) * 100);
       setGenerationProgress({
-        current: i + 1,
+        current: completed,
         total,
         percent,
-        status: `Fetched & cached student ${i + 1} of ${total} (${percent}%)...`
+        status: `Prepared ${completed} of ${total} ID cards (${percent}%)...`
       });
+    };
 
-      if (i % 3 === 0) {
-        await new Promise(r => setTimeout(r, 15));
+    // Four bounded workers substantially reduce large-batch preparation time
+    // without flooding Firestore or the browser's image decoder.
+    let nextIndex = 0;
+    const worker = async () => {
+      while (!cancelGenerationRef.current) {
+        const index = nextIndex;
+        nextIndex += 1;
+        if (index >= total) return;
+        await prepareStudent(index);
       }
+    };
+    await Promise.all(Array.from({ length: Math.min(4, total) }, () => worker()));
+
+    if (cancelGenerationRef.current) {
+      setIsGenerating(false);
+      setIsPrintingActive(false);
+      return;
     }
 
     if (hydratedPhotos.size > 0) {
       setLiveStudents(prev => prev.map((student, index) => {
-        const key = String(
-          student.id || student._docId || student.docId || student['Form Number'] || student.formNo ||
-          student['Board Registration Number'] || student.boardRegNo || `row_${index}`
-        );
+        const key = getIdCardStudentKey(student, index);
         const photo = hydratedPhotos.get(key);
         return photo ? { ...student, photo_id: photo } : student;
       }));
@@ -790,8 +735,13 @@ export default function StudentIdCardManager({ students = [], onClose }) {
       current: total,
       total,
       percent: 100,
-      status: 'Layout & photos 100% prepared! Launching print preview...'
+      status: missingPhotos > 0
+        ? `Layout prepared with ${missingPhotos} missing photo${missingPhotos === 1 ? '' : 's'} replaced by the school crest.`
+        : 'Layout & photos 100% prepared! Launching print preview...'
     });
+    if (missingPhotos > 0) {
+      setBatchNotice(`${missingPhotos} card${missingPhotos === 1 ? '' : 's'} could not load a student photo. Review the school-crest placeholders before issuing these cards.`);
+    }
 
     await new Promise(r => setTimeout(r, 300));
     setIsGenerating(false);
@@ -990,6 +940,11 @@ export default function StudentIdCardManager({ students = [], onClose }) {
       `}</style>
 
       {/* ─── MAIN CONTROL HEADER & TOOLS (ULTRA-COMPACT SINGLE ROW LAYOUT) ─── */}
+      {batchNotice && (
+        <div role="status" className="rounded-xl border border-amber-300 bg-amber-50 dark:bg-amber-950/40 px-3 py-2 text-xs font-bold text-amber-900 dark:text-amber-200 print:hidden">
+          {batchNotice}
+        </div>
+      )}
       <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-300 dark:border-slate-800 p-1.5 sm:p-2 shadow-xs print:hidden">
         
         {/* Single non-wrapping scrollable toolbar row */}
@@ -1011,8 +966,12 @@ export default function StudentIdCardManager({ students = [], onClose }) {
 
             {/* Compact Class Dropdown */}
             <select
+              aria-label="ID card class filter"
               value={selectedClass}
-              onChange={(e) => setSelectedClass(e.target.value)}
+              onChange={(e) => {
+                setSelectedClass(e.target.value);
+                setSelectedStream('All');
+              }}
               className="px-1.5 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-purple-50 dark:bg-purple-950/60 font-black text-[11px] text-purple-700 dark:text-purple-300 cursor-pointer max-w-[110px] sm:max-w-none"
             >
               <option value="All">All ({liveStudents.length})</option>
@@ -1281,6 +1240,66 @@ export default function StudentIdCardManager({ students = [], onClose }) {
         {/* ─── EXPANDABLE FILTERS & LAYOUT DRAWER (HIDDEN BY DEFAULT, TOGGLEABLE) ─── */}
         {showFiltersPanel && (
           <div className="pt-2 border-t border-slate-200 dark:border-slate-800 space-y-2 text-xs animate-fadeIn">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-2 rounded-xl bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/60">
+              <label className="space-y-0.5">
+                <span className="block text-[9px] font-black uppercase tracking-wider text-slate-500">Academic Session</span>
+                <select
+                  aria-label="ID card academic session filter"
+                  value={selectedSession}
+                  onChange={(e) => setSelectedSession(e.target.value)}
+                  className="w-full px-2 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-black text-[10.5px]"
+                >
+                  <option value="All">All Sessions ({liveStudents.length})</option>
+                  {availableSessions.map(session => (
+                    <option key={session.value} value={session.value}>{session.value} ({session.count})</option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="space-y-0.5">
+                <span className="block text-[9px] font-black uppercase tracking-wider text-slate-500">Class</span>
+                <select
+                  aria-label="ID card detailed class filter"
+                  value={selectedClass}
+                  onChange={(e) => {
+                    setSelectedClass(e.target.value);
+                    setSelectedStream('All');
+                  }}
+                  className="w-full px-2 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-black text-[10.5px]"
+                >
+                  <option value="All">All Classes</option>
+                  {availableClasses.map(item => <option key={item.value} value={item.value}>{item.label}</option>)}
+                </select>
+              </label>
+
+              <label className="space-y-0.5">
+                <span className="block text-[9px] font-black uppercase tracking-wider text-slate-500">Stream</span>
+                <select
+                  aria-label="ID card stream filter"
+                  value={selectedStream}
+                  onChange={(e) => setSelectedStream(e.target.value)}
+                  className="w-full px-2 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-black text-[10.5px]"
+                >
+                  <option value="All">All Streams</option>
+                  {availableStreams.map(item => <option key={item.value} value={item.value}>{item.label}</option>)}
+                </select>
+              </label>
+
+              <label className="space-y-0.5">
+                <span className="block text-[9px] font-black uppercase tracking-wider text-slate-500">Record Status</span>
+                <select
+                  aria-label="ID card record status filter"
+                  value={selectedStatus}
+                  onChange={(e) => setSelectedStatus(e.target.value)}
+                  className="w-full px-2 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-black text-[10.5px]"
+                >
+                  <option value="Approved">Approved only</option>
+                  <option value="Submitted">Submitted with assigned roll</option>
+                  <option value="All">All records with assigned roll</option>
+                </select>
+              </label>
+            </div>
+
             <div className="flex flex-wrap items-center justify-between gap-2">
               
               {/* Paper Orientation & Normal/Reverse Print Mode */}
@@ -1478,7 +1497,7 @@ export default function StudentIdCardManager({ students = [], onClose }) {
                   onClick={handleToggleSelectAll}
                   className="px-2 py-1 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-xs font-black cursor-pointer flex items-center gap-1"
                 >
-                  {selectedStudentIds.size === filteredStudents.length && filteredStudents.length > 0 ? (
+                  {allFilteredSelected ? (
                     <>
                       <CheckSquare size={12} className="text-emerald-600" />
                       <span>Deselect All ({filteredStudents.length})</span>
@@ -1918,7 +1937,7 @@ export default function StudentIdCardManager({ students = [], onClose }) {
                     }}
                   >
                     {pageStudents.map((st, cardIdx) => {
-                      const cardId = st.id || `st_${pageIdx * cardsPerPage + cardIdx}`;
+                      const cardId = getIdCardStudentKey(st, pageIdx * cardsPerPage + cardIdx);
                       const isSelected = hasManuallySelected ? selectedStudentIds.has(cardId) : true;
                       const theme = resolveClassTheme(
                         st['Admission sought for class'] || st['Class'] || st.class,
@@ -1955,7 +1974,7 @@ export default function StudentIdCardManager({ students = [], onClose }) {
                           {/* Front Single ID Card Template */}
                           <SingleIdCardPortrait
                             student={st}
-                            allStudents={liveStudents}
+                            allStudents={photoIndex}
                             theme={theme}
                             sealConfig={sealConfig}
                             isReversed={printMode === 'reversed'}
@@ -2157,7 +2176,7 @@ export default function StudentIdCardManager({ students = [], onClose }) {
                       "Board Registration Number": "1901003000900019",
                       "Subjects": "Physics, Chemistry, Math"
                     }}
-                    allStudents={liveStudents}
+                    allStudents={photoIndex}
                     theme={ID_CARD_THEMES.emerald}
                     sealConfig={sealConfig}
                     isReversed={false}
@@ -2583,7 +2602,7 @@ export default function StudentIdCardManager({ students = [], onClose }) {
       {previewStudent && (
         <SingleCardModal
           student={previewStudent}
-          allStudents={liveStudents}
+          allStudents={photoIndex}
           theme={resolveClassTheme(
             previewStudent['Admission sought for class'] || previewStudent['Class'] || previewStudent.class,
             previewStudent['Stream for Class 11th'] || previewStudent['Stream'] || previewStudent.stream,
@@ -2863,15 +2882,15 @@ const SingleIdCardPortrait = React.memo(function SingleIdCardPortrait({
 
   const sName = student["Student's Name (as per school records)"] || student["Student's Name"] || student.studentName || 'Student Name';
   const fName = student["Father's/Guardian's Name (as per school records)"] || student["Father's Name"] || student.fatherName || '—';
-  const cls = normalizeStudentClass(student['Admission sought for class'] || student['Class'] || student.class || '11th');
-  const stm = student['Stream for Class 11th'] || student['Stream'] || student.stream || 'Science';
+  const cls = normalizeStudentClass(student['Admission sought for class'] || student['Class'] || student.class) || '—';
+  const stm = getStudentStreamVal(student) || '—';
   const roll = getStudentRollVal(student) || '—';
-  const vill = student['Name of your village'] || student['Village/Town'] || student.village || 'Shangus';
-  const dist = student['District'] || student.district || 'Anantnag';
+  const vill = student['Name of your village'] || student['Village/Town'] || student.village || '—';
+  const dist = student['District'] || student.district || '—';
   const mob = student['Mobile No. (with working WhatsApp)'] || student.mobile || '—';
   const pMob = student["Parent's Contact"] || student.parentContact || '';
   
-  const rawSubs = student.subs || student['Subjects'] || 'General English, Physics, Chemistry, Mathematics, IT';
+  const rawSubs = getIdCardSubjectText(student) || '—';
   const subs = abbreviateSubjectName(rawSubs);
 
   const session = student['Session'] || student.session || sealConfig?.sessionLabel || '2025-26';

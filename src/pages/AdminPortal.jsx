@@ -1153,8 +1153,8 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
   // Slideshow States
   const [slides, setSlides] = useState([]);
   const [editingSlideIdx, setEditingSlideIdx] = useState(null);
-  const [editSlideData, setEditSlideData] = useState({ image: '', title: '', caption: '' });
-  const [newSlide, setNewSlide] = useState({ image: '', title: '', caption: '' });
+  const [editSlideData, setEditSlideData] = useState({ image: '', title: '', caption: '', fit: 'ambient', animation: 'kenburns' });
+  const [newSlide, setNewSlide] = useState({ image: '', title: '', caption: '', fit: 'ambient', animation: 'kenburns' });
   const [newSlidePhotoFile, setNewSlidePhotoFile] = useState(null);
   const [newSlidePhotoName, setNewSlidePhotoName] = useState('');
   const [newSlidePhotoExt, setNewSlidePhotoExt] = useState('.jpg');
@@ -2931,11 +2931,13 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
     const addedSlide = {
       image: photoPath,
       title: newSlide.title.trim(),
-      caption: newSlide.caption.trim()
+      caption: newSlide.caption.trim(),
+      fit: newSlide.fit || 'ambient',
+      animation: newSlide.animation || 'kenburns'
     };
 
     setSlides((prev) => [...prev, addedSlide]);
-    setNewSlide({ image: '', title: '', caption: '' });
+    setNewSlide({ image: '', title: '', caption: '', fit: 'ambient', animation: 'kenburns' });
     setNewSlidePhotoFile(null);
     setNewSlidePhotoName('');
     setNewSlidePhotoExt('.jpg');
@@ -2976,7 +2978,11 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
 
   const startEditSlide = (idx) => {
     setEditingSlideIdx(idx);
-    setEditSlideData({ ...slides[idx] });
+    setEditSlideData({
+      ...slides[idx],
+      fit: slides[idx].fit || 'ambient',
+      animation: slides[idx].animation || 'kenburns'
+    });
     setEditSlidePhotoFile(null);
     setEditSlidePhotoExt('.jpg');
     const slide = slides[idx];
@@ -3024,7 +3030,12 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
 
     setSlides((prev) => {
       const updated = [...prev];
-      updated[idx] = { ...editSlideData, image: photoPath };
+      updated[idx] = {
+        ...editSlideData,
+        image: photoPath,
+        fit: editSlideData.fit || 'ambient',
+        animation: editSlideData.animation || 'kenburns'
+      };
       return updated;
     });
     setEditingSlideIdx(null);
@@ -6979,7 +6990,7 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
                 {/* Add new slide form */}
                 <div className="bg-slate-900/30 p-2.5 rounded-lg border border-slate-800">
                   <div className="flex flex-wrap items-end gap-2">
-                    <div className="w-[200px] shrink-0">
+                    <div className="w-[180px] shrink-0">
                       <label className="block text-[8.5px] font-bold text-slate-400 uppercase mb-0.5">Slide Heading (Title)</label>
                       <input
                         type="text"
@@ -6989,7 +7000,7 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
                         className="w-full px-2 py-1 rounded bg-slate-950 border border-slate-800 text-[11px] text-slate-200 focus:outline-none focus:border-orange-500"
                       />
                     </div>
-                    <div className="flex-1 min-w-[220px]">
+                    <div className="flex-1 min-w-[200px]">
                       <label className="block text-[8.5px] font-bold text-slate-400 uppercase mb-0.5">Slide Caption</label>
                       <input
                         type="text"
@@ -6999,7 +7010,32 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
                         className="w-full px-2 py-1 rounded bg-slate-950 border border-slate-800 text-[11px] text-slate-200 focus:outline-none focus:border-orange-500"
                       />
                     </div>
-                    <div className="w-[220px] shrink-0">
+                    <div className="w-[160px] shrink-0">
+                      <label className="block text-[8.5px] font-bold text-slate-400 uppercase mb-0.5">Image Fit Mode</label>
+                      <select
+                        value={newSlide.fit || 'ambient'}
+                        onChange={(e) => setNewSlide({ ...newSlide, fit: e.target.value })}
+                        className="w-full px-2 py-1 rounded bg-slate-950 border border-slate-800 text-[11px] text-slate-200 focus:outline-none focus:border-orange-500"
+                      >
+                        <option value="ambient">🖼️ Full Image (No Crop / Ambient Glow)</option>
+                        <option value="cover">📐 Fill Screen (Cover / Crop)</option>
+                        <option value="contain">🎯 Fit Centered (Letterbox)</option>
+                      </select>
+                    </div>
+                    <div className="w-[145px] shrink-0">
+                      <label className="block text-[8.5px] font-bold text-slate-400 uppercase mb-0.5">Animation Style</label>
+                      <select
+                        value={newSlide.animation || 'kenburns'}
+                        onChange={(e) => setNewSlide({ ...newSlide, animation: e.target.value })}
+                        className="w-full px-2 py-1 rounded bg-slate-950 border border-slate-800 text-[11px] text-slate-200 focus:outline-none focus:border-orange-500"
+                      >
+                        <option value="kenburns">🎬 Ken Burns (Slow Zoom)</option>
+                        <option value="fade">✨ Smooth Crossfade</option>
+                        <option value="zoom">🔍 Zoom & Pop</option>
+                        <option value="pan">↔️ Gentle Pan & Float</option>
+                      </select>
+                    </div>
+                    <div className="w-[190px] shrink-0">
                       <label className="block text-[8.5px] font-bold text-slate-400 uppercase mb-0.5">Upload Image (Max 500KB)</label>
                       <div className="flex gap-1.5 h-[23px] items-center">
                         <input
@@ -7011,7 +7047,7 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
                       </div>
                       {newSlidePhotoFile && (
                         <div className="mt-1 text-[8px] text-slate-450 flex items-center justify-between">
-                          <span className="truncate max-w-[150px]">File: {newSlidePhotoFile.name}</span>
+                          <span className="truncate max-w-[130px]">File: {newSlidePhotoFile.name}</span>
                           <button
                             type="button"
                             onClick={() => {
@@ -7040,13 +7076,13 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
 
                 {/* Slides List Table */}
                 <div className="overflow-x-auto custom-scrollbar pb-1 border border-slate-800 rounded-lg min-w-0">
-                  <table className="w-full text-xs text-left border-collapse" style={{ minWidth: '600px' }}>
+                  <table className="w-full text-xs text-left border-collapse" style={{ minWidth: '680px' }}>
                     <thead>
                       <tr className="bg-slate-900 border-b border-slate-800 text-slate-400 uppercase text-[9px] font-bold">
-                        <th className="p-1.5 px-2.5 w-16 text-center">Order</th>
+                        <th className="p-1.5 px-2.5 w-14 text-center">Order</th>
                         <th className="p-1.5 px-2.5 w-24">Image Preview</th>
-                        <th className="p-1.5 px-2.5">Slide Title (Heading)</th>
-                        <th className="p-1.5 px-2.5">Slide Caption</th>
+                        <th className="p-1.5 px-2.5">Slide Title & Caption</th>
+                        <th className="p-1.5 px-2.5 w-44">Fit & Animation</th>
                         <th className="p-1.5 px-2.5 w-32 text-center">Actions</th>
                       </tr>
                     </thead>
@@ -7058,22 +7094,37 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
                       ) : (
                         slides.map((s, idx) => {
                           const isEditing = editingSlideIdx === idx;
+                          const slideFit = s.fit || 'ambient';
+                          const slideAnim = s.animation || 'kenburns';
                           return (
                             <tr key={idx} className="hover:bg-slate-900/20">
                               <td className="p-1.5 px-2.5 text-center font-bold text-slate-400 font-mono">
                                 {idx + 1}
                               </td>
                               <td className="p-1.5 px-2.5">
-                                <div className="w-20 h-10 rounded border border-slate-800 bg-slate-950 overflow-hidden flex items-center justify-center">
+                                <div className="relative w-20 h-10 rounded border border-slate-800 bg-slate-950 overflow-hidden flex items-center justify-center">
                                   {s.image ? (
-                                    <img
-                                      src={s.image}
-                                      alt={`Preview slide ${idx + 1}`}
-                                      className="w-full h-full object-cover"
-                                      onError={(e) => {
-                                        e.target.style.display = 'none';
-                                      }}
-                                    />
+                                    slideFit === 'cover' ? (
+                                      <img
+                                        src={s.image}
+                                        alt={`Preview slide ${idx + 1}`}
+                                        className="w-full h-full object-cover"
+                                        onError={(e) => { e.target.style.display = 'none'; }}
+                                      />
+                                    ) : (
+                                      <>
+                                        <div
+                                          className="absolute inset-0 bg-cover bg-center filter blur-xs opacity-50 scale-125"
+                                          style={{ backgroundImage: `url(${s.image})` }}
+                                        />
+                                        <img
+                                          src={s.image}
+                                          alt={`Preview slide ${idx + 1}`}
+                                          className="relative max-w-full max-h-full object-contain z-1"
+                                          onError={(e) => { e.target.style.display = 'none'; }}
+                                        />
+                                      </>
+                                    )
                                   ) : (
                                     <span className="text-[8px] text-slate-600 uppercase tracking-widest font-bold">No Image</span>
                                   )}
@@ -7081,22 +7132,22 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
                               </td>
                               {isEditing ? (
                                 <>
-                                  <td className="p-1.5 px-2.5">
+                                  <td className="p-1.5 px-2.5 space-y-1">
                                     <input
                                       type="text"
+                                      placeholder="Slide Title"
                                       value={editSlideData.title}
                                       onChange={(e) => setEditSlideData({ ...editSlideData, title: e.target.value })}
-                                      className="w-full px-2 py-1 rounded bg-slate-950 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-orange-500"
+                                      className="w-full px-2 py-0.5 rounded bg-slate-950 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-orange-500"
                                     />
-                                  </td>
-                                  <td className="p-1.5 px-2.5">
                                     <input
                                       type="text"
+                                      placeholder="Slide Caption"
                                       value={editSlideData.caption}
                                       onChange={(e) => setEditSlideData({ ...editSlideData, caption: e.target.value })}
-                                      className="w-full px-2 py-1 rounded bg-slate-950 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-orange-500"
+                                      className="w-full px-2 py-0.5 rounded bg-slate-950 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-orange-500"
                                     />
-                                    <div className="mt-1">
+                                    <div className="pt-0.5">
                                       <label className="block text-[8px] font-bold text-slate-500 uppercase mb-0.5">Replace Image (Optional)</label>
                                       <input
                                         type="file"
@@ -7111,7 +7162,34 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
                                       )}
                                     </div>
                                   </td>
-                                  <td className="p-1.5 px-2.5 text-center flex items-center justify-center gap-1.5 mt-2">
+                                  <td className="p-1.5 px-2.5 space-y-1">
+                                    <div>
+                                      <label className="block text-[8px] font-bold text-slate-500 uppercase mb-0.5">Fit Mode</label>
+                                      <select
+                                        value={editSlideData.fit || 'ambient'}
+                                        onChange={(e) => setEditSlideData({ ...editSlideData, fit: e.target.value })}
+                                        className="w-full px-1.5 py-0.5 rounded bg-slate-950 border border-slate-800 text-[10.5px] text-slate-200 focus:outline-none focus:border-orange-500"
+                                      >
+                                        <option value="ambient">🖼️ Full Image (No Crop)</option>
+                                        <option value="cover">📐 Fill Screen (Cover)</option>
+                                        <option value="contain">🎯 Fit (Letterbox)</option>
+                                      </select>
+                                    </div>
+                                    <div>
+                                      <label className="block text-[8px] font-bold text-slate-500 uppercase mb-0.5">Animation</label>
+                                      <select
+                                        value={editSlideData.animation || 'kenburns'}
+                                        onChange={(e) => setEditSlideData({ ...editSlideData, animation: e.target.value })}
+                                        className="w-full px-1.5 py-0.5 rounded bg-slate-950 border border-slate-800 text-[10.5px] text-slate-200 focus:outline-none focus:border-orange-500"
+                                      >
+                                        <option value="kenburns">🎬 Ken Burns (Zoom)</option>
+                                        <option value="fade">✨ Smooth Crossfade</option>
+                                        <option value="zoom">🔍 Zoom & Pop</option>
+                                        <option value="pan">↔️ Gentle Pan</option>
+                                      </select>
+                                    </div>
+                                  </td>
+                                  <td className="p-1.5 px-2.5 text-center flex items-center justify-center gap-1.5 mt-3">
                                     <button
                                       type="button"
                                       onClick={() => saveSlideEdit(idx)}
@@ -7132,11 +7210,29 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
                                 </>
                               ) : (
                                 <>
-                                  <td className="p-1.5 px-2.5 font-bold text-slate-200">
-                                    {s.title || <span className="italic text-slate-600 text-[10px]">No Heading</span>}
+                                  <td className="p-1.5 px-2.5">
+                                    <div className="font-bold text-slate-200">
+                                      {s.title || <span className="italic text-slate-600 text-[10px]">No Heading</span>}
+                                    </div>
+                                    <div className="text-[11px] text-slate-400 truncate max-w-[280px]">
+                                      {s.caption || <span className="italic text-slate-600 text-[10px]">No Caption</span>}
+                                    </div>
                                   </td>
-                                  <td className="p-1.5 px-2.5 text-slate-300">
-                                    {s.caption || <span className="italic text-slate-600 text-[10px]">No Caption</span>}
+                                  <td className="p-1.5 px-2.5">
+                                    <div className="flex flex-col gap-1 items-start">
+                                      <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold border ${
+                                        slideFit === 'ambient'
+                                          ? 'bg-teal-950/60 text-teal-300 border-teal-800/60'
+                                          : slideFit === 'cover'
+                                          ? 'bg-purple-950/60 text-purple-300 border-purple-800/60'
+                                          : 'bg-blue-950/60 text-blue-300 border-blue-800/60'
+                                      }`}>
+                                        {slideFit === 'ambient' ? '🖼️ Full (No Crop)' : slideFit === 'cover' ? '📐 Fill Screen' : '🎯 Fit Letterbox'}
+                                      </span>
+                                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-medium bg-slate-800/80 text-slate-300 border border-slate-700/60">
+                                        {slideAnim === 'kenburns' ? '🎬 Ken Burns' : slideAnim === 'fade' ? '✨ Crossfade' : slideAnim === 'zoom' ? '🔍 Zoom' : '↔️ Pan'}
+                                      </span>
+                                    </div>
                                   </td>
                                   <td className="p-1.5 px-2.5 text-center flex items-center justify-center gap-1">
                                     <button

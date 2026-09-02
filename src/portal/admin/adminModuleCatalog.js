@@ -68,10 +68,10 @@ export const ADMIN_MODULE_CATALOG = Object.freeze([
   {
     id: 'idCards',
     label: 'Student ID Card Studio',
-    description: 'Design, batch-generate and print student identity cards',
+    description: 'Filter, design, batch-prepare and print verified student identity cards',
     category: 'Records & Registers',
-    maturity: 'beta',
-    maturityNote: 'Large-cohort photo loading and print edge cases are still being optimized.',
+    maturity: 'optimized',
+    maturityNote: 'Strict cohort filters, stable selections, bounded concurrent photo preparation and print-range safeguards are regression-checked.',
     launcher: true,
   },
   {
