@@ -143,12 +143,16 @@ export default function Slideshow({
         const isLoaded = loadedIndices.has(i);
         const isActive = i === index;
         const fitMode = s.fit || 'ambient'; // 'ambient' | 'cover' | 'contain'
-        const animMode = s.animation || 'kenburns'; // 'kenburns' | 'fade' | 'zoom' | 'pan'
+        const animMode = s.animation !== undefined ? s.animation : 'kenburns';
 
         // Determine animation class
         let animClass = '';
         if (isActive) {
           switch (animMode) {
+            case 'none':
+            case 'static':
+              animClass = '';
+              break;
             case 'dissolve':
               animClass = 'animate-slide-dissolve';
               break;
@@ -178,7 +182,7 @@ export default function Slideshow({
               break;
             case 'kenburns':
             default:
-              animClass = 'animate-slide-kenburns';
+              animClass = animMode === 'none' ? '' : 'animate-slide-kenburns';
               break;
           }
         }

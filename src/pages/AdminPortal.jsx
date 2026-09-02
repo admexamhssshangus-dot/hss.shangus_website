@@ -7041,6 +7041,7 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
                         onChange={(e) => setNewSlide({ ...newSlide, animation: e.target.value })}
                         className="w-full px-2 py-1 rounded bg-slate-950 border border-slate-800 text-[11px] text-slate-200 focus:outline-none focus:border-orange-500"
                       >
+                        <option value="none">🛑 None (Static / No Animation)</option>
                         <option value="kenburns">🎬 Ken Burns (Cinematic Drift)</option>
                         <option value="dissolve">✨ Smooth Dissolve (Blur Fade)</option>
                         <option value="split">🪟 Split Horizontal (Curtains)</option>
@@ -7282,6 +7283,7 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
                                         onChange={(e) => setEditSlideData({ ...editSlideData, animation: e.target.value })}
                                         className="w-full px-1.5 py-0.5 rounded bg-slate-950 border border-slate-800 text-[10.5px] text-slate-200 focus:outline-none focus:border-orange-500"
                                       >
+                                        <option value="none">🛑 None (Static / No Animation)</option>
                                         <option value="kenburns">🎬 Ken Burns (Cinematic)</option>
                                         <option value="dissolve">✨ Smooth Dissolve</option>
                                         <option value="split">🪟 Split Horizontal</option>
@@ -7421,7 +7423,7 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
                               : '🎯 Letterbox'}
                           </span>
                           <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">
-                            {hoveredSlidePreview.animation === 'kenburns' ? '🎬 Ken Burns' : hoveredSlidePreview.animation === 'dissolve' ? '✨ Dissolve' : hoveredSlidePreview.animation === 'split' ? '🪟 Split' : hoveredSlidePreview.animation === 'split-v' ? '🪟 Split-V' : hoveredSlidePreview.animation === 'bars' ? '📊 Bars' : hoveredSlidePreview.animation === 'wipe' ? '📐 Wipe' : hoveredSlidePreview.animation === 'circle' ? '⭕ Circle' : hoveredSlidePreview.animation === 'zoom' ? '🔍 Zoom' : hoveredSlidePreview.animation === 'pan' ? '↔️ Pan' : '🌫️ Fade'}
+                            {hoveredSlidePreview.animation === 'none' ? '🛑 None' : hoveredSlidePreview.animation === 'kenburns' ? '🎬 Ken Burns' : hoveredSlidePreview.animation === 'dissolve' ? '✨ Dissolve' : hoveredSlidePreview.animation === 'split' ? '🪟 Split' : hoveredSlidePreview.animation === 'split-v' ? '🪟 Split-V' : hoveredSlidePreview.animation === 'bars' ? '📊 Bars' : hoveredSlidePreview.animation === 'wipe' ? '📐 Wipe' : hoveredSlidePreview.animation === 'circle' ? '⭕ Circle' : hoveredSlidePreview.animation === 'zoom' ? '🔍 Zoom' : hoveredSlidePreview.animation === 'pan' ? '↔️ Pan' : '🌫️ Fade'}
                           </span>
                         </div>
                       </div>
