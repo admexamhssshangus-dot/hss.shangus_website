@@ -17,7 +17,6 @@ export default function Slideshow({
   const [index, setIndex] = useState(0);
   const [slides, setSlides] = useState([]); // array of { image, title, caption, fit, animation }
   const [loadedIndices, setLoadedIndices] = useState(new Set([0]));
-  const [isHovered, setIsHovered] = useState(false);
 
   // Reset loaded indices if slides list changes
   useEffect(() => {
@@ -127,21 +126,19 @@ export default function Slideshow({
     setIndex((i) => (i + 1) % slides.length);
   }, [slides.length]);
 
-  // Autoplay index rotation (pauses on user hover for better reading)
+  // Autoplay index rotation (advances every interval ms automatically)
   useEffect(() => {
-    if (!slides || slides.length <= 1 || isHovered) return;
-    const id = setInterval(() => setIndex((i) => (i + 1) % slides.length), interval);
+    if (!slides || slides.length <= 1) return;
+    const id = setInterval(() => {
+      setIndex((i) => (i + 1) % slides.length);
+    }, interval);
     return () => clearInterval(id);
-  }, [slides, interval, isHovered]);
+  }, [slides, interval]);
 
   if (!slides || slides.length === 0) return null;
 
   return (
-    <div
-      className="absolute inset-0 overflow-hidden select-none"
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-    >
+    <div className="absolute inset-0 overflow-hidden select-none">
       {slides.map((s, i) => {
         const isLoaded = loadedIndices.has(i);
         const isActive = i === index;
@@ -175,8 +172,8 @@ export default function Slideshow({
                       className="absolute inset-0 bg-cover bg-center filter blur-2xl scale-125 opacity-60 brightness-75 transform-gpu"
                       style={{ backgroundImage: `url(${s.image})` }}
                     />
-                    {/* Foreground uncropped full photo with animation */}
-                    <div className="absolute inset-0 flex items-center justify-center p-2 sm:p-4 md:p-6 pb-14 sm:pb-16 md:pb-20">
+                    {/* Foreground uncropped full photo with animation (padded to stay within clear visible area) */}
+                    <div className="absolute inset-0 flex items-center justify-center p-2 sm:p-4 md:p-6 pt-3 sm:pt-4 md:pt-6 pb-16 sm:pb-20 md:pb-24">
                       <img
                         src={s.image}
                         alt={s.title || "Govt HSS Shangus"}
@@ -208,13 +205,26 @@ export default function Slideshow({
 
                 {/* 3. CONTAIN MODE: Centered uncropped with dark backdrop */}
                 {fitMode === 'contain' && (
-                  <div className="absolute inset-0 bg-slate-950/80 flex items-center justify-center p-2 sm:p-4 md:p-6 pb-14 sm:pb-16 md:pb-20">
+                  <div className="absolute inset-0 bg-slate-950/80 flex items-center justify-center p-2 sm:p-4 md:p-6 pt-3 sm:pt-4 md:pt-6 pb-16 sm:pb-20 md:pb-24">
                     <img
                       src={s.image}
                       alt={s.title || "Govt HSS Shangus"}
                       fetchPriority={i === 0 ? "high" : "auto"}
                       decoding="async"
                       className={`max-w-full max-h-full object-contain rounded-md shadow-2xl ${animClass}`}
+                    />
+                  </div>
+                )}
+
+                {/* 4. STRETCH MODE: Stretch to fit full available space/sides */}
+                {fitMode === 'stretch' && (
+                  <div className="absolute inset-0 overflow-hidden">
+                    <img
+                      src={s.image}
+                      alt={s.title || "Govt HSS Shangus"}
+                      fetchPriority={i === 0 ? "high" : "auto"}
+                      decoding="async"
+                      className={`w-full h-full object-fill ${animClass}`}
                     />
                   </div>
                 )}

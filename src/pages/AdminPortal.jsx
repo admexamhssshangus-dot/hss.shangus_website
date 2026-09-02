@@ -1156,11 +1156,14 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
   const [editSlideData, setEditSlideData] = useState({ image: '', title: '', caption: '', fit: 'ambient', animation: 'kenburns' });
   const [newSlide, setNewSlide] = useState({ image: '', title: '', caption: '', fit: 'ambient', animation: 'kenburns' });
   const [newSlidePhotoFile, setNewSlidePhotoFile] = useState(null);
+  const [newSlidePhotoPreviewUrl, setNewSlidePhotoPreviewUrl] = useState('');
   const [newSlidePhotoName, setNewSlidePhotoName] = useState('');
   const [newSlidePhotoExt, setNewSlidePhotoExt] = useState('.jpg');
   const [editSlidePhotoFile, setEditSlidePhotoFile] = useState(null);
+  const [editSlidePhotoPreviewUrl, setEditSlidePhotoPreviewUrl] = useState('');
   const [editSlidePhotoName, setEditSlidePhotoName] = useState('');
   const [editSlidePhotoExt, setEditSlidePhotoExt] = useState('.jpg');
+  const [hoveredSlidePreview, setHoveredSlidePreview] = useState(null);
 
   // CSV Import Preview and Validation States
   const [csvPreviewData, setCsvPreviewData] = useState(null);
@@ -2878,15 +2881,18 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
     }
 
     const ext = getMimeExtension(file.type, file.name);
+    const previewUrl = URL.createObjectURL(file);
 
     if (type === 'new') {
       setNewSlidePhotoFile(file);
+      setNewSlidePhotoPreviewUrl(previewUrl);
       setNewSlidePhotoExt(ext);
       if (!newSlidePhotoName) {
         setNewSlidePhotoName(`slide_${Date.now()}`);
       }
     } else {
       setEditSlidePhotoFile(file);
+      setEditSlidePhotoPreviewUrl(previewUrl);
       setEditSlidePhotoExt(ext);
       if (!editSlidePhotoName) {
         setEditSlidePhotoName(`slide_${Date.now()}`);
@@ -2939,6 +2945,7 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
     setSlides((prev) => [...prev, addedSlide]);
     setNewSlide({ image: '', title: '', caption: '', fit: 'ambient', animation: 'kenburns' });
     setNewSlidePhotoFile(null);
+    setNewSlidePhotoPreviewUrl('');
     setNewSlidePhotoName('');
     setNewSlidePhotoExt('.jpg');
     setSaveSuccess('Slide added. Click "Apply & Save" to make changes permanent.');
@@ -2984,6 +2991,7 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
       animation: slides[idx].animation || 'kenburns'
     });
     setEditSlidePhotoFile(null);
+    setEditSlidePhotoPreviewUrl('');
     setEditSlidePhotoExt('.jpg');
     const slide = slides[idx];
     if (slide.image) {
@@ -3040,6 +3048,7 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
     });
     setEditingSlideIdx(null);
     setEditSlidePhotoFile(null);
+    setEditSlidePhotoPreviewUrl('');
     setEditSlidePhotoName('');
     setEditSlidePhotoExt('.jpg');
     setSaveSuccess('Slide updated. Click "Apply & Save" to make changes permanent.');
@@ -3048,6 +3057,8 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
 
   const cancelSlideEdit = () => {
     setEditingSlideIdx(null);
+    setEditSlidePhotoFile(null);
+    setEditSlidePhotoPreviewUrl('');
   };
 
   const moveSlideUp = (idx) => {
@@ -7010,14 +7021,15 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
                         className="w-full px-2 py-1 rounded bg-slate-950 border border-slate-800 text-[11px] text-slate-200 focus:outline-none focus:border-orange-500"
                       />
                     </div>
-                    <div className="w-[160px] shrink-0">
+                    <div className="w-[165px] shrink-0">
                       <label className="block text-[8.5px] font-bold text-slate-400 uppercase mb-0.5">Image Fit Mode</label>
                       <select
                         value={newSlide.fit || 'ambient'}
                         onChange={(e) => setNewSlide({ ...newSlide, fit: e.target.value })}
                         className="w-full px-2 py-1 rounded bg-slate-950 border border-slate-800 text-[11px] text-slate-200 focus:outline-none focus:border-orange-500"
                       >
-                        <option value="ambient">🖼️ Full Image (No Crop / Ambient Glow)</option>
+                        <option value="ambient">🖼️ Full Image (Ambient Glow) - No Crop</option>
+                        <option value="stretch">↔️ Stretch to Fill (100% Space)</option>
                         <option value="cover">📐 Fill Screen (Cover / Crop)</option>
                         <option value="contain">🎯 Fit Centered (Letterbox)</option>
                       </select>
@@ -7035,7 +7047,7 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
                         <option value="pan">↔️ Gentle Pan & Float</option>
                       </select>
                     </div>
-                    <div className="w-[190px] shrink-0">
+                    <div className="w-[200px] shrink-0">
                       <label className="block text-[8.5px] font-bold text-slate-400 uppercase mb-0.5">Upload Image (Max 500KB)</label>
                       <div className="flex gap-1.5 h-[23px] items-center">
                         <input
@@ -7046,18 +7058,46 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
                         />
                       </div>
                       {newSlidePhotoFile && (
-                        <div className="mt-1 text-[8px] text-slate-450 flex items-center justify-between">
-                          <span className="truncate max-w-[130px]">File: {newSlidePhotoFile.name}</span>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setNewSlidePhotoFile(null);
-                              setNewSlidePhotoName('');
-                            }}
-                            className="text-red-400 hover:underline ml-1"
-                          >
-                            Remove
-                          </button>
+                        <div className="mt-1 text-[8px] text-slate-450 flex items-center justify-between gap-1">
+                          <span className="truncate max-w-[100px]">File: {newSlidePhotoFile.name}</span>
+                          <div className="flex items-center gap-1.5">
+                            {newSlidePhotoPreviewUrl && (
+                              <button
+                                type="button"
+                                onMouseEnter={(e) => {
+                                  setHoveredSlidePreview({
+                                    image: newSlidePhotoPreviewUrl,
+                                    title: newSlide.title || 'New Slide',
+                                    caption: newSlide.caption || 'New Caption',
+                                    fit: newSlide.fit || 'ambient',
+                                    animation: newSlide.animation || 'kenburns',
+                                    order: slides.length + 1,
+                                    x: e.clientX,
+                                    y: e.clientY
+                                  });
+                                }}
+                                onMouseMove={(e) => {
+                                  setHoveredSlidePreview((prev) => prev ? { ...prev, x: e.clientX, y: e.clientY } : null);
+                                }}
+                                onMouseLeave={() => setHoveredSlidePreview(null)}
+                                className="text-teal-400 hover:text-teal-300 flex items-center gap-0.5"
+                              >
+                                <Eye size={10} />
+                                Preview
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setNewSlidePhotoFile(null);
+                                setNewSlidePhotoPreviewUrl('');
+                                setNewSlidePhotoName('');
+                              }}
+                              className="text-red-400 hover:underline"
+                            >
+                              Remove
+                            </button>
+                          </div>
                         </div>
                       )}
                     </div>
@@ -7075,14 +7115,14 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
                 </div>
 
                 {/* Slides List Table */}
-                <div className="overflow-x-auto custom-scrollbar pb-1 border border-slate-800 rounded-lg min-w-0">
+                <div className="overflow-x-auto custom-scrollbar pb-1 border border-slate-800 rounded-lg min-w-0 relative">
                   <table className="w-full text-xs text-left border-collapse" style={{ minWidth: '680px' }}>
                     <thead>
                       <tr className="bg-slate-900 border-b border-slate-800 text-slate-400 uppercase text-[9px] font-bold">
                         <th className="p-1.5 px-2.5 w-14 text-center">Order</th>
                         <th className="p-1.5 px-2.5 w-24">Image Preview</th>
                         <th className="p-1.5 px-2.5">Slide Title & Caption</th>
-                        <th className="p-1.5 px-2.5 w-44">Fit & Animation</th>
+                        <th className="p-1.5 px-2.5 w-48">Fit & Animation</th>
                         <th className="p-1.5 px-2.5 w-32 text-center">Actions</th>
                       </tr>
                     </thead>
@@ -7102,13 +7142,39 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
                                 {idx + 1}
                               </td>
                               <td className="p-1.5 px-2.5">
-                                <div className="relative w-20 h-10 rounded border border-slate-800 bg-slate-950 overflow-hidden flex items-center justify-center">
+                                <div
+                                  className="relative w-20 h-10 rounded border border-slate-800 hover:border-teal-400/80 bg-slate-950 overflow-hidden flex items-center justify-center cursor-pointer group transition-all shadow-sm"
+                                  onMouseEnter={(e) => {
+                                    setHoveredSlidePreview({
+                                      image: s.image,
+                                      title: s.title,
+                                      caption: s.caption,
+                                      fit: slideFit,
+                                      animation: slideAnim,
+                                      order: idx + 1,
+                                      x: e.clientX,
+                                      y: e.clientY
+                                    });
+                                  }}
+                                  onMouseMove={(e) => {
+                                    setHoveredSlidePreview((prev) => prev ? { ...prev, x: e.clientX, y: e.clientY } : null);
+                                  }}
+                                  onMouseLeave={() => setHoveredSlidePreview(null)}
+                                  title="Hover to view live hero banner simulation"
+                                >
                                   {s.image ? (
                                     slideFit === 'cover' ? (
                                       <img
                                         src={s.image}
                                         alt={`Preview slide ${idx + 1}`}
                                         className="w-full h-full object-cover"
+                                        onError={(e) => { e.target.style.display = 'none'; }}
+                                      />
+                                    ) : slideFit === 'stretch' ? (
+                                      <img
+                                        src={s.image}
+                                        alt={`Preview slide ${idx + 1}`}
+                                        className="w-full h-full object-fill"
                                         onError={(e) => { e.target.style.display = 'none'; }}
                                       />
                                     ) : (
@@ -7128,6 +7194,9 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
                                   ) : (
                                     <span className="text-[8px] text-slate-600 uppercase tracking-widest font-bold">No Image</span>
                                   )}
+                                  <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-2 pointer-events-none">
+                                    <Eye size={12} className="text-teal-300 drop-shadow" />
+                                  </div>
                                 </div>
                               </td>
                               {isEditing ? (
@@ -7156,8 +7225,32 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
                                         className="w-full text-slate-500 file:bg-slate-950 file:border file:border-slate-800 file:text-[9px] file:text-slate-400 file:px-1.5 file:py-0.5 file:rounded text-[10px]"
                                       />
                                       {editSlidePhotoFile && (
-                                        <div className="text-[8px] text-slate-400 mt-0.5">
-                                          Ready: {editSlidePhotoFile.name}
+                                        <div className="text-[8px] text-slate-400 mt-0.5 flex items-center justify-between">
+                                          <span>Ready: {editSlidePhotoFile.name}</span>
+                                          {editSlidePhotoPreviewUrl && (
+                                            <button
+                                              type="button"
+                                              onMouseEnter={(e) => {
+                                                setHoveredSlidePreview({
+                                                  image: editSlidePhotoPreviewUrl,
+                                                  title: editSlideData.title,
+                                                  caption: editSlideData.caption,
+                                                  fit: editSlideData.fit || 'ambient',
+                                                  animation: editSlideData.animation || 'kenburns',
+                                                  order: idx + 1,
+                                                  x: e.clientX,
+                                                  y: e.clientY
+                                                });
+                                              }}
+                                              onMouseMove={(e) => {
+                                                setHoveredSlidePreview((prev) => prev ? { ...prev, x: e.clientX, y: e.clientY } : null);
+                                              }}
+                                              onMouseLeave={() => setHoveredSlidePreview(null)}
+                                              className="text-teal-400 hover:text-teal-300 flex items-center gap-0.5"
+                                            >
+                                              <Eye size={10} /> Preview
+                                            </button>
+                                          )}
                                         </div>
                                       )}
                                     </div>
@@ -7170,7 +7263,8 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
                                         onChange={(e) => setEditSlideData({ ...editSlideData, fit: e.target.value })}
                                         className="w-full px-1.5 py-0.5 rounded bg-slate-950 border border-slate-800 text-[10.5px] text-slate-200 focus:outline-none focus:border-orange-500"
                                       >
-                                        <option value="ambient">🖼️ Full Image (No Crop)</option>
+                                        <option value="ambient">🖼️ Full (Ambient Glow) - No Crop</option>
+                                        <option value="stretch">↔️ Stretch to Fill (100% Space)</option>
                                         <option value="cover">📐 Fill Screen (Cover)</option>
                                         <option value="contain">🎯 Fit (Letterbox)</option>
                                       </select>
@@ -7223,11 +7317,19 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
                                       <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold border ${
                                         slideFit === 'ambient'
                                           ? 'bg-teal-950/60 text-teal-300 border-teal-800/60'
+                                          : slideFit === 'stretch'
+                                          ? 'bg-amber-950/60 text-amber-300 border-amber-800/60'
                                           : slideFit === 'cover'
                                           ? 'bg-purple-950/60 text-purple-300 border-purple-800/60'
                                           : 'bg-blue-950/60 text-blue-300 border-blue-800/60'
                                       }`}>
-                                        {slideFit === 'ambient' ? '🖼️ Full (No Crop)' : slideFit === 'cover' ? '📐 Fill Screen' : '🎯 Fit Letterbox'}
+                                        {slideFit === 'ambient'
+                                          ? '🖼️ Full (Ambient Glow)'
+                                          : slideFit === 'stretch'
+                                          ? '↔️ Stretch to Fill'
+                                          : slideFit === 'cover'
+                                          ? '📐 Fill Screen'
+                                          : '🎯 Fit Letterbox'}
                                       </span>
                                       <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-medium bg-slate-800/80 text-slate-300 border border-slate-700/60">
                                         {slideAnim === 'kenburns' ? '🎬 Ken Burns' : slideAnim === 'fade' ? '✨ Crossfade' : slideAnim === 'zoom' ? '🔍 Zoom' : '↔️ Pan'}
