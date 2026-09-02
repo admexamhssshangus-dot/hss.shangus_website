@@ -78,6 +78,7 @@ export default function Home() {
   const [notices, setNotices] = useState([]);
   const [settings, setSettings] = useState(null);
   const [tickerPaused, setTickerPaused] = useState(false);
+  const [tickerHidden, setTickerHidden] = useState(false);
   const [principalName, setPrincipalName] = useState("Mr. Aijaz Ahmad Wagay");
   const [slides, setSlides] = useState(() => {
     try {
@@ -94,6 +95,24 @@ export default function Home() {
     import('../utils/settingsLoader').then(({ loadSiteSettings }) => {
       loadSiteSettings().then(setSettings);
     });
+  }, []);
+
+  // Hide Latest Updates ticker on desktop when user scrolls down and Latest Notices / Briefing becomes visible
+  useEffect(() => {
+    const handleScroll = () => {
+      const briefingEl = document.getElementById('home-briefing');
+      if (briefingEl) {
+        const rect = briefingEl.getBoundingClientRect();
+        // Hide ticker as soon as the Latest Notices card enters within 100px of the viewport
+        setTickerHidden(rect.top < window.innerHeight - 80);
+      } else {
+        setTickerHidden(window.scrollY > 120);
+      }
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    handleScroll();
+    return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
   useEffect(() => {
@@ -411,7 +430,7 @@ export default function Home() {
         </div>
 
         {notices.length > 0 && (
-          <aside className={`hero-news-ticker ${tickerPaused ? 'is-paused' : ''}`} aria-label="Latest school updates">
+          <aside className={`hero-news-ticker ${tickerPaused ? 'is-paused' : ''} ${tickerHidden ? 'is-scrolled-hidden' : ''}`} aria-label="Latest school updates">
             <div className="hero-news-ticker__label">
               <Megaphone size={17} aria-hidden="true" />
               <span>Latest Updates</span>
