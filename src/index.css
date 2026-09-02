@@ -825,6 +825,94 @@ html, body, #root {
   }
 }
 
+/* PowerPoint-style Presentation Transitions */
+@keyframes slideDissolve {
+  0% {
+    opacity: 0;
+    filter: blur(12px) brightness(1.25);
+    transform: scale(1.05);
+  }
+  50% {
+    opacity: 0.8;
+    filter: blur(3px) brightness(1.08);
+  }
+  100% {
+    opacity: 1;
+    filter: blur(0px) brightness(1);
+    transform: scale(1);
+  }
+}
+
+@keyframes slideSplit {
+  0% {
+    clip-path: inset(0 50% 0 50%);
+    opacity: 0.2;
+    transform: scale(1.04);
+  }
+  100% {
+    clip-path: inset(0 0% 0 0%);
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes slideSplitV {
+  0% {
+    clip-path: inset(50% 0 50% 0);
+    opacity: 0.2;
+    transform: scale(1.04);
+  }
+  100% {
+    clip-path: inset(0% 0 0% 0);
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes slideBars {
+  0% {
+    clip-path: polygon(
+      0% 0%, 0% 10%, 100% 10%, 100% 10%,
+      0% 20%, 0% 30%, 100% 30%, 100% 30%,
+      0% 40%, 0% 50%, 100% 50%, 100% 50%,
+      0% 60%, 0% 70%, 100% 70%, 100% 70%,
+      0% 80%, 0% 90%, 100% 90%, 100% 90%
+    );
+    opacity: 0.2;
+  }
+  100% {
+    clip-path: polygon(0% 0%, 0% 100%, 100% 100%, 100% 0%);
+    opacity: 1;
+  }
+}
+
+@keyframes slideWipe {
+  0% {
+    clip-path: polygon(0 0, 0 0, 0 100%, 0 100%);
+    transform: translateX(-2%);
+    opacity: 0.3;
+  }
+  100% {
+    clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%);
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slideCircle {
+  0% {
+    clip-path: circle(0% at 50% 50%);
+    opacity: 0.2;
+    transform: scale(1.04);
+  }
+  100% {
+    clip-path: circle(100% at 50% 50%);
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Slideshow Animation Utility Classes */
 .animate-slide-kenburns {
   animation: slideKenBurns 7.5s ease-out infinite alternate;
   will-change: transform;
@@ -836,8 +924,43 @@ html, body, #root {
 }
 
 .animate-slide-zoom {
-  animation: slideZoomIn 0.9s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: slideZoomIn 1s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   will-change: transform, opacity;
+}
+
+.animate-slide-dissolve {
+  animation: slideDissolve 1.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  will-change: transform, opacity, filter;
+}
+
+.animate-slide-split {
+  animation: slideSplit 1.1s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  will-change: clip-path, transform, opacity;
+}
+
+.animate-slide-split-v {
+  animation: slideSplitV 1.1s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  will-change: clip-path, transform, opacity;
+}
+
+.animate-slide-bars {
+  animation: slideBars 1.15s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  will-change: clip-path, opacity;
+}
+
+.animate-slide-wipe {
+  animation: slideWipe 1.1s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  will-change: clip-path, transform, opacity;
+}
+
+.animate-slide-circle {
+  animation: slideCircle 1.15s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  will-change: clip-path, transform, opacity;
+}
+
+.animate-slide-fade {
+  animation: fadeIn 0.9s ease-out forwards;
+  will-change: opacity;
 }
 
 .animate-badge-fade-up {
