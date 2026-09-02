@@ -472,9 +472,8 @@ export default function Home() {
         {/* Notices Sidebar */}
         <div className="col-span-1">
           <div className="bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden hover:shadow-xl transition-shadow duration-300">
-            <div className="bg-teal-800 text-white px-4 py-3 flex justify-between items-center">
+            <div className="bg-teal-800 text-white px-4 py-3">
               <h2 className="font-bold text-lg font-heading tracking-wide">Latest Notices</h2>
-              <span className="bg-teal-600 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">Updates</span>
             </div>
             <div className="max-h-[240px] overflow-y-auto custom-scrollbar px-4">
               <ul className="">
