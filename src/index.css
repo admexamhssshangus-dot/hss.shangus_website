@@ -128,15 +128,15 @@ html, body, #root {
 .profile-border-beam-wrapper {
   position: relative;
   padding: 1.5px;
-  border-radius: 1rem;
+  border-radius: 0.75rem;
   overflow: hidden;
-  background: rgba(16, 185, 129, 0.2);
-  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 0 16px -4px rgba(16, 185, 129, 0.3);
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  background: rgba(16, 185, 129, 0.15);
+  box-shadow: 0 0 12px -2px rgba(16, 185, 129, 0.3);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
 .profile-border-beam-wrapper:hover {
-  box-shadow: 0 12px 30px -5px rgba(0, 0, 0, 0.6), 0 0 22px -2px rgba(16, 185, 129, 0.45);
+  box-shadow: 0 0 18px -1px rgba(16, 185, 129, 0.5);
 }
 
 .profile-border-beam-wrapper::before {
@@ -166,13 +166,9 @@ html, body, #root {
 
 .profile-border-beam-inner {
   position: relative;
-  display: flex;
-  align-items: center;
-  gap: 0.375rem;
-  border-radius: calc(1rem - 1.5px);
-  background: rgba(15, 23, 42, 0.96);
-  padding: 0.375rem;
-  backdrop-filter: blur(16px);
+  border-radius: calc(0.75rem - 1.5px);
+  background: rgba(15, 23, 42, 0.94);
+  backdrop-filter: blur(12px);
   z-index: 1;
 }
 
