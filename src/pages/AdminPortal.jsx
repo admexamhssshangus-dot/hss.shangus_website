@@ -7041,10 +7041,16 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
                         onChange={(e) => setNewSlide({ ...newSlide, animation: e.target.value })}
                         className="w-full px-2 py-1 rounded bg-slate-950 border border-slate-800 text-[11px] text-slate-200 focus:outline-none focus:border-orange-500"
                       >
-                        <option value="kenburns">🎬 Ken Burns (Slow Zoom)</option>
-                        <option value="fade">✨ Smooth Crossfade</option>
-                        <option value="zoom">🔍 Zoom & Pop</option>
-                        <option value="pan">↔️ Gentle Pan & Float</option>
+                        <option value="kenburns">🎬 Ken Burns (Cinematic Drift)</option>
+                        <option value="dissolve">✨ Smooth Dissolve (Blur Fade)</option>
+                        <option value="split">🪟 Split Horizontal (Curtains)</option>
+                        <option value="split-v">🪟 Split Vertical (Iris)</option>
+                        <option value="bars">📊 Random Bars (Blinds)</option>
+                        <option value="wipe">📐 Smooth Wipe (Angle Push)</option>
+                        <option value="circle">⭕ Circle Expand (Radial Iris)</option>
+                        <option value="zoom">🔍 Zoom & Pop (Spring Bounce)</option>
+                        <option value="pan">↔️ Gentle Pan & Slide</option>
+                        <option value="fade">🌫️ Smooth Crossfade</option>
                       </select>
                     </div>
                     <div className="w-[200px] shrink-0">
@@ -7276,10 +7282,16 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
                                         onChange={(e) => setEditSlideData({ ...editSlideData, animation: e.target.value })}
                                         className="w-full px-1.5 py-0.5 rounded bg-slate-950 border border-slate-800 text-[10.5px] text-slate-200 focus:outline-none focus:border-orange-500"
                                       >
-                                        <option value="kenburns">🎬 Ken Burns (Zoom)</option>
-                                        <option value="fade">✨ Smooth Crossfade</option>
+                                        <option value="kenburns">🎬 Ken Burns (Cinematic)</option>
+                                        <option value="dissolve">✨ Smooth Dissolve</option>
+                                        <option value="split">🪟 Split Horizontal</option>
+                                        <option value="split-v">🪟 Split Vertical</option>
+                                        <option value="bars">📊 Random Bars</option>
+                                        <option value="wipe">📐 Smooth Wipe</option>
+                                        <option value="circle">⭕ Circle Expand</option>
                                         <option value="zoom">🔍 Zoom & Pop</option>
                                         <option value="pan">↔️ Gentle Pan</option>
+                                        <option value="fade">🌫️ Smooth Crossfade</option>
                                       </select>
                                     </div>
                                   </td>
@@ -7380,6 +7392,203 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
                       )}
                     </tbody>
                   </table>
+                {/* Floating Hero Banner Live Simulation Popover on Image Hover */}
+                {hoveredSlidePreview && (
+                  <div
+                    className="fixed z-[9999] pointer-events-none transition-all duration-150 ease-out animate-in fade-in zoom-in-95"
+                    style={{
+                      top: Math.min(Math.max(12, (hoveredSlidePreview.y || 100) - 140), window.innerHeight - 340),
+                      left: Math.min(Math.max(12, (hoveredSlidePreview.x || 100) + 20), window.innerWidth - 440),
+                      width: '400px'
+                    }}
+                  >
+                    <div className="bg-slate-950/95 border border-teal-500/40 rounded-xl p-3 shadow-[0_20px_50px_rgba(0,0,0,0.9)] backdrop-blur-xl ring-1 ring-white/15">
+                      <div className="flex items-center justify-between gap-2 mb-2 pb-1.5 border-b border-slate-800">
+                        <div className="flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                          <span className="text-[11px] font-bold text-white tracking-wide">
+                            {hoveredSlidePreview.order ? `Slide #${hoveredSlidePreview.order} Live Simulation` : 'Slide Live Preview'}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-teal-950/80 text-teal-300 border border-teal-800/60">
+                            {hoveredSlidePreview.fit === 'ambient'
+                              ? '🖼️ Ambient (No Crop)'
+                              : hoveredSlidePreview.fit === 'stretch'
+                              ? '↔️ Stretch to Fill'
+                              : hoveredSlidePreview.fit === 'cover'
+                              ? '📐 Fill Screen'
+                              : '🎯 Letterbox'}
+                          </span>
+                          <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">
+                            {hoveredSlidePreview.animation === 'kenburns' ? '🎬 Ken Burns' : hoveredSlidePreview.animation === 'dissolve' ? '✨ Dissolve' : hoveredSlidePreview.animation === 'split' ? '🪟 Split' : hoveredSlidePreview.animation === 'split-v' ? '🪟 Split-V' : hoveredSlidePreview.animation === 'bars' ? '📊 Bars' : hoveredSlidePreview.animation === 'wipe' ? '📐 Wipe' : hoveredSlidePreview.animation === 'circle' ? '⭕ Circle' : hoveredSlidePreview.animation === 'zoom' ? '🔍 Zoom' : hoveredSlidePreview.animation === 'pan' ? '↔️ Pan' : '🌫️ Fade'}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="relative w-full aspect-[16/9] rounded-lg overflow-hidden border border-slate-800 bg-slate-900 shadow-inner select-none">
+                        {hoveredSlidePreview.image ? (
+                          hoveredSlidePreview.fit === 'ambient' ? (
+                            <>
+                              <div
+                                className="absolute inset-0 bg-cover bg-center filter blur-md scale-125 opacity-60 brightness-75"
+                                style={{ backgroundImage: `url(${hoveredSlidePreview.image})` }}
+                              />
+                              <div className="absolute inset-0 flex items-center justify-center p-2 pt-2 pb-6">
+                                <img
+                                  src={hoveredSlidePreview.image}
+                                  alt="Slide preview"
+                                  className={`max-w-full max-h-full object-contain rounded drop-shadow-2xl border border-white/10 ${
+                                    hoveredSlidePreview.animation === 'dissolve' ? 'animate-slide-dissolve' :
+                                    hoveredSlidePreview.animation === 'split' ? 'animate-slide-split' :
+                                    hoveredSlidePreview.animation === 'split-v' ? 'animate-slide-split-v' :
+                                    hoveredSlidePreview.animation === 'bars' ? 'animate-slide-bars' :
+                                    hoveredSlidePreview.animation === 'wipe' ? 'animate-slide-wipe' :
+                                    hoveredSlidePreview.animation === 'circle' ? 'animate-slide-circle' :
+                                    hoveredSlidePreview.animation === 'zoom' ? 'animate-slide-zoom' :
+                                    hoveredSlidePreview.animation === 'pan' ? 'animate-slide-pan' :
+                                    hoveredSlidePreview.animation === 'fade' ? 'animate-slide-fade' : 'animate-slide-kenburns'
+                                  }`}
+                                />
+                              </div>
+                            </>
+                          ) : hoveredSlidePreview.fit === 'stretch' ? (
+                            <div className="absolute inset-0 overflow-hidden">
+                              <img
+                                src={hoveredSlidePreview.image}
+                                alt="Slide preview"
+                                className={`w-full h-full object-fill ${
+                                  hoveredSlidePreview.animation === 'dissolve' ? 'animate-slide-dissolve' :
+                                  hoveredSlidePreview.animation === 'split' ? 'animate-slide-split' :
+                                  hoveredSlidePreview.animation === 'split-v' ? 'animate-slide-split-v' :
+                                  hoveredSlidePreview.animation === 'bars' ? 'animate-slide-bars' :
+                                  hoveredSlidePreview.animation === 'wipe' ? 'animate-slide-wipe' :
+                                  hoveredSlidePreview.animation === 'circle' ? 'animate-slide-circle' :
+                                  hoveredSlidePreview.animation === 'zoom' ? 'animate-slide-zoom' :
+                                  hoveredSlidePreview.animation === 'pan' ? 'animate-slide-pan' :
+                                  hoveredSlidePreview.animation === 'fade' ? 'animate-slide-fade' : 'animate-slide-kenburns'
+                                }`}
+                              />
+                            </div>
+                          ) : hoveredSlidePreview.fit === 'cover' ? (
+                            <div
+                              className={`absolute inset-0 bg-cover bg-center ${
+                                hoveredSlidePreview.animation === 'dissolve' ? 'animate-slide-dissolve' :
+                                hoveredSlidePreview.animation === 'split' ? 'animate-slide-split' :
+                                hoveredSlidePreview.animation === 'split-v' ? 'animate-slide-split-v' :
+                                hoveredSlidePreview.animation === 'bars' ? 'animate-slide-bars' :
+                                hoveredSlidePreview.animation === 'wipe' ? 'animate-slide-wipe' :
+                                hoveredSlidePreview.animation === 'circle' ? 'animate-slide-circle' :
+                                hoveredSlidePreview.animation === 'zoom' ? 'animate-slide-zoom' :
+                                hoveredSlidePreview.animation === 'pan' ? 'animate-slide-pan' :
+                                hoveredSlidePreview.animation === 'fade' ? 'animate-slide-fade' : 'animate-slide-kenburns'
+                              }`}
+                              style={{ backgroundImage: `url(${hoveredSlidePreview.image})` }}
+                            />
+                          ) : (
+                            <div className="absolute inset-0 bg-slate-950 flex items-center justify-center p-2 pt-2 pb-6">
+                              <img
+                                src={hoveredSlidePreview.image}
+                                alt="Slide preview"
+                                className={`max-w-full max-h-full object-contain rounded shadow-lg ${
+                                  hoveredSlidePreview.animation === 'dissolve' ? 'animate-slide-dissolve' :
+                                  hoveredSlidePreview.animation === 'split' ? 'animate-slide-split' :
+                                  hoveredSlidePreview.animation === 'split-v' ? 'animate-slide-split-v' :
+                                  hoveredSlidePreview.animation === 'bars' ? 'animate-slide-bars' :
+                                  hoveredSlidePreview.animation === 'wipe' ? 'animate-slide-wipe' :
+                                  hoveredSlidePreview.animation === 'circle' ? 'animate-slide-circle' :
+                                  hoveredSlidePreview.animation === 'zoom' ? 'animate-slide-zoom' :
+                                  hoveredSlidePreview.animation === 'pan' ? 'animate-slide-pan' :
+                                  hoveredSlidePreview.animation === 'fade' ? 'animate-slide-fade' : 'animate-slide-kenburns'
+                                }`}
+                              />
+                            </div>
+                          )
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-slate-500 text-xs">
+                            No Image Selected
+                          </div>
+                        )}
+
+                        <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-black/25 to-black/35 pointer-events-none" />
+
+                        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none px-3">
+                          <p
+                            className="text-[12px] font-semibold italic tracking-wider leading-none mb-1.5"
+                            style={{
+                              color: '#961c14',
+                              textShadow: '0 0 6px rgba(255, 255, 255, 0.95), 0 0 12px rgba(255, 255, 255, 0.8), 0 1px 2px rgba(0, 0, 0, 0.5)'
+                            }}
+                          >
+                            nurturing minds, shaping futures
+                          </p>
+                          <div className="flex gap-1">
+                            <span className="px-1.5 py-0.5 rounded bg-emerald-600 text-[7px] font-bold text-white shadow">
+                              Admissions Open 2026
+                            </span>
+                            <span className="px-1.5 py-0.5 rounded bg-slate-800/80 text-[7px] font-bold text-slate-200 border border-white/20">
+                              Learn More
+                            </span>
+                          </div>
+                        </div>
+
+                        {(hoveredSlidePreview.title || hoveredSlidePreview.caption) && (
+                          <div className="absolute left-2 bottom-6 text-left text-white max-w-[65%] flex flex-col items-start gap-[1px]">
+                            {hoveredSlidePreview.title && (
+                              <span
+                                className="text-[9.5px] font-extrabold truncate max-w-full"
+                                style={{
+                                  color: '#5eead4',
+                                  textShadow: '0 1px 3px rgba(0, 0, 0, 0.95)'
+                                }}
+                              >
+                                {hoveredSlidePreview.title}
+                              </span>
+                            )}
+                            {hoveredSlidePreview.caption && (
+                              <div
+                                className="px-1.5 py-[1.5px] rounded border"
+                                style={{
+                                  backgroundColor: 'rgba(2, 6, 23, 0.88)',
+                                  borderColor: 'rgba(255, 255, 255, 0.3)'
+                                }}
+                              >
+                                <span
+                                  className="block text-[8px] font-semibold truncate max-w-full"
+                                  style={{
+                                    color: '#ffffff',
+                                    textShadow: '0 1px 2px rgba(0, 0, 0, 0.9)'
+                                  }}
+                                >
+                                  {hoveredSlidePreview.caption}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        <div className="absolute bottom-0 left-0 right-0 h-4 bg-slate-950/90 border-t border-teal-500/30 flex items-center px-2 justify-between">
+                          <div className="flex items-center gap-1">
+                            <span className="text-[7px] font-extrabold uppercase px-1 py-[0.5px] rounded bg-teal-600 text-white">
+                              Updates
+                            </span>
+                            <span className="text-[7.5px] text-slate-300 truncate max-w-[200px]">
+                              Admit Cards • General Knowledge Quiz • Results 2026
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="mt-2 flex items-center justify-between text-[9.5px] text-slate-400">
+                        <span className="flex items-center gap-1">
+                          <span>👁️</span> Real visible area on 16:9 widescreen
+                        </span>
+                        <span className="text-teal-400 font-mono">100% Unobstructed</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 </div>
               </div>
             )}
