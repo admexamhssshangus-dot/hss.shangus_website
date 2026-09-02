@@ -505,7 +505,7 @@ export default function AdminDashboard() {
                   {/* TAB: Student Bonafides & Certificates Studio */}
                   {(activeTab === 'certStudio' || activeTab === 'certificate') && (
                     <StudentCertificateStudioView
-                      allStudents={applications}
+                      allStudents={identityStudents}
                       identityStudents={identityStudents}
                       onClose={() => setActiveTab('reports')}
                       showSettingsDrawerProp={isStudioSetupOpen}

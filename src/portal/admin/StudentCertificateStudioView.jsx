@@ -68,7 +68,8 @@ import {
   extractAdmNo,
   extractFormNo,
   extractVillage,
-  extractMobile
+  extractMobile,
+  unpackMasterRegisterStudents
 } from './CustomRosterDocumentBuilderView';
 import { db } from '../../services/firebase';
 import { collection, getDocs, doc, getDoc } from 'firebase/firestore';
@@ -257,14 +258,61 @@ export default function StudentCertificateStudioView({
     preloadCentralStudentPhotos().catch(() => {});
   }, []);
 
-  // ─── Data Sources: Fed Directly & Instantaneously from Parent Global Session ───
+  // ─── Data Sources: Fed Directly & Instantaneously from Parent Global Session + Firestore Hydration ───
+  const [masterRegistersList, setMasterRegistersList] = useState(() => {
+    const cached = getCachedCollectionSync('masterRegisters');
+    return Array.isArray(cached) && cached.length > 0 ? unpackMasterRegisterStudents(cached) : [];
+  });
+
+  useEffect(() => {
+    let isMounted = true;
+    getCachedCollection('masterRegisters', false, 30 * 60 * 1000).then((docs) => {
+      if (!isMounted || !Array.isArray(docs)) return;
+      const flat = unpackMasterRegisterStudents(docs);
+      if (flat.length > 0) {
+        setMasterRegistersList(flat);
+      }
+    }).catch(() => {});
+    return () => { isMounted = false; };
+  }, []);
+
+  const combinedStudentPool = useMemo(() => {
+    const primary = Array.isArray(allStudents) && allStudents.length > 0 ? allStudents : (Array.isArray(identityStudents) ? identityStudents : []);
+    const list = [...primary];
+    if (Array.isArray(masterRegistersList) && masterRegistersList.length > 0) {
+      const seenIds = new Set(list.map(s => String(s.formNo || s['Form Number'] || s['Form No.'] || s.boardRegNo || s.id || '').trim()).filter(Boolean));
+      masterRegistersList.forEach(m => {
+        const key = String(m.formNo || m['Form Number'] || m['Form No.'] || m.boardRegNo || m.id || '').trim();
+        if (!key || !seenIds.has(key)) {
+          list.push(m);
+        }
+      });
+    }
+    return list;
+  }, [allStudents, identityStudents, masterRegistersList]);
+
+  const defaultActiveSession = useMemo(() => {
+    if (Array.isArray(allStudents) && allStudents.length > 0) {
+      const counts = {};
+      for (const st of allStudents) {
+        const s = extractSession(st);
+        if (s && s !== '—') counts[s] = (counts[s] || 0) + 1;
+      }
+      const sorted = Object.entries(counts).sort((a, b) => {
+        const yearA = parseInt(a[0].match(/\d{4}/)?.[0] || '0', 10);
+        const yearB = parseInt(b[0].match(/\d{4}/)?.[0] || '0', 10);
+        if (yearB !== yearA) return yearB - yearA;
+        return b[1] - a[1];
+      });
+      if (sorted.length > 0 && sorted[0][0]) return sorted[0][0];
+    }
+    return '2025-26';
+  }, [allStudents]);
+
   const [activeCohortFilter, setActiveCohortFilter] = useState('ALL'); // 'ALL' | '12th' | '11th' | '10th' | '9th' | 'present' | 'past'
-  const [activeSessionFilter, setActiveSessionFilter] = useState('ALL');
+  const [activeSessionFilter, setActiveSessionFilter] = useState(() => defaultActiveSession);
   const [photosVersion, setPhotosVersion] = useState(0);
   const [recentIngestedResults, setRecentIngestedResults] = useState([]);
-  const liveStudentsList = useMemo(() => {
-    return Array.isArray(allStudents) ? allStudents : [];
-  }, [allStudents]);
   const isLoadingStudents = false;
 
   // Combined searchable student directory with fast canonical single-pass mapping
@@ -273,7 +321,7 @@ export default function StudentCertificateStudioView({
     const list = [];
     const seenKeys = new Set();
 
-    (liveStudentsList || []).forEach(st => {
+    (combinedStudentPool || []).forEach(st => {
       if (!st) return;
       const latestResult = recentIngestedResults.find(row => ingestionRowMatchesStudent(row, st));
       const effectiveStudent = latestResult
@@ -344,9 +392,9 @@ export default function StudentCertificateStudioView({
     });
 
     return list;
-  }, [liveStudentsList, recentIngestedResults, isReady]);
+  }, [combinedStudentPool, recentIngestedResults, isReady]);
 
-  // ─── Dynamic Sessions Derived from Indexed Directory ───
+  // ─── Dynamic Sessions Derived from Indexed Directory (Reverse Chronological Order) ───
   const dynamicSessions = useMemo(() => {
     const counts = {};
     unifiedStudentDirectory.forEach(st => {
@@ -355,7 +403,12 @@ export default function StudentCertificateStudioView({
         counts[sess] = (counts[sess] || 0) + 1;
       }
     });
-    const sorted = Object.keys(counts).sort((a, b) => b.localeCompare(a));
+    const sorted = Object.keys(counts).sort((a, b) => {
+      const yearA = parseInt(a.match(/\d{4}/)?.[0] || '0', 10);
+      const yearB = parseInt(b.match(/\d{4}/)?.[0] || '0', 10);
+      if (yearB !== yearA) return yearB - yearA;
+      return b.localeCompare(a, undefined, { numeric: true });
+    });
     return sorted.map(k => ({ value: k, label: `Session ${k} (${counts[k]})` }));
   }, [unifiedStudentDirectory]);
 
@@ -4793,8 +4846,7 @@ export default function StudentCertificateStudioView({
           </div>
         );
       })()}
-
-      {/* ================ EDIT DYNAMIC FIELDS & TEMPORARY OVERRIDES MODAL ================ */}
+      {/* == == == == == == == ==  EDIT DYNAMIC FIELDS & TEMPORARY OVERRIDES MODAL == == == == == == == ==  */}
       {showFieldManagerModal && (
         <div className="fixed inset-0 z-[999999] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-5 animate-fadeIn">
           <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/90 dark:border-slate-800 shadow-2xl max-w-2xl w-full p-5 sm:p-6 space-y-4 max-h-[88vh] overflow-y-auto">
@@ -5159,7 +5211,7 @@ export default function StudentCertificateStudioView({
         </div>
       )}
 
-      {/* ================ GEMINI AI CERTIFICATE ASSISTANT MODAL ================ */}
+      {/* == == == == == == == ==  GEMINI AI CERTIFICATE ASSISTANT MODAL == == == == == == == ==  */}
       {showAiModal && (
         <div className="fixed inset-0 z-[99999] bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-fadeIn">
           <div className="bg-white dark:bg-slate-900 border border-purple-200 dark:border-purple-900/80 rounded-3xl shadow-2xl w-full max-w-2xl max-h-[92vh] overflow-y-auto p-4 sm:p-5 space-y-3.5 text-xs text-slate-900 dark:text-slate-100">
@@ -5198,46 +5250,6 @@ export default function StudentCertificateStudioView({
                 </button>
               </div>
             </div>
-
-            {/* API Keys Configuration Drawer */}
-            {false && showKeysConfig && (
-              <div className="p-3 rounded-2xl bg-amber-50/90 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700 space-y-2 animate-fadeIn">
-                <div className="flex items-center justify-between">
-                  <label className="font-black text-[10.5px] text-amber-950 dark:text-amber-200 flex items-center gap-1.5">
-                    <Key size={12} className="text-amber-600" />
-                    <span>Gemini API Key Pool (Multi-Key Failover):</span>
-                  </label>
-                  <a
-                    href="https://aistudio.google.com/app/apikey"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-[10px] text-amber-800 dark:text-amber-300 font-extrabold hover:underline flex items-center gap-0.5"
-                  >
-                    <span>Get Free Gemini Key</span>
-                    <ExternalLink size={10} />
-                  </a>
-                </div>
-                <textarea
-                  rows={2}
-                  value={keysInputText}
-                  onChange={(e) => setKeysInputText(e.target.value)}
-                  placeholder="Paste your Gemini API keys here (one per line or comma-separated)"
-                  className="w-full px-2.5 py-1.5 rounded-xl border border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-900 font-mono text-[11px] text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-amber-500"
-                />
-                <div className="flex items-center justify-between">
-                  <span className="text-[9.5px] font-bold text-amber-800 dark:text-amber-300">
-                    {keysInputText.split(/[\n,]+/).map(k => k.trim()).filter(Boolean).length} keys detected
-                  </span>
-                  <button
-                    type="button"
-                    onClick={handleSaveKeys}
-                    className="px-3 py-1 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-black text-[10.5px] cursor-pointer shadow-xs"
-                  >
-                    ✓ Save Keys to Cloud DB
-                  </button>
-                </div>
-              </div>
-            )}
 
             {/* Mode Selector Tabs */}
             <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 no-scrollbar">
@@ -5301,24 +5313,15 @@ export default function StudentCertificateStudioView({
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <label className="block text-[9.5px] font-black uppercase text-slate-500 mb-0.5">Gemini AI Model</label>
-                <select
-                  value={aiModel}
-                  onChange={(e) => setAiModel(e.target.value)}
-                  className="w-full px-2 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-bold text-xs"
-                >
+                <select value={aiModel} onChange={(e) => setAiModel(e.target.value)} className="w-full px-2 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-bold text-xs">
                   {AVAILABLE_GEMINI_MODELS.map((m) => (
                     <option key={m.id} value={m.id}>{m.name.split(' (')[0]}</option>
                   ))}
                 </select>
               </div>
-
               <div>
                 <label className="block text-[9.5px] font-black uppercase text-slate-500 mb-0.5">Certificate Tone</label>
-                <select
-                  value={aiTone}
-                  onChange={(e) => setAiTone(e.target.value)}
-                  className="w-full px-2 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-bold text-xs"
-                >
+                <select value={aiTone} onChange={(e) => setAiTone(e.target.value)} className="w-full px-2 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-bold text-xs">
                   <option value="Formal School">Formal Academic (Standard)</option>
                   <option value="Dignified & Prestigious">Dignified & Commendatory</option>
                   <option value="Meritorious">Meritorious & High Praise</option>
@@ -5327,13 +5330,7 @@ export default function StudentCertificateStudioView({
               </div>
             </div>
 
-            {/* Generate Action Button */}
-            <button
-              type="button"
-              disabled={isGeneratingAi}
-              onClick={handleGenerateAi}
-              className="w-full py-2.5 rounded-2xl bg-gradient-to-r from-purple-600 via-indigo-600 to-amber-600 hover:from-purple-500 hover:to-amber-500 text-white font-black text-xs cursor-pointer shadow-md disabled:opacity-50 flex items-center justify-center gap-1.5 transition-all active:scale-98"
-            >
+            <button type="button" disabled={isGeneratingAi} onClick={handleGenerateAi} className="w-full py-2.5 rounded-2xl bg-gradient-to-r from-purple-600 via-indigo-600 to-amber-600 hover:from-purple-500 hover:to-amber-500 text-white font-black text-xs cursor-pointer shadow-md disabled:opacity-50 flex items-center justify-center gap-1.5 transition-all active:scale-98">
               {isGeneratingAi ? (
                 <>
                   <RefreshCw size={14} className="animate-spin" />
@@ -5346,71 +5343,18 @@ export default function StudentCertificateStudioView({
                 </>
               )}
             </button>
-
-            {/* Error Banner */}
+            
             {aiError && (
               <div className="p-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/50 border border-rose-300 dark:border-rose-800 text-rose-800 dark:text-rose-200 text-xs flex items-center gap-2">
                 <AlertCircle size={14} className="shrink-0 text-rose-600" />
                 <span>{aiError}</span>
               </div>
             )}
-
-            {/* Generated Result Preview Card */}
-            {aiGeneratedHtml && (
-              <div className="space-y-2 pt-2 border-t border-purple-200 dark:border-purple-900/60 animate-fadeIn">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="font-black text-emerald-700 dark:text-emerald-300 flex items-center gap-1">
-                    <CheckCircle2 size={13} />
-                    <span>Certificate Draft Ready</span>
-                    {aiSuccessKeyIndex !== null && (
-                      <span className="text-slate-400 font-normal">
-                        (Key #{aiSuccessKeyIndex + 1})
-                      </span>
-                    )}
-                  </span>
-                </div>
-
-                <div
-                  className="p-3 rounded-2xl border border-purple-200 dark:border-purple-900 bg-purple-50/40 dark:bg-slate-950 text-slate-900 dark:text-slate-100 text-xs max-h-48 overflow-y-auto leading-relaxed shadow-inner font-serif"
-                  dangerouslySetInnerHTML={{ __html: sanitizeRichHtml(aiGeneratedHtml) }}
-                />
-
-                {/* Real-time Insert Actions */}
-                <div className="grid grid-cols-3 gap-1.5 pt-1">
-                  <button
-                    type="button"
-                    onClick={() => handleApplyAiContent('replace')}
-                    className="w-full py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs cursor-pointer shadow-xs flex items-center justify-center gap-1 transition-transform active:scale-95"
-                  >
-                    <Sparkles size={12} />
-                    <span>Replace Body</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleApplyAiContent('insert')}
-                    className="w-full py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-black text-xs cursor-pointer shadow-xs flex items-center justify-center gap-1 transition-transform active:scale-95"
-                  >
-                    <Plus size={12} />
-                    <span>Insert at Cursor</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleApplyAiContent('append')}
-                    className="w-full py-2 rounded-xl bg-slate-700 hover:bg-slate-600 text-white font-black text-xs cursor-pointer shadow-xs flex items-center justify-center gap-1 transition-transform active:scale-95"
-                  >
-                    <span>Append to End</span>
-                  </button>
-                </div>
-              </div>
-            )}
-
           </div>
         </div>
       )}
 
-      {/* ================ CLOUD DOCUMENT HISTORY & ARCHIVE MODAL ================ */}
+      {/* == == == == == == == ==  CLOUD DOCUMENT HISTORY & ARCHIVE MODAL == == == == == == == ==  */}
       <DocumentHistoryModal
         isOpen={showHistoryModal}
         onClose={() => setShowHistoryModal(false)}
@@ -5418,7 +5362,7 @@ export default function StudentCertificateStudioView({
         onLoadAsDraft={handleLoadDraftFromHistory}
       />
 
-      {/* ================ STUDENT JKBOSE RESULT & TC DETAILS EDITOR MODAL ================ */}
+      {/* == == == == == == == ==  STUDENT JKBOSE RESULT & TC DETAILS EDITOR MODAL == == == == == == == ==  */}
       <StudentResultEditorModal
         isOpen={showResultEditorModal}
         onClose={() => setShowResultEditorModal(false)}
@@ -5440,15 +5384,14 @@ export default function StudentCertificateStudioView({
         showToast={showToast}
       />
 
-      {/* ================ JKBOSE RESULT & AI GAZETTE INGESTION HUB MODAL ================ */}
+      {/* == == == == == == == ==  JKBOSE RESULT & AI GAZETTE INGESTION HUB MODAL == == == == == == == ==  */}
       <ResultIngestionModal
         isOpen={showResultIngestionModal}
         onClose={() => setShowResultIngestionModal(false)}
-        allStudents={liveStudentsList.length > 0 ? liveStudentsList : allStudents}
+        allStudents={combinedStudentPool.length > 0 ? combinedStudentPool : allStudents}
         onIngestSuccess={({ records = [], overwriteExamRoll = false } = {}) => {
           const committedRows = records.map(row => ({ ...row, overwriteExamRoll }));
           setRecentIngestedResults(committedRows);
-
           const selectedRow = committedRows.find(row => ingestionRowMatchesStudent(row, selectedStudent));
           if (selectedRow && selectedStudent) {
             const updatedStudent = mergeIngestedResultIntoStudent(selectedStudent, selectedRow, overwriteExamRoll);
@@ -5464,17 +5407,16 @@ export default function StudentCertificateStudioView({
             if (selectedRow.withdrawalDate) setWithdrawalDate(selectedRow.withdrawalDate);
             setCustomCanvasHtml(null);
           }
-
           showToast('🎉 Ingestion complete! Certificate data refreshed from the synchronized results.', 'success');
         }}
         showToast={showToast}
       />
 
-      {/* ================ BULK TC / DISCHARGE CERTIFICATE GENERATOR MODAL ================ */}
+      {/* == == == == == == == ==  BULK TC / DISCHARGE CERTIFICATE GENERATOR MODAL == == == == == == == ==  */}
       <BulkCertificateGeneratorModal
         isOpen={showBulkGeneratorModal}
         onClose={() => setShowBulkGeneratorModal(false)}
-        allStudents={liveStudentsList.length > 0 ? liveStudentsList : allStudents}
+        allStudents={combinedStudentPool.length > 0 ? combinedStudentPool : allStudents}
         officeTitle={officeTitle}
         institutionName={institutionName}
         institutionAddress={institutionAddress}
@@ -5482,13 +5424,13 @@ export default function StudentCertificateStudioView({
         showToast={showToast}
       />
 
-      {/* ================ CUSTOM TEMPLATE DELETE CONFIRMATION & WARNING MODAL ================ */}
+      {/* == == == == == == == ==  CUSTOM TEMPLATE DELETE CONFIRMATION & WARNING MODAL == == == == == == == ==  */}
       <ConfirmModal
         isOpen={Boolean(templateToDelete)}
         onClose={() => { if (!isDeletingTemplate) setTemplateToDelete(null); }}
         onConfirm={handleConfirmDeleteTemplate}
         title="Delete Custom Template?"
-        message={`⚠️  WARNING: You are about to permanently delete "${templateToDelete?.name}". This will remove it from both your local workspace and Firebase Cloud storage. This action cannot be undone.`}
+        message={`⚠️   WARNING: You are about to permanently delete "${templateToDelete?.name}". This will remove it from both your local workspace and Firebase Cloud storage. This action cannot be undone.`}
         confirmText="Yes, Delete Permanently"
         cancelText="Cancel / Keep Template"
         type="danger"
