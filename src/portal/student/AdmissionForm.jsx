@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Save, Send, CheckCircle, CheckCircle2, AlertCircle, RefreshCw, Loader2, Info, HelpCircle, X, Eye, Edit3, Camera, ShieldCheck, Printer, ArrowUp } from 'lucide-react';
 import SEO from '../../components/SEO';
 import DynamicFormField from '../components/DynamicFormField';
@@ -10,8 +10,7 @@ import appsScriptApi from '../../services/appsScriptApi';
 import { sessionManager } from '../../services/sessionManager';
 import { generateStudentAdmissionPdf, generateProvisionalAdmissionPdf } from '../../utils/pdfGenerator';
 import { auth } from '../../services/firebase';
-import { saveAdmissionDraft } from '../../services/admissionWorkflowApi';
-import { getNextAvailableFormNumber, consumeFormNumber } from '../../services/formNumberService';
+import { loadAdmissionWorkspace, saveAdmissionDraft, submitAdmission } from '../../services/admissionWorkflowApi';
 import { isValidAadhaar, areAadhaarsDistinct, isStrictIsoDate, normalizeDobToIso, validateMinimumAge, MIN_ADMISSION_AGE, isPersonNameField, sanitizePersonName, validatePersonName } from '../../utils/admissionValidation';
 
 export const SUBJECT_CANONICAL_SYNONYMS = {
@@ -295,6 +294,9 @@ export function validateSubjectSelection(targetClass = '11th', stream = 'Science
 
 export default function AdmissionForm() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const requestedApplicationKey = searchParams.get('application') || '';
+  const requestedUpgradeMode = searchParams.get('mode') === 'upgrade';
   // Loading & Data States
   const [loading, setLoading] = useState(true);
   const [formStructure, setFormStructure] = useState([]);
@@ -322,7 +324,7 @@ export default function AdmissionForm() {
   const submissionKeyRef = useRef('');
   const autosaveServiceUnavailableRef = useRef(false);
   const mobileCheckTimeoutRef = useRef(null);
-  const [upgradeMode, setUpgradeMode] = useState(false);
+  const [upgradeMode, setUpgradeMode] = useState(requestedUpgradeMode);
   const [upgradeSourceFormNo, setUpgradeSourceFormNo] = useState(null);
 
 
@@ -359,7 +361,7 @@ export default function AdmissionForm() {
       const [structResult, subjCfgResult, appDataResult] = await Promise.allSettled([
         appsScriptApi.getFormStructure(),
         appsScriptApi.getSubjectsConfig(),
-        appsScriptApi.getStudentApplication()
+        loadAdmissionWorkspace()
       ]);
 
       const structRes = structResult.status === 'fulfilled' ? structResult.value : null;
@@ -381,16 +383,13 @@ export default function AdmissionForm() {
 
       let existing = {};
       let historical = {};
-      let requestedUpgradeFormNo = '';
-      try { requestedUpgradeFormNo = JSON.parse(sessionStorage.getItem('hss_admission_upgrade') || '{}').formNo || ''; } catch (e) { }
-
       const isInactive = (item) => ['Purged', 'Deleted', 'Wiped'].includes(item.Status || item.status) || item._deleted === true;
 
       const pickBestApplication = (apps) => {
         if (!Array.isArray(apps) || apps.length === 0) return {};
         const valid = apps.filter(item => !isInactive(item));
         if (valid.length === 0) return {};
-        return valid.find(item => String(item['Form Number'] || item.FormNo || item.formNo || '') === String(requestedUpgradeFormNo)) ||
+        return valid.find(item => String(item.docId || item.applicationId || item['Form Number'] || item.FormNo || item.formNo || '') === String(requestedApplicationKey)) ||
                valid.find(item => ['Submitted', 'Approved', 'Under Review', 'Draft'].includes(item.Status || item.status)) ||
                valid.find(item => ['Withdrawn', 'Rejected'].includes(item.Status || item.status)) ||
                valid[0];
@@ -412,12 +411,14 @@ export default function AdmissionForm() {
         }
       }
 
-      // If no application exists at all, clear stale upgrade & draft mode so form opens fresh
+      // A withdrawn application is a prefill source, never an editable cloud document.
+      if ((existing.Status || existing.status) === 'Withdrawn') {
+        historical = existing;
+        existing = {};
+      }
+
+      // If no application exists at all, clear stale upgrade mode so form opens fresh.
       if (Object.keys(existing).length === 0 && Object.keys(historical).length === 0) {
-        try {
-          sessionStorage.removeItem('hss_admission_upgrade');
-          sessionStorage.removeItem('hss_admission_draft');
-        } catch (e) {}
         setUpgradeMode(false);
         setUpgradeSourceFormNo(null);
       }
@@ -433,49 +434,20 @@ export default function AdmissionForm() {
       };
 
       const assignedFormNo = cleanFNoVal(
-        existing['Form Number'] || existing['FormNo'] || existing['Form No.'] || existing['formNo'] ||
-        historical['Form Number'] || historical['FormNo'] || historical['Form No.'] || historical['formNo']
+        existing['Form Number'] || existing['FormNo'] || existing['Form No.'] || existing['formNo']
       );
 
       const existingId = existing.docId || existing.applicationId || assignedFormNo || '';
       setApplicationId(existingId);
       applicationIdRef.current = existingId;
-      // Retrieve local draft if student saved or refreshed the page while drafting
-      let localDraft = {};
-      try {
-        const uid = currentUser?.uid || 'guest';
-        const rawDraft =
-          localStorage.getItem(`hss_student_draft_${uid}`) ||
-          localStorage.getItem('hss_admission_draft') ||
-          localStorage.getItem('hss_student_draft_guest') ||
-          sessionStorage.getItem(`hss_student_draft_${uid}`) ||
-          sessionStorage.getItem('hss_admission_draft') ||
-          sessionStorage.getItem('hss_student_draft_guest');
-        if (rawDraft) {
-          const parsed = JSON.parse(rawDraft);
-          const draftData = (parsed && parsed.formData && typeof parsed.formData === 'object') ? parsed.formData : parsed;
-          if (draftData && typeof draftData === 'object' && Object.keys(draftData).length > 0) {
-            localDraft = draftData;
-            setAlert({
-              type: 'info',
-              text: '📋 Restored draft application from your previous session. You can review your details and proceed to submit.'
-            });
-          }
-        }
-      } catch (e) {
-        console.warn('Local draft load note:', e);
-      }
-
-      // Pre-fill student photo from any available source (draft, existing, historical, or user profile)
+      // Pre-fill student photo only from authenticated cloud data or the user profile.
       const preloadedPhoto =
         existing['Student Photo'] || existing['photo_id'] || existing['photoUrl'] || existing['photo'] ||
-        localDraft['Student Photo'] || localDraft['photo_id'] || localDraft['photoUrl'] || localDraft['photo'] ||
         historical['Student Photo'] || historical['photo_id'] || historical['photoUrl'] || historical['photo'] ||
         currentUser?.['Student Photo'] || currentUser?.photo_id || currentUser?.photoUrl || currentUser?.photoURL || '';
 
       // If filling a form, merge existing/historical student records for instant pre-fill
-      const isExistingSubmitted = ['Submitted', 'Approved', 'Under Review'].includes(existing.Status || existing.status);
-      const prefillSource = isExistingSubmitted ? existing : (Object.keys(localDraft).length > 0 ? { ...existing, ...historical, ...localDraft } : (Object.keys(existing).length > 0 ? existing : historical));
+      const prefillSource = Object.keys(existing).length > 0 ? existing : historical;
 
       const defaultSession = (() => {
         const now = new Date();
@@ -489,7 +461,6 @@ export default function AdmissionForm() {
 
       const mergedData = {
         ...prefillSource,
-        ...(isExistingSubmitted ? {} : localDraft),
         ...(assignedFormNo ? { 'Form Number': assignedFormNo, FormNo: assignedFormNo, formNo: assignedFormNo } : {}),
         Session: prefillSource.Session || prefillSource.session || appDataRes?.data?.activeSession || appDataRes?.activeSession || defaultSession,
         'Email Address': prefillSource['Email Address'] || currentUser?.email || '',
@@ -529,14 +500,7 @@ export default function AdmissionForm() {
         }
       }
 
-      if (Object.keys(localDraft).length > 0 && !isExistingSubmitted) {
-        setHasConfirmedInstructions(true);
-        setShowInstructions(false);
-        setAlert({
-          type: 'info',
-          text: '✨ Restored your auto-saved draft! You can continue filling out your application form.'
-        });
-      } else if (Object.keys(existing).length > 0) {
+      if (Object.keys(existing).length > 0) {
         const exStat = existing.Status || existing.status;
         if (exStat === 'Submitted' || exStat === 'Approved' || exStat === 'Under Review') {
           setHasConfirmedInstructions(true);
@@ -565,25 +529,18 @@ export default function AdmissionForm() {
     } finally {
       setLoading(false);
     }
-  }, [currentUser]);
+  }, [currentUser, requestedApplicationKey]);
 
-  // Detect upgrade mode from sessionStorage (set by StudentDashboard "Convert" button)
+  // Upgrade context is a non-sensitive route parameter; application data remains in Firestore.
   useEffect(() => {
-    try {
-      const upgradeStr = sessionStorage.getItem('hss_admission_upgrade');
-      if (upgradeStr) {
-        const upgradeCtx = JSON.parse(upgradeStr);
-        if (upgradeCtx && upgradeCtx.formNo && !upgradeMode) {
-          setUpgradeMode(true);
-          setUpgradeSourceFormNo(upgradeCtx.formNo || null);
-          setAlert({
-            type: 'info',
-            text: `🔄 Upgrade Mode: Converting Provisional Form #${upgradeCtx.formNo || ''} to Full Admission. All your details are pre-filled. Update the Admission Type to "Regular" and fill in the remaining required fields (marks, board reg. no., year of passing, etc.).`,
-          });
-        }
-      }
-    } catch (e) {}
-  }, []);
+    if (!requestedUpgradeMode || !requestedApplicationKey) return;
+    setUpgradeMode(true);
+    setUpgradeSourceFormNo(requestedApplicationKey);
+    setAlert({
+      type: 'info',
+      text: `🔄 Upgrade Mode: Converting Provisional Form #${requestedApplicationKey} to Full Admission. All cloud-saved details are pre-filled. Update the admission type and complete the remaining required fields.`,
+    });
+  }, [requestedApplicationKey, requestedUpgradeMode]);
 
   // 60-Second Auto-Dismiss Timer for Notification Alert Toasts
   useEffect(() => {
@@ -945,19 +902,6 @@ export default function AdmissionForm() {
       setIsSubmitting(true);
       setAlert(null);
     }
-    // Guarantee local storage save first so student never loses data
-    try {
-      const uid = currentUser?.uid || 'guest';
-      const draftObj = {
-        formData,
-        updatedAt: new Date().toISOString(),
-      };
-      localStorage.setItem(`hss_student_draft_${uid}`, JSON.stringify(draftObj));
-      localStorage.setItem('hss_admission_draft', JSON.stringify(draftObj));
-      sessionStorage.setItem(`hss_student_draft_${uid}`, JSON.stringify(draftObj));
-      sessionStorage.setItem('hss_admission_draft', JSON.stringify(draftObj));
-    } catch (_) {}
-
     try {
       const defaultSession = (() => {
         const now = new Date();
@@ -1956,14 +1900,17 @@ export default function AdmissionForm() {
         submissionKeyRef.current = window.crypto?.randomUUID?.() || `${Date.now()}_${Math.random().toString(36).slice(2)}`;
       }
       const currentAssignedFNo = applicationIdRef.current || applicationId || formData['Form Number'] || formData.FormNo || formData.formNo || '';
-      const res = await appsScriptApi.saveApplication({
+      const submissionFormData = {
         ...formData,
         'Form Number': currentAssignedFNo || formData['Form Number'],
         FormNo: currentAssignedFNo || formData.FormNo,
         formNo: currentAssignedFNo || formData.formNo,
+      };
+      const res = await submitAdmission({
+        formData: submissionFormData,
         applicationId: currentAssignedFNo || applicationIdRef.current || applicationId,
         submissionKey: submissionKeyRef.current,
-        ...(upgradeMode ? { _upgradeMode: true, _provisionalFormNo: upgradeSourceFormNo || '' } : {}),
+        upgradeMode,
       });
 
       if (res && (res.error === 'duplicate' || res.error === 'duplicate_mobile')) {
@@ -2008,9 +1955,6 @@ export default function AdmissionForm() {
         // Update local component state so all PDF generators & modals receive the official form number
         setFormData(submittedData);
         setSubmittedSuccessData(submittedData);
-
-        // Advance / consume form number in counter
-        consumeFormNumber(formNo).catch(e => console.warn('consumeFormNumber note:', e));
 
         try {
           const uid = currentUser?.uid || 'guest';

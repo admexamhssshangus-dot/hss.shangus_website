@@ -61,6 +61,87 @@ function normalize(value) {
   return String(value || '').trim().toLowerCase().replace(/\s+/g, '');
 }
 
+const LOOKUP_FIELDS = Object.freeze({
+  regNo: ['boardRegNo', 'regNo', 'Registration No.', 'Registration Number', 'Board Registration No.'],
+  formNo: ['formNo', 'FormNo', 'Form Number'],
+  rollNo: ['classRollNo', 'rollNo', 'Class Roll No.', 'Class Roll No', 'Roll No.', 'Roll No'],
+  certNo: ['certificateNo', 'Certificate No.', 'Certificate Number', 'Bonafide No.'],
+});
+
+function firstValue(data, fields) {
+  for (const field of fields) {
+    const value = data?.[field];
+    if (value !== undefined && value !== null && String(value).trim()) return String(value).trim();
+  }
+  return '';
+}
+
+function approvedRecord(data) {
+  const status = String(data?.Status || data?.status || data?.applicationStatus || '').trim().toLowerCase();
+  return status === 'approved' && data?._deleted !== true && data?._purged !== true;
+}
+
+function publicStudentProjection(data) {
+  const photo = firstValue(data, ['photoUrl', 'photoURL']);
+  return {
+    name: firstValue(data, ["Student's Name (as per school records)", "Student's Name", 'studentName', 'name']).slice(0, 100),
+    fatherName: firstValue(data, ["Father's Name", 'fatherName']).slice(0, 100),
+    className: firstValue(data, ['classCanonical', 'Admission sought for class', 'Class', 'className']).slice(0, 30),
+    classRollNo: firstValue(data, LOOKUP_FIELDS.rollNo).slice(0, 30),
+    session: firstValue(data, ['sessionCanonical', 'Session', 'session']).slice(0, 20),
+    boardRegNo: firstValue(data, LOOKUP_FIELDS.regNo).slice(0, 64),
+    formNo: firstValue(data, LOOKUP_FIELDS.formNo).slice(0, 32),
+    certificateNo: firstValue(data, LOOKUP_FIELDS.certNo).slice(0, 64),
+    photoUrl: /^https:\/\//i.test(photo) ? photo.slice(0, 2048) : null,
+  };
+}
+
+function candidateValues(rawValue) {
+  const raw = String(rawValue || '').trim();
+  const values = new Set([raw, normalize(raw)]);
+  if (/^\d+$/.test(raw)) {
+    const numeric = Number(raw);
+    if (Number.isSafeInteger(numeric)) values.add(numeric);
+  }
+  return Array.from(values).filter(value => value !== '');
+}
+
+async function findApprovedApplication(db, type, rawQuery) {
+  const matches = new Map();
+  for (const field of LOOKUP_FIELDS[type]) {
+    for (const value of candidateValues(rawQuery)) {
+      const snapshot = await db.collection('admissions').where(field, '==', value).limit(3).get();
+      snapshot.docs.forEach(doc => {
+        if (approvedRecord(doc.data())) matches.set(doc.id, doc);
+      });
+    }
+    if (matches.size) break;
+  }
+  return matches.values().next().value || null;
+}
+
+async function writeVerificationIndexes(db, indexSecret, student, sourceApplicationId) {
+  const identifiers = {
+    regNo: student.boardRegNo,
+    formNo: student.formNo,
+    certNo: student.certificateNo,
+  };
+  const batch = db.batch();
+  let writes = 0;
+  Object.entries(identifiers).forEach(([type, value]) => {
+    const normalized = normalize(value);
+    if (!normalized) return;
+    const indexId = crypto.createHmac('sha256', indexSecret).update(`${type}:${normalized}`).digest('hex');
+    batch.set(db.collection('studentVerificationIndex').doc(indexId), {
+      ...student,
+      sourceApplicationId,
+      refreshedAt: Timestamp.now(),
+    }, { merge: true });
+    writes += 1;
+  });
+  if (writes) await batch.commit();
+}
+
 async function consumeRateLimit(db, ipHash) {
   const ref = db.collection('securityRateLimits').doc(`student_lookup_${ipHash}`);
   const now = Date.now();
@@ -91,8 +172,9 @@ exports.handler = async function handler(event) {
   catch (_) { return response(400, { error: 'Invalid request.' }, origin); }
 
   const type = body.type;
-  const value = normalize(body.query);
-  if (!['regNo', 'formNo'].includes(type) || value.length < 4 || value.length > 64 || !/^[a-z0-9/_.-]+$/.test(value)) {
+  const rawQuery = String(body.query || '').trim();
+  const value = normalize(rawQuery);
+  if (!['regNo', 'formNo', 'certNo'].includes(type) || value.length < 4 || value.length > 64 || !/^[a-z0-9/_.-]+$/.test(value)) {
     return response(400, { error: 'Invalid lookup value.' }, origin);
   }
 
@@ -109,22 +191,26 @@ exports.handler = async function handler(event) {
     if (!(await consumeRateLimit(db, ipHash))) return response(429, { error: 'Too many requests. Try again later.' }, origin);
 
     const indexId = crypto.createHmac('sha256', indexSecret).update(`${type}:${value}`).digest('hex');
-    const snap = await db.collection('studentVerificationIndex').doc(indexId).get();
-    if (!snap.exists) return response(404, { error: 'No matching record was found.' }, origin);
-    const data = snap.data() || {};
-    const student = {
-      name: String(data.name || '').slice(0, 100),
-      fatherName: String(data.fatherName || '').slice(0, 100),
-      className: String(data.className || '').slice(0, 30),
-      classRollNo: String(data.classRollNo || '').slice(0, 30),
-      session: String(data.session || '').slice(0, 20),
-      boardRegNo: String(data.boardRegNo || '').slice(0, 64),
-      formNo: String(data.formNo || '').slice(0, 32),
-      photoUrl: typeof data.photoUrl === 'string' && /^https:\/\//.test(data.photoUrl) ? data.photoUrl.slice(0, 2048) : null,
-    };
+    const indexRef = db.collection('studentVerificationIndex').doc(indexId);
+    const snap = await indexRef.get();
+    const indexData = snap.exists ? (snap.data() || {}) : null;
+    const refreshedAt = indexData?.refreshedAt?.toMillis?.() || 0;
+    const indexIsFresh = refreshedAt > Date.now() - 24 * 60 * 60 * 1000;
+    let student = indexIsFresh ? publicStudentProjection(indexData) : null;
+
+    if (!student?.name) {
+      const approvedApplication = await findApprovedApplication(db, type, rawQuery);
+      if (!approvedApplication) {
+        if (snap.exists) await indexRef.delete();
+        return response(404, { error: 'No matching approved record was found.' }, origin);
+      }
+      student = publicStudentProjection(approvedApplication.data());
+      await writeVerificationIndexes(db, indexSecret, student, approvedApplication.id);
+    }
     return response(200, { student }, origin);
   } catch (error) {
     console.error('Student lookup failed:', error.message);
+    if (error.status === 409) return response(409, { error: error.message }, origin);
     return response(503, { error: 'Lookup service is temporarily unavailable.' }, origin);
   }
 };

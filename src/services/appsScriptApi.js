@@ -448,7 +448,7 @@ function getInitialData() {
   return call('getInitialDataForUser');
 }
 
-async function legacyGetStudentApplication() {
+async function legacyGetStudentApplicationFromCache() {
   try {
     const user = sessionManager.getUser();
     if (user) {
@@ -748,23 +748,13 @@ async function legacySaveApplication(payload) {
       errText.includes('resource exhausted') ||
       errText.includes('8 resource_exhausted');
 
-    // Save local draft fallback immediately so user loses nothing
-    try {
-      const draftObj = { formData: payloadData, updatedAt: new Date().toISOString() };
-      const uid = auth.currentUser?.uid || sessionUser?.uid || 'guest';
-      localStorage.setItem('hss_admission_draft', JSON.stringify(draftObj));
-      localStorage.setItem(`hss_student_draft_${uid}`, JSON.stringify(draftObj));
-      sessionStorage.setItem('hss_admission_draft', JSON.stringify(draftObj));
-      sessionStorage.setItem(`hss_student_draft_${uid}`, JSON.stringify(draftObj));
-    } catch (_) {}
-
     if (isQuotaExhausted) {
       return {
         success: false,
         error: 'quota_exhausted',
         isQuotaExhausted: true,
-        draftSaved: true,
-        message: '⚠️ Server Daily Write Limit Reached: The admission database has temporarily reached its daily write capacity. Your complete application data has been safely saved as a Local Draft on this device. You will not lose any filled details. Please submit again tomorrow (or after 12:30 PM IST) when the server quota resets.',
+        draftSaved: false,
+        message: 'The cloud admission service has reached its write quota. No browser copy was retained; retry after the Firebase quota resets.',
         formNumber: formNo,
       };
     }
@@ -835,7 +825,7 @@ function getCurrentAcademicSession() {
   return `${sessionStartYear}-${String(sessionEndYear).slice(-2)}`;
 }
 
-async function getStudentApplication() {
+async function legacyGetStudentApplication() {
   const computedSession = getCurrentAcademicSession();
   try {
     const sessionUser = sessionManager.getUser();
@@ -989,8 +979,29 @@ async function getStudentApplication() {
   }
 }
 
+async function getStudentApplication() {
+  const { loadAdmissionWorkspace } = await import('./admissionWorkflowApi');
+  return loadAdmissionWorkspace();
+}
+
 async function saveApplication(payload) {
-  return legacySaveApplication(payload);
+  const { saveAdmissionDraft, submitAdmission } = await import('./admissionWorkflowApi');
+  const {
+    applicationId = '',
+    submissionKey = '',
+    _upgradeMode = false,
+    ...formData
+  } = payload || {};
+  const status = String(formData.Status || formData.status || '').toLowerCase();
+  if (status === 'draft') {
+    return saveAdmissionDraft({ formData, applicationId });
+  }
+  return submitAdmission({
+    formData,
+    applicationId,
+    submissionKey,
+    upgradeMode: _upgradeMode === true,
+  });
 }
 
 async function deleteStudentApplication(formNoOrDocId) {

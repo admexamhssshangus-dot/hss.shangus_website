@@ -23,27 +23,18 @@ import {
   loadFeederSchools, 
   saveFeederSchools 
 } from '../../utils/feederSchoolsManager';
+import {
+  ADMIN_MODULE_CATALOG,
+  getModuleMaturity,
+} from './adminModuleCatalog';
 
-export const ALL_ADMIN_MODULES = [
-  { code: 'reports', label: 'Master Register & Database', desc: 'View, edit, approve student applications & tables' },
-  { code: 'admRegisterSuite', label: 'Admission Register & Sentup Suite', desc: 'Official ledger, JKBOSE sentup roll, bulk assign IDs & dates' },
-  { code: 'customRoster', label: 'Student Roster & Registers Studio', desc: 'Custom student lists, fee sheets & tabular class registers' },
-  { code: 'officialLetter', label: 'Official Letterhead Writer', desc: 'Compose, format & print official school letters with institutional header' },
-  { code: 'certStudio', label: 'Student Bonafides & Certificates Studio', desc: 'Generate batch bonafide, character, DOB & achievement certificates' },
-  { code: 'idCards', label: 'Student ID Cards Studio', desc: 'Generate batch ID Card PDFs & print cards' },
-  { code: 'gkTest', label: 'GK Test & OMR System', desc: 'Manage GK registrations, admit cards, centers & OMR' },
-  { code: 'controls', label: 'System & Emergency Controls', desc: 'Enable/disable 9th-12th classes, sessions, print settings' },
-  { code: 'subjects', label: 'Subject Configuration Rules', desc: 'Configure streams, groups A/B/C, min/max limits' },
-  { code: 'practicals', label: 'Practicals & Awards', desc: 'Practical marks entry, examiners, awards locking' },
-  { code: 'attendanceMgmt', label: 'Attendance Management', desc: 'Class attendance registers, log attendance & reports' },
-  { code: 'rollNo', label: 'Roll Number Assignment', desc: 'Auto-assign roll numbers & roll series configuration' },
-  { code: 'mergeStudio', label: 'Application Merger & Deduplication', desc: 'Scan, review side-by-side & merge duplicate records by Reg No' },
-  { code: 'automations', label: 'Email & Automations', desc: 'Group Email Composer, broadcast notifications & logs' },
-  { code: 'funds', label: 'Fund & Fee Accounts', desc: 'Fee structures, student fee ledgers & account distribution' },
-  { code: 'cms', label: 'Website CMS & Administration', desc: 'Website content, access and publishing' },
-  { code: 'ingestion', label: 'Direct Ingestion & CSV Import', desc: 'Express student creation & raw CSV data importer' },
-  { code: 'adminMgmt', label: 'Admin Permissions Manager', desc: 'Add, edit, or revoke other admin accounts & permissions' },
-];
+export const ALL_ADMIN_MODULES = ADMIN_MODULE_CATALOG.map(module => ({
+  code: module.id,
+  label: module.label,
+  desc: module.description,
+  maturity: module.maturity,
+  maturityNote: module.maturityNote,
+}));
 
 const DEFAULT_ADMIN_USERS = [
   {
@@ -1855,12 +1846,13 @@ export default function ControlsAndSubjects() {
                         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-1 pt-1">
                           {ALL_ADMIN_MODULES.map((mod) => {
                             const active = userPerms.includes(mod.code) || isSuper;
+                            const maturity = getModuleMaturity(mod.maturity);
                             return (
                               <button
                                 key={mod.code}
                                 type="button"
                                 onClick={() => togglePermission(user.email, mod.code)}
-                                title={mod.desc}
+                                title={`${maturity.label}: ${mod.maturityNote}\n${mod.desc}`}
                                 className={`py-1 px-2 rounded-lg text-left text-[10.5px] transition-all cursor-pointer border flex items-center justify-between ${
                                   active
                                     ? 'bg-amber-600 text-white border-amber-700 font-black shadow-2xs'
@@ -2118,6 +2110,7 @@ export default function ControlsAndSubjects() {
                       <div className="p-2 space-y-1.5 max-h-52 overflow-y-auto rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-950/40 scrollbar-thin">
                         {ALL_ADMIN_MODULES.map((mod) => {
                           const checked = adminForm.perms.includes(mod.code);
+                          const maturity = getModuleMaturity(mod.maturity);
                           return (
                             <label
                               key={mod.code}
@@ -2139,8 +2132,16 @@ export default function ControlsAndSubjects() {
                                 className="mt-0.5 w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
                               />
                               <div className="min-w-0 flex-1">
-                                <span className={`text-xs block leading-tight ${checked ? 'font-black text-slate-900 dark:text-white' : 'font-semibold text-slate-700 dark:text-slate-300'}`}>
-                                  {mod.label}
+                                <span className="flex min-w-0 items-center gap-1.5">
+                                  <span className={`min-w-0 truncate text-xs leading-tight ${checked ? 'font-black text-slate-900 dark:text-white' : 'font-semibold text-slate-700 dark:text-slate-300'}`}>
+                                    {mod.label}
+                                  </span>
+                                  <span
+                                    title={mod.maturityNote}
+                                    className={`flex-shrink-0 rounded border px-1 py-px text-[7.5px] font-black leading-none tracking-wide ${maturity.badgeClass}`}
+                                  >
+                                    {maturity.label}
+                                  </span>
                                 </span>
                                 <span className="text-[10.5px] font-normal text-slate-500 dark:text-slate-400 block truncate mt-0.5">
                                   {mod.desc}

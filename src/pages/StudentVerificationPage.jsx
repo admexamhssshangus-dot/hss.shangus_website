@@ -21,8 +21,6 @@ import {
   MapPin, Phone, ArrowLeft, CreditCard, ShieldAlert,
   FileCheck, Calendar, Hash, UserCheck, Lock, Award, Shield
 } from 'lucide-react';
-import { db } from '../services/firebase';
-import { collection, getDocs, doc, getDoc } from 'firebase/firestore';
 import ModernLoader from '../components/ModernLoader';
 import { getStudentRollVal, normalizeStudentClass, generateVerificationSignature } from '../utils/idCardRenderer';
 import { getStudentPhotoUrl, formatPhotoDisplayUrl } from '../utils/imageCompressor';
@@ -182,101 +180,44 @@ export default function StudentVerificationPage() {
       }
 
       try {
-        const collectionsToSearch = ['admissions', 'students', 'masterRegisters'];
         let matched = null;
+        const lookupCandidates = [
+          { type: 'regNo', value: regParam },
+          { type: 'formNo', value: fNoParam },
+          { type: 'certNo', value: certParam },
+        ].filter(item => item.value && item.value !== '—' && String(item.value).trim().length >= 4);
 
-        for (const collName of collectionsToSearch) {
-          try {
-            const snap = await getDocs(collection(db, collName));
-            snap.forEach(docSnap => {
-              const d = { id: docSnap.id, ...docSnap.data() };
-              const dReg = String(d['Board Registration Number'] || d.boardRegNo || d.regNo || '').trim();
-              const dRoll = String(getStudentRollVal(d) || '').trim();
-              const dFNo = String(d['Form Number'] || d['Form No.'] || d.formNo || docSnap.id || '').replace(/[^0-9]/g, '').trim();
-              const dCertNo = String(d.certificateNo || d['Certificate No'] || d['Certificate No.'] || '').trim();
-
-              if (matched) return;
-
-              if (regParam && regParam !== '—' && dReg && dReg.toLowerCase() === regParam.trim().toLowerCase()) {
-                matched = d;
-              } else if (rollParam && rollParam !== '—' && dRoll && dRoll === rollParam.trim()) {
-                matched = d;
-              } else if (fNoParam && fNoParam !== '—' && dFNo && dFNo === fNoParam.trim()) {
-                matched = d;
-              } else if (certParam && certParam !== '—' && dCertNo && dCertNo === certParam.trim()) {
-                matched = d;
-              }
-            });
-          } catch (err) {
-            console.warn(`Query ${collName} note:`, err);
+        for (const candidate of lookupCandidates) {
+          const res = await fetch('/.netlify/functions/lookup-student', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            cache: 'no-store',
+            body: JSON.stringify({ type: candidate.type, query: String(candidate.value).trim() }),
+          });
+          if (res.status === 429) {
+            setIsRateLimited(true);
+            break;
           }
-          if (matched) break;
-        }
-
-        // Server lookup fallback for unauthenticated public scans
-        if (!matched && (regParam || fNoParam)) {
-          try {
-            const lookupType = regParam ? 'regNo' : 'formNo';
-            const lookupQuery = (regParam || fNoParam).trim();
-            if (lookupQuery.length >= 4) {
-              const res = await fetch('/.netlify/functions/lookup-student', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ type: lookupType, query: lookupQuery }),
-              });
-              if (res.ok) {
-                const data = await res.json();
-                if (data && data.student) {
-                  matched = {
-                    "Student's Name (as per school records)": data.student.name,
-                    "Father's/Guardian's Name (as per school records)": data.student.fatherName,
-                    "Admission sought for class": data.student.className,
-                    "Class Roll No": data.student.classRollNo,
-                    "Board Registration Number": data.student.boardRegNo,
-                    "Form Number": data.student.formNo,
-                    "Session": data.student.session,
-                    "Status": "Approved",
-                    photo_id: data.student.photoUrl,
-                  };
-                }
-              }
-            }
-          } catch (_) {}
+          if (!res.ok) continue;
+          const data = await res.json().catch(() => ({}));
+          if (data?.student) {
+            matched = {
+              "Student's Name (as per school records)": data.student.name,
+              "Father's/Guardian's Name (as per school records)": data.student.fatherName,
+              "Admission sought for class": data.student.className,
+              "Class Roll No": data.student.classRollNo,
+              "Board Registration Number": data.student.boardRegNo,
+              "Form Number": data.student.formNo,
+              "Certificate No.": data.student.certificateNo,
+              "Session": data.student.session,
+              "Status": 'Approved',
+              photo_id: data.student.photoUrl,
+            };
+            break;
+          }
         }
 
         if (matched) {
-          // Fetch student photo from studentPhotos collection if not present on matched object
-          let resolvedPhoto = getStudentPhotoUrl(matched);
-          if (!resolvedPhoto || resolvedPhoto === '/logo.png' || resolvedPhoto === '—') {
-            const rawReg = String(matched['Board Registration Number'] || matched.boardRegNo || matched.regNo || regParam || '').replace(/[^a-zA-Z0-9]/g, '');
-            const rawForm = String(matched['Form Number'] || matched['Form No.'] || matched.formNo || fNoParam || '').replace(/[^0-9]/g, '');
-            const docCandidates = [
-              rawReg ? `photo_${rawReg}` : null,
-              rawReg || null,
-              rawForm ? `photo_form_${rawForm}` : null,
-              rawForm || null,
-              matched.id ? `photo_${matched.id}` : null,
-              matched.id || null
-            ].filter(Boolean);
-
-            for (const cand of docCandidates) {
-              try {
-                const pSnap = await getDoc(doc(db, 'studentPhotos', cand));
-                if (pSnap.exists()) {
-                  const pData = pSnap.data();
-                  const p = pData.photo_id || pData.photoData || pData.photo || pData.photoUrl;
-                  const formatted = formatPhotoDisplayUrl(p) || p;
-                  if (formatted && formatted.length > 20 && formatted !== '/logo.png') {
-                    resolvedPhoto = formatted;
-                    break;
-                  }
-                }
-              } catch (_) {}
-            }
-          }
-          if (resolvedPhoto) {
-            matched.photo_id = resolvedPhoto;
-          }
           setStudent(matched);
         } else {
           setNotFound(true);

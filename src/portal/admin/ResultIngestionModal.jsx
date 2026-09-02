@@ -792,20 +792,18 @@ export default function ResultIngestionModal({
               </select>
             </div>
 
-            <button
-              type="button"
-              onClick={() => setShowKeysConfig(!showKeysConfig)}
-              className="px-2 py-0.5 rounded-lg font-bold text-[10.5px] border flex items-center gap-1 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border-amber-300 dark:border-amber-700 cursor-pointer shadow-2xs whitespace-nowrap"
-              title={isSuperAdmin ? "Manage Gemini AI API Keys & Models (SuperAdmin Control)" : `Gemini AI Vision Active (${preferredModel})`}
+            <span
+              className="px-2 py-0.5 rounded-lg font-bold text-[10.5px] border flex items-center gap-1 bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700 shadow-2xs whitespace-nowrap"
+              title="Gemini credentials are managed in the protected Netlify environment"
             >
-              {isSuperAdmin ? <Key size={11} className="text-amber-600" /> : <Sparkles size={11} className="text-amber-600" />}
-              <span>{isSuperAdmin ? `${geminiKeys.length} Keys Pool` : preferredModel}</span>
-            </button>
+              <ShieldCheck size={11} />
+              <span>Server-secured AI · {preferredModel}</span>
+            </span>
           </div>
         </div>
 
         {/* Gemini API Key Pool Configuration Drawer */}
-        {showKeysConfig && (
+        {false && showKeysConfig && (
           <div className="mx-6 mt-3 p-3.5 rounded-2xl bg-amber-50/90 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700/80 space-y-2.5 animate-fadeIn text-xs">
             {isSuperAdmin ? (
               <>

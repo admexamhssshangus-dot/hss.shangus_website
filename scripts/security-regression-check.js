@@ -24,10 +24,21 @@ const publicFaculty = JSON.parse(read('public/slides/faculty.json'));
 const geminiClient = read('src/services/geminiLetterService.js');
 const aiFunction = read('netlify/functions/ai-generate.js');
 const serviceWorker = read('public/service-worker.js');
+const adminTools = read('src/portal/admin/AdminToolsDropdown.jsx');
+const admissionForm = read('src/portal/student/AdmissionForm.jsx');
+const studentDashboard = read('src/portal/student/StudentDashboard.jsx');
+const publicStudentLookup = read('netlify/functions/lookup-student.js');
+const legacyApiFacade = read('src/services/appsScriptApi.js');
 
-assert(!/allow\s+(read|write|create|update|delete)(?:\s*,\s*\w+)*\s*:\s*if\s+true\b/.test(rules), 'Firestore contains unconditional access');
+assert(!/allow\s+(write|create|update|delete)(?:\s*,\s*\w+)*\s*:\s*if\s+true\b/.test(rules), 'Firestore contains an unconditional write');
 assert(/match \/\{document=\*\*\}[\s\S]*allow read, write: if false;/.test(rules), 'Firestore default deny is missing');
 assert(/request\.auth\.token\.(admin|role)/.test(rules), 'Firestore RBAC does not use signed token claims');
+assert(/match \/admissions\/\{documentId\}[\s\S]{0,240}ownsAdmission\(resource\.data\)/.test(rules), 'Student admission reads are not owner-scoped');
+assert(/Student writes go through the authenticated admission-workflow server[\s\S]{0,260}allow create, update: if isAdmin\(\)/.test(rules), 'Direct student admission writes are not disabled');
+assert(/match \/studentPhotos\/\{documentId\}[\s\S]{0,220}allow read: if isTeacher\(\)[\s\S]{0,180}allow create, update: if isAdmin\(\)/.test(rules), 'Student photos are not restricted to staff');
+assert(/match \/admissionHistory\/\{documentId\}[\s\S]{0,180}allow read: if isAdmin\(\)[\s\S]{0,180}allow create, update: if isAdmin\(\)/.test(rules), 'Admission history is not administrator-only');
+assert(/match \/systemSettings\/\{documentId\}[\s\S]{0,260}hasNoAiSecretFields\(request\.resource\.data\)/.test(rules), 'System settings can still accept browser-written AI secrets');
+assert(/match \/siteSettings\/\{documentId\}[\s\S]{0,320}hasNoNestedPaymentSecrets\(request\.resource\.data\)/.test(rules), 'Public site settings can still accept nested payment secrets');
 assert(/validContactMessage\(request\.resource\.data\)/.test(rules), 'Public message validation is missing');
 assert(/allow read, write: if false;/.test(storage), 'Storage default deny is missing');
 assert(/request\.resource\.size/.test(storage) && /contentType/.test(storage), 'Storage upload validation is missing');
@@ -42,7 +53,12 @@ assert(/runTransaction\(async tx/.test(admissionWorkflow), 'Admission submission
 assert(/admissionSubmissionKeys/.test(admissionWorkflow), 'Admission submission is not idempotent');
 assert(/globalAdmissionsClosed/.test(admissionWorkflow) && /admissionsClosed/.test(admissionWorkflow), 'Admission closure flags are not enforced server-side');
 assert(/A valid Aadhaar|validAadhaar/.test(admissionWorkflow), 'Admission server lacks Aadhaar validation');
-assert(/Student writes go through the authenticated admission-workflow server/.test(rules), 'Direct student admission writes are not disabled');
+assert(/X-Firebase-AppCheck/.test(admissionClient) && /getAppCheckToken/.test(admissionClient), 'Admission client does not attach App Check');
+assert(/return request\('draft'/.test(admissionClient) && /return request\('submit'/.test(admissionClient), 'Admission cloud workflow is not authoritative');
+assert(!/(localStorage|sessionStorage)\.(setItem|getItem)/.test(admissionClient), 'Admission API still falls back to browser-stored student records');
+assert(/loadAdmissionWorkspace\(\)/.test(admissionForm) && /submitAdmission\(\{/.test(admissionForm), 'Admission form bypasses the authenticated workflow');
+assert(/loadAdmissionWorkspace\(\)/.test(studentDashboard), 'Student dashboard bypasses the authenticated workflow');
+assert(!/(localStorage|sessionStorage)\.setItem\([^\n]*(hss_admission_draft|hss_student_draft)/.test(`${admissionForm}\n${studentDashboard}\n${legacyApiFacade}`), 'Admission records can still fall back to browser storage');
 assert(/MEMORY_ONLY_COLLECTIONS/.test(cache) && /'admissions'/.test(cache), 'Private admission caches are still persistent');
 assert(/validatedPhoto/.test(admissionWorkflow) && /100 \* 1024/.test(admissionWorkflow), 'Firestore photo validation or size limit is missing');
 assert(/studentApplicationIndex/.test(admissionWorkflow) && /applicationIndexId/.test(admissionWorkflow), 'Admission registration/class/session index is missing');
@@ -68,7 +84,7 @@ assert(/selectedIncludesAssignedRoll/.test(reports), 'Bulk workflow status chang
 assert(!/classPhoto = p9 \|\| p10 \|\| p11 \|\| p12/.test(photoResolver), 'Secondary-class photos can still fall through to the higher-secondary band');
 assert(!/classPhoto = p11 \|\| p12 \|\| p9 \|\| p10/.test(photoResolver), 'Higher-secondary photos can still fall through to the secondary band');
 assert(/const printableRows = await Promise\.all\(processedRows\.map/.test(rosterBuilder), 'Roster printing does not wait for canonical photo resolution');
-assert(/setPhotoSrc\(''\);[\s\S]{0,220}const fast/.test(rosterBuilder), 'Roster photo cells can retain a previous student image while a new lookup is pending');
+assert(/setImgError\(false\);[\s\S]{0,80}\[photoSrc\]/.test(rosterBuilder), 'Roster photo error state is not reset when the student image changes');
 assert(!['public/slides/admins.json', 'public/slides/messages.json', 'public/slides/faculty_roster.csv', 'public/slides/faculty_roster_custom.csv']
   .some(file => fs.existsSync(path.join(root, file))), 'A legacy sensitive public file still exists');
 assert(!fs.existsSync(path.join(root, 'scripts/rest-seed.js')), 'The unauthenticated legacy REST seeder still exists');
@@ -79,11 +95,16 @@ assert(publicFaculty.length > 0 && publicFaculty.every(member => {
 assert(/match \/facultyPublic\/\{documentId\}/.test(rules) && /validPublicFaculty/.test(rules), 'Public faculty Firestore validation is missing');
 assert(/documentId == 'faculty' && isAdmin\(\)/.test(rules), 'Legacy faculty document is not admin-only');
 assert(!/generativelanguage\.googleapis\.com/.test(geminiClient), 'Gemini is still called directly from the browser');
-assert(!/setDoc|apiKeys\s*:/.test(geminiClient), 'Gemini secrets can still be stored by the browser');
+assert(!/REACT_APP_GEMINI_API_KEY|apiKeys\s*:|apiKey\s*:/.test(geminiClient), 'Gemini secrets can still be supplied or stored by the browser');
+assert(/fetch\(ENDPOINT/.test(geminiClient) && /Authorization: `Bearer/.test(geminiClient), 'Gemini requests do not use the authenticated server gateway');
+assert(/removeLegacyBrowserSecrets/.test(geminiClient) && /localStorage\.removeItem\(key\)/.test(geminiClient), 'Legacy browser-stored Gemini secrets are not removed');
 assert(/verifyIdToken/.test(aiFunction) && /verifyToken\(appCheckToken\)/.test(aiFunction), 'AI endpoint authentication or App Check is missing');
 assert(/sanitizeHtml/.test(aiFunction), 'AI-generated HTML is not sanitized server-side');
+assert(/writeVerificationIndexes/.test(publicStudentLookup) && /studentVerificationIndex/.test(publicStudentLookup), 'Approved-record verification index is not populated server-side');
+assert(/where\(field, '==', value\)\.limit\(3\)/.test(publicStudentLookup), 'Public verification does not use bounded exact-match server queries');
+assert(!/\.collection\('admissions'\)\.get\(\)/.test(publicStudentLookup), 'Public verification performs a collection-wide admissions scan');
+assert(!/\['regNo', 'formNo', 'rollNo', 'certNo'\]/.test(publicStudentLookup), 'Public verification permits ambiguous roll-number-only lookup');
 assert(serviceWorker.includes('(?:csv|json|txt)') && /NEVER_CACHE_PATHS/.test(serviceWorker), 'Service worker may cache sensitive data responses');
-assert(/sessionStorage\.setItem\(getLocalDraftKey/.test(admissionClient), 'Admission recovery drafts are not tab-scoped');
-assert(!/localStorage\.setItem\(getLocalDraftKey/.test(admissionClient), 'Admission drafts are persisted across browser restarts');
+assert(/if \(!user\) return false;/.test(adminTools), 'Admin module launcher fails open before authentication resolves');
 
 console.log('Security regression checks passed.');

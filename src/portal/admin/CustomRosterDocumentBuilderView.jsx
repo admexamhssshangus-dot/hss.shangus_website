@@ -1292,6 +1292,9 @@ function RosterStudentPhotoCell({ student, studentName, initialPhoto }) {
     return direct && direct !== '/logo.png' && direct !== '—' ? (formatPhotoDisplayUrl(direct) || direct) : '';
   }, [student, initialPhoto]);
   const [imgError, setImgError] = useState(false);
+  useEffect(() => {
+    setImgError(false);
+  }, [photoSrc]);
   const hasPhoto = photoSrc && !imgError && photoSrc !== '—' && photoSrc !== '/logo.png';
 
   return (

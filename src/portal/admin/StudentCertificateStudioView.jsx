@@ -3673,7 +3673,7 @@ export default function StudentCertificateStudioView({
                           <Sparkles size={10} className="text-purple-600" />
                           <span>Gemini AI Assistant</span>
                         </span>
-                        <span className="text-[7.5px] font-mono text-slate-400 font-bold">{geminiKeys.length} keys</span>
+                        <span className="text-[7.5px] font-mono text-emerald-600 dark:text-emerald-400 font-bold">secure server</span>
                       </div>
                       <button
                         type="button"
@@ -5181,15 +5181,13 @@ export default function StudentCertificateStudioView({
               </div>
 
               <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setShowKeysConfig(!showKeysConfig)}
-                  className="px-2 py-1 rounded-lg font-extrabold text-[10px] border flex items-center gap-1 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border-amber-300 dark:border-amber-700 cursor-pointer transition-colors shadow-2xs"
-                  title="Configure Gemini API Keys (Saved to Cloud Firestore & Local Storage)"
+                <span
+                  className="px-2 py-1 rounded-lg font-extrabold text-[10px] border flex items-center gap-1 bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700 shadow-2xs"
+                  title="Gemini credentials are managed in the protected Netlify environment"
                 >
-                  <Key size={11} className="text-amber-600" />
-                  <span>{geminiKeys.length > 0 ? `${geminiKeys.length} Key${geminiKeys.length > 1 ? 's' : ''} Active` : 'Configure Key'}</span>
-                </button>
+                  <Shield size={11} />
+                  <span>Server-secured AI</span>
+                </span>
 
                 <button
                   type="button"
@@ -5202,7 +5200,7 @@ export default function StudentCertificateStudioView({
             </div>
 
             {/* API Keys Configuration Drawer */}
-            {showKeysConfig && (
+            {false && showKeysConfig && (
               <div className="p-3 rounded-2xl bg-amber-50/90 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700 space-y-2 animate-fadeIn">
                 <div className="flex items-center justify-between">
                   <label className="font-black text-[10.5px] text-amber-950 dark:text-amber-200 flex items-center gap-1.5">

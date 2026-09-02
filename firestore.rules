@@ -69,6 +69,17 @@ service cloud.firestore {
       return isAuthenticated() && documentId.lower() == authEmail();
     }
 
+    function ownsAdmission(data) {
+      return isAuthenticated() && (
+        (('ownerUid' in data) && data.ownerUid == request.auth.uid) ||
+        (hasVerifiedEmail() && (!('ownerUid' in data) || data.ownerUid == '') && (
+          (('emailNormalized' in data) && data.emailNormalized is string && data.emailNormalized.lower() == authEmail()) ||
+          (('Email Address' in data) && data['Email Address'] is string && data['Email Address'].lower() == authEmail()) ||
+          (('email' in data) && data.email is string && data.email.lower() == authEmail())
+        ))
+      );
+    }
+
     function uidUnchanged(data) {
       return !('uid' in data) || data.uid == request.auth.uid;
     }
@@ -110,6 +121,32 @@ service cloud.firestore {
         'PasswordHash', 'pass', 'Pass', 'secret', 'secretKey', 'keySecret',
         'apiKey', 'token', 'refreshToken'
       ]);
+    }
+
+    function hasNoAiSecretFields(data) {
+      return !data.keys().hasAny([
+        'apiKey', 'apiKeys', 'geminiApiKey', 'geminiKeys', 'aiKeys',
+        'geminiApiConfig', 'aiConfig', 'secret', 'secretKey', 'keySecret',
+        'accessToken', 'refreshToken'
+      ]);
+    }
+
+    function hasNoNestedPaymentSecrets(data) {
+      return !('paymentGatewayConfig' in data) || data.paymentGatewayConfig == null || (
+        data.paymentGatewayConfig is map &&
+        (!('cashfree' in data.paymentGatewayConfig) || data.paymentGatewayConfig.cashfree == null || (
+          data.paymentGatewayConfig.cashfree is map &&
+          !data.paymentGatewayConfig.cashfree.keys().hasAny([
+            'secret', 'secretKey', 'appSecret', 'clientSecret', 'accessToken', 'refreshToken'
+          ])
+        )) &&
+        (!('razorpay' in data.paymentGatewayConfig) || data.paymentGatewayConfig.razorpay == null || (
+          data.paymentGatewayConfig.razorpay is map &&
+          !data.paymentGatewayConfig.razorpay.keys().hasAny([
+            'secret', 'secretKey', 'keySecret', 'clientSecret', 'accessToken', 'refreshToken'
+          ])
+        ))
+      );
     }
 
     function validEmail(value) {
@@ -282,7 +319,9 @@ service cloud.firestore {
 
     match /siteSettings/{documentId} {
       allow read: if true;
-      allow create, update, delete: if isAdmin();
+      allow create, update: if isAdmin() && hasNoCredentialFields(request.resource.data) &&
+        hasNoAiSecretFields(request.resource.data) && hasNoNestedPaymentSecrets(request.resource.data);
+      allow delete: if isAdmin();
     }
 
     // Explicitly published, data-minimised faculty directory.
@@ -310,9 +349,11 @@ service cloud.firestore {
     }
 
     match /admissions/{documentId} {
-      allow get, list: if isTeacher() || isAuthenticated();
-      allow create, update: if (isAdmin() && validStaffDocument(request.resource.data)) ||
-        isAuthenticated();
+      allow get, list: if isTeacher() || (isStudent() && ownsAdmission(resource.data));
+      // Student writes go through the authenticated admission-workflow server.
+      // This prevents browser clients from assigning form numbers, changing
+      // review status, bypassing admission windows, or forging timestamps.
+      allow create, update: if isAdmin() && validStaffDocument(request.resource.data);
       allow delete: if isAdmin();
     }
 
@@ -360,7 +401,11 @@ service cloud.firestore {
     }
 
     match /systemSettings/{documentId} {
-      allow read, write: if isAdmin();
+      allow read: if isAdmin() && documentId != 'geminiApiConfig';
+      allow create, update: if isAdmin() && documentId != 'geminiApiConfig' &&
+        hasNoCredentialFields(request.resource.data) && hasNoAiSecretFields(request.resource.data) &&
+        hasNoNestedPaymentSecrets(request.resource.data);
+      allow delete: if isAdmin();
     }
 
     match /formStructure/{documentId} {
@@ -392,14 +437,16 @@ service cloud.firestore {
     }
 
     match /studentPhotos/{documentId} {
-      allow read: if true;
-      allow create, update: if isAuthenticated() || isTeacher();
+      // Central photos contain private student data. Students receive only their
+      // own hydrated photo through the authenticated admission backend.
+      allow read: if isTeacher();
+      allow create, update: if isAdmin() && validStaffDocument(request.resource.data);
       allow delete: if isAdmin();
     }
 
     match /admissionHistory/{documentId} {
-      allow read: if isTeacher();
-      allow create, update: if isAuthenticated() || isTeacher();
+      allow read: if isAdmin();
+      allow create, update: if isAdmin() && validStaffDocument(request.resource.data);
       allow delete: if isAdmin();
     }
 
