@@ -464,7 +464,12 @@ export default function AdminDashboard() {
                   {activeTab === 'controls' && <ControlsAndSubjects />}
 
                   {/* TAB: Competitive Exam Prep & OMR Registrations Manager */}
-                  {activeTab === 'gkTest' && <AdminGkTestManager />}
+                  {activeTab === 'gkTest' && (
+                    <AdminGkTestManager
+                      allStudents={identityStudents || applications}
+                      onRefresh={loadAdminData}
+                    />
+                  )}
 
                   {/* TAB: Admission Register & Sentup Suite */}
                   {activeTab === 'admRegisterSuite' && (

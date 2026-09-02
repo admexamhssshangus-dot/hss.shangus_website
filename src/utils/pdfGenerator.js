@@ -2075,3 +2075,113 @@ export function generateGkTestAdmitCardPdf(regData = {}) {
 
   printHtmlViaIframe(htmlContent);
 }
+
+/**
+ * Generate Batch / Multi-Student Official Admit Card PDF for GK & Competitive Exams
+ * @param {Array} registrationsList - List of candidate registrations
+ * @param {object} examConfig - Exam configuration parameters
+ */
+export function generateBatchGkTestAdmitCardsPdf(registrationsList = [], examConfig = {}) {
+  if (!registrationsList || registrationsList.length === 0) return;
+
+  const cardsHtml = registrationsList.map((regData, index) => {
+    const regNo = regData.examNumber || regData.regNo || regData.rollNo || regData.id || 'N/A';
+    const candidateName = (regData.name || regData.candidateName || 'N/A').toUpperCase();
+    const fatherName = (regData.fatherName || regData.parentName || 'N/A').toUpperCase();
+    const cls = regData.className || regData.class || regData.classGrade || 'N/A';
+    const school = regData.school || regData.institution || 'Govt. Higher Secondary School Shangus';
+    const category = regData.category || 'General';
+    const contact = regData.mobile || regData.contact || 'N/A';
+    const examCenter = regData.examCenter || examConfig.examCenter || 'Govt. Higher Secondary School Shangus';
+    const examDate = regData.examDate || examConfig.examDate || 'Sunday, 30th August 2026';
+    const examTime = regData.examTime || examConfig.examTime || '11:00 AM – 01:00 PM';
+    const examTitle = (regData.examTitle || examConfig.examTitle || 'OFFICIAL ADMIT CARD — COMPETITIVE & TALENT SEARCH EXAMINATION').toUpperCase();
+    const photoUrl = getStudentPhotoUrl(regData, '/logo.png');
+
+    const instructionsList = Array.isArray(examConfig.instructions) && examConfig.instructions.length > 0
+      ? examConfig.instructions
+      : [
+        'Candidates must produce this printed Admit Card along with a valid Identity Proof at the examination center.',
+        'Reporting time at the examination center is 30 minutes prior to commencement of the test.',
+        'Electronic devices including cell phones, smart watches, and calculators are strictly banned inside the hall.',
+        'Use blue or black ballpoint pen only for writing responses on the answer sheet.'
+      ];
+
+    return `
+      <div class="admit-card-page ${index > 0 ? 'page-break' : ''}">
+        <div class="admit-card">
+          <div class="header">
+            <div class="school-title">GOVT. HIGHER SECONDARY SCHOOL SHANGUS</div>
+            <div class="exam-title">${examTitle}</div>
+          </div>
+
+          <div class="info-grid">
+            <table class="info-table">
+              <tr><td class="lbl">Registration / Exam Roll No:</td><td><strong style="color: #b91c1c; font-size: 13px;">${regNo}</strong></td></tr>
+              <tr><td class="lbl">Candidate's Name:</td><td><strong>${candidateName}</strong></td></tr>
+              <tr><td class="lbl">Father's Name:</td><td>${fatherName}</td></tr>
+              <tr><td class="lbl">Class / Category:</td><td>Class ${cls} (${category})</td></tr>
+              <tr><td class="lbl">School / Institution:</td><td>${school}</td></tr>
+              <tr><td class="lbl">Mobile / Contact:</td><td>${contact}</td></tr>
+              <tr><td class="lbl">Examination Center:</td><td><strong>${examCenter}</strong></td></tr>
+              <tr><td class="lbl">Date & Time of Exam:</td><td><strong>${examDate} (${examTime})</strong></td></tr>
+            </table>
+            <div class="photo-box">
+              <img src="${photoUrl}" alt="Photo" onerror="this.src='/logo.png';" />
+            </div>
+          </div>
+
+          <div class="rules-title">INSTRUCTIONS FOR CANDIDATES</div>
+          <ol class="rules-list">
+            ${instructionsList.map(inst => `<li>${inst}</li>`).join('\n          ')}
+          </ol>
+
+          <div class="sigs">
+            <div class="sig-box">Candidate's Signature</div>
+            <div class="sig-box">Invigilator's Signature</div>
+            <div class="sig-box">Controller of Examinations</div>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('\n');
+
+  const fullDocument = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>Batch Admit Cards (${registrationsList.length} Candidates) - HSS Shangus</title>
+      <style>
+        @page { size: A4 portrait; margin: 0.5cm; }
+        @media print {
+          .page-break { page-break-before: always; }
+          body { margin: 0; padding: 0; }
+        }
+        body { font-family: Arial, Helvetica, sans-serif; font-size: 11px; color: #0f172a; margin: 0; padding: 0; line-height: 1.4; background: #fff; }
+        .admit-card-page { padding: 8px 0; box-sizing: border-box; }
+        .admit-card { border: 2px solid #0f766e; padding: 16px; border-radius: 8px; background: #ffffff; width: 100%; box-sizing: border-box; }
+        .header { text-align: center; border-bottom: 2px solid #0f766e; padding-bottom: 10px; margin-bottom: 12px; }
+        .school-title { font-size: 18px; font-weight: bold; color: #0f766e; text-transform: uppercase; }
+        .exam-title { font-size: 13px; font-weight: bold; color: #b91c1c; margin-top: 4px; letter-spacing: 0.5px; }
+        .info-grid { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 14px; }
+        .info-table { width: 75%; border-collapse: collapse; }
+        .info-table td { padding: 5px 8px; border: 1px solid #cbd5e1; }
+        .lbl { font-weight: bold; background: #f8fafc; color: #334155; width: 35%; }
+        .photo-box { width: 110px; height: 135px; border: 2px solid #0f766e; border-radius: 4px; overflow: hidden; background: #f1f5f9; text-align: center; }
+        .photo-box img { width: 100%; height: 100%; object-fit: cover; }
+        .rules-title { font-size: 12px; font-weight: bold; color: #0f766e; margin-top: 14px; border-bottom: 1px solid #cbd5e1; padding-bottom: 4px; }
+        .rules-list { margin: 6px 0 16px 18px; padding: 0; font-size: 10px; color: #334155; }
+        .rules-list li { margin-bottom: 4px; }
+        .sigs { display: flex; justify-content: space-between; margin-top: 35px; padding-top: 8px; }
+        .sig-box { text-align: center; width: 30%; border-top: 1px dashed #64748b; font-weight: bold; color: #475569; font-size: 10.5px; }
+      </style>
+    </head>
+    <body>
+      ${cardsHtml}
+    </body>
+    </html>
+  `;
+
+  printHtmlViaIframe(fullDocument);
+}
+
