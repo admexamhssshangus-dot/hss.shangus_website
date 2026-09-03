@@ -199,7 +199,7 @@ const PAGE_MODULE_PRESETS = {
     badge: "Academic Portal",
     defaultText: "Loading School Data",
     hints: [
-      "Nurturing Minds, Shaping Futures — Estd. 1971",
+      "Nurturing Minds, Shaping Futures — Estd. 1917",
       "Connecting to official student database…",
       "Preparing secure digital services…"
     ]

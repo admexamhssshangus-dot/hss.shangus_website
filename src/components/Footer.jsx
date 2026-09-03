@@ -99,7 +99,7 @@ export default function Footer() {
               <h2 className="text-white font-bold text-lg tracking-wide font-title">Govt. H.S.S. Shangus</h2>
             </div>
             <p className="text-sm text-slate-500 leading-relaxed max-w-xl font-sans">
-              Since 1971, Govt HSS Shangus provides Science, Humanities and Secondary education with experienced faculty, well-equipped labs, a library and active sports programs.
+              Since 1917, Govt HSS Shangus provides Science, Humanities and Secondary education with experienced faculty, well-equipped labs, a library and active sports programs.
               We emphasise leadership, critical thinking and community engagement to prepare students for higher education and civic life.
             </p>
 

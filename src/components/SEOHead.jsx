@@ -12,7 +12,7 @@ const ROUTE_SEO_MAP = {
   },
   '/about': {
     title: 'About Us | Govt. Higher Secondary School Shangus',
-    description: 'Learn about the rich history since 1971, leadership, esteemed faculty, smart infrastructure, vision, and mission of Govt. Higher Secondary School Shangus, Anantnag.',
+    description: 'Learn about the rich history since 1917, leadership, esteemed faculty, smart infrastructure, vision, and mission of Govt. Higher Secondary School Shangus, Anantnag.',
     canonical: `${SITE_ORIGIN}/about`,
     breadcrumb: 'About Us'
   },
