@@ -7,6 +7,7 @@ import PublicPageSkeleton from './components/PublicPageSkeleton';
 import SEOHead from './components/SEOHead';
 import Home from './pages/Home';
 import { initSecurityGuardrails } from './utils/securityGuardrails';
+import { isBootstrapSuperAdminEmail } from './services/staffAuthService';
 import './portal/portal.css';
 import './styles/ui-system.css';
 
@@ -88,19 +89,33 @@ function RoleGuard({ allowedRoles, children }) {
     return <Navigate to="/portal/login" replace />;
   }
 
+  const emailLower = String(user.email || '').toLowerCase().trim();
+  const isSuper = isBootstrapSuperAdminEmail(emailLower);
+
+  // Bootstrap SuperAdmins are unconditionally permitted in Admin Portal
+  if (isSuper) {
+    if (allowedRoles.includes('admin')) {
+      return children;
+    }
+    // If a superadmin wanders into a student-only route, redirect to admin
+    if (allowedRoles.includes('student')) {
+      return <Navigate to="/portal/admin" replace />;
+    }
+  }
+
   const role = String(user.role || '').toLowerCase().trim();
 
   // Flexible role matching to prevent flash on hard refresh
   const allowed = allowedRoles.some((r) => {
     const normR = String(r).toLowerCase().trim();
-    if (normR === 'admin') return role.includes('admin');
+    if (normR === 'admin') return role.includes('admin') || isSuper;
     if (normR === 'teacher') return role.includes('teacher') || role.includes('faculty');
     if (normR === 'student') return role.includes('student') || role === 'user';
     return role === normR;
   });
 
   if (!allowed) {
-    const dest = role.includes('admin') ? '/portal/admin' : role.includes('teacher') ? '/portal/teacher' : '/portal/student';
+    const dest = (isSuper || role.includes('admin')) ? '/portal/admin' : role.includes('teacher') ? '/portal/teacher' : '/portal/student';
     return <Navigate to={dest} replace />;
   }
 

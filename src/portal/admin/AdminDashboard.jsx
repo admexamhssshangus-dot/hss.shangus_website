@@ -7,6 +7,7 @@ import AdminToolsDropdown, { ADMIN_TOOL_MODULES } from './AdminToolsDropdown';
 import LogoutConfirmModal from '../components/LogoutConfirmModal';
 import TabLoadingOverlay from '../../components/TabLoadingOverlay';
 import { getCachedCollection, getCachedCollectionSync, subscribeToCollection, getPaginatedCollection, hydrateRemainingPages } from '../../services/dbCache';
+import { isBootstrapSuperAdminEmail } from '../../services/staffAuthService';
 
 // Lazy load heavy admin modules to keep tab transitions ultra-fast with zero UI hangs
 const AdvancedReports = React.lazy(() => import('./AdvancedReports'));
@@ -336,7 +337,7 @@ export default function AdminDashboard() {
     // Genuine SuperAdmins have unconditional access to all modules
     if (
       role === 'superadmin' || 
-      email === 'adm.exam.hss.shangus@gmail.com'
+      isBootstrapSuperAdminEmail(email)
     ) {
       return true;
     }

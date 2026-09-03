@@ -10,6 +10,7 @@ import {
   getModuleMaturity,
   MODULE_MATURITY,
 } from './adminModuleCatalog';
+import { isBootstrapSuperAdminEmail } from '../../services/staffAuthService';
 
 const MODULE_ICONS = {
   reports: BarChart2,
@@ -40,7 +41,7 @@ export const isUserPermittedForModule = (user, moduleId) => {
 
   if (
     role === 'superadmin' ||
-    email === 'adm.exam.hss.shangus@gmail.com'
+    isBootstrapSuperAdminEmail(email)
   ) {
     return true;
   }
@@ -105,7 +106,7 @@ export default function AdminToolsDropdown({
 
   if (!isOpen) return null;
 
-  const isSuper = user?.role?.toLowerCase() === 'superadmin' || user?.email?.toLowerCase() === 'adm.exam.hss.shangus@gmail.com';
+  const isSuper = user?.role?.toLowerCase() === 'superadmin' || isBootstrapSuperAdminEmail(user?.email);
   const canReports = isUserPermittedForModule(user, 'reports');
   const canBulk = isUserPermittedForModule(user, 'controls') || isUserPermittedForModule(user, 'reports') || isSuper;
 

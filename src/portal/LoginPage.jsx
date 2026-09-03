@@ -26,7 +26,8 @@ import {
   consumeAdminLoginHandshake,
   sendAdminSignInVerificationLink,
   incrementTeacherLoginCount,
-  recordTeacher2StepVerification
+  recordTeacher2StepVerification,
+  isBootstrapSuperAdminEmail
 } from '../services/staffAuthService';
 
 export default function LoginPage() {
@@ -134,25 +135,27 @@ export default function LoginPage() {
     const emailLower = String(firebaseUser?.email || overrideEmail || '').toLowerCase().trim();
     
     // Resolve role from Firestore permissions & users collection & bootstrap (use cached if available)
+    const isBootstrapAdmin = isBootstrapSuperAdminEmail(emailLower);
     const staffProfile = cachedStaffProfile || await resolveStaffRoleAndPerms(emailLower);
-    const isBootstrapAdmin = emailLower === 'adm.exam.hss.shangus@gmail.com';
 
     const rawRole = String(
+      (isBootstrapAdmin ? 'SuperAdmin' : '') ||
       staffProfile?.role ||
       claims.role || 
       (claims.admin ? 'Admin' : '') || 
-      (isBootstrapAdmin ? 'SuperAdmin' : '') || 
       'Student'
     ).trim();
 
     const role = rawRole.charAt(0).toUpperCase() + rawRole.slice(1);
     const normalizedRole = role.toLowerCase();
 
-    const perms = Array.isArray(staffProfile?.perms)
-      ? staffProfile.perms
-      : Array.isArray(claims.permissions)
-        ? claims.permissions
-        : (isBootstrapAdmin || role === 'SuperAdmin' ? ['*'] : []);
+    const perms = isBootstrapAdmin || role === 'SuperAdmin'
+      ? ['*']
+      : Array.isArray(staffProfile?.perms)
+        ? staffProfile.perms
+        : Array.isArray(claims.permissions)
+          ? claims.permissions
+          : [];
 
     const selected = selectedRole === 'superadmin' ? 'superadmin' : selectedRole;
     const claimedArea = normalizedRole.includes('admin') ? 'admin'
@@ -483,7 +486,7 @@ export default function LoginPage() {
       
       // 2. Resolve account profile from Firestore (configured strictly by Super Admin)
       const staffProfile = await resolveStaffRoleAndPerms(cleanEmail);
-      const isSuper = staffProfile?.role === 'SuperAdmin' || selectedRole === 'superadmin' || cleanEmail === 'adm.exam.hss.shangus@gmail.com';
+      const isSuper = staffProfile?.role === 'SuperAdmin' || selectedRole === 'superadmin' || isBootstrapSuperAdminEmail(cleanEmail);
       const isAdmin = isSuper || staffProfile?.role === 'Admin';
       const isTeacher = staffProfile?.role === 'Teacher' || staffProfile?.role === 'Faculty';
 
@@ -524,7 +527,7 @@ export default function LoginPage() {
         // Admin 2-Step Verification Policy: ALWAYS required on EVERY login
         const handshakeId = await createAdminLoginHandshake(cleanEmail);
         await sendAdminSignInVerificationLink(cleanEmail, handshakeId);
-        await signOut(auth).catch(() => {});
+        // Retain Firebase Auth session on current device so queries have valid credentials once handshake confirms
 
         setEmailLinkSentState({ 
           email: cleanEmail, 

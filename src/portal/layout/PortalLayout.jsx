@@ -5,7 +5,7 @@ import ModernLoader from '../../components/ModernLoader';
 
 import { auth } from '../../services/firebase';
 import { getIdTokenResult, onAuthStateChanged, signOut } from 'firebase/auth';
-import { resolveStaffRoleAndPerms } from '../../services/staffAuthService';
+import { resolveStaffRoleAndPerms, isBootstrapSuperAdminEmail } from '../../services/staffAuthService';
 
 // ---------------------------------------------------------------------------
 // Shared helper: resolve user profile from Firestore by email
@@ -15,27 +15,29 @@ async function resolveUserProfile(firebaseUser) {
   const tokenResult = await getIdTokenResult(firebaseUser, true);
   const claims = tokenResult.claims || {};
   const emailLower = String(firebaseUser.email || '').toLowerCase().trim();
+  const isBootstrapAdmin = isBootstrapSuperAdminEmail(emailLower);
   
   // Resolve role from Firestore permissions & users collection & bootstrap
   const staffProfile = await resolveStaffRoleAndPerms(emailLower);
-  const isBootstrapAdmin = emailLower === 'adm.exam.hss.shangus@gmail.com';
 
   const rawRole = String(
+    (isBootstrapAdmin ? 'SuperAdmin' : '') ||
     staffProfile?.role ||
     claims.role || 
     (claims.admin ? 'Admin' : '') || 
-    (isBootstrapAdmin ? 'SuperAdmin' : '') || 
     'Student'
   ).trim();
 
   const role = rawRole.charAt(0).toUpperCase() + rawRole.slice(1);
   const normalizedRole = role.toLowerCase();
 
-  const perms = Array.isArray(staffProfile?.perms)
-    ? staffProfile.perms
-    : Array.isArray(claims.permissions)
-      ? claims.permissions
-      : (isBootstrapAdmin || role === 'SuperAdmin' ? ['*'] : []);
+  const perms = isBootstrapAdmin || role === 'SuperAdmin'
+    ? ['*']
+    : Array.isArray(staffProfile?.perms)
+      ? staffProfile.perms
+      : Array.isArray(claims.permissions)
+        ? claims.permissions
+        : [];
 
   return {
     role,
@@ -102,6 +104,11 @@ export default function PortalLayout() {
 
   // Redirect to role-appropriate dashboard
   const _redirectToDashboard = useCallback((user) => {
+    const emailLower = String(user?.email || '').toLowerCase().trim();
+    if (isBootstrapSuperAdminEmail(emailLower)) {
+      navigate('/portal/admin', { replace: true });
+      return;
+    }
     const role = (user?.role || '').toLowerCase();
     switch (role) {
       case 'admin':
