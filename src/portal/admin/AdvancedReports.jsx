@@ -1994,16 +1994,28 @@ function StatusActionDropdown({ student, onViewEdit, onRefresh, onDeleteRecord, 
         const newRoll = (inputVal || '').trim();
         try {
           setActionLoading(true);
+          const hasAssignedRoll = Boolean(newRoll && newRoll !== '—' && newRoll !== 'N/A' && newRoll !== '0');
+          const statusVal = hasAssignedRoll ? 'Approved' : 'Submitted';
           await updateStudentDocument(student, {
             'Class Roll No': newRoll,
             'Class R.No.': newRoll,
-            classRollNo: newRoll
+            classRollNo: newRoll,
+            rollNo: newRoll,
+            'Status': statusVal,
+            status: statusVal,
+            isApproved: hasAssignedRoll,
+            approvedAt: hasAssignedRoll ? new Date().toISOString() : null,
+            rejectionReason: '',
+            'Rejection Reason': '',
+            isEditable: false
           });
           if (onRefresh) onRefresh();
           setDialogConfig({
             type: 'alert',
-            title: 'Roll Number Saved',
-            message: `Class Roll No updated to "${newRoll || 'Unassigned'}" for ${student?.studentName}.`,
+            title: hasAssignedRoll ? 'Admission Approved' : 'Roll Number Cleared',
+            message: hasAssignedRoll
+              ? `Class Roll No #${newRoll} assigned to ${student?.studentName}. Admission is now marked as Approved!`
+              : `Class Roll No cleared for ${student?.studentName}. Application reverted to Submitted.`,
             icon: CheckCircle2,
             iconColor: 'text-teal-600 dark:text-teal-400',
             btnColor: 'bg-teal-700 hover:bg-teal-600 text-white'
@@ -2044,7 +2056,13 @@ function StatusActionDropdown({ student, onViewEdit, onRefresh, onDeleteRecord, 
             'Rejection Reason': reason,
             'rejectedAt': new Date().toISOString(),
             'editableUntil': editableUntil,
-            'isEditable': true
+            'isEditable': true,
+            'Class Roll No': '',
+            'Class R.No.': '',
+            classRollNo: '',
+            rollNo: '',
+            isApproved: false,
+            approvedAt: null
           });
           if (onRefresh) onRefresh();
           setDialogConfig({

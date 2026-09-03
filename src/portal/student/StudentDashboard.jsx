@@ -300,7 +300,7 @@ export default function StudentDashboard() {
   const formNum = appData?.['Form Number'] || 'N/A';
   const classSought = appData?.['Admission sought for class'] || 'N/A';
   const rollNo = appData?.['Class Roll No'] || appData?.['Class Roll No.'] || appData?.RollNo || '';
-  const isApprovedByRollNo = Boolean(rollNo && String(rollNo).trim() !== '' && rollNo !== '—' && rollNo !== 'N/A');
+  const isApprovedByRollNo = Boolean(rollNo && String(rollNo).trim() !== '' && rollNo !== '—' && rollNo !== 'N/A' && status !== 'Rejected' && status !== 'Withdrawn');
 
   // Detect provisional admission & upgrade history
   const isProvisional =
