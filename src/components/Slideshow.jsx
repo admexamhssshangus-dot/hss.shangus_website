@@ -278,8 +278,8 @@ export default function Slideshow({
       <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-black/30 to-black/45 z-10 pointer-events-none" />
 
       {/* Interactive Controls & Slide Indicator Dots */}
-      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-        <div className="flex items-center gap-1 sm:gap-1.5 absolute bottom-2 right-2 sm:right-auto sm:left-1/2 sm:-translate-x-1/2 sm:bottom-5 md:bottom-18 pointer-events-auto z-20 bg-transparent hover:bg-slate-950/75 border border-transparent hover:border-white/20 hover:backdrop-blur-md px-1.5 sm:px-2.5 py-0.5 sm:py-1 rounded-full hover:shadow-xl transition-all duration-300 group">
+      <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-50">
+        <div className="flex items-center gap-1 sm:gap-1.5 absolute bottom-2.5 right-2 sm:right-auto sm:left-1/2 sm:-translate-x-1/2 sm:bottom-4 md:bottom-20 pointer-events-auto z-50 bg-transparent hover:bg-slate-950/75 border border-transparent hover:border-white/20 hover:backdrop-blur-md px-1.5 sm:px-2.5 py-0.5 sm:py-1 rounded-full hover:shadow-xl transition-all duration-300 group">
           {/* Prev button */}
           <button
             type="button"
