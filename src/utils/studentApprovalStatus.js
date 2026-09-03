@@ -63,7 +63,6 @@ export function hasAssignedClassRollNumber(student) {
  */
 export function resolveStudentAdmissionStatus(student) {
   if (!student || typeof student !== 'object') return 'Submitted';
-  if (hasAssignedClassRollNumber(student)) return 'Approved';
 
   const rawStatus = String(
     student.status ||
@@ -76,6 +75,8 @@ export function resolveStudentAdmissionStatus(student) {
   if (rawStatus.includes('withdraw')) return 'Withdrawn';
   if (rawStatus.includes('reject') || rawStatus.includes('rejt') || rawStatus.includes('cancel')) return 'Rejected';
   if (rawStatus.includes('draft') || rawStatus.includes('dft')) return 'Draft';
+
+  if (hasAssignedClassRollNumber(student)) return 'Approved';
   if (rawStatus.includes('provis')) return 'Provisional';
 
   // Explicit Approved/Admitted/Enrolled flags are historical metadata only.
@@ -84,7 +85,7 @@ export function resolveStudentAdmissionStatus(student) {
 }
 
 export function isStudentAdmissionApproved(student) {
-  return hasAssignedClassRollNumber(student);
+  return resolveStudentAdmissionStatus(student) === 'Approved';
 }
 
 export { CLASS_ROLL_NUMBER_KEYS };

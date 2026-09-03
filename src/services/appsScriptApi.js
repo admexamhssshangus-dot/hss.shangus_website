@@ -691,6 +691,14 @@ async function legacySaveApplication(payload) {
     status: (data.Status === 'Draft' || data.status === 'Draft') ? 'Draft' : 'Submitted',
     submittedAt: data.submittedAt || new Date().toISOString(),
     updatedAt: new Date().toISOString(),
+    ...((data.Status !== 'Draft' && data.status !== 'Draft') ? {
+      'Class Roll No': '',
+      'Class R.No.': '',
+      classRollNo: '',
+      rollNo: '',
+      isApproved: false,
+      approvedAt: null
+    } : {}),
     ...(wasRejected ? {
       isResubmitted: true,
       resubmittedAt: new Date().toISOString(),
