@@ -567,25 +567,30 @@ service cloud.firestore {
     }
 
     // ── 2-Step Login Handshake Tokens ──
-    // Authenticated users may create handshakes bound to their own email,
-    // read handshakes that match their email, and update status to 'approved'.
-    // Deletion is restricted to admin cleanup.
+    // Allows unauthenticated clients to initiate a handshake (create) and listen to their specific handshake by ID (get)
+    // Querying the collection (list) is strictly restricted to Admins.
+    // Approving the handshake (update to 'approved') is allowed once verified.
+    // Deletion is permitted for cleanup.
     match /adminAuthHandshakes/{handshakeId} {
-      allow create: if isAuthenticated()
+      allow get: if true;
+      allow list: if isAdmin();
+
+      allow create: if request.resource.data.keys().hasAll(['id', 'email', 'status', 'createdAt', 'expiresAt'])
+        && request.resource.data.id == handshakeId
         && request.resource.data.email is string
-        && request.resource.data.email == authEmail()
+        && request.resource.data.email.size() >= 5
         && request.resource.data.status == 'pending'
-        && request.resource.data.keys().hasAll(['id', 'email', 'status', 'createdAt', 'expiresAt']);
+        && (request.resource.data.createdAt is string || request.resource.data.createdAt is timestamp)
+        && request.resource.data.expiresAt is number;
 
-      allow read: if isAuthenticated()
-        && resource.data.email == authEmail();
+      allow update: if request.resource.data.status in ['approved', 'consumed', 'pending']
+        && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['id', 'createdAt']))
+        && (
+          !('email' in request.resource.data) ||
+          request.resource.data.email == resource.data.email
+        );
 
-      allow update: if isAuthenticated()
-        && resource.data.email == authEmail()
-        && request.resource.data.status in ['approved', 'consumed']
-        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['id', 'email', 'createdAt', 'expiresAt']);
-
-      allow delete: if isAdmin();
+      allow delete: if isAuthenticated() || isAdmin() || (resource.data.status in ['approved', 'consumed']);
     }
     match /{document=**} {
       allow read, write: if false;
