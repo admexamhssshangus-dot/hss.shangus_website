@@ -1821,6 +1821,7 @@ export default function PracticalsPage() {
     }
 
     const targetKeySet = new Set(selectedKeys);
+    const displayedKeySet = new Set(displayedStudents.map(d => getStudentKey(d)));
     let updatedCount = 0;
 
     setStudentMarks(prev => {
@@ -1831,15 +1832,15 @@ export default function PracticalsPage() {
         if (targetScope === 'selected') {
           shouldUpdate = targetKeySet.has(key);
         } else if (targetScope === 'empty') {
-          const inDisplay = displayedStudents.some(d => getStudentKey(d) === key);
+          const inDisplay = displayedKeySet.has(key);
           const isEmpty = st.practicalMarks === '' || st.practicalMarks === undefined || st.practicalMarks === null;
           shouldUpdate = inDisplay && isEmpty;
         } else if (targetScope === 'all') {
-          shouldUpdate = displayedStudents.some(d => getStudentKey(d) === key);
+          shouldUpdate = displayedKeySet.has(key);
         } else if (targetScope === 'clear') {
           shouldUpdate = targetKeySet.size > 0 
             ? targetKeySet.has(key) 
-            : displayedStudents.some(d => getStudentKey(d) === key);
+            : displayedKeySet.has(key);
         }
 
         if (shouldUpdate) {
@@ -1854,12 +1855,23 @@ export default function PracticalsPage() {
     });
 
     if (targetScope === 'clear') {
-      setAlert({ type: 'info', text: `Cleared marks for ${updatedCount} student(s).` });
+      if (updatedCount > 0) {
+        setAlert({ type: 'info', text: `Cleared practical marks for ${updatedCount} student(s).` });
+      } else {
+        setAlert({ type: 'info', text: 'No marks to clear (all selected/displayed cells are already empty).' });
+      }
     } else {
-      setAlert({ 
-        type: 'success', 
-        text: `⚡ Successfully filled mark "${rawVal}" for ${updatedCount} student(s)!` 
-      });
+      if (updatedCount > 0) {
+        setAlert({ 
+          type: 'success', 
+          text: `⚡ Successfully filled mark "${rawVal}" for ${updatedCount} student(s)!` 
+        });
+      } else {
+        setAlert({ 
+          type: 'info', 
+          text: 'No students matched the selected fill scope.' 
+        });
+      }
     }
   }, [quickFillMark, subjectMaxMarks, selectedKeys, displayedStudents, getStudentKey]);
 
@@ -2112,6 +2124,14 @@ export default function PracticalsPage() {
                         type="text"
                         value={quickFillMark}
                         onChange={(e) => setQuickFillMark(e.target.value.toUpperCase())}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            if (selectedKeys.size > 0) handleApplyQuickFill('selected');
+                            else if (emptyCount > 0) handleApplyQuickFill('empty');
+                            else handleApplyQuickFill('all');
+                          }
+                        }}
                         placeholder={`0-${subjectMaxMarks} / A`}
                         className="w-20 px-2 py-1 rounded-lg border text-xs font-black text-center uppercase bg-white dark:bg-slate-900 border-amber-300 dark:border-amber-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-2xs"
                         maxLength={4}
@@ -2176,6 +2196,7 @@ export default function PracticalsPage() {
                       }`}
                       title="Fill mark into currently selected checkboxes"
                     >
+                      <Check size={13} />
                       <span>Fill Selected</span>
                       {selectedKeys.size > 0 && (
                         <span className="px-1.5 py-0.2 rounded-full bg-indigo-700 text-white text-[9.5px] font-black">
@@ -2200,6 +2221,7 @@ export default function PracticalsPage() {
                       }`}
                       title="Fill mark for every student in the current view"
                     >
+                      <Zap size={13} />
                       <span>Fill All ({displayedStudents.length})</span>
                     </button>
 
@@ -2212,10 +2234,11 @@ export default function PracticalsPage() {
                           handleApplyQuickFill('clear');
                         }
                       }}
-                      className="px-2.5 py-1.5 rounded-lg text-xs font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 border border-rose-200 dark:border-rose-800 cursor-pointer transition-colors"
+                      className="px-2.5 py-1.5 rounded-lg text-xs font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 border border-rose-200 dark:border-rose-800 cursor-pointer transition-colors flex items-center gap-1"
                       title="Clear marks"
                     >
-                      Clear {selectedKeys.size > 0 ? `(${selectedKeys.size})` : 'All'}
+                      <X size={13} />
+                      <span>Clear {selectedKeys.size > 0 ? `(${selectedKeys.size})` : 'All'}</span>
                     </button>
                   </div>
                 </div>
@@ -2422,8 +2445,8 @@ export default function PracticalsPage() {
                 <table className="w-full text-left text-xs">
                   <thead className="bg-slate-100 dark:bg-slate-950 text-slate-700 dark:text-slate-300 font-black uppercase text-[9.5px] tracking-wider border-b border-slate-200 dark:border-slate-800">
                     <tr>
-                      <th className="py-1.5 px-2 w-12 text-center">
-                        <div className="flex items-center justify-center gap-1">
+                      <th className="py-1.5 px-2 w-14 text-center">
+                        <div className="flex items-center justify-center gap-1.5">
                           <input
                             type="checkbox"
                             checked={isAllSelected}
@@ -2432,6 +2455,7 @@ export default function PracticalsPage() {
                             className="w-3.5 h-3.5 rounded border-slate-300 dark:border-slate-700 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
                             title={isAllSelected ? "Deselect all" : "Select all"}
                           />
+                          <span className="font-mono text-[10px] text-slate-400 dark:text-slate-500 font-black">#</span>
                         </div>
                       </th>
                       <th className="py-1.5 px-2.5 w-16 cursor-pointer hover:text-indigo-600" onClick={() => setSortBy(sortBy === 'rollAsc' ? 'rollDesc' : 'rollAsc')}>
@@ -2472,7 +2496,7 @@ export default function PracticalsPage() {
                                 onChange={() => handleToggleRow(key)}
                                 className="w-3.5 h-3.5 rounded border-slate-300 dark:border-slate-700 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
                               />
-                              <span className="font-mono font-extrabold text-slate-400 text-xs">{idx + 1}</span>
+                              <span className="font-mono font-black text-slate-400 text-[11px]">#{idx + 1}</span>
                             </div>
                           </td>
                           <td className="py-1 px-2.5 font-mono font-black text-indigo-600 dark:text-indigo-400 text-xs">{st.rollNo}</td>
@@ -2538,20 +2562,26 @@ export default function PracticalsPage() {
                       type="text"
                       value={quickFillMark}
                       onChange={(e) => setQuickFillMark(e.target.value.toUpperCase())}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleApplyQuickFill('selected');
+                        }
+                      }}
                       placeholder={`0-${subjectMaxMarks}/A`}
-                      className="w-20 px-2 py-1 rounded-lg bg-slate-800 border border-slate-700 text-white font-black text-xs text-center focus:ring-1 focus:ring-indigo-500 uppercase"
+                      className="w-20 px-2 py-1.5 rounded-xl bg-slate-800 border border-slate-700 text-white font-black text-xs text-center focus:ring-2 focus:ring-indigo-500 uppercase tracking-wide"
                       maxLength={4}
                     />
                     <button
                       type="button"
                       onClick={() => handleApplyQuickFill('selected')}
                       disabled={!quickFillMark.trim()}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all flex items-center gap-1.5 ${
+                      className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 ${
                         quickFillMark.trim()
                           ? 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-xs cursor-pointer active:scale-95'
                           : 'bg-slate-700 text-slate-400 cursor-not-allowed'
                       }`}
-                      title="Apply mark to all selected students"
+                      title="Apply mark to all selected students (Press Enter)"
                     >
                       <Zap size={13} />
                       <span>Apply to {selectedKeys.size} Selected</span>
@@ -2559,7 +2589,7 @@ export default function PracticalsPage() {
                     <button
                       type="button"
                       onClick={() => setSelectedKeys(new Set())}
-                      className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+                      className="p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition-colors cursor-pointer shrink-0"
                       title="Clear selection"
                     >
                       <X size={15} />
