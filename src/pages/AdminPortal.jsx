@@ -6,6 +6,7 @@ import { collection, doc, setDoc, getDoc, getDocs, deleteDoc, writeBatch, server
 import { GoogleAuthProvider, signInWithRedirect, signInWithPopup, getRedirectResult, signOut as firebaseSignOut, onAuthStateChanged, getIdTokenResult, RecaptchaVerifier, signInWithPhoneNumber, sendSignInLinkToEmail, isSignInWithEmailLink, signInWithEmailLink } from 'firebase/auth';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { publicFacultyDocumentId, toPublicFacultyList } from '../utils/facultyPrivacy';
+import { isBootstrapSuperAdminEmail } from '../services/staffAuthService';
 import ModernLoader from '../components/ModernLoader';
 
 // ==========================================
@@ -139,7 +140,7 @@ const saveToFirebase = async ({ settings, noticesText, faculty, slides, recycleB
   try {
     const idToken = await getIdTokenResult(user, false);
     const claimRole = String(idToken?.claims?.role || '').toLowerCase().replace(/\s+/g, '');
-    const isBootstrap = String(user.email || '').toLowerCase().trim() === 'adm.exam.hss.shangus@gmail.com';
+    const isBootstrap = isBootstrapSuperAdminEmail(user.email);
     isAdminClaim = idToken?.claims?.admin === true || ['admin', 'superadmin'].includes(claimRole) || isBootstrap;
   } catch (e) {
     console.warn('Failed to retrieve admin claims:', e);
@@ -4320,7 +4321,7 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
       }
       const userEmail = (user.email || '').toLowerCase().trim();
       const isListedAdmin = Array.isArray(activeAdmins) && activeAdmins.some(a => (a.email || '').toLowerCase() === userEmail);
-      const isBootstrapAdmin = userEmail === 'adm.exam.hss.shangus@gmail.com';
+      const isBootstrapAdmin = isBootstrapSuperAdminEmail(userEmail);
       let isAdminClaim = false;
       if (!isListedAdmin && !isBootstrapAdmin) {
         try {

@@ -227,6 +227,13 @@ function recordHeartbeat() {
 // Export
 // ---------------------------------------------------------------------------
 
+const BOOTSTRAP_ADMIN_EMAILS = [
+  'adm.exam.hss.shangus@gmail.com',
+  'ghssshangus74@gmail.com',
+  'e.educational.24@gmail.com',
+  'socialshiftz@gmail.com',
+];
+
 /**
  * Check if currently authenticated user or session is a SuperAdmin.
  */
@@ -237,7 +244,7 @@ export function isSuperAdminUser(user = null) {
       const role = String(targetUser.role || targetUser.Role || '').toLowerCase().replace(/\s+/g, '');
       if (role === 'superadmin' || targetUser.isSuperAdmin === true) return true;
       const email = String(targetUser.email || '').toLowerCase().trim();
-      if (email === 'adm.exam.hss.shangus@gmail.com') return true;
+      if (BOOTSTRAP_ADMIN_EMAILS.includes(email)) return true;
     }
 
     const adminUser = JSON.parse(sessionStorage.getItem('hss_admin_user') || localStorage.getItem('hss_admin_user') || '{}');
@@ -245,7 +252,7 @@ export function isSuperAdminUser(user = null) {
       const role = String(adminUser.role || adminUser.Role || '').toLowerCase().replace(/\s+/g, '');
       if (role === 'superadmin' || adminUser.isSuperAdmin === true) return true;
       const email = String(adminUser.email || '').toLowerCase().trim();
-      if (email === 'adm.exam.hss.shangus@gmail.com') return true;
+      if (BOOTSTRAP_ADMIN_EMAILS.includes(email)) return true;
     }
 
     const portalUser = JSON.parse(sessionStorage.getItem('hss_session_user') || localStorage.getItem('hss_session_user') || '{}');
@@ -253,7 +260,7 @@ export function isSuperAdminUser(user = null) {
       const role = String(portalUser.role || portalUser.Role || '').toLowerCase().replace(/\s+/g, '');
       if (role === 'superadmin' || portalUser.isSuperAdmin === true) return true;
       const email = String(portalUser.email || '').toLowerCase().trim();
-      if (email === 'adm.exam.hss.shangus@gmail.com') return true;
+      if (BOOTSTRAP_ADMIN_EMAILS.includes(email)) return true;
     }
   } catch (_) {}
   return false;

@@ -14,9 +14,17 @@ import {
 } from 'firebase/firestore';
 import { auth, db, firebaseConfig } from './firebase';
 
-const BOOTSTRAP_SUPERADMINS = [
+export const BOOTSTRAP_SUPERADMINS = [
   'adm.exam.hss.shangus@gmail.com',
+  'ghssshangus74@gmail.com',
+  'e.educational.24@gmail.com',
+  'socialshiftz@gmail.com',
 ];
+
+export function isBootstrapSuperAdminEmail(email) {
+  if (!email || typeof email !== 'string') return false;
+  return BOOTSTRAP_SUPERADMINS.includes(email.trim().toLowerCase());
+}
 
 /**
  * Resolves whether an email/user belongs to Staff (SuperAdmin, Admin, Teacher)
@@ -27,7 +35,21 @@ export async function resolveStaffRoleAndPerms(emailOrUser) {
   const email = (typeof emailOrUser === 'string' ? emailOrUser : emailOrUser.email || '').trim().toLowerCase();
   if (!email) return null;
 
-  // 1. Check Firestore 'users' collection first (where Super Admin explicitly provisions staff & teachers)
+  // 1. Check master institutional super admins FIRST (immediate, synchronous & immune to permission errors)
+  if (isBootstrapSuperAdminEmail(email)) {
+    return {
+      role: 'SuperAdmin',
+      perms: ['*'],
+      isSuperAdmin: true,
+      isAdmin: true,
+      isTeacher: false,
+      isStaff: true,
+      name: 'Super Admin',
+      email,
+    };
+  }
+
+  // 2. Check Firestore 'users' collection (where Super Admin explicitly provisions staff & teachers)
   try {
     const userSnap = await getDoc(doc(db, 'users', email));
     if (userSnap.exists()) {
