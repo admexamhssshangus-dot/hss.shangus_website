@@ -40,22 +40,7 @@ try {
 export const auth = authInstance;
 export const googleProvider = new GoogleAuthProvider();
 export const db = getFirestore(app);
-let _functionsInstance = null;
-export const functions = new Proxy({}, {
-  get(target, prop) {
-    if (!_functionsInstance) _functionsInstance = getFunctions(app);
-    const val = _functionsInstance[prop];
-    return typeof val === 'function' ? val.bind(_functionsInstance) : val;
-  }
-});
-
-let _storageInstance = null;
-export const storage = new Proxy({}, {
-  get(target, prop) {
-    if (!_storageInstance) _storageInstance = getStorage(app);
-    const val = _storageInstance[prop];
-    return typeof val === 'function' ? val.bind(_storageInstance) : val;
-  }
-});
+export const functions = getFunctions(app);
+export const storage = getStorage(app);
 
 export default app;
