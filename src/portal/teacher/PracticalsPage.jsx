@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { 
   ArrowLeft, UserCheck, RefreshCw, AlertCircle, 
   CheckCircle2, Printer, ShieldCheck, History, Clock, ArrowUpDown,
-  Bookmark, Send, ChevronDown, Check, SlidersHorizontal
+  Bookmark, Send, ChevronDown, Check, SlidersHorizontal, Zap, X
 } from 'lucide-react';
 import SEO from '../../components/SEO';
 import { db, auth } from '../../services/firebase';
@@ -906,6 +906,11 @@ export default function PracticalsPage() {
   const [alert, setAlert] = useState(null);
   const [showFailOnly, setShowFailOnly] = useState(false);
 
+  // Bulk Fill & Multi-Select State
+  const [selectedKeys, setSelectedKeys] = useState(new Set());
+  const [quickFillMark, setQuickFillMark] = useState('');
+  const [showQuickFill, setShowQuickFill] = useState(false);
+
   // Submissions History Drawer State
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [submissionHistory, setSubmissionHistory] = useState([]);
@@ -1458,9 +1463,11 @@ export default function PracticalsPage() {
 
       setDraftSavedAt(localDraftSavedTime || null);
       setStudentMarks(formatted);
+      setSelectedKeys(new Set());
     } catch (err) {
       console.error('Failed to fetch practical roster:', err);
       setStudentMarks([]);
+      setSelectedKeys(new Set());
     } finally {
       setLoading(false);
     }
@@ -1736,6 +1743,126 @@ export default function PracticalsPage() {
       })
     : sortedStudents;
 
+  // ── Multi-Select & Bulk Fill Calculations ──
+  const getStudentKey = useCallback((st) => {
+    return String(st.rollNo || st.formNo || st.regNo || st.name);
+  }, []);
+
+  const emptyCount = useMemo(() => {
+    return displayedStudents.filter(s => s.practicalMarks === '' || s.practicalMarks === undefined || s.practicalMarks === null).length;
+  }, [displayedStudents]);
+
+  const isAllSelected = useMemo(() => {
+    return displayedStudents.length > 0 && displayedStudents.every(s => selectedKeys.has(getStudentKey(s)));
+  }, [displayedStudents, selectedKeys, getStudentKey]);
+
+  const isSomeSelected = useMemo(() => {
+    return displayedStudents.some(s => selectedKeys.has(getStudentKey(s))) && !isAllSelected;
+  }, [displayedStudents, selectedKeys, isAllSelected, getStudentKey]);
+
+  const handleToggleSelectAll = useCallback(() => {
+    if (isAllSelected) {
+      setSelectedKeys(prev => {
+        const next = new Set(prev);
+        displayedStudents.forEach(s => next.delete(getStudentKey(s)));
+        return next;
+      });
+    } else {
+      setSelectedKeys(prev => {
+        const next = new Set(prev);
+        displayedStudents.forEach(s => next.add(getStudentKey(s)));
+        return next;
+      });
+    }
+  }, [isAllSelected, displayedStudents, getStudentKey]);
+
+  const handleSelectEmptyOnly = useCallback(() => {
+    setSelectedKeys(prev => {
+      const next = new Set(prev);
+      displayedStudents.forEach(s => {
+        const isEmpty = s.practicalMarks === '' || s.practicalMarks === undefined || s.practicalMarks === null;
+        if (isEmpty) {
+          next.add(getStudentKey(s));
+        } else {
+          next.delete(getStudentKey(s));
+        }
+      });
+      return next;
+    });
+  }, [displayedStudents, getStudentKey]);
+
+  const handleToggleRow = useCallback((key) => {
+    setSelectedKeys(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }, []);
+
+  const handleApplyQuickFill = useCallback((targetScope = 'selected', customVal = null) => {
+    const rawVal = String(customVal !== null ? customVal : quickFillMark).trim().toUpperCase();
+
+    if (targetScope !== 'clear') {
+      if (!rawVal) {
+        setAlert({ type: 'error', text: 'Please enter a marks value (e.g. 10 or A) to fill.' });
+        return;
+      }
+      if (rawVal !== 'A' && rawVal !== 'AB' && rawVal !== 'ABSENT') {
+        const num = Number(rawVal);
+        if (isNaN(num) || num < 0 || num > subjectMaxMarks) {
+          setAlert({ 
+            type: 'error', 
+            text: `Invalid marks "${rawVal}". Must be between 0 and ${subjectMaxMarks}, or "A" for Absent.` 
+          });
+          return;
+        }
+      }
+    }
+
+    const targetKeySet = new Set(selectedKeys);
+    let updatedCount = 0;
+
+    setStudentMarks(prev => {
+      return prev.map(st => {
+        const key = getStudentKey(st);
+        let shouldUpdate = false;
+
+        if (targetScope === 'selected') {
+          shouldUpdate = targetKeySet.has(key);
+        } else if (targetScope === 'empty') {
+          const inDisplay = displayedStudents.some(d => getStudentKey(d) === key);
+          const isEmpty = st.practicalMarks === '' || st.practicalMarks === undefined || st.practicalMarks === null;
+          shouldUpdate = inDisplay && isEmpty;
+        } else if (targetScope === 'all') {
+          shouldUpdate = displayedStudents.some(d => getStudentKey(d) === key);
+        } else if (targetScope === 'clear') {
+          shouldUpdate = targetKeySet.size > 0 
+            ? targetKeySet.has(key) 
+            : displayedStudents.some(d => getStudentKey(d) === key);
+        }
+
+        if (shouldUpdate) {
+          updatedCount++;
+          return {
+            ...st,
+            practicalMarks: targetScope === 'clear' ? '' : rawVal
+          };
+        }
+        return st;
+      });
+    });
+
+    if (targetScope === 'clear') {
+      setAlert({ type: 'info', text: `Cleared marks for ${updatedCount} student(s).` });
+    } else {
+      setAlert({ 
+        type: 'success', 
+        text: `⚡ Successfully filled mark "${rawVal}" for ${updatedCount} student(s)!` 
+      });
+    }
+  }, [quickFillMark, subjectMaxMarks, selectedKeys, displayedStudents, getStudentKey]);
+
   return (
     <div className="w-full min-h-[90vh] py-3 sm:py-4 px-2 sm:px-4 transition-colors duration-300" style={{ backgroundColor: 'var(--bg-page, #f8fafc)' }}>
       <SEO
@@ -1855,8 +1982,27 @@ export default function PracticalsPage() {
                 </select>
               </div>
 
-              {/* Fail filter + Print */}
+              {/* Quick Fill + Fail filter + Print */}
               <div className="flex items-center gap-1 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setShowQuickFill(prev => !prev)}
+                  className={`px-2.5 py-1.5 rounded-lg font-black text-xs border transition-all cursor-pointer flex items-center gap-1.5 ${
+                    showQuickFill
+                      ? 'bg-amber-500 text-white border-amber-500 shadow-xs'
+                      : 'bg-white dark:bg-slate-900 text-amber-700 dark:text-amber-400 border-amber-300 dark:border-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/40'
+                  }`}
+                  title="Quick Bulk Fill: Fill marks for all, empty, or selected students in one go"
+                >
+                  <Zap size={13} className={showQuickFill ? 'text-white' : 'text-amber-500'} />
+                  <span>Quick Fill</span>
+                  {selectedKeys.size > 0 && (
+                    <span className="px-1.5 py-0.2 rounded-full bg-indigo-600 text-white text-[9.5px] font-black">
+                      {selectedKeys.size}
+                    </span>
+                  )}
+                </button>
+
                 <button
                   type="button"
                   onClick={() => setShowFailOnly(!showFailOnly)}
@@ -1949,13 +2095,190 @@ export default function PracticalsPage() {
                 </div>
               </div>
             )}
+
+            {/* Quick Bulk Fill Deck Panel */}
+            {showQuickFill && (
+              <div className="p-2.5 sm:p-3 rounded-xl border border-amber-300/80 dark:border-amber-700/80 bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-indigo-500/10 dark:from-amber-950/40 dark:to-indigo-950/30 space-y-2.5 animate-in fade-in duration-150">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-2.5">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-xs font-black text-amber-800 dark:text-amber-300 flex items-center gap-1">
+                      <Zap size={14} className="text-amber-500" />
+                      <span>Bulk Fill Marks:</span>
+                    </span>
+
+                    {/* Marks Input Field */}
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="text"
+                        value={quickFillMark}
+                        onChange={(e) => setQuickFillMark(e.target.value.toUpperCase())}
+                        placeholder={`0-${subjectMaxMarks} / A`}
+                        className="w-20 px-2 py-1 rounded-lg border text-xs font-black text-center uppercase bg-white dark:bg-slate-900 border-amber-300 dark:border-amber-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-2xs"
+                        maxLength={4}
+                      />
+
+                      {/* Quick preset chips based on subjectMaxMarks */}
+                      <div className="flex items-center gap-1">
+                        {[
+                          String(subjectMaxMarks), 
+                          String(Math.max(0, subjectMaxMarks - 1)), 
+                          String(Math.max(0, subjectMaxMarks - 2)), 
+                          'A'
+                        ].filter((v, i, a) => a.indexOf(v) === i).map(chipVal => (
+                          <button
+                            key={chipVal}
+                            type="button"
+                            onClick={() => setQuickFillMark(chipVal)}
+                            className={`px-2 py-1 rounded-md text-[11px] font-black border transition-colors cursor-pointer ${
+                              quickFillMark === chipVal
+                                ? 'bg-amber-500 text-white border-amber-500 shadow-2xs'
+                                : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700'
+                            }`}
+                            title={`Set mark to ${chipVal}`}
+                          >
+                            {chipVal === 'A' ? 'Abs' : chipVal}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Execution Buttons */}
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {/* Fill Empty Cells (Instant answer to user's 90 students question!) */}
+                    <button
+                      type="button"
+                      onClick={() => handleApplyQuickFill('empty')}
+                      disabled={emptyCount === 0 || !quickFillMark.trim()}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-black flex items-center gap-1.5 transition-all ${
+                        emptyCount > 0 && quickFillMark.trim()
+                          ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-xs cursor-pointer active:scale-95'
+                          : 'bg-slate-200 dark:bg-slate-800 text-slate-400 cursor-not-allowed'
+                      }`}
+                      title="Fill all students who currently have empty marks (preserves already-entered marks)"
+                    >
+                      <Zap size={13} />
+                      <span>Fill Empty</span>
+                      <span className="px-1.5 py-0.2 rounded-full bg-emerald-700 text-white text-[9.5px] font-black">
+                        {emptyCount}
+                      </span>
+                    </button>
+
+                    {/* Fill Selected */}
+                    <button
+                      type="button"
+                      onClick={() => handleApplyQuickFill('selected')}
+                      disabled={selectedKeys.size === 0 || !quickFillMark.trim()}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-black flex items-center gap-1.5 transition-all ${
+                        selectedKeys.size > 0 && quickFillMark.trim()
+                          ? 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-xs cursor-pointer active:scale-95'
+                          : 'bg-slate-200 dark:bg-slate-800 text-slate-400 cursor-not-allowed'
+                      }`}
+                      title="Fill mark into currently selected checkboxes"
+                    >
+                      <span>Fill Selected</span>
+                      {selectedKeys.size > 0 && (
+                        <span className="px-1.5 py-0.2 rounded-full bg-indigo-700 text-white text-[9.5px] font-black">
+                          {selectedKeys.size}
+                        </span>
+                      )}
+                    </button>
+
+                    {/* Fill All */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (window.confirm(`Fill mark "${quickFillMark}" for ALL ${displayedStudents.length} students in this evaluation roster?`)) {
+                          handleApplyQuickFill('all');
+                        }
+                      }}
+                      disabled={displayedStudents.length === 0 || !quickFillMark.trim()}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-black flex items-center gap-1.5 transition-all ${
+                        displayedStudents.length > 0 && quickFillMark.trim()
+                          ? 'bg-amber-600 hover:bg-amber-500 text-white shadow-xs cursor-pointer active:scale-95'
+                          : 'bg-slate-200 dark:bg-slate-800 text-slate-400 cursor-not-allowed'
+                      }`}
+                      title="Fill mark for every student in the current view"
+                    >
+                      <span>Fill All ({displayedStudents.length})</span>
+                    </button>
+
+                    {/* Clear Button */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const targetLabel = selectedKeys.size > 0 ? `${selectedKeys.size} selected` : `all ${displayedStudents.length}`;
+                        if (window.confirm(`Are you sure you want to clear practical marks for ${targetLabel} students?`)) {
+                          handleApplyQuickFill('clear');
+                        }
+                      }}
+                      className="px-2.5 py-1.5 rounded-lg text-xs font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 border border-rose-200 dark:border-rose-800 cursor-pointer transition-colors"
+                      title="Clear marks"
+                    >
+                      Clear {selectedKeys.size > 0 ? `(${selectedKeys.size})` : 'All'}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Selection Helper Shortcuts Row */}
+                <div className="flex items-center justify-between text-[10.5px] text-slate-600 dark:text-slate-400 pt-1.5 border-t border-amber-200/60 dark:border-amber-800/40">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-bold text-slate-700 dark:text-slate-300">Fast Select:</span>
+                    <button
+                      type="button"
+                      onClick={handleToggleSelectAll}
+                      className="text-indigo-600 dark:text-indigo-400 font-extrabold hover:underline cursor-pointer"
+                    >
+                      {isAllSelected ? 'Deselect All' : `All (${displayedStudents.length})`}
+                    </button>
+                    <span>•</span>
+                    <button
+                      type="button"
+                      onClick={handleSelectEmptyOnly}
+                      className="text-emerald-600 dark:text-emerald-400 font-extrabold hover:underline cursor-pointer"
+                    >
+                      Empty Only ({emptyCount})
+                    </button>
+                    {selectedKeys.size > 0 && (
+                      <>
+                        <span>•</span>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedKeys(new Set())}
+                          className="text-rose-600 dark:text-rose-400 font-extrabold hover:underline cursor-pointer"
+                        >
+                          Clear Selection
+                        </button>
+                      </>
+                    )}
+                  </div>
+                  <div className="font-bold text-slate-500 dark:text-slate-400">
+                    {selectedKeys.size > 0 ? (
+                      <span className="text-indigo-600 dark:text-indigo-400 font-black">{selectedKeys.size} of {displayedStudents.length} selected</span>
+                    ) : (
+                      <span>{emptyCount} empty cells remaining</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Mobile-only student count + sort (shown below filter bar on small screens) */}
           <div className="sm:hidden flex items-center justify-between gap-1.5 px-1 py-0.5 text-[10px] text-slate-600 dark:text-slate-400">
-            <div className="font-extrabold">
-              <span className="text-indigo-600 dark:text-indigo-400 font-black">{displayedStudents.length}</span> Students
-              {showFailOnly && <span className="ml-1 text-rose-600">(Fail)</span>}
+            <div className="font-extrabold flex items-center gap-1.5">
+              <input
+                type="checkbox"
+                checked={isAllSelected}
+                ref={el => { if (el) el.indeterminate = isSomeSelected; }}
+                onChange={handleToggleSelectAll}
+                className="w-3.5 h-3.5 rounded border-slate-300 dark:border-slate-700 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                title={isAllSelected ? "Deselect all" : "Select all"}
+              />
+              <div>
+                <span className="text-indigo-600 dark:text-indigo-400 font-black">{displayedStudents.length}</span> Students
+                {showFailOnly && <span className="ml-1 text-rose-600">(Fail)</span>}
+              </div>
             </div>
             <div className="flex items-center gap-0.5 font-bold">
               <ArrowUpDown size={10} />
@@ -1990,19 +2313,29 @@ export default function PracticalsPage() {
                   const inWords = valToConvert ? numberToWords(valToConvert) : '';
                   const originalIdx = studentMarks.findIndex(s => s.rollNo === st.rollNo && s.name === st.name);
                   const allSubjs = st.subjectsAbbr || st.rawSubjects || st.subjects || 'N/A';
+                  const key = getStudentKey(st);
+                  const isSelected = selectedKeys.has(key);
 
                   return (
                     <div 
                       key={idx} 
                       className={`rounded-2xl border p-3 transition-all shadow-xs space-y-2 ${
-                        isAbsent 
+                        isSelected
+                          ? 'border-indigo-400/80 bg-indigo-50/40 dark:border-indigo-600/80 dark:bg-indigo-950/30'
+                          : isAbsent 
                           ? 'border-amber-400/50 bg-amber-500/5 dark:border-amber-500/30 dark:bg-amber-950/20' 
                           : 'border-slate-200/90 dark:border-slate-800 bg-white dark:bg-slate-900'
                       }`}
                     >
-                      {/* Row 1: Student S.No, Class Roll, Name & Marks Input Target */}
+                      {/* Row 1: Checkbox, Student S.No, Class Roll, Name & Marks Input Target */}
                       <div className="flex items-center justify-between gap-2">
                         <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => handleToggleRow(key)}
+                            className="w-4 h-4 rounded border-slate-300 dark:border-slate-700 text-indigo-600 focus:ring-indigo-500 cursor-pointer shrink-0"
+                          />
                           <span className="w-5.5 h-5.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-mono font-extrabold text-[10px] flex items-center justify-center border border-slate-200 dark:border-slate-700 shrink-0" title="Serial Number">
                             #{idx + 1}
                           </span>
@@ -2089,7 +2422,18 @@ export default function PracticalsPage() {
                 <table className="w-full text-left text-xs">
                   <thead className="bg-slate-100 dark:bg-slate-950 text-slate-700 dark:text-slate-300 font-black uppercase text-[9.5px] tracking-wider border-b border-slate-200 dark:border-slate-800">
                     <tr>
-                      <th className="py-1.5 px-2 w-10 text-center">S.No.</th>
+                      <th className="py-1.5 px-2 w-12 text-center">
+                        <div className="flex items-center justify-center gap-1">
+                          <input
+                            type="checkbox"
+                            checked={isAllSelected}
+                            ref={el => { if (el) el.indeterminate = isSomeSelected; }}
+                            onChange={handleToggleSelectAll}
+                            className="w-3.5 h-3.5 rounded border-slate-300 dark:border-slate-700 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                            title={isAllSelected ? "Deselect all" : "Select all"}
+                          />
+                        </div>
+                      </th>
                       <th className="py-1.5 px-2.5 w-16 cursor-pointer hover:text-indigo-600" onClick={() => setSortBy(sortBy === 'rollAsc' ? 'rollDesc' : 'rollAsc')}>
                         Roll {sortBy.startsWith('roll') ? (sortBy === 'rollAsc' ? '↑' : '↓') : ''}
                       </th>
@@ -2106,10 +2450,31 @@ export default function PracticalsPage() {
                       const inWords = valToConvert ? numberToWords(valToConvert) : '';
                       const originalIdx = studentMarks.findIndex(s => s.rollNo === st.rollNo && s.name === st.name);
                       const allSubjs = st.subjectsAbbr || st.rawSubjects || st.subjects || 'N/A';
+                      const key = getStudentKey(st);
+                      const isSelected = selectedKeys.has(key);
 
                       return (
-                        <tr key={idx} className={`hover:bg-slate-50 dark:hover:bg-slate-950/50 transition-colors ${isAbsent ? 'bg-amber-500/5' : ''}`}>
-                          <td className="py-1 px-2 text-center font-mono font-extrabold text-slate-400 text-xs">{idx + 1}</td>
+                        <tr 
+                          key={idx} 
+                          className={`hover:bg-slate-50 dark:hover:bg-slate-950/50 transition-colors ${
+                            isSelected 
+                              ? 'bg-indigo-50/70 dark:bg-indigo-950/40' 
+                              : isAbsent 
+                              ? 'bg-amber-500/5' 
+                              : ''
+                          }`}
+                        >
+                          <td className="py-1 px-2 text-center">
+                            <div className="flex items-center justify-center gap-1.5">
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={() => handleToggleRow(key)}
+                                className="w-3.5 h-3.5 rounded border-slate-300 dark:border-slate-700 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                              />
+                              <span className="font-mono font-extrabold text-slate-400 text-xs">{idx + 1}</span>
+                            </div>
+                          </td>
                           <td className="py-1 px-2.5 font-mono font-black text-indigo-600 dark:text-indigo-400 text-xs">{st.rollNo}</td>
                           <td className="py-1 px-2.5 space-y-0.5">
                             <div className="flex items-center gap-1.5 flex-wrap">
@@ -2154,6 +2519,54 @@ export default function PracticalsPage() {
                   </tbody>
                 </table>
               </div>
+
+              {/* Floating Sticky Action Bar when Rows are Selected */}
+              {selectedKeys.size > 0 && (
+                <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 w-[95%] max-w-2xl bg-slate-900/95 dark:bg-slate-950/95 text-white p-2.5 sm:p-3 rounded-2xl shadow-2xl border border-indigo-500/40 backdrop-blur-md flex flex-wrap items-center justify-between gap-2.5 animate-in slide-in-from-bottom-5 duration-200">
+                  <div className="flex items-center gap-2">
+                    <span className="w-6 h-6 rounded-full bg-indigo-500 flex items-center justify-center font-black text-xs text-white shrink-0">
+                      ✓
+                    </span>
+                    <div className="text-xs">
+                      <span className="font-extrabold text-white">{selectedKeys.size}</span>
+                      <span className="text-slate-300 ml-1">of {displayedStudents.length} selected</span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <input
+                      type="text"
+                      value={quickFillMark}
+                      onChange={(e) => setQuickFillMark(e.target.value.toUpperCase())}
+                      placeholder={`0-${subjectMaxMarks}/A`}
+                      className="w-20 px-2 py-1 rounded-lg bg-slate-800 border border-slate-700 text-white font-black text-xs text-center focus:ring-1 focus:ring-indigo-500 uppercase"
+                      maxLength={4}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleApplyQuickFill('selected')}
+                      disabled={!quickFillMark.trim()}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all flex items-center gap-1.5 ${
+                        quickFillMark.trim()
+                          ? 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-xs cursor-pointer active:scale-95'
+                          : 'bg-slate-700 text-slate-400 cursor-not-allowed'
+                      }`}
+                      title="Apply mark to all selected students"
+                    >
+                      <Zap size={13} />
+                      <span>Apply to {selectedKeys.size} Selected</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedKeys(new Set())}
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+                      title="Clear selection"
+                    >
+                      <X size={15} />
+                    </button>
+                  </div>
+                </div>
+              )}
             </>
           ) : (
             <div className="p-8 text-center text-xs font-bold text-slate-400 border rounded-xl border-slate-200 dark:border-slate-800">
