@@ -7,7 +7,7 @@ import PublicPageSkeleton from './components/PublicPageSkeleton';
 import SEOHead from './components/SEOHead';
 import Home from './pages/Home';
 import { initSecurityGuardrails } from './utils/securityGuardrails';
-import { isBootstrapSuperAdminEmail } from './services/staffAuthService';
+import { isBootstrapSuperAdminEmail } from './utils/authRoles';
 import './portal/portal.css';
 import './styles/ui-system.css';
 
@@ -125,8 +125,25 @@ function RoleGuard({ allowedRoles, children }) {
 
 function App() {
   useEffect(() => {
-    const cleanup = initSecurityGuardrails();
+    let cleanup = null;
+    let timerId = null;
+    let idleId = null;
+
+    const runInit = () => {
+      cleanup = initSecurityGuardrails();
+    };
+
+    if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+      idleId = window.requestIdleCallback(runInit, { timeout: 1500 });
+    } else if (typeof window !== 'undefined') {
+      timerId = setTimeout(runInit, 300);
+    }
+
     return () => {
+      if (idleId && typeof window !== 'undefined' && 'cancelIdleCallback' in window) {
+        window.cancelIdleCallback(idleId);
+      }
+      if (timerId) clearTimeout(timerId);
       if (cleanup) cleanup();
     };
   }, []);

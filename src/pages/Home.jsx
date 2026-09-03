@@ -74,8 +74,111 @@ const AnimatedCounter = ({ end, prefix = '', suffix = '' }) => {
   return <span ref={elementRef}>{prefix}{count}{suffix}</span>;
 };
 
+const parseNoticeDate = (dateStr) => {
+  if (!dateStr) return null;
+  const cleaned = dateStr.trim();
+
+  // Robust parser: match any of "Jun 9", "June 9", "9 Jun", "9 June", "Nov 25" etc.
+  const MONTHS = {
+    jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5,
+    jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11,
+    january: 0, february: 1, march: 2, april: 3, june: 5,
+    july: 6, august: 7, september: 8, october: 9, november: 10, december: 11
+  };
+  // Matches: "Jun 9", "June 9", "9 Jun", "9 June" (with optional year)
+  const re = /^([a-z]+)\s+(\d{1,2})(?:\s*,?\s*(\d{4}))?$|^(\d{1,2})\s+([a-z]+)(?:\s*,?\s*(\d{4}))?$/i;
+  const m = cleaned.match(re);
+  if (m) {
+    const monthStr = (m[1] || m[5]).toLowerCase();
+    const day = parseInt(m[2] || m[4], 10);
+    const yearStr = m[3] || m[6];
+    const monthIdx = MONTHS[monthStr];
+    if (monthIdx !== undefined && !isNaN(day)) {
+      const currentYear = new Date().getFullYear();
+      const year = yearStr ? parseInt(yearStr, 10) : currentYear;
+      const d = new Date(year, monthIdx, day);
+      if (!yearStr) {
+        const now = new Date();
+        if (d > now && (d - now) > 30 * 24 * 60 * 60 * 1000) {
+          d.setFullYear(currentYear - 1);
+        }
+      }
+      return d;
+    }
+  }
+
+  // Fallback: Try ISO / fully-qualified dates (e.g. "2026-06-09")
+  let parsed = Date.parse(cleaned);
+  if (!isNaN(parsed)) return new Date(parsed);
+
+  return null;
+};
+
+const formatDate = (dateStr) => {
+  const date = parseNoticeDate(dateStr);
+  if (!date) return dateStr;
+  
+  const day = String(date.getDate()).padStart(2, '0');
+  const month = date.toLocaleString('default', { month: 'short' });
+  const year = String(date.getFullYear()).slice(-2);
+  
+  return `${day}-${month}-${year}`;
+};
+
+const isNoticeNew = (dateStr, customDays, defaultDays) => {
+  const date = parseNoticeDate(dateStr);
+  if (!date) return false;
+  const days = customDays !== undefined && !isNaN(customDays) ? customDays : defaultDays;
+  const diffTime = new Date() - date;
+  const diffDays = diffTime / (1000 * 60 * 60 * 24);
+  return diffDays >= 0 && diffDays <= days;
+};
+
+const parseNotices = (text) => {
+  if (!text || typeof text !== 'string') return [];
+  return text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const firstComma = line.indexOf(',');
+      if (firstComma === -1) return null;
+      const date = line.substring(0, firstComma).trim();
+      const rest = line.substring(firstComma + 1);
+      
+      const secondComma = rest.indexOf(',');
+      if (secondComma === -1) {
+        return { date, title: rest.trim(), link: '#' };
+      }
+      const title = rest.substring(0, secondComma).trim();
+      const rest2 = rest.substring(secondComma + 1).trim();
+
+      const thirdComma = rest2.indexOf(',');
+      if (thirdComma === -1) {
+        return { date, title, link: rest2 };
+      }
+      const link = rest2.substring(0, thirdComma).trim();
+      const days = rest2.substring(thirdComma + 1).trim();
+      return { date, title, link, days: days ? parseInt(days, 10) : undefined };
+    })
+    .filter(Boolean);
+};
+
 export default function Home() {
-  const [notices, setNotices] = useState([]);
+  const [notices, setNotices] = useState(() => {
+    try {
+      const local = localStorage.getItem('site_notices');
+      if (local) {
+        const parsed = parseNotices(local);
+        if (parsed.length > 0) return parsed;
+      }
+    } catch (_) {}
+    return [
+      { date: 'Nov 23', title: 'JKBOSE Datesheet', link: '#' },
+      { date: 'Nov 23', title: 'PreBoard Results', link: '#' },
+      { date: 'Nov 23', title: 'Admit Cards', link: '#' }
+    ];
+  });
   const [settings, setSettings] = useState(null);
   const [tickerPaused, setTickerPaused] = useState(false);
   const [tickerHidden, setTickerHidden] = useState(false);
@@ -90,12 +193,6 @@ export default function Home() {
     } catch (_) {}
     return [{ image: '/slides/1.jpg', title: 'Govt. HSS Shangus', caption: 'Nurturing Minds, Shaping Futures' }];
   });
-
-  useEffect(() => {
-    import('../utils/settingsLoader').then(({ loadSiteSettings }) => {
-      loadSiteSettings().then(setSettings);
-    });
-  }, []);
 
   // Hide Latest Updates ticker on desktop when user scrolls down and Latest Notices / Briefing becomes visible
   useEffect(() => {
@@ -115,241 +212,149 @@ export default function Home() {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
+  // Coordinate background synchronization tasks during idle time to guarantee 0ms main-thread contention
   useEffect(() => {
     let active = true;
-    async function loadSlides() {
-      // 1. Fetch from Firestore for dynamic updates
-      try {
-        const snap = await getDoc(doc(db, 'site', 'slideshow'));
-        if (snap.exists() && active) {
-          const data = snap.data();
-          if (data && Array.isArray(data.items) && data.items.length > 0) {
-            setSlides(data.items);
-            localStorage.setItem('site_slides', JSON.stringify(data.items));
+    let timerId = null;
+    let idleId = null;
+
+    const runBackgroundSync = () => {
+      if (!active) return;
+
+      // 1. Site Settings
+      import('../utils/settingsLoader').then(({ loadSiteSettings }) => {
+        if (active) loadSiteSettings().then(setSettings);
+      }).catch(() => {});
+
+      // 2. Slideshow updates
+      (async () => {
+        try {
+          const snap = await getDoc(doc(db, 'site', 'slideshow'));
+          if (snap.exists() && active) {
+            const data = snap.data();
+            if (data && Array.isArray(data.items) && data.items.length > 0) {
+              setSlides(data.items);
+              localStorage.setItem('site_slides', JSON.stringify(data.items));
+              return;
+            }
+          }
+        } catch (err) {
+          console.warn('Failed to load slides from Firestore:', err);
+        }
+
+        try {
+          const res = await fetch('/slides/slides.txt?t=' + Date.now(), { cache: 'no-cache' });
+          if (res.ok && active) {
+            const text = await res.text();
+            if (!text.trim().startsWith('<')) {
+              const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+              const mapped = lines.map((line, idx) => {
+                const parts = line.split(',');
+                if (parts[0] && parts[0].includes('.')) {
+                  const image = parts[0].trim();
+                  const title = (parts[1] || '').trim();
+                  const caption = (parts.slice(2).join(',') || '').trim();
+                  return { image: '/slides/' + image, title, caption };
+                }
+                const title = (parts[0] || '').trim();
+                const caption = (parts.slice(1).join(',') || '').trim();
+                const image = `/slides/${idx + 1}.jpg`;
+                return { image, title, caption };
+              });
+              setSlides(mapped);
+              localStorage.setItem('site_slides', JSON.stringify(mapped));
+            }
+          }
+        } catch (err) {
+          console.warn('Failed to fetch slides.txt fallback:', err);
+        }
+      })();
+
+      // 3. Faculty summary
+      (async () => {
+        try {
+          const snapshot = await getDoc(doc(db, 'site', 'facultySummary'));
+          const principal = snapshot.data()?.principalName;
+          if (typeof principal === 'string' && principal.trim() && active) {
+            setPrincipalName(principal.trim());
             return;
           }
+        } catch (err) {
+          console.warn('Failed to load faculty from Firestore:', err);
         }
-      } catch (err) {
-        console.warn('Failed to load slides from Firestore:', err);
-      }
 
-      // 3. Fallback to parsing slides.txt
-      try {
-        const res = await fetch('/slides/slides.txt?t=' + Date.now(), { cache: 'no-cache' });
-        if (res.ok) {
-          const text = await res.text();
-          if (text.trim().startsWith('<')) throw new Error('Offline fallback HTML received');
-          const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
-          const mapped = lines.map((line, idx) => {
-            const parts = line.split(',');
-            if (parts[0] && parts[0].includes('.')) {
-              const image = parts[0].trim();
-              const title = (parts[1] || '').trim();
-              const caption = (parts.slice(2).join(',') || '').trim();
-              return { image: '/slides/' + image, title, caption };
-            }
-            const title = (parts[0] || '').trim();
-            const caption = (parts.slice(1).join(',') || '').trim();
-            const image = `/slides/${idx + 1}.jpg`;
-            return { image, title, caption };
-          });
-          if (active) {
-            setSlides(mapped);
-            localStorage.setItem('site_slides', JSON.stringify(mapped));
-          }
-        }
-      } catch (err) {
-        console.warn('Failed to fetch slides.txt fallback:', err);
-      }
-    }
-    loadSlides();
-    return () => { active = false; };
-  }, []);
-
-  useEffect(() => {
-    let active = true;
-    async function loadFaculty() {
-      try {
-        const snapshot = await getDoc(doc(db, 'site', 'facultySummary'));
-        const principalName = snapshot.data()?.principalName;
-        if (typeof principalName === 'string' && principalName.trim() && active) {
-          setPrincipalName(principalName.trim());
-          return;
-        }
-      } catch (err) {
-        console.warn('Failed to load the public faculty summary from Firestore:', err);
-      }
-
-      try {
-        const res = await fetch('/slides/faculty.json?t=' + Date.now(), { cache: 'no-cache' });
-        if (res.ok) {
-          const data = await res.json();
-          if (Array.isArray(data)) {
-            const principal = data.find(f => f.designation?.toLowerCase() === 'principal');
-            if (principal && active) {
-              setPrincipalName(principal.name);
+        try {
+          const res = await fetch('/slides/faculty.json?t=' + Date.now(), { cache: 'no-cache' });
+          if (res.ok && active) {
+            const data = await res.json();
+            if (Array.isArray(data)) {
+              const principal = data.find(f => f.designation?.toLowerCase() === 'principal');
+              if (principal) setPrincipalName(principal.name);
             }
           }
+        } catch (err) {
+          console.warn('Failed to fetch faculty.json:', err);
         }
-      } catch (err) {
-        console.warn('Failed to fetch faculty.json for principal name:', err);
-      }
-    }
-    loadFaculty();
-    return () => { active = false; };
-  }, []);
+      })();
 
-  const parseNoticeDate = (dateStr) => {
-    if (!dateStr) return null;
-    const cleaned = dateStr.trim();
+      // 4. Latest notices
+      (async () => {
+        try {
+          const snap = await getDoc(doc(db, 'site', 'notices'));
+          if (snap.exists() && active) {
+            const data = snap.data();
+            if (data && data.text) {
+              const parsed = parseNotices(data.text);
+              if (parsed.length > 0) {
+                setNotices(parsed);
+                localStorage.setItem('site_notices', data.text);
+                return;
+              }
+            }
+          }
+        } catch (err) {
+          console.warn('Firestore notices fetch failed, checking fallbacks:', err);
+        }
 
-    // Robust parser: match any of "Jun 9", "June 9", "9 Jun", "9 June", "Nov 25" etc.
-    const MONTHS = {
-      jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5,
-      jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11,
-      january: 0, february: 1, march: 2, april: 3, june: 5,
-      july: 6, august: 7, september: 8, october: 9, november: 10, december: 11
+        try {
+          const res = await fetch('/slides/notices.txt?t=' + Date.now(), { cache: 'no-cache' });
+          if (res.ok && active) {
+            const text = await res.text();
+            if (!text.trim().startsWith('<')) {
+              const parsed = parseNotices(text);
+              if (parsed.length > 0) {
+                setNotices(parsed);
+                localStorage.setItem('site_notices', text);
+                return;
+              }
+            }
+          }
+        } catch (err) {
+          console.warn('Server notices.txt fetch failed:', err);
+        }
+
+        const local = localStorage.getItem('site_notices');
+        if (local && active) {
+          const parsed = parseNotices(local);
+          if (parsed.length > 0) {
+            setNotices(parsed);
+          }
+        }
+      })();
     };
-    // Matches: "Jun 9", "June 9", "9 Jun", "9 June" (with optional year)
-    const re = /^([a-z]+)\s+(\d{1,2})(?:\s*,?\s*(\d{4}))?$|^(\d{1,2})\s+([a-z]+)(?:\s*,?\s*(\d{4}))?$/i;
-    const m = cleaned.match(re);
-    if (m) {
-      const monthStr = (m[1] || m[5]).toLowerCase();
-      const day = parseInt(m[2] || m[4], 10);
-      const yearStr = m[3] || m[6];
-      const monthIdx = MONTHS[monthStr];
-      if (monthIdx !== undefined && !isNaN(day)) {
-        const currentYear = new Date().getFullYear();
-        const year = yearStr ? parseInt(yearStr, 10) : currentYear;
-        const d = new Date(year, monthIdx, day);
-        // If no year given and date is in the future by >30 days, assume last year
-        if (!yearStr) {
-          const now = new Date();
-          if (d > now && (d - now) > 30 * 24 * 60 * 60 * 1000) {
-            d.setFullYear(currentYear - 1);
-          }
-        }
-        return d;
-      }
+
+    if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+      idleId = window.requestIdleCallback(runBackgroundSync, { timeout: 2000 });
+    } else if (typeof window !== 'undefined') {
+      timerId = setTimeout(runBackgroundSync, 150);
     }
 
-    // Fallback: Try ISO / fully-qualified dates (e.g. "2026-06-09")
-    let parsed = Date.parse(cleaned);
-    if (!isNaN(parsed)) return new Date(parsed);
-
-    return null;
-  };
-
-  const formatDate = (dateStr) => {
-    const date = parseNoticeDate(dateStr);
-    if (!date) return dateStr;
-    
-    const day = String(date.getDate()).padStart(2, '0');
-    const month = date.toLocaleString('default', { month: 'short' });
-    const year = String(date.getFullYear()).slice(-2);
-    
-    return `${day}-${month}-${year}`;
-  };
-
-  const isNoticeNew = (dateStr, customDays, defaultDays) => {
-    const date = parseNoticeDate(dateStr);
-    if (!date) return false;
-    const days = customDays !== undefined && !isNaN(customDays) ? customDays : defaultDays;
-    const diffTime = new Date() - date;
-    const diffDays = diffTime / (1000 * 60 * 60 * 24);
-    return diffDays >= 0 && diffDays <= days;
-  };
-
-  const parseNotices = (text) => {
-    return text
-      .split(/\r?\n/)
-      .map((line) => line.trim())
-      .filter(Boolean)
-      .map((line) => {
-        const firstComma = line.indexOf(',');
-        if (firstComma === -1) return null;
-        const date = line.substring(0, firstComma).trim();
-        const rest = line.substring(firstComma + 1);
-        
-        const secondComma = rest.indexOf(',');
-        if (secondComma === -1) {
-          return { date, title: rest.trim(), link: '#' };
-        }
-        const title = rest.substring(0, secondComma).trim();
-        const rest2 = rest.substring(secondComma + 1).trim();
-
-        const thirdComma = rest2.indexOf(',');
-        if (thirdComma === -1) {
-          return { date, title, link: rest2 };
-        }
-        const link = rest2.substring(0, thirdComma).trim();
-        const days = rest2.substring(thirdComma + 1).trim();
-        return { date, title, link, days: days ? parseInt(days, 10) : undefined };
-      })
-      .filter(Boolean);
-  };
-
-  useEffect(() => {
-    let active = true;
-    async function loadNotices() {
-      // 1. Try Firestore first (Live Cloud Data across all devices)
-      try {
-        const snap = await getDoc(doc(db, 'site', 'notices'));
-        if (snap.exists() && active) {
-          const data = snap.data();
-          if (data && data.text) {
-            const parsed = parseNotices(data.text);
-            if (parsed.length > 0) {
-              setNotices(parsed);
-              localStorage.setItem('site_notices', data.text);
-              return;
-            }
-          }
-        }
-      } catch (err) {
-        console.warn('Firestore notices fetch failed, checking fallbacks:', err);
-      }
-
-      // 2. Try static server file (/slides/notices.txt)
-      try {
-        const res = await fetch('/slides/notices.txt?t=' + Date.now(), { cache: 'no-cache' });
-        if (res.ok) {
-          const text = await res.text();
-          if (!text.trim().startsWith('<')) {
-            const parsed = parseNotices(text);
-            if (parsed.length > 0 && active) {
-              setNotices(parsed);
-              localStorage.setItem('site_notices', text);
-              return;
-            }
-          }
-        }
-      } catch (err) {
-        console.warn('Server notices.txt fetch failed:', err);
-      }
-
-      // 3. Try cached localStorage as offline backup
-      const local = localStorage.getItem('site_notices');
-      if (local && active) {
-        const parsed = parseNotices(local);
-        if (parsed.length > 0) {
-          setNotices(parsed);
-          return;
-        }
-      }
-
-      // 4. Default hardcoded fallback
-      if (active) {
-        setNotices([
-          { date: 'Nov 23', title: 'JKBOSE Datesheet', link: '#' },
-          { date: 'Nov 23', title: 'PreBoard Results', link: '#' },
-          { date: 'Nov 23', title: 'Admit Cards', link: '#' }
-        ]);
-      }
-    }
-    loadNotices();
     return () => {
       active = false;
+      if (idleId && typeof window !== 'undefined' && 'cancelIdleCallback' in window) {
+        window.cancelIdleCallback(idleId);
+      }
+      if (timerId) clearTimeout(timerId);
     };
   }, []);
 
