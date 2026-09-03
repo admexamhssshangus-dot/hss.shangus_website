@@ -1,35 +1,26 @@
 import { auth } from '../firebase';
 
-let cachedFirebaseUser = null;
-if (typeof window !== 'undefined' && auth) {
-  try {
-    auth.onAuthStateChanged((user) => {
-      cachedFirebaseUser = user;
-    });
-  } catch (e) {
-    // Ignore initialization errors if auth is mock or unconfigured
-  }
-}
-
 /**
  * Checks if an Admin Gmail / Admin account is logged in
  */
 function isAdminLoggedIn() {
   if (typeof window === 'undefined') return false;
 
-  // 1. Check Firebase Auth user (e.g. logged in via Google/Gmail or Firebase)
-  const currentUser = auth?.currentUser || cachedFirebaseUser;
-  if (currentUser && currentUser.email) {
-    return true;
-  }
-
-  // 2. Check Admin Session Storage flags
+  // 1. Check Admin Session Storage flags (instant synchronous check)
   if (
     sessionStorage.getItem('isAdminAuthenticated') === 'true' ||
-    sessionStorage.getItem('adminUser')
+    sessionStorage.getItem('adminUser') ||
+    sessionStorage.getItem('hss_session')
   ) {
     return true;
   }
+
+  // 2. Check Firebase Auth user if available
+  try {
+    if (auth?.currentUser?.email) {
+      return true;
+    }
+  } catch (_) {}
 
   return false;
 }
@@ -124,16 +115,17 @@ export function initSecurityGuardrails() {
 
   // 1. Console Warning & Tamper Notice
   const printConsoleWarning = () => {
-    if (isAdminLoggedIn()) return; // Don't clear/warn if admin is logged in
-    console.clear();
-    console.log(
-      '%c🛑 SECURITY WARNING & INTELLECTUAL PROPERTY NOTICE',
-      'color: #ef4444; font-size: 20px; font-weight: 800; font-family: system-ui;'
-    );
-    console.log(
-      '%cThis application, its source code, design assets, and interface are protected by copyright law and security guardrails.\nUnauthorized inspect, scraping, cloning, or code extraction is strictly monitored and prohibited.',
-      'color: #3b82f6; font-size: 13px; font-weight: 500; font-family: system-ui;'
-    );
+    if (isAdminLoggedIn()) return; // Don't warn if admin is logged in
+    try {
+      console.log(
+        '%c🛑 SECURITY WARNING & INTELLECTUAL PROPERTY NOTICE',
+        'color: #ef4444; font-size: 20px; font-weight: 800; font-family: system-ui;'
+      );
+      console.log(
+        '%cThis application, its source code, design assets, and interface are protected by copyright law and security guardrails.\nUnauthorized inspect, scraping, cloning, or code extraction is strictly monitored and prohibited.',
+        'color: #3b82f6; font-size: 13px; font-weight: 500; font-family: system-ui;'
+      );
+    } catch (_) {}
   };
 
   printConsoleWarning();

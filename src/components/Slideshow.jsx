@@ -15,12 +15,18 @@ export default function Slideshow({
   imageExt = '.jpg'
 }) {
   const [index, setIndex] = useState(0);
-  const [slides, setSlides] = useState([]); // array of { image, title, caption, fit, animation }
-  const [loadedIndices, setLoadedIndices] = useState(new Set([0]));
+  const [slides, setSlides] = useState(() => {
+    if (customSlides && customSlides.length > 0) return customSlides;
+    if (images && images.length > 0 && !configUrl) {
+      return images.map((src) => ({ image: src, title: '', caption: '', fit: 'ambient', animation: 'kenburns' }));
+    }
+    return [];
+  });
+  const [loadedIndices, setLoadedIndices] = useState(() => new Set([0, 1]));
 
   // Reset loaded indices if slides list changes
   useEffect(() => {
-    setLoadedIndices(new Set([0]));
+    setLoadedIndices(new Set([0, 1]));
   }, [slides]);
 
   // Track loaded indices to lazy load images (current and next slide)
@@ -218,7 +224,8 @@ export default function Slideshow({
                         src={s.image}
                         alt={s.title || "Govt HSS Shangus"}
                         fetchPriority={i === 0 ? "high" : "auto"}
-                        decoding="async"
+                        decoding={i === 0 ? "sync" : "async"}
+                        loading={i === 0 ? "eager" : "lazy"}
                         className={`max-w-full max-h-full object-contain rounded-md sm:rounded-lg shadow-[0_15px_40px_rgba(0,0,0,0.85)] drop-shadow-2xl border border-white/10 ${imageAnimClass}`}
                       />
                     </div>
@@ -236,7 +243,8 @@ export default function Slideshow({
                         src={s.image}
                         alt={s.title || "Govt HSS Shangus"}
                         fetchPriority="high"
-                        decoding="async"
+                        decoding="sync"
+                        loading="eager"
                         className="w-full h-full object-cover opacity-0 pointer-events-none"
                       />
                     )}
@@ -250,7 +258,8 @@ export default function Slideshow({
                       src={s.image}
                       alt={s.title || "Govt HSS Shangus"}
                       fetchPriority={i === 0 ? "high" : "auto"}
-                      decoding="async"
+                      decoding={i === 0 ? "sync" : "async"}
+                      loading={i === 0 ? "eager" : "lazy"}
                       className={`max-w-full max-h-full object-contain rounded-md shadow-2xl ${imageAnimClass}`}
                     />
                   </div>
@@ -263,7 +272,8 @@ export default function Slideshow({
                       src={s.image}
                       alt={s.title || "Govt HSS Shangus"}
                       fetchPriority={i === 0 ? "high" : "auto"}
-                      decoding="async"
+                      decoding={i === 0 ? "sync" : "async"}
+                      loading={i === 0 ? "eager" : "lazy"}
                       className={`w-full h-full object-fill ${imageAnimClass}`}
                     />
                   </div>

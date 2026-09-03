@@ -14,27 +14,21 @@ import {
 } from 'firebase/firestore';
 import { auth, db, firebaseConfig } from './firebase';
 
-export const SUPERADMIN_EMAIL = 'adm.exam.hss.shangus@gmail.com';
+import {
+  SUPERADMIN_EMAIL,
+  BOOTSTRAP_ADMINS,
+  isSuperAdminEmail,
+  isBootstrapAdminEmail,
+  isBootstrapSuperAdminEmail
+} from '../utils/authRoles';
 
-export const BOOTSTRAP_ADMINS = [
-  'ghssshangus74@gmail.com',
-  'e.educational.24@gmail.com',
-  'socialshiftz@gmail.com',
-];
-
-export function isSuperAdminEmail(email) {
-  if (!email || typeof email !== 'string') return false;
-  return email.trim().toLowerCase() === SUPERADMIN_EMAIL;
-}
-
-export function isBootstrapAdminEmail(email) {
-  if (!email || typeof email !== 'string') return false;
-  const clean = email.trim().toLowerCase();
-  return clean === SUPERADMIN_EMAIL || BOOTSTRAP_ADMINS.includes(clean);
-}
-
-// Backward-compat alias for components expecting isBootstrapSuperAdminEmail
-export const isBootstrapSuperAdminEmail = isSuperAdminEmail;
+export {
+  SUPERADMIN_EMAIL,
+  BOOTSTRAP_ADMINS,
+  isSuperAdminEmail,
+  isBootstrapAdminEmail,
+  isBootstrapSuperAdminEmail
+};
 
 /**
  * Resolves whether an email/user belongs to Staff (SuperAdmin, Admin, Teacher)
