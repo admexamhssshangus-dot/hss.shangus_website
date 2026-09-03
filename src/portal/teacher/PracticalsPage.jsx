@@ -3,8 +3,9 @@ import { Link } from 'react-router-dom';
 import { 
   ArrowLeft, UserCheck, RefreshCw, AlertCircle, 
   CheckCircle2, Printer, ShieldCheck, History, Clock, ArrowUpDown,
-  Bookmark, Send, ChevronDown, Check, SlidersHorizontal, Zap, X
+  Bookmark, Send, ChevronDown, Check, SlidersHorizontal, Zap, X, Info
 } from 'lucide-react';
+import ConfirmModal from '../components/ConfirmModal';
 import SEO from '../../components/SEO';
 import { db, auth } from '../../services/firebase';
 import { collection, getDocs, doc, setDoc, addDoc } from 'firebase/firestore';
@@ -910,6 +911,29 @@ export default function PracticalsPage() {
   const [selectedKeys, setSelectedKeys] = useState(new Set());
   const [quickFillMark, setQuickFillMark] = useState('');
   const [showQuickFill, setShowQuickFill] = useState(false);
+
+  // Custom Confirmation Dialog State (replaces ugly native window.confirm)
+  const [confirmModal, setConfirmModal] = useState({
+    isOpen: false,
+    title: '',
+    message: '',
+    confirmText: 'Confirm',
+    cancelText: 'Cancel',
+    type: 'danger',
+    onConfirm: null,
+  });
+
+  const triggerConfirm = useCallback(({ title, message, confirmText = 'Confirm', cancelText = 'Cancel', type = 'danger', onConfirm }) => {
+    setConfirmModal({
+      isOpen: true,
+      title,
+      message,
+      confirmText,
+      cancelText,
+      type,
+      onConfirm,
+    });
+  }, []);
 
   // Submissions History Drawer State
   const [showHistoryModal, setShowHistoryModal] = useState(false);
@@ -1941,13 +1965,39 @@ export default function PracticalsPage() {
           )}
 
           {alert && (
-            <div className={`p-2.5 rounded-xl text-xs font-bold flex items-start gap-2 animate-fadeIn ${
+            <div className={`p-3 rounded-2xl text-xs font-extrabold flex items-center justify-between gap-3 animate-in fade-in slide-in-from-top-2 duration-200 shadow-xs border ${
               alert.type === 'error'
-                ? 'bg-rose-500/10 border border-rose-500/30 text-rose-600 dark:text-rose-400'
-                : 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400'
+                ? 'bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300'
+                : alert.type === 'info'
+                ? 'bg-blue-50 dark:bg-blue-950/40 border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300'
+                : 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300'
             }`}>
-              {alert.type === 'error' ? <AlertCircle size={14} className="flex-shrink-0 mt-0.5" /> : <CheckCircle2 size={14} className="flex-shrink-0 mt-0.5" />}
-              <span>{alert.text}</span>
+              <div className="flex items-center gap-2.5 min-w-0">
+                <span className={`w-7 h-7 rounded-xl flex items-center justify-center shrink-0 ${
+                  alert.type === 'error'
+                    ? 'bg-rose-500/15 text-rose-600 dark:text-rose-400'
+                    : alert.type === 'info'
+                    ? 'bg-blue-500/15 text-blue-600 dark:text-blue-400'
+                    : 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
+                }`}>
+                  {alert.type === 'error' ? (
+                    <AlertCircle size={16} />
+                  ) : alert.type === 'info' ? (
+                    <Info size={16} />
+                  ) : (
+                    <CheckCircle2 size={16} />
+                  )}
+                </span>
+                <span className="leading-snug truncate sm:whitespace-normal">{alert.text}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAlert(null)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer shrink-0"
+                title="Dismiss"
+              >
+                <X size={15} />
+              </button>
             </div>
           )}
 
@@ -2209,9 +2259,17 @@ export default function PracticalsPage() {
                     <button
                       type="button"
                       onClick={() => {
-                        if (window.confirm(`Fill mark "${quickFillMark}" for ALL ${displayedStudents.length} students in this evaluation roster?`)) {
-                          handleApplyQuickFill('all');
-                        }
+                        triggerConfirm({
+                          title: 'Fill All Students',
+                          message: `Are you sure you want to assign mark "${quickFillMark}" to ALL ${displayedStudents.length} students in this evaluation roster?`,
+                          confirmText: `Fill All (${displayedStudents.length})`,
+                          cancelText: 'Cancel',
+                          type: 'warning',
+                          onConfirm: () => {
+                            handleApplyQuickFill('all');
+                            setConfirmModal(prev => ({ ...prev, isOpen: false }));
+                          }
+                        });
                       }}
                       disabled={displayedStudents.length === 0 || !quickFillMark.trim()}
                       className={`px-3 py-1.5 rounded-lg text-xs font-black flex items-center gap-1.5 transition-all ${
@@ -2230,11 +2288,19 @@ export default function PracticalsPage() {
                       type="button"
                       onClick={() => {
                         const targetLabel = selectedKeys.size > 0 ? `${selectedKeys.size} selected` : `all ${displayedStudents.length}`;
-                        if (window.confirm(`Are you sure you want to clear practical marks for ${targetLabel} students?`)) {
-                          handleApplyQuickFill('clear');
-                        }
+                        triggerConfirm({
+                          title: 'Clear Practical Marks',
+                          message: `Are you sure you want to clear practical marks for ${targetLabel} students? Any existing entered marks will be emptied.`,
+                          confirmText: 'Yes, Clear Marks',
+                          cancelText: 'Keep Marks',
+                          type: 'danger',
+                          onConfirm: () => {
+                            handleApplyQuickFill('clear');
+                            setConfirmModal(prev => ({ ...prev, isOpen: false }));
+                          }
+                        });
                       }}
-                      className="px-2.5 py-1.5 rounded-lg text-xs font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 border border-rose-200 dark:border-rose-800 cursor-pointer transition-colors flex items-center gap-1"
+                      className="px-2.5 py-1.5 rounded-lg text-xs font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 border border-rose-200 dark:border-rose-800 cursor-pointer transition-colors flex items-center gap-1 active:scale-95"
                       title="Clear marks"
                     >
                       <X size={13} />
@@ -2814,6 +2880,20 @@ export default function PracticalsPage() {
           </div>
         </div>
       )}
+
+      {/* Custom High-Quality Confirmation Modal (replaces browser confirm) */}
+      <ConfirmModal
+        isOpen={confirmModal.isOpen}
+        onClose={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
+        onConfirm={() => {
+          if (confirmModal.onConfirm) confirmModal.onConfirm();
+        }}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        confirmText={confirmModal.confirmText}
+        cancelText={confirmModal.cancelText}
+        type={confirmModal.type}
+      />
     </div>
   );
 }
