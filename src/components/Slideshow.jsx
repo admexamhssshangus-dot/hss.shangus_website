@@ -279,31 +279,31 @@ export default function Slideshow({
 
       {/* Interactive Controls & Slide Indicator Dots */}
       <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-        <div className="flex items-center gap-2 sm:gap-3 absolute bottom-2.5 right-2 sm:right-auto sm:left-1/2 sm:-translate-x-1/2 sm:bottom-6 md:bottom-20 pointer-events-auto z-20 bg-slate-950/60 backdrop-blur-md px-2 sm:px-3 py-1 sm:py-1.5 rounded-full border border-white/15 shadow-xl">
+        <div className="flex items-center gap-1 sm:gap-1.5 absolute bottom-2 right-2 sm:right-auto sm:left-1/2 sm:-translate-x-1/2 sm:bottom-5 md:bottom-18 pointer-events-auto z-20 bg-transparent hover:bg-slate-950/75 border border-transparent hover:border-white/20 hover:backdrop-blur-md px-1.5 sm:px-2.5 py-0.5 sm:py-1 rounded-full hover:shadow-xl transition-all duration-300 group">
           {/* Prev button */}
           <button
             type="button"
             aria-label="Previous slide"
             onClick={handlePrev}
-            className="text-white/80 hover:text-white hover:bg-white/15 active:scale-90 rounded-full flex items-center justify-center w-5 h-5 sm:w-6 sm:h-6 transition-all duration-200 cursor-pointer"
+            className="text-white/85 hover:text-white hover:bg-white/15 active:scale-90 rounded-full flex items-center justify-center w-4 h-4 sm:w-5 sm:h-5 transition-all duration-200 cursor-pointer drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]"
             title="Previous slide"
           >
-            <ChevronLeft size={14} className="stroke-[2.5]" />
+            <ChevronLeft size={12} className="stroke-[2.5]" />
           </button>
 
           {/* Indicator dots */}
           {slides.length > 1 && (
-            <div className="flex items-center gap-1 sm:gap-1.5 px-0.5">
+            <div className="flex items-center gap-0.5 sm:gap-1 px-0.5">
               {slides.map((_, i) => (
                 <button
                   key={i}
                   type="button"
                   onClick={() => setIndex(i)}
                   aria-label={`Jump to slide ${i + 1}`}
-                  className={`h-1.5 rounded-full transition-all duration-300 cursor-pointer ${
+                  className={`h-1 sm:h-1.5 rounded-full transition-all duration-300 cursor-pointer drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)] ${
                     i === index
-                      ? 'w-5 sm:w-6 bg-teal-400 shadow-[0_0_10px_rgba(45,212,191,0.8)]'
-                      : 'w-1.5 bg-white/40 hover:bg-white/70'
+                      ? 'w-3.5 sm:w-5 bg-teal-400 shadow-[0_0_8px_rgba(45,212,191,0.9)]'
+                      : 'w-1 sm:w-1.5 bg-white/45 hover:bg-white/80'
                   }`}
                   title={`Slide ${i + 1}`}
                 />
@@ -316,10 +316,10 @@ export default function Slideshow({
             type="button"
             aria-label="Next slide"
             onClick={handleNext}
-            className="text-white/80 hover:text-white hover:bg-white/15 active:scale-90 rounded-full flex items-center justify-center w-5 h-5 sm:w-6 sm:h-6 transition-all duration-200 cursor-pointer"
+            className="text-white/85 hover:text-white hover:bg-white/15 active:scale-90 rounded-full flex items-center justify-center w-4 h-4 sm:w-5 sm:h-5 transition-all duration-200 cursor-pointer drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]"
             title="Next slide"
           >
-            <ChevronRight size={14} className="stroke-[2.5]" />
+            <ChevronRight size={12} className="stroke-[2.5]" />
           </button>
         </div>
       </div>
