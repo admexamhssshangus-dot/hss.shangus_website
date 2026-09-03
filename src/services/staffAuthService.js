@@ -14,17 +14,27 @@ import {
 } from 'firebase/firestore';
 import { auth, db, firebaseConfig } from './firebase';
 
-export const BOOTSTRAP_SUPERADMINS = [
-  'adm.exam.hss.shangus@gmail.com',
+export const SUPERADMIN_EMAIL = 'adm.exam.hss.shangus@gmail.com';
+
+export const BOOTSTRAP_ADMINS = [
   'ghssshangus74@gmail.com',
   'e.educational.24@gmail.com',
   'socialshiftz@gmail.com',
 ];
 
-export function isBootstrapSuperAdminEmail(email) {
+export function isSuperAdminEmail(email) {
   if (!email || typeof email !== 'string') return false;
-  return BOOTSTRAP_SUPERADMINS.includes(email.trim().toLowerCase());
+  return email.trim().toLowerCase() === SUPERADMIN_EMAIL;
 }
+
+export function isBootstrapAdminEmail(email) {
+  if (!email || typeof email !== 'string') return false;
+  const clean = email.trim().toLowerCase();
+  return clean === SUPERADMIN_EMAIL || BOOTSTRAP_ADMINS.includes(clean);
+}
+
+// Backward-compat alias for components expecting isBootstrapSuperAdminEmail
+export const isBootstrapSuperAdminEmail = isSuperAdminEmail;
 
 /**
  * Resolves whether an email/user belongs to Staff (SuperAdmin, Admin, Teacher)
@@ -35,8 +45,8 @@ export async function resolveStaffRoleAndPerms(emailOrUser) {
   const email = (typeof emailOrUser === 'string' ? emailOrUser : emailOrUser.email || '').trim().toLowerCase();
   if (!email) return null;
 
-  // 1. Check master institutional super admins FIRST (immediate, synchronous & immune to permission errors)
-  if (isBootstrapSuperAdminEmail(email)) {
+  // 1. Sole Super Admin check: ONLY adm.exam.hss.shangus@gmail.com
+  if (isSuperAdminEmail(email)) {
     return {
       role: 'SuperAdmin',
       perms: ['*'],
@@ -111,16 +121,16 @@ export async function resolveStaffRoleAndPerms(emailOrUser) {
     }
   }
 
-  // 3. Check master institutional fallback super admins (only if not found in Firestore)
-  if (BOOTSTRAP_SUPERADMINS.includes(email)) {
+  // 4. Institutional Bootstrap Admins fallback (Admin role, NOT SuperAdmin)
+  if (BOOTSTRAP_ADMINS.includes(email)) {
     return {
-      role: 'SuperAdmin',
-      perms: ['*'],
-      isSuperAdmin: true,
+      role: 'Admin',
+      perms: ['reports', 'controls', 'subjects', 'directEntry', 'bulkTools'],
+      isSuperAdmin: false,
       isAdmin: true,
       isTeacher: false,
       isStaff: true,
-      name: 'Super Admin',
+      name: email.split('@')[0],
       email,
     };
   }

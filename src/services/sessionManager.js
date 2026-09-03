@@ -227,40 +227,36 @@ function recordHeartbeat() {
 // Export
 // ---------------------------------------------------------------------------
 
-const BOOTSTRAP_ADMIN_EMAILS = [
-  'adm.exam.hss.shangus@gmail.com',
-  'ghssshangus74@gmail.com',
-  'e.educational.24@gmail.com',
-  'socialshiftz@gmail.com',
-];
+export const SUPERADMIN_EMAIL = 'adm.exam.hss.shangus@gmail.com';
 
 /**
  * Check if currently authenticated user or session is a SuperAdmin.
+ * adm.exam.hss.shangus@gmail.com is the sole SuperAdmin.
  */
 export function isSuperAdminUser(user = null) {
   try {
     const targetUser = user || getUser();
     if (targetUser) {
-      const role = String(targetUser.role || targetUser.Role || '').toLowerCase().replace(/\s+/g, '');
-      if (role === 'superadmin' || targetUser.isSuperAdmin === true) return true;
       const email = String(targetUser.email || '').toLowerCase().trim();
-      if (BOOTSTRAP_ADMIN_EMAILS.includes(email)) return true;
+      if (email === SUPERADMIN_EMAIL) return true;
+      const role = String(targetUser.role || targetUser.Role || '').toLowerCase().replace(/\s+/g, '');
+      if ((role === 'superadmin' || targetUser.isSuperAdmin === true) && email === SUPERADMIN_EMAIL) return true;
     }
 
     const adminUser = JSON.parse(sessionStorage.getItem('hss_admin_user') || localStorage.getItem('hss_admin_user') || '{}');
     if (adminUser) {
-      const role = String(adminUser.role || adminUser.Role || '').toLowerCase().replace(/\s+/g, '');
-      if (role === 'superadmin' || adminUser.isSuperAdmin === true) return true;
       const email = String(adminUser.email || '').toLowerCase().trim();
-      if (BOOTSTRAP_ADMIN_EMAILS.includes(email)) return true;
+      if (email === SUPERADMIN_EMAIL) return true;
+      const role = String(adminUser.role || adminUser.Role || '').toLowerCase().replace(/\s+/g, '');
+      if ((role === 'superadmin' || adminUser.isSuperAdmin === true) && email === SUPERADMIN_EMAIL) return true;
     }
 
     const portalUser = JSON.parse(sessionStorage.getItem('hss_session_user') || localStorage.getItem('hss_session_user') || '{}');
     if (portalUser) {
-      const role = String(portalUser.role || portalUser.Role || '').toLowerCase().replace(/\s+/g, '');
-      if (role === 'superadmin' || portalUser.isSuperAdmin === true) return true;
       const email = String(portalUser.email || '').toLowerCase().trim();
-      if (BOOTSTRAP_ADMIN_EMAILS.includes(email)) return true;
+      if (email === SUPERADMIN_EMAIL) return true;
+      const role = String(portalUser.role || portalUser.Role || '').toLowerCase().replace(/\s+/g, '');
+      if ((role === 'superadmin' || portalUser.isSuperAdmin === true) && email === SUPERADMIN_EMAIL) return true;
     }
   } catch (_) {}
   return false;
