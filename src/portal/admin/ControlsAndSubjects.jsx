@@ -23,6 +23,7 @@ import {
   loadFeederSchools, 
   saveFeederSchools 
 } from '../../utils/feederSchoolsManager';
+import { isSuperAdminEmail } from '../../utils/authRoles';
 import {
   ADMIN_MODULE_CATALOG,
   getModuleMaturity,
@@ -446,6 +447,26 @@ export default function ControlsAndSubjects() {
           else loadedList = DEFAULT_ADMIN_USERS;
         }
 
+        // Normalize core institutional roles: e.educational.24@gmail.com is Standard Admin
+        loadedList = loadedList.map((u) => {
+          const clean = String(u.email || '').trim().toLowerCase();
+          if (clean === 'e.educational.24@gmail.com') {
+            return {
+              ...u,
+              role: 'Admin',
+              perms: Array.isArray(u.perms) && u.perms.length > 0 ? u.perms : ['reports'],
+            };
+          }
+          if (clean === 'adm.exam.hss.shangus@gmail.com') {
+            return {
+              ...u,
+              role: 'SuperAdmin',
+              perms: ALL_ADMIN_MODULES.map(m => m.code),
+            };
+          }
+          return u;
+        });
+
         // Also fetch any faculty/teachers from users collection
         try {
           const usersSnap = await getDocs(collection(db, 'users'));
@@ -700,11 +721,13 @@ export default function ControlsAndSubjects() {
 
   // Modal Action: Open Edit Staff Modal
   const handleOpenEditAdmin = (user) => {
+    const cleanEmail = String(user.email || '').trim().toLowerCase();
+    const isSuperTarget = isSuperAdminEmail(cleanEmail);
     setEditingAdminEmail(user.email);
     setAdminForm({ 
       name: user.name || '', 
       email: user.email || '', 
-      role: user.role || 'Admin', 
+      role: isSuperTarget ? 'SuperAdmin' : (cleanEmail === 'e.educational.24@gmail.com' ? 'Admin' : (user.role || 'Admin')), 
       perms: Array.isArray(user.perms) ? [...user.perms] : ['reports'],
       subject: user.subject || '',
       mobile: user.mobile || '',
@@ -720,11 +743,16 @@ export default function ControlsAndSubjects() {
     if (!cleanEmail) return;
     setSendingResetFor(cleanEmail);
     try {
-      await sendStaffPasswordReset(cleanEmail);
-      setAlert({ type: 'success', text: `📩 Password setup / reset link sent to ${cleanEmail} successfully!` });
+      const res = await sendStaffPasswordReset(cleanEmail);
+      setAlert({
+        type: res.success ? 'success' : 'error',
+        text: res.message,
+      });
     } catch (err) {
-      console.error('Password reset error:', err);
-      setAlert({ type: 'error', text: 'Failed to send password reset: ' + (err.message || err) });
+      setAlert({
+        type: 'error',
+        text: `Failed to trigger reset email: ${err.message || err}`,
+      });
     } finally {
       setSendingResetFor(null);
     }
@@ -743,12 +771,15 @@ export default function ControlsAndSubjects() {
 
     try {
       if (editingAdminEmail) {
+        const isTargetSuper = isSuperAdminEmail(cleanEmail);
+        const resolvedRole = isTargetSuper ? 'SuperAdmin' : (cleanEmail === 'e.educational.24@gmail.com' ? 'Admin' : adminForm.role);
+
         // Update existing staff profile and email address
         await updateStaffAccount({
           oldEmail: editingAdminEmail,
           newEmail: cleanEmail,
           name: adminForm.name,
-          role: adminForm.role,
+          role: resolvedRole,
           perms: adminForm.perms,
           subject: adminForm.subject,
           mobile: adminForm.mobile,
@@ -761,7 +792,7 @@ export default function ControlsAndSubjects() {
                 ...u, 
                 name: adminForm.name.trim(), 
                 email: cleanEmail, 
-                role: adminForm.role, 
+                role: resolvedRole, 
                 perms: adminForm.perms,
                 subject: adminForm.subject,
                 mobile: adminForm.mobile
@@ -823,7 +854,7 @@ export default function ControlsAndSubjects() {
   const handleDeleteAdmin = async (email) => {
     const cleanEmail = email.toLowerCase();
     if (cleanEmail === 'adm.exam.hss.shangus@gmail.com' || cleanEmail === 'e.educational.24@gmail.com' || cleanEmail === 'socialshiftz@gmail.com') {
-      setAlert({ type: 'error', text: 'Security Protection: Primary Super Admin accounts cannot be revoked.' });
+      setAlert({ type: 'error', text: 'Security Protection: Core Institutional Administrator accounts cannot be revoked.' });
       return;
     }
     setSaving(true);
@@ -1743,13 +1774,14 @@ export default function ControlsAndSubjects() {
               {/* Staff Users List */}
               <div className="space-y-2.5">
                 {filteredStaff.map((user, idx) => {
+                  const cleanEmail = String(user.email || '').trim().toLowerCase();
                   const roleStr = String(user.role || '').toLowerCase();
-                  const isSuper = roleStr === 'superadmin' || user.email.toLowerCase() === 'adm.exam.hss.shangus@gmail.com' || user.email.toLowerCase() === 'e.educational.24@gmail.com';
+                  const isSuper = isSuperAdminEmail(cleanEmail) || (roleStr === 'superadmin' && cleanEmail !== 'e.educational.24@gmail.com');
                   const isTeacher = roleStr === 'teacher' || roleStr === 'faculty' || roleStr === 'staff';
                   const userPerms = Array.isArray(user.perms) ? user.perms : [];
                   const allSelected = ALL_ADMIN_MODULES.every((m) => userPerms.includes(m.code));
                   const activeCount = isSuper ? ALL_ADMIN_MODULES.length : userPerms.length;
-                  const isSendingReset = sendingResetFor === user.email.toLowerCase();
+                  const isSendingReset = sendingResetFor === cleanEmail;
 
                   return (
                     <div 
@@ -1828,7 +1860,7 @@ export default function ControlsAndSubjects() {
                             <Edit3 size={12} />
                           </button>
                           
-                          {!isSuper && (
+                          {!isSuper && cleanEmail !== 'e.educational.24@gmail.com' && cleanEmail !== 'socialshiftz@gmail.com' && (
                             <button
                               type="button"
                               onClick={() => setUserToDelete(user)}
