@@ -10,7 +10,7 @@ import {
   FileSpreadsheet, AlertCircle, RefreshCw, CheckCircle2, Lock, Unlock, Edit3, Save,
   ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ArrowUpDown
 } from 'lucide-react';
-import { getCachedCollectionSync } from '../../services/dbCache';
+import { getCachedCollectionSync, getCachedCollection, invalidateCollectionCache } from '../../services/dbCache';
 import { unpackMasterRegisterStudents } from './OfficialDocumentsStudioView';
 import {
   fetchLastIssuedCertificateNumber,
@@ -76,24 +76,66 @@ export default function BulkCertificateGeneratorModal({
   signatories = ['I/c Admissions', 'Checked By', 'Principal'],
   showToast = () => {}
 }) {
-  // ─── Direct Student Pool: Leverages verified Studio Pool + Sync Cache (Zero Network Lag) ───
-  const combinedStudentPool = useMemo(() => {
-    if (Array.isArray(allStudents) && allStudents.length > 1000) {
-      return allStudents;
-    }
+  // ─── Live Master Registers State with Instant Cloud Sync ───
+  const [liveMasterRegisters, setLiveMasterRegisters] = useState(() => {
     const cachedMaster = getCachedCollectionSync('masterRegisters');
-    if (Array.isArray(cachedMaster) && cachedMaster.length > 0) {
-      const unpacked = unpackMasterRegisterStudents(cachedMaster);
-      const seen = new Set((allStudents || []).map(s => String(s.formNo || s.regNo || s.id || '').toLowerCase().trim()).filter(Boolean));
-      const list = [...(allStudents || [])];
-      unpacked.forEach(m => {
-        const k = String(m.formNo || m.regNo || m.id || '').toLowerCase().trim();
-        if (!k || !seen.has(k)) list.push(m);
-      });
-      return list;
+    return Array.isArray(cachedMaster) && cachedMaster.length > 0 ? unpackMasterRegisterStudents(cachedMaster) : [];
+  });
+  const [isRefreshingData, setIsRefreshingData] = useState(false);
+
+  const handleRefreshData = async () => {
+    setIsRefreshingData(true);
+    try {
+      invalidateCollectionCache('masterRegisters');
+      const fresh = await getCachedCollection('masterRegisters', true);
+      if (Array.isArray(fresh) && fresh.length > 0) {
+        const unpacked = unpackMasterRegisterStudents(fresh);
+        setLiveMasterRegisters(unpacked);
+        if (typeof showToast === 'function') {
+          showToast(`⚡ Refreshed ${unpacked.length} student records with live database results.`, 'success');
+        }
+      }
+    } catch (err) {
+      console.error('Failed to refresh data:', err);
+      if (typeof showToast === 'function') {
+        showToast(`Failed to refresh data: ${err.message}`, 'error');
+      }
+    } finally {
+      setIsRefreshingData(false);
     }
-    return Array.isArray(allStudents) ? allStudents : [];
-  }, [allStudents]);
+  };
+
+  // ─── Direct Student Pool: Preserves each enrollment/session record distinctly ───
+  const combinedStudentPool = useMemo(() => {
+    const pool = [];
+    const seen = new Set();
+
+    const addStudent = (st) => {
+      if (!st) return;
+      const raw = st.raw || st;
+      const sess = extractSession(st) || extractSession(raw) || '';
+      const cls = extractClass(st) || extractClass(raw) || '';
+      const reg = extractBoardRegNo(st) || extractBoardRegNo(raw) || st.regNo || raw.regNo || '';
+      const roll = st.examRollNo || raw['Exam R.No. (Current)'] || raw.currExamRoll || raw.examRollNo || '';
+      const form = st.formNo || raw['Form No.'] || raw['Form Number'] || raw.formNo || '';
+      const id = String(st.id || st._id || raw.id || '');
+
+      // Key scoped to session so cross-session records of a student are never collapsed into an old session
+      const key = (id && !id.startsWith('chunk_'))
+        ? `${id}_${sess}`
+        : `${sess}_${cls}_${reg}_${roll}_${form}_${id}`;
+
+      if (!seen.has(key)) {
+        seen.add(key);
+        pool.push(st);
+      }
+    };
+
+    (allStudents || []).forEach(addStudent);
+    (liveMasterRegisters || []).forEach(addStudent);
+
+    return pool;
+  }, [allStudents, liveMasterRegisters]);
 
   // Fast cross-session identity index by Board Reg No AND by Normalized (Name + Father Name)
   const identityIndexes = useMemo(() => {
@@ -331,20 +373,42 @@ export default function BulkCertificateGeneratorModal({
       const mobile = extractMobile(st) || '';
 
       // Exam Result fields: check current raw record first, then fallback to linked identity records
+      // 1. Current Genuine Exam Roll - ALWAYS prioritize the current record's roll over any linked fallback!
+      const currentExamRoll = raw['Exam R.No. (Current)'] || raw.currExamRoll || raw.examRollNo || st.examRollNo || '';
+
+      // 2. Exam Result for current record
       let resInfo = extractStudentResultMarks(raw);
+
+      // Fallback cross-session resolution ONLY if current record has no result
       if (!resInfo.hasResult) {
-        for (let i = 0; i < sortedLinked.length; i++) {
-          const lr = extractStudentResultMarks(sortedLinked[i]);
-          if (lr.hasResult) {
-            resInfo = lr;
-            break;
+        // Priority A: Check if ANY linked record has a 'Passed' status (Pass always supersedes prior Reap/Fail)
+        const passedLinked = sortedLinked.map(r => extractStudentResultMarks(r)).find(lr => lr.isPassed);
+        if (passedLinked) {
+          resInfo = passedLinked;
+        } else {
+          // Priority B: Fallback to nearest linked result, but NEVER apply an old Re-appear to a newer/subsequent session
+          for (let i = 0; i < sortedLinked.length; i++) {
+            const lr = extractStudentResultMarks(sortedLinked[i]);
+            if (lr.hasResult) {
+              const linkedYear = sessionStartYear(extractSession(sortedLinked[i]));
+              const currentYear = sessionStartYear(session);
+              const isNewerSession = currentYear !== null && linkedYear !== null && currentYear > linkedYear;
+              // An old Re-appear from a previous academic session cannot turn a newer session into Re-appear!
+              if (lr.isReap && isNewerSession) {
+                continue;
+              }
+              resInfo = lr;
+              break;
+            }
           }
         }
       }
 
-      const examRollNo = resInfo.examRoll ||
-        raw['Exam R.No. (Current)'] || raw.currExamRoll || raw.examRollNo ||
-        firstLinked(r => r['Exam R.No. (Current)'] || r.currExamRoll || r.examRollNo) || '—';
+      // Genuine current exam roll ALWAYS takes precedence over any linked fallback!
+      const examRollNo = (currentExamRoll && currentExamRoll !== '—')
+        ? String(currentExamRoll).trim()
+        : (resInfo.examRoll || firstLinked(r => r['Exam R.No. (Current)'] || r.currExamRoll || r.examRollNo) || '—');
+
       const isPassed = resInfo.isPassed;
       const isReap = resInfo.isReap;
       const isFailed = resInfo.isFailed;
@@ -896,6 +960,16 @@ export default function BulkCertificateGeneratorModal({
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
                   <span>{combinedStudentPool.length} Verified Records</span>
                 </span>
+                <button
+                  type="button"
+                  onClick={handleRefreshData}
+                  disabled={isRefreshingData}
+                  className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-teal-800/80 hover:bg-teal-700 text-teal-200 border border-teal-600/50 flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
+                  title="Force refresh student records and latest results directly from cloud database"
+                >
+                  <RefreshCw size={10} className={isRefreshingData ? 'animate-spin' : ''} />
+                  <span>{isRefreshingData ? 'Syncing...' : 'Sync Cloud'}</span>
+                </button>
               </div>
               <p className="text-[11px] font-medium mt-0.5 truncate" style={{ color: '#cbd5e1' }}>
                 Multi-Class & Session Filtering • Auto Sequential Numbering • 2-Page Sequential Batch Prints
