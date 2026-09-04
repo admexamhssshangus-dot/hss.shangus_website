@@ -7,10 +7,10 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import {
   X, Award, Printer, Search,
-  FileSpreadsheet, AlertCircle, RefreshCw, CheckCircle2, Lock, Unlock, Edit3, Save
+  FileSpreadsheet, AlertCircle, RefreshCw, CheckCircle2, Lock, Unlock, Edit3, Save,
+  ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ArrowUpDown
 } from 'lucide-react';
-import { collection, onSnapshot } from 'firebase/firestore';
-import { db } from '../../services/firebase';
+import { getCachedCollectionSync } from '../../services/dbCache';
 import { unpackMasterRegisterStudents } from './OfficialDocumentsStudioView';
 import {
   fetchLastIssuedCertificateNumber,
@@ -76,122 +76,56 @@ export default function BulkCertificateGeneratorModal({
   signatories = ['I/c Admissions', 'Checked By', 'Principal'],
   showToast = () => {}
 }) {
-  // ─── Real-Time Firestore Master Registers & Live Admissions Pipeline (Zero LocalStorage) ───
-  const [masterHistoricalRecords, setMasterHistoricalRecords] = useState([]);
-  const [liveAdmissionsRecords, setLiveAdmissionsRecords] = useState([]);
-  const [isLoadingHistorical, setIsLoadingHistorical] = useState(false);
-
-  useEffect(() => {
-    if (!isOpen) return;
-    setIsLoadingHistorical(true);
-    let isMounted = true;
-
-    // 1. Listen to historical master registers
-    const unsubMaster = onSnapshot(
-      collection(db, 'masterRegisters'),
-      (snapshot) => {
-        if (!isMounted) return;
-        const docs = [];
-        snapshot.forEach((docSnap) => {
-          docs.push({ id: docSnap.id, ...docSnap.data() });
-        });
-        const flatList = unpackMasterRegisterStudents(docs);
-        setMasterHistoricalRecords(flatList);
-        setIsLoadingHistorical(false);
-      },
-      (error) => {
-        console.warn('masterRegisters snapshot error in Bulk TC Hub:', error);
-        if (isMounted) setIsLoadingHistorical(false);
-      }
-    );
-
-    // 2. Listen to live admissions (for newly synchronized results & private candidates)
-    const unsubAdmissions = onSnapshot(
-      collection(db, 'admissions'),
-      (snapshot) => {
-        if (!isMounted) return;
-        const docs = [];
-        snapshot.forEach((docSnap) => {
-          docs.push({ id: docSnap.id, ...docSnap.data() });
-        });
-        setLiveAdmissionsRecords(docs);
-      },
-      (error) => {
-        console.warn('admissions snapshot error in Bulk TC Hub:', error);
-      }
-    );
-
-    return () => {
-      isMounted = false;
-      unsubMaster();
-      unsubAdmissions();
-    };
-  }, [isOpen]);
-
-  // Combined real-time student pool: Live Admissions (highest precedence) + Master Registers + Prop
+  // ─── Direct Student Pool: Leverages verified Studio Pool + Sync Cache (Zero Network Lag) ───
   const combinedStudentPool = useMemo(() => {
-    const map = new Map();
+    if (Array.isArray(allStudents) && allStudents.length > 1000) {
+      return allStudents;
+    }
+    const cachedMaster = getCachedCollectionSync('masterRegisters');
+    if (Array.isArray(cachedMaster) && cachedMaster.length > 0) {
+      const unpacked = unpackMasterRegisterStudents(cachedMaster);
+      const seen = new Set((allStudents || []).map(s => String(s.formNo || s.regNo || s.id || '').toLowerCase().trim()).filter(Boolean));
+      const list = [...(allStudents || [])];
+      unpacked.forEach(m => {
+        const k = String(m.formNo || m.regNo || m.id || '').toLowerCase().trim();
+        if (!k || !seen.has(k)) list.push(m);
+      });
+      return list;
+    }
+    return Array.isArray(allStudents) ? allStudents : [];
+  }, [allStudents]);
 
-    const normalizeKey = (st) => {
-      if (!st) return '';
-      return String(
-        st.id ||
-        st.formNo ||
-        st['Form Number'] ||
-        st['Form No.'] ||
-        st['Board Registration Number'] ||
-        st['Board Reg. No.'] ||
-        st.regNo ||
-        st.boardRegNo ||
-        ''
-      ).toLowerCase().trim();
-    };
+  // Fast cross-session identity index by Board Reg No AND by Normalized (Name + Father Name)
+  const identityIndexes = useMemo(() => {
+    const byReg = new Map();
+    const byNameFather = new Map();
+    const normalize = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '').trim();
 
-    // 1. Unpacked historical master records
-    masterHistoricalRecords.forEach(st => {
-      const key = normalizeKey(st);
-      if (key) map.set(key, st);
-    });
-
-    // 2. Passed prop students
-    allStudents.forEach(st => {
-      const key = normalizeKey(st);
-      if (key) {
-        const existing = map.get(key);
-        map.set(key, existing ? { ...existing, ...st, raw: { ...(existing.raw || existing), ...(st.raw || st) } } : st);
-      }
-    });
-
-    // 3. Live Firestore admissions records (contains latest synchronized result status & marks)
-    liveAdmissionsRecords.forEach(st => {
-      const key = normalizeKey(st);
-      if (key) {
-        const existing = map.get(key);
-        map.set(key, existing ? { ...existing, ...st, raw: { ...(existing.raw || existing), ...(st.raw || st) } } : st);
-      }
-    });
-
-    return Array.from(map.values());
-  }, [allStudents, masterHistoricalRecords, liveAdmissionsRecords]);
-
-  // Cross-session identity lookup. Result/session values remain attached to the
-  // selected row; only stable identity fields are resolved from the same Board Reg No.
-  const identityRecordsByReg = useMemo(() => {
-    const index = new Map();
-    [...masterHistoricalRecords, ...allStudents, ...liveAdmissionsRecords].forEach((record) => {
+    (combinedStudentPool || []).forEach(record => {
       const reg = String(extractBoardRegNo(record) || '').replace(/[^a-z0-9]/gi, '').toLowerCase();
-      if (!reg || reg === '—') return;
-      if (!index.has(reg)) index.set(reg, []);
-      index.get(reg).push(record);
+      if (reg && reg !== '—') {
+        if (!byReg.has(reg)) byReg.set(reg, []);
+        byReg.get(reg).push(record);
+      }
+      const sName = normalize(extractStudentName(record));
+      const fName = normalize(extractFatherName(record));
+      if (sName && fName && sName !== '—' && fName !== '—') {
+        const nfKey = `${sName}|${fName}`;
+        if (!byNameFather.has(nfKey)) byNameFather.set(nfKey, []);
+        byNameFather.get(nfKey).push(record);
+      }
     });
-    return index;
-  }, [allStudents, masterHistoricalRecords, liveAdmissionsRecords]);
+
+    return { byReg, byNameFather };
+  }, [combinedStudentPool]);
 
   // ─── Filter Controls State ───
   const [selectedClass, setSelectedClass] = useState('12th');
   const [selectedSession, setSelectedSession] = useState('ALL');
   const [selectedStream, setSelectedStream] = useState('ALL');
   const [selectedResultStatus, setSelectedResultStatus] = useState('ALL'); // 'ALL' | 'Passed' | 'Reap' | 'Failed' | 'hasResult'
+  const [selectedCertStatus, setSelectedCertStatus] = useState('ALL'); // 'ALL' | 'ISSUED' | 'UNISSUED'
+  const [sortByIssued, setSortByIssued] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   
   // ─── Numbering & Date Controls State ───
@@ -207,6 +141,10 @@ export default function BulkCertificateGeneratorModal({
   const [editingStudent, setEditingStudent] = useState(null);
   const [editValues, setEditValues] = useState({});
   const [isSavingFields, setIsSavingFields] = useState(false);
+
+  // ─── Table Pagination State ───
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50); // 50, 100, 250, 0 (All)
 
   // Auto-fetch highest issued Certificate Number from Firestore on modal open
   useEffect(() => {
@@ -336,8 +274,10 @@ export default function BulkCertificateGeneratorModal({
     }));
   }, [combinedStudentPool, selectedClass, selectedSession]);
 
-  // Standardized student normalized rows from real-time pool
+  // Standardized student normalized rows from verified pool
   const normalizedStudents = useMemo(() => {
+    const normalize = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '').trim();
+
     return combinedStudentPool.map(st => {
       const raw = st.raw || st;
       const id = st.id || st._id || raw.id || `${raw['Adm. No.'] || raw.formNo || Math.random()}`;
@@ -350,24 +290,37 @@ export default function BulkCertificateGeneratorModal({
       const session = extractSession(st) || '2025-26';
       const rollNo = getStudentRollNumber(st) || extractAdmNo(st) || '';
       const regNo = extractBoardRegNo(st) || '';
+
       const regKey = String(regNo || '').replace(/[^a-z0-9]/gi, '').toLowerCase();
-      const linkedRecords = sortIdentityRecordsByNearestSession(identityRecordsByReg.get(regKey) || [], session);
+      let linkedRecords = (regKey && regKey !== '—') ? identityIndexes.byReg.get(regKey) : null;
+      if ((!linkedRecords || linkedRecords.length === 0) && name && father) {
+        const nfKey = `${normalize(name)}|${normalize(father)}`;
+        linkedRecords = identityIndexes.byNameFather.get(nfKey);
+      }
+
+      const sortedLinked = linkedRecords && linkedRecords.length > 1
+        ? sortIdentityRecordsByNearestSession(linkedRecords, session)
+        : (linkedRecords || []);
+
       const firstLinked = (extractor) => {
-        for (const record of linkedRecords) {
-          const value = extractor(record);
+        for (let i = 0; i < sortedLinked.length; i++) {
+          const value = extractor(sortedLinked[i]);
           if (value && value !== '—') return value;
         }
         return '';
       };
-      const authoritativeIdentity = linkedRecords.find(record =>
+
+      const authoritativeIdentity = sortedLinked.find(record =>
         extractStudentAdmissionNumber(record) || extractStudentAdmissionDate(record) || extractDob(record) !== '—'
       );
-      const certificateRaw = extractStudentCertificateNumber(raw) || firstLinked(extractStudentCertificateNumber);
-      // Certificate serials are numeric. Never render result text such as
-      // "Reap" as a locked certificate number when legacy columns are polluted.
+
+      const certificateRaw = extractStudentCertificateNumber(raw) ||
+        extractStudentCertificateNumber(st) ||
+        firstLinked(extractStudentCertificateNumber);
       const certificateNo = extractCertificateSerial(certificateRaw);
-      const admNo = extractStudentAdmissionNumber(raw) || firstLinked(extractStudentAdmissionNumber) || '—';
-      const admDate = extractStudentAdmissionDate(raw) || firstLinked(extractStudentAdmissionDate) || '—';
+
+      const admNo = extractStudentAdmissionNumber(raw) || extractStudentAdmissionNumber(st) || firstLinked(extractStudentAdmissionNumber) || '—';
+      const admDate = extractStudentAdmissionDate(raw) || extractStudentAdmissionDate(st) || firstLinked(extractStudentAdmissionDate) || '—';
       const dobRaw = (extractDob(st) !== '—' ? extractDob(st) : firstLinked(extractDob)) || '—';
       const resolvedGender = authoritativeIdentity ? extractGender(authoritativeIdentity) : (extractGender(st) !== '—' ? extractGender(st) : firstLinked(extractGender));
       const gender = String(resolvedGender || '').toUpperCase().startsWith('F')
@@ -441,11 +394,11 @@ export default function BulkCertificateGeneratorModal({
         isFailed
       };
     });
-  }, [combinedStudentPool, identityRecordsByReg]);
+  }, [combinedStudentPool, identityIndexes]);
 
-  // Filtered students based on active dropdowns
+  // Filtered students based on active dropdowns, search, pending status, and certificate status
   const filteredStudents = useMemo(() => {
-    return normalizedStudents.filter(st => {
+    let list = normalizedStudents.filter(st => {
       if (selectedClass !== 'ALL') {
         const clsMatch = st.className.toLowerCase().includes(selectedClass.toLowerCase());
         if (!clsMatch) return false;
@@ -471,6 +424,9 @@ export default function BulkCertificateGeneratorModal({
         if (!st.hasResult) return false;
       }
 
+      if (selectedCertStatus === 'ISSUED' && !st.certificateNo) return false;
+      if (selectedCertStatus === 'UNISSUED' && Boolean(st.certificateNo)) return false;
+
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim();
         const match =
@@ -479,7 +435,8 @@ export default function BulkCertificateGeneratorModal({
           st.rollNo.toLowerCase().includes(q) ||
           st.regNo.toLowerCase().includes(q) ||
           st.admNo.toLowerCase().includes(q) ||
-          st.examRollNo.toLowerCase().includes(q);
+          st.examRollNo.toLowerCase().includes(q) ||
+          (st.certificateNo && st.certificateNo.includes(q));
         if (!match) return false;
       }
 
@@ -487,7 +444,18 @@ export default function BulkCertificateGeneratorModal({
 
       return true;
     });
-  }, [normalizedStudents, selectedClass, selectedSession, selectedStream, selectedResultStatus, searchQuery, showPendingOnly]);
+
+    if (sortByIssued) {
+      list = [...list].sort((a, b) => {
+        const aCert = a.certificateNo ? parseInt(a.certificateNo, 10) || 1 : 9999999;
+        const bCert = b.certificateNo ? parseInt(b.certificateNo, 10) || 1 : 9999999;
+        if (aCert !== bCert) return aCert - bCert;
+        return a.studentName.localeCompare(b.studentName);
+      });
+    }
+
+    return list;
+  }, [normalizedStudents, selectedClass, selectedSession, selectedStream, selectedResultStatus, selectedCertStatus, searchQuery, showPendingOnly, sortByIssued]);
 
   // Pre-compute cert number map: strictly sequential for selected students, prospective for preview
   const certNumberMap = useMemo(() => {
@@ -520,9 +488,9 @@ export default function BulkCertificateGeneratorModal({
     return map;
   }, [filteredStudents, selectedStudentIds, startCertNo]);
 
-  // Pre-compute result status counts in a single pass scoped to class & session
-  const resultStats = useMemo(() => {
-    let passed = 0, reappear = 0, awaiting = 0;
+  // Pre-compute result status & certificate counts scoped to class & session
+  const { resultStats, totalIssuedCount, totalUnissuedCount } = useMemo(() => {
+    let passed = 0, reappear = 0, awaiting = 0, issued = 0, unissued = 0;
     normalizedStudents.forEach(st => {
       if (selectedClass !== 'ALL') {
         if (!st.className.toLowerCase().includes(selectedClass.toLowerCase())) return;
@@ -533,12 +501,35 @@ export default function BulkCertificateGeneratorModal({
         const matchesSession = s === target || s.includes(target) || target.includes(s);
         if (!matchesSession) return false;
       }
+      if (selectedStream !== 'ALL') {
+        if (!st.stream.toLowerCase().includes(selectedStream.toLowerCase())) return;
+      }
       if (st.resultStatus === 'Passed') passed++;
       else if (st.resultStatus === 'Re-appear') reappear++;
       else if (st.resultStatus === 'Awaiting Result') awaiting++;
+      if (st.certificateNo) issued++;
+      else unissued++;
     });
-    return { passed, reappear, awaiting };
-  }, [normalizedStudents, selectedClass, selectedSession]);
+    return {
+      resultStats: { passed, reappear, awaiting },
+      totalIssuedCount: issued,
+      totalUnissuedCount: unissued
+    };
+  }, [normalizedStudents, selectedClass, selectedSession, selectedStream]);
+
+  // Reset pagination when filter criteria or page size change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedClass, selectedSession, selectedStream, selectedResultStatus, selectedCertStatus, searchQuery, showPendingOnly, sortByIssued, pageSize]);
+
+  const totalPages = pageSize > 0 ? Math.max(1, Math.ceil(filteredStudents.length / pageSize)) : 1;
+  const validCurrentPage = Math.min(currentPage, totalPages);
+
+  const paginatedStudents = useMemo(() => {
+    if (pageSize <= 0) return filteredStudents;
+    const startIndex = (validCurrentPage - 1) * pageSize;
+    return filteredStudents.slice(startIndex, startIndex + pageSize);
+  }, [filteredStudents, validCurrentPage, pageSize]);
 
   // Bulk Selection Handlers
   const handleToggleSelectAll = () => {
@@ -847,18 +838,9 @@ export default function BulkCertificateGeneratorModal({
                 <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-teal-500/20 text-teal-300 border border-teal-500/30">
                   Dual-Page Batch Engine
                 </span>
-                <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-slate-800/90 border border-slate-600 flex items-center gap-1" style={{ color: '#cbd5e1' }}>
-                  {isLoadingHistorical ? (
-                    <>
-                      <RefreshCw size={9} className="animate-spin text-teal-400" />
-                      <span>Syncing Realtime...</span>
-                    </>
-                  ) : (
-                    <>
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                      <span>{combinedStudentPool.length} Live Records</span>
-                    </>
-                  )}
+                <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-slate-800/90 border border-slate-600 flex items-center gap-1.5" style={{ color: '#cbd5e1' }}>
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                  <span>{combinedStudentPool.length} Verified Records</span>
                 </span>
               </div>
               <p className="text-[11px] font-medium mt-0.5 truncate" style={{ color: '#cbd5e1' }}>
@@ -1089,13 +1071,69 @@ export default function BulkCertificateGeneratorModal({
             >
               {isAllSelected ? 'Deselect All' : `Select All (${totalFiltered})`}
             </button>
-            <span className="font-extrabold text-slate-800 dark:text-slate-200">
+            <span className="font-extrabold text-slate-800 dark:text-slate-200 text-[11px]">
               Selected: <span className="text-teal-600 dark:text-teal-400 font-black">{totalSelected}</span> of {totalFiltered}
             </span>
+
+            {/* Certificate Status Filters */}
+            <div className="inline-flex rounded-lg border border-slate-300 dark:border-slate-700 p-0.5 bg-white dark:bg-slate-800 text-[10.5px]">
+              <button
+                type="button"
+                onClick={() => setSelectedCertStatus('ALL')}
+                className={`px-2 py-0.5 rounded-md font-bold transition-colors cursor-pointer ${
+                  selectedCertStatus === 'ALL'
+                    ? 'bg-teal-600 text-white shadow-2xs'
+                    : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                All
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedCertStatus('ISSUED')}
+                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md font-bold transition-colors cursor-pointer ${
+                  selectedCertStatus === 'ISSUED'
+                    ? 'bg-emerald-600 text-white shadow-2xs'
+                    : 'text-emerald-700 dark:text-emerald-400 hover:text-emerald-900'
+                }`}
+                title="Filter to students who already have a locked certificate number"
+              >
+                <Lock size={10} />
+                <span>Locked ({totalIssuedCount})</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedCertStatus('UNISSUED')}
+                className={`px-2 py-0.5 rounded-md font-bold transition-colors cursor-pointer ${
+                  selectedCertStatus === 'UNISSUED'
+                    ? 'bg-slate-700 text-white shadow-2xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                }`}
+                title="Filter to students without a certificate number yet"
+              >
+                Unissued ({totalUnissuedCount})
+              </button>
+            </div>
+
+            {/* Sort by Issued Toggle */}
+            <button
+              type="button"
+              onClick={() => setSortByIssued(v => !v)}
+              className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg border font-bold text-[10.5px] cursor-pointer transition-colors ${
+                sortByIssued
+                  ? 'bg-indigo-600 text-white border-indigo-700'
+                  : 'bg-white dark:bg-slate-700 text-indigo-700 dark:text-indigo-300 border-indigo-300 dark:border-indigo-700 hover:bg-indigo-50'
+              }`}
+              title="Sort table with issued certificate holders first"
+            >
+              <ArrowUpDown size={11} />
+              <span>{sortByIssued ? 'Sorted: Issued First' : 'Sort: Issued First'}</span>
+            </button>
+
             <button
               type="button"
               onClick={() => setShowPendingOnly(value => !value)}
-              className={`px-2.5 py-1 rounded-lg border font-bold text-[10px] cursor-pointer ${showPendingOnly ? 'bg-amber-500 text-white border-amber-600' : 'bg-white dark:bg-slate-700 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-700'}`}
+              className={`px-2 py-1 rounded-lg border font-bold text-[10px] cursor-pointer ${showPendingOnly ? 'bg-amber-500 text-white border-amber-600' : 'bg-white dark:bg-slate-700 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-700'}`}
             >
               {showPendingOnly ? 'Showing Pending Only' : 'Show Pending Fields'}
             </button>
@@ -1111,11 +1149,29 @@ export default function BulkCertificateGeneratorModal({
             <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-300 dark:border-slate-700">
               {resultStats.awaiting} Awaiting / In-Course
             </span>
+
+            {/* Page Size Selector */}
+            <div className="flex items-center gap-1 ml-1 text-slate-500 font-medium">
+              <span className="text-[10px]">Per page:</span>
+              <select
+                value={pageSize}
+                onChange={(e) => {
+                  setPageSize(Number(e.target.value));
+                  setCurrentPage(1);
+                }}
+                className="h-6 px-1 rounded bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-[10px] font-bold text-slate-700 dark:text-slate-200 cursor-pointer"
+              >
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+                <option value={250}>250</option>
+                <option value={0}>All ({filteredStudents.length})</option>
+              </select>
+            </div>
           </div>
         </div>
 
         {/* ════════ STUDENTS DATA TABLE ════════ */}
-        <div className="flex-1 overflow-y-auto p-2">
+        <div className="flex-1 overflow-y-auto p-2 flex flex-col">
           {filteredStudents.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-slate-400 p-8 text-center">
               <AlertCircle size={36} className="text-slate-300 mb-2" />
@@ -1123,147 +1179,203 @@ export default function BulkCertificateGeneratorModal({
               <p className="text-xs text-slate-400 mt-0.5">Try changing class, session, or clearing search query.</p>
             </div>
           ) : (
-            <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-x-auto shadow-2xs">
-              <table className="w-full min-w-[1050px] text-left text-xs border-collapse">
-                <thead className="sticky top-0 z-10 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-black text-[10px] uppercase tracking-wider border-b border-slate-200 dark:border-slate-700">
-                  <tr>
-                    <th className="p-2 w-10 text-center">S.No.</th>
-                    <th className="p-2 w-8 text-center">
-                      <input
-                        type="checkbox"
-                        checked={isAllSelected}
-                        onChange={handleToggleSelectAll}
-                        className="rounded text-teal-600 cursor-pointer"
-                      />
-                    </th>
-                    <th className="p-2 w-20 text-center">Cert No</th>
-                    <th className="p-2">Student Name & Parentage</th>
-                    <th className="p-2 w-24">Class & Stream</th>
-                    <th className="p-2 w-28">Reg No / Adm No</th>
-                    <th className="p-2 w-32">Exam Roll & Session</th>
-                    <th className="p-2">Exam Result Status</th>
-                    <th className="p-2 w-28 text-center">Pending / Edit</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium text-slate-700 dark:text-slate-300">
-                  {filteredStudents.map((st, idx) => {
-                    const isChecked = selectedStudentIds.has(st.id);
-                    const calculatedCertNo = certNumberMap.get(st.id) || ((parseInt(startCertNo, 10) || 1368) + idx);
+            <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-2xs flex flex-col flex-1">
+              <div className="overflow-x-auto flex-1">
+                <table className="w-full min-w-[1050px] text-left text-xs border-collapse">
+                  <thead className="sticky top-0 z-10 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-black text-[10px] uppercase tracking-wider border-b border-slate-200 dark:border-slate-700">
+                    <tr>
+                      <th className="p-2 w-10 text-center">S.No.</th>
+                      <th className="p-2 w-8 text-center">
+                        <input
+                          type="checkbox"
+                          checked={isAllSelected}
+                          onChange={handleToggleSelectAll}
+                          className="rounded text-teal-600 cursor-pointer"
+                        />
+                      </th>
+                      <th className="p-2 w-24 text-center">Cert No</th>
+                      <th className="p-2">Student Name & Parentage</th>
+                      <th className="p-2 w-24">Class & Stream</th>
+                      <th className="p-2 w-28">Reg No / Adm No</th>
+                      <th className="p-2 w-32">Exam Roll & Session</th>
+                      <th className="p-2">Exam Result Status</th>
+                      <th className="p-2 w-28 text-center">Pending / Edit</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium text-slate-700 dark:text-slate-300">
+                    {paginatedStudents.map((st, idx) => {
+                      const sNo = pageSize > 0 ? (validCurrentPage - 1) * pageSize + idx + 1 : idx + 1;
+                      const isChecked = selectedStudentIds.has(st.id);
+                      const prospectiveCertNo = certNumberMap.get(st.id);
 
-                    return (
-                      <tr
-                        key={st.id}
-                        onClick={() => handleToggleStudent(st.id)}
-                        className={`cursor-pointer transition-colors ${
-                          isChecked
-                            ? 'bg-teal-50/70 dark:bg-teal-950/40 hover:bg-teal-50 dark:hover:bg-teal-950/60'
-                            : 'hover:bg-slate-50 dark:hover:bg-slate-800/50'
-                        }`}
-                      >
-                        <td className="p-2 text-center font-mono font-bold text-slate-500 dark:text-slate-400 text-[11px]">
-                          {idx + 1}
-                        </td>
-                        <td className="p-2 text-center" onClick={(e) => e.stopPropagation()}>
-                          <input
-                            type="checkbox"
-                            checked={isChecked}
-                            onChange={() => handleToggleStudent(st.id)}
-                            className="rounded text-teal-600 cursor-pointer"
-                          />
-                        </td>
-                        <td className="p-2 text-center font-mono">
-                          {st.certificateNo ? (
-                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 font-bold text-[10px] border border-indigo-200 dark:border-indigo-800">
-                              <Lock size={9} />
-                              <span>#{st.certificateNo}</span>
-                              <button
-                                type="button"
-                                onClick={(e) => handleRevokeSingleStudent(st, e)}
-                                title={`Revoke Certificate #${st.certificateNo} from this student`}
-                                className="p-0.5 text-rose-500 hover:text-rose-700 dark:hover:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-900/60 rounded transition-colors cursor-pointer"
-                              >
-                                <Unlock size={9} />
-                              </button>
-                            </span>
-                          ) : isChecked ? (
-                            <span className="px-1.5 py-0.5 rounded bg-rose-100 dark:bg-rose-950 text-rose-700 dark:text-rose-300 font-black text-xs border border-rose-300 dark:border-rose-800 shadow-2xs">
-                              #{calculatedCertNo}
-                            </span>
-                          ) : (
-                            <span className="text-slate-300 dark:text-slate-600 font-bold text-xs">
-                              —
-                            </span>
-                          )}
-                        </td>
-                        <td className="p-2">
-                          <div className="flex items-center gap-1.5 font-extrabold text-slate-900 dark:text-white leading-tight flex-wrap">
-                            <span>{st.studentName}</span>
-                            {st.certificateNo && (
-                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 font-bold text-[9px] border border-emerald-300 dark:border-emerald-800 shrink-0">
-                                <CheckCircle2 size={9} />
-                                <span>Issued #{st.certificateNo}</span>
+                      return (
+                        <tr
+                          key={st.id}
+                          onClick={() => handleToggleStudent(st.id)}
+                          className={`cursor-pointer transition-colors ${
+                            isChecked
+                              ? 'bg-teal-50/70 dark:bg-teal-950/40 hover:bg-teal-50 dark:hover:bg-teal-950/60'
+                              : 'hover:bg-slate-50 dark:hover:bg-slate-800/50'
+                          }`}
+                        >
+                          <td className="p-2 text-center font-mono font-bold text-slate-500 dark:text-slate-400 text-[11px]">
+                            {sNo}
+                          </td>
+                          <td className="p-2 text-center" onClick={(e) => e.stopPropagation()}>
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={() => handleToggleStudent(st.id)}
+                              className="rounded text-teal-600 cursor-pointer"
+                            />
+                          </td>
+                          <td className="p-2 text-center font-mono">
+                            {st.certificateNo ? (
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 font-bold text-[10px] border border-emerald-300 dark:border-emerald-800 shadow-2xs">
+                                <Lock size={9} />
+                                <span>#{st.certificateNo}</span>
                                 <button
                                   type="button"
                                   onClick={(e) => handleRevokeSingleStudent(st, e)}
-                                  title={`Revoke Certificate #${st.certificateNo}`}
+                                  title={`Revoke Certificate #${st.certificateNo} from this student`}
                                   className="p-0.5 text-rose-500 hover:text-rose-700 dark:hover:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-900/60 rounded transition-colors cursor-pointer"
                                 >
                                   <Unlock size={9} />
                                 </button>
                               </span>
+                            ) : isChecked ? (
+                              <span className="px-1.5 py-0.5 rounded bg-rose-100 dark:bg-rose-950 text-rose-700 dark:text-rose-300 font-black text-xs border border-rose-300 dark:border-rose-800 shadow-2xs">
+                                #{prospectiveCertNo || ((parseInt(startCertNo, 10) || 1368) + sNo - 1)}
+                              </span>
+                            ) : (
+                              <span className="text-slate-400 dark:text-slate-500 font-mono text-[11px]" title="Prospective certificate number if selected">
+                                {prospectiveCertNo && prospectiveCertNo !== '—' ? `#${prospectiveCertNo}` : '—'}
+                              </span>
                             )}
-                          </div>
-                          <div className="text-[10px] text-slate-500 font-normal mt-0.5">
-                            {st.gender === 'F' ? 'D/o' : 'S/o'} {st.fatherName} • M: {st.motherName}
-                          </div>
-                        </td>
-                        <td className="p-2">
-                          <span className="font-bold text-slate-800 dark:text-slate-200">{st.className}</span>
-                          <div className="text-[10px] text-slate-500">{st.stream}</div>
-                        </td>
-                        <td className="p-2 font-mono text-[10.5px]">
-                          <div>{st.regNo || '—'}</div>
-                          <div className="text-[9.5px] text-slate-400">Adm: {st.admNo}</div>
-                        </td>
-                        <td className="p-2 font-mono text-[10.5px]">
-                          <div>{st.examRollNo && st.examRollNo !== '—' ? st.examRollNo : '—'}</div>
-                          <div className="text-[9.5px] text-slate-400 truncate max-w-[120px]">{st.session}</div>
-                        </td>
-                        <td className="p-2">
-                          {st.resultStatus === 'Passed' ? (
-                            <span className="px-2 py-0.5 rounded text-[10px] font-black bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700 inline-flex items-center gap-1">
-                              <span>✓ Pass ({st.division ? `${st.division} • ` : ''}{st.marksObtained ? `${st.marksObtained}/${st.maxMarks}` : 'Passed'})</span>
-                            </span>
-                          ) : st.resultStatus === 'Re-appear' ? (
-                            <span className="px-2 py-0.5 rounded text-[10px] font-black bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700 inline-flex items-center gap-1">
-                              <span>⚠ Reap ({st.reappSubjects || 'Re-appear'})</span>
-                            </span>
-                          ) : st.resultStatus === 'Failed' ? (
-                            <span className="px-2 py-0.5 rounded text-[10px] font-black bg-rose-100 dark:bg-rose-950 text-rose-800 dark:text-rose-300 border border-rose-300 dark:border-rose-700 inline-flex items-center gap-1">
-                              <span>✕ Failed</span>
-                            </span>
-                          ) : (
-                            <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
-                              ⏳ Awaiting Result / In-Course
-                            </span>
-                          )}
-                        </td>
-                        <td className="p-2 text-center" onClick={(e) => e.stopPropagation()}>
-                          <button
-                            type="button"
-                            onClick={() => openPendingFieldsEditor(st)}
-                            title={st.pendingFields.length > 0 ? `Pending: ${st.pendingFields.join(', ')}` : 'Review or update certificate fields'}
-                            className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg border font-bold text-[9.5px] cursor-pointer ${st.pendingFields.length > 0 ? 'bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-700' : 'bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700'}`}
-                          >
-                            <Edit3 size={10} />
-                            {st.pendingFields.length > 0 ? `${st.pendingFields.length} Pending` : 'Complete'}
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+                          </td>
+                          <td className="p-2">
+                            <div className="flex items-center gap-1.5 font-extrabold text-slate-900 dark:text-white leading-tight flex-wrap">
+                              <span>{st.studentName}</span>
+                              {st.certificateNo && (
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 font-bold text-[9px] border border-emerald-300 dark:border-emerald-800 shrink-0">
+                                  <CheckCircle2 size={9} />
+                                  <span>Issued #{st.certificateNo}</span>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => handleRevokeSingleStudent(st, e)}
+                                    title={`Revoke Certificate #${st.certificateNo}`}
+                                    className="p-0.5 text-rose-500 hover:text-rose-700 dark:hover:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-900/60 rounded transition-colors cursor-pointer"
+                                  >
+                                    <Unlock size={9} />
+                                  </button>
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-[10px] text-slate-500 font-normal mt-0.5">
+                              {st.gender === 'F' ? 'D/o' : 'S/o'} {st.fatherName} • M: {st.motherName}
+                            </div>
+                          </td>
+                          <td className="p-2">
+                            <span className="font-bold text-slate-800 dark:text-slate-200">{st.className}</span>
+                            <div className="text-[10px] text-slate-500">{st.stream}</div>
+                          </td>
+                          <td className="p-2 font-mono text-[10.5px]">
+                            <div>{st.regNo || '—'}</div>
+                            <div className="text-[9.5px] text-slate-400">Adm: {st.admNo}</div>
+                          </td>
+                          <td className="p-2 font-mono text-[10.5px]">
+                            <div>{st.examRollNo && st.examRollNo !== '—' ? st.examRollNo : '—'}</div>
+                            <div className="text-[9.5px] text-slate-400 truncate max-w-[120px]">{st.session}</div>
+                          </td>
+                          <td className="p-2">
+                            {st.resultStatus === 'Passed' ? (
+                              <span className="px-2 py-0.5 rounded text-[10px] font-black bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700 inline-flex items-center gap-1">
+                                <span>✓ Pass ({st.division ? `${st.division} • ` : ''}{st.marksObtained ? `${st.marksObtained}/${st.maxMarks}` : 'Passed'})</span>
+                              </span>
+                            ) : st.resultStatus === 'Re-appear' ? (
+                              <span className="px-2 py-0.5 rounded text-[10px] font-black bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700 inline-flex items-center gap-1">
+                                <span>⚠ Reap ({st.reappSubjects || 'Re-appear'})</span>
+                              </span>
+                            ) : st.resultStatus === 'Failed' ? (
+                              <span className="px-2 py-0.5 rounded text-[10px] font-black bg-rose-100 dark:bg-rose-950 text-rose-800 dark:text-rose-300 border border-rose-300 dark:border-rose-700 inline-flex items-center gap-1">
+                                <span>✕ Failed</span>
+                              </span>
+                            ) : (
+                              <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
+                                ⏳ Awaiting Result / In-Course
+                              </span>
+                            )}
+                          </td>
+                          <td className="p-2 text-center" onClick={(e) => e.stopPropagation()}>
+                            <button
+                              type="button"
+                              onClick={() => openPendingFieldsEditor(st)}
+                              title={st.pendingFields.length > 0 ? `Pending: ${st.pendingFields.join(', ')}` : 'Review or update certificate fields'}
+                              className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg border font-bold text-[9.5px] cursor-pointer ${st.pendingFields.length > 0 ? 'bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-700' : 'bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700'}`}
+                            >
+                              <Edit3 size={10} />
+                              {st.pendingFields.length > 0 ? `${st.pendingFields.length} Pending` : 'Complete'}
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Pagination Bar */}
+              {filteredStudents.length > 0 && pageSize > 0 && totalPages > 1 && (
+                <div className="px-3 py-2 bg-slate-50 dark:bg-slate-850 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs font-semibold text-slate-600 dark:text-slate-300">
+                  <div className="text-[11px]">
+                    Showing <span className="font-black text-slate-800 dark:text-white">{(validCurrentPage - 1) * pageSize + 1}</span> to <span className="font-black text-slate-800 dark:text-white">{Math.min(validCurrentPage * pageSize, filteredStudents.length)}</span> of <span className="font-black text-slate-800 dark:text-white">{filteredStudents.length}</span> students
+                  </div>
+
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setCurrentPage(1)}
+                      disabled={validCurrentPage <= 1}
+                      className="p-1 rounded bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-100 dark:hover:bg-slate-600 cursor-pointer"
+                      title="First Page"
+                    >
+                      <ChevronsLeft size={14} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                      disabled={validCurrentPage <= 1}
+                      className="p-1 rounded bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-100 dark:hover:bg-slate-600 cursor-pointer"
+                      title="Previous Page"
+                    >
+                      <ChevronLeft size={14} />
+                    </button>
+
+                    <span className="px-2 py-0.5 text-xs font-bold text-slate-700 dark:text-slate-200">
+                      Page {validCurrentPage} of {totalPages}
+                    </span>
+
+                    <button
+                      type="button"
+                      onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                      disabled={validCurrentPage >= totalPages}
+                      className="p-1 rounded bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-100 dark:hover:bg-slate-600 cursor-pointer"
+                      title="Next Page"
+                    >
+                      <ChevronRight size={14} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCurrentPage(totalPages)}
+                      disabled={validCurrentPage >= totalPages}
+                      className="p-1 rounded bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-100 dark:hover:bg-slate-600 cursor-pointer"
+                      title="Last Page"
+                    >
+                      <ChevronsRight size={14} />
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
