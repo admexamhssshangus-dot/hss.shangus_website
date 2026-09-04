@@ -407,8 +407,8 @@ function PracticalsLoader() {
   return (
     <ModernLoader
       moduleKey="practicals"
-      text="Loading Practicals & Awards Database"
-      subtext="Fetching evaluation lists & teacher submissions..."
+      text="Loading practical records…"
+      subtext="Please wait."
     />
   );
 }

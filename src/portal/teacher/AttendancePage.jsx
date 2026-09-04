@@ -10,6 +10,7 @@ import ConfirmModal from '../components/ConfirmModal';
 import { getCachedCollection } from '../../services/dbCache';
 import { loadSiteSettings } from '../../utils/settingsLoader';
 import ModernLoader from '../../components/ModernLoader';
+import { toLocalDateKey, toLocalMonthKey } from '../../utils/localDate';
 
 // Master List of Official School Subjects with Codes
 const MASTER_SUBJECTS = [
@@ -488,7 +489,7 @@ export default function AttendancePage() {
 
   // Daily Marking Controls with Saved Filter Persistence
   const [selectedClass, setSelectedClass] = useState(() => getSavedFilter('class', '11th'));
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [selectedDate, setSelectedDate] = useState(() => toLocalDateKey());
   const [selectedSubject, setSelectedSubject] = useState(() => getSavedFilter('subject', ''));
   const [selectedSession, setSelectedSession] = useState(() => getSavedFilter('session', CURRENT_SESSION));
   const [availableSessions, setAvailableSessions] = useState([CURRENT_SESSION]);
@@ -536,12 +537,12 @@ export default function AttendancePage() {
     }));
   };
 
-  const CURRENT_MONTH_STR = useMemo(() => new Date().toISOString().slice(0, 7), []);
+  const CURRENT_MONTH_STR = useMemo(() => toLocalMonthKey(), []);
 
   const [showQuickRollGuide, setShowQuickRollGuide] = useState(() => {
     try {
       const dismissedMonth = localStorage.getItem('hss_quick_roll_guide_dismissed_month');
-      return dismissedMonth !== new Date().toISOString().slice(0, 7);
+      return dismissedMonth !== toLocalMonthKey();
     } catch (e) {
       return true;
     }
@@ -631,7 +632,7 @@ export default function AttendancePage() {
     if (!selectedClass) return;
     setAuditingMissed(true);
     try {
-      const todayStr = new Date().toISOString().slice(0, 10);
+      const todayStr = toLocalDateKey();
       const monthsToAudit = [];
 
       if (auditTargetMonth === 'ALL_SESSION') {
@@ -689,7 +690,7 @@ export default function AttendancePage() {
           if (parts[2].length === 4) return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
         }
         const d = new Date(s);
-        if (!isNaN(d.getTime())) return d.toISOString().slice(0, 10);
+        if (!isNaN(d.getTime())) return toLocalDateKey(d);
         return s;
       };
 
@@ -1628,7 +1629,7 @@ export default function AttendancePage() {
   const absentCount = filteredStudentsBySubject.filter((s) => s.status === 'A' || s.status === 'Absent').length;
 
   return (
-    <div className="w-full min-h-[85vh] py-3 sm:py-4 px-2 sm:px-4" style={{ backgroundColor: 'var(--bg-page, #f8fafc)' }}>
+    <div className="portal-page w-full min-h-[85vh] py-3 sm:py-4 px-2 sm:px-4" style={{ backgroundColor: 'var(--bg-page, #f8fafc)' }}>
       <SEO
         title="Attendance Portal"
         description="Mark daily attendance and manage holidays."
@@ -1927,7 +1928,7 @@ export default function AttendancePage() {
                     type="button"
                     onClick={() => {
                       setEditingHoliday(null);
-                      setHolidayDate(selectedDate || new Date().toISOString().slice(0, 10));
+                      setHolidayDate(selectedDate || toLocalDateKey());
                       setHolidayEndDate('');
                       setHolidayLabel('');
                       setHolidayPurpose('');
@@ -2106,7 +2107,7 @@ export default function AttendancePage() {
                 onClick={() => {
                   const current = new Date(`${selectedDate}T00:00:00`);
                   current.setDate(current.getDate() - 1);
-                  setSelectedDate(current.toISOString().slice(0, 10));
+                  setSelectedDate(toLocalDateKey(current));
                 }}
                 className="p-1 rounded-md hover:bg-teal-500/20 text-teal-700 dark:text-teal-300 transition-colors cursor-pointer"
                 title="Previous Day"
@@ -2132,7 +2133,7 @@ export default function AttendancePage() {
                 onClick={() => {
                   const current = new Date(`${selectedDate}T00:00:00`);
                   current.setDate(current.getDate() + 1);
-                  setSelectedDate(current.toISOString().slice(0, 10));
+                  setSelectedDate(toLocalDateKey(current));
                 }}
                 className="p-1 rounded-md hover:bg-teal-500/20 text-teal-700 dark:text-teal-300 transition-colors cursor-pointer"
                 title="Next Day"
@@ -2140,10 +2141,10 @@ export default function AttendancePage() {
                 <ChevronRight size={13} />
               </button>
 
-              {selectedDate !== new Date().toISOString().slice(0, 10) && (
+              {selectedDate !== toLocalDateKey() && (
                 <button
                   type="button"
-                  onClick={() => setSelectedDate(new Date().toISOString().slice(0, 10))}
+                  onClick={() => setSelectedDate(toLocalDateKey())}
                   className="px-1.5 py-0.5 rounded-md bg-teal-600 text-white font-black text-[9.5px] hover:bg-teal-500 cursor-pointer shadow-2xs transition-all"
                   title="Jump to Today"
                 >
@@ -2164,7 +2165,7 @@ export default function AttendancePage() {
                 <ModernLoader
                   moduleKey="attendance"
                   text={`Loading Roster for ${selectedClass}...`}
-                  subtext="Fetching enrolled student attendance roll..."
+                  subtext="Loading enrolled students…"
                   className="py-10"
                 />
               ) : sortedStudents.length > 0 ? (
@@ -2323,7 +2324,7 @@ export default function AttendancePage() {
                 <ModernLoader
                   moduleKey="attendance"
                   text="Loading Holiday Records..."
-                  subtext="Synchronizing official holiday calendar..."
+                  subtext="Loading the holiday calendar…"
                   className="py-6"
                 />
               ) : holidaysList.length > 0 ? (
@@ -2657,7 +2658,7 @@ export default function AttendancePage() {
                   type="button"
                   onClick={() => {
                     setEditingHoliday(null);
-                    setHolidayDate(selectedDate || new Date().toISOString().slice(0, 10));
+                    setHolidayDate(selectedDate || toLocalDateKey());
                     setHolidayEndDate('');
                     setHolidayLabel('');
                     setHolidayPurpose('');
@@ -3147,7 +3148,7 @@ export default function AttendancePage() {
 function PrintReportModal({ isOpen, onClose, defaultClass, defaultSession, defaultSubject, defaultDate, availableSessions = [], roster, holidaysList }) {
   const [reportYearMonth, setReportYearMonth] = useState(() => {
     if (defaultDate && defaultDate.length >= 7) return defaultDate.slice(0, 7);
-    return new Date().toISOString().slice(0, 7); // YYYY-MM
+    return toLocalMonthKey(); // YYYY-MM in the user's local timezone
   });
   const [reportClass, setReportClass] = useState(defaultClass || '11th');
   const [reportSession, setReportSession] = useState(defaultSession || CURRENT_SESSION);

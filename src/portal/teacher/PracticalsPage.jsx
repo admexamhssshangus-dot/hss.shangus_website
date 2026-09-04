@@ -1900,7 +1900,7 @@ export default function PracticalsPage() {
   }, [quickFillMark, subjectMaxMarks, selectedKeys, displayedStudents, getStudentKey]);
 
   return (
-    <div className="w-full min-h-[90vh] py-3 sm:py-4 px-2 sm:px-4 transition-colors duration-300" style={{ backgroundColor: 'var(--bg-page, #f8fafc)' }}>
+    <div className="portal-page w-full min-h-[90vh] py-3 sm:py-4 px-2 sm:px-4 transition-colors duration-300" style={{ backgroundColor: 'var(--bg-page, #f8fafc)' }}>
       <SEO
         title="Practical Evaluation Portal"
         description="Upload practical evaluation & lab marks, and generate official award lists."
@@ -2389,7 +2389,7 @@ export default function PracticalsPage() {
             <ModernLoader
               moduleKey="practicals"
               text="Loading Practicals Roster..."
-              subtext="Fetching candidate records and evaluation rolls..."
+              subtext="Loading student records…"
               className="py-10"
             />
           ) : displayedStudents.length > 0 ? (
@@ -2839,8 +2839,8 @@ export default function PracticalsPage() {
             {loadingHistory ? (
               <ModernLoader
                 moduleKey="practicals"
-                text="Fetching Historical Submissions..."
-                subtext="Retrieving previous practical assessment records..."
+                text="Loading previous submissions…"
+                subtext="Please wait."
                 className="py-6"
               />
             ) : submissionHistory.length > 0 ? (

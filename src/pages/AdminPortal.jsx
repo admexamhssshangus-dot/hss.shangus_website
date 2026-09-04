@@ -6351,8 +6351,8 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
         {loading ? (
           <ModernLoader
             moduleKey="admin"
-            text="Loading System Configuration..."
-            subtext="Synchronizing administrative parameters & flags..."
+            text="Loading settings…"
+            subtext="Please wait."
             className="py-16"
           />
         ) : (
@@ -9523,8 +9523,8 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
                     ) : cmsLoading ? (
                       <ModernLoader
                         moduleKey="admin"
-                        text="Loading Page Blocks Configuration..."
-                        subtext="Retrieving dynamic layout schema..."
+                        text="Loading page content…"
+                        subtext="Please wait."
                         className="py-12"
                       />
                     ) : (

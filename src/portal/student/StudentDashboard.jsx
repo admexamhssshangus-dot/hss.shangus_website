@@ -345,7 +345,7 @@ export default function StudentDashboard() {
   };
 
   return (
-    <div className="w-full min-h-[85vh] py-4 px-3 sm:px-4" style={{ backgroundColor: 'var(--bg-page, #f8fafc)' }}>
+    <div className="portal-page w-full min-h-[85vh] py-3 px-2 sm:py-4 sm:px-4" style={{ backgroundColor: 'var(--bg-page, #f8fafc)' }}>
       <SEO
         title="Student Dashboard"
         description="Govt HSS Shangus Online Student Admission Portal Dashboard."
@@ -355,7 +355,7 @@ export default function StudentDashboard() {
       <div className="max-w-5xl mx-auto space-y-4">
         {/* Top Welcome Hero Card */}
         <div className="rounded-2xl p-4 sm:p-5 border shadow-md flex flex-col md:flex-row items-start md:items-center justify-between gap-4 relative overflow-hidden" style={{ backgroundColor: 'var(--bg-card, #ffffff)', borderColor: 'var(--border-ui, #e2e8f0)' }}>
-          <div className="flex items-center gap-3">
+          <div className="flex min-w-0 items-center gap-3">
             {(() => {
               const studentAvatarPhoto = appData ? (formatPhotoDisplayUrl(getStudentPhotoUrl(appData)) || formatPhotoDisplayUrl(appData.photo_id)) : '';
               if (studentAvatarPhoto && studentAvatarPhoto !== '/logo.png' && studentAvatarPhoto.length > 20) {
@@ -375,7 +375,7 @@ export default function StudentDashboard() {
               );
             })()}
 
-            <div className="space-y-1">
+            <div className="min-w-0 space-y-1">
               <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-teal-500/10 text-teal-600">
                 <ShieldCheck size={12} /> Student Account
               </div>
@@ -384,7 +384,7 @@ export default function StudentDashboard() {
               </h1>
               <div className="flex items-center gap-2 flex-wrap text-xs font-medium" style={{ color: 'var(--text-muted, #64748b)' }}>
                 <span className="flex items-center gap-1.5">
-                  <span>{user?.email}</span>
+                  <span className="min-w-0 break-all">{user?.email}</span>
                   {isEmailVerified ? (
                     <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded-md bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 text-[10px] font-bold border border-emerald-500/30" title="Email is verified for password recovery">
                       <CheckCircle2 size={10} className="text-emerald-500" />
@@ -414,7 +414,7 @@ export default function StudentDashboard() {
           </div>
 
           {/* Quick Action Header Controls */}
-          <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+          <div className="grid grid-cols-2 items-stretch gap-2 w-full md:flex md:w-auto">
             <button
               onClick={() => {
                 setProfileName(user?.name || '');
@@ -472,12 +472,12 @@ export default function StudentDashboard() {
           <ModernLoader
             moduleKey="student"
             text="Loading Student Dashboard"
-            subtext="Fetching application status, PDF credentials & school session records..."
+            subtext="Loading your application status…"
           />
         ) : (
           /* Application Status Box */
           <div className="rounded-3xl p-6 sm:p-8 border shadow-xl space-y-6" style={{ backgroundColor: 'var(--bg-card, #ffffff)', borderColor: 'var(--border-ui, #e2e8f0)' }}>
-            <div className="flex items-center justify-between border-b pb-4" style={{ borderColor: 'var(--border-ui, #e2e8f0)' }}>
+            <div className="flex flex-col items-start justify-between gap-2 border-b pb-4 sm:flex-row sm:items-center" style={{ borderColor: 'var(--border-ui, #e2e8f0)' }}>
               <div>
                 <h2 className="text-lg font-extrabold" style={{ color: 'var(--text-main, #0f172a)' }}>
                   Admission Application Status

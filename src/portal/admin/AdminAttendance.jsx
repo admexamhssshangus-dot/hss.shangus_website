@@ -275,7 +275,7 @@ export default function AdminAttendance() {
   }, [filteredRecords]);
 
   if (loading) {
-    return <ModernLoader moduleKey="attendance" text="Loading Attendance Data" subtext="Fetching configurations and records..." />;
+    return <ModernLoader moduleKey="attendance" text="Loading attendance…" subtext="Please wait." />;
   }
 
   return (

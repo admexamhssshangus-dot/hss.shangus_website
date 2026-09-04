@@ -1041,8 +1041,8 @@ export default function AdminGkTestManager({ allStudents = [], onRefresh }) {
         {loading ? (
           <ModernLoader
             moduleKey="gkTest"
-            text="Loading Test Candidates..."
-            subtext="Fetching candidate registrations & hall ticket assignments..."
+            text="Loading candidates…"
+            subtext="Please wait."
             className="py-12"
           />
         ) : filtered.length === 0 ? (

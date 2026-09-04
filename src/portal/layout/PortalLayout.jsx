@@ -304,8 +304,8 @@ export default function PortalLayout() {
     return (
       <ModernLoader
         moduleKey="default"
-        text="Validating Security Credentials & Session"
-        subtext="Connecting to official student & administrative database…"
+        text="Checking your session…"
+        subtext="Please wait."
         fullScreen
       />
     );

@@ -7,6 +7,8 @@ import {
 import SEO from '../../components/SEO';
 import LogoutConfirmModal from '../components/LogoutConfirmModal';
 import { getCachedCollection } from '../../services/dbCache';
+import { getAssignedClassRollNumber } from '../../utils/studentApprovalStatus';
+import { toLocalDateKey } from '../../utils/localDate';
 
 export default function TeacherDashboard() {
   const { user, onLogout } = useOutletContext();
@@ -19,17 +21,18 @@ export default function TeacherDashboard() {
       if (cached) return JSON.parse(cached);
     } catch (e) {}
     return {
-      totalStudents: 205,
-      totalClasses: 4,
+      totalStudents: 0,
+      totalClasses: 0,
       todayAttendancePct: '0%',
       practicalsSubmitted: 0,
+      sessionLabel: 'Not configured',
     };
   });
 
   // Helper: check if student is approved and has assigned class roll no
   const hasAssignedRollAndApproved = (st) => {
     if (!st) return false;
-    const roll = st.classRollNo || st.rollNo || st['Class Roll No'] || st.roll_no || st.class_roll_no;
+    const roll = getAssignedClassRollNumber(st);
     const hasRoll = roll !== undefined && roll !== null && String(roll).trim() !== '' && String(roll).trim() !== '—';
     const status = String(st.status || st.admissionStatus || st.ApprovalStatus || 'Approved').toLowerCase();
     const isApproved = !status.includes('reject') && !status.includes('cancel');
@@ -39,8 +42,16 @@ export default function TeacherDashboard() {
   // Fetch Teacher Stats & Today's Attendance overview (Fast 0ms SWR)
   const fetchDashboardStats = useCallback(async () => {
     try {
-      const todayStr = new Date().toISOString().split('T')[0];
-      const countSet = new Set();
+      const todayStr = toLocalDateKey();
+      const recordCandidates = [];
+
+      const recordIdentity = (student, fallbackClass = '', fallbackSession = '') => {
+        if (!hasAssignedRollAndApproved(student)) return;
+        const roll = getAssignedClassRollNumber(student);
+        const cls = String(student.class || student.Class || student['Admission sought for class'] || fallbackClass || '').trim();
+        const session = String(student.Session || student.session || student['Academic Session'] || fallbackSession || '').trim();
+        recordCandidates.push({ roll, className: cls, session });
+      };
 
       // Parallelize all cache/firestore calls simultaneously using SWR (Stale-While-Revalidate)
       const [masterDocsRes, admDocsRes, attDocsRes, pracDocsRes] = await Promise.allSettled([
@@ -60,11 +71,7 @@ export default function TeacherDashboard() {
           const items = data.items || data.data || data.records || data.students;
           if (Array.isArray(items)) {
             items.forEach(st => {
-              if (hasAssignedRollAndApproved(st)) {
-                const roll = st.classRollNo || st.rollNo || st['Class Roll No'] || st.roll_no;
-                const cls = st.class || st.Class || data.className || data.id || 'st';
-                countSet.add(`${cls}_${roll}`);
-              }
+              recordIdentity(st, data.className, data.Session || data.session);
             });
           }
         });
@@ -75,21 +82,18 @@ export default function TeacherDashboard() {
           const items = data.items || data.data || data.records || data.students;
           if (Array.isArray(items)) {
             items.forEach(st => {
-              if (hasAssignedRollAndApproved(st)) {
-                const roll = st.classRollNo || st.rollNo || st['Class Roll No'] || st.roll_no;
-                const cls = st.class || st.Class || data.className || data.id || 'st';
-                countSet.add(`${cls}_${roll}`);
-              }
+              recordIdentity(st, data.className, data.Session || data.session);
             });
-          } else if (hasAssignedRollAndApproved(data)) {
-            const roll = data.classRollNo || data.rollNo || data['Class Roll No'] || data.roll_no;
-            const cls = data.class || data.Class || 'st';
-            countSet.add(`${cls}_${roll}`);
-          }
+          } else recordIdentity(data);
         });
       }
 
-      const approvedRollCount = countSet.size || 205;
+      const sessionSet = new Set(recordCandidates.map(record => record.session).filter(Boolean));
+      const activeSession = Array.from(sessionSet).sort((a, b) => b.localeCompare(a, undefined, { numeric: true }))[0] || '';
+      const activeRecords = recordCandidates.filter(record => !activeSession || !record.session || record.session === activeSession);
+      const countSet = new Set(activeRecords.map(record => `${record.className || 'class'}_${record.roll}`));
+      const classSet = new Set(activeRecords.map(record => record.className.toLowerCase()).filter(Boolean));
+      const approvedRollCount = countSet.size;
 
       // Count today's unique attended students across all marked subjects (prevents >100% bug when multiple subjects submit)
       const todayAttendedStudents = new Set();
@@ -115,9 +119,10 @@ export default function TeacherDashboard() {
 
       const newStats = {
         totalStudents: approvedRollCount,
-        totalClasses: 4,
+        totalClasses: classSet.size,
         todayAttendancePct: pct,
         practicalsSubmitted: practicalCount,
+        sessionLabel: activeSession || 'Not configured',
       };
 
       setStats(newStats);
@@ -133,10 +138,10 @@ export default function TeacherDashboard() {
     fetchDashboardStats();
   }, [fetchDashboardStats]);
 
-  const userName = user?.displayName || user?.name || 'Sheikh Gulfam';
+  const userName = user?.displayName || user?.name || 'Teacher';
 
   return (
-    <div className="w-full min-h-[85vh] py-2 sm:py-3 px-2 sm:px-4 space-y-2.5" style={{ backgroundColor: 'var(--bg-page, #f8fafc)' }}>
+    <div className="portal-page w-full min-h-[85vh] py-2 sm:py-3 px-2 sm:px-4 space-y-2.5" style={{ backgroundColor: 'var(--bg-page, #f8fafc)' }}>
       <SEO
         title="Teacher Workspace Dashboard"
         description="Faculty management hub for marking attendance and uploading practical evaluation marks."
@@ -193,17 +198,17 @@ export default function TeacherDashboard() {
           <div className="flex items-center gap-1.5 overflow-x-auto text-[11px] font-black pt-1.5 border-t border-slate-100 dark:border-slate-800">
             <span className="px-2 py-0.5 rounded-lg bg-slate-100 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 border border-slate-200/60 dark:border-slate-700/60 flex items-center gap-1 flex-shrink-0">
               <Users size={12} className="text-teal-600 dark:text-teal-400" />
-              <span>{stats.totalStudents || 205} Students</span>
+              <span>{stats.totalStudents ?? 0} Students</span>
             </span>
 
             <span className="px-2 py-0.5 rounded-lg bg-slate-100 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 border border-slate-200/60 dark:border-slate-700/60 flex items-center gap-1 flex-shrink-0">
               <BookOpen size={12} className="text-indigo-600 dark:text-indigo-400" />
-              <span>{stats.totalClasses || 4} Classes</span>
+              <span>{stats.totalClasses ?? 0} Classes</span>
             </span>
 
             <span className="px-2 py-0.5 rounded-lg bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20 flex items-center gap-1 flex-shrink-0">
               <CheckCircle2 size={12} className="text-emerald-600" />
-              <span>Session 2026</span>
+              <span>Session {stats.sessionLabel || 'Not configured'}</span>
             </span>
 
             <span className="px-2 py-0.5 rounded-lg bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20 flex items-center gap-1 flex-shrink-0">

@@ -42,3 +42,59 @@
 @keyframes portal-spin {
   to { transform: rotate(360deg); }
 }
+
+/* Shared mobile-first safety layer for student, teacher and admin workspaces. */
+.portal-page {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.portal-page :where(input, select, textarea) {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.portal-progress-window {
+  padding-top: max(0.75rem, env(safe-area-inset-top));
+  padding-right: max(0.75rem, env(safe-area-inset-right));
+  padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+  padding-left: max(0.75rem, env(safe-area-inset-left));
+}
+
+@media screen and (max-width: 47.99rem) {
+  .portal-page {
+    overflow-x: clip;
+  }
+
+  .portal-page :where(.flex, .grid) > * {
+    min-width: 0;
+  }
+
+  .portal-page :where(input, select, textarea) {
+    /* Prevent iOS from zooming the page when a form control receives focus. */
+    font-size: max(1rem, 16px);
+  }
+
+  .portal-page :where(button, a[role='button'], input, select, textarea) {
+    touch-action: manipulation;
+  }
+
+  .portal-page :where(.overflow-x-auto) {
+    overscroll-behavior-inline: contain;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-gutter: stable;
+  }
+
+  :where([role='dialog'][aria-modal='true']) {
+    max-width: 100vw;
+    max-height: 100dvh;
+    overscroll-behavior: contain;
+  }
+
+  :where([role='dialog'][aria-modal='true']) > * {
+    max-height: calc(100dvh - max(1rem, env(safe-area-inset-top)) - max(1rem, env(safe-area-inset-bottom)));
+    overflow-y: auto;
+  }
+}
