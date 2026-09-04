@@ -141,6 +141,7 @@ export default function BulkCertificateGeneratorModal({
   const [editingStudent, setEditingStudent] = useState(null);
   const [editValues, setEditValues] = useState({});
   const [isSavingFields, setIsSavingFields] = useState(false);
+  const [localStudentOverrides, setLocalStudentOverrides] = useState({});
 
   // ─── Table Pagination State ───
   const [currentPage, setCurrentPage] = useState(1);
@@ -362,7 +363,7 @@ export default function BulkCertificateGeneratorModal({
       if (isPassed && !division) pendingFields.push('Division');
       if (isReap && !reappSubjects) pendingFields.push('Re-appear Subjects');
 
-      return {
+      const baseStudent = {
         id,
         raw,
         studentName: name,
@@ -393,8 +394,39 @@ export default function BulkCertificateGeneratorModal({
         isReap,
         isFailed
       };
+
+      const override = localStudentOverrides[id];
+      if (override) {
+        const merged = { ...baseStudent, ...override };
+        if (override.dob) merged.dobRaw = override.dob;
+        const newPending = [];
+        if (!merged.regNo || merged.regNo === '—') newPending.push('Registration No.');
+        if (!merged.admNo || merged.admNo === '—') newPending.push('Admission No.');
+        if (!merged.admDate || merged.admDate === '—') newPending.push('Admission Date');
+        if (!merged.dobRaw || merged.dobRaw === '—') newPending.push('Date of Birth');
+        if (!merged.gender) newPending.push('Gender');
+        if (!merged.fatherName || merged.fatherName === '—') newPending.push("Father's Name");
+        if (!merged.motherName || merged.motherName === '—') newPending.push("Mother's Name");
+        if (!merged.village || merged.village === '—') newPending.push('Village / Address');
+        if (!merged.examRollNo || merged.examRollNo === '—') newPending.push('Exam Roll No.');
+        if (!merged.examMode) newPending.push('Exam Mode');
+        const hasRes = Boolean(merged.resultStatus && merged.resultStatus !== '—');
+        if (!hasRes) newPending.push('Exam Result');
+        const passed = merged.resultStatus === 'Passed';
+        const reap = merged.resultStatus === 'Reap' || merged.resultStatus === 'Re-appear';
+        if (passed && !merged.marksObtained) newPending.push('Marks Obtained');
+        if (passed && !merged.division) newPending.push('Division');
+        if (reap && !merged.reappSubjects) newPending.push('Re-appear Subjects');
+        merged.pendingFields = newPending;
+        merged.hasResult = hasRes;
+        merged.isPassed = passed;
+        merged.isReap = reap;
+        return merged;
+      }
+
+      return baseStudent;
     });
-  }, [combinedStudentPool, identityIndexes]);
+  }, [combinedStudentPool, identityIndexes, localStudentOverrides]);
 
   // Filtered students based on active dropdowns, search, pending status, and certificate status
   const filteredStudents = useMemo(() => {
@@ -801,11 +833,21 @@ export default function BulkCertificateGeneratorModal({
     setIsSavingFields(true);
     try {
       await persistCertificateStudentFields(editingStudent, editValues);
-      showToast(`Saved certificate fields permanently for ${editingStudent.studentName}.`, 'success');
+      setLocalStudentOverrides(prev => ({
+        ...prev,
+        [editingStudent.id]: { ...editValues }
+      }));
+      if (typeof showToast === 'function') {
+        showToast(`Saved certificate fields permanently for ${editingStudent.studentName}.`, 'success');
+      }
       setEditingStudent(null);
     } catch (error) {
       console.error('Failed to save certificate fields:', error);
-      showToast(`Failed to save fields: ${error.message}`, 'error');
+      if (typeof showToast === 'function') {
+        showToast(`Failed to save fields: ${error.message}`, 'error');
+      } else {
+        alert(`Failed to save fields: ${error.message}`);
+      }
     } finally {
       setIsSavingFields(false);
     }
@@ -1444,7 +1486,10 @@ export default function BulkCertificateGeneratorModal({
       </div>
     </div>
     {editingStudent && (
-      <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-xs">
+      <div
+        className="fixed inset-0 z-[100002] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fadeIn"
+        onClick={(e) => { if (e.target === e.currentTarget) setEditingStudent(null); }}
+      >
         <div className="w-full max-w-2xl max-h-[90vh] overflow-hidden rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-2xl flex flex-col">
           <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-700 flex items-start justify-between">
             <div>
