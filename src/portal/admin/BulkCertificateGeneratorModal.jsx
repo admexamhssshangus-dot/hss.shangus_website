@@ -357,9 +357,21 @@ export default function BulkCertificateGeneratorModal({
         extractStudentAdmissionNumber(record) || extractStudentAdmissionDate(record) || extractDob(record) !== '—'
       );
 
+      // Certificates are strictly scoped to the student's current academic session and class.
+      // NEVER inherit certificate numbers across different sessions or classes!
+      const sameSessionClassLinked = sortedLinked.filter(r => {
+        const rSess = extractSession(r) || '';
+        const rCls = extractClass(r) || '';
+        const sessClean = s => String(s).toLowerCase().replace(/[^a-z0-9]/g, '');
+        const clsClean = c => String(c).toLowerCase().replace(/[^a-z0-9]/g, '');
+        return sessClean(rSess) === sessClean(session) && clsClean(rCls) === clsClean(cls);
+      });
+      const sameSessionCert = sameSessionClassLinked.map(extractStudentCertificateNumber).find(Boolean);
+
       const certificateRaw = extractStudentCertificateNumber(raw) ||
         extractStudentCertificateNumber(st) ||
-        firstLinked(extractStudentCertificateNumber);
+        sameSessionCert ||
+        '';
       const certificateNo = extractCertificateSerial(certificateRaw);
 
       const admNo = extractStudentAdmissionNumber(raw) || extractStudentAdmissionNumber(st) || firstLinked(extractStudentAdmissionNumber) || '—';

@@ -41,6 +41,27 @@ export function extractCertificateSerial(value) {
   return '';
 }
 
+const normalizeIdentityKey = value => String(value || '').replace(/[^a-z0-9]/gi, '').toLowerCase();
+
+const isSessionMatch = (s1, s2) => {
+  if (!s1 || !s2) return true;
+  const n1 = normalizeIdentityKey(s1);
+  const n2 = normalizeIdentityKey(s2);
+  return n1 === n2 || n1.includes(n2) || n2.includes(n1);
+};
+
+const isClassMatch = (c1, c2) => {
+  if (!c1 || !c2) return true;
+  const n1 = normalizeIdentityKey(c1);
+  const n2 = normalizeIdentityKey(c2);
+  if (n1 === n2) return true;
+  for (const grade of ['12', '11', '10', '9']) {
+    if (n1.includes(grade) && n2.includes(grade)) return true;
+    if (n1.includes(grade) !== n2.includes(grade)) return false;
+  }
+  return true;
+};
+
 /**
  * Fetch current highest issued Certificate Number from Firestore
  */
@@ -118,6 +139,8 @@ export async function commitIssuedCertificateBatch(issuedStudents = [], issueDat
     const raw = item.student?.raw || item.raw || item.student || item || {};
     const formNo = String(item.formNo || item.id || raw.formNo || raw['Form No.'] || raw['Form Number'] || '').trim();
     const regNo = String(item.student?.regNo || raw.regNo || raw.boardRegNo || raw['Board Registration Number'] || raw['Board Reg. No.'] || '').trim();
+    const session = String(item.student?.session || item.session || raw.session || raw.Session || raw['Session'] || '').trim();
+    const className = String(item.student?.className || item.className || item.class || raw.class || raw.Class || raw['Class'] || raw.selectedClass || '').trim();
     const patch = {
       ccDcNo: String(item.certNo),
       certificateNo: String(item.certNo),
@@ -133,7 +156,7 @@ export async function commitIssuedCertificateBatch(issuedStudents = [], issueDat
 
     if (sourceCollection === 'masterRegisters' && parentDocId) {
       if (!masterGroups.has(parentDocId)) masterGroups.set(parentDocId, []);
-      masterGroups.get(parentDocId).push({ formNo, regNo, patch });
+      masterGroups.get(parentDocId).push({ formNo, regNo, session, className, patch });
     } else if (studentDocId) {
       const studentRef = doc(db, sourceCollection === 'masterRegisters' ? 'masterRegisters' : 'admissions', studentDocId);
       queueSet(studentRef, patch, { merge: true });
@@ -142,7 +165,7 @@ export async function commitIssuedCertificateBatch(issuedStudents = [], issueDat
   });
 
   // Archived students are packed inside master-register chunk documents. Patch
-  // the matching array item instead of creating a misleading admissions record.
+  // the matching array item using regNo/formNo along with session and class.
   for (const [parentDocId, assignments] of masterGroups.entries()) {
     const parentRef = doc(db, 'masterRegisters', String(parentDocId));
     const parentSnap = await getDoc(parentRef);
@@ -150,14 +173,20 @@ export async function commitIssuedCertificateBatch(issuedStudents = [], issueDat
     const parentData = parentSnap.data();
     const arrayKey = ['items', 'students', 'records', 'data'].find(key => Array.isArray(parentData[key]));
     if (!arrayKey) throw new Error(`Master-register chunk ${parentDocId} has no student array.`);
-    const normalize = value => String(value || '').replace(/[^a-z0-9]/gi, '').toLowerCase();
     const updatedRecords = parentData[arrayKey].map(record => {
-      const recordForm = normalize(record.formNo || record['Form No.'] || record['Form Number']);
-      const recordReg = normalize(record.regNo || record.boardRegNo || record['Board Registration Number'] || record['Board Reg. No.']);
-      const assignment = assignments.find(item =>
-        (item.regNo && normalize(item.regNo) === recordReg) ||
-        (item.formNo && normalize(item.formNo) === recordForm)
-      );
+      const recordForm = normalizeIdentityKey(record.formNo || record['Form No.'] || record['Form Number']);
+      const recordReg = normalizeIdentityKey(record.regNo || record.boardRegNo || record['Board Registration Number'] || record['Board Reg. No.']);
+      const recordSession = record.session || record.Session || record['Session'] || parentData.session || '';
+      const recordClass = record.class || record.Class || record['Class'] || record.selectedClass || parentData.selectedClass || '';
+
+      const assignment = assignments.find(item => {
+        const regMatches = item.regNo && normalizeIdentityKey(item.regNo) === recordReg;
+        const formMatches = item.formNo && normalizeIdentityKey(item.formNo) === recordForm;
+        if (!regMatches && !formMatches) return false;
+        if (!isSessionMatch(item.session, recordSession)) return false;
+        if (!isClassMatch(item.className, recordClass)) return false;
+        return true;
+      });
       if (!assignment) return record;
       const itemPatch = { ...assignment.patch };
       delete itemPatch.dischargeIssuedAt;
@@ -238,6 +267,8 @@ export async function revokeCertificateNumberBatch(studentsToRevoke = []) {
     const raw = item.student?.raw || item.raw || item.student || item || {};
     const formNo = String(item.formNo || item.id || raw.formNo || raw['Form No.'] || raw['Form Number'] || '').trim();
     const regNo = String(item.student?.regNo || raw.regNo || raw.boardRegNo || raw['Board Registration Number'] || raw['Board Reg. No.'] || '').trim();
+    const session = String(item.student?.session || item.session || raw.session || raw.Session || raw['Session'] || '').trim();
+    const className = String(item.student?.className || item.className || item.class || raw.class || raw.Class || raw['Class'] || raw.selectedClass || '').trim();
     const certNo = String(item.certNo || item.certificateNo || raw.ccDcNo || raw.certificateNo || '').trim();
     if (certNo) revokedCerts.push(certNo);
 
@@ -257,7 +288,7 @@ export async function revokeCertificateNumberBatch(studentsToRevoke = []) {
 
     if (sourceCollection === 'masterRegisters' && parentDocId) {
       if (!masterGroups.has(parentDocId)) masterGroups.set(parentDocId, []);
-      masterGroups.get(parentDocId).push({ formNo, regNo, patch });
+      masterGroups.get(parentDocId).push({ formNo, regNo, session, className, patch });
     } else if (studentDocId) {
       const studentRef = doc(db, sourceCollection === 'masterRegisters' ? 'masterRegisters' : 'admissions', studentDocId);
       queueSet(studentRef, patch, { merge: true });
@@ -265,7 +296,7 @@ export async function revokeCertificateNumberBatch(studentsToRevoke = []) {
     }
   });
 
-  // Handle masterRegisters chunks
+  // Handle masterRegisters chunks using regNo/formNo along with session and class
   for (const [parentDocId, assignments] of masterGroups.entries()) {
     const parentRef = doc(db, 'masterRegisters', String(parentDocId));
     const parentSnap = await getDoc(parentRef);
@@ -273,14 +304,20 @@ export async function revokeCertificateNumberBatch(studentsToRevoke = []) {
     const parentData = parentSnap.data();
     const arrayKey = ['items', 'students', 'records', 'data'].find(key => Array.isArray(parentData[key]));
     if (!arrayKey) continue;
-    const normalize = value => String(value || '').replace(/[^a-z0-9]/gi, '').toLowerCase();
     const updatedRecords = parentData[arrayKey].map(record => {
-      const recordForm = normalize(record.formNo || record['Form No.'] || record['Form Number']);
-      const recordReg = normalize(record.regNo || record.boardRegNo || record['Board Registration Number'] || record['Board Reg. No.']);
-      const assignment = assignments.find(item =>
-        (item.regNo && normalize(item.regNo) === recordReg) ||
-        (item.formNo && normalize(item.formNo) === recordForm)
-      );
+      const recordForm = normalizeIdentityKey(record.formNo || record['Form No.'] || record['Form Number']);
+      const recordReg = normalizeIdentityKey(record.regNo || record.boardRegNo || record['Board Registration Number'] || record['Board Reg. No.']);
+      const recordSession = record.session || record.Session || record['Session'] || parentData.session || '';
+      const recordClass = record.class || record.Class || record['Class'] || record.selectedClass || parentData.selectedClass || '';
+
+      const assignment = assignments.find(item => {
+        const regMatches = item.regNo && normalizeIdentityKey(item.regNo) === recordReg;
+        const formMatches = item.formNo && normalizeIdentityKey(item.formNo) === recordForm;
+        if (!regMatches && !formMatches) return false;
+        if (!isSessionMatch(item.session, recordSession)) return false;
+        if (!isClassMatch(item.className, recordClass)) return false;
+        return true;
+      });
       if (!assignment) return record;
       const itemPatch = { ...assignment.patch };
       delete itemPatch.dischargeRevokedAt;
@@ -353,6 +390,8 @@ export async function persistCertificateStudentFields(student, values = {}) {
 
   const formNo = String(student?.formNo || raw.formNo || raw['Form No.'] || raw['Form Number'] || '').trim();
   const regNo = String(values.regNo || student?.regNo || raw.regNo || raw.boardRegNo || raw['Board Registration Number'] || '').trim();
+  const session = String(student?.session || raw.session || raw.Session || raw['Session'] || '').trim();
+  const className = String(student?.className || student?.class || raw.class || raw.Class || raw['Class'] || raw.selectedClass || '').trim();
   const sourceCollection = raw._srcCollection || raw._source || student?.sourceCollection || 'admissions';
   const parentDocId = raw._parentDocId || student?._parentDocId || '';
 
@@ -363,12 +402,19 @@ export async function persistCertificateStudentFields(student, values = {}) {
     const parentData = parentSnap.data();
     const arrayKey = ['items', 'students', 'records', 'data'].find(key => Array.isArray(parentData[key]));
     if (!arrayKey) throw new Error(`Master-register chunk ${parentDocId} has no student array.`);
-    const normalize = value => String(value || '').replace(/[^a-z0-9]/gi, '').toLowerCase();
     let matched = false;
     const updatedRecords = parentData[arrayKey].map(record => {
-      const recordForm = normalize(record.formNo || record['Form No.'] || record['Form Number']);
-      const recordReg = normalize(record.regNo || record.boardRegNo || record['Board Registration Number'] || record['Board Reg. No.']);
-      if (!((regNo && normalize(regNo) === recordReg) || (formNo && normalize(formNo) === recordForm))) return record;
+      const recordForm = normalizeIdentityKey(record.formNo || record['Form No.'] || record['Form Number']);
+      const recordReg = normalizeIdentityKey(record.regNo || record.boardRegNo || record['Board Registration Number'] || record['Board Reg. No.']);
+      const recordSession = record.session || record.Session || record['Session'] || parentData.session || '';
+      const recordClass = record.class || record.Class || record['Class'] || record.selectedClass || parentData.selectedClass || '';
+
+      const regMatches = regNo && normalizeIdentityKey(regNo) === recordReg;
+      const formMatches = formNo && normalizeIdentityKey(formNo) === recordForm;
+      if (!regMatches && !formMatches) return record;
+      if (!isSessionMatch(session, recordSession)) return record;
+      if (!isClassMatch(className, recordClass)) return record;
+
       matched = true;
       const itemPatch = { ...patch };
       delete itemPatch.updatedAt;
