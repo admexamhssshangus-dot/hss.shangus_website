@@ -68,7 +68,7 @@ describe('TC/DC certificate registry rules', () => {
     await expect(commitIssuedCertificateBatch([{
       certNo: '1400',
       formNo: '250001',
-      student: { raw: { id: 'adm_250001' } }
+      student: { regNo: 'REG-001', raw: { id: 'adm_250001' } }
     }], '04-09-2026')).rejects.toThrow(/serial conflict/i);
     expect(transactionSet).not.toHaveBeenCalled();
   });
@@ -77,16 +77,18 @@ describe('TC/DC certificate registry rules', () => {
     const transactionSet = jest.fn();
     getDoc.mockResolvedValue({ exists: () => true, data: () => ({ lastIssuedCertNo: 1400 }) });
     runTransaction.mockImplementation(async (_db, operation) => operation({
-      get: jest.fn(async ref => ref === 'systemSettings/certificateRegistry'
-        ? { exists: () => true, data: () => ({ lastIssuedCertNo: 1400 }) }
-        : { exists: () => true, data: () => ({}) }),
+      get: jest.fn(async ref => {
+        if (ref === 'systemSettings/certificateRegistry') return { exists: () => true, data: () => ({ lastIssuedCertNo: 1400 }) };
+        if (String(ref).startsWith('certificateNumberLocks/')) return { exists: () => false, data: () => ({}) };
+        return { exists: () => true, data: () => ({}) };
+      }),
       set: transactionSet
     }));
 
     const result = await commitIssuedCertificateBatch([{
       certNo: '1401',
       formNo: '250001',
-      student: { raw: { id: 'adm_250001' } }
+      student: { regNo: 'REG-001', raw: { id: 'adm_250001' } }
     }], '04-09-2026');
 
     expect(result).toMatchObject({ success: true, count: 1, lastIssuedCertNo: 1401 });
@@ -99,6 +101,10 @@ describe('TC/DC certificate registry rules', () => {
       'systemSettings/certificateRegistry',
       expect.objectContaining({ lastIssuedCertNo: 1401 }),
       { merge: true }
+    );
+    expect(transactionSet).toHaveBeenCalledWith(
+      'certificateNumberLocks/1401',
+      expect.objectContaining({ certificateNo: '1401', regNo: 'REG-001', status: 'Active' })
     );
   });
 
@@ -115,7 +121,7 @@ describe('TC/DC certificate registry rules', () => {
     await expect(commitIssuedCertificateBatch([{
       certNo: '1401',
       formNo: 'missing',
-      student: { raw: { id: 'adm_missing' } }
+      student: { regNo: 'REG-MISSING', raw: { id: 'adm_missing' } }
     }], '2026-09-04')).rejects.toThrow(/was not found/i);
     expect(transactionSet).not.toHaveBeenCalled();
   });
@@ -124,17 +130,99 @@ describe('TC/DC certificate registry rules', () => {
     const transactionSet = jest.fn();
     getDoc.mockResolvedValue({ exists: () => true, data: () => ({ lastIssuedCertNo: 1400 }) });
     runTransaction.mockImplementation(async (_db, operation) => operation({
-      get: jest.fn(async ref => ref === 'systemSettings/certificateRegistry'
-        ? { exists: () => true, data: () => ({ lastIssuedCertNo: 1400 }) }
-        : { exists: () => true, data: () => ({ certificateNo: '1399' }) }),
+      get: jest.fn(async ref => {
+        if (ref === 'systemSettings/certificateRegistry') return { exists: () => true, data: () => ({ lastIssuedCertNo: 1400 }) };
+        if (String(ref).startsWith('certificateNumberLocks/')) return { exists: () => false, data: () => ({}) };
+        return { exists: () => true, data: () => ({ certificateNo: '1399' }) };
+      }),
       set: transactionSet
     }));
 
     await expect(commitIssuedCertificateBatch([{
       certNo: '1401',
       formNo: '250001',
-      student: { raw: { id: 'adm_250001' } }
+      student: { regNo: 'REG-001', raw: { id: 'adm_250001' } }
     }], '2026-09-04')).rejects.toThrow(/already has certificate #1399/i);
+    expect(transactionSet).not.toHaveBeenCalled();
+  });
+
+  test('allows an explicit duplicate for the same registration and retains issue history', async () => {
+    const transactionSet = jest.fn();
+    getDoc.mockResolvedValue({ exists: () => true, data: () => ({ lastIssuedCertNo: 1400 }) });
+    runTransaction.mockImplementation(async (_db, operation) => operation({
+      get: jest.fn(async ref => {
+        if (ref === 'systemSettings/certificateRegistry') return { exists: () => true, data: () => ({ lastIssuedCertNo: 1400 }) };
+        if (String(ref).startsWith('certificateNumberLocks/')) return { exists: () => false, data: () => ({}) };
+        return { exists: () => true, data: () => ({ certificateNo: '1399', dischargeIssueDate: '2025-08-01' }) };
+      }),
+      set: transactionSet
+    }));
+
+    await commitIssuedCertificateBatch([{
+      certNo: '1401',
+      previousCertificateNo: '1399',
+      issueKind: 'Duplicate',
+      formNo: '250001',
+      student: { regNo: 'REG-001', raw: { id: 'adm_250001' } }
+    }], '2026-09-04');
+
+    expect(transactionSet).toHaveBeenCalledWith(
+      'admissions/adm_250001',
+      expect.objectContaining({
+        certificateNo: '1401',
+        duplicateOfCertificateNo: '1399',
+        dischargeCertStatus: 'Issued (Duplicate)',
+        certificateIssueHistory: expect.arrayContaining([
+          expect.objectContaining({ certificateNo: '1399' }),
+          expect.objectContaining({ certificateNo: '1401', issueKind: 'Duplicate' })
+        ])
+      }),
+      { merge: true }
+    );
+  });
+
+  test('rejects a certificate number already locked to another registration', async () => {
+    const transactionSet = jest.fn();
+    getDoc.mockResolvedValue({ exists: () => true, data: () => ({ lastIssuedCertNo: 1400 }) });
+    runTransaction.mockImplementation(async (_db, operation) => operation({
+      get: jest.fn(async ref => {
+        if (ref === 'systemSettings/certificateRegistry') return { exists: () => true, data: () => ({ lastIssuedCertNo: 1400 }) };
+        if (String(ref).startsWith('certificateNumberLocks/')) return { exists: () => true, data: () => ({ regNo: 'REG-OTHER' }) };
+        return { exists: () => true, data: () => ({}) };
+      }),
+      set: transactionSet
+    }));
+
+    await expect(commitIssuedCertificateBatch([{
+      certNo: '1401',
+      formNo: '250001',
+      student: { regNo: 'REG-001', raw: { id: 'adm_250001' } }
+    }], '2026-09-04')).rejects.toThrow(/already locked to REG-OTHER/i);
+    expect(transactionSet).not.toHaveBeenCalled();
+  });
+
+  test('rejects a duplicate when its previous certificate belongs to another registration', async () => {
+    const transactionSet = jest.fn();
+    getDoc.mockResolvedValue({ exists: () => true, data: () => ({ lastIssuedCertNo: 1400 }) });
+    runTransaction.mockImplementation(async (_db, operation) => operation({
+      get: jest.fn(async ref => {
+        if (ref === 'systemSettings/certificateRegistry') return { exists: () => true, data: () => ({ lastIssuedCertNo: 1400 }) };
+        if (ref === 'certificateNumberLocks/1401') return { exists: () => false, data: () => ({}) };
+        if (ref === 'certificateNumberLocks/1399') {
+          return { exists: () => true, data: () => ({ regNo: 'REG-OTHER', regKey: 'regother' }) };
+        }
+        return { exists: () => true, data: () => ({ certificateNo: '1399' }) };
+      }),
+      set: transactionSet
+    }));
+
+    await expect(commitIssuedCertificateBatch([{
+      certNo: '1401',
+      previousCertificateNo: '1399',
+      issueKind: 'Duplicate',
+      formNo: '250001',
+      student: { regNo: 'REG-001', raw: { id: 'adm_250001' } }
+    }], '2026-09-04')).rejects.toThrow(/locked to REG-OTHER, not this registration number/i);
     expect(transactionSet).not.toHaveBeenCalled();
   });
 });

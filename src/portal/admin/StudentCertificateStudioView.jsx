@@ -55,11 +55,15 @@ import DOMPurify from 'dompurify';
 import { sanitizeRichHtml } from '../../utils/sanitizeRichHtml';
 import { toLocalDateKey } from '../../utils/localDate';
 import {
+  normalizeRegistrationKey,
+  resolveCertificateStream,
+  resolveScopedCertificateResult
+} from '../../utils/certificateStudentResolution';
+import {
   extractStudentName,
   extractFatherName,
   extractMotherName,
   extractClass,
-  extractStream,
   extractSession,
   extractDob,
   extractGender,
@@ -312,6 +316,17 @@ export default function StudentCertificateStudioView({
   const [recentIngestedResults, setRecentIngestedResults] = useState([]);
   const isLoadingStudents = false;
 
+  const registrationHistoryByReg = useMemo(() => {
+    const map = new Map();
+    (combinedStudentPool || []).forEach(record => {
+      const key = normalizeRegistrationKey(extractBoardRegNo(record));
+      if (!key) return;
+      if (!map.has(key)) map.set(key, []);
+      map.get(key).push(record);
+    });
+    return map;
+  }, [combinedStudentPool]);
+
   // Combined searchable student directory with fast canonical single-pass mapping
   const unifiedStudentDirectory = useMemo(() => {
     if (!isReady) return [];
@@ -330,9 +345,11 @@ export default function StudentCertificateStudioView({
       const father = extractFatherName(effectiveStudent);
       const mother = extractMotherName(effectiveStudent);
       const cls = extractClass(effectiveStudent) || '11th';
-      const stream = extractStream(effectiveStudent) || 'Medical';
-      const rollNo = getStudentRollNumber(effectiveStudent) || extractAdmNo(effectiveStudent) || '';
       const regNo = extractBoardRegNo(effectiveStudent) || '';
+      const regKey = normalizeRegistrationKey(regNo);
+      const registrationHistory = regKey ? (registrationHistoryByReg.get(regKey) || []) : [];
+      const stream = resolveCertificateStream(effectiveStudent, registrationHistory, cls);
+      const rollNo = getStudentRollNumber(effectiveStudent) || extractAdmNo(effectiveStudent) || '';
       const formNo = extractFormNo(effectiveStudent) || effectiveStudent.id || '';
       const session = extractSession(effectiveStudent) || '2025-26';
       const dob = extractDob(effectiveStudent) || '';
@@ -359,7 +376,7 @@ export default function StudentCertificateStudioView({
         sessionLower.includes('ex-') ||
         sessionLower.includes('past');
 
-      const dedupeKey = `${(regNo && regNo !== '—' ? regNo : '')}_${(rollNo && rollNo !== '—' ? rollNo : '')}_${(formNo && formNo !== '—' ? formNo : '')}_${name.toLowerCase()}`;
+      const dedupeKey = `${(regNo && regNo !== '—' ? regNo : '')}_${(rollNo && rollNo !== '—' ? rollNo : '')}_${(formNo && formNo !== '—' ? formNo : '')}_${session}_${cls}_${name.toLowerCase()}`;
       
       if (!seenKeys.has(dedupeKey)) {
         seenKeys.add(dedupeKey);
@@ -389,7 +406,7 @@ export default function StudentCertificateStudioView({
     });
 
     return list;
-  }, [combinedStudentPool, recentIngestedResults, isReady]);
+  }, [combinedStudentPool, recentIngestedResults, isReady, registrationHistoryByReg]);
 
   // ─── Dynamic Sessions Derived from Indexed Directory (Reverse Chronological Order) ───
   const dynamicSessions = useMemo(() => {
@@ -885,13 +902,15 @@ export default function StudentCertificateStudioView({
     // admission document holds identity details. Join them by the permanent
     // board registration number before filling the certificate.
     const primaryRaw = st.raw || st;
-    const targetReg = cleanStudentIdentity(extractBoardRegNo(primaryRaw) || st.regNo);
+    const targetReg = normalizeRegistrationKey(extractBoardRegNo(primaryRaw) || st.regNo);
+    let registrationMatches = targetReg ? [...(registrationHistoryByReg.get(targetReg) || [])] : [];
     if (targetReg) {
       try {
-        let matches = (identityStudents || []).filter(record =>
-          cleanStudentIdentity(extractBoardRegNo(record)) === targetReg
+        const identityMatches = (identityStudents || []).filter(record =>
+          normalizeRegistrationKey(extractBoardRegNo(record)) === targetReg
         );
-        const hasAuthoritativeIdentity = matches.some(record =>
+        registrationMatches = [...registrationMatches, ...identityMatches];
+        const hasAuthoritativeIdentity = registrationMatches.some(record =>
           extractStudentAdmissionNumber(record) || extractStudentAdmissionDate(record) || extractDob(record) !== '—'
         );
         // Avoid a redundant full admissions read when the complete master-register
@@ -901,12 +920,22 @@ export default function StudentCertificateStudioView({
           const admissions = Array.isArray(cachedAdmissions) && cachedAdmissions.length > 0
             ? cachedAdmissions
             : await getCachedCollection('admissions');
-          matches = [...matches, ...(admissions || []).filter(record =>
-            cleanStudentIdentity(extractBoardRegNo(record)) === targetReg
+          registrationMatches = [...registrationMatches, ...(admissions || []).filter(record =>
+            normalizeRegistrationKey(extractBoardRegNo(record)) === targetReg
           )];
         }
-        if (matches.length > 0) {
-          const enrichedRaw = enrichCertificateIdentityFields(primaryRaw, matches);
+        if (registrationMatches.length > 0) {
+          let enrichedRaw = enrichCertificateIdentityFields(primaryRaw, registrationMatches);
+          const priorCertificateRecord = registrationMatches.find(record => Boolean(extractStudentCertificateNumber(record)));
+          const priorCertificate = extractStudentCertificateNumber(priorCertificateRecord);
+          if (priorCertificate && !extractStudentCertificateNumber(enrichedRaw)) {
+            enrichedRaw = {
+              ...enrichedRaw,
+              ccDcNo: priorCertificate,
+              certificateNo: priorCertificate,
+              _certificateSourceRecord: priorCertificateRecord?.raw || priorCertificateRecord
+            };
+          }
           st = { ...st, raw: enrichedRaw };
           setSelectedStudent(st);
         }
@@ -916,7 +945,12 @@ export default function StudentCertificateStudioView({
     }
 
     const raw = st.raw || st;
-    const resInfo = extractStudentResultMarks(raw);
+    const scopedResult = resolveScopedCertificateResult(
+      [st, ...registrationMatches],
+      st.session || extractSession(st),
+      st.cls || extractClass(st)
+    );
+    const resInfo = scopedResult.resultInfo;
     const isPassed = resInfo.isPassed;
 
     setTcMarksObtained(resInfo.marksObtained);
@@ -931,7 +965,7 @@ export default function StudentCertificateStudioView({
 
     // If a TC/DC template is active, automatically select the Qualified or Re-appear template variant
     if (activeTpl.isTcDc || selectedTemplateId.startsWith('tc_dc_')) {
-      const targetId = isPassed ? 'tc_dc_qualified' : (resInfo.isReap ? 'tc_dc_reappear' : 'tc_dc_qualified');
+      const targetId = isPassed ? 'tc_dc_qualified' : ((resInfo.isReap || resInfo.isFailed) ? 'tc_dc_reappear' : 'tc_dc_awaiting');
       const foundTarget = BUILTIN_CERTIFICATE_TEMPLATES.find(t => t.id === targetId) || activeTpl;
       setSelectedTemplateId(foundTarget.id);
       activeTpl = foundTarget;
@@ -944,7 +978,7 @@ export default function StudentCertificateStudioView({
     setFatherName(st.father || '');
     setMotherName(st.mother || '');
     setClassName(st.cls || '11th');
-    setStream(st.stream || 'Medical');
+    setStream(resolveCertificateStream(st, registrationMatches, st.cls || extractClass(st)));
     setRollNo(st.rollNo || '—');
     setRegNo(st.regNo || '—');
     const resolvedDob = extractDob(raw);
@@ -998,7 +1032,12 @@ export default function StudentCertificateStudioView({
 
     setIsRevokingSingleCert(true);
     try {
-      const res = await revokeCertificateNumberBatch([selectedStudent]);
+      const revocationSource = raw._certificateSourceRecord || raw;
+      const res = await revokeCertificateNumberBatch([{
+        ...selectedStudent,
+        raw: revocationSource,
+        certificateNo: currentCertNo
+      }]);
       if (res.success) {
         showToast(`TC/DC Certificate No. #${currentCertNo} revoked successfully.`, 'success');
         setRefNo('');

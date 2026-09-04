@@ -223,6 +223,22 @@ export const BUILTIN_CERTIFICATE_TEMPLATES = [
 <p>There are no outstanding dues against the student in this institution.</p>
 <p><strong>{PRONOUN_HIS_HER_CAP}</strong> behaviour and conduct remained <strong>{CONDUCT_STATUS}</strong> during <strong>{PRONOUN_HIS_HER_LOW}</strong> stay in the school.</p>
 <p class="cert-footer-dates-row" style="margin-top: 0.5in; margin-bottom: 0px; display: flex; justify-content: space-between; align-items: center; font-weight: normal;"><span>Withdrawal or Result Date: <strong>{WITHDRAWAL_DATE}</strong></span><span>Date of issue: <strong>{DATE}</strong></span></p>`
+  },
+  {
+    id: 'tc_dc_awaiting',
+    name: 'Discharge / Transfer cum Character Certificate (Awaiting Result / In-Course)',
+    category: 'Transfer & Character Certificates (TC/DC)',
+    certificateTitle: 'Discharge/Transfer cum Character Certificate',
+    refPrefix: 'HSS/SHG/TC-DC',
+    showPhoto: false,
+    watermark: true,
+    isTcDc: true,
+    resultType: 'Awaiting',
+    bodyHtml: `<p>This is certified that <strong>{STUDENT_NAME}</strong> {PRONOUN_SO_DO} <strong>{FATHER_NAME}</strong>, Mother's Name <strong>{MOTHER_NAME}</strong>, R/o <strong>{VILLAGE}</strong>, tehsil <strong>{TEHSIL}</strong>, district <strong>{DISTRICT}</strong>, studied in <strong>Class {CLASS}</strong> through this school during the session <strong>{EXAM_SESSION}</strong>. The final examination result is not recorded in the selected class and session record; therefore no pass, re-appear, division or marks status is certified in this document.</p>
+<p><strong>{PRONOUN_HIS_HER_CAP}</strong> date of birth (DoB) as per the records of this school is <strong>{DOB_FIGURES}</strong> (<em>{DOB_WORDS}</em>).</p>
+<p>There are no outstanding dues against the student in this institution.</p>
+<p><strong>{PRONOUN_HIS_HER_CAP}</strong> behaviour and conduct remained <strong>{CONDUCT_STATUS}</strong> during <strong>{PRONOUN_HIS_HER_LOW}</strong> stay in the school.</p>
+<p class="cert-footer-dates-row" style="margin-top: 0.5in; margin-bottom: 0px; display: flex; justify-content: space-between; align-items: center; font-weight: normal;"><span>Withdrawal Date: <strong>{WITHDRAWAL_DATE}</strong></span><span>Date of issue: <strong>{DATE}</strong></span></p>`
   }
 ];
 
@@ -436,7 +452,7 @@ export function interpolateCertificateTemplate(templateHtml, studentData = {}, o
   const computeDivision = (marksObt, maxMarksVal = 500) => {
     const obt = parseFloat(marksObt);
     const max = parseFloat(maxMarksVal) || 500;
-    if (isNaN(obt) || obt <= 0 || max <= 0) return 'Passed';
+    if (isNaN(obt) || obt <= 0 || max <= 0) return '';
     const pct = (obt / max) * 100;
     if (pct >= 75) return 'Distinction';
     if (pct >= 60) return '1st Division';
@@ -444,9 +460,9 @@ export function interpolateCertificateTemplate(templateHtml, studentData = {}, o
     return '3rd Division';
   };
 
-  const cleanResultStatus = (resultStatus === 'Pass' || resultStatus === 'Passed') ? 'Qualified' : (resultStatus || 'Qualified');
+  const cleanResultStatus = (resultStatus === 'Pass' || resultStatus === 'Passed') ? 'Qualified' : (resultStatus || '');
   result = result.replace(/\{RESULT_STATUS\}/gi, formatBlank(cleanResultStatus, '------------'));
-  const cleanDiv = (divisionDistinction && divisionDistinction !== '—') ? divisionDistinction : (effectiveMarksObt && effectiveMarksObt !== '—' && effectiveMarksObt !== '' ? computeDivision(effectiveMarksObt, effectiveMaxMarks) : 'Passed');
+  const cleanDiv = (divisionDistinction && divisionDistinction !== '—') ? divisionDistinction : (effectiveMarksObt && effectiveMarksObt !== '—' && effectiveMarksObt !== '' ? computeDivision(effectiveMarksObt, effectiveMaxMarks) : '');
   
   const hasNumericMarks = Boolean(effectiveMarksObt && effectiveMarksObt !== '—' && effectiveMarksObt !== '' && !/^(—|-|null|undefined|0)$/i.test(effectiveMarksObt));
   const hasSpecificDivision = Boolean(cleanDiv && !/^(—|-|pass|passed|qualified|null|undefined)$/i.test(cleanDiv));

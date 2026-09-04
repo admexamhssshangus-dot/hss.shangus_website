@@ -29,7 +29,7 @@ service cloud.firestore {
     }
 
     function isBootstrapAdmin() {
-      return isAuthenticated() && (
+      return isAuthenticated() && request.auth.token.email_verified == true && (
         authEmail() in [
           'adm.exam.hss.shangus@gmail.com',
           'ghssshangus74@gmail.com',
@@ -262,6 +262,26 @@ service cloud.firestore {
     function validStaffDocument(data) {
       return data is map && data.keys().size() <= 300 &&
         hasNoAuthorityOrSecretFields(data);
+    }
+
+    function validCertificateNumberLock(documentId, data) {
+      return validStaffDocument(data) && data.keys().size() <= 20 &&
+        data.keys().hasAll(['certificateNo', 'regNo', 'regKey', 'status', 'updatedAt']) &&
+        data.certificateNo is string && data.certificateNo == documentId &&
+        data.certificateNo.matches('^[1-9][0-9]{0,5}$') &&
+        data.regNo is string && data.regNo.size() >= 4 && data.regNo.size() <= 50 &&
+        data.regKey is string && data.regKey.size() >= 4 && data.regKey.size() <= 50 &&
+        data.status in ['Active', 'Revoked'] &&
+        data.updatedAt is timestamp &&
+        (!('createdAt' in data) || data.createdAt is timestamp) &&
+        (!('revokedAt' in data) || data.revokedAt is timestamp) &&
+        (!('issueKind' in data) || data.issueKind in ['Original', 'Duplicate']) &&
+        (!('previousCertificateNo' in data) || (data.previousCertificateNo is string &&
+          (data.previousCertificateNo == '' || data.previousCertificateNo.matches('^[1-9][0-9]{0,5}$')))) &&
+        (!('session' in data) || (data.session is string && data.session.size() <= 80)) &&
+        (!('className' in data) || (data.className is string && data.className.size() <= 40)) &&
+        (!('issueDate' in data) || (data.issueDate is string && data.issueDate.size() <= 20)) &&
+        (!('sourceDocument' in data) || (data.sourceDocument is string && data.sourceDocument.size() <= 200));
     }
 
     function validFundRates(data) {
@@ -527,6 +547,18 @@ service cloud.firestore {
       allow read: if isTeacher();
       allow create, update: if isTeacher() && validStaffDocument(request.resource.data);
       allow delete: if isAdmin();
+    }
+
+    // Permanent uniqueness ledger: a TC/CC number is owned by exactly one
+    // registration number. Revocation retires the number; deletion is denied.
+    match /certificateNumberLocks/{certificateNo} {
+      allow get, list: if isAdmin();
+      allow create: if isAdmin() && validCertificateNumberLock(certificateNo, request.resource.data);
+      allow update: if isAdmin() && validCertificateNumberLock(certificateNo, request.resource.data) &&
+        !request.resource.data.diff(resource.data).affectedKeys()
+          .hasAny(['certificateNo', 'regNo', 'regKey', 'createdAt']) &&
+        (resource.data.status != 'Revoked' || request.resource.data.status == 'Revoked');
+      allow delete: if false;
     }
 
     // Administrative and institution-wide records.
