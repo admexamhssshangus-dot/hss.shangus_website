@@ -517,6 +517,18 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    match /generatedDocumentHistory/{documentId} {
+      allow read: if isTeacher();
+      allow create, update: if isTeacher() && validStaffDocument(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    match /documentHistory/{documentId} {
+      allow read: if isTeacher();
+      allow create, update: if isTeacher() && validStaffDocument(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
     // Administrative and institution-wide records.
     match /{collectionName}/{documentId} {
       allow read: if isAdmin() &&
@@ -525,7 +537,8 @@ service cloud.firestore {
         'registerdata', 'examConfig',
         'systemSettings', 'system_settings', 'attendanceConfig', 'adminActivityLogs', 'emailLogs',
         'feeRates', 'fundDistributions', 'fund_rates', 'fund_distributions', 'recycleBin', 'deletedFormsHistory',
-        'admissionHistory', 'csvImportBatches', 'adminSettings', 'docStudioTemplates'
+        'admissionHistory', 'csvImportBatches', 'adminSettings', 'docStudioTemplates',
+        'generatedDocumentHistory', 'documentHistory'
       ];
       allow create, update: if isAdmin() &&
         !(collectionName == 'systemSettings' && documentId == 'geminiApiConfig') &&
@@ -533,7 +546,8 @@ service cloud.firestore {
         'registerdata', 'examConfig',
         'systemSettings', 'system_settings', 'attendanceConfig', 'adminActivityLogs', 'emailLogs',
         'feeRates', 'fundDistributions', 'fund_rates', 'fund_distributions', 'recycleBin', 'deletedFormsHistory',
-        'admissionHistory', 'csvImportBatches', 'adminSettings', 'docStudioTemplates'
+        'admissionHistory', 'csvImportBatches', 'adminSettings', 'docStudioTemplates',
+        'generatedDocumentHistory', 'documentHistory'
       ] && validStaffDocument(request.resource.data);
       allow delete: if isAdmin() &&
         !(collectionName == 'systemSettings' && documentId == 'geminiApiConfig') &&
@@ -541,7 +555,8 @@ service cloud.firestore {
         'registerdata', 'examConfig',
         'systemSettings', 'system_settings', 'attendanceConfig', 'adminActivityLogs', 'emailLogs',
         'feeRates', 'fundDistributions', 'fund_rates', 'fund_distributions', 'recycleBin', 'deletedFormsHistory',
-        'admissionHistory', 'csvImportBatches', 'adminSettings', 'docStudioTemplates'
+        'admissionHistory', 'csvImportBatches', 'adminSettings', 'docStudioTemplates',
+        'generatedDocumentHistory', 'documentHistory'
       ];
     }
 
