@@ -11,7 +11,7 @@ import {
   User, CheckCircle2, History, RotateCcw, AlertCircle, Info, AlertTriangle,
   Bold, Italic, Underline, Strikethrough, AlignLeft, AlignCenter, AlignRight, AlignJustify,
   List, ListOrdered, Table as TableIcon, Undo, Redo, RemoveFormatting, Palette, Minus,
-  Bot, Key, Wand2, Shield, ExternalLink, Calendar, Scissors, Copy
+  Bot, Key, Wand2, Shield, ExternalLink, Calendar, Scissors, Copy, Unlock
 } from 'lucide-react';
 import {
   BUILTIN_CERTIFICATE_TEMPLATES,
@@ -24,7 +24,7 @@ import StudentResultEditorModal from './StudentResultEditorModal';
 import ResultIngestionModal from './ResultIngestionModal';
 import BulkCertificateGeneratorModal from './BulkCertificateGeneratorModal';
 import ConfirmModal from '../components/ConfirmModal';
-import { fetchLastIssuedCertificateNumber, extractCertificateSerial } from '../../services/certificateRegistryService';
+import { fetchLastIssuedCertificateNumber, extractCertificateSerial, revokeCertificateNumberBatch } from '../../services/certificateRegistryService';
 import {
   normalizeResultStatus,
   calculateDivision,
@@ -982,6 +982,41 @@ export default function StudentCertificateStudioView({
       } catch (_) {}
       const nextNo = lastNo + 1;
       setRefNo(isTcDcTemplate ? String(nextNo) : `${activeTpl.refPrefix || 'HSS/SHG'}/${nextNo}/${new Date().getFullYear()}`);
+    }
+  };
+
+  const [isRevokingSingleCert, setIsRevokingSingleCert] = useState(false);
+
+  // Revoke issued certificate number for currently active student
+  const handleRevokeStudentCertificateNumber = async () => {
+    if (!selectedStudent) return;
+    const raw = selectedStudent.raw || selectedStudent;
+    const currentCertNo = refNo || extractStudentCertificateNumber(raw);
+    const displayName = studentName || selectedStudent.name || 'this student';
+
+    if (!window.confirm(`Are you sure you want to REVOKE TC/DC Certificate Number #${currentCertNo || ''} for ${displayName}?\n\nThis will clear the certificate number in both admissions and master registers in Firestore, allowing a new number to be reassigned.`)) {
+      return;
+    }
+
+    setIsRevokingSingleCert(true);
+    try {
+      const res = await revokeCertificateNumberBatch([selectedStudent]);
+      if (res.success) {
+        showToast(`TC/DC Certificate No. #${currentCertNo} revoked successfully.`, 'success');
+        setRefNo('');
+        if (raw) {
+          raw.ccDcNo = '';
+          raw.certificateNo = '';
+          raw['No. & Date of CC/DC Issued (This Institution)'] = '';
+          raw.dischargeCertStatus = 'Revoked';
+        }
+        setCustomCanvasHtml(null);
+      }
+    } catch (err) {
+      console.error('Revoke certificate number error:', err);
+      showToast(`Failed to revoke certificate number: ${err.message}`, 'error');
+    } finally {
+      setIsRevokingSingleCert(false);
     }
   };
 
@@ -3148,7 +3183,21 @@ export default function StudentCertificateStudioView({
 
 <div className="grid grid-cols-2 gap-1.5 pt-1 border-t border-amber-200/80 dark:border-amber-900/60">
                       <div>
-                        <label className="text-[8.5px] font-bold text-slate-500 dark:text-slate-400 block mb-0.5">Certificate / TC-DC No.</label>
+                        <div className="flex items-center justify-between mb-0.5">
+                          <label className="text-[8.5px] font-bold text-slate-500 dark:text-slate-400 block">Certificate / TC-DC No.</label>
+                          {selectedStudent && (refNo || extractStudentCertificateNumber(selectedStudent.raw || selectedStudent)) && (
+                            <button
+                              type="button"
+                              onClick={handleRevokeStudentCertificateNumber}
+                              disabled={isRevokingSingleCert}
+                              title="Revoke & Release Certificate Number from this student"
+                              className="text-[8.5px] font-black text-rose-600 hover:text-rose-700 dark:text-rose-400 flex items-center gap-0.5 px-1.5 py-0.5 rounded hover:bg-rose-50 dark:hover:bg-rose-950/60 border border-rose-200 dark:border-rose-900 transition-colors cursor-pointer"
+                            >
+                              <Unlock size={8} />
+                              <span>{isRevokingSingleCert ? 'Revoking...' : 'Revoke'}</span>
+                            </button>
+                          )}
+                        </div>
                         <input
                           type="text"
                           value={refNo}

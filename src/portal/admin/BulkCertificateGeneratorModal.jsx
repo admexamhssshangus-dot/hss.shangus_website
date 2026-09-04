@@ -7,7 +7,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import {
   X, Award, Printer, Search,
-  FileSpreadsheet, AlertCircle, RefreshCw, CheckCircle2, Lock, Edit3, Save
+  FileSpreadsheet, AlertCircle, RefreshCw, CheckCircle2, Lock, Unlock, Edit3, Save
 } from 'lucide-react';
 import { collection, onSnapshot } from 'firebase/firestore';
 import { db } from '../../services/firebase';
@@ -15,6 +15,7 @@ import { unpackMasterRegisterStudents } from './OfficialDocumentsStudioView';
 import {
   fetchLastIssuedCertificateNumber,
   commitIssuedCertificateBatch,
+  revokeCertificateNumberBatch,
   exportCertificateRegistryXlsx,
   extractCertificateSerial,
   persistCertificateStudentFields
@@ -201,6 +202,7 @@ export default function BulkCertificateGeneratorModal({
   const [examSessionOverride, setExamSessionOverride] = useState('Annual Regular 2025 (Oct.-Nov.)');
   const [pageMargin, setPageMargin] = useState(0.3);
   const [isCommittingToDb, setIsCommittingToDb] = useState(false);
+  const [isRevokingCertNo, setIsRevokingCertNo] = useState(false);
   const [showPendingOnly, setShowPendingOnly] = useState(false);
   const [editingStudent, setEditingStudent] = useState(null);
   const [editValues, setEditValues] = useState({});
@@ -666,6 +668,58 @@ export default function BulkCertificateGeneratorModal({
     }
   };
 
+  // Revoke & Release Certificate Numbers for Selected Students (Batch Revocation)
+  const handleRevokeCertificateNumbers = async () => {
+    const targetStudents = selectedStudentIds.size > 0
+      ? filteredStudents.filter(s => selectedStudentIds.has(s.id) && s.certificateNo)
+      : filteredStudents.filter(s => s.certificateNo);
+
+    if (targetStudents.length === 0) {
+      showToast('No students with issued certificate numbers are selected for revocation.', 'warning');
+      return;
+    }
+
+    const confirmMsg = `Are you sure you want to REVOKE and release the TC/DC Certificate Number(s) for ${targetStudents.length} student(s)?\n\nThis will clear their locked certificate numbers from both admissions and register records in Firestore, marking status as Revoked and allowing numbers to be reassigned.`;
+    if (!window.confirm(confirmMsg)) return;
+
+    setIsRevokingCertNo(true);
+    try {
+      const res = await revokeCertificateNumberBatch(targetStudents);
+      if (res.success) {
+        showToast(`Revoked certificate numbers for ${res.count} student(s) successfully.`, 'success');
+        const nextSelected = new Set(selectedStudentIds);
+        targetStudents.forEach(st => nextSelected.delete(st.id));
+        setSelectedStudentIds(nextSelected);
+      }
+    } catch (err) {
+      console.error('Error revoking certificate numbers:', err);
+      showToast(`Failed to revoke certificate numbers: ${err.message}`, 'error');
+    } finally {
+      setIsRevokingCertNo(false);
+    }
+  };
+
+  // Revoke & Release Certificate Number for a single student
+  const handleRevokeSingleStudent = async (st, e) => {
+    if (e) e.stopPropagation();
+    if (!st.certificateNo) return;
+    const confirmMsg = `Revoke TC/DC Certificate No. #${st.certificateNo} for ${st.studentName}?\n\nThis will clear the certificate number and mark status as Revoked.`;
+    if (!window.confirm(confirmMsg)) return;
+
+    setIsRevokingCertNo(true);
+    try {
+      const res = await revokeCertificateNumberBatch([st]);
+      if (res.success) {
+        showToast(`Revoked Certificate No. #${st.certificateNo} for ${st.studentName}.`, 'success');
+      }
+    } catch (err) {
+      console.error('Error revoking certificate number:', err);
+      showToast(`Failed to revoke certificate number: ${err.message}`, 'error');
+    } finally {
+      setIsRevokingCertNo(false);
+    }
+  };
+
   // ─── Print already-assigned certificates as often as required ───
   const handleBatchPrint = async () => {
     const packages = compileBatchPackages();
@@ -773,6 +827,7 @@ export default function BulkCertificateGeneratorModal({
   const isAllSelected = totalSelected > 0 && totalSelected === totalFiltered;
   const selectedRows = filteredStudents.filter(student => selectedStudentIds.has(student.id));
   const newSelectedCount = selectedRows.filter(student => !student.certificateNo).length;
+  const selectedIssuedCount = selectedRows.filter(student => Boolean(student.certificateNo)).length;
   const sequentialEndNo = (parseInt(startCertNo, 10) || 1368) + Math.max(newSelectedCount - 1, 0);
 
   return createPortal(
@@ -1118,9 +1173,17 @@ export default function BulkCertificateGeneratorModal({
                         </td>
                         <td className="p-2 text-center font-mono">
                           {st.certificateNo ? (
-                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 font-bold text-[10px] border border-indigo-200 dark:border-indigo-800">
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 font-bold text-[10px] border border-indigo-200 dark:border-indigo-800">
                               <Lock size={9} />
-                              #{st.certificateNo}
+                              <span>#{st.certificateNo}</span>
+                              <button
+                                type="button"
+                                onClick={(e) => handleRevokeSingleStudent(st, e)}
+                                title={`Revoke Certificate #${st.certificateNo} from this student`}
+                                className="p-0.5 text-rose-500 hover:text-rose-700 dark:hover:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-900/60 rounded transition-colors cursor-pointer"
+                              >
+                                <Unlock size={9} />
+                              </button>
                             </span>
                           ) : isChecked ? (
                             <span className="px-1.5 py-0.5 rounded bg-rose-100 dark:bg-rose-950 text-rose-700 dark:text-rose-300 font-black text-xs border border-rose-300 dark:border-rose-800 shadow-2xs">
@@ -1133,12 +1196,20 @@ export default function BulkCertificateGeneratorModal({
                           )}
                         </td>
                         <td className="p-2">
-                          <div className="flex items-center gap-1.5 font-extrabold text-slate-900 dark:text-white leading-tight">
+                          <div className="flex items-center gap-1.5 font-extrabold text-slate-900 dark:text-white leading-tight flex-wrap">
                             <span>{st.studentName}</span>
                             {st.certificateNo && (
-                              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 font-bold text-[9px] border border-emerald-300 dark:border-emerald-800 shrink-0">
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 font-bold text-[9px] border border-emerald-300 dark:border-emerald-800 shrink-0">
                                 <CheckCircle2 size={9} />
-                                Issued #{st.certificateNo}
+                                <span>Issued #{st.certificateNo}</span>
+                                <button
+                                  type="button"
+                                  onClick={(e) => handleRevokeSingleStudent(st, e)}
+                                  title={`Revoke Certificate #${st.certificateNo}`}
+                                  className="p-0.5 text-rose-500 hover:text-rose-700 dark:hover:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-900/60 rounded transition-colors cursor-pointer"
+                                >
+                                  <Unlock size={9} />
+                                </button>
                               </span>
                             )}
                           </div>
@@ -1204,10 +1275,23 @@ export default function BulkCertificateGeneratorModal({
           </div>
 
           <div className="flex items-center gap-2 w-full sm:w-auto">
+            {selectedIssuedCount > 0 && (
+              <button
+                type="button"
+                onClick={handleRevokeCertificateNumbers}
+                disabled={isRevokingCertNo || isCommittingToDb}
+                className="flex-1 sm:flex-initial px-3 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-black text-xs cursor-pointer shadow-md flex items-center justify-center gap-1.5 transition-all disabled:opacity-50"
+                title="Revoke and release issued certificate numbers for selected students"
+              >
+                {isRevokingCertNo ? <RefreshCw size={14} className="animate-spin" /> : <Unlock size={13} />}
+                <span>{isRevokingCertNo ? 'Revoking...' : `Revoke TC-DC No. (${selectedIssuedCount})`}</span>
+              </button>
+            )}
+
             <button
               type="button"
               onClick={handleAssignCertificateNumbers}
-              disabled={totalFiltered === 0 || isCommittingToDb}
+              disabled={totalFiltered === 0 || isCommittingToDb || isRevokingCertNo}
               className="flex-1 sm:flex-initial px-3 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-black text-xs cursor-pointer shadow-md flex items-center justify-center gap-1.5 disabled:opacity-50"
             >
               {isCommittingToDb ? <RefreshCw size={14} className="animate-spin" /> : <Lock size={13} />}

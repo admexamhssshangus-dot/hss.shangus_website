@@ -181,6 +181,116 @@ export async function commitIssuedCertificateBatch(issuedStudents = [], issueDat
   };
 }
 
+/**
+ * Revoke and release issued certificate numbers from Firestore for one or more students.
+ * Clears ccDcNo, certificateNo, 'No. & Date of CC/DC Issued (This Institution)', dischargeCertStatus, etc.
+ * Supports both admissions and chunked masterRegisters records.
+ */
+export async function revokeCertificateNumberBatch(studentsToRevoke = []) {
+  if (!studentsToRevoke || studentsToRevoke.length === 0) {
+    return { success: true, count: 0 };
+  }
+
+  const batches = [writeBatch(db)];
+  let currentBatch = batches[0];
+  let currentBatchSize = 0;
+  const cacheUpdates = [];
+  const queueSet = (reference, data, options) => {
+    if (currentBatchSize >= 450) {
+      currentBatch = writeBatch(db);
+      batches.push(currentBatch);
+      currentBatchSize = 0;
+    }
+    currentBatch.set(reference, data, options);
+    currentBatchSize += 1;
+  };
+
+  const masterGroups = new Map();
+  const revokedCerts = [];
+
+  studentsToRevoke.forEach(item => {
+    const raw = item.student?.raw || item.raw || item.student || item || {};
+    const formNo = String(item.formNo || item.id || raw.formNo || raw['Form No.'] || raw['Form Number'] || '').trim();
+    const regNo = String(item.student?.regNo || raw.regNo || raw.boardRegNo || raw['Board Registration Number'] || raw['Board Reg. No.'] || '').trim();
+    const certNo = String(item.certNo || item.certificateNo || raw.ccDcNo || raw.certificateNo || '').trim();
+    if (certNo) revokedCerts.push(certNo);
+
+    const patch = {
+      ccDcNo: '',
+      certificateNo: '',
+      'No. & Date of CC/DC Issued (This Institution)': '',
+      dischargeCertStatus: 'Revoked',
+      dischargeIssueDate: '',
+      dischargeRevokedAt: serverTimestamp()
+    };
+
+    const parentDocId = raw._parentDocId || item.student?._parentDocId || '';
+    const sourceCollection = raw._srcCollection || raw._source || item.student?.sourceCollection || 'admissions';
+
+    if (sourceCollection === 'masterRegisters' && parentDocId) {
+      if (!masterGroups.has(parentDocId)) masterGroups.set(parentDocId, []);
+      masterGroups.get(parentDocId).push({ formNo, regNo, patch });
+    } else if (formNo || regNo) {
+      const studentRef = doc(db, sourceCollection === 'masterRegisters' ? 'masterRegisters' : 'admissions', formNo || regNo);
+      queueSet(studentRef, patch, { merge: true });
+      cacheUpdates.push([sourceCollection === 'masterRegisters' ? 'masterRegisters' : 'admissions', formNo || regNo, patch]);
+    }
+  });
+
+  // Handle masterRegisters chunks
+  for (const [parentDocId, assignments] of masterGroups.entries()) {
+    const parentRef = doc(db, 'masterRegisters', String(parentDocId));
+    const parentSnap = await getDoc(parentRef);
+    if (!parentSnap.exists()) continue;
+    const parentData = parentSnap.data();
+    const arrayKey = ['items', 'students', 'records', 'data'].find(key => Array.isArray(parentData[key]));
+    if (!arrayKey) continue;
+    const normalize = value => String(value || '').replace(/[^a-z0-9]/gi, '').toLowerCase();
+    const updatedRecords = parentData[arrayKey].map(record => {
+      const recordForm = normalize(record.formNo || record['Form No.'] || record['Form Number']);
+      const recordReg = normalize(record.regNo || record.boardRegNo || record['Board Registration Number'] || record['Board Reg. No.']);
+      const assignment = assignments.find(item =>
+        (item.regNo && normalize(item.regNo) === recordReg) ||
+        (item.formNo && normalize(item.formNo) === recordForm)
+      );
+      if (!assignment) return record;
+      const itemPatch = { ...assignment.patch };
+      delete itemPatch.dischargeRevokedAt;
+      return { ...record, ...itemPatch, dischargeRevokedAt: new Date().toISOString() };
+    });
+    queueSet(parentRef, { [arrayKey]: updatedRecords, updatedAt: serverTimestamp() }, { merge: true });
+    cacheUpdates.push(['masterRegisters', String(parentDocId), { [arrayKey]: updatedRecords }]);
+  }
+
+  for (const pendingBatch of batches) {
+    await pendingBatch.commit();
+  }
+
+  cacheUpdates.forEach(([collectionName, documentId, patch]) => {
+    updateCachedItem(collectionName, documentId, patch);
+  });
+
+  // Non-blocking audit record in documentHistory
+  try {
+    await addDoc(collection(db, 'documentHistory'), {
+      documentType: 'Discharge / Transfer Certificate (TC/DC) Revocation',
+      actionType: 'Revoked',
+      batchSize: studentsToRevoke.length,
+      revokedCertificates: revokedCerts,
+      revokedAt: serverTimestamp(),
+      studentIds: studentsToRevoke.map(s => s.formNo || s.id || s.regNo)
+    });
+  } catch (auditErr) {
+    console.warn('Audit history revocation logging note:', auditErr);
+  }
+
+  return {
+    success: true,
+    count: studentsToRevoke.length,
+    revokedCertificates: revokedCerts
+  };
+}
+
 /** Permanently update certificate identity fields in the student's actual
  * admissions document or packed master-register source row. */
 export async function persistCertificateStudentFields(student, values = {}) {

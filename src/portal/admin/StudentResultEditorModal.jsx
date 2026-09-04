@@ -18,7 +18,8 @@ import {
   User,
   GraduationCap,
   Sparkles,
-  FileCheck
+  FileCheck,
+  Unlock
 } from 'lucide-react';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../services/firebase';
@@ -165,6 +166,8 @@ export default function StudentResultEditorModal({
         resultDate: withdrawalDate,
         'No. & Date of CC/DC Issued (This Institution)': ccDcNo,
         ccDcNo,
+        certificateNo: ccDcNo,
+        dischargeCertStatus: ccDcNo ? 'Issued' : (raw.dischargeCertStatus === 'Issued' ? 'Revoked' : (raw.dischargeCertStatus || '')),
         'Admission Number': admNo,
         'Admission No.': admNo,
         'Adm. No.': admNo,
@@ -491,10 +494,26 @@ export default function StudentResultEditorModal({
             </div>
 
             <div>
-              <label className="block text-[11px] font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1 flex items-center gap-1">
-                <Hash size={13} />
-                No. & Date of TC/DC Issued
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-[11px] font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1">
+                  <Hash size={13} />
+                  No. & Date of TC/DC Issued
+                </label>
+                {ccDcNo && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (window.confirm('Clear/Revoke the TC/DC Certificate Number for this student?')) {
+                        setCcDcNo('');
+                      }
+                    }}
+                    className="text-[10px] font-black text-rose-600 hover:text-rose-700 dark:text-rose-400 flex items-center gap-0.5 cursor-pointer"
+                  >
+                    <Unlock size={10} />
+                    <span>Clear / Revoke</span>
+                  </button>
+                )}
+              </div>
               <input
                 type="text"
                 value={ccDcNo}
