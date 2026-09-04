@@ -174,7 +174,7 @@ export default function BulkCertificateGeneratorModal({
   const [lastIssuedCertNo, setLastIssuedCertNo] = useState(1367);
   const [startCertNo, setStartCertNo] = useState(1368);
   const [issueDate, setIssueDate] = useState(() => new Date().toLocaleDateString('en-GB').replace(/\//g, '-'));
-  const [withdrawalDateOverride, setWithdrawalDateOverride] = useState('14-01-2026');
+  const [withdrawalDateOverride, setWithdrawalDateOverride] = useState('');
   const [examSessionOverride, setExamSessionOverride] = useState('Annual Regular 2025 (Oct.-Nov.)');
   const [pageMargin, setPageMargin] = useState(0.3);
   const [isCommittingToDb, setIsCommittingToDb] = useState(false);
@@ -323,7 +323,6 @@ export default function BulkCertificateGeneratorModal({
 
     return combinedStudentPool.map(st => {
       const raw = st.raw || st;
-      const id = st.id || st._id || raw.id || `${raw['Adm. No.'] || raw.formNo || Math.random()}`;
       const name = extractStudentName(st);
       const father = extractFatherName(st);
       const mother = extractMotherName(st);
@@ -333,6 +332,8 @@ export default function BulkCertificateGeneratorModal({
       const session = extractSession(st) || '2025-26';
       const rollNo = getStudentRollNumber(st) || extractAdmNo(st) || '';
       const regNo = extractBoardRegNo(st) || '';
+      const sourceId = st.id || st._id || raw._docId || raw.docId || raw.id || raw['Adm. No.'] || raw.formNo || regNo || `${name}_${father}`;
+      const id = `${String(sourceId)}::${normalize(session)}::${normalize(cls)}`;
 
       const regKey = String(regNo || '').replace(/[^a-z0-9]/gi, '').toLowerCase();
       let linkedRecords = (regKey && regKey !== '—') ? identityIndexes.byReg.get(regKey) : null;
@@ -383,6 +384,7 @@ export default function BulkCertificateGeneratorModal({
         : (String(resolvedGender || '').toUpperCase().startsWith('M') ? 'M' : '');
       const village = (extractVillage(st) !== '—' ? extractVillage(st) : firstLinked(extractVillage)) || '—';
       const mobile = extractMobile(st) || '';
+      const withdrawalDate = raw['Date of withdrawl'] || raw['Date of Withdrawal'] || raw.withdrawalDate || raw['Result Date'] || raw.resultDate || '';
 
       // Exam Result fields: check current raw record first, then fallback to linked identity records
       // 1. Current Genuine Exam Roll - ALWAYS prioritize the current record's roll over any linked fallback!
@@ -447,6 +449,7 @@ export default function BulkCertificateGeneratorModal({
       if (!examRollNo || examRollNo === '—') pendingFields.push('Exam Roll No.');
       if (!examMode) pendingFields.push('Exam Mode');
       if (!hasResult) pendingFields.push('Exam Result');
+      if (!withdrawalDate && !withdrawalDateOverride) pendingFields.push('Withdrawal / Result Date');
       if (isPassed && !marksObtained) pendingFields.push('Marks Obtained');
       if (isPassed && !division) pendingFields.push('Division');
       if (isReap && !reappSubjects) pendingFields.push('Re-appear Subjects');
@@ -469,6 +472,7 @@ export default function BulkCertificateGeneratorModal({
         gender,
         village,
         mobile,
+        withdrawalDate,
         certificateNo,
         pendingFields,
         examRollNo,
@@ -498,7 +502,9 @@ export default function BulkCertificateGeneratorModal({
         if (!merged.village || merged.village === '—') newPending.push('Village / Address');
         if (!merged.examRollNo || merged.examRollNo === '—') newPending.push('Exam Roll No.');
         if (!merged.examMode) newPending.push('Exam Mode');
-        const hasRes = Boolean(merged.resultStatus && merged.resultStatus !== '—');
+        if (!merged.withdrawalDate && !withdrawalDateOverride) newPending.push('Withdrawal / Result Date');
+        const normalizedResult = String(merged.resultStatus || '').trim().toLowerCase();
+        const hasRes = Boolean(normalizedResult && !['—', 'awaiting', 'awaiting result', 'pending', 'not declared'].includes(normalizedResult));
         if (!hasRes) newPending.push('Exam Result');
         const passed = merged.resultStatus === 'Passed';
         const reap = merged.resultStatus === 'Reap' || merged.resultStatus === 'Re-appear';
@@ -514,7 +520,7 @@ export default function BulkCertificateGeneratorModal({
 
       return baseStudent;
     });
-  }, [combinedStudentPool, identityIndexes, localStudentOverrides]);
+  }, [combinedStudentPool, identityIndexes, localStudentOverrides, withdrawalDateOverride]);
 
   // Filtered students based on active dropdowns, search, pending status, and certificate status
   const filteredStudents = useMemo(() => {
@@ -720,14 +726,14 @@ export default function BulkCertificateGeneratorModal({
         conductStatus: 'Satisfactory',
         admissionDate: st.admDate,
         admissionNo: st.admNo,
-        withdrawalDate: withdrawalDateOverride,
+        withdrawalDate: withdrawalDateOverride || st.withdrawalDate || '----------------',
         issueDate: issueDate
       });
 
       return {
         student: st,
         id: st.id,
-        formNo: st.raw?.formNo || st.raw?.['Form No.'] || st.id,
+        formNo: st.raw?.formNo || st.raw?.['Form No.'] || st.raw?.['Form Number'] || '',
         certNo: assignedCertNo,
         isNewAssignment: !st.certificateNo,
         bodyHtml: interpolatedHtml,
@@ -764,6 +770,16 @@ export default function BulkCertificateGeneratorModal({
     try {
       const commitRes = await commitIssuedCertificateBatch(newAssignments, issueDate);
       if (commitRes.success) {
+        setLocalStudentOverrides(previous => {
+          const next = { ...previous };
+          newAssignments.forEach(assignment => {
+            next[assignment.student.id] = {
+              ...(next[assignment.student.id] || {}),
+              certificateNo: String(assignment.certNo)
+            };
+          });
+          return next;
+        });
         const msg = pendingCount > 0
           ? `Locked ${commitRes.count} certificate number(s). Missing fields (${pendingCount} students) will print with '-------' manual write-in blanks.`
           : `Locked ${commitRes.count} certificate number(s) permanently. Reprints will reuse the same numbers.`;
@@ -790,13 +806,20 @@ export default function BulkCertificateGeneratorModal({
       return;
     }
 
-    const confirmMsg = `Are you sure you want to REVOKE and release the TC/DC Certificate Number(s) for ${targetStudents.length} student(s)?\n\nThis will clear their locked certificate numbers from both admissions and register records in Firestore, marking status as Revoked and allowing numbers to be reassigned.`;
+    const confirmMsg = `Revoke the TC/DC assignment for ${targetStudents.length} student(s)?\n\nThe student assignments will be cleared in Firestore. Revoked serials remain retired in the registry and are not reused.`;
     if (!window.confirm(confirmMsg)) return;
 
     setIsRevokingCertNo(true);
     try {
       const res = await revokeCertificateNumberBatch(targetStudents);
       if (res.success) {
+        setLocalStudentOverrides(previous => {
+          const next = { ...previous };
+          targetStudents.forEach(student => {
+            next[student.id] = { ...(next[student.id] || {}), certificateNo: '' };
+          });
+          return next;
+        });
         showToast(`Revoked certificate numbers for ${res.count} student(s) successfully.`, 'success');
         const nextSelected = new Set(selectedStudentIds);
         targetStudents.forEach(st => nextSelected.delete(st.id));
@@ -821,6 +844,10 @@ export default function BulkCertificateGeneratorModal({
     try {
       const res = await revokeCertificateNumberBatch([st]);
       if (res.success) {
+        setLocalStudentOverrides(previous => ({
+          ...previous,
+          [st.id]: { ...(previous[st.id] || {}), certificateNo: '' }
+        }));
         showToast(`Revoked Certificate No. #${st.certificateNo} for ${st.studentName}.`, 'success');
       }
     } catch (err) {

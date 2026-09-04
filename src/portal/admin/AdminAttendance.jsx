@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { 
   Settings, CalendarCheck, RefreshCw, Save, CheckCircle2, AlertCircle, 
   Search, Filter, BookOpen, Users, Calendar, ChevronDown, ChevronUp, 
@@ -87,41 +87,46 @@ export default function AdminAttendance() {
   const [subjectFilter, setSubjectFilter] = useState('all');
   const [expandedGroups, setExpandedGroups] = useState({});
   const [selectedRecordForModal, setSelectedRecordForModal] = useState(null);
+  const loadedSubTabsRef = useRef(new Set());
 
-  // Load configuration and data
-  const loadData = async () => {
+  // Each sub-tab loads only the Firestore data it renders.
+  const loadData = useCallback(async (targetTab = activeSubTab, force = false) => {
+    if (!force && loadedSubTabsRef.current.has(targetTab)) return;
     setLoading(true);
     setAlert(null);
 
-    // 1. Load Config
-    try {
-      const configDoc = await getDoc(doc(db, 'systemSettings', 'attendanceConfig'));
-      if (configDoc.exists()) {
-        setAttendanceConfig(configDoc.data());
+    if (targetTab === 'settings') {
+      try {
+        const configDoc = await getDoc(doc(db, 'systemSettings', 'attendanceConfig'));
+        if (configDoc.exists()) {
+          setAttendanceConfig(configDoc.data());
+        }
+      } catch (e) {
+        console.warn('[AdminAttendance] Attendance config fetch note:', e);
       }
-    } catch (e) {
-      console.warn('[AdminAttendance] Attendance config fetch note:', e);
     }
 
-    // 2. Load Submissions
-    try {
-      const querySnapshot = await getDocs(collection(db, 'attendance'));
-      const records = [];
-      querySnapshot.forEach(d => {
-        records.push({ id: d.id, ...d.data() });
-      });
-      setAttendanceRecords(records);
-    } catch (e) {
-      console.warn('[AdminAttendance] Attendance data fetch note:', e);
-      setAttendanceRecords([]);
-    } finally {
-      setLoading(false);
+    if (targetTab === 'overview') {
+      try {
+        const querySnapshot = await getDocs(collection(db, 'attendance'));
+        const records = [];
+        querySnapshot.forEach(d => {
+          records.push({ id: d.id, ...d.data() });
+        });
+        setAttendanceRecords(records);
+      } catch (e) {
+        console.warn('[AdminAttendance] Attendance data fetch note:', e);
+        setAttendanceRecords([]);
+      }
     }
-  };
+
+    loadedSubTabsRef.current.add(targetTab);
+    setLoading(false);
+  }, [activeSubTab]);
 
   useEffect(() => {
-    loadData();
-  }, []);
+    loadData(activeSubTab);
+  }, [activeSubTab, loadData]);
 
   const handleSaveSettings = async (e) => {
     e.preventDefault();
@@ -310,7 +315,7 @@ export default function AdminAttendance() {
         </div>
         
         <button
-          onClick={loadData}
+          onClick={() => loadData(activeSubTab, true)}
           className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800/60 rounded-xl text-xs font-black hover:bg-indigo-100 dark:hover:bg-indigo-900/60 transition-colors cursor-pointer"
         >
           <RefreshCw size={13} />

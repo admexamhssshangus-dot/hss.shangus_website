@@ -46,7 +46,6 @@ import { db } from '../../firebase';
 import {
   collection,
   doc,
-  getDoc,
   setDoc,
   deleteDoc,
   getDocs,
@@ -474,31 +473,11 @@ export default function FundDistribution() {
   // Helper string cleaner
   const cleanStr = (v) => (v !== null && v !== undefined ? String(v).trim() : '');
 
-  // Fetch live rates, accounts, distributions, admissions, and master registers
+  // Fetch data without duplicating collections already covered by live listeners.
   const fetchData = useCallback(async () => {
     setIsSyncing(true);
     try {
-      // 0. Fetch custom subsidiary accounts & default session
-      const accDocSnap = await getDoc(doc(db, 'fund_config', 'subsidiary_accounts')).catch(() => null);
-      if (accDocSnap && accDocSnap.exists()) {
-        const d = accDocSnap.data();
-        if (Array.isArray(d?.accounts) && d.accounts.length > 0) {
-          setAccounts(d.accounts);
-          setTempAccounts(d.accounts);
-        } else {
-          setAccounts(DEFAULT_SUBSIDIARY_ACCOUNTS);
-          setTempAccounts(DEFAULT_SUBSIDIARY_ACCOUNTS);
-        }
-        if (d?.defaultSession) {
-          setFundSession(d.defaultSession);
-          setFormSession(d.defaultSession);
-        }
-      } else {
-        setAccounts(DEFAULT_SUBSIDIARY_ACCOUNTS);
-        setTempAccounts(DEFAULT_SUBSIDIARY_ACCOUNTS);
-      }
-
-      // 1. Fetch rates
+      // Rates are not live-subscribed, so fetch them once on entry/refresh.
       const ratesSnap = await getDocs(collection(db, 'fund_rates')).catch(() => null);
       if (ratesSnap && !ratesSnap.empty) {
         const loadedRates = { ...DEFAULT_RATES };
@@ -509,20 +488,7 @@ export default function FundDistribution() {
         setTempRates(loadedRates);
       }
 
-      // 2. Fetch distributions
-      const distSnap = await getDocs(collection(db, 'fund_distributions')).catch(() => null);
-      if (distSnap) {
-        const distList = distSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-        distList.sort((a, b) => {
-          const tA = new Date(a.timestamp || a.generatedDate || 0).getTime() || 0;
-          const tB = new Date(b.timestamp || b.generatedDate || 0).getTime() || 0;
-          return tB - tA;
-        });
-        setDistributions(distList);
-        setPreviewReport(current => current || distList[0] || null);
-      }
-
-      // 3. Fetch live admissions and masterRegisters
+      // Student sources are required for enrollment calculations.
       const cachedAdmissions = getCachedCollectionSync('admissions') || [];
       const cachedMasterRegisters = getCachedCollectionSync('masterRegisters') || [];
       const [admSnap, mrSnap] = await Promise.all([
@@ -565,7 +531,11 @@ export default function FundDistribution() {
           return tB - tA;
         });
         setDistributions(list);
-        if (list.length === 0) setPreviewReport(null);
+        setPreviewReport(current => {
+          if (list.length === 0) return null;
+          if (!current) return list[0];
+          return list.find(item => item.id === current.id) || list[0];
+        });
       }
     }, (err) => {
       console.warn('Real-time distributions note:', err);
@@ -581,6 +551,7 @@ export default function FundDistribution() {
         }
         if (d?.defaultSession) {
           setFundSession(d.defaultSession);
+          setFormSession(d.defaultSession);
         }
       }
     }, (err) => {

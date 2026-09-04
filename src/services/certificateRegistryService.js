@@ -1,4 +1,4 @@
-import { doc, getDoc, setDoc, writeBatch, collection, addDoc, serverTimestamp, getDocs, query, limit } from 'firebase/firestore';
+import { doc, getDoc, setDoc, writeBatch, collection, addDoc, serverTimestamp, getDocs, runTransaction } from 'firebase/firestore';
 import { db } from './firebase';
 import { updateCachedItem } from './dbCache';
 import * as XLSX from 'xlsx';
@@ -6,6 +6,36 @@ import * as XLSX from 'xlsx';
 const REGISTRY_DOC_PATH = 'systemSettings';
 const REGISTRY_DOC_ID = 'certificateRegistry';
 const DEFAULT_INITIAL_CERT_NO = 1367;
+
+export function normalizeCertificateIssueDate(value, fallback = '') {
+  const text = String(value || '').trim();
+  if (!text) return fallback;
+  const toIsoIfValid = (year, month, day) => {
+    const y = Number(year);
+    const m = Number(month);
+    const d = Number(day);
+    const candidate = new Date(Date.UTC(y, m - 1, d));
+    if (candidate.getUTCFullYear() !== y || candidate.getUTCMonth() !== m - 1 || candidate.getUTCDate() !== d) return fallback;
+    return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+  };
+  const isoMatch = text.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (isoMatch) return toIsoIfValid(isoMatch[1], isoMatch[2], isoMatch[3]);
+  const dayFirstMatch = text.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})$/);
+  if (dayFirstMatch) return toIsoIfValid(dayFirstMatch[3], dayFirstMatch[2], dayFirstMatch[1]);
+  return fallback;
+}
+
+export function validateCertificateAssignments(issuedStudents = []) {
+  const serials = issuedStudents.map(item => extractCertificateSerial(item?.certNo));
+  if (serials.some(serial => !serial)) {
+    throw new Error('Every certificate assignment must have a valid positive serial number.');
+  }
+  const unique = new Set(serials);
+  if (unique.size !== serials.length) {
+    throw new Error('Duplicate certificate serial numbers were found in this assignment batch.');
+  }
+  return serials.map(Number);
+}
 
 /** Return the official numeric serial from stored values such as
  * "1368 (26-08-2026)", "875; 03-08-2024", "1050", or "HSS/SHG/TC-DC/1368/2026". */
@@ -78,28 +108,35 @@ export async function fetchLastIssuedCertificateNumber() {
       }
     }
 
-    // Fallback: Scan existing admissions for maximum certificate number
-    const admSnap = await getDocs(query(collection(db, 'admissions'), limit(200)));
+    // Registry recovery is rare, but it must scan all possible sources. A
+    // limited unordered sample can miss the true maximum and create duplicates.
+    const [admSnap, masterSnap] = await Promise.all([
+      getDocs(collection(db, 'admissions')),
+      getDocs(collection(db, 'masterRegisters'))
+    ]);
     let maxFound = DEFAULT_INITIAL_CERT_NO;
 
-    admSnap.forEach(docSnap => {
-      const d = docSnap.data();
-      const rawCert = d.ccDcNo || d.certificateNo || d['No. & Date of CC/DC Issued (This Institution)'];
-      if (rawCert) {
-        const serial = extractCertificateSerial(rawCert);
-        if (serial) {
-          const val = parseInt(serial, 10);
-          if (val > maxFound && val < 999999) {
-            maxFound = val;
+    [admSnap, masterSnap].forEach(snapshot => {
+      snapshot.forEach(docSnap => {
+        const data = docSnap.data();
+        const records = ['items', 'students', 'records', 'data']
+          .map(key => data[key])
+          .find(Array.isArray) || [data];
+        records.forEach(record => {
+          const rawCert = record.ccDcNo || record.certificateNo || record['No. & Date of CC/DC Issued (This Institution)'];
+          const serial = extractCertificateSerial(rawCert);
+          if (serial) {
+            const val = parseInt(serial, 10);
+            if (val > maxFound && val < 999999) maxFound = val;
           }
-        }
-      }
+        });
+      });
     });
 
     return maxFound;
   } catch (err) {
-    console.warn('Error fetching certificate registry from Firestore:', err);
-    return DEFAULT_INITIAL_CERT_NO;
+    console.error('Error fetching certificate registry from Firestore:', err);
+    throw new Error('Certificate registry could not be verified. No certificate number was assigned.');
   }
 }
 
@@ -113,31 +150,25 @@ export async function commitIssuedCertificateBatch(issuedStudents = [], issueDat
     return { success: true, count: 0 };
   }
 
-  const effectiveDate = issueDate || new Date().toISOString().slice(0, 10);
-  const batches = [writeBatch(db)];
-  let currentBatch = batches[0];
-  let currentBatchSize = 0;
+  const now = new Date();
+  const localToday = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  const normalizedRequestedDate = normalizeCertificateIssueDate(issueDate);
+  if (issueDate && !normalizedRequestedDate) {
+    throw new Error('Issue date must be a valid YYYY-MM-DD or DD-MM-YYYY date.');
+  }
+  const effectiveDate = normalizedRequestedDate || localToday;
+  const serials = validateCertificateAssignments(issuedStudents);
+  const verifiedLastIssued = await fetchLastIssuedCertificateNumber();
   const cacheUpdates = [];
-  const queueSet = (reference, data, options) => {
-    if (currentBatchSize >= 450) {
-      currentBatch = writeBatch(db);
-      batches.push(currentBatch);
-      currentBatchSize = 0;
-    }
-    currentBatch.set(reference, data, options);
-    currentBatchSize += 1;
-  };
-  let maxCertInBatch = 0;
+  const maxCertInBatch = Math.max(...serials);
+  const minCertInBatch = Math.min(...serials);
   const masterGroups = new Map();
+  const admissionAssignments = [];
+  const targetKeys = new Set();
 
   issuedStudents.forEach(item => {
-    const certNum = parseInt(item.certNo, 10);
-    if (!isNaN(certNum) && certNum > maxCertInBatch) {
-      maxCertInBatch = certNum;
-    }
-
     const raw = item.student?.raw || item.raw || item.student || item || {};
-    const formNo = String(item.formNo || item.id || raw.formNo || raw['Form No.'] || raw['Form Number'] || '').trim();
+    const formNo = String(item.formNo || raw.formNo || raw['Form No.'] || raw['Form Number'] || '').trim();
     const regNo = String(item.student?.regNo || raw.regNo || raw.boardRegNo || raw['Board Registration Number'] || raw['Board Reg. No.'] || '').trim();
     const session = String(item.student?.session || item.session || raw.session || raw.Session || raw['Session'] || '').trim();
     const className = String(item.student?.className || item.className || item.class || raw.class || raw.Class || raw['Class'] || raw.selectedClass || '').trim();
@@ -151,65 +182,112 @@ export async function commitIssuedCertificateBatch(issuedStudents = [], issueDat
     };
     const parentDocId = raw._parentDocId || item.student?._parentDocId || '';
     const sourceCollection = raw._srcCollection || raw._source || item.student?.sourceCollection || (parentDocId ? 'masterRegisters' : 'admissions');
-    const studentDocId = String(raw.id || item.id || item.student?.id || '').trim() ||
+    const studentDocId = String(raw._docId || raw.docId || raw.id || '').trim() ||
       (formNo ? (formNo.startsWith('adm_') ? formNo : `adm_${formNo}`) : regNo);
 
     if (sourceCollection === 'masterRegisters' && parentDocId) {
       if (!masterGroups.has(parentDocId)) masterGroups.set(parentDocId, []);
       masterGroups.get(parentDocId).push({ formNo, regNo, session, className, patch });
     } else if (studentDocId) {
-      const studentRef = doc(db, sourceCollection === 'masterRegisters' ? 'masterRegisters' : 'admissions', studentDocId);
-      queueSet(studentRef, patch, { merge: true });
-      cacheUpdates.push([sourceCollection === 'masterRegisters' ? 'masterRegisters' : 'admissions', studentDocId, patch]);
+      admissionAssignments.push({ studentDocId, patch });
+    } else {
+      throw new Error('A selected student has no source document or form number. No certificate numbers were assigned.');
     }
   });
 
-  // Archived students are packed inside master-register chunk documents. Patch
-  // the matching array item using regNo/formNo along with session and class.
-  for (const [parentDocId, assignments] of masterGroups.entries()) {
-    const parentRef = doc(db, 'masterRegisters', String(parentDocId));
-    const parentSnap = await getDoc(parentRef);
-    if (!parentSnap.exists()) throw new Error(`Master-register chunk ${parentDocId} was not found.`);
-    const parentData = parentSnap.data();
-    const arrayKey = ['items', 'students', 'records', 'data'].find(key => Array.isArray(parentData[key]));
-    if (!arrayKey) throw new Error(`Master-register chunk ${parentDocId} has no student array.`);
-    const updatedRecords = parentData[arrayKey].map(record => {
-      const recordForm = normalizeIdentityKey(record.formNo || record['Form No.'] || record['Form Number']);
-      const recordReg = normalizeIdentityKey(record.regNo || record.boardRegNo || record['Board Registration Number'] || record['Board Reg. No.']);
-      const recordSession = record.session || record.Session || record['Session'] || parentData.session || '';
-      const recordClass = record.class || record.Class || record['Class'] || record.selectedClass || parentData.selectedClass || '';
-
-      const assignment = assignments.find(item => {
-        const regMatches = item.regNo && normalizeIdentityKey(item.regNo) === recordReg;
-        const formMatches = item.formNo && normalizeIdentityKey(item.formNo) === recordForm;
-        if (!regMatches && !formMatches) return false;
-        if (!isSessionMatch(item.session, recordSession)) return false;
-        if (!isClassMatch(item.className, recordClass)) return false;
-        return true;
-      });
-      if (!assignment) return record;
-      const itemPatch = { ...assignment.patch };
-      delete itemPatch.dischargeIssuedAt;
-      return { ...record, ...itemPatch, dischargeIssuedAt: effectiveDate };
+  admissionAssignments.forEach(({ studentDocId }) => {
+    const targetKey = `admissions/${studentDocId}`;
+    if (targetKeys.has(targetKey)) throw new Error('The same student was included more than once in the certificate batch.');
+    targetKeys.add(targetKey);
+  });
+  masterGroups.forEach((assignments, parentDocId) => {
+    assignments.forEach(item => {
+      const identity = normalizeIdentityKey(item.regNo) || normalizeIdentityKey(item.formNo);
+      const targetKey = `masterRegisters/${parentDocId}/${identity}/${normalizeIdentityKey(item.session)}/${normalizeIdentityKey(item.className)}`;
+      if (!identity) throw new Error('An archived student has no registration or form number. No certificate numbers were assigned.');
+      if (targetKeys.has(targetKey)) throw new Error('The same archived student was included more than once in the certificate batch.');
+      targetKeys.add(targetKey);
     });
-    queueSet(parentRef, { [arrayKey]: updatedRecords, updatedAt: serverTimestamp() }, { merge: true });
-    cacheUpdates.push(['masterRegisters', String(parentDocId), { [arrayKey]: updatedRecords }]);
-  }
+  });
 
-  // Update registry doc
-  if (maxCertInBatch > 0) {
-    const regRef = doc(db, REGISTRY_DOC_PATH, REGISTRY_DOC_ID);
-    queueSet(regRef, {
+  // Reserve the serial range and stamp every student in one transaction. This
+  // prevents overlapping issuers and avoids half-issued certificates when a
+  // later student write fails.
+  const regRef = doc(db, REGISTRY_DOC_PATH, REGISTRY_DOC_ID);
+  await runTransaction(db, async transaction => {
+    const registrySnapshot = await transaction.get(regRef);
+    const admissionSnapshots = await Promise.all(admissionAssignments.map(async assignment => ({
+      ...assignment,
+      ref: doc(db, 'admissions', assignment.studentDocId),
+      snapshot: await transaction.get(doc(db, 'admissions', assignment.studentDocId))
+    })));
+    const masterSnapshots = await Promise.all(Array.from(masterGroups.keys()).map(async parentDocId => ({
+      parentDocId,
+      ref: doc(db, 'masterRegisters', String(parentDocId)),
+      snapshot: await transaction.get(doc(db, 'masterRegisters', String(parentDocId)))
+    })));
+    const currentLast = registrySnapshot.exists()
+      ? (parseInt(registrySnapshot.data()?.lastIssuedCertNo, 10) || DEFAULT_INITIAL_CERT_NO)
+      : verifiedLastIssued;
+    if (minCertInBatch <= currentLast) {
+      throw new Error(`Certificate serial conflict: the registry is already at ${currentLast}. Refresh and assign from ${currentLast + 1}.`);
+    }
+
+    cacheUpdates.length = 0;
+    admissionSnapshots.forEach(({ studentDocId, patch, ref, snapshot }) => {
+      if (!snapshot.exists()) {
+        throw new Error(`Student record ${studentDocId} was not found. No certificate numbers were assigned.`);
+      }
+      const existingSerial = extractCertificateSerial(snapshot.data()?.ccDcNo || snapshot.data()?.certificateNo || snapshot.data()?.['No. & Date of CC/DC Issued (This Institution)']);
+      if (existingSerial) {
+        throw new Error(`Student record ${studentDocId} already has certificate #${existingSerial}. Refresh before issuing again.`);
+      }
+      transaction.set(ref, patch, { merge: true });
+      cacheUpdates.push(['admissions', studentDocId, patch]);
+    });
+
+    masterSnapshots.forEach(({ parentDocId, ref, snapshot }) => {
+      if (!snapshot.exists()) throw new Error(`Master-register chunk ${parentDocId} was not found.`);
+      const parentData = snapshot.data();
+      const arrayKey = ['items', 'students', 'records', 'data'].find(key => Array.isArray(parentData[key]));
+      if (!arrayKey) throw new Error(`Master-register chunk ${parentDocId} has no student array.`);
+      const assignments = masterGroups.get(parentDocId);
+      const matchedAssignments = new Set();
+      const updatedRecords = parentData[arrayKey].map(record => {
+        const recordForm = normalizeIdentityKey(record.formNo || record['Form No.'] || record['Form Number']);
+        const recordReg = normalizeIdentityKey(record.regNo || record.boardRegNo || record['Board Registration Number'] || record['Board Reg. No.']);
+        const recordSession = record.session || record.Session || record['Session'] || parentData.session || '';
+        const recordClass = record.class || record.Class || record['Class'] || record.selectedClass || parentData.selectedClass || '';
+        const assignmentIndex = assignments.findIndex((item, index) => {
+          if (matchedAssignments.has(index)) return false;
+          const regMatches = item.regNo && normalizeIdentityKey(item.regNo) === recordReg;
+          const formMatches = item.formNo && normalizeIdentityKey(item.formNo) === recordForm;
+          return (regMatches || formMatches) && isSessionMatch(item.session, recordSession) && isClassMatch(item.className, recordClass);
+        });
+        if (assignmentIndex < 0) return record;
+        const existingSerial = extractCertificateSerial(record.ccDcNo || record.certificateNo || record['No. & Date of CC/DC Issued (This Institution)']);
+        if (existingSerial) {
+          throw new Error(`An archived student already has certificate #${existingSerial}. Refresh before issuing again.`);
+        }
+        matchedAssignments.add(assignmentIndex);
+        const itemPatch = { ...assignments[assignmentIndex].patch };
+        delete itemPatch.dischargeIssuedAt;
+        return { ...record, ...itemPatch, dischargeIssuedAt: effectiveDate };
+      });
+      if (matchedAssignments.size !== assignments.length) {
+        throw new Error(`One or more students were not found in master-register chunk ${parentDocId}. No certificate numbers were assigned.`);
+      }
+      transaction.set(ref, { [arrayKey]: updatedRecords, updatedAt: serverTimestamp() }, { merge: true });
+      cacheUpdates.push(['masterRegisters', String(parentDocId), { [arrayKey]: updatedRecords }]);
+    });
+
+    transaction.set(regRef, {
       lastIssuedCertNo: maxCertInBatch,
       lastIssuedDate: effectiveDate,
       lastBatchCount: issuedStudents.length,
       updatedAt: serverTimestamp()
     }, { merge: true });
-  }
-
-  for (const pendingBatch of batches) {
-    await pendingBatch.commit();
-  }
+  });
   cacheUpdates.forEach(([collectionName, documentId, patch]) => {
     updateCachedItem(collectionName, documentId, patch);
   });
@@ -219,8 +297,8 @@ export async function commitIssuedCertificateBatch(issuedStudents = [], issueDat
     await addDoc(collection(db, 'documentHistory'), {
       documentType: 'Discharge / Transfer Certificate (TC/DC)',
       batchSize: issuedStudents.length,
-      startCertNo: issuedStudents[0]?.certNo || '',
-      endCertNo: issuedStudents[issuedStudents.length - 1]?.certNo || '',
+      startCertNo: minCertInBatch,
+      endCertNo: maxCertInBatch,
       issueDate: effectiveDate,
       issuedAt: serverTimestamp(),
       studentIds: issuedStudents.map(s => s.formNo || s.id)
@@ -237,7 +315,8 @@ export async function commitIssuedCertificateBatch(issuedStudents = [], issueDat
 }
 
 /**
- * Revoke and release issued certificate numbers from Firestore for one or more students.
+ * Revoke issued certificate assignments for one or more students.
+ * Registry serials remain retired so an official number is never reused.
  * Clears ccDcNo, certificateNo, 'No. & Date of CC/DC Issued (This Institution)', dischargeCertStatus, etc.
  * Supports both admissions and chunked masterRegisters records.
  */
@@ -283,7 +362,7 @@ export async function revokeCertificateNumberBatch(studentsToRevoke = []) {
 
     const parentDocId = raw._parentDocId || item.student?._parentDocId || '';
     const sourceCollection = raw._srcCollection || raw._source || item.student?.sourceCollection || (parentDocId ? 'masterRegisters' : 'admissions');
-    const studentDocId = String(raw.id || item.id || item.student?.id || '').trim() ||
+    const studentDocId = String(raw._docId || raw.docId || raw.id || '').trim() ||
       (formNo ? (formNo.startsWith('adm_') ? formNo : `adm_${formNo}`) : regNo);
 
     if (sourceCollection === 'masterRegisters' && parentDocId) {
@@ -424,7 +503,7 @@ export async function persistCertificateStudentFields(student, values = {}) {
     await setDoc(parentRef, { [arrayKey]: updatedRecords, updatedAt: serverTimestamp() }, { merge: true });
     updateCachedItem('masterRegisters', String(parentDocId), { [arrayKey]: updatedRecords });
   } else {
-    const docId = formNo || student?.id || regNo;
+    const docId = raw._docId || raw.docId || raw.id || student?._docId || student?.docId || student?.id || formNo || regNo;
     if (!docId) throw new Error('Missing Form No. or Registration No. for permanent update.');
     const collectionName = sourceCollection === 'masterRegisters' ? 'masterRegisters' : 'admissions';
     await setDoc(doc(db, collectionName, String(docId)), patch, { merge: true });

@@ -88,6 +88,36 @@ forbidMatch(
   /subscribeToCollection|getCachedCollection\(/,
   'Automations must reuse the route-level admissions stream.'
 );
+forbidMatch(
+  'src/portal/admin/AdvancedReports.jsx',
+  /getRecycleBinItems/,
+  'Student Records must not enumerate the recycle bin just to render its toolbar.'
+);
+requireMatch(
+  'src/portal/admin/AdvancedReports.jsx',
+  /filteredStudents\.slice\(0, bulkFormsRenderLimit\)/,
+  'Bulk Forms must render records in bounded batches.'
+);
+requireMatch(
+  'src/portal/admin/AdvancedReports.jsx',
+  /\['photo_export', 'photo_manager'\]\.includes\(activeToolsTab\)/,
+  'Photo-cache preparation must run only inside photo tools.'
+);
+requireMatch(
+  'src/portal/teacher/AttendancePage.jsx',
+  /if \(hasRunMissedAudit\) auditMissedDates\(\)/,
+  'Missed-attendance auditing must be explicitly activated before it reads history.'
+);
+requireMatch(
+  'src/portal/teacher/TeacherDashboard.jsx',
+  /getCountFromServer\(collection\(db, 'practicalsData'\)\)/,
+  'Teacher dashboard must count practical records server-side instead of downloading them.'
+);
+forbidMatch(
+  'src/portal/admin/FundDistribution.jsx',
+  /getDocs\(collection\(db, 'fund_distributions'\)\)/,
+  'Funds must not duplicate the fund-distribution read already supplied by onSnapshot.'
+);
 
 if (failures.length > 0) {
   console.error('Admin performance regression check failed:');
