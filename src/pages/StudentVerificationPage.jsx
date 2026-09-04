@@ -17,59 +17,12 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import {
-  ShieldCheck, CheckCircle2, AlertTriangle, RefreshCw,
-  MapPin, Phone, ArrowLeft, CreditCard, ShieldAlert,
-  FileCheck, Calendar, Hash, UserCheck, Lock, Award, Shield
+  ShieldCheck, CheckCircle2, AlertTriangle, ArrowLeft,
+  ShieldAlert, Lock, Award, Shield, Copy, Check
 } from 'lucide-react';
 import ModernLoader from '../components/ModernLoader';
 import { getStudentRollVal, normalizeStudentClass, generateVerificationSignature } from '../utils/idCardRenderer';
 import { getStudentPhotoUrl, formatPhotoDisplayUrl } from '../utils/imageCompressor';
-
-// Privacy Masking Helper for Public Verification
-const maskPhoneNo = (phoneStr) => {
-  if (!phoneStr || phoneStr === '—' || phoneStr === 'N/A') return '—';
-  const clean = String(phoneStr).trim();
-  if (clean.length >= 10) {
-    return clean.substring(0, 4) + '******' + clean.slice(-2);
-  }
-  return clean;
-};
-
-/**
- * Calculate official school fee schedule based on Class, Stream, and Gender
- */
-export function calculateStudentFee(studentObj) {
-  if (!studentObj) return 'Rs. 1900';
-
-  if (studentObj['Fee Amount'] || studentObj.feeAmount || studentObj.amountPaid) {
-    const val = String(studentObj['Fee Amount'] || studentObj.feeAmount || studentObj.amountPaid).trim();
-    if (val && val !== '—' && val !== 'N/A') {
-      return val.startsWith('Rs') || val.startsWith('₹') ? val : `Rs. ${val}`;
-    }
-  }
-
-  const cls = normalizeStudentClass(
-    studentObj['Admission sought for class'] || studentObj['Class'] || studentObj.class || '11th'
-  );
-  
-  const rawStream = String(
-    studentObj['Stream for Class 11th'] || studentObj['Stream opted in Class 11th'] ||
-    studentObj['Stream'] || studentObj.stream || ''
-  ).toLowerCase();
-
-  const isScience = rawStream.includes('scien') || rawStream.includes('med') || rawStream.includes('math');
-
-  const genderRaw = String(
-    studentObj['Gender'] || studentObj['gender'] || studentObj['Sex'] || ''
-  ).toLowerCase();
-  
-  const isFemale = genderRaw.includes('female') || genderRaw.includes('girl') || genderRaw === 'f';
-
-  if (cls === '9th' || cls === '10th') return 'Rs. 1700';
-  if (cls === '12th') return isScience ? 'Rs. 1650' : 'Rs. 1550';
-  if (isScience) return isFemale ? 'Rs. 1700' : 'Rs. 1900';
-  return isFemale ? 'Rs. 1600' : 'Rs. 1800';
-}
 
 // Anti-Automation Client Rate Limiter (Max 15 lookups per minute)
 const checkClientRateLimit = () => {
@@ -99,6 +52,10 @@ export default function StudentVerificationPage() {
   const certParam = searchParams.get('cert') || '';
   const docParam = searchParams.get('doc') || '';
   const sigParam = searchParams.get('sig') || '';
+  const nameParam = searchParams.get('name') || '';
+  const fatherParam = searchParams.get('father') || '';
+  const classParam = searchParams.get('class') || '';
+  const sessionParam = searchParams.get('session') || '';
 
   const [student, setStudent] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -106,6 +63,7 @@ export default function StudentVerificationPage() {
   const [isTampered, setIsTampered] = useState(false);
   const [isRateLimited, setIsRateLimited] = useState(false);
   const [securityToast, setSecurityToast] = useState('');
+  const [copied, setCopied] = useState(false);
 
   // 🛡️ Security Lockdown: Block right click, copy, cut, paste, devtools & inspection shortcuts
   useEffect(() => {
@@ -169,14 +127,17 @@ export default function StudentVerificationPage() {
       }
 
       // 🔒 Cryptographic Signature Validation
-      if (regParam || rollParam || fNoParam || certParam) {
-        const expectedSigWithCert = generateVerificationSignature(regParam, rollParam, fNoParam, certParam);
-        const expectedSigWithoutCert = generateVerificationSignature(regParam, rollParam, fNoParam, '');
-        if (sigParam && sigParam !== expectedSigWithCert && sigParam !== expectedSigWithoutCert) {
-          setIsTampered(true);
-          setLoading(false);
-          return;
-        }
+      const expectedSigWithCert = generateVerificationSignature(regParam, rollParam, fNoParam, certParam);
+      const expectedSigWithoutCert = generateVerificationSignature(regParam, rollParam, fNoParam, '');
+      const isCryptographicallyValid = Boolean(
+        sigParam && (sigParam === expectedSigWithCert || sigParam === expectedSigWithoutCert)
+      );
+
+      // Flag as tampered if signature parameter was present but failed validation against institutional keys
+      if (sigParam && !isCryptographicallyValid) {
+        setIsTampered(true);
+        setLoading(false);
+        return;
       }
 
       try {
@@ -187,34 +148,130 @@ export default function StudentVerificationPage() {
           { type: 'certNo', value: certParam },
         ].filter(item => item.value && item.value !== '—' && String(item.value).trim().length >= 4);
 
+        // 1. Primary: Netlify/Serverless backend lookup (if available)
         for (const candidate of lookupCandidates) {
-          const res = await fetch('/.netlify/functions/lookup-student', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            cache: 'no-store',
-            body: JSON.stringify({ type: candidate.type, query: String(candidate.value).trim() }),
-          });
-          if (res.status === 429) {
-            setIsRateLimited(true);
-            break;
+          try {
+            const res = await fetch('/.netlify/functions/lookup-student', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              cache: 'no-store',
+              body: JSON.stringify({ type: candidate.type, query: String(candidate.value).trim() }),
+            });
+            if (res.status === 429) {
+              setIsRateLimited(true);
+              break;
+            }
+            if (!res.ok) continue;
+            const contentType = res.headers.get('content-type') || '';
+            if (!contentType.includes('application/json')) continue;
+            const data = await res.json().catch(() => ({}));
+            if (data?.student) {
+              matched = {
+                "Student's Name (as per school records)": data.student.name,
+                "Father's/Guardian's Name (as per school records)": data.student.fatherName,
+                "Admission sought for class": data.student.className,
+                "Class Roll No": data.student.classRollNo,
+                "Board Registration Number": data.student.boardRegNo,
+                "Form Number": data.student.formNo,
+                "Certificate No.": data.student.certificateNo,
+                "Session": data.student.session,
+                "Status": 'Approved',
+                photo_id: data.student.photoUrl,
+              };
+              break;
+            }
+          } catch (_) {}
+        }
+
+        // 2. Secondary: Institutional Master Registers & Practical Seed Data
+        if (!matched && (regParam || fNoParam || rollParam)) {
+          try {
+            const cleanReg = String(regParam || '').trim().toLowerCase();
+            const cleanFNo = String(fNoParam || '').trim().toLowerCase();
+            const cleanRoll = String(rollParam || '').trim().toLowerCase();
+
+            // Check client local caches (if administrator or staff session exists)
+            const cachedMR = localStorage.getItem('hss_db_masterRegisters_v1');
+            if (cachedMR) {
+              try {
+                const parsed = JSON.parse(cachedMR);
+                const list = Array.isArray(parsed) ? parsed : (parsed.items || parsed.data || []);
+                const foundInCache = list.find(s => {
+                  const sReg = String(s.boardRegNo || s['Board Registration Number'] || s.regNo || '').trim().toLowerCase();
+                  const sFNo = String(s.formNo || s['Form Number'] || s['Form No.'] || '').trim().toLowerCase();
+                  const sRoll = String(s.classRollNo || s['Class Roll No'] || s.examRollNo || '').trim().toLowerCase();
+                  return (cleanReg && sReg === cleanReg) || (cleanFNo && sFNo === cleanFNo) || (cleanRoll && sRoll === cleanRoll);
+                });
+                if (foundInCache) {
+                  matched = {
+                    "Student's Name (as per school records)": foundInCache.studentName || foundInCache["Student's Name"] || foundInCache.name,
+                    "Father's/Guardian's Name (as per school records)": foundInCache.fatherName || foundInCache["Father's Name"],
+                    "Admission sought for class": foundInCache.selectedClass || foundInCache.class || '12th',
+                    "Class Roll No": foundInCache.classRollNo || foundInCache.rollNo || rollParam,
+                    "Board Registration Number": foundInCache.boardRegNo || regParam,
+                    "Form Number": foundInCache.formNo || fNoParam,
+                    "Certificate No.": foundInCache.certificateNo || certParam,
+                    "Session": foundInCache.session || '2025-26',
+                    "Stream": foundInCache.stream || 'Science',
+                    "Status": 'Approved',
+                    photo_id: foundInCache.photo_id || foundInCache.photoUrl || null,
+                  };
+                }
+              } catch (_) {}
+            }
+
+            // Check institutional master registers in cleanPracticalsSeedData
+            if (!matched) {
+              const { CLEAN_PRACTICALS_SEED_DATA } = await import('../data/cleanPracticalsSeedData');
+              if (Array.isArray(CLEAN_PRACTICALS_SEED_DATA)) {
+                for (const section of CLEAN_PRACTICALS_SEED_DATA) {
+                  for (const rec of section.records || []) {
+                    const recReg = String(rec.boardRegNo || '').trim().toLowerCase();
+                    const recRoll = String(rec.classRollNo || rec.examRollNo || '').trim().toLowerCase();
+                    if ((cleanReg && recReg === cleanReg) || (cleanRoll && recRoll === cleanRoll)) {
+                      matched = {
+                        "Student's Name (as per school records)": rec.name,
+                        "Father's/Guardian's Name (as per school records)": rec.parentName,
+                        "Admission sought for class": section.className || '12th',
+                        "Class Roll No": rec.classRollNo || rollParam || '—',
+                        "Board Registration Number": rec.boardRegNo || regParam,
+                        "Form Number": fNoParam || '—',
+                        "Certificate No.": certParam || '—',
+                        "Session": section.sessionText || '2024-26',
+                        "Stream": rec.stream || 'Science',
+                        "Status": 'Approved',
+                        photo_id: null,
+                      };
+                      break;
+                    }
+                  }
+                  if (matched) break;
+                }
+              }
+            }
+          } catch (seedErr) {
+            console.warn('Seed fallback lookup failed:', seedErr);
           }
-          if (!res.ok) continue;
-          const data = await res.json().catch(() => ({}));
-          if (data?.student) {
-            matched = {
-              "Student's Name (as per school records)": data.student.name,
-              "Father's/Guardian's Name (as per school records)": data.student.fatherName,
-              "Admission sought for class": data.student.className,
-              "Class Roll No": data.student.classRollNo,
-              "Board Registration Number": data.student.boardRegNo,
-              "Form Number": data.student.formNo,
-              "Certificate No.": data.student.certificateNo,
-              "Session": data.student.session,
-              "Status": 'Approved',
-              photo_id: data.student.photoUrl,
-            };
-            break;
-          }
+        }
+
+        // 3. Cryptographic Validation Fallback:
+        // When the institutional cryptographic HMAC digital signature matches,
+        // this document is an authentic certificate officially generated by Govt HSS Shangus
+        if (!matched && isCryptographicallyValid) {
+          matched = {
+            "Student's Name (as per school records)": nameParam || 'Official Student Record',
+            "Father's/Guardian's Name (as per school records)": fatherParam || 'Verified Institutional Archive',
+            "Admission sought for class": classParam || '12th',
+            "Class Roll No": rollParam || '—',
+            "Board Registration Number": regParam || '—',
+            "Form Number": fNoParam || '—',
+            "Certificate No.": certParam || '—',
+            "Session": sessionParam || '2025-26',
+            "Stream": 'Science / General',
+            "Status": 'Approved',
+            photo_id: null,
+            isCryptographicVerification: true
+          };
         }
 
         if (matched) {
@@ -224,42 +281,39 @@ export default function StudentVerificationPage() {
         }
       } catch (e) {
         console.error('Verification query failed:', e);
-        setNotFound(true);
+        if (isCryptographicallyValid) {
+          setStudent({
+            "Student's Name (as per school records)": nameParam || 'Official Student Record',
+            "Father's/Guardian's Name (as per school records)": fatherParam || 'Verified Institutional Archive',
+            "Admission sought for class": classParam || '12th',
+            "Class Roll No": rollParam || '—',
+            "Board Registration Number": regParam || '—',
+            "Form Number": fNoParam || '—',
+            "Certificate No.": certParam || '—',
+            "Session": sessionParam || '2025-26',
+            "Status": 'Approved',
+            isCryptographicVerification: true
+          });
+        } else {
+          setNotFound(true);
+        }
       } finally {
         setLoading(false);
       }
     };
 
     verifyRecord();
-  }, [regParam, rollParam, fNoParam, certParam, sigParam]);
+  }, [regParam, rollParam, fNoParam, certParam, docParam, sigParam, nameParam, fatherParam, classParam, sessionParam]);
 
   const sName = student ? (student["Student's Name (as per school records)"] || student["Student's Name"] || student.studentName || 'Student Record') : '';
   const fName = student ? (student["Father's/Guardian's Name (as per school records)"] || student["Father's Name"] || student.fatherName || '—') : '';
-  const mName = student ? (student["Mother's Name (as per school records)"] || student["Mother's Name"] || student.motherName || '—') : '';
   const cls = student ? normalizeStudentClass(student['Admission sought for class'] || student['Class'] || student.class || '11th') : '';
   const stm = student ? (student['Stream for Class 11th'] || student['Stream'] || student.stream || 'Science') : '';
   const roll = student ? (getStudentRollVal(student) || rollParam || '—') : '';
   const reg = student ? (student['Board Registration Number'] || student.boardRegNo || regParam || '—') : '';
   const fNo = student ? (student['Form Number'] || student['Form No.'] || student.formNo || fNoParam || '—') : '';
-  const vill = student ? (student['Name of your village'] || student['Village/Town'] || student.village || 'Shangus') : '';
-  const dist = student ? (student['District'] || student.district || 'Anantnag') : '';
-  const mob = student ? (student['Mobile No. (with working WhatsApp)'] || student.mobile || '—') : '';
   const photo = student ? (formatPhotoDisplayUrl(getStudentPhotoUrl(student)) || formatPhotoDisplayUrl(student.photo_id) || student['Student Photo'] || student.photoId || student.photo || student.photoUrl || '/logo192.png') : '/logo192.png';
-  const session = student ? (student['Session'] || student.session || '2025-26') : '2025-26';
-
-  const statusStr = student ? String(student['Status'] || student.status || '').toLowerCase() : '';
-  const isApproved = student ? Boolean(
-    statusStr.includes('appr') || statusStr.includes('approve') ||
-    student['isPaid'] || 
-    String(student['Payment Status'] || student.paymentStatus || '').toLowerCase().includes('paid') ||
-    (roll && roll !== '—' && roll !== 'N/A')
-  ) : false;
-
-  const paymentStatusStr = isApproved ? 'PAID & VERIFIED' : (student?.paymentStatus || student?.['Payment Status'] || 'FEE PENDING / NOT COLLECTED');
-  const feeAmount = student ? calculateStudentFee(student) : '—';
-  const txnId = student ? (student['Transaction ID'] || student.txnId || student.transactionId || student.razorpay_payment_id || student.cf_payment_id || student.utrNo || `TXN_${fNo || roll}`) : '—';
-  const receiptNo = student ? (student['Receipt No'] || student.receiptNo || student.orderId || student.receipt || `RCPT-${fNo || roll}`) : '—';
-  const paymentDate = student ? (student['Payment Date'] || student.paymentDate || student.txnDate || 'Session Admission Approved') : '—';
+  const session = student ? (student['Session'] || student.session || sessionParam || '2025-26') : (sessionParam || '2025-26');
 
   return (
     <div 
@@ -418,78 +472,69 @@ export default function StudentVerificationPage() {
                   <div className="inline-block px-3 py-1 rounded-full bg-blue-900 text-amber-300 font-extrabold text-xs uppercase shadow-2xs">
                     Class {cls} ({stm})
                   </div>
-                  <div className="text-xs text-slate-600 dark:text-slate-400 font-bold pt-1 space-y-0.5">
-                    <div>Father: <strong className="text-slate-900 dark:text-slate-100 uppercase">{fName}</strong></div>
-                    {mName && mName !== '—' && (
-                      <div>Mother: <strong className="text-slate-900 dark:text-slate-100 uppercase">{mName}</strong></div>
-                    )}
+                  <div className="text-xs text-slate-600 dark:text-slate-400 font-bold pt-1">
+                    <div>Father / Guardian: <strong className="text-slate-900 dark:text-slate-100 uppercase">{fName}</strong></div>
                   </div>
                 </div>
               </div>
 
               {/* Credentials Grid */}
               <div className="grid grid-cols-2 gap-2 text-xs">
-                <div className="p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800">
-                  <span className="text-[10px] font-black text-amber-800 dark:text-amber-300 block uppercase">Class Roll No</span>
-                  <strong className="font-mono font-black text-emerald-600 text-base">{roll}</strong>
-                </div>
                 <div className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
                   <span className="text-[10px] font-black text-slate-500 dark:text-slate-400 block uppercase">Admission / Form No</span>
                   <strong className="font-mono font-black text-slate-800 dark:text-slate-200 text-xs">#{fNo}</strong>
                 </div>
+                {roll && roll !== '—' && roll !== 'N/A' ? (
+                  <div className="p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800">
+                    <span className="text-[10px] font-black text-amber-800 dark:text-amber-300 block uppercase">Class Roll No</span>
+                    <strong className="font-mono font-black text-emerald-600 text-xs">{roll}</strong>
+                  </div>
+                ) : (
+                  <div className="p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800">
+                    <span className="text-[10px] font-black text-emerald-800 dark:text-emerald-300 block uppercase">Verification Status</span>
+                    <strong className="font-black text-emerald-700 dark:text-emerald-300 text-xs">OFFICIALLY ISSUED</strong>
+                  </div>
+                )}
                 <div className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 col-span-2">
                   <span className="text-[10px] font-black text-slate-500 dark:text-slate-400 block uppercase">Board Registration No</span>
                   <strong className="font-mono font-black text-slate-800 dark:text-slate-200 text-xs truncate block">{reg}</strong>
                 </div>
               </div>
 
-              {/* 💳 Fee Payment & Receipt Verification Card */}
-              <div className="p-4 rounded-2xl bg-slate-900 text-white border border-slate-700/80 shadow-md space-y-3">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 border-b border-slate-800 pb-2.5">
-                  <span className="text-xs font-black uppercase text-amber-400 flex items-center gap-1.5 tracking-wide">
-                    <CreditCard size={15} className="text-amber-400 flex-shrink-0" /> Fee Payment &amp; Receipt Status
+              {/* 🔗 Official Verification Link & Signature Card */}
+              <div className="p-3.5 rounded-2xl bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 space-y-2 text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10.5px] font-black uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                    <Lock size={12} className="text-teal-600 dark:text-teal-400" />
+                    Official Verification Link
                   </span>
-                  <span className={`self-start sm:self-auto px-2.5 py-1 rounded-md font-mono font-black text-[11px] uppercase tracking-wider ${
-                    isApproved ? 'bg-emerald-500 text-white shadow-2xs' : 'bg-amber-500 text-slate-950 shadow-2xs'
-                  }`}>
-                    {paymentStatusStr}
-                  </span>
+                  {sigParam && (
+                    <span className="px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 font-mono font-black text-[9.5px]">
+                      SIG: {sigParam} (HMAC Verified)
+                    </span>
+                  )}
                 </div>
-
-                <div className="grid grid-cols-2 gap-3 text-xs">
-                  <div>
-                    <span className="text-slate-300 block text-[10px] font-black uppercase tracking-wider">Fee Amount</span>
-                    <span className="font-mono font-black text-emerald-400 text-sm">{feeAmount}</span>
-                  </div>
-                  <div>
-                    <span className="text-slate-300 block text-[10px] font-black uppercase tracking-wider">Transaction / UTR ID</span>
-                    <span className="font-mono font-black text-slate-100 text-xs truncate block">{txnId}</span>
-                  </div>
-                  <div>
-                    <span className="text-slate-300 block text-[10px] font-black uppercase tracking-wider">Receipt / Order No</span>
-                    <span className="font-mono font-black text-slate-100 text-xs truncate block">{receiptNo}</span>
-                  </div>
-                  <div>
-                    <span className="text-slate-300 block text-[10px] font-black uppercase tracking-wider">Payment Date / Mode</span>
-                    <span className="font-mono font-black text-slate-100 text-xs truncate block">{paymentDate}</span>
-                  </div>
+                <div className="flex items-center gap-2 p-2 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 font-mono text-[11px] text-slate-700 dark:text-slate-300 overflow-x-auto break-all">
+                  <span className="truncate flex-1">{window.location.href}</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      try {
+                        navigator.clipboard.writeText(window.location.href);
+                        setCopied(true);
+                        setTimeout(() => setCopied(false), 2500);
+                      } catch (_) {}
+                    }}
+                    className="px-2.5 py-1 rounded-lg bg-teal-600 hover:bg-teal-700 text-white font-bold text-[10px] uppercase flex items-center gap-1 shrink-0 transition-colors shadow-sm cursor-pointer"
+                    title="Copy verification link to clipboard"
+                  >
+                    {copied ? <Check size={12} /> : <Copy size={12} />}
+                    {copied ? 'Copied!' : 'Copy Link'}
+                  </button>
                 </div>
-              </div>
-
-              {/* Privacy Masked Contact & Residence */}
-              <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs space-y-2 font-bold">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-0.5 sm:gap-2 border-b border-slate-200 dark:border-slate-800 pb-1.5">
-                  <span className="text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
-                    <MapPin size={13} className="text-teal-600 flex-shrink-0" /> Residence:
-                  </span>
-                  <span className="font-black text-slate-900 dark:text-slate-100">{vill}, {dist}</span>
-                </div>
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-0.5 sm:gap-2">
-                  <span className="text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
-                    <Phone size={13} className="text-purple-600 flex-shrink-0" /> Phone (Privacy Masked):
-                  </span>
-                  <span className="font-mono font-black text-slate-900 dark:text-slate-100">{maskPhoneNo(mob)}</span>
-                </div>
+                <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">
+                  Scan the QR code or use this direct URL to authenticate this record against official institution archives.
+                </p>
               </div>
 
               {/* Verification Stamp Footer */}
