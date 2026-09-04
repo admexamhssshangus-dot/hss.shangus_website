@@ -284,37 +284,6 @@
           @keyframes hss-sweep { 0% { left: 0%; width: 25%; } 50% { width: 55%; } 100% { left: 75%; width: 25%; } }
         </style>
 
-        <!-- Quotes & Facts Cycling Engine -->
-        <script>
-          (function() {
-            var quotes = [
-              { text: "“Nurturing Minds, Shaping Futures — Established in 1917”", tag: "🏛️ Institutional Legacy • Anantnag" },
-              { text: "“Excellence in Science, Humanities, Commerce & Technology”", tag: "🔬 Multidisciplinary Streams" },
-              { text: "“Smart Laboratories, Digital Libraries & Comprehensive Learning”", tag: "💻 Modern Infrastructure" },
-              { text: "“Preparing Students for JKBOSE, NEET, JEE & CUET Horizons”", tag: "🚀 Competitive Guidance" },
-              { text: "“Dedicated Faculty, Inspiring Growth & Holistic Student Success”", tag: "🌟 Faculty of Excellence" },
-              { text: "“Instant Digital Roll Slips, Transcripts & Identity Documents”", tag: "⚡ Smart Digital Services" }
-            ];
-            var qIdx = 0;
-            var qBox = document.getElementById('hss-quote-box');
-            var qTag = document.getElementById('hss-fact-tag');
-            if (qBox && qTag) {
-              setInterval(function() {
-                qIdx = (qIdx + 1) % quotes.length;
-                qBox.style.opacity = '0';
-                qBox.style.transform = 'translateY(4px)';
-                qTag.style.opacity = '0';
-                setTimeout(function() {
-                  qBox.textContent = quotes[qIdx].text;
-                  qTag.textContent = quotes[qIdx].tag;
-                  qBox.style.opacity = '1';
-                  qBox.style.transform = 'translateY(0)';
-                  qTag.style.opacity = '0.85';
-                }, 400);
-              }, 2200);
-            }
-          })();
-        </script>
       </div>
     </div>
     <noscript>
