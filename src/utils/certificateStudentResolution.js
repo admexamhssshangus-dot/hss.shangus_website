@@ -43,11 +43,25 @@ export function normalizeCertificateSession(value) {
 export function isExactCertificateScope(record, targetSession, targetClass) {
   const sessionKey = normalizeCertificateSession(record);
   const classKey = normalizeCertificateClass(record);
-  return Boolean(
-    sessionKey && classKey &&
-    sessionKey === normalizeCertificateSession(targetSession) &&
-    classKey === normalizeCertificateClass(targetClass)
-  );
+  const targetSessionKey = normalizeCertificateSession(targetSession);
+  const targetClassKey = normalizeCertificateClass(targetClass);
+
+  if (!sessionKey || !classKey || sessionKey !== targetSessionKey || classKey !== targetClassKey) {
+    return false;
+  }
+
+  // Validate explicit exam mode cycle against target session. An archived exam mode
+  // from a prior year (e.g. 2024) must never be applied to a subsequent session (e.g. 2026).
+  const raw = rawRecord(record);
+  const examMode = raw['Exam Mode (Current)'] || raw.currExamMode || raw.examMode || raw['Exam Mode'] || record?.examMode || '';
+  if (examMode) {
+    const examModeKey = normalizeCertificateSession(examMode);
+    if (examModeKey && examModeKey !== targetSessionKey && !examModeKey.startsWith('unspecified:')) {
+      return false;
+    }
+  }
+
+  return true;
 }
 
 const resultCompleteness = result => [

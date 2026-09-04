@@ -3,7 +3,11 @@ const PUBLIC_FACULTY_LIMITS = Object.freeze({
   designation: 120,
   subject: 120,
   department: 80,
-  photo: 2048,
+  email: 120,
+  mobile: 30,
+  profile: 5000,
+  if_deployed: 20,
+  photo: 500000,
 });
 
 function cleanString(value, maxLength) {
@@ -18,24 +22,44 @@ function cleanString(value, maxLength) {
     .slice(0, maxLength);
 }
 
+function safeEmail(value) {
+  const email = cleanString(value, PUBLIC_FACULTY_LIMITS.email);
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : '';
+}
+
+function safeMobile(value) {
+  const mobile = cleanString(value, PUBLIC_FACULTY_LIMITS.mobile);
+  return /^[+0-9\s-]{7,25}$/.test(mobile) ? mobile : '';
+}
+
 function safePhoto(value) {
   if (!value || typeof value !== 'string') return '';
   const photo = value.trim();
   if (photo.length > PUBLIC_FACULTY_LIMITS.photo) return '';
   if (/^\/slides\/[a-zA-Z0-9._-]+\.(?:jpe?g|png|webp|gif)$/i.test(photo)) return photo;
   if (/^https?:\/\//i.test(photo)) return photo;
+  if (/^data:image\/(?:jpe?g|png|webp|gif);base64,[A-Za-z0-9+/=]+$/i.test(photo)) return photo;
   return '';
 }
 
-export function toPublicFacultyMember(member) {
+export function toPublicFacultyMember(member, index = 0) {
   if (!member || typeof member !== 'object' || member.hidden === true) return null;
+
+  const orderVal = typeof member.order === 'number'
+    ? member.order
+    : (typeof index === 'number' ? index : 0);
 
   const projected = {
     name: cleanString(member.name, PUBLIC_FACULTY_LIMITS.name),
     designation: cleanString(member.designation, PUBLIC_FACULTY_LIMITS.designation),
     subject: cleanString(member.subject, PUBLIC_FACULTY_LIMITS.subject),
     department: cleanString(member.department, PUBLIC_FACULTY_LIMITS.department),
+    email: safeEmail(member.email),
+    mobile: safeMobile(member.mobile),
+    profile: cleanString(member.profile, PUBLIC_FACULTY_LIMITS.profile),
+    if_deployed: cleanString(member.if_deployed, PUBLIC_FACULTY_LIMITS.if_deployed),
     photo: safePhoto(member.photo),
+    order: orderVal,
   };
 
   return projected.name && projected.designation ? projected : null;
@@ -44,8 +68,9 @@ export function toPublicFacultyMember(member) {
 export function toPublicFacultyList(faculty) {
   if (!Array.isArray(faculty)) return [];
   return faculty
-    .map(m => toPublicFacultyMember(m))
+    .map((m, idx) => toPublicFacultyMember(m, typeof m?.order === 'number' ? m.order : idx))
     .filter(Boolean)
+    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
     .slice(0, 150);
 }
 
@@ -70,3 +95,4 @@ export function publicFacultyDocumentId(member, index = 0) {
 }
 
 export { PUBLIC_FACULTY_LIMITS };
+

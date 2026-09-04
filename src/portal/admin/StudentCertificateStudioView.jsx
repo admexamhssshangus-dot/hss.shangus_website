@@ -11,7 +11,8 @@ import {
   User, CheckCircle2, History, RotateCcw, AlertCircle, Info, AlertTriangle,
   Bold, Italic, Underline, Strikethrough, AlignLeft, AlignCenter, AlignRight, AlignJustify,
   List, ListOrdered, Table as TableIcon, Undo, Redo, RemoveFormatting, Palette, Minus,
-  Bot, Key, Wand2, Shield, ExternalLink, Calendar, Scissors, Copy, Unlock
+  Bot, Key, Wand2, Shield, ExternalLink, Calendar, Scissors, Copy, Unlock,
+  Pin, PinOff, Zap
 } from 'lucide-react';
 import {
   BUILTIN_CERTIFICATE_TEMPLATES,
@@ -57,7 +58,8 @@ import { toLocalDateKey } from '../../utils/localDate';
 import {
   normalizeRegistrationKey,
   resolveCertificateStream,
-  resolveScopedCertificateResult
+  resolveScopedCertificateResult,
+  isExactCertificateScope
 } from '../../utils/certificateStudentResolution';
 import {
   extractStudentName,
@@ -430,7 +432,13 @@ export default function StudentCertificateStudioView({
   const [studentSearchQuery, setStudentSearchQuery] = useState('');
   const [debouncedStudentQuery, setDebouncedStudentQuery] = useState('');
   const [isSearchDropdownOpen, setIsSearchDropdownOpen] = useState(false);
+  const [isLivePreviewEnabled, setIsLivePreviewEnabled] = useState(true);
+  const [isDropdownPinned, setIsDropdownPinned] = useState(false);
+  const [previewedStudentId, setPreviewedStudentId] = useState(null);
   const [selectedStudent, setSelectedStudent] = useState(null);
+  const listContainerRef = useRef(null);
+  const livePreviewTimeoutRef = useRef(null);
+  const scrollPreviewTimeoutRef = useRef(null);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -466,9 +474,11 @@ export default function StudentCertificateStudioView({
     }
 
     const q = deferredStudentQuery.trim().toLowerCase();
-    if (!q) return pool.slice(0, 30);
+    const hasFilter = activeCohortFilter !== 'ALL' || activeSessionFilter !== 'ALL';
+    const limit = hasFilter ? 350 : 80;
+    if (!q) return pool.slice(0, limit);
 
-    return pool.filter(st => (st.searchToken || '').includes(q)).slice(0, 40);
+    return pool.filter(st => (st.searchToken || '').includes(q)).slice(0, limit);
   }, [unifiedStudentDirectory, deferredStudentQuery, activeCohortFilter, activeSessionFilter]);
 
   // ─── Active Certificate Form State (Auto-filled + Manual Overrides) ───
@@ -890,10 +900,14 @@ export default function StudentCertificateStudioView({
   };
 
   // ─── Select Student Handler (Auto-Fills Fields & Instantly Resolves DB Photo) ───
-  const handleSelectStudent = async (st) => {
+  const handleSelectStudent = async (st, { keepOpen = false, isPreviewOnly = false } = {}) => {
+    if (!st) return;
+    setPreviewedStudentId(st.id);
     setSelectedStudent(st);
-    setIsSearchDropdownOpen(false);
-    setStudentSearchQuery(`${st.name} (${st.rollNo || st.regNo || st.cls})`);
+    if (!keepOpen && !isDropdownPinned && !isPreviewOnly) {
+      setIsSearchDropdownOpen(false);
+      setStudentSearchQuery(`${st.name} (${st.rollNo || st.regNo || st.cls})`);
+    }
 
     // Reset canvas override so the new student data is cleanly interpolated from template tokens
     setCustomCanvasHtml(null);
@@ -926,7 +940,10 @@ export default function StudentCertificateStudioView({
         }
         if (registrationMatches.length > 0) {
           let enrichedRaw = enrichCertificateIdentityFields(primaryRaw, registrationMatches);
-          const priorCertificateRecord = registrationMatches.find(record => Boolean(extractStudentCertificateNumber(record)));
+          const priorCertificateRecord = registrationMatches.find(record =>
+            isExactCertificateScope(record, st.session || extractSession(st), st.cls || extractClass(st)) &&
+            Boolean(extractStudentCertificateNumber(record))
+          );
           const priorCertificate = extractStudentCertificateNumber(priorCertificateRecord);
           if (priorCertificate && !extractStudentCertificateNumber(enrichedRaw)) {
             enrichedRaw = {
@@ -998,8 +1015,12 @@ export default function StudentCertificateStudioView({
     setAdmissionNo(admNoResolved);
     setAdmissionDate(admDateResolved);
     
-    // Immediately fetch & resolve student photo from database
-    await fetchAndResolveStudentPhoto(st);
+    // Resolve student photo from database (non-blocking for smooth live preview)
+    if (isPreviewOnly) {
+      fetchAndResolveStudentPhoto(st).catch(() => {});
+    } else {
+      await fetchAndResolveStudentPhoto(st);
+    }
 
     // Auto-update Ref No / Certificate No cleanly without 16-digit Reg No or Form No
     const existingCertNo = extractStudentCertificateNumber(raw);
@@ -1014,6 +1035,70 @@ export default function StudentCertificateStudioView({
       } catch (_) {}
       const nextNo = lastNo + 1;
       setRefNo(isTcDcTemplate ? String(nextNo) : `${activeTpl.refPrefix || 'HSS/SHG'}/${nextNo}/${new Date().getFullYear()}`);
+    }
+  };
+
+  // Ultra-fast debounced realtime hover / scroll preview
+  const handleLivePreview = useCallback((st) => {
+    if (!st || !isLivePreviewEnabled) return;
+    setPreviewedStudentId(st.id);
+    if (livePreviewTimeoutRef.current) clearTimeout(livePreviewTimeoutRef.current);
+    livePreviewTimeoutRef.current = setTimeout(() => {
+      handleSelectStudent(st, { keepOpen: true, isPreviewOnly: true });
+    }, 35);
+  }, [isLivePreviewEnabled, isDropdownPinned, selectedTemplateId, customTemplates]);
+
+  // Realtime scroll detector: as user scrolls list, auto-previews student in view
+  const handleListScroll = useCallback(() => {
+    if (!isLivePreviewEnabled || !listContainerRef.current || !filteredStudents.length) return;
+    if (scrollPreviewTimeoutRef.current) clearTimeout(scrollPreviewTimeoutRef.current);
+    scrollPreviewTimeoutRef.current = setTimeout(() => {
+      const container = listContainerRef.current;
+      if (!container) return;
+      const rect = container.getBoundingClientRect();
+      const targetY = rect.top + Math.min(60, rect.height / 3);
+      const elements = container.querySelectorAll('[data-student-index]');
+      for (const el of elements) {
+        const elRect = el.getBoundingClientRect();
+        if (elRect.top <= targetY && elRect.bottom >= targetY) {
+          const index = parseInt(el.getAttribute('data-student-index'), 10);
+          if (!isNaN(index) && filteredStudents[index]) {
+            handleLivePreview(filteredStudents[index]);
+          }
+          break;
+        }
+      }
+    }, 60);
+  }, [isLivePreviewEnabled, filteredStudents, handleLivePreview]);
+
+  // Keyboard navigation on search input: ArrowUp / ArrowDown flips preview in real-time
+  const handleKeyDownOnSearch = (e) => {
+    if (!filteredStudents.length) return;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setIsSearchDropdownOpen(true);
+      const currentIndex = filteredStudents.findIndex(s => s.id === (previewedStudentId || selectedStudent?.id));
+      const nextIndex = currentIndex < filteredStudents.length - 1 ? currentIndex + 1 : 0;
+      const nextStudent = filteredStudents[nextIndex];
+      handleLivePreview(nextStudent);
+      const el = listContainerRef.current?.querySelector(`[data-student-index="${nextIndex}"]`);
+      if (el) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setIsSearchDropdownOpen(true);
+      const currentIndex = filteredStudents.findIndex(s => s.id === (previewedStudentId || selectedStudent?.id));
+      const prevIndex = currentIndex > 0 ? currentIndex - 1 : filteredStudents.length - 1;
+      const prevStudent = filteredStudents[prevIndex];
+      handleLivePreview(prevStudent);
+      const el = listContainerRef.current?.querySelector(`[data-student-index="${prevIndex}"]`);
+      if (el) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    } else if (e.key === 'Enter') {
+      const active = filteredStudents.find(s => s.id === (previewedStudentId || selectedStudent?.id)) || filteredStudents[0];
+      if (active) {
+        handleSelectStudent(active, { keepOpen: isDropdownPinned });
+      }
+    } else if (e.key === 'Escape') {
+      if (!isDropdownPinned) setIsSearchDropdownOpen(false);
     }
   };
 
@@ -3089,6 +3174,7 @@ export default function StudentCertificateStudioView({
                 type="text"
                 value={studentSearchQuery}
                 onFocus={() => setIsSearchDropdownOpen(true)}
+                onKeyDown={handleKeyDownOnSearch}
                 onChange={(e) => {
                   setStudentSearchQuery(e.target.value);
                   setIsSearchDropdownOpen(true);
@@ -3372,54 +3458,131 @@ export default function StudentCertificateStudioView({
               </div>
             )}
 
-            {/* Dropdown Auto-Complete Results */}
+            {/* Dropdown Auto-Complete Results with Realtime Live Preview on Scroll & Hover */}
             {isSearchDropdownOpen && (
-              <div className="absolute top-full left-0 right-0 z-50 mt-1 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl shadow-2xl max-h-72 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800">
-                {filteredStudents.length === 0 ? (
-                  <div className="p-3 text-center text-xs text-slate-500 font-bold">
-                    {isLoadingStudents ? 'Loading student database...' : 'No matching students found.'}
-                  </div>
-                ) : (
-                  filteredStudents.map((st) => (
+              <div className="absolute top-full left-0 right-0 z-50 mt-1 bg-white dark:bg-slate-900 border border-teal-300/80 dark:border-teal-700/80 rounded-xl shadow-2xl overflow-hidden animate-fadeIn">
+                {/* Realtime Live Preview Controls Toolbar */}
+                <div className="px-2.5 py-1.5 bg-slate-100/90 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between gap-1 text-[10px] select-none">
+                  <div className="flex items-center gap-1.5 min-w-0">
                     <button
-                      key={st.id + st.sourceType + (st.rollNo || '')}
                       type="button"
-                      onClick={() => handleSelectStudent(st)}
-                      className="w-full p-2 text-left hover:bg-teal-50/60 dark:hover:bg-teal-950/40 flex items-center justify-between gap-2 cursor-pointer transition-colors"
+                      onClick={() => setIsLivePreviewEnabled(v => !v)}
+                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md font-extrabold text-[9.5px] cursor-pointer transition-all ${
+                        isLivePreviewEnabled
+                          ? 'bg-emerald-600 text-white shadow-2xs ring-1 ring-emerald-500/50'
+                          : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-300'
+                      }`}
+                      title="Auto-preview student certificate in real-time when scrolling or hovering"
                     >
-                      <div className="flex items-center gap-2">
-                        {st.photo ? (
-                          <img src={st.photo} alt={st.name} className="w-8 h-8 rounded-full object-cover border border-slate-300 shrink-0" />
-                        ) : (
-                          <div className="w-8 h-8 rounded-full bg-teal-100 dark:bg-teal-950 text-teal-800 dark:text-teal-300 flex items-center justify-center text-[10.5px] font-black shrink-0">
-                            {st.name.charAt(0)}
-                          </div>
-                        )}
-                        <div className="min-w-0">
-                          <div className="font-black text-xs text-slate-900 dark:text-white flex items-center gap-1.5 flex-wrap">
-                            <span className="truncate">{st.name}</span>
-                            <span className={`text-[8px] px-1.5 py-0.2 rounded font-extrabold shrink-0 ${
-                              st.sourceType === 'present'
-                                ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
-                                : 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
-                            }`}>
-                              {st.sourceType === 'present' ? 'Present' : 'Master Reg'}
-                            </span>
-                          </div>
-                          <div className="text-[10px] text-slate-500 dark:text-slate-400 font-medium truncate">
-                            {st.father && <span>F: <strong className="text-slate-700 dark:text-slate-300">{st.father}</strong> | </span>}
-                            <span>Class: <strong className="text-slate-700 dark:text-slate-300">{st.cls} ({st.stream})</strong></span>
-                            {st.rollNo && <span> | Roll: <strong className="text-slate-700 dark:text-slate-300">{st.rollNo}</strong></span>}
-                            {st.regNo && <span> | Reg: <strong className="text-slate-700 dark:text-slate-300">{st.regNo}</strong></span>}
-                          </div>
-                        </div>
-                      </div>
-                      <span className="px-2 py-0.5 rounded bg-teal-600 hover:bg-teal-700 text-white text-[9.5px] font-black shrink-0">
-                        Select
-                      </span>
+                      <Zap size={10} className={isLivePreviewEnabled ? 'fill-current' : ''} />
+                      <span>{isLivePreviewEnabled ? 'Live Preview ON' : 'Live Preview OFF'}</span>
                     </button>
-                  ))
-                )}
+
+                    <button
+                      type="button"
+                      onClick={() => setIsDropdownPinned(v => !v)}
+                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md font-bold text-[9.5px] cursor-pointer transition-all ${
+                        isDropdownPinned
+                          ? 'bg-indigo-600 text-white shadow-2xs ring-1 ring-indigo-500/50'
+                          : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-300'
+                      }`}
+                      title={isDropdownPinned ? 'List is pinned open (will not close on selection)' : 'Pin list open while reviewing certificates'}
+                    >
+                      {isDropdownPinned ? <PinOff size={10} /> : <Pin size={10} />}
+                      <span>{isDropdownPinned ? 'Pinned Open' : 'Pin List'}</span>
+                    </button>
+                  </div>
+
+                  <div className="flex items-center gap-1.5 shrink-0 text-slate-500 dark:text-slate-400 font-semibold text-[9px]">
+                    <span className="hidden sm:inline font-mono text-[8.5px] px-1 py-0.2 rounded bg-slate-200/70 dark:bg-slate-700 text-slate-600 dark:text-slate-300">↑ / ↓ Keys</span>
+                    <span className="font-bold text-teal-700 dark:text-teal-400">({filteredStudents.length})</span>
+                    <button
+                      type="button"
+                      onClick={() => setIsSearchDropdownOpen(false)}
+                      className="p-1 hover:bg-slate-200 dark:hover:bg-slate-700 rounded text-slate-400 hover:text-slate-600 cursor-pointer"
+                      title="Close list"
+                    >
+                      <X size={12} />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Scrollable Students Container with Realtime Scroll Tracking */}
+                <div
+                  ref={listContainerRef}
+                  onScroll={handleListScroll}
+                  className={`overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800 overscroll-contain transition-all ${
+                    isDropdownPinned ? 'max-h-96' : 'max-h-72'
+                  }`}
+                >
+                  {filteredStudents.length === 0 ? (
+                    <div className="p-3 text-center text-xs text-slate-500 font-bold">
+                      {isLoadingStudents ? 'Loading student database...' : 'No matching students found.'}
+                    </div>
+                  ) : (
+                    filteredStudents.map((st, idx) => {
+                      const isPreviewed = (previewedStudentId === st.id) || (selectedStudent?.id === st.id);
+                      return (
+                        <button
+                          key={st.id + st.sourceType + (st.rollNo || '') + idx}
+                          type="button"
+                          data-student-index={idx}
+                          data-student-id={st.id}
+                          onMouseEnter={() => {
+                            if (isLivePreviewEnabled) handleLivePreview(st);
+                          }}
+                          onClick={() => handleSelectStudent(st, { keepOpen: isDropdownPinned })}
+                          className={`w-full p-2 text-left flex items-center justify-between gap-2 cursor-pointer transition-all ${
+                            isPreviewed
+                              ? 'bg-teal-50/90 dark:bg-teal-950/60 border-l-4 border-teal-500 shadow-2xs ring-1 ring-teal-400/40'
+                              : 'hover:bg-slate-50 dark:hover:bg-slate-800/60'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 min-w-0">
+                            {st.photo ? (
+                              <img src={st.photo} alt={st.name} className="w-8 h-8 rounded-full object-cover border border-slate-300 shrink-0" />
+                            ) : (
+                              <div className="w-8 h-8 rounded-full bg-teal-100 dark:bg-teal-950 text-teal-800 dark:text-teal-300 flex items-center justify-center text-[10.5px] font-black shrink-0">
+                                {st.name.charAt(0)}
+                              </div>
+                            )}
+                            <div className="min-w-0">
+                              <div className="font-black text-xs text-slate-900 dark:text-white flex items-center gap-1.5 flex-wrap">
+                                <span className="truncate">{st.name}</span>
+                                <span className={`text-[8px] px-1.5 py-0.2 rounded font-extrabold shrink-0 ${
+                                  st.sourceType === 'present'
+                                    ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
+                                    : 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
+                                }`}>
+                                  {st.sourceType === 'present' ? 'Present' : 'Master Reg'}
+                                </span>
+                              </div>
+                              <div className="text-[10px] text-slate-500 dark:text-slate-400 font-medium truncate">
+                                {st.father && <span>F: <strong className="text-slate-700 dark:text-slate-300">{st.father}</strong> | </span>}
+                                <span>Class: <strong className="text-slate-700 dark:text-slate-300">{st.cls} ({st.stream})</strong></span>
+                                {st.rollNo && <span> | Roll: <strong className="text-slate-700 dark:text-slate-300">{st.rollNo}</strong></span>}
+                                {st.regNo && <span> | Reg: <strong className="text-slate-700 dark:text-slate-300">{st.regNo}</strong></span>}
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-1 shrink-0">
+                            {isPreviewed ? (
+                              <span className="px-2 py-0.5 rounded bg-teal-600 text-white text-[9px] font-black flex items-center gap-0.5 shadow-2xs animate-pulse">
+                                <Eye size={9} />
+                                <span>Previewing</span>
+                              </span>
+                            ) : (
+                              <span className="px-2 py-0.5 rounded bg-slate-200 hover:bg-teal-600 hover:text-white dark:bg-slate-700 dark:hover:bg-teal-600 text-slate-700 dark:text-slate-200 text-[9px] font-bold transition-colors">
+                                Select
+                              </span>
+                            )}
+                          </div>
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
               </div>
             )}
           </div>

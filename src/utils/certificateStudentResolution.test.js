@@ -35,6 +35,21 @@ describe('certificate student resolution', () => {
     expect(resolved.resultInfo.resultStatus).toBe('Awaiting Result');
   });
 
+  test('does not accept an archived exam mode from a prior year within a current session record', () => {
+    const records = [
+      {
+        Session: '2026 APR/BIAN',
+        Class: '12th',
+        'Exam Mode (Current)': 'Annual(Private)/Bi-annual-2024',
+        'Result (Current)': 'Pass',
+        'Marks/Reapp (Current)': '257 / 500'
+      }
+    ];
+    const resolved = resolveScopedCertificateResult(records, '2026 APR/BIAN', '12th');
+    expect(resolved.resultInfo.hasResult).toBe(false);
+    expect(resolved.resultInfo.resultStatus).toBe('Awaiting Result');
+  });
+
   test('infers streams from complete subjects, not re-appear subsets', () => {
     expect(inferStreamFromFullSubjects('GE PH CH BI ES')).toBe('Science');
     expect(inferStreamFromFullSubjects('GE PS HT ED UR')).toBe('Humanities');
