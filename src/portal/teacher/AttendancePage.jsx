@@ -493,6 +493,7 @@ export default function AttendancePage() {
   const [selectedSubject, setSelectedSubject] = useState(() => getSavedFilter('subject', ''));
   const [selectedSession, setSelectedSession] = useState(() => getSavedFilter('session', CURRENT_SESSION));
   const [availableSessions, setAvailableSessions] = useState([CURRENT_SESSION]);
+  const [sessionsLoaded, setSessionsLoaded] = useState(false);
   const [sortBy, setSortBy] = useState(() => getSavedFilter('sortBy', 'rollAsc'));
   const [quickRollInput, setQuickRollInput] = useState('');
   const [quickRollMode, setQuickRollMode] = useState(() => {
@@ -618,6 +619,7 @@ export default function AttendancePage() {
   const [auditingMissed, setAuditingMissed] = useState(false);
   const [showBackfillModal, setShowBackfillModal] = useState(false);
   const [backfilling, setBackfilling] = useState(false);
+  const [hasRunMissedAudit, setHasRunMissedAudit] = useState(false);
   const [auditTargetMonth, setAuditTargetMonth] = useState(() => selectedDate ? selectedDate.slice(0, 7) : CURRENT_MONTH_STR);
 
   // Sync audit target month with selected date
@@ -753,10 +755,10 @@ export default function AttendancePage() {
     }
   }, [auditTargetMonth, selectedClass, selectedSession, selectedSubject, holidaysList]);
 
-  // Run audit automatically whenever target month, class, session, subject or holidays change
+  // Re-run only after the teacher explicitly requests this expensive audit.
   useEffect(() => {
-    auditMissedDates();
-  }, [auditMissedDates]);
+    if (hasRunMissedAudit) auditMissedDates();
+  }, [auditMissedDates, hasRunMissedAudit]);
 
   // Smart Backfill Execution Function
   const handleExecuteSmartBackfill = async () => {
@@ -904,29 +906,25 @@ export default function AttendancePage() {
   // Custom Modal Popup States
   const [viewingStudentDetails, setViewingStudentDetails] = useState(null);
 
-  // Detect past sessions from saved attendance records
-  useEffect(() => {
-    const detectPastSessions = async () => {
-      try {
-        const snap = await getDocs(collection(db, 'attendance'));
-        if (!snap.empty) {
-          const sessionsSet = new Set([CURRENT_SESSION]);
-          snap.docs.forEach(d => {
-            const data = d.data();
-            const dateStr = data.date || d.id;
-            const matchYear = dateStr.match(/20\d\d/)?.[0];
-            if (matchYear && matchYear !== CURRENT_SESSION) {
-              sessionsSet.add(matchYear);
-            }
-          });
-          setAvailableSessions(Array.from(sessionsSet).sort((a, b) => b.localeCompare(a)));
-        }
-      } catch (e) {
-        console.warn('Session detection note:', e);
-      }
-    };
-    detectPastSessions();
-  }, []);
+  // Historical session discovery is loaded only when the session control is used.
+  const loadAvailableSessions = useCallback(async () => {
+    if (sessionsLoaded) return;
+    setSessionsLoaded(true);
+    try {
+      const records = await getCachedCollection('attendance', false, 5 * 60 * 1000);
+      const sessionsSet = new Set([CURRENT_SESSION, selectedSession].filter(Boolean));
+      (Array.isArray(records) ? records : []).forEach(data => {
+        const explicitSession = data.session || data.sessionYear || data.Session;
+        const dateStr = data.date || data.dateStr || data.id || '';
+        const detected = explicitSession || String(dateStr).match(/20\d\d/)?.[0];
+        if (detected) sessionsSet.add(String(detected));
+      });
+      setAvailableSessions(Array.from(sessionsSet).sort((a, b) => b.localeCompare(a, undefined, { numeric: true })));
+    } catch (e) {
+      console.warn('Session detection note:', e);
+      setSessionsLoaded(false);
+    }
+  }, [selectedSession, sessionsLoaded]);
 
   // ─── ROSTER CACHE KEY ─────────────────────────────────────────────────────
   // Roster is keyed by class+session and stored in sessionStorage.
@@ -1342,7 +1340,7 @@ export default function AttendancePage() {
       setHolidayLabel('');
       setHolidayPurpose('');
       setEditingHoliday(null);
-      auditMissedDates();
+      if (hasRunMissedAudit) auditMissedDates();
       setAlert({
         type: 'success',
         text: `🎉 Holiday/Vacation '${holidayLabel}' ${editingHoliday ? 'updated' : 'saved'} successfully.`
@@ -1380,7 +1378,7 @@ export default function AttendancePage() {
       )));
 
       setHolidayToDelete(null);
-      auditMissedDates();
+      if (hasRunMissedAudit) auditMissedDates();
       setAlert({ type: 'success', text: 'Holiday record deleted successfully.' });
     } catch (err) {
       console.error('Delete holiday error:', err);
@@ -1794,6 +1792,7 @@ export default function AttendancePage() {
                 <select
                   value={selectedSession}
                   onChange={(e) => setSelectedSession(e.target.value)}
+                  onFocus={loadAvailableSessions}
                   className="w-full px-1.5 py-1 rounded-md text-xs font-bold border bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700"
                 >
                   {availableSessions.map(yr => (
@@ -1849,7 +1848,9 @@ export default function AttendancePage() {
                         Missed Attendance Audit & Smart Backfill
                       </span>
                       <p className="text-[10.5px] font-bold text-slate-600 dark:text-slate-300 truncate">
-                        {auditingMissed ? (
+                        {!hasRunMissedAudit ? (
+                          <span>Run the audit when you need to check missing days.</span>
+                        ) : auditingMissed ? (
                           <span>Scanning working days...</span>
                         ) : missedDates.length > 0 ? (
                           <span className="text-amber-700 dark:text-amber-400 font-extrabold">
@@ -1878,6 +1879,15 @@ export default function AttendancePage() {
                       <option value="2026-04">April 2026</option>
                       <option value="ALL_SESSION">🌟 Full Session ({selectedSession})</option>
                     </select>
+
+                    <button
+                      type="button"
+                      onClick={() => hasRunMissedAudit ? auditMissedDates() : setHasRunMissedAudit(true)}
+                      disabled={auditingMissed}
+                      className="px-3 py-1.5 rounded-lg text-xs font-black text-white bg-slate-800 hover:bg-slate-700 shadow-2xs transition-all cursor-pointer disabled:opacity-50 flex-shrink-0 dark:bg-slate-100 dark:text-slate-900"
+                    >
+                      {auditingMissed ? 'Checking…' : hasRunMissedAudit ? 'Recheck' : 'Run audit'}
+                    </button>
 
                     {missedDates.length > 0 && (
                       <button

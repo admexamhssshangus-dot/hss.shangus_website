@@ -15,7 +15,7 @@ import AnalyticsSuiteModal from './AnalyticsSuiteModal';
 import DeleteApplicationModal from './DeleteApplicationModal';
 import RecycleBinModal from './RecycleBinModal';
 import AdminToolsDropdown from './AdminToolsDropdown';
-import { moveToRecycleBin, getRecycleBinItems } from '../../services/recycleBinService';
+import { moveToRecycleBin } from '../../services/recycleBinService';
 import { logAdminActivity } from '../../services/adminActivityLogger';
 import { generateStudentAdmissionPdf, generateBulkAdmissionPdf, downloadStudentAdmissionPdf, downloadBulkAdmissionPdf } from '../../utils/pdfGenerator';
 import ModernLoader from '../../components/ModernLoader';
@@ -24,6 +24,8 @@ import { getNextAvailableFormNumber, consumeFormNumber, recycleDeletedFormNumber
 import { getStudentRegIndex, lookupStudentByRegSync } from '../../services/studentIndexService';
 import LazyStudentPhoto from '../../components/LazyStudentPhoto';
 import { expandJkboseSubjectCodes } from '../../utils/jkboseResultManager';
+
+const BULK_FORM_ROW_BATCH_SIZE = 100;
 
 // ─── Global Helper to extract authentic Class Roll No across all 13 database keys ───
 export function getStudentRollVal(st) {
@@ -709,7 +711,8 @@ function UnifiedFiltersGroupDropdown({
   setSortBy,
   sortOrder = 'asc',
   setSortOrder,
-  setCurrentPage
+  setCurrentPage,
+  onOpen
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef(null);
@@ -747,7 +750,11 @@ function UnifiedFiltersGroupDropdown({
     <div className="relative inline-block text-left" ref={dropdownRef}>
       <button
         type="button"
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={() => {
+          const nextOpen = !isOpen;
+          setIsOpen(nextOpen);
+          if (nextOpen && onOpen) onOpen();
+        }}
         className={`px-2 py-1 sm:px-3 sm:py-1.5 rounded-lg sm:rounded-xl font-black text-[10.5px] sm:text-xs flex items-center gap-1 sm:gap-1.5 transition-all cursor-pointer shadow-sm ${totalActiveFilters > 0
           ? 'bg-amber-700 text-white border border-amber-800'
           : 'bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 border border-slate-300 dark:border-slate-700 hover:bg-slate-50'
@@ -4891,25 +4898,6 @@ export default function AdvancedReports({
     return `${role}::${perms}`;
   }, [user]);
 
-  const [photosLoaded, setPhotosLoaded] = useState(false);
-
-  // Preload centralized student photos into memory/cache and trigger reactive re-render
-  useEffect(() => {
-    let isMounted = true;
-    preloadStudentPhotosCache().then(() => {
-      if (isMounted) setPhotosLoaded(true);
-    }).catch(() => {});
-
-    const handlePhotosLoaded = () => {
-      if (isMounted) setPhotosLoaded(true);
-    };
-    window.addEventListener('hss-photos-loaded', handlePhotosLoaded);
-    return () => {
-      isMounted = false;
-      window.removeEventListener('hss-photos-loaded', handlePhotosLoaded);
-    };
-  }, []);
-
   // Check if tools permissions were updated by SuperAdmin
   useEffect(() => {
     try {
@@ -4936,30 +4924,11 @@ export default function AdvancedReports({
     } catch (_) {}
   }, []);
 
-  const refreshRecycleBinCount = useCallback(async () => {
-    try {
-      const items = await getRecycleBinItems();
-      if (!items || items.length === 0) {
-        setUnreadRecycleBinCount(0);
-        return;
-      }
-      const savedTime = parseInt(localStorage.getItem('hss_seen_recycle_bin_time_v1') || '0', 10);
-      if (!savedTime) {
-        setUnreadRecycleBinCount(items.length);
-      } else {
-        const unread = items.filter(it => new Date(it.deletedAt || 0).getTime() > savedTime);
-        setUnreadRecycleBinCount(unread.length);
-      }
-    } catch (_) {}
-  }, []);
-
   useEffect(() => {
     if (showRecycleBinModal) {
       handleMarkRecycleBinSeen();
-    } else {
-      refreshRecycleBinCount();
     }
-  }, [refreshRecycleBinCount, handleMarkRecycleBinSeen, showRecycleBinModal, deletingStudentTarget]);
+  }, [handleMarkRecycleBinSeen, showRecycleBinModal]);
   const [printSections, setPrintSections] = useState({
     includeAdmissionForm: true,
     includeLibraryForm: true,
@@ -5458,6 +5427,7 @@ export default function AdvancedReports({
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [isSearching, setIsSearching] = useState(false);
   const [isHydratingMasterRegisters, setIsHydratingMasterRegisters] = useState(false);
+  const [historyLoadRequested, setHistoryLoadRequested] = useState(false);
 
   useEffect(() => {
     if (searchTerm === debouncedSearch) {
@@ -5811,6 +5781,7 @@ export default function AdvancedReports({
   const [colSearchQuery, setColSearchQuery] = useState('');
   const [showToolsModal, setShowToolsModal] = useState(false);
   const [activeToolsTab, setActiveToolsTab] = useState('bulk_forms');
+  const [bulkFormsRenderLimit, setBulkFormsRenderLimit] = useState(BULK_FORM_ROW_BATCH_SIZE);
   const [showDirectIngestionModal, setShowDirectIngestionModal] = useState(false);
 
   // Global Custom Confirmation Modal State
@@ -5851,6 +5822,7 @@ export default function AdvancedReports({
     if (onRecordDeleted && typeof onRecordDeleted === 'function') {
       onRecordDeleted(student);
     }
+    setUnreadRecycleBinCount(count => count + 1);
   }, [onRecordDeleted]);
 
   const handleDeleteStudent = (student) => {
@@ -6093,6 +6065,7 @@ export default function AdvancedReports({
     const cached = getCachedCollectionSync('masterRegisters');
     return Array.isArray(cached) && cached.length > 0 ? flattenAndFormatMasterRegisters(cached) : [];
   });
+  const historicalLoadAttemptedRef = useRef(masterHistoricalRecords.length > 0);
 
   // Fetch Current Admissions with instant cache + silent background sync & search indexing
   const loadReportsData = async (forceRefresh = false) => {
@@ -6115,16 +6088,6 @@ export default function AdvancedReports({
         activeList = currentAdmissions.length > 0
           ? currentAdmissions
           : (initialData.length > 0 ? initialData : (getCachedCollectionSync('admissions') || []));
-      }
-
-      // Filter out any residual soft-deleted records or items residing in Recycle Bin
-      let recycleBinItems = [];
-      try {
-        recycleBinItems = await getRecycleBinItems();
-      } catch (_) {}
-
-      if (Array.isArray(activeList)) {
-        activeList = filterActiveAgainstRecycleBin(activeList, recycleBinItems);
       }
 
       // Fallback on fresh cold login: Fetch active admissions from dbCache
@@ -6154,16 +6117,6 @@ export default function AdvancedReports({
         buildLocalSearchIndex(flatAdmissions, masterHistoricalRecords);
       }
 
-      // Hydrate master registers in background so all historical sessions and records are available in filters & global search
-      getCachedCollection('masterRegisters', forceRefresh).then((masterList) => {
-        if (Array.isArray(masterList) && masterList.length > 0) {
-          const flat = flattenAndFormatMasterRegisters(masterList);
-          setMasterHistoricalRecords(flat);
-          buildLocalSearchIndex(flatAdmissions || currentAdmissions, flat);
-        }
-      }).catch((err) => {
-        console.warn('Master registers background fetch note:', err);
-      });
     } catch (err) {
       console.warn('Reports load data note:', err);
     } finally {
@@ -6197,9 +6150,9 @@ export default function AdvancedReports({
 
   useEffect(() => {
     loadReportsData();
-    getStudentRegIndex().catch(() => {});
 
     const handleMasterUpdate = () => {
+      historicalLoadAttemptedRef.current = true;
       getCachedCollection('masterRegisters', true).then(ml => {
         if (Array.isArray(ml) && ml.length > 0) {
           setMasterHistoricalRecords(flattenAndFormatMasterRegisters(ml));
@@ -7237,7 +7190,8 @@ export default function AdvancedReports({
 
   // Lazy load masterRegisters on demand in a clean reactive useEffect (never inside useMemo)
   useEffect(() => {
-    if ((deferredSearchTerm.trim() !== '' || (selectedSessions && selectedSessions.length > 0 && !selectedSessions.includes('__NONE__'))) && masterHistoricalRecords.length === 0 && !isHydratingMasterRegisters) {
+    if ((historyLoadRequested || deferredSearchTerm.trim() !== '' || (selectedSessions && selectedSessions.length > 0 && !selectedSessions.includes('__NONE__'))) && masterHistoricalRecords.length === 0 && !isHydratingMasterRegisters && !historicalLoadAttemptedRef.current) {
+      historicalLoadAttemptedRef.current = true;
       setIsHydratingMasterRegisters(true);
       getCachedCollection('masterRegisters').then(ml => {
         if (Array.isArray(ml) && ml.length > 0) {
@@ -7249,7 +7203,7 @@ export default function AdvancedReports({
         setIsHydratingMasterRegisters(false);
       });
     }
-  }, [deferredSearchTerm, selectedSessions, masterHistoricalRecords.length, isHydratingMasterRegisters]);
+  }, [historyLoadRequested, deferredSearchTerm, selectedSessions, masterHistoricalRecords.length, isHydratingMasterRegisters]);
 
   // Target dataset: when search query is active or user explicitly chooses specific/historical sessions,
   // search across all records (active + historical); when empty default view, show active admissions for 0ms speed.
@@ -7430,6 +7384,26 @@ export default function AdvancedReports({
 
     return list;
   }, [targetDataset, deferredSearchTerm, selectedSessions, selectedClasses, selectedGenders, selectedStreams, selectedCategories, selectedStatuses, sortBy, sortOrder]);
+
+  const bulkFormRows = useMemo(
+    () => filteredStudents.slice(0, bulkFormsRenderLimit),
+    [filteredStudents, bulkFormsRenderLimit]
+  );
+
+  const selectedFilteredBulkFormCount = useMemo(() => {
+    let count = 0;
+    filteredStudents.forEach(student => {
+      const id = student.id || student.formNo || student['Form Number'];
+      if (selectedBulkFormIds.has(id)) count += 1;
+    });
+    return count;
+  }, [filteredStudents, selectedBulkFormIds]);
+
+  useEffect(() => {
+    if (showToolsModal && activeToolsTab === 'bulk_forms') {
+      setBulkFormsRenderLimit(BULK_FORM_ROW_BATCH_SIZE);
+    }
+  }, [showToolsModal, activeToolsTab, filteredStudents]);
 
   // Paginated Students (with 500 row safety cap if 'All' is chosen on massive datasets)
   const paginatedStudents = useMemo(() => {
@@ -7691,6 +7665,7 @@ export default function AdvancedReports({
   // Synchronize selection checkboxes whenever bulk candidate pool changes
   useEffect(() => {
     if (showToolsModal && activeToolsTab === 'db_editor') {
+      getStudentRegIndex().catch(() => {});
       if (bulkCandidateStudents && bulkCandidateStudents.length > 0) {
         setSelectedBulkFormIds(new Set(bulkCandidateStudents.map(s => s.id || s.formNo || s['Form Number'])));
       } else {
@@ -7698,6 +7673,11 @@ export default function AdvancedReports({
       }
     }
   }, [showToolsModal, activeToolsTab, bulkCandidateStudents]);
+
+  useEffect(() => {
+    if (!showToolsModal || !['photo_export', 'photo_manager'].includes(activeToolsTab)) return;
+    preloadStudentPhotosCache().catch(() => {});
+  }, [showToolsModal, activeToolsTab]);
 
   const toggleBulkStudent = (id) => {
     setSelectedBulkFormIds(prev => {
@@ -8905,6 +8885,7 @@ export default function AdvancedReports({
                 sortOrder={sortOrder}
                 setSortOrder={setSortOrder}
                 setCurrentPage={setCurrentPage}
+                onOpen={() => setHistoryLoadRequested(true)}
               />
             </div>
 
@@ -9004,10 +8985,11 @@ export default function AdvancedReports({
                 setSelectedStatuses={setSelectedStatuses}
                 sortBy={sortBy}
                 setSortBy={setSortBy}
-                sortOrder={sortOrder}
-                setSortOrder={setSortOrder}
-                setCurrentPage={setCurrentPage}
-              />
+                  sortOrder={sortOrder}
+                  setSortOrder={setSortOrder}
+                  setCurrentPage={setCurrentPage}
+                  onOpen={() => setHistoryLoadRequested(true)}
+                />
             </div>
           </div>
 
@@ -9818,10 +9800,10 @@ export default function AdvancedReports({
 
       {/* MODAL 2: Admin Tools (🛠 Tools) */}
       {showToolsModal && createPortal(
-        <div className="fixed inset-0 z-[99999] flex items-center justify-center p-2.5 sm:p-5 bg-slate-950/80 backdrop-blur-md animate-fadeIn overflow-y-auto">
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center p-2.5 sm:p-5 bg-slate-950/80 backdrop-blur-md animate-fadeIn overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="administrative-tools-title">
           <div className="w-full max-w-4xl lg:max-w-5xl p-3.5 sm:p-6 rounded-2xl sm:rounded-3xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-2xl space-y-4 max-h-[94vh] sm:max-h-[92vh] overflow-y-auto my-auto">
             <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
-              <h3 className="font-black text-base flex items-center gap-2 text-slate-900 dark:text-white">
+              <h3 id="administrative-tools-title" className="font-black text-base flex items-center gap-2 text-slate-900 dark:text-white">
                 <Wrench size={18} className="text-amber-600" /> Administrative Tools Suite
               </h3>
               <button type="button" onClick={() => setShowToolsModal(false)} className="p-1 hover:opacity-70 cursor-pointer">
@@ -9863,7 +9845,7 @@ export default function AdvancedReports({
                     </p>
                   </div>
                   <div className="px-3 py-1 rounded-xl bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 text-xs font-black border border-amber-300 dark:border-amber-700">
-                    {selectedBulkFormIds.size} Selected / {filteredStudents.length} Filtered
+                    {selectedFilteredBulkFormCount} Selected / {filteredStudents.length} Filtered
                   </div>
                 </div>
 
@@ -9928,7 +9910,7 @@ export default function AdvancedReports({
                   <div className="flex items-center gap-2">
                     <button
                       type="button"
-                      disabled={selectedBulkFormIds.size === 0 || (!printSections.includeAdmissionForm && !printSections.includeLibraryForm && !printSections.includeConductDeclaration)}
+                      disabled={selectedFilteredBulkFormCount === 0 || (!printSections.includeAdmissionForm && !printSections.includeLibraryForm && !printSections.includeConductDeclaration)}
                       onClick={() => {
                         const selectedList = filteredStudents.filter(s => selectedBulkFormIds.has(s.id || s.formNo || s['Form Number']));
                         generateBulkAdmissionPdf(selectedList, printSections);
@@ -9936,7 +9918,7 @@ export default function AdvancedReports({
                       className="px-3.5 py-2 rounded-xl font-black text-xs text-white bg-teal-700 hover:bg-teal-600 shadow-md flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
                     >
                       <Printer size={15} />
-                      <span>View / Print ({selectedBulkFormIds.size})</span>
+                      <span>View / Print ({selectedFilteredBulkFormCount})</span>
                     </button>
                   </div>
                 </div>
@@ -9949,7 +9931,7 @@ export default function AdvancedReports({
                         <th className="p-2.5 w-10 text-center">
                           <input
                             type="checkbox"
-                            checked={filteredStudents.length > 0 && selectedBulkFormIds.size === filteredStudents.length}
+                            checked={filteredStudents.length > 0 && selectedFilteredBulkFormCount === filteredStudents.length}
                             onChange={(e) => {
                               if (e.target.checked) {
                                 setSelectedBulkFormIds(new Set(filteredStudents.map(s => s.id || s.formNo || s['Form Number'])));
@@ -9968,7 +9950,7 @@ export default function AdvancedReports({
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                      {filteredStudents.map((st) => {
+                      {bulkFormRows.map((st) => {
                         const stId = st.id || st.formNo || st['Form Number'];
                         const isChecked = selectedBulkFormIds.has(stId);
                         return (
@@ -10020,6 +10002,18 @@ export default function AdvancedReports({
                     </tbody>
                   </table>
                 </div>
+                {bulkFormRows.length < filteredStudents.length && (
+                  <div className="flex items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white p-2 text-xs font-bold text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300">
+                    <span>Showing {bulkFormRows.length} of {filteredStudents.length} records. Selection and printing still apply to all filtered records.</span>
+                    <button
+                      type="button"
+                      onClick={() => setBulkFormsRenderLimit(limit => Math.min(limit + BULK_FORM_ROW_BATCH_SIZE, filteredStudents.length))}
+                      className="shrink-0 rounded-lg bg-slate-800 px-3 py-1.5 font-black text-white hover:bg-slate-700 dark:bg-slate-100 dark:text-slate-900"
+                    >
+                      Show more
+                    </button>
+                  </div>
+                )}
               </div>
             )}
 

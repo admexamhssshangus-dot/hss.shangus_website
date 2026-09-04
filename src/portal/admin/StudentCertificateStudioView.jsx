@@ -24,7 +24,7 @@ import StudentResultEditorModal from './StudentResultEditorModal';
 import ResultIngestionModal from './ResultIngestionModal';
 import BulkCertificateGeneratorModal from './BulkCertificateGeneratorModal';
 import ConfirmModal from '../components/ConfirmModal';
-import { fetchLastIssuedCertificateNumber, extractCertificateSerial, revokeCertificateNumberBatch } from '../../services/certificateRegistryService';
+import { fetchLastIssuedCertificateNumber, extractCertificateSerial, commitIssuedCertificateBatch, revokeCertificateNumberBatch } from '../../services/certificateRegistryService';
 import {
   normalizeResultStatus,
   calculateDivision,
@@ -53,6 +53,7 @@ import {
 } from '../../services/geminiLetterService';
 import DOMPurify from 'dompurify';
 import { sanitizeRichHtml } from '../../utils/sanitizeRichHtml';
+import { toLocalDateKey } from '../../utils/localDate';
 import {
   extractStudentName,
   extractFatherName,
@@ -465,7 +466,7 @@ export default function StudentCertificateStudioView({
   const [session, setSession] = useState('2025-26');
   const [address, setAddress] = useState('Shangus, Anantnag — 192201 (J&K)');
   const [gender, setGender] = useState('M');
-  const [withdrawalDate, setWithdrawalDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [withdrawalDate, setWithdrawalDate] = useState(() => toLocalDateKey());
   const [studentPhotoUrl, setStudentPhotoUrl] = useState(null);
   const [isFetchingPhoto, setIsFetchingPhoto] = useState(false);
 
@@ -604,6 +605,7 @@ export default function StudentCertificateStudioView({
     }, duration);
   }, []);
   const [isExportingDocx, setIsExportingDocx] = useState(false);
+  const [isIssuingTcDc, setIsIssuingTcDc] = useState(false);
   const [dockSide, setDockSide] = useState(() => {
     try {
       return localStorage.getItem('hss_cert_dock_side') || 'right';
@@ -954,7 +956,7 @@ export default function StudentCertificateStudioView({
       ? 'F'
       : (String(resolvedGender || '').toUpperCase().startsWith('M') ? 'M' : (st.gender || '')));
     
-    const rawWd = raw['Date of withdrawl'] || raw.withdrawalDate || raw['Result Date'] || raw.resultDate || new Date().toISOString().slice(0, 10);
+    const rawWd = raw['Date of withdrawl'] || raw.withdrawalDate || raw['Result Date'] || raw.resultDate || toLocalDateKey();
     setWithdrawalDate(rawWd);
 
     const admNoResolved = extractStudentAdmissionNumber(raw);
@@ -990,7 +992,7 @@ export default function StudentCertificateStudioView({
     const currentCertNo = refNo || extractStudentCertificateNumber(raw);
     const displayName = studentName || selectedStudent.name || 'this student';
 
-    if (!window.confirm(`Are you sure you want to REVOKE TC/DC Certificate Number #${currentCertNo || ''} for ${displayName}?\n\nThis will clear the certificate number in both admissions and master registers in Firestore, allowing a new number to be reassigned.`)) {
+    if (!window.confirm(`Revoke TC/DC Certificate Number #${currentCertNo || ''} for ${displayName}?\n\nThe student's assignment will be cleared in Firestore. The revoked serial remains retired and will not be reused.`)) {
       return;
     }
 
@@ -1036,8 +1038,16 @@ export default function StudentCertificateStudioView({
       }
     }
     const issuedCertificateNo = extractStudentCertificateNumber(selectedStudent);
+    const selectingTcDc = Boolean(tpl.isTcDc || tpl.id?.startsWith('tc_dc_'));
     if (issuedCertificateNo) {
-      setRefNo(issuedCertificateNo);
+      setRefNo(selectingTcDc
+        ? (extractCertificateSerial(issuedCertificateNo) || issuedCertificateNo)
+        : issuedCertificateNo);
+    } else if (selectingTcDc) {
+      setRefNo('');
+      fetchLastIssuedCertificateNumber()
+        .then(lastNo => setRefNo(String(lastNo + 1)))
+        .catch(error => showToast(error.message || 'Certificate registry could not be verified.', 'error'));
     } else if (tpl.refPrefix) {
       const cleanSerial = (rollNo && rollNo !== '—' && String(rollNo).length < 8)
         ? rollNo
@@ -1122,7 +1132,7 @@ export default function StudentCertificateStudioView({
     const effReappSubjects = tcReappSubjects || resInfo.reappSubjects || '—';
     const isPassed = normalizeResultStatus(effResultStatus) === 'Passed';
 
-    const effectiveWd = withdrawalDate || raw['Date of withdrawl'] || raw.withdrawalDate || raw['Result Date'] || raw.resultDate || new Date().toISOString().slice(0, 10);
+    const effectiveWd = withdrawalDate || raw['Date of withdrawl'] || raw.withdrawalDate || raw['Result Date'] || raw.resultDate || toLocalDateKey();
     const ccDcNo = refNo || extractStudentCertificateNumber(raw) || '—';
     const effAdmDate = admissionDate || extractStudentAdmissionDate(raw) || '—';
     const effAdmNo = admissionNo || extractStudentAdmissionNumber(raw) || '—';
@@ -1439,7 +1449,7 @@ export default function StudentCertificateStudioView({
     setDobRaw(st.dob || '');
     setAddress(st.address || '');
     const raw = st.raw || st;
-    const rawWd = raw['Date of withdrawl'] || raw.withdrawalDate || raw['Result Date'] || raw.resultDate || new Date().toISOString().slice(0, 10);
+    const rawWd = raw['Date of withdrawl'] || raw.withdrawalDate || raw['Result Date'] || raw.resultDate || toLocalDateKey();
     setWithdrawalDate(rawWd);
     setCustomCanvasHtml(null);
 
@@ -2470,16 +2480,81 @@ export default function StudentCertificateStudioView({
     setShowAiModal(false);
   };
 
+  const ensureTcDcCertificateIssued = async () => {
+    if (!isTcDcActive) return refNo;
+    if (!selectedStudent) {
+      showToast('Select a student before issuing a TC/DC certificate.', 'warning');
+      return '';
+    }
+
+    const raw = selectedStudent.raw || selectedStudent;
+    const existingSerial = extractCertificateSerial(extractStudentCertificateNumber(raw));
+    if (existingSerial) {
+      if (String(refNo) !== existingSerial) setRefNo(existingSerial);
+      return existingSerial;
+    }
+
+    const formNo = extractFormNo(raw);
+    const selectedIdentity = raw._docId || raw.docId || raw.id || formNo || ((raw._parentDocId && regNo) ? regNo : '');
+    if (!selectedIdentity || selectedIdentity === '—') {
+      showToast('This student has no document, form, or registration identifier. TC/DC issuance was stopped.', 'error');
+      return '';
+    }
+
+    let serial = extractCertificateSerial(refNo);
+    if (!serial) {
+      const lastIssued = await fetchLastIssuedCertificateNumber();
+      serial = String(lastIssued + 1);
+    }
+
+    setIsIssuingTcDc(true);
+    try {
+      await commitIssuedCertificateBatch([{
+        student: selectedStudent,
+        formNo: formNo && formNo !== '—' ? formNo : '',
+        certNo: serial
+      }], dateStr);
+      const issueDate = dateStr || new Date().toLocaleDateString('en-GB');
+      const issuedPatch = {
+        ccDcNo: serial,
+        certificateNo: serial,
+        'No. & Date of CC/DC Issued (This Institution)': `${serial} (${issueDate})`,
+        dischargeCertStatus: 'Issued'
+      };
+      setSelectedStudent(previous => previous ? {
+        ...previous,
+        certificateNo: serial,
+        raw: { ...(previous.raw || previous), ...issuedPatch }
+      } : previous);
+      setRefNo(serial);
+      setCustomCanvasHtml(null);
+      showToast(`TC/DC certificate #${serial} assigned and locked.`, 'success');
+      return serial;
+    } finally {
+      setIsIssuingTcDc(false);
+    }
+  };
+
   // ─── Export Handlers ───
-  const handlePrint = () => {
+  const handlePrint = async () => {
     const currentHtml = editorRef.current ? editorRef.current.innerHTML : activeDisplayHtml;
     const effectivePhoto = studentPhotoUrl || (selectedStudent ? resolveStudentPhoto(selectedStudent.raw || selectedStudent) : null);
     const activeTpl = allTemplatesList.find(t => t.id === selectedTemplateId);
     const isTcDcActive = Boolean(activeTpl?.isTcDc || selectedTemplateId?.startsWith('tc_dc_'));
+    let effectiveRefNo = refNo;
+    if (isTcDcActive) {
+      try {
+        effectiveRefNo = await ensureTcDcCertificateIssued();
+      } catch (error) {
+        showToast(error.message || 'TC/DC certificate number could not be assigned.', 'error');
+        return;
+      }
+      if (!effectiveRefNo) return;
+    }
 
     const raw = selectedStudent?.raw || selectedStudent || {};
     const metaDetails = {
-      certificateNo: refNo || extractStudentCertificateNumber(raw) || '—',
+      certificateNo: effectiveRefNo || extractStudentCertificateNumber(raw) || '—',
       admissionDate: admissionDate || extractStudentAdmissionDate(raw) || '—',
       admissionNo: admissionNo || extractStudentAdmissionNumber(raw) || '—',
       regNo: regNo || '—'
@@ -2490,14 +2565,14 @@ export default function StudentCertificateStudioView({
       selectedStudent || metaDetails,
       isTcDcActive ? 'Discharge / Transfer Certificate' : (certificateTitle || 'Bonafide Certificate'),
       'Printed / Saved PDF',
-      { refNo, studentName, className, fatherName }
+      { refNo: effectiveRefNo, studentName, className, fatherName }
     );
 
     // Auto-archive in Document History & Cloud Archive
     saveGeneratedDocToHistory({
       docType: isTcDcActive ? 'discharge' : 'bonafide',
       title: certificateTitle || (isTcDcActive ? 'Discharge / Transfer Certificate' : 'Bonafide Certificate'),
-      refNo: refNo || '',
+      refNo: effectiveRefNo || '',
       dateStr: dateStr || new Date().toLocaleDateString('en-GB'),
       recipientOrStudent: studentName || 'Student',
       studentDetails: {
@@ -2548,7 +2623,7 @@ export default function StudentCertificateStudioView({
       institutionName,
       institutionAddress,
       certificateTitle,
-      refNo,
+      refNo: effectiveRefNo,
       dateStr,
       bodyHtml: currentHtml,
       studentPhotoUrl: effectivePhoto,
@@ -2575,10 +2650,24 @@ export default function StudentCertificateStudioView({
     const effectivePhoto = studentPhotoUrl || (selectedStudent ? resolveStudentPhoto(selectedStudent.raw || selectedStudent) : null);
     const activeTpl = allTemplatesList.find(t => t.id === selectedTemplateId);
     const isTcDcActive = Boolean(activeTpl?.isTcDc || selectedTemplateId?.startsWith('tc_dc_'));
+    let effectiveRefNo = refNo;
+    if (isTcDcActive) {
+      try {
+        effectiveRefNo = await ensureTcDcCertificateIssued();
+      } catch (error) {
+        showToast(error.message || 'TC/DC certificate number could not be assigned.', 'error');
+        setIsExportingDocx(false);
+        return;
+      }
+      if (!effectiveRefNo) {
+        setIsExportingDocx(false);
+        return;
+      }
+    }
 
     const raw = selectedStudent?.raw || selectedStudent || {};
     const metaDetails = {
-      certificateNo: refNo || extractStudentCertificateNumber(raw) || '—',
+      certificateNo: effectiveRefNo || extractStudentCertificateNumber(raw) || '—',
       admissionDate: admissionDate || extractStudentAdmissionDate(raw) || '—',
       admissionNo: admissionNo || extractStudentAdmissionNumber(raw) || '—',
       regNo: regNo || '—'
@@ -2589,14 +2678,14 @@ export default function StudentCertificateStudioView({
       selectedStudent || metaDetails,
       isTcDcActive ? 'Discharge / Transfer Certificate' : (certificateTitle || 'Bonafide Certificate'),
       'Downloaded (.docx)',
-      { refNo, studentName, className, fatherName }
+      { refNo: effectiveRefNo, studentName, className, fatherName }
     );
 
     // Auto-archive in Document History & Cloud Archive
     saveGeneratedDocToHistory({
       docType: isTcDcActive ? 'discharge' : 'bonafide',
       title: certificateTitle || (isTcDcActive ? 'Discharge / Transfer Certificate' : 'Bonafide Certificate'),
-      refNo: refNo || '',
+      refNo: effectiveRefNo || '',
       dateStr: dateStr || new Date().toLocaleDateString('en-GB'),
       recipientOrStudent: studentName || 'Student',
       studentDetails: {
@@ -2647,7 +2736,7 @@ export default function StudentCertificateStudioView({
         institutionName,
         institutionAddress,
         certificateTitle,
-        refNo,
+        refNo: effectiveRefNo,
         dateStr,
         bodyHtml: currentHtml,
         signatories,
@@ -3431,16 +3520,17 @@ export default function StudentCertificateStudioView({
                 <button
                   type="button"
                   onClick={handlePrint}
+                  disabled={isIssuingTcDc || isExportingDocx}
                   className="w-7 h-7 rounded-xl bg-gradient-to-r from-teal-700 to-indigo-700 hover:from-teal-600 hover:to-indigo-600 text-white flex items-center justify-center shadow-xs cursor-pointer transition-all active:scale-90"
                   title="Print or Save Certificate as PDF"
                 >
-                  <Printer size={13} />
+                  {isIssuingTcDc ? <RefreshCw size={12} className="animate-spin" /> : <Printer size={13} />}
                 </button>
 
                 {/* Word (.docx) Export */}
                 <button
                   type="button"
-                  disabled={isExportingDocx}
+                  disabled={isExportingDocx || isIssuingTcDc}
                   onClick={handleExportDocx}
                   className="w-7 h-7 rounded-xl bg-blue-600 hover:bg-blue-500 text-white flex items-center justify-center shadow-xs cursor-pointer disabled:opacity-50 transition-all active:scale-90"
                   title="Download editable Word Document (.docx)"

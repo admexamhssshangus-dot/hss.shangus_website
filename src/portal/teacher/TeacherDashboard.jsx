@@ -7,6 +7,8 @@ import {
 import SEO from '../../components/SEO';
 import LogoutConfirmModal from '../components/LogoutConfirmModal';
 import { getCachedCollection } from '../../services/dbCache';
+import { db } from '../../services/firebase';
+import { collection, getCountFromServer, getDocs, query, where } from 'firebase/firestore';
 import { getAssignedClassRollNumber } from '../../utils/studentApprovalStatus';
 import { toLocalDateKey } from '../../utils/localDate';
 
@@ -53,18 +55,23 @@ export default function TeacherDashboard() {
         recordCandidates.push({ roll, className: cls, session });
       };
 
-      // Parallelize all cache/firestore calls simultaneously using SWR (Stale-While-Revalidate)
-      const [masterDocsRes, admDocsRes, attDocsRes, pracDocsRes] = await Promise.allSettled([
+      // Load roster data plus only today's attendance and a server-side practical count.
+      const [masterDocsRes, admDocsRes, attDateRes, attDateStrRes, practicalCountRes] = await Promise.allSettled([
         getCachedCollection('masterRegisters', false, 15 * 60 * 1000).catch(() => []),
         getCachedCollection('admissions', false, 15 * 60 * 1000).catch(() => []),
-        getCachedCollection('attendance', false, 5 * 60 * 1000).catch(() => []),
-        getCachedCollection('practicalsData', false, 5 * 60 * 1000).catch(() => [])
+        getDocs(query(collection(db, 'attendance'), where('date', '==', todayStr))),
+        getDocs(query(collection(db, 'attendance'), where('dateStr', '==', todayStr))),
+        getCountFromServer(collection(db, 'practicalsData'))
       ]);
 
       const masterDocs = masterDocsRes.status === 'fulfilled' ? masterDocsRes.value : [];
       const admDocs = admDocsRes.status === 'fulfilled' ? admDocsRes.value : [];
-      const attDocs = attDocsRes.status === 'fulfilled' ? attDocsRes.value : [];
-      const pracDocs = pracDocsRes.status === 'fulfilled' ? pracDocsRes.value : [];
+      const attendanceById = new Map();
+      [attDateRes, attDateStrRes].forEach(result => {
+        if (result.status !== 'fulfilled') return;
+        result.value.docs.forEach(snapshot => attendanceById.set(snapshot.id, { id: snapshot.id, ...snapshot.data() }));
+      });
+      const attDocs = Array.from(attendanceById.values());
 
       if (Array.isArray(masterDocs)) {
         masterDocs.forEach(data => {
@@ -112,7 +119,7 @@ export default function TeacherDashboard() {
       }
 
       // Count practicals
-      const practicalCount = Array.isArray(pracDocs) ? pracDocs.length : 0;
+      const practicalCount = practicalCountRes.status === 'fulfilled' ? practicalCountRes.value.data().count : 0;
       const markedUniqueCount = todayAttendedStudents.size;
       const rawPct = approvedRollCount > 0 ? Math.round((markedUniqueCount / approvedRollCount) * 100) : 0;
       const pct = `${Math.min(100, Math.max(0, rawPct))}%`;
