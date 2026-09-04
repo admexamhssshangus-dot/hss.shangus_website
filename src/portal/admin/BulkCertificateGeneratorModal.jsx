@@ -330,9 +330,21 @@ export default function BulkCertificateGeneratorModal({
       const village = (extractVillage(st) !== '—' ? extractVillage(st) : firstLinked(extractVillage)) || '—';
       const mobile = extractMobile(st) || '';
 
-      // Exam Result fields
-      const resInfo = extractStudentResultMarks(raw);
-      const examRollNo = resInfo.examRoll || raw['Exam R.No. (Current)'] || raw.currExamRoll || raw.examRollNo || '—';
+      // Exam Result fields: check current raw record first, then fallback to linked identity records
+      let resInfo = extractStudentResultMarks(raw);
+      if (!resInfo.hasResult) {
+        for (let i = 0; i < sortedLinked.length; i++) {
+          const lr = extractStudentResultMarks(sortedLinked[i]);
+          if (lr.hasResult) {
+            resInfo = lr;
+            break;
+          }
+        }
+      }
+
+      const examRollNo = resInfo.examRoll ||
+        raw['Exam R.No. (Current)'] || raw.currExamRoll || raw.examRollNo ||
+        firstLinked(r => r['Exam R.No. (Current)'] || r.currExamRoll || r.examRollNo) || '—';
       const isPassed = resInfo.isPassed;
       const isReap = resInfo.isReap;
       const isFailed = resInfo.isFailed;
