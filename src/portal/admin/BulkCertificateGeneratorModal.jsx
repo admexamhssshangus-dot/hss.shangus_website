@@ -48,7 +48,8 @@ import {
 import {
   normalizeRegistrationKey,
   resolveCertificateStream,
-  resolveScopedCertificateResult
+  resolveScopedCertificateResult,
+  isExactCertificateScope
 } from '../../utils/certificateStudentResolution';
 const sessionStartYear = (value) => {
   const match = String(value || '').match(/(?:19|20)\d{2}/);
@@ -179,7 +180,7 @@ export default function BulkCertificateGeneratorModal({
   const [selectedStream, setSelectedStream] = useState('ALL');
   const [selectedResultStatus, setSelectedResultStatus] = useState('ALL'); // 'ALL' | 'Passed' | 'Reap' | 'Failed' | 'hasResult'
   const [selectedCertStatus, setSelectedCertStatus] = useState('ALL'); // 'ALL' | 'ISSUED' | 'UNISSUED'
-  const [sortByIssued, setSortByIssued] = useState(false);
+  const [sortByIssued, setSortByIssued] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   
   // ─── Numbering & Date Controls State ───
@@ -373,10 +374,10 @@ export default function BulkCertificateGeneratorModal({
         extractStudentAdmissionNumber(record) || extractStudentAdmissionDate(record) || extractDob(record) !== '—'
       );
 
-      // A TC/CC number is locked to one registration number institution-wide,
-      // so find it across that registration's full history, not one class row.
+      // Only look for an already locked certificate for this exact session and class scope,
+      // never inherit an older certificate from a previous academic session or class.
       const certificateSourceRecord = [st, ...registrationLinkedRecords]
-        .find(record => Boolean(extractStudentCertificateNumber(record)));
+        .find(record => isExactCertificateScope(record, session, cls) && Boolean(extractStudentCertificateNumber(record)));
       const certificateRaw = extractStudentCertificateNumber(raw) ||
         extractStudentCertificateNumber(st) ||
         extractStudentCertificateNumber(certificateSourceRecord) || '';
@@ -566,14 +567,17 @@ export default function BulkCertificateGeneratorModal({
       return true;
     });
 
-    if (sortByIssued) {
-      list = [...list].sort((a, b) => {
-        const aCert = a.certificateNo ? parseInt(a.certificateNo, 10) || 1 : 9999999;
-        const bCert = b.certificateNo ? parseInt(b.certificateNo, 10) || 1 : 9999999;
-        if (aCert !== bCert) return aCert - bCert;
-        return a.studentName.localeCompare(b.studentName);
-      });
-    }
+    list = [...list].sort((a, b) => {
+      const aCert = a.certificateNo ? parseInt(a.certificateNo, 10) || null : null;
+      const bCert = b.certificateNo ? parseInt(b.certificateNo, 10) || null : null;
+      if (aCert !== null && bCert !== null) return aCert - bCert;
+      if (aCert !== null && sortByIssued) return -1;
+      if (bCert !== null && sortByIssued) return 1;
+      const rollA = parseInt(a.examRollNo, 10) || 0;
+      const rollB = parseInt(b.examRollNo, 10) || 0;
+      if (rollA && rollB && rollA !== rollB) return rollA - rollB;
+      return a.studentName.localeCompare(b.studentName);
+    });
 
     return list;
   }, [normalizedStudents, selectedClass, selectedSession, selectedStream, selectedResultStatus, selectedCertStatus, searchQuery, showPendingOnly, sortByIssued]);
