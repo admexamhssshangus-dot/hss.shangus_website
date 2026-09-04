@@ -414,21 +414,21 @@ export default function Home() {
         {/* Background slideshow: using dynamic config with public fallback */}
         <Slideshow slides={slides} configUrl={slides.length === 0 ? "/slides/slides.txt" : null} imageFolder="/slides/" interval={6000} />
         
-        <div className="relative z-20 px-4">
+        <div className="relative z-20 px-3 sm:px-4">
           <h1
-            className="text-[19px] sm:text-[33px] md:text-[50px] font-semibold mb-3.5 sm:mb-6 italic tracking-wider leading-none sm:leading-snug font-slogan"
+            className="text-[13.5px] xs:text-[16px] sm:text-[33px] md:text-[50px] font-semibold mb-1.5 sm:mb-6 italic tracking-wider leading-none sm:leading-snug font-slogan"
             style={{
               color: '#961c14',
-              textShadow: '0 0 10px rgba(255, 255, 255, 0.95), 0 0 20px rgba(255, 255, 255, 0.85), 0 0 35px rgba(255, 255, 255, 0.6), 0 2px 4px rgba(0, 0, 0, 0.5)'
+              textShadow: '0 0 8px rgba(255, 255, 255, 0.95), 0 0 16px rgba(255, 255, 255, 0.85), 0 0 25px rgba(255, 255, 255, 0.6), 0 2px 4px rgba(0, 0, 0, 0.5)'
             }}
           >
             nurturing minds, shaping futures
           </h1>
           <div className="flex flex-row justify-center items-center gap-1.5 sm:gap-2">
-            <Link to="/admissions" className="px-2.5 py-1 sm:px-5 sm:py-2 font-bold rounded-md sm:rounded-lg transition-all shadow-md sm:shadow-lg inline-flex items-center text-[10.5px] sm:text-sm btn-hero-primary leading-tight">
+            <Link to="/admissions" className="px-2 py-0.5 sm:px-5 sm:py-2 font-bold rounded sm:rounded-lg transition-all shadow sm:shadow-lg inline-flex items-center text-[9px] sm:text-sm btn-hero-primary leading-tight">
               {settings?.globalAdmissionsClosed ? 'Admissions Closed' : 'Admissions Open 2026'}
             </Link>
-            <Link to="/about" className="px-2.5 py-1 sm:px-3.5 sm:py-2 font-bold rounded-md transition-all shadow-md inline-flex items-center text-[10.5px] sm:text-xs btn-hero-secondary leading-tight">
+            <Link to="/about" className="px-2 py-0.5 sm:px-3.5 sm:py-2 font-bold rounded sm:rounded-md transition-all shadow inline-flex items-center text-[9px] sm:text-xs btn-hero-secondary leading-tight">
               Learn More
             </Link>
           </div>
