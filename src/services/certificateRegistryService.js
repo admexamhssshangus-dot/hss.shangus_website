@@ -5,6 +5,7 @@ import * as XLSX from 'xlsx';
 
 const REGISTRY_DOC_PATH = 'systemSettings';
 const REGISTRY_DOC_ID = 'certificateRegistry';
+const CERTIFICATE_LOCK_COLLECTION = 'certificateNumberLocks';
 const DEFAULT_INITIAL_CERT_NO = 1367;
 
 export function normalizeCertificateIssueDate(value, fallback = '') {
@@ -92,6 +93,41 @@ const isClassMatch = (c1, c2) => {
   return true;
 };
 
+const isDuplicateIssue = item => String(item?.issueKind || '').toLowerCase() === 'duplicate';
+
+const buildCertificateIssuePatch = (existingData, assignment, effectiveDate) => {
+  const existingHistory = Array.isArray(existingData?.certificateIssueHistory)
+    ? existingData.certificateIssueHistory.filter(entry => entry && typeof entry === 'object')
+    : [];
+  const previousSerial = extractCertificateSerial(
+    assignment.previousCertificateNo || existingData?.ccDcNo || existingData?.certificateNo || existingData?.['No. & Date of CC/DC Issued (This Institution)']
+  );
+  const nextSerial = extractCertificateSerial(assignment.certNo);
+  const history = [...existingHistory];
+  if (previousSerial && !history.some(entry => extractCertificateSerial(entry.certificateNo) === previousSerial)) {
+    history.push({
+      certificateNo: previousSerial,
+      issueDate: existingData?.dischargeIssueDate || '',
+      issueKind: existingData?.lastCertificateIssueKind || 'Original'
+    });
+  }
+  if (!history.some(entry => extractCertificateSerial(entry.certificateNo) === nextSerial)) {
+    history.push({
+      certificateNo: nextSerial,
+      issueDate: effectiveDate,
+      issueKind: isDuplicateIssue(assignment) ? 'Duplicate' : 'Original',
+      duplicateOfCertificateNo: isDuplicateIssue(assignment) ? previousSerial : ''
+    });
+  }
+  return {
+    ...assignment.patch,
+    dischargeCertStatus: isDuplicateIssue(assignment) ? 'Issued (Duplicate)' : 'Issued',
+    lastCertificateIssueKind: isDuplicateIssue(assignment) ? 'Duplicate' : 'Original',
+    duplicateOfCertificateNo: isDuplicateIssue(assignment) ? previousSerial : '',
+    certificateIssueHistory: history
+  };
+};
+
 /**
  * Fetch current highest issued Certificate Number from Firestore
  */
@@ -164,18 +200,29 @@ export async function commitIssuedCertificateBatch(issuedStudents = [], issueDat
   const minCertInBatch = Math.min(...serials);
   const masterGroups = new Map();
   const admissionAssignments = [];
+  const lockAssignments = [];
   const targetKeys = new Set();
 
   issuedStudents.forEach(item => {
     const raw = item.student?.raw || item.raw || item.student || item || {};
     const formNo = String(item.formNo || raw.formNo || raw['Form No.'] || raw['Form Number'] || '').trim();
     const regNo = String(item.student?.regNo || raw.regNo || raw.boardRegNo || raw['Board Registration Number'] || raw['Board Reg. No.'] || '').trim();
+    const regKey = normalizeIdentityKey(regNo);
+    if (!regKey) {
+      throw new Error('Every TC/CC certificate must be locked to a valid registration number. No certificate numbers were assigned.');
+    }
     const session = String(item.student?.session || item.session || raw.session || raw.Session || raw['Session'] || '').trim();
     const className = String(item.student?.className || item.className || item.class || raw.class || raw.Class || raw['Class'] || raw.selectedClass || '').trim();
+    const certNo = extractCertificateSerial(item.certNo);
+    const issueKind = isDuplicateIssue(item) ? 'Duplicate' : 'Original';
+    const previousCertificateNo = extractCertificateSerial(item.previousCertificateNo);
+    if (issueKind === 'Duplicate' && !previousCertificateNo) {
+      throw new Error('A duplicate TC/CC requires the previously locked certificate number.');
+    }
     const patch = {
-      ccDcNo: String(item.certNo),
-      certificateNo: String(item.certNo),
-      'No. & Date of CC/DC Issued (This Institution)': `${item.certNo} (${effectiveDate})`,
+      ccDcNo: certNo,
+      certificateNo: certNo,
+      'No. & Date of CC/DC Issued (This Institution)': `${certNo} (${effectiveDate})`,
       dischargeIssuedAt: serverTimestamp(),
       dischargeIssueDate: effectiveDate,
       dischargeCertStatus: 'Issued'
@@ -187,12 +234,13 @@ export async function commitIssuedCertificateBatch(issuedStudents = [], issueDat
 
     if (sourceCollection === 'masterRegisters' && parentDocId) {
       if (!masterGroups.has(parentDocId)) masterGroups.set(parentDocId, []);
-      masterGroups.get(parentDocId).push({ formNo, regNo, session, className, patch });
+      masterGroups.get(parentDocId).push({ formNo, regNo, regKey, session, className, certNo, issueKind, previousCertificateNo, patch });
     } else if (studentDocId) {
-      admissionAssignments.push({ studentDocId, patch });
+      admissionAssignments.push({ studentDocId, regNo, regKey, session, className, certNo, issueKind, previousCertificateNo, patch });
     } else {
       throw new Error('A selected student has no source document or form number. No certificate numbers were assigned.');
     }
+    lockAssignments.push({ certNo, regNo, regKey, session, className, issueKind, previousCertificateNo, studentDocId, parentDocId });
   });
 
   admissionAssignments.forEach(({ studentDocId }) => {
@@ -226,24 +274,51 @@ export async function commitIssuedCertificateBatch(issuedStudents = [], issueDat
       ref: doc(db, 'masterRegisters', String(parentDocId)),
       snapshot: await transaction.get(doc(db, 'masterRegisters', String(parentDocId)))
     })));
+    const lockSnapshots = await Promise.all(lockAssignments.map(async assignment => {
+      const ref = doc(db, CERTIFICATE_LOCK_COLLECTION, assignment.certNo);
+      return { ...assignment, ref, snapshot: await transaction.get(ref) };
+    }));
+    const previousLockSnapshots = await Promise.all(lockAssignments
+      .filter(assignment => assignment.issueKind === 'Duplicate' && assignment.previousCertificateNo)
+      .map(async assignment => {
+        const ref = doc(db, CERTIFICATE_LOCK_COLLECTION, assignment.previousCertificateNo);
+        return { ...assignment, ref, snapshot: await transaction.get(ref) };
+      }));
     const currentLast = registrySnapshot.exists()
       ? (parseInt(registrySnapshot.data()?.lastIssuedCertNo, 10) || DEFAULT_INITIAL_CERT_NO)
       : verifiedLastIssued;
     if (minCertInBatch <= currentLast) {
       throw new Error(`Certificate serial conflict: the registry is already at ${currentLast}. Refresh and assign from ${currentLast + 1}.`);
     }
+    lockSnapshots.forEach(({ certNo, snapshot }) => {
+      if (snapshot.exists()) {
+        const owner = snapshot.data()?.regNo || snapshot.data()?.regKey || 'another registration number';
+        throw new Error(`Certificate #${certNo} is already locked to ${owner}.`);
+      }
+    });
+    previousLockSnapshots.forEach(({ previousCertificateNo, regKey, snapshot }) => {
+      if (snapshot.exists() && snapshot.data()?.regKey !== regKey) {
+        const owner = snapshot.data()?.regNo || snapshot.data()?.regKey || 'another registration number';
+        throw new Error(`Previous certificate #${previousCertificateNo} is locked to ${owner}, not this registration number.`);
+      }
+    });
 
     cacheUpdates.length = 0;
-    admissionSnapshots.forEach(({ studentDocId, patch, ref, snapshot }) => {
+    admissionSnapshots.forEach((assignment) => {
+      const { studentDocId, ref, snapshot } = assignment;
       if (!snapshot.exists()) {
         throw new Error(`Student record ${studentDocId} was not found. No certificate numbers were assigned.`);
       }
       const existingSerial = extractCertificateSerial(snapshot.data()?.ccDcNo || snapshot.data()?.certificateNo || snapshot.data()?.['No. & Date of CC/DC Issued (This Institution)']);
-      if (existingSerial) {
+      if (existingSerial && !isDuplicateIssue(assignment)) {
         throw new Error(`Student record ${studentDocId} already has certificate #${existingSerial}. Refresh before issuing again.`);
       }
-      transaction.set(ref, patch, { merge: true });
-      cacheUpdates.push(['admissions', studentDocId, patch]);
+      if (existingSerial && existingSerial !== assignment.previousCertificateNo) {
+        throw new Error(`Student record ${studentDocId} now has certificate #${existingSerial}; duplicate issuance expected #${assignment.previousCertificateNo}. Refresh first.`);
+      }
+      const finalPatch = buildCertificateIssuePatch(snapshot.data(), assignment, effectiveDate);
+      transaction.set(ref, finalPatch, { merge: true });
+      cacheUpdates.push(['admissions', studentDocId, finalPatch]);
     });
 
     masterSnapshots.forEach(({ parentDocId, ref, snapshot }) => {
@@ -266,11 +341,15 @@ export async function commitIssuedCertificateBatch(issuedStudents = [], issueDat
         });
         if (assignmentIndex < 0) return record;
         const existingSerial = extractCertificateSerial(record.ccDcNo || record.certificateNo || record['No. & Date of CC/DC Issued (This Institution)']);
-        if (existingSerial) {
+        const assignment = assignments[assignmentIndex];
+        if (existingSerial && !isDuplicateIssue(assignment)) {
           throw new Error(`An archived student already has certificate #${existingSerial}. Refresh before issuing again.`);
         }
+        if (existingSerial && existingSerial !== assignment.previousCertificateNo) {
+          throw new Error(`An archived student now has certificate #${existingSerial}; duplicate issuance expected #${assignment.previousCertificateNo}. Refresh first.`);
+        }
         matchedAssignments.add(assignmentIndex);
-        const itemPatch = { ...assignments[assignmentIndex].patch };
+        const itemPatch = buildCertificateIssuePatch(record, assignment, effectiveDate);
         delete itemPatch.dischargeIssuedAt;
         return { ...record, ...itemPatch, dischargeIssuedAt: effectiveDate };
       });
@@ -279,6 +358,40 @@ export async function commitIssuedCertificateBatch(issuedStudents = [], issueDat
       }
       transaction.set(ref, { [arrayKey]: updatedRecords, updatedAt: serverTimestamp() }, { merge: true });
       cacheUpdates.push(['masterRegisters', String(parentDocId), { [arrayKey]: updatedRecords }]);
+    });
+
+    lockSnapshots.forEach(({ certNo, regNo, regKey, session, className, issueKind, previousCertificateNo, studentDocId, parentDocId, ref }) => {
+      transaction.set(ref, {
+        certificateNo: certNo,
+        regNo,
+        regKey,
+        status: 'Active',
+        issueKind,
+        previousCertificateNo: previousCertificateNo || '',
+        session,
+        className,
+        sourceDocument: parentDocId ? `masterRegisters/${parentDocId}` : `admissions/${studentDocId}`,
+        issueDate: effectiveDate,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+    });
+    previousLockSnapshots.forEach(({ previousCertificateNo, regNo, regKey, session, className, studentDocId, parentDocId, ref, snapshot }) => {
+      if (snapshot.exists()) return;
+      transaction.set(ref, {
+        certificateNo: previousCertificateNo,
+        regNo,
+        regKey,
+        status: 'Active',
+        issueKind: 'Original',
+        previousCertificateNo: '',
+        session,
+        className,
+        sourceDocument: parentDocId ? `masterRegisters/${parentDocId}` : `admissions/${studentDocId}`,
+        issueDate: '',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
     });
 
     transaction.set(regRef, {
@@ -301,7 +414,13 @@ export async function commitIssuedCertificateBatch(issuedStudents = [], issueDat
       endCertNo: maxCertInBatch,
       issueDate: effectiveDate,
       issuedAt: serverTimestamp(),
-      studentIds: issuedStudents.map(s => s.formNo || s.id)
+      studentIds: issuedStudents.map(s => s.formNo || s.id),
+      assignments: issuedStudents.map(item => ({
+        certificateNo: extractCertificateSerial(item.certNo),
+        regNo: item.student?.regNo || item.regNo || '',
+        issueKind: isDuplicateIssue(item) ? 'Duplicate' : 'Original',
+        previousCertificateNo: extractCertificateSerial(item.previousCertificateNo)
+      }))
     });
   } catch (auditErr) {
     console.warn('Audit history logging note:', auditErr);
@@ -372,6 +491,22 @@ export async function revokeCertificateNumberBatch(studentsToRevoke = []) {
       const studentRef = doc(db, sourceCollection === 'masterRegisters' ? 'masterRegisters' : 'admissions', studentDocId);
       queueSet(studentRef, patch, { merge: true });
       cacheUpdates.push([sourceCollection === 'masterRegisters' ? 'masterRegisters' : 'admissions', studentDocId, patch]);
+    }
+
+    const serial = extractCertificateSerial(certNo);
+    const regKey = normalizeIdentityKey(regNo);
+    if (serial && regKey) {
+      queueSet(doc(db, CERTIFICATE_LOCK_COLLECTION, serial), {
+        certificateNo: serial,
+        regNo,
+        regKey,
+        status: 'Revoked',
+        session,
+        className,
+        sourceDocument: parentDocId ? `masterRegisters/${parentDocId}` : `admissions/${studentDocId}`,
+        updatedAt: serverTimestamp(),
+        revokedAt: serverTimestamp()
+      }, { merge: true });
     }
   });
 

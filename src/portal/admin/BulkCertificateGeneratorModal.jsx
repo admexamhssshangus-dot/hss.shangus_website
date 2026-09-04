@@ -8,7 +8,7 @@ import { createPortal } from 'react-dom';
 import {
   X, Award, Printer, Search,
   FileSpreadsheet, AlertCircle, RefreshCw, CheckCircle2, Lock, Unlock, Edit3, Save,
-  ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ArrowUpDown
+  ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ArrowUpDown, Copy
 } from 'lucide-react';
 import { getCachedCollectionSync, getCachedCollection, invalidateCollectionCache } from '../../services/dbCache';
 import { unpackMasterRegisterStudents } from './OfficialDocumentsStudioView';
@@ -27,7 +27,6 @@ import {
   printBatchStudentCertificates
 } from '../../utils/certificateExportUtils';
 import {
-  extractStudentResultMarks,
   extractStudentAdmissionNumber,
   extractStudentAdmissionDate,
   extractStudentCertificateNumber
@@ -37,7 +36,6 @@ import {
   extractFatherName,
   extractMotherName,
   extractClass,
-  extractStream,
   extractSession,
   extractDob,
   extractGender,
@@ -47,6 +45,11 @@ import {
   extractVillage,
   extractMobile
 } from './CustomRosterDocumentBuilderView';
+import {
+  normalizeRegistrationKey,
+  resolveCertificateStream,
+  resolveScopedCertificateResult
+} from '../../utils/certificateStudentResolution';
 const sessionStartYear = (value) => {
   const match = String(value || '').match(/(?:19|20)\d{2}/);
   return match ? Number(match[0]) : null;
@@ -64,7 +67,10 @@ const sortIdentityRecordsByNearestSession = (records, targetSession) => {
   });
 };
 
-const MAX_CERT_ASSIGNMENT_BATCH = 400;
+// Each issuance atomically writes the student row plus a permanent number lock;
+// duplicates may also backfill the previous number lock. Stay below Firestore's
+// 500-write transaction ceiling in the worst case.
+const MAX_CERT_ASSIGNMENT_BATCH = 150;
 
 export default function BulkCertificateGeneratorModal({
   isOpen,
@@ -141,6 +147,7 @@ export default function BulkCertificateGeneratorModal({
   const identityIndexes = useMemo(() => {
     const byReg = new Map();
     const byNameFather = new Map();
+    const byCertificate = new Map();
     const normalize = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '').trim();
 
     (combinedStudentPool || []).forEach(record => {
@@ -148,6 +155,11 @@ export default function BulkCertificateGeneratorModal({
       if (reg && reg !== '—') {
         if (!byReg.has(reg)) byReg.set(reg, []);
         byReg.get(reg).push(record);
+        const certificateNo = extractCertificateSerial(extractStudentCertificateNumber(record));
+        if (certificateNo) {
+          if (!byCertificate.has(certificateNo)) byCertificate.set(certificateNo, new Set());
+          byCertificate.get(certificateNo).add(reg);
+        }
       }
       const sName = normalize(extractStudentName(record));
       const fName = normalize(extractFatherName(record));
@@ -158,7 +170,7 @@ export default function BulkCertificateGeneratorModal({
       }
     });
 
-    return { byReg, byNameFather };
+    return { byReg, byNameFather, byCertificate };
   }, [combinedStudentPool]);
 
   // ─── Filter Controls State ───
@@ -184,6 +196,7 @@ export default function BulkCertificateGeneratorModal({
   const [editValues, setEditValues] = useState({});
   const [isSavingFields, setIsSavingFields] = useState(false);
   const [localStudentOverrides, setLocalStudentOverrides] = useState({});
+  const [duplicateStudentIds, setDuplicateStudentIds] = useState(new Set());
 
   // ─── Table Pagination State ───
   const [currentPage, setCurrentPage] = useState(1);
@@ -297,7 +310,9 @@ export default function BulkCertificateGeneratorModal({
         const matchesSession = s === target || s.includes(target) || target.includes(s);
         if (!matchesSession) return false;
       }
-      const s = extractStream(st);
+      const regKey = normalizeRegistrationKey(extractBoardRegNo(st));
+      const registrationHistory = regKey ? (identityIndexes.byReg.get(regKey) || []) : [];
+      const s = resolveCertificateStream(st, registrationHistory, extractClass(st));
       if (s && s !== '—' && s.trim()) {
         streamMap.set(s.trim(), (streamMap.get(s.trim()) || 0) + 1);
       }
@@ -315,7 +330,7 @@ export default function BulkCertificateGeneratorModal({
       value: s,
       label: `${s} (${streamMap.get(s)})`
     }));
-  }, [combinedStudentPool, selectedClass, selectedSession]);
+  }, [combinedStudentPool, identityIndexes, selectedClass, selectedSession]);
 
   // Standardized student normalized rows from verified pool
   const normalizedStudents = useMemo(() => {
@@ -327,8 +342,6 @@ export default function BulkCertificateGeneratorModal({
       const father = extractFatherName(st);
       const mother = extractMotherName(st);
       const cls = extractClass(st) || '12th';
-      const stream = extractStream(st) || 'Medical';
-      const examMode = raw['Exam Mode (Current)'] || raw.currExamMode || raw.examMode || '';
       const session = extractSession(st) || '2025-26';
       const rollNo = getStudentRollNumber(st) || extractAdmNo(st) || '';
       const regNo = extractBoardRegNo(st) || '';
@@ -336,7 +349,8 @@ export default function BulkCertificateGeneratorModal({
       const id = `${String(sourceId)}::${normalize(session)}::${normalize(cls)}`;
 
       const regKey = String(regNo || '').replace(/[^a-z0-9]/gi, '').toLowerCase();
-      let linkedRecords = (regKey && regKey !== '—') ? identityIndexes.byReg.get(regKey) : null;
+      const registrationLinkedRecords = (regKey && regKey !== '—') ? (identityIndexes.byReg.get(regKey) || []) : [];
+      let linkedRecords = registrationLinkedRecords;
       if ((!linkedRecords || linkedRecords.length === 0) && name && father) {
         const nfKey = `${normalize(name)}|${normalize(father)}`;
         linkedRecords = identityIndexes.byNameFather.get(nfKey);
@@ -345,6 +359,7 @@ export default function BulkCertificateGeneratorModal({
       const sortedLinked = linkedRecords && linkedRecords.length > 1
         ? sortIdentityRecordsByNearestSession(linkedRecords, session)
         : (linkedRecords || []);
+      const stream = resolveCertificateStream(st, registrationLinkedRecords, cls);
 
       const firstLinked = (extractor) => {
         for (let i = 0; i < sortedLinked.length; i++) {
@@ -358,22 +373,16 @@ export default function BulkCertificateGeneratorModal({
         extractStudentAdmissionNumber(record) || extractStudentAdmissionDate(record) || extractDob(record) !== '—'
       );
 
-      // Certificates are strictly scoped to the student's current academic session and class.
-      // NEVER inherit certificate numbers across different sessions or classes!
-      const sameSessionClassLinked = sortedLinked.filter(r => {
-        const rSess = extractSession(r) || '';
-        const rCls = extractClass(r) || '';
-        const sessClean = s => String(s).toLowerCase().replace(/[^a-z0-9]/g, '');
-        const clsClean = c => String(c).toLowerCase().replace(/[^a-z0-9]/g, '');
-        return sessClean(rSess) === sessClean(session) && clsClean(rCls) === clsClean(cls);
-      });
-      const sameSessionCert = sameSessionClassLinked.map(extractStudentCertificateNumber).find(Boolean);
-
+      // A TC/CC number is locked to one registration number institution-wide,
+      // so find it across that registration's full history, not one class row.
+      const certificateSourceRecord = [st, ...registrationLinkedRecords]
+        .find(record => Boolean(extractStudentCertificateNumber(record)));
       const certificateRaw = extractStudentCertificateNumber(raw) ||
         extractStudentCertificateNumber(st) ||
-        sameSessionCert ||
-        '';
+        extractStudentCertificateNumber(certificateSourceRecord) || '';
       const certificateNo = extractCertificateSerial(certificateRaw);
+      const certificateOwners = certificateNo ? (identityIndexes.byCertificate.get(certificateNo) || new Set()) : new Set();
+      const certificateConflict = certificateOwners.size > 1;
 
       const admNo = extractStudentAdmissionNumber(raw) || extractStudentAdmissionNumber(st) || firstLinked(extractStudentAdmissionNumber) || '—';
       const admDate = extractStudentAdmissionDate(raw) || extractStudentAdmissionDate(st) || firstLinked(extractStudentAdmissionDate) || '—';
@@ -386,42 +395,23 @@ export default function BulkCertificateGeneratorModal({
       const mobile = extractMobile(st) || '';
       const withdrawalDate = raw['Date of withdrawl'] || raw['Date of Withdrawal'] || raw.withdrawalDate || raw['Result Date'] || raw.resultDate || '';
 
-      // Exam Result fields: check current raw record first, then fallback to linked identity records
-      // 1. Current Genuine Exam Roll - ALWAYS prioritize the current record's roll over any linked fallback!
-      const currentExamRoll = raw['Exam R.No. (Current)'] || raw.currExamRoll || raw.examRollNo || st.examRollNo || '';
-
-      // 2. Exam Result for current record
-      let resInfo = extractStudentResultMarks(raw);
-
-      // Fallback cross-session resolution ONLY if current record has no result
-      if (!resInfo.hasResult) {
-        // Priority A: Check if ANY linked record has a 'Passed' status (Pass always supersedes prior Reap/Fail)
-        const passedLinked = sortedLinked.map(r => extractStudentResultMarks(r)).find(lr => lr.isPassed);
-        if (passedLinked) {
-          resInfo = passedLinked;
-        } else {
-          // Priority B: Fallback to nearest linked result, but NEVER apply an old Re-appear to a newer/subsequent session
-          for (let i = 0; i < sortedLinked.length; i++) {
-            const lr = extractStudentResultMarks(sortedLinked[i]);
-            if (lr.hasResult) {
-              const linkedYear = sessionStartYear(extractSession(sortedLinked[i]));
-              const currentYear = sessionStartYear(session);
-              const isNewerSession = currentYear !== null && linkedYear !== null && currentYear > linkedYear;
-              // An old Re-appear from a previous academic session cannot turn a newer session into Re-appear!
-              if (lr.isReap && isNewerSession) {
-                continue;
-              }
-              resInfo = lr;
-              break;
-            }
-          }
-        }
-      }
-
-      // Genuine current exam roll ALWAYS takes precedence over any linked fallback!
-      const examRollNo = (currentExamRoll && currentExamRoll !== '—')
-        ? String(currentExamRoll).trim()
-        : (resInfo.examRoll || firstLinked(r => r['Exam R.No. (Current)'] || r.currExamRoll || r.examRollNo) || '—');
+      // Result, marks, exam roll and exam mode must all come from the exact
+      // registration + session/exam cycle + class scope. Never promote an old
+      // pass over a current re-appear/awaiting record.
+      const scopedResult = resolveScopedCertificateResult(
+        [st, ...registrationLinkedRecords],
+        session,
+        cls
+      );
+      const resInfo = scopedResult.resultInfo;
+      const scopedResultRaw = scopedResult.resultRecord?.raw || scopedResult.resultRecord || {};
+      const scopedMetadataRecord = scopedResult.resultRecord || scopedResult.scopedRecords[0] || null;
+      const scopedMetadataRaw = scopedMetadataRecord?.raw || scopedMetadataRecord || {};
+      const examRollNo = resInfo.examRoll ||
+        scopedMetadataRaw['Exam R.No. (Current)'] || scopedMetadataRaw.currExamRoll || scopedMetadataRaw.examRollNo || '—';
+      const examMode = resInfo.examMode ||
+        scopedResultRaw['Exam Mode (Current)'] || scopedResultRaw.currExamMode || scopedResultRaw.examMode ||
+        scopedMetadataRaw['Exam Mode (Current)'] || scopedMetadataRaw.currExamMode || scopedMetadataRaw.examMode || '';
 
       const isPassed = resInfo.isPassed;
       const isReap = resInfo.isReap;
@@ -453,6 +443,7 @@ export default function BulkCertificateGeneratorModal({
       if (isPassed && !marksObtained) pendingFields.push('Marks Obtained');
       if (isPassed && !division) pendingFields.push('Division');
       if (isReap && !reappSubjects) pendingFields.push('Re-appear Subjects');
+      if (certificateConflict) pendingFields.push('Certificate number belongs to multiple registration numbers');
 
       const baseStudent = {
         id,
@@ -474,6 +465,9 @@ export default function BulkCertificateGeneratorModal({
         mobile,
         withdrawalDate,
         certificateNo,
+        certificateSourceRecord,
+        certificateConflict,
+        certificateOwnerRegKeys: Array.from(certificateOwners),
         pendingFields,
         examRollNo,
         resultStatus,
@@ -511,6 +505,7 @@ export default function BulkCertificateGeneratorModal({
         if (passed && !merged.marksObtained) newPending.push('Marks Obtained');
         if (passed && !merged.division) newPending.push('Division');
         if (reap && !merged.reappSubjects) newPending.push('Re-appear Subjects');
+        if (merged.certificateConflict) newPending.push('Certificate number belongs to multiple registration numbers');
         merged.pendingFields = newPending;
         merged.hasResult = hasRes;
         merged.isPassed = passed;
@@ -592,7 +587,8 @@ export default function BulkCertificateGeneratorModal({
     // If user has selectively checked students, number strictly the checked ones gaplessly
     if (selectedStudentIds.size > 0) {
       filteredStudents.forEach((st) => {
-        if (st.certificateNo) {
+        const needsNewNumber = !st.certificateNo || duplicateStudentIds.has(st.id);
+        if (!needsNewNumber) {
           map.set(st.id, st.certificateNo);
         } else if (selectedStudentIds.has(st.id)) {
           map.set(st.id, base + seq);
@@ -604,7 +600,7 @@ export default function BulkCertificateGeneratorModal({
     } else {
       // Preview mode: show prospective sequential numbers across all filtered students
       filteredStudents.forEach((st) => {
-        if (st.certificateNo) map.set(st.id, st.certificateNo);
+        if (st.certificateNo && !duplicateStudentIds.has(st.id)) map.set(st.id, st.certificateNo);
         else {
           map.set(st.id, base + seq);
           seq++;
@@ -612,7 +608,7 @@ export default function BulkCertificateGeneratorModal({
       });
     }
     return map;
-  }, [filteredStudents, selectedStudentIds, startCertNo]);
+  }, [filteredStudents, selectedStudentIds, startCertNo, duplicateStudentIds]);
 
   // Pre-compute result status & certificate counts scoped to class & session
   const { resultStats, totalIssuedCount, totalUnissuedCount } = useMemo(() => {
@@ -661,6 +657,7 @@ export default function BulkCertificateGeneratorModal({
   const handleToggleSelectAll = () => {
     if (selectedStudentIds.size >= filteredStudents.length && filteredStudents.length > 0) {
       setSelectedStudentIds(new Set());
+      setDuplicateStudentIds(new Set());
     } else {
       const allIds = new Set(filteredStudents.map(s => s.id));
       setSelectedStudentIds(allIds);
@@ -669,9 +666,39 @@ export default function BulkCertificateGeneratorModal({
 
   const handleToggleStudent = (id) => {
     const next = new Set(selectedStudentIds);
-    if (next.has(id)) next.delete(id);
+    if (next.has(id)) {
+      next.delete(id);
+      setDuplicateStudentIds(previous => {
+        const updated = new Set(previous);
+        updated.delete(id);
+        return updated;
+      });
+    }
     else next.add(id);
     setSelectedStudentIds(next);
+  };
+
+  const handlePrepareDuplicate = (student, event) => {
+    event?.stopPropagation();
+    if (!student.certificateNo) return;
+    if (student.certificateConflict) {
+      showToast('Resolve this certificate-number ownership conflict before issuing a duplicate.', 'error');
+      return;
+    }
+    if (duplicateStudentIds.has(student.id)) {
+      setDuplicateStudentIds(previous => {
+        const updated = new Set(previous);
+        updated.delete(student.id);
+        return updated;
+      });
+      return;
+    }
+    const confirmed = window.confirm(
+      `Prepare a DUPLICATE TC/CC for ${student.studentName}?\n\nExisting certificate #${student.certificateNo} remains permanently locked to registration ${student.regNo}. A new certificate number will be issued and linked to the same registration number.`
+    );
+    if (!confirmed) return;
+    setDuplicateStudentIds(previous => new Set(previous).add(student.id));
+    setSelectedStudentIds(previous => new Set(previous).add(student.id));
   };
 
   // Compile batch student certificate packages with sequential numbering
@@ -685,11 +712,17 @@ export default function BulkCertificateGeneratorModal({
     const baseCertNum = parseInt(startCertNo, 10) || 1368;
     const qualifiedTpl = BUILTIN_CERTIFICATE_TEMPLATES.find(t => t.id === 'tc_dc_qualified') || BUILTIN_CERTIFICATE_TEMPLATES[0];
     const reappearTpl = BUILTIN_CERTIFICATE_TEMPLATES.find(t => t.id === 'tc_dc_reappear') || qualifiedTpl;
+    const awaitingTpl = BUILTIN_CERTIFICATE_TEMPLATES.find(t => t.id === 'tc_dc_awaiting') || reappearTpl;
 
     return targetList.map((st, idx) => {
-      const assignedCertNo = String(st.certificateNo || certNumberMap.get(st.id) || (baseCertNum + idx));
+      const isDuplicateIssue = Boolean(st.certificateNo && duplicateStudentIds.has(st.id));
+      const assignedCertNo = String(
+        isDuplicateIssue
+          ? (certNumberMap.get(st.id) || (baseCertNum + idx))
+          : (st.certificateNo || certNumberMap.get(st.id) || (baseCertNum + idx))
+      );
       const isPassed = st.resultStatus === 'Passed';
-      const targetTpl = isPassed ? qualifiedTpl : reappearTpl;
+      const targetTpl = isPassed ? qualifiedTpl : (st.isReap || st.isFailed ? reappearTpl : awaitingTpl);
 
       let dobWordsObj = { figures: '----------------', words: '------------------------------------------------', standard: '----------------' };
       try {
@@ -735,7 +768,9 @@ export default function BulkCertificateGeneratorModal({
         id: st.id,
         formNo: st.raw?.formNo || st.raw?.['Form No.'] || st.raw?.['Form Number'] || '',
         certNo: assignedCertNo,
-        isNewAssignment: !st.certificateNo,
+        isNewAssignment: !st.certificateNo || isDuplicateIssue,
+        issueKind: isDuplicateIssue ? 'Duplicate' : 'Original',
+        previousCertificateNo: isDuplicateIssue ? st.certificateNo : '',
         bodyHtml: interpolatedHtml,
         metaDetails: {
           certificateNo: assignedCertNo,
@@ -755,6 +790,10 @@ export default function BulkCertificateGeneratorModal({
       return;
     }
     const newAssignments = packages.filter(pkg => pkg.isNewAssignment);
+    if (packages.some(pkg => pkg.student?.certificateConflict)) {
+      showToast('Resolve the highlighted certificate-number ownership conflict before assigning or printing.', 'error');
+      return;
+    }
     if (newAssignments.length === 0) {
       showToast('All selected students already have locked certificate numbers. You may print them again at any time.', 'info');
       return;
@@ -786,6 +825,11 @@ export default function BulkCertificateGeneratorModal({
         showToast(msg, 'success');
         setLastIssuedCertNo(commitRes.lastIssuedCertNo);
         setStartCertNo(commitRes.lastIssuedCertNo + 1);
+        setDuplicateStudentIds(previous => {
+          const next = new Set(previous);
+          newAssignments.forEach(assignment => next.delete(assignment.student.id));
+          return next;
+        });
       }
     } catch (err) {
       console.error('Error assigning certificate numbers:', err);
@@ -811,7 +855,11 @@ export default function BulkCertificateGeneratorModal({
 
     setIsRevokingCertNo(true);
     try {
-      const res = await revokeCertificateNumberBatch(targetStudents);
+      const revocationTargets = targetStudents.map(student => ({
+        ...student,
+        raw: student.certificateSourceRecord?.raw || student.certificateSourceRecord || student.raw
+      }));
+      const res = await revokeCertificateNumberBatch(revocationTargets);
       if (res.success) {
         setLocalStudentOverrides(previous => {
           const next = { ...previous };
@@ -842,7 +890,11 @@ export default function BulkCertificateGeneratorModal({
 
     setIsRevokingCertNo(true);
     try {
-      const res = await revokeCertificateNumberBatch([st]);
+      const revocationTarget = {
+        ...st,
+        raw: st.certificateSourceRecord?.raw || st.certificateSourceRecord || st.raw
+      };
+      const res = await revokeCertificateNumberBatch([revocationTarget]);
       if (res.success) {
         setLocalStudentOverrides(previous => ({
           ...previous,
@@ -867,6 +919,10 @@ export default function BulkCertificateGeneratorModal({
     }
     if (packages.some(pkg => pkg.isNewAssignment)) {
       showToast('Assign & Lock certificate numbers first. Printing never creates or changes a certificate number.', 'warning');
+      return;
+    }
+    if (packages.some(pkg => pkg.student?.certificateConflict)) {
+      showToast('Printing is blocked because one certificate number appears under multiple registration numbers.', 'error');
       return;
     }
 
@@ -907,6 +963,10 @@ export default function BulkCertificateGeneratorModal({
     }
     if (packages.some(pkg => pkg.isNewAssignment)) {
       showToast('Assign & Lock certificate numbers before exporting the official registry.', 'warning');
+      return;
+    }
+    if (packages.some(pkg => pkg.student?.certificateConflict)) {
+      showToast('Registry export is blocked because one certificate number appears under multiple registration numbers.', 'error');
       return;
     }
 
@@ -974,8 +1034,8 @@ export default function BulkCertificateGeneratorModal({
   const totalSelected = selectedStudentIds.size;
   const isAllSelected = totalSelected > 0 && totalSelected === totalFiltered;
   const selectedRows = filteredStudents.filter(student => selectedStudentIds.has(student.id));
-  const newSelectedCount = selectedRows.filter(student => !student.certificateNo).length;
-  const selectedIssuedCount = selectedRows.filter(student => Boolean(student.certificateNo)).length;
+  const newSelectedCount = selectedRows.filter(student => !student.certificateNo || duplicateStudentIds.has(student.id)).length;
+  const selectedIssuedCount = selectedRows.filter(student => Boolean(student.certificateNo) && !duplicateStudentIds.has(student.id)).length;
   const sequentialEndNo = (parseInt(startCertNo, 10) || 1368) + Math.max(newSelectedCount - 1, 0);
 
   return createPortal(
@@ -1374,6 +1434,7 @@ export default function BulkCertificateGeneratorModal({
                       const sNo = pageSize > 0 ? (validCurrentPage - 1) * pageSize + idx + 1 : idx + 1;
                       const isChecked = selectedStudentIds.has(st.id);
                       const prospectiveCertNo = certNumberMap.get(st.id);
+                      const isDuplicatePrepared = duplicateStudentIds.has(st.id);
 
                       return (
                         <tr
@@ -1397,10 +1458,34 @@ export default function BulkCertificateGeneratorModal({
                             />
                           </td>
                           <td className="p-2 text-center font-mono">
-                            {st.certificateNo ? (
-                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 font-bold text-[10px] border border-emerald-300 dark:border-emerald-800 shadow-2xs">
-                                <Lock size={9} />
+                            {isDuplicatePrepared ? (
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-violet-50 dark:bg-violet-950 text-violet-700 dark:text-violet-300 font-bold text-[10px] border border-violet-300 dark:border-violet-800 shadow-2xs">
+                                <Copy size={9} />
+                                <span>#{st.certificateNo} → #{prospectiveCertNo}</span>
+                                <button
+                                  type="button"
+                                  onClick={(e) => handlePrepareDuplicate(st, e)}
+                                  title="Cancel duplicate TC/CC preparation"
+                                  className="p-0.5 text-rose-500 hover:text-rose-700 rounded cursor-pointer"
+                                >
+                                  <X size={9} />
+                                </button>
+                              </span>
+                            ) : st.certificateNo ? (
+                              <span
+                                title={st.certificateConflict ? `Conflict: certificate #${st.certificateNo} appears under ${st.certificateOwnerRegKeys.length} registration numbers` : `Locked to registration ${st.regNo}`}
+                                className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded font-bold text-[10px] border shadow-2xs ${st.certificateConflict ? 'bg-rose-50 dark:bg-rose-950 text-rose-700 dark:text-rose-300 border-rose-300 dark:border-rose-800' : 'bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800'}`}
+                              >
+                                {st.certificateConflict ? <AlertCircle size={9} /> : <Lock size={9} />}
                                 <span>#{st.certificateNo}</span>
+                                <button
+                                  type="button"
+                                  onClick={(e) => handlePrepareDuplicate(st, e)}
+                                  title={`Prepare a duplicate TC/CC with a new number for registration ${st.regNo}`}
+                                  className="p-0.5 text-violet-600 hover:text-violet-800 dark:hover:text-violet-300 hover:bg-violet-100 dark:hover:bg-violet-900/60 rounded transition-colors cursor-pointer"
+                                >
+                                  <Copy size={9} />
+                                </button>
                                 <button
                                   type="button"
                                   onClick={(e) => handleRevokeSingleStudent(st, e)}

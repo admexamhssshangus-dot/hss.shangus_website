@@ -473,7 +473,9 @@ export function generateResultImportTemplate(studentsList = [], className = '12t
       // from the archive/cohort session selected in the result hub.
       'Exam Mode (Current)': String(raw['Exam Mode (Current)'] || raw.currExamMode || ''),
       'Exam R.No. (Current)': String(raw['Exam R.No. (Current)'] || raw.currExamRoll || ''),
-      'Result (Current)': String(raw['Result (Current)'] || raw.currResult || 'Passed'),
+      // Never pre-classify a blank student as passed; the result must be
+      // explicitly supplied by the board result source.
+      'Result (Current)': String(raw['Result (Current)'] || raw.currResult || ''),
       'Marks/Reapp (Current)': String(raw['Marks/Reapp (Current)'] || raw.currMarksReapp || ''),
       'Div/Distinc (Current)': String(raw['Div/Distinc (Current)'] || raw.currDiv || '')
     };
