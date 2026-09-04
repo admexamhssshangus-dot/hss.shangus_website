@@ -119,7 +119,7 @@ export async function resolveStaffRoleAndPerms(emailOrUser) {
   if (BOOTSTRAP_ADMINS.includes(email)) {
     return {
       role: 'Admin',
-      perms: ['reports', 'controls', 'subjects', 'directEntry', 'bulkTools'],
+      perms: ['reports'],
       isSuperAdmin: false,
       isAdmin: true,
       isTeacher: false,
@@ -179,7 +179,7 @@ export async function recordTeacher2StepVerification(email) {
  * Creates a new staff account (Admin, SuperAdmin, or Teacher).
  * Uses a secondary Firebase App instance so the active Super Admin session is NOT disrupted.
  */
-export async function createStaffAccount({ name, email, role = 'Admin', perms = [], subject = '', mobile = '', password = '', sendSetupEmail = true }) {
+export async function createStaffAccount({ name, email, role = 'Admin', perms = ['reports'], subject = '', mobile = '', password = '', sendSetupEmail = true }) {
   const cleanEmail = email.trim().toLowerCase();
   const cleanName = name.trim();
   if (!cleanEmail || !cleanName) {
