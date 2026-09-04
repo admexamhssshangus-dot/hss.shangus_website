@@ -128,15 +128,26 @@ export default function AdminToolsDropdown({
     };
   }, [isOpen, setIsOpen]);
 
+  // Default category to active tab's category only when menu is opened
+  const wasOpenRef = useRef(false);
   useEffect(() => {
-    if (!isOpen) return;
-    const activeModule = permittedModules.find(module => module.id === activeTab);
-    if (activeModule?.category && visibleCategories.some(c => c.key === activeModule.category)) {
-      setActiveCategoryKey(activeModule.category);
-    } else if (!visibleCategories.some(c => c.key === activeCategoryKey)) {
-      setActiveCategoryKey(visibleCategories[0]?.key || 'Records & Registers');
+    if (isOpen && !wasOpenRef.current) {
+      const activeModule = permittedModules.find(module => module.id === activeTab);
+      if (activeModule?.category && visibleCategories.some(c => c.key === activeModule.category)) {
+        setActiveCategoryKey(activeModule.category);
+      } else if (visibleCategories.length > 0 && !visibleCategories.some(c => c.key === activeCategoryKey)) {
+        setActiveCategoryKey(visibleCategories[0].key);
+      }
     }
-  }, [activeTab, isOpen, permittedModules, visibleCategories, activeCategoryKey]);
+    wasOpenRef.current = isOpen;
+  }, [isOpen, activeTab, permittedModules, visibleCategories]);
+
+  // Fallback in case currently selected category is not in visibleCategories
+  useEffect(() => {
+    if (isOpen && visibleCategories.length > 0 && !visibleCategories.some(c => c.key === activeCategoryKey)) {
+      setActiveCategoryKey(visibleCategories[0].key);
+    }
+  }, [isOpen, visibleCategories, activeCategoryKey]);
 
   if (!isOpen) return null;
 
