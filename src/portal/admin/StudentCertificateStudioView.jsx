@@ -215,7 +215,7 @@ const enrichCertificateIdentityFields = (primaryRaw, linkedRecords = []) => {
   );
   const linkedGender = authoritativeIdentity ? extractGender(authoritativeIdentity) : firstLinked(extractGender);
   const genderValue = linkedGender && linkedGender !== '—' ? linkedGender : extractGender(enriched);
-  const certificateNo = extractStudentCertificateNumber(enriched) || firstLinked(extractStudentCertificateNumber);
+  const certificateNo = extractStudentCertificateNumber(enriched);
 
   if (admissionNo && !extractStudentAdmissionNumber(enriched)) {
     enriched['Admission Number'] = admissionNo;
@@ -232,10 +232,6 @@ const enrichCertificateIdentityFields = (primaryRaw, linkedRecords = []) => {
   if (genderValue && genderValue !== '—') {
     enriched.Gender = genderValue;
     enriched.gender = genderValue;
-  }
-  if (certificateNo && !extractStudentCertificateNumber(enriched)) {
-    enriched.ccDcNo = certificateNo;
-    enriched.certificateNo = certificateNo;
   }
 
   return enriched;

@@ -11,9 +11,9 @@ import { db } from './firebase';
 import { getStudentPhotoUrl, formatPhotoDisplayUrl } from '../utils/imageCompressor';
 import { updateStudentInRegIndex } from './studentIndexService';
 
-const CACHE_PREFIX = 'hss_cache_v5_';
+const CACHE_PREFIX = 'hss_cache_v6_';
 const DEFAULT_TTL_MS = 4 * 60 * 60 * 1000; // 4 hours cache TTL (was 60 mins — prevents unnecessary re-fetches)
-const DB_CACHE_VERSION = 'v5_results_sync_20260904';
+const DB_CACHE_VERSION = 'v6_cert_session_isolation_20260904';
 
 // Separate lightweight photo URL cache (avoids stripping logic issues for photo fields)
 const PHOTO_CACHE_KEY = 'hss_photo_url_cache_v1';
