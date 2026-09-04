@@ -8,13 +8,37 @@ const REGISTRY_DOC_ID = 'certificateRegistry';
 const DEFAULT_INITIAL_CERT_NO = 1367;
 
 /** Return the official numeric serial from stored values such as
- * "1368 (26-08-2026)" or "HSS/SHG/TC-DC/1368/2026". */
+ * "1368 (26-08-2026)", "875; 03-08-2024", "1050", or "HSS/SHG/TC-DC/1368/2026". */
 export function extractCertificateSerial(value) {
   if (value === undefined || value === null) return '';
   const text = String(value).trim();
-  if (!text || /^(—|-|n\/?a|null|undefined)$/i.test(text)) return '';
-  const match = text.match(/(?:^|\D)(\d{3,6})(?=\D|$)/);
-  return match ? String(parseInt(match[1], 10)) : '';
+  if (!text || /^(—|-|n\/?a|null|undefined|none|0|reap|fail|failed|pass|passed|awaiting|awaiting result|in-course)$/i.test(text)) return '';
+
+  if (/^\d{1,6}$/.test(text)) {
+    const n = parseInt(text, 10);
+    return n > 0 ? String(n) : '';
+  }
+
+  let stripped = text.replace(/\b\d{1,2}[-/.]\d{1,2}[-/.]\d{2,4}\b/g, ' ');
+  stripped = stripped.replace(/[/(](?:19|20)\d{2}[/)]?/g, ' ');
+
+  const match = stripped.match(/(?:^|\D)(\d{1,6})(?=\D|$)/);
+  if (match) {
+    const num = parseInt(match[1], 10);
+    if (num > 0) return String(num);
+  }
+
+  const allNums = Array.from(text.matchAll(/\b(\d{1,6})\b/g)).map(m => parseInt(m[1], 10)).filter(n => n > 0);
+  if (allNums.length === 1) {
+    return String(allNums[0]);
+  }
+  if (allNums.length > 1) {
+    const nonYear = allNums.find(n => n < 1900 || n > 2099);
+    if (nonYear) return String(nonYear);
+    return String(allNums[0]);
+  }
+
+  return '';
 }
 
 /**
@@ -103,15 +127,17 @@ export async function commitIssuedCertificateBatch(issuedStudents = [], issueDat
       dischargeCertStatus: 'Issued'
     };
     const parentDocId = raw._parentDocId || item.student?._parentDocId || '';
-    const sourceCollection = raw._srcCollection || raw._source || item.student?.sourceCollection || 'admissions';
+    const sourceCollection = raw._srcCollection || raw._source || item.student?.sourceCollection || (parentDocId ? 'masterRegisters' : 'admissions');
+    const studentDocId = String(raw.id || item.id || item.student?.id || '').trim() ||
+      (formNo ? (formNo.startsWith('adm_') ? formNo : `adm_${formNo}`) : regNo);
 
     if (sourceCollection === 'masterRegisters' && parentDocId) {
       if (!masterGroups.has(parentDocId)) masterGroups.set(parentDocId, []);
       masterGroups.get(parentDocId).push({ formNo, regNo, patch });
-    } else if (formNo || regNo) {
-      const studentRef = doc(db, sourceCollection === 'masterRegisters' ? 'masterRegisters' : 'admissions', formNo || regNo);
+    } else if (studentDocId) {
+      const studentRef = doc(db, sourceCollection === 'masterRegisters' ? 'masterRegisters' : 'admissions', studentDocId);
       queueSet(studentRef, patch, { merge: true });
-      cacheUpdates.push([sourceCollection === 'masterRegisters' ? 'masterRegisters' : 'admissions', formNo || regNo, patch]);
+      cacheUpdates.push([sourceCollection === 'masterRegisters' ? 'masterRegisters' : 'admissions', studentDocId, patch]);
     }
   });
 
@@ -225,15 +251,17 @@ export async function revokeCertificateNumberBatch(studentsToRevoke = []) {
     };
 
     const parentDocId = raw._parentDocId || item.student?._parentDocId || '';
-    const sourceCollection = raw._srcCollection || raw._source || item.student?.sourceCollection || 'admissions';
+    const sourceCollection = raw._srcCollection || raw._source || item.student?.sourceCollection || (parentDocId ? 'masterRegisters' : 'admissions');
+    const studentDocId = String(raw.id || item.id || item.student?.id || '').trim() ||
+      (formNo ? (formNo.startsWith('adm_') ? formNo : `adm_${formNo}`) : regNo);
 
     if (sourceCollection === 'masterRegisters' && parentDocId) {
       if (!masterGroups.has(parentDocId)) masterGroups.set(parentDocId, []);
       masterGroups.get(parentDocId).push({ formNo, regNo, patch });
-    } else if (formNo || regNo) {
-      const studentRef = doc(db, sourceCollection === 'masterRegisters' ? 'masterRegisters' : 'admissions', formNo || regNo);
+    } else if (studentDocId) {
+      const studentRef = doc(db, sourceCollection === 'masterRegisters' ? 'masterRegisters' : 'admissions', studentDocId);
       queueSet(studentRef, patch, { merge: true });
-      cacheUpdates.push([sourceCollection === 'masterRegisters' ? 'masterRegisters' : 'admissions', formNo || regNo, patch]);
+      cacheUpdates.push([sourceCollection === 'masterRegisters' ? 'masterRegisters' : 'admissions', studentDocId, patch]);
     }
   });
 

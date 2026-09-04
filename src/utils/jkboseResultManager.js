@@ -413,19 +413,34 @@ export function extractStudentAdmissionDate(st) {
 export function extractStudentCertificateNumber(st) {
   if (!st) return '';
   const raw = st?.raw || st || {};
-  const value = findNormalizedRecordValue(raw, [
+  const aliases = [
     'No. & Date of CC/DC Issued (This Institution)',
     'No. & Date of CC/DC Issued',
     'CC/DC No. & Date',
     'CC DC Number',
     'TC DC Number',
+    'TC/DC Number',
+    'TC/DC No.',
     'Certificate Number',
+    'Certificate No.',
     'Certificate No',
+    'dischargeCertNo',
     'ccDcNo',
+    'tcDcNo',
     'certificateNo',
+    'certNo',
     'currCcDc'
-  ]);
-  return isUsableRecordValue(value) ? String(value).trim() : '';
+  ];
+  let value = findNormalizedRecordValue(raw, aliases);
+  if (!isUsableRecordValue(value) && st !== raw) {
+    value = findNormalizedRecordValue(st, aliases);
+  }
+  if (!isUsableRecordValue(value)) return '';
+  const text = String(value).trim();
+  if (/^(—|-|n\/?a|null|undefined|none|0|reap|fail|failed|pass|passed|awaiting|awaiting result|in-course)$/i.test(text)) {
+    return '';
+  }
+  return text;
 }
 
 /**
