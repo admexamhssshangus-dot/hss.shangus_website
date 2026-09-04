@@ -4232,7 +4232,7 @@ const COLUMN_DEFS = [
 ];
 
 const DEFAULT_1_WIDTHS = {
-  sno: 45,
+  sno: 70,
   formNo: 62,
   status: 62,
   classRollNo: 65,
@@ -5713,7 +5713,8 @@ export default function AdvancedReports({
 
     const onMouseMove = (moveEvent) => {
       const deltaX = moveEvent.clientX - startX;
-      const newWidth = Math.max(1, startWidth + deltaX);
+      const minColWidth = colKey === 'sno' ? 65 : 1;
+      const newWidth = Math.max(minColWidth, startWidth + deltaX);
       latestWidths = { ...latestWidths, [colKey]: newWidth };
       setColWidths(prev => ({
         ...prev,
@@ -8754,6 +8755,8 @@ export default function AdvancedReports({
       ? 'px-1.5 py-1 text-[11px] sm:px-2.5 sm:py-2 sm:text-[13px] font-extrabold leading-tight sm:leading-normal'
       : 'px-2 py-1.5 text-xs sm:px-3.5 sm:py-2.5 sm:text-sm font-black leading-tight sm:leading-normal';
 
+  const hasSnoColumn = orderedVisibleColumns.some(c => c.key === 'sno');
+
   return (
     <div className="space-y-0.5 text-xs sm:text-sm animate-fadeIn relative">
       {/* Sleek Ultra-Compact Control Bar */}
@@ -9155,25 +9158,27 @@ export default function AdvancedReports({
         <table className="w-full text-left text-slate-900 dark:text-slate-100 bg-white dark:bg-slate-900 whitespace-normal break-words table-fixed">
             <thead className="sticky top-0 z-30 overflow-visible bg-slate-100 dark:bg-slate-800 text-[#800000] dark:text-rose-400 font-black border-b-2 border-rose-900/30 uppercase tracking-tight text-xs sm:text-[13px] shadow-2xs">
               <tr className="overflow-visible">
-                <th className="sticky left-0 top-0 z-50 w-9 min-w-9 max-w-9 px-1 py-1 text-center bg-slate-100 dark:bg-slate-800 border-r border-slate-300 dark:border-slate-700">
-                  <input
-                    type="checkbox"
-                    checked={allPageRowsSelected}
-                    ref={element => {
-                      if (element) element.indeterminate = somePageRowsSelected && !allPageRowsSelected;
-                    }}
-                    disabled={selectablePageStudents.length === 0}
-                    onChange={toggleCurrentPageSelection}
-                    aria-label={allPageRowsSelected ? 'Deselect all applications on this page' : 'Select all applications on this page'}
-                    title={allPageRowsSelected ? 'Deselect current page' : 'Select current page'}
-                    className="w-3.5 h-3.5 accent-indigo-600 cursor-pointer disabled:cursor-not-allowed"
-                  />
-                </th>
+                {!hasSnoColumn && (
+                  <th className="sticky left-0 top-0 z-50 w-9 min-w-9 max-w-9 px-1 py-1 text-center bg-slate-100 dark:bg-slate-800 border-r border-slate-300 dark:border-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={allPageRowsSelected}
+                      ref={element => {
+                        if (element) element.indeterminate = somePageRowsSelected && !allPageRowsSelected;
+                      }}
+                      disabled={selectablePageStudents.length === 0}
+                      onChange={toggleCurrentPageSelection}
+                      aria-label={allPageRowsSelected ? 'Deselect all applications on this page' : 'Select all applications on this page'}
+                      title={allPageRowsSelected ? 'Deselect current page' : 'Select current page'}
+                      className="w-3.5 h-3.5 accent-indigo-600 cursor-pointer disabled:cursor-not-allowed"
+                    />
+                  </th>
+                )}
                 {orderedVisibleColumns.map((col, idx) => {
                   const configuredWidth = colWidths[col.key] || DEFAULT_1_WIDTHS[col.key] || 100;
-                  const widthPx = col.key === 'fatherName' ? Math.max(configuredWidth, 150) : configuredWidth;
+                  const widthPx = col.key === 'fatherName' ? Math.max(configuredWidth, 150) : col.key === 'sno' ? Math.max(configuredWidth, 70) : configuredWidth;
                   const stickyClasses = col.isSticky
-                    ? 'sticky left-9 top-0 z-40 bg-slate-100 dark:bg-slate-800 text-[#800000] dark:text-rose-400 font-black border-r border-slate-300 dark:border-slate-700'
+                    ? `${hasSnoColumn ? 'sticky left-0' : 'sticky left-9'} top-0 z-40 bg-slate-100 dark:bg-slate-800 text-[#800000] dark:text-rose-400 font-black border-r border-slate-300 dark:border-slate-700`
                     : 'sticky top-0 z-30 bg-slate-100 dark:bg-slate-800 text-[#800000] dark:text-rose-400 font-black';
 
                   const isFirstShiftable = idx === 0 || (idx === 1 && orderedVisibleColumns[0]?.isSticky);
@@ -9213,9 +9218,29 @@ export default function AdvancedReports({
                         </div>
                       )}
 
-                      <div className={`flex items-center ${col.key === 'sno' ? 'justify-center text-center' : 'justify-between'} overflow-hidden`}>
-                        <span className={`break-all overflow-hidden font-black text-[#800000] dark:text-rose-400 ${col.key === 'sno' ? 'text-center w-full' : ''}`}>{col.label}</span>
-                      </div>
+                      {col.key === 'sno' ? (
+                        <div className="flex items-center justify-center gap-1.5 px-0.5 py-0.5 whitespace-nowrap">
+                          <input
+                            type="checkbox"
+                            checked={allPageRowsSelected}
+                            ref={element => {
+                              if (element) element.indeterminate = somePageRowsSelected && !allPageRowsSelected;
+                            }}
+                            disabled={selectablePageStudents.length === 0}
+                            onChange={toggleCurrentPageSelection}
+                            aria-label={allPageRowsSelected ? 'Deselect all applications on this page' : 'Select all applications on this page'}
+                            title={allPageRowsSelected ? 'Deselect current page' : 'Select current page'}
+                            className="w-3.5 h-3.5 accent-indigo-600 cursor-pointer disabled:cursor-not-allowed flex-shrink-0"
+                          />
+                          <span className="break-normal whitespace-nowrap font-black text-[#800000] dark:text-rose-400 text-xs sm:text-[12px] tracking-tight">
+                            S.No.
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-between overflow-hidden">
+                          <span className="break-all overflow-hidden font-black text-[#800000] dark:text-rose-400">{col.label}</span>
+                        </div>
+                      )}
 
                       {/* Interactive Drag Handle to Resize Column Width */}
                       <div
@@ -9253,58 +9278,73 @@ export default function AdvancedReports({
 
                   return (
                     <tr key={`adv_rep_row_${s.id || s.docId || s.formNo || idx}_${dynamicSNo}_${idx}`} className={`group transition-colors font-bold ${isSelected ? 'bg-indigo-50 dark:bg-indigo-950/50 ring-1 ring-inset ring-indigo-300 dark:ring-indigo-800' : idx % 2 === 0 ? 'bg-white dark:bg-slate-900' : 'bg-slate-50 dark:bg-slate-800/40'} hover:bg-amber-50 dark:hover:bg-amber-900/30`}>
-                      <td className={`sticky left-0 z-20 w-9 min-w-9 max-w-9 px-1 py-1 text-center border-r border-slate-200 dark:border-slate-800 ${isSelected ? 'bg-indigo-50 dark:bg-indigo-950' : idx % 2 === 0 ? 'bg-white dark:bg-slate-900' : 'bg-slate-50 dark:bg-slate-800'}`}>
-                        <input
-                          type="checkbox"
-                          checked={isSelected}
-                          disabled={!isSelectable || bulkTableActionBusy}
-                          onChange={() => toggleTableStudent(s)}
-                          aria-label={isSelectable ? `Select ${s.studentName || `application ${dynamicSNo}`}` : 'Historical records cannot be selected for application actions'}
-                          title={isSelectable ? 'Select this exact application' : 'Historical register record: actions unavailable'}
-                          className="w-3.5 h-3.5 accent-indigo-600 cursor-pointer disabled:cursor-not-allowed disabled:opacity-30"
-                        />
-                      </td>
+                      {!hasSnoColumn && (
+                        <td className={`sticky left-0 z-20 w-9 min-w-9 max-w-9 px-1 py-1 text-center border-r border-slate-200 dark:border-slate-800 ${isSelected ? 'bg-indigo-50 dark:bg-indigo-950' : idx % 2 === 0 ? 'bg-white dark:bg-slate-900' : 'bg-slate-50 dark:bg-slate-800'}`}>
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            disabled={!isSelectable || bulkTableActionBusy}
+                            onChange={() => toggleTableStudent(s)}
+                            aria-label={isSelectable ? `Select ${s.studentName || `application ${dynamicSNo}`}` : 'Historical records cannot be selected for application actions'}
+                            title={isSelectable ? 'Select this exact application' : 'Historical register record: actions unavailable'}
+                            className="w-3.5 h-3.5 accent-indigo-600 cursor-pointer disabled:cursor-not-allowed disabled:opacity-30"
+                          />
+                        </td>
+                      )}
                       {orderedVisibleColumns.map(col => {
                         const val = col.key === 'sno' ? dynamicSNo : (s[col.key] ?? '—');
                         const cellId = `${s.id || s.sno || idx}_${col.key}`;
                         const isCopied = copiedCellId === cellId;
                         const isRowCopied = copiedCellId === `row_${s.id || s.sno}`;
                         const configuredWidth = colWidths[col.key] || DEFAULT_1_WIDTHS[col.key] || 100;
-                        const widthPx = col.key === 'fatherName' ? Math.max(configuredWidth, 150) : configuredWidth;
+                        const widthPx = col.key === 'fatherName' ? Math.max(configuredWidth, 150) : col.key === 'sno' ? Math.max(configuredWidth, 70) : configuredWidth;
 
                         const stickyBg = col.isSticky
-                          ? ` sticky left-9 z-10 border-r border-slate-200 dark:border-slate-800/50 transition-colors ${isSelected ? 'bg-indigo-50 dark:bg-indigo-950' : idx % 2 === 0 ? 'bg-white dark:bg-slate-900' : 'bg-slate-50 dark:bg-slate-800/40'} group-hover:bg-amber-50 dark:group-hover:bg-amber-900/30`
+                          ? ` ${hasSnoColumn ? 'sticky left-0' : 'sticky left-9'} z-20 border-r border-slate-200 dark:border-slate-800/50 transition-colors ${isSelected ? 'bg-indigo-50 dark:bg-indigo-950' : idx % 2 === 0 ? 'bg-white dark:bg-slate-900' : 'bg-slate-50 dark:bg-slate-800/40'} group-hover:bg-amber-50 dark:group-hover:bg-amber-900/30`
                           : '';
 
                         return (
                           <td
                             key={col.key}
                             style={{ width: `${widthPx}px`, maxWidth: `${widthPx}px` }}
-                            className={`relative group/cell overflow-hidden ${cellPaddingClass} ${col.className || ''} ${stickyBg}`}
+                            className={`relative group/cell overflow-hidden ${col.key === 'sno' ? 'px-1 py-1' : cellPaddingClass} ${col.className || ''} ${stickyBg}`}
                           >
                             {col.key === 'sno' ? (
-                              <div className="flex flex-col items-center justify-center text-center py-0.5 min-w-0 w-full">
-                                <span className="font-mono font-black text-amber-800 dark:text-amber-300 text-xs sm:text-[13px]">{dynamicSNo}</span>
-                                {s._isHistorical ? (
-                                  <span className="text-[8px] font-black leading-none px-1 py-px rounded bg-violet-100 dark:bg-violet-950/60 text-violet-600 dark:text-violet-400 border border-violet-200 dark:border-violet-800/60 mt-0.5 select-none" title="Source: Master Registers (Historical)">REG</span>
-                                ) : (
-                                  <span className="text-[8px] font-black leading-none px-1 py-px rounded bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/60 mt-0.5 select-none" title="Source: Active Admissions">ADM</span>
-                                )}
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleCopyRow(s);
-                                  }}
-                                  className="opacity-0 group-hover:opacity-100 transition-opacity mt-0.5 p-0.5 rounded hover:bg-amber-200 dark:hover:bg-amber-800/60 text-amber-700 dark:text-amber-300 cursor-pointer flex items-center justify-center"
-                                  title="Copy entire row for Excel/Sheets"
-                                >
-                                  {isRowCopied ? (
-                                    <span className="text-[9px] font-black text-emerald-600 dark:text-emerald-400">Copied!</span>
+                              <div className="flex items-center justify-between gap-1 px-0.5 py-0.5 w-full min-w-0">
+                                <input
+                                  type="checkbox"
+                                  checked={isSelected}
+                                  disabled={!isSelectable || bulkTableActionBusy}
+                                  onChange={() => toggleTableStudent(s)}
+                                  aria-label={isSelectable ? `Select ${s.studentName || `application ${dynamicSNo}`}` : 'Historical records cannot be selected for application actions'}
+                                  title={isSelectable ? 'Select this exact application' : 'Historical register record: actions unavailable'}
+                                  className="w-3.5 h-3.5 accent-indigo-600 cursor-pointer disabled:cursor-not-allowed disabled:opacity-30 flex-shrink-0"
+                                />
+                                <div className="flex flex-col items-center justify-center text-center flex-1 min-w-0">
+                                  <div className="flex items-center gap-0.5 justify-center leading-none">
+                                    <span className="font-mono font-black text-amber-800 dark:text-amber-300 text-xs sm:text-[13px]">{dynamicSNo}</span>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleCopyRow(s);
+                                      }}
+                                      className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-amber-200 dark:hover:bg-amber-800/60 text-amber-700 dark:text-amber-300 cursor-pointer flex items-center justify-center"
+                                      title="Copy entire row for Excel/Sheets"
+                                    >
+                                      {isRowCopied ? (
+                                        <span className="text-[8px] font-black text-emerald-600 dark:text-emerald-400 leading-none">✓</span>
+                                      ) : (
+                                        <Copy size={9} />
+                                      )}
+                                    </button>
+                                  </div>
+                                  {s._isHistorical ? (
+                                    <span className="text-[7.5px] font-black leading-none px-0.5 py-px rounded bg-violet-100 dark:bg-violet-950/60 text-violet-600 dark:text-violet-400 border border-violet-200 dark:border-violet-800/60 mt-0.5 select-none" title="Source: Master Registers (Historical)">REG</span>
                                   ) : (
-                                    <Copy size={10} />
+                                    <span className="text-[7.5px] font-black leading-none px-0.5 py-px rounded bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/60 mt-0.5 select-none" title="Source: Active Admissions">ADM</span>
                                   )}
-                                </button>
+                                </div>
                               </div>
                             ) : (
                               <div className="flex items-center justify-between gap-1 min-w-0">
@@ -9386,9 +9426,11 @@ export default function AdvancedReports({
                     }}
                   >
                     {/* Checkbox Placeholder */}
-                    <td className="p-1 sm:p-1.5 text-center border-r border-slate-200/60 dark:border-slate-800/60 w-8">
-                      <div className="w-3.5 h-3.5 mx-auto rounded-md bg-slate-200 dark:bg-slate-800" />
-                    </td>
+                    {!hasSnoColumn && (
+                      <td className="p-1 sm:p-1.5 text-center border-r border-slate-200/60 dark:border-slate-800/60 w-8">
+                        <div className="w-3.5 h-3.5 mx-auto rounded-md bg-slate-200 dark:bg-slate-800" />
+                      </td>
+                    )}
 
                     {/* Dynamic Table Column Skeletons */}
                     {orderedVisibleColumns.map((col, cIdx) => {
@@ -9399,7 +9441,10 @@ export default function AdvancedReports({
                           className="p-1 sm:p-1.5 border-r border-slate-200/50 dark:border-slate-800/50 align-middle text-left"
                         >
                           {colKey === 'sno' ? (
-                            <div className="w-5 h-3.5 mx-auto rounded bg-slate-200 dark:bg-slate-800" />
+                            <div className="flex items-center justify-center gap-1.5">
+                              <div className="w-3.5 h-3.5 rounded bg-slate-200 dark:bg-slate-800 shrink-0" />
+                              <div className="w-6 h-3.5 rounded bg-slate-200 dark:bg-slate-800" />
+                            </div>
                           ) : colKey === 'formNo' ? (
                             <div className="w-12 h-4 rounded-md bg-emerald-100 dark:bg-emerald-950/60" />
                           ) : colKey === 'status' ? (
@@ -9444,7 +9489,7 @@ export default function AdvancedReports({
                 ))
               ) : (
                 <tr>
-                  <td colSpan={(orderedVisibleColumns.length || 1) + 1} className="p-10 text-center text-slate-600 dark:text-slate-400">
+                  <td colSpan={orderedVisibleColumns.length + (hasSnoColumn ? 0 : 1)} className="p-10 text-center text-slate-600 dark:text-slate-400">
                     <div className="flex flex-col items-center justify-center gap-2 py-4">
                       <SearchX size={28} className="text-slate-400 dark:text-slate-500" />
                       <p className="font-extrabold text-sm text-slate-700 dark:text-slate-300">
