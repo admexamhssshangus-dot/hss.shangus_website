@@ -3,7 +3,7 @@ import { useOutletContext } from 'react-router-dom';
 import { Lock, ChevronDown, Wrench, Sliders, ArrowLeft } from 'lucide-react';
 import SEO from '../../components/SEO';
 import GlobalDataSyncHUD from '../../components/GlobalDataSyncHUD';
-import AdminToolsDropdown, { ADMIN_TOOL_MODULES } from './AdminToolsDropdown';
+import AdminToolsDropdown, { ADMIN_TOOL_MODULES, isUserPermittedForModule } from './AdminToolsDropdown';
 import LogoutConfirmModal from '../components/LogoutConfirmModal';
 import TabLoadingOverlay from '../../components/TabLoadingOverlay';
 import { getCachedCollection, getCachedCollectionSync, subscribeToCollection, getPaginatedCollection, hydrateRemainingPages } from '../../services/dbCache';
@@ -329,32 +329,9 @@ export default function AdminDashboard() {
   };
 
   // Check if a specific tab/module is permitted for the logged-in user
-  const isTabPermitted = (tabId) => {
-    if (!user) return false;
-    const role = String(user.role || '').toLowerCase().trim();
-    const email = String(user.email || '').toLowerCase().trim();
-    
-    // Genuine SuperAdmins have unconditional access to all modules
-    if (
-      role === 'superadmin' || 
-      isBootstrapSuperAdminEmail(email)
-    ) {
-      return true;
-    }
-
-    // For Admin and sub-admin accounts, strictly evaluate assigned perms array
-    const perms = Array.isArray(user.perms) ? user.perms : [];
-    if (perms.includes('*')) return true;
-    if (perms.length > 0) {
-      if (tabId === 'customRoster' || tabId === 'officialLetter' || tabId === 'certStudio' || tabId === 'docStudio') {
-        return perms.includes('docStudio') || perms.includes('customRoster') || perms.includes('officialLetter') || perms.includes('certStudio') || perms.includes('certificate');
-      }
-      return perms.includes(tabId);
-    }
-
-    // Default fallback for restricted Admin with no perms: Master Register (reports) only
-    return tabId === 'reports';
-  };
+  const isTabPermitted = useCallback((tabId) => {
+    return isUserPermittedForModule(user, tabId);
+  }, [user]);
 
   // Helper to test if student has a valid assigned Class Roll Number
   const hasClassRollVal = (a) => {

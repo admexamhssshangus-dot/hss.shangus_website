@@ -47,25 +47,25 @@ const DEFAULT_ADMIN_USERS = [
     name: 'Sheikh Gulfam',
     email: 'e.educational.24@gmail.com',
     role: 'Admin',
-    perms: ['reports', 'admRegisterSuite'],
+    perms: ['reports'],
   },
   {
     name: 'Nawaz Ahmad Shah (Admin)',
     email: 'shahnawaz@gmail.com',
     role: 'Admin',
-    perms: ['reports', 'admRegisterSuite'],
+    perms: ['reports'],
   },
   {
     name: 'Bilal Ahmad Khandy',
     email: 'bilalhcu@gmail.com',
     role: 'Admin',
-    perms: ['reports', 'admRegisterSuite'],
+    perms: ['reports'],
   },
   {
     name: 'Majid Hassan Najar',
     email: 'majidhassannajar@gmail.com',
     role: 'Admin',
-    perms: ['reports', 'admRegisterSuite'],
+    perms: ['reports'],
   },
 ];
 
@@ -324,7 +324,7 @@ export default function ControlsAndSubjects() {
     name: '', 
     email: '', 
     role: 'Admin', 
-    perms: ['reports', 'admRegisterSuite', 'attendanceMgmt', 'rollNo', 'idCards'],
+    perms: ['reports'],
     subject: '',
     mobile: '',
     password: '',
@@ -689,7 +689,7 @@ export default function ControlsAndSubjects() {
       name: '', 
       email: '', 
       role: 'Admin', 
-      perms: ['reports', 'admRegisterSuite', 'attendanceMgmt', 'rollNo', 'idCards'],
+      perms: ['reports'],
       subject: '',
       mobile: '',
       password: '',
@@ -705,7 +705,7 @@ export default function ControlsAndSubjects() {
       name: user.name || '', 
       email: user.email || '', 
       role: user.role || 'Admin', 
-      perms: Array.isArray(user.perms) ? [...user.perms] : ['reports', 'admRegisterSuite'],
+      perms: Array.isArray(user.perms) ? [...user.perms] : ['reports'],
       subject: user.subject || '',
       mobile: user.mobile || '',
       password: '',
@@ -2088,6 +2088,15 @@ export default function ControlsAndSubjects() {
                             className="text-[10px] font-extrabold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
                           >
                             Select All
+                          </button>
+                          <span className="text-slate-300 dark:text-slate-700">|</span>
+                          <button
+                            type="button"
+                            onClick={() => setAdminForm({ ...adminForm, perms: ['reports'] })}
+                            className="text-[10px] font-extrabold text-amber-600 dark:text-amber-400 hover:underline cursor-pointer"
+                            title="Reset to Simple Admin default permissions (Reports & Register only)"
+                          >
+                            Default (Simple Admin)
                           </button>
                           <span className="text-slate-300 dark:text-slate-700">|</span>
                           <button

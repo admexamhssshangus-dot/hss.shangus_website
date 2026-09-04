@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useMemo, useState } from 'react';
+import React, { useRef, useEffect, useMemo, useState, useCallback } from 'react';
 import { 
   BarChart2, Contact, ShieldCheck, Settings, ClipboardCheck, 
   CalendarCheck, Hash, Layers, Mail, CreditCard, Edit3, PlusCircle, 
@@ -79,6 +79,36 @@ export default function AdminToolsDropdown({
     [user],
   );
 
+  const isSuper = user?.role?.toLowerCase() === 'superadmin' || isBootstrapSuperAdminEmail(user?.email);
+  const perms = Array.isArray(user?.perms) ? user.perms : [];
+  const canReports = isUserPermittedForModule(user, 'reports');
+  const canDirectEntry = isSuper || perms.includes('*') || perms.includes('directEntry') || perms.includes('ingestion');
+  const canBulk = isSuper || perms.includes('*') || perms.includes('bulkTools') || perms.includes('bulk') || isUserPermittedForModule(user, 'controls');
+
+  const categories = useMemo(() => [
+    { key: 'Records & Registers', title: 'Records & Registers', icon: BarChart2, color: 'text-amber-500 dark:text-amber-400', bg: 'bg-amber-500/10 dark:bg-amber-500/20' },
+    { key: 'Academics & Controls', title: 'Academics & Controls', icon: Settings, color: 'text-emerald-500 dark:text-emerald-400', bg: 'bg-emerald-500/10 dark:bg-emerald-500/20' },
+    { key: 'Operations & Automation', title: 'Operations & Automation', icon: Layers, color: 'text-indigo-500 dark:text-indigo-400', bg: 'bg-indigo-500/10 dark:bg-indigo-500/20' },
+    { key: 'Quick Actions', title: 'Quick Actions', icon: Zap, color: 'text-violet-500 dark:text-violet-400', bg: 'bg-violet-500/10 dark:bg-violet-500/20' },
+  ], []);
+
+  const getCategoryCount = useCallback((catKey) => {
+    if (catKey === 'Quick Actions') {
+      return (
+        (setEnableQuickCellEdit !== undefined ? 1 : 0) +
+        (canReports ? 1 : 0) +
+        (canDirectEntry ? 1 : 0) +
+        (canBulk ? 1 : 0)
+      );
+    }
+    return permittedModules.filter(m => m.category === catKey).length;
+  }, [setEnableQuickCellEdit, canReports, canDirectEntry, canBulk, permittedModules]);
+
+  const visibleCategories = useMemo(() => {
+    const activeList = categories.filter(cat => getCategoryCount(cat.key) > 0);
+    return activeList.length > 0 ? activeList : categories;
+  }, [categories, getCategoryCount]);
+
   useEffect(() => {
     function handleClickOutside(e) {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
@@ -101,21 +131,14 @@ export default function AdminToolsDropdown({
   useEffect(() => {
     if (!isOpen) return;
     const activeModule = permittedModules.find(module => module.id === activeTab);
-    if (activeModule?.category) setActiveCategoryKey(activeModule.category);
-  }, [activeTab, isOpen, permittedModules]);
+    if (activeModule?.category && visibleCategories.some(c => c.key === activeModule.category)) {
+      setActiveCategoryKey(activeModule.category);
+    } else if (!visibleCategories.some(c => c.key === activeCategoryKey)) {
+      setActiveCategoryKey(visibleCategories[0]?.key || 'Records & Registers');
+    }
+  }, [activeTab, isOpen, permittedModules, visibleCategories, activeCategoryKey]);
 
   if (!isOpen) return null;
-
-  const isSuper = user?.role?.toLowerCase() === 'superadmin' || isBootstrapSuperAdminEmail(user?.email);
-  const canReports = isUserPermittedForModule(user, 'reports');
-  const canBulk = isUserPermittedForModule(user, 'controls') || isUserPermittedForModule(user, 'reports') || isSuper;
-
-  const categories = [
-    { key: 'Records & Registers', title: 'Records & Registers', icon: BarChart2, color: 'text-amber-500 dark:text-amber-400', bg: 'bg-amber-500/10 dark:bg-amber-500/20' },
-    { key: 'Academics & Controls', title: 'Academics & Controls', icon: Settings, color: 'text-emerald-500 dark:text-emerald-400', bg: 'bg-emerald-500/10 dark:bg-emerald-500/20' },
-    { key: 'Operations & Automation', title: 'Operations & Automation', icon: Layers, color: 'text-indigo-500 dark:text-indigo-400', bg: 'bg-indigo-500/10 dark:bg-indigo-500/20' },
-    { key: 'Quick Actions', title: 'Quick Actions', icon: Zap, color: 'text-violet-500 dark:text-violet-400', bg: 'bg-violet-500/10 dark:bg-violet-500/20' },
-  ];
 
   const currentCategoryItems = permittedModules.filter(m => m.category === activeCategoryKey);
 
@@ -181,12 +204,10 @@ export default function AdminToolsDropdown({
               Categories
             </div>
 
-            {categories.map((cat) => {
+            {visibleCategories.map((cat) => {
               const CatIcon = cat.icon;
               const isSelected = activeCategoryKey === cat.key;
-              const count = cat.key === 'Quick Actions'
-                ? (canReports ? 2 : 0) + (canBulk ? 1 : 0) + (setEnableQuickCellEdit !== undefined ? 1 : 0)
-                : permittedModules.filter(m => m.category === cat.key).length;
+              const count = getCategoryCount(cat.key);
 
               return (
                 <button
@@ -338,7 +359,7 @@ export default function AdminToolsDropdown({
                     </button>
                   )}
 
-                  {canReports && (
+                  {canDirectEntry && (
                     <button
                       type="button"
                       onClick={() => {
