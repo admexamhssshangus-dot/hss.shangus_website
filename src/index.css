@@ -764,6 +764,13 @@ html, body, #root {
   min-height: 220px;
 }
 
+@media (max-width: 480px) {
+  .hero-container {
+    aspect-ratio: 16 / 11;
+    min-height: 250px;
+  }
+}
+
 @media (min-width: 640px) {
   .hero-container {
     aspect-ratio: auto;

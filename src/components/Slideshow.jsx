@@ -219,7 +219,7 @@ export default function Slideshow({
                       style={{ backgroundImage: `url(${s.image})` }}
                     />
                     {/* Foreground uncropped full photo with animation (padded to stay within clear visible area) */}
-                    <div className="absolute inset-0 flex items-center justify-center p-2 sm:p-4 md:p-6 pt-3 sm:pt-4 md:pt-6 pb-16 sm:pb-20 md:pb-24">
+                    <div className="absolute inset-0 flex items-center justify-center p-1 sm:p-4 md:p-6 pt-2 sm:pt-4 md:pt-6 pb-7 sm:pb-16 md:pb-24">
                       <img
                         src={s.image}
                         alt={s.title || "Govt HSS Shangus"}
@@ -253,7 +253,7 @@ export default function Slideshow({
 
                 {/* 3. CONTAIN MODE: Centered uncropped with dark backdrop */}
                 {fitMode === 'contain' && (
-                  <div className="absolute inset-0 bg-slate-950/80 flex items-center justify-center p-2 sm:p-4 md:p-6 pt-3 sm:pt-4 md:pt-6 pb-16 sm:pb-20 md:pb-24">
+                  <div className="absolute inset-0 bg-slate-950/80 flex items-center justify-center p-1 sm:p-4 md:p-6 pt-2 sm:pt-4 md:pt-6 pb-7 sm:pb-16 md:pb-24">
                     <img
                       src={s.image}
                       alt={s.title || "Govt HSS Shangus"}
@@ -285,20 +285,21 @@ export default function Slideshow({
       })}
 
       {/* Dark vignette & readability gradient overlay above slides but below text slogans */}
-      <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-black/30 to-black/45 z-10 pointer-events-none" />
+      <div className="absolute inset-0 bg-gradient-to-t from-slate-950/75 via-black/15 to-black/25 sm:from-slate-950/80 sm:via-black/30 sm:to-black/45 z-10 pointer-events-none" />
 
       {/* Interactive Controls & Slide Indicator Dots */}
       <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-50">
-        <div className="flex items-center gap-1 sm:gap-1.5 absolute bottom-2.5 right-2 sm:right-auto sm:left-1/2 sm:-translate-x-1/2 sm:bottom-4 md:bottom-20 pointer-events-auto z-50 bg-transparent hover:bg-slate-950/75 border border-transparent hover:border-white/20 hover:backdrop-blur-md px-1.5 sm:px-2.5 py-0.5 sm:py-1 rounded-full hover:shadow-xl transition-all duration-300 group">
+        <div className="flex items-center gap-0.5 sm:gap-1.5 absolute bottom-1.5 right-1.5 sm:right-auto sm:left-1/2 sm:-translate-x-1/2 sm:bottom-4 md:bottom-20 pointer-events-auto z-50 bg-black/25 sm:bg-transparent hover:bg-slate-950/75 border border-white/10 sm:border-transparent hover:border-white/20 backdrop-blur-xs sm:backdrop-blur-none hover:backdrop-blur-md px-1 sm:px-2.5 py-0.5 sm:py-1 rounded-full hover:shadow-xl transition-all duration-300 group">
           {/* Prev button */}
           <button
             type="button"
             aria-label="Previous slide"
             onClick={handlePrev}
-            className="text-white/85 hover:text-white hover:bg-white/15 active:scale-90 rounded-full flex items-center justify-center w-4 h-4 sm:w-5 sm:h-5 transition-all duration-200 cursor-pointer drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]"
+            className="text-white/85 hover:text-white hover:bg-white/15 active:scale-90 rounded-full flex items-center justify-center w-3.5 h-3.5 sm:w-5 sm:h-5 transition-all duration-200 cursor-pointer drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]"
             title="Previous slide"
           >
-            <ChevronLeft size={12} className="stroke-[2.5]" />
+            <ChevronLeft size={10} className="stroke-[2.5] sm:hidden" />
+            <ChevronLeft size={12} className="stroke-[2.5] hidden sm:block" />
           </button>
 
           {/* Indicator dots */}
@@ -310,10 +311,10 @@ export default function Slideshow({
                   type="button"
                   onClick={() => setIndex(i)}
                   aria-label={`Jump to slide ${i + 1}`}
-                  className={`h-1 sm:h-1.5 rounded-full transition-all duration-300 cursor-pointer drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)] ${
+                  className={`h-0.5 sm:h-1.5 rounded-full transition-all duration-300 cursor-pointer drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)] ${
                     i === index
-                      ? 'w-3.5 sm:w-5 bg-teal-400 shadow-[0_0_8px_rgba(45,212,191,0.9)]'
-                      : 'w-1 sm:w-1.5 bg-white/45 hover:bg-white/80'
+                      ? 'w-2.5 sm:w-5 bg-teal-400 shadow-[0_0_6px_rgba(45,212,191,0.9)]'
+                      : 'w-0.5 sm:w-1.5 bg-white/45 hover:bg-white/80'
                   }`}
                   title={`Slide ${i + 1}`}
                 />
@@ -326,10 +327,11 @@ export default function Slideshow({
             type="button"
             aria-label="Next slide"
             onClick={handleNext}
-            className="text-white/85 hover:text-white hover:bg-white/15 active:scale-90 rounded-full flex items-center justify-center w-4 h-4 sm:w-5 sm:h-5 transition-all duration-200 cursor-pointer drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]"
+            className="text-white/85 hover:text-white hover:bg-white/15 active:scale-90 rounded-full flex items-center justify-center w-3.5 h-3.5 sm:w-5 sm:h-5 transition-all duration-200 cursor-pointer drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]"
             title="Next slide"
           >
-            <ChevronRight size={12} className="stroke-[2.5]" />
+            <ChevronRight size={10} className="stroke-[2.5] sm:hidden" />
+            <ChevronRight size={12} className="stroke-[2.5] hidden sm:block" />
           </button>
         </div>
       </div>
@@ -338,14 +340,14 @@ export default function Slideshow({
       {(slides[index]?.title || slides[index]?.caption) && (
         <div
           key={`caption-${index}`}
-          className="animate-badge-fade-up absolute left-2 sm:left-5 right-auto bottom-2 sm:bottom-5 md:bottom-20 text-left z-20 pointer-events-none max-w-[calc(100%-140px)] sm:max-w-[65%] flex flex-col items-start gap-0.5"
+          className="animate-badge-fade-up absolute left-1.5 sm:left-5 right-auto bottom-1.5 sm:bottom-5 md:bottom-20 text-left z-20 pointer-events-none max-w-[calc(100%-95px)] sm:max-w-[65%] flex flex-col items-start gap-0.5"
         >
           {slides[index].title && (
             <h3
-              className="text-[11px] sm:text-sm md:text-base font-extrabold leading-tight m-0 p-0 tracking-wide"
+              className="text-[9px] sm:text-sm md:text-base font-extrabold leading-tight m-0 p-0 tracking-wide"
               style={{
                 color: '#5eead4',
-                textShadow: '0 2px 8px rgba(0, 0, 0, 0.95), 0 0 14px rgba(0, 0, 0, 0.8)'
+                textShadow: '0 2px 6px rgba(0, 0, 0, 0.95), 0 0 10px rgba(0, 0, 0, 0.8)'
               }}
             >
               {slides[index].title}
@@ -353,18 +355,18 @@ export default function Slideshow({
           )}
           {slides[index].caption && (
             <div
-              className="px-2 py-0.5 rounded-[4px] shadow-lg flex items-center m-0"
+              className="px-1.5 py-0.5 rounded-[3px] sm:rounded-[4px] shadow-sm sm:shadow-lg flex items-center m-0"
               style={{
-                backgroundColor: 'rgba(2, 6, 23, 0.85)',
-                backdropFilter: 'blur(8px)',
-                boxShadow: '0 4px 16px rgba(0, 0, 0, 0.75)'
+                backgroundColor: 'rgba(2, 6, 23, 0.75)',
+                backdropFilter: 'blur(6px)',
+                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.6)'
               }}
             >
               <p
-                className="text-[9.5px] sm:text-[11px] md:text-xs italic font-medium leading-none m-0 p-0"
+                className="text-[7.5px] sm:text-[11px] md:text-xs italic font-medium leading-none m-0 p-0"
                 style={{
                   color: '#ffffff',
-                  textShadow: '0 1px 3px rgba(0, 0, 0, 0.95)'
+                  textShadow: '0 1px 2px rgba(0, 0, 0, 0.95)'
                 }}
               >
                 {slides[index].caption}
