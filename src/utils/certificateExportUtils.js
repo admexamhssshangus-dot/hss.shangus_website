@@ -639,7 +639,6 @@ export function printStudentCertificate({
   sigReceiptGap = 12
 }) {
   const marginInches = Math.min(Math.max(Number(pageMargin) || 0.3, 0.1), 0.5);
-  const marginDoubleInches = (marginInches * 2).toFixed(3);
   const headerGapInches = Math.max(Number(headerGap) ?? 0.50, 0.0);
   const titleMetaGapPx = Math.max(Number(titleMetaGap) ?? 0, 0);
   const metaBodyGapInches = Math.max(Number(metaBodyGap) ?? 0.50, 0.0);
@@ -810,16 +809,17 @@ export function printStudentCertificate({
       margin: 0;
       padding: 0;
       width: 100%;
+      height: 100%;
       background-color: #ffffff;
       font-family: 'Lora', 'Merriweather', Georgia, serif;
       color: #0f172a;
     }
 
     .cert-page {
-      width: calc(210mm - ${marginDoubleInches}in);
-      height: calc(297mm - ${marginDoubleInches}in);
-      min-height: calc(297mm - ${marginDoubleInches}in);
-      max-height: calc(297mm - ${marginDoubleInches}in);
+      width: 100%;
+      height: 100%;
+      min-height: 100%;
+      max-height: 100%;
       box-sizing: border-box;
       background-color: #fdfbf7;
       background-image:
@@ -1339,8 +1339,8 @@ export function printStudentCertificate({
         box-shadow: none !important;
         width: 100% !important;
         height: 100% !important;
-        min-height: calc(297mm - ${marginDoubleInches}in) !important;
-        max-height: calc(297mm - ${marginDoubleInches}in) !important;
+        min-height: 100% !important;
+        max-height: 100% !important;
         page-break-after: always !important;
         break-after: page !important;
         page-break-inside: avoid !important;
@@ -1420,7 +1420,6 @@ export function printBatchStudentCertificates(studentsList = [], commonOptions =
   } = commonOptions;
 
   const marginInches = Math.min(Math.max(Number(pageMargin) || 0.3, 0.1), 0.5);
-  const marginDoubleInches = (marginInches * 2).toFixed(3);
   const headerGapInches = Math.max(Number(headerGap) ?? 0.50, 0.0);
   const titleMetaGapPx = Math.max(Number(titleMetaGap) ?? 0, 0);
   const metaBodyGapInches = Math.max(Number(metaBodyGap) ?? 0.50, 0.0);
@@ -1592,16 +1591,17 @@ export function printBatchStudentCertificates(studentsList = [], commonOptions =
       margin: 0;
       padding: 0;
       width: 100%;
+      height: 100%;
       background-color: #ffffff;
       font-family: 'Lora', 'Merriweather', Georgia, serif;
       color: #0f172a;
     }
 
     .cert-page {
-      width: calc(210mm - ${marginDoubleInches}in);
-      height: calc(297mm - ${marginDoubleInches}in);
-      min-height: calc(297mm - ${marginDoubleInches}in);
-      max-height: calc(297mm - ${marginDoubleInches}in);
+      width: 100%;
+      height: 100%;
+      min-height: 100%;
+      max-height: 100%;
       box-sizing: border-box;
       background-color: #fdfbf7;
       background-image:
@@ -2114,8 +2114,8 @@ export function printBatchStudentCertificates(studentsList = [], commonOptions =
         box-shadow: none !important;
         width: 100% !important;
         height: 100% !important;
-        min-height: calc(297mm - ${marginDoubleInches}in) !important;
-        max-height: calc(297mm - ${marginDoubleInches}in) !important;
+        min-height: 100% !important;
+        max-height: 100% !important;
         page-break-after: always !important;
         break-after: page !important;
         page-break-inside: avoid !important;
