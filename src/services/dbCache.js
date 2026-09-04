@@ -11,8 +11,9 @@ import { db } from './firebase';
 import { getStudentPhotoUrl, formatPhotoDisplayUrl } from '../utils/imageCompressor';
 import { updateStudentInRegIndex } from './studentIndexService';
 
-const CACHE_PREFIX = 'hss_cache_';
+const CACHE_PREFIX = 'hss_cache_v5_';
 const DEFAULT_TTL_MS = 4 * 60 * 60 * 1000; // 4 hours cache TTL (was 60 mins — prevents unnecessary re-fetches)
+const DB_CACHE_VERSION = 'v5_results_sync_20260904';
 
 // Separate lightweight photo URL cache (avoids stripping logic issues for photo fields)
 const PHOTO_CACHE_KEY = 'hss_photo_url_cache_v1';
@@ -38,12 +39,44 @@ export function clearAllMemoryCache() {
     localStorage.removeItem(`${CACHE_PREFIX}masterRegisters`);
     localStorage.removeItem(`${CACHE_PREFIX}masterRegisters_c0`);
     localStorage.removeItem(`${CACHE_PREFIX}masterRegisters_c1`);
+    localStorage.removeItem('hss_cache_masterRegisters');
     localStorage.removeItem('hss_cache_masterRegisters_v2');
     localStorage.removeItem('hss_cache_masterRegisters_v2_c0');
     localStorage.removeItem('hss_cache_masterRegisters_v2_c1');
     sessionStorage.removeItem(`${CACHE_PREFIX}admissions`);
     localStorage.removeItem(`${CACHE_PREFIX}admissions`);
     localStorage.removeItem(PHOTO_CACHE_KEY);
+  } catch (_) {}
+}
+
+/**
+ * Invalidate a specific collection's cache from memory, window, and storage.
+ */
+export function invalidateCollectionCache(collectionName) {
+  if (!collectionName) return;
+  memoryCache.delete(collectionName);
+  memoryTs.delete(collectionName);
+  if (collectionName === 'masterRegisters' && typeof window !== 'undefined') {
+    delete window._hssMasterRegistersCache;
+  }
+  try {
+    sessionStorage.removeItem(`${CACHE_PREFIX}${collectionName}`);
+    localStorage.removeItem(`${CACHE_PREFIX}${collectionName}`);
+    sessionStorage.removeItem(`hss_cache_${collectionName}`);
+    localStorage.removeItem(`hss_cache_${collectionName}`);
+    sessionStorage.removeItem(`${CACHE_PREFIX}${collectionName}_ts`);
+    localStorage.removeItem(`${CACHE_PREFIX}${collectionName}_ts`);
+  } catch (_) {}
+}
+
+// Auto-purge stale in-memory or storage caches whenever the build or dataset version changes
+if (typeof window !== 'undefined') {
+  try {
+    const currentVer = localStorage.getItem('hss_db_cache_version');
+    if (currentVer !== DB_CACHE_VERSION) {
+      clearAllMemoryCache();
+      localStorage.setItem('hss_db_cache_version', DB_CACHE_VERSION);
+    }
   } catch (_) {}
 }
 
