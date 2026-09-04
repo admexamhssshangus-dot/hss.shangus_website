@@ -63,6 +63,31 @@ forbidMatch(
   /preloadCentralStudentPhotos/,
   'Certificate Studio must not scan all photos during initial render.'
 );
+requireMatch(
+  'src/portal/admin/StudentCertificateStudioView.jsx',
+  /fetchAndResolveStudentPhoto\(st, \{ requestId, allowNetwork: false \}\)/,
+  'Certificate Studio live preview must resolve photos locally without Firestore reads.'
+);
+requireMatch(
+  'src/portal/admin/StudentCertificateStudioView.jsx',
+  /const recentResultByIdentity = useMemo/,
+  'Certificate Studio must index ingested results instead of repeatedly scanning them for every student.'
+);
+requireMatch(
+  'src/portal/admin/StudentCertificateStudioView.jsx',
+  /const ResultIngestionModal = React\.lazy/,
+  'Certificate Studio heavy result-ingestion tools must remain lazy-loaded.'
+);
+requireMatch(
+  'src/portal/admin/StudentCertificateStudioView.jsx',
+  /\{showBulkGeneratorModal && \(\s*<BulkCertificateGeneratorModal/,
+  'Certificate Studio bulk generation code must load only when its modal is opened.'
+);
+forbidMatch(
+  'src/portal/admin/StudentCertificateStudioView.jsx',
+  /unifiedStudentDirectory\.filter\(s => s\.cls\.includes/,
+  'Certificate Studio cohort counts must not rescan the full directory during every render.'
+);
 forbidMatch(
   'src/portal/admin/AdmissionRegisterSuite.jsx',
   /preloadStudentPhotosCache/,

@@ -21,9 +21,6 @@ import {
   printStudentCertificate,
   generateStudentCertificateDocx
 } from '../../utils/certificateExportUtils';
-import StudentResultEditorModal from './StudentResultEditorModal';
-import ResultIngestionModal from './ResultIngestionModal';
-import BulkCertificateGeneratorModal from './BulkCertificateGeneratorModal';
 import ConfirmModal from '../components/ConfirmModal';
 import { fetchLastIssuedCertificateNumber, extractCertificateSerial, commitIssuedCertificateBatch, revokeCertificateNumberBatch } from '../../services/certificateRegistryService';
 import {
@@ -87,9 +84,13 @@ import {
 } from '../../services/docTemplateService';
 import { saveGeneratedDocToHistory } from '../../services/docHistoryService';
 import { recordApplicationPrint } from '../../services/printTrackerService';
-import DocumentHistoryModal from './DocumentHistoryModal';
 import TabLoadingOverlay from '../../components/TabLoadingOverlay';
 import { scheduleIdleWork } from '../../utils/scheduleIdleWork';
+
+const StudentResultEditorModal = React.lazy(() => import('./StudentResultEditorModal'));
+const ResultIngestionModal = React.lazy(() => import('./ResultIngestionModal'));
+const BulkCertificateGeneratorModal = React.lazy(() => import('./BulkCertificateGeneratorModal'));
+const DocumentHistoryModal = React.lazy(() => import('./DocumentHistoryModal'));
 
 export const sanitizeCertificateHtml = (rawHtml) => {
   if (!rawHtml || typeof rawHtml !== 'string') return '';
@@ -113,6 +114,25 @@ export const sanitizeCertificateHtml = (rawHtml) => {
 };
 
 const cleanStudentIdentity = (value) => String(value || '').trim().toLowerCase().replace(/\s+/g, '');
+
+const getCertificateStudentKey = (student) => {
+  if (!student) return '';
+  return [
+    student.id,
+    student.regNo,
+    student.rollNo,
+    student.formNo,
+    student.session,
+    student.cls,
+    student.sourceType,
+    student.name,
+    student.father
+  ].map(cleanStudentIdentity).join('|');
+};
+
+const getCertificateStudentNameKey = (student) => cleanStudentIdentity(
+  student?.name || student?.studentName || student?.raw?.["Student's Name"]
+);
 
 const getStudentIdentityValues = (student) => {
   const raw = student?.raw || student || {};
@@ -289,6 +309,7 @@ export default function StudentCertificateStudioView({
         const key = String(m.formNo || m['Form Number'] || m['Form No.'] || m.boardRegNo || m.id || '').trim();
         if (!key || !seenIds.has(key)) {
           list.push(m);
+          if (key) seenIds.add(key);
         }
       });
     }
@@ -329,6 +350,24 @@ export default function StudentCertificateStudioView({
     return map;
   }, [combinedStudentPool]);
 
+  const recentResultByIdentity = useMemo(() => {
+    const byIdentity = new Map();
+    const byName = new Map();
+    (recentIngestedResults || []).forEach(row => {
+      getStudentIdentityValues({
+        ...row,
+        id: row.formNo || row.id,
+        raw: row.matchedStudent || row
+      }).forEach(identity => byIdentity.set(identity, row));
+      const nameKey = getCertificateStudentNameKey(row);
+      if (nameKey) {
+        if (!byName.has(nameKey)) byName.set(nameKey, []);
+        byName.get(nameKey).push(row);
+      }
+    });
+    return { byIdentity, byName };
+  }, [recentIngestedResults]);
+
   // Combined searchable student directory with fast canonical single-pass mapping
   const unifiedStudentDirectory = useMemo(() => {
     if (!isReady) return [];
@@ -337,7 +376,10 @@ export default function StudentCertificateStudioView({
 
     (combinedStudentPool || []).forEach(st => {
       if (!st) return;
-      const latestResult = recentIngestedResults.find(row => ingestionRowMatchesStudent(row, st));
+      const latestResult = getStudentIdentityValues(st)
+        .map(identity => recentResultByIdentity.byIdentity.get(identity))
+        .find(Boolean) || (recentResultByIdentity.byName.get(getCertificateStudentNameKey(st)) || [])
+          .find(row => ingestionRowMatchesStudent(row, st));
       const effectiveStudent = latestResult
         ? mergeIngestedResultIntoStudent(st, latestResult, latestResult.overwriteExamRoll)
         : st;
@@ -408,7 +450,7 @@ export default function StudentCertificateStudioView({
     });
 
     return list;
-  }, [combinedStudentPool, recentIngestedResults, isReady, registrationHistoryByReg]);
+  }, [combinedStudentPool, recentResultByIdentity, isReady, registrationHistoryByReg]);
 
   // ─── Dynamic Sessions Derived from Indexed Directory (Reverse Chronological Order) ───
   const dynamicSessions = useMemo(() => {
@@ -428,6 +470,19 @@ export default function StudentCertificateStudioView({
     return sorted.map(k => ({ value: k, label: `Session ${k} (${counts[k]})` }));
   }, [unifiedStudentDirectory]);
 
+  const cohortCounts = useMemo(() => {
+    const counts = { all: unifiedStudentDirectory.length, '12th': 0, '11th': 0, '10th': 0, '9th': 0, past: 0 };
+    unifiedStudentDirectory.forEach(student => {
+      const className = String(student.cls || '');
+      if (className.includes('12')) counts['12th'] += 1;
+      else if (className.includes('11')) counts['11th'] += 1;
+      else if (className.includes('10')) counts['10th'] += 1;
+      else if (className.includes('9')) counts['9th'] += 1;
+      if (student.sourceType === 'past') counts.past += 1;
+    });
+    return counts;
+  }, [unifiedStudentDirectory]);
+
   // ─── Student Search & Selection State ───
   const [studentSearchQuery, setStudentSearchQuery] = useState('');
   const [debouncedStudentQuery, setDebouncedStudentQuery] = useState('');
@@ -439,6 +494,16 @@ export default function StudentCertificateStudioView({
   const listContainerRef = useRef(null);
   const livePreviewTimeoutRef = useRef(null);
   const scrollPreviewTimeoutRef = useRef(null);
+  const selectionRequestRef = useRef(0);
+  const handleSelectStudentRef = useRef(null);
+  const lastIssuedCertificateRef = useRef(null);
+  const photoLookupAttemptsRef = useRef(new Set());
+
+  useEffect(() => () => {
+    selectionRequestRef.current += 1;
+    if (livePreviewTimeoutRef.current) clearTimeout(livePreviewTimeoutRef.current);
+    if (scrollPreviewTimeoutRef.current) clearTimeout(scrollPreviewTimeoutRef.current);
+  }, []);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -475,7 +540,7 @@ export default function StudentCertificateStudioView({
 
     const q = deferredStudentQuery.trim().toLowerCase();
     const hasFilter = activeCohortFilter !== 'ALL' || activeSessionFilter !== 'ALL';
-    const limit = hasFilter ? 350 : 80;
+    const limit = hasFilter ? 160 : 80;
     if (!q) return pool.slice(0, limit);
 
     return pool.filter(st => (st.searchToken || '').includes(q)).slice(0, limit);
@@ -788,7 +853,10 @@ export default function StudentCertificateStudioView({
   };
 
   // ─── Real-time Database Photo Resolution Engine ───
-  const fetchAndResolveStudentPhoto = useCallback(async (targetStudent = null) => {
+  const fetchAndResolveStudentPhoto = useCallback(async (
+    targetStudent = null,
+    { requestId = null, allowNetwork = true } = {}
+  ) => {
     const st = targetStudent || selectedStudent || {
       name: studentName,
       father: fatherName,
@@ -801,31 +869,44 @@ export default function StudentCertificateStudioView({
 
     if (!st) return null;
 
-    setIsFetchingPhoto(true);
+    const isCurrentRequest = () => requestId === null || selectionRequestRef.current === requestId;
+    const applyPhoto = (photo) => {
+      if (isCurrentRequest()) setStudentPhotoUrl(photo);
+      return photo;
+    };
+
+    if (isCurrentRequest()) setIsFetchingPhoto(allowNetwork);
 
     try {
       // 1. Instant check in memory / localStorage photo cache
       const fastPhoto = resolveStudentPhoto(st.raw || st) || getPhotoUrlFromCache(st.regNo || regNo || st.rollNo || rollNo) || st.photo;
       if (fastPhoto && typeof fastPhoto === 'string' && fastPhoto.length > 20 && fastPhoto !== '/logo.png') {
-        setStudentPhotoUrl(fastPhoto);
-        setIsFetchingPhoto(false);
-        return fastPhoto;
+        if (isCurrentRequest()) setIsFetchingPhoto(false);
+        return applyPhoto(fastPhoto);
+      }
+
+      // Hover and scroll previews must remain local-only. Network photo lookup
+      // is reserved for an intentional click/keyboard selection.
+      if (!allowNetwork) {
+        if (isCurrentRequest()) {
+          setStudentPhotoUrl(null);
+          setIsFetchingPhoto(false);
+        }
+        return null;
       }
 
       // 2. Fetch on-demand from centralized Firestore studentPhotos cache
       const onDemandPhoto = await fetchStudentPhotoOnDemand(st.raw || st);
       if (onDemandPhoto && typeof onDemandPhoto === 'string' && onDemandPhoto.length > 20 && onDemandPhoto !== '/logo.png') {
-        setStudentPhotoUrl(onDemandPhoto);
-        setIsFetchingPhoto(false);
-        return onDemandPhoto;
+        if (isCurrentRequest()) setIsFetchingPhoto(false);
+        return applyPhoto(onDemandPhoto);
       }
 
       // 3. Fallback to comprehensive cross-session matching
       const allMatches = await fetchAllMatchingStudentPhotos(st.raw || st);
       if (allMatches && allMatches.length > 0 && allMatches[0].url) {
-        setStudentPhotoUrl(allMatches[0].url);
-        setIsFetchingPhoto(false);
-        return allMatches[0].url;
+        if (isCurrentRequest()) setIsFetchingPhoto(false);
+        return applyPhoto(allMatches[0].url);
       }
 
       // 4. Query Firestore studentPhotos directly for key permutations
@@ -847,13 +928,13 @@ export default function StudentCertificateStudioView({
             const data = snap.data();
             const p = (data.photo_id || data.photoData || data.photo || data.photoUrl || '').trim();
             if (p && p.length > 20 && p !== '/logo.png') {
-              setStudentPhotoUrl(p);
+              applyPhoto(p);
               if (typeof window !== 'undefined') {
                 window._hss_central_photo_map = window._hss_central_photo_map || {};
                 window._hss_central_photo_map[cKey] = p;
                 if (rawReg) window._hss_central_photo_map[rawReg] = p;
               }
-              setIsFetchingPhoto(false);
+              if (isCurrentRequest()) setIsFetchingPhoto(false);
               return p;
             }
           }
@@ -875,16 +956,15 @@ export default function StudentCertificateStudioView({
         if (candidateInPool) {
           const p = resolveStudentPhoto(candidateInPool.raw || candidateInPool) || candidateInPool.photo;
           if (p && p.length > 20 && p !== '/logo.png') {
-            setStudentPhotoUrl(p);
-            setIsFetchingPhoto(false);
-            return p;
+            if (isCurrentRequest()) setIsFetchingPhoto(false);
+            return applyPhoto(p);
           }
         }
       }
     } catch (err) {
       console.warn('Error fetching student photo from database:', err);
     } finally {
-      setIsFetchingPhoto(false);
+      if (isCurrentRequest()) setIsFetchingPhoto(false);
     }
     return null;
   }, [selectedStudent, studentName, fatherName, regNo, rollNo, className, session, unifiedStudentDirectory]);
@@ -895,14 +975,21 @@ export default function StudentCertificateStudioView({
     setShowPhoto(nextVal);
     if (nextVal) {
       // Immediately fetch this student's photo from database!
-      await fetchAndResolveStudentPhoto();
+      const studentKey = getCertificateStudentKey(selectedStudent);
+      if (studentKey) photoLookupAttemptsRef.current.add(studentKey);
+      await fetchAndResolveStudentPhoto(selectedStudent, {
+        requestId: selectionRequestRef.current,
+        allowNetwork: true
+      });
     }
   };
 
   // ─── Select Student Handler (Auto-Fills Fields & Instantly Resolves DB Photo) ───
   const handleSelectStudent = async (st, { keepOpen = false, isPreviewOnly = false } = {}) => {
     if (!st) return;
-    setPreviewedStudentId(st.id);
+    const requestId = ++selectionRequestRef.current;
+    const studentKey = getCertificateStudentKey(st);
+    setPreviewedStudentId(studentKey);
     setSelectedStudent(st);
     if (!keepOpen && !isDropdownPinned && !isPreviewOnly) {
       setIsSearchDropdownOpen(false);
@@ -929,11 +1016,12 @@ export default function StudentCertificateStudioView({
         );
         // Avoid a redundant full admissions read when the complete master-register
         // pool already contains the linked admission identity.
-        if (!hasAuthoritativeIdentity) {
+        if (!hasAuthoritativeIdentity && !isPreviewOnly) {
           const cachedAdmissions = getCachedCollectionSync('admissions');
           const admissions = Array.isArray(cachedAdmissions) && cachedAdmissions.length > 0
             ? cachedAdmissions
             : await getCachedCollection('admissions');
+          if (selectionRequestRef.current !== requestId) return;
           registrationMatches = [...registrationMatches, ...(admissions || []).filter(record =>
             normalizeRegistrationKey(extractBoardRegNo(record)) === targetReg
           )];
@@ -954,6 +1042,7 @@ export default function StudentCertificateStudioView({
             };
           }
           st = { ...st, raw: enrichedRaw };
+          if (selectionRequestRef.current !== requestId) return;
           setSelectedStudent(st);
         }
       } catch (error) {
@@ -1016,10 +1105,12 @@ export default function StudentCertificateStudioView({
     setAdmissionDate(admDateResolved);
     
     // Resolve student photo from database (non-blocking for smooth live preview)
-    if (isPreviewOnly) {
-      fetchAndResolveStudentPhoto(st).catch(() => {});
+    if (isPreviewOnly || !showPhoto) {
+      fetchAndResolveStudentPhoto(st, { requestId, allowNetwork: false }).catch(() => {});
     } else {
-      await fetchAndResolveStudentPhoto(st);
+      photoLookupAttemptsRef.current.add(getCertificateStudentKey(st));
+      await fetchAndResolveStudentPhoto(st, { requestId, allowNetwork: true });
+      if (selectionRequestRef.current !== requestId) return;
     }
 
     // Auto-update Ref No / Certificate No cleanly without 16-digit Reg No or Form No
@@ -1028,25 +1119,35 @@ export default function StudentCertificateStudioView({
     
     if (existingCertNo && !/^(—|-|n\/?a|null|undefined)$/i.test(String(existingCertNo).trim())) {
       setRefNo(isTcDcTemplate ? (extractCertificateSerial(existingCertNo) || String(existingCertNo).trim()) : String(existingCertNo).trim());
+    } else if (isPreviewOnly) {
+      const nextNo = lastIssuedCertificateRef.current ? lastIssuedCertificateRef.current + 1 : null;
+      setRefNo(nextNo
+        ? (isTcDcTemplate ? String(nextNo) : `${activeTpl.refPrefix || 'HSS/SHG'}/${nextNo}/${new Date().getFullYear()}`)
+        : 'Assigned on issue');
     } else {
       let lastNo = 1367;
       try {
         lastNo = await fetchLastIssuedCertificateNumber();
       } catch (_) {}
+      if (selectionRequestRef.current !== requestId) return;
+      lastIssuedCertificateRef.current = lastNo;
       const nextNo = lastNo + 1;
       setRefNo(isTcDcTemplate ? String(nextNo) : `${activeTpl.refPrefix || 'HSS/SHG'}/${nextNo}/${new Date().getFullYear()}`);
     }
   };
 
+  // Keep debounced preview callbacks connected to the latest render state.
+  handleSelectStudentRef.current = handleSelectStudent;
+
   // Ultra-fast debounced realtime hover / scroll preview
   const handleLivePreview = useCallback((st) => {
     if (!st || !isLivePreviewEnabled) return;
-    setPreviewedStudentId(st.id);
+    setPreviewedStudentId(getCertificateStudentKey(st));
     if (livePreviewTimeoutRef.current) clearTimeout(livePreviewTimeoutRef.current);
     livePreviewTimeoutRef.current = setTimeout(() => {
-      handleSelectStudent(st, { keepOpen: true, isPreviewOnly: true });
-    }, 35);
-  }, [isLivePreviewEnabled, isDropdownPinned, selectedTemplateId, customTemplates]);
+      handleSelectStudentRef.current?.(st, { keepOpen: true, isPreviewOnly: true });
+    }, 120);
+  }, [isLivePreviewEnabled]);
 
   // Realtime scroll detector: as user scrolls list, auto-previews student in view
   const handleListScroll = useCallback(() => {
@@ -1068,7 +1169,7 @@ export default function StudentCertificateStudioView({
           break;
         }
       }
-    }, 60);
+    }, 120);
   }, [isLivePreviewEnabled, filteredStudents, handleLivePreview]);
 
   // Keyboard navigation on search input: ArrowUp / ArrowDown flips preview in real-time
@@ -1077,7 +1178,7 @@ export default function StudentCertificateStudioView({
     if (e.key === 'ArrowDown') {
       e.preventDefault();
       setIsSearchDropdownOpen(true);
-      const currentIndex = filteredStudents.findIndex(s => s.id === (previewedStudentId || selectedStudent?.id));
+      const currentIndex = filteredStudents.findIndex(s => getCertificateStudentKey(s) === (previewedStudentId || getCertificateStudentKey(selectedStudent)));
       const nextIndex = currentIndex < filteredStudents.length - 1 ? currentIndex + 1 : 0;
       const nextStudent = filteredStudents[nextIndex];
       handleLivePreview(nextStudent);
@@ -1086,14 +1187,14 @@ export default function StudentCertificateStudioView({
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
       setIsSearchDropdownOpen(true);
-      const currentIndex = filteredStudents.findIndex(s => s.id === (previewedStudentId || selectedStudent?.id));
+      const currentIndex = filteredStudents.findIndex(s => getCertificateStudentKey(s) === (previewedStudentId || getCertificateStudentKey(selectedStudent)));
       const prevIndex = currentIndex > 0 ? currentIndex - 1 : filteredStudents.length - 1;
       const prevStudent = filteredStudents[prevIndex];
       handleLivePreview(prevStudent);
       const el = listContainerRef.current?.querySelector(`[data-student-index="${prevIndex}"]`);
       if (el) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     } else if (e.key === 'Enter') {
-      const active = filteredStudents.find(s => s.id === (previewedStudentId || selectedStudent?.id)) || filteredStudents[0];
+      const active = filteredStudents.find(s => getCertificateStudentKey(s) === (previewedStudentId || getCertificateStudentKey(selectedStudent))) || filteredStudents[0];
       if (active) {
         handleSelectStudent(active, { keepOpen: isDropdownPinned });
       }
@@ -1232,9 +1333,15 @@ export default function StudentCertificateStudioView({
   // ─── Auto-fetch database photo when Photo is ON ───
   useEffect(() => {
     if (showPhoto && !studentPhotoUrl && !isFetchingPhoto) {
-      fetchAndResolveStudentPhoto();
+      const studentKey = getCertificateStudentKey(selectedStudent);
+      if (!studentKey || photoLookupAttemptsRef.current.has(studentKey)) return;
+      photoLookupAttemptsRef.current.add(studentKey);
+      fetchAndResolveStudentPhoto(selectedStudent, {
+        requestId: selectionRequestRef.current,
+        allowNetwork: true
+      });
     }
-  }, [showPhoto, studentPhotoUrl, isFetchingPhoto, fetchAndResolveStudentPhoto]);
+  }, [showPhoto, studentPhotoUrl, isFetchingPhoto, selectedStudent, fetchAndResolveStudentPhoto]);
 
   // ─── Insert Placeholder Chip ───
   const insertToken = (token) => {
@@ -2892,6 +2999,8 @@ export default function StudentCertificateStudioView({
       {/* Unified Global Floating Toast Notification */}
       {toast && (
         <div
+          role={toast.type === 'error' ? 'alert' : 'status'}
+          aria-live={toast.type === 'error' ? 'assertive' : 'polite'}
           style={{ position: 'fixed', bottom: '24px', right: '24px', zIndex: 9999999 }}
           className={`px-4 py-3 rounded-2xl shadow-2xl border flex items-center gap-2.5 font-sans font-bold text-xs animate-in fade-in slide-in-from-bottom-4 duration-200 backdrop-blur-md ${
             toast.type === 'error'
@@ -2916,6 +3025,7 @@ export default function StudentCertificateStudioView({
           <button
             type="button"
             onClick={() => setToast(null)}
+            aria-label="Dismiss notification"
             className="ml-2 text-slate-400 hover:text-white transition-colors cursor-pointer"
           >
             <X size={13} />
@@ -3091,7 +3201,7 @@ export default function StudentCertificateStudioView({
         {/* ================ LEFT HALF: STUDENT SELECTOR & CERTIFICATE PALETTE ================ */}
         <div
           style={{ width: isDesktop ? `${leftSplitPct}%` : '100%' }}
-          className="w-full lg:w-auto shrink-0 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs p-3 space-y-2.5 text-xs overflow-hidden flex flex-col min-h-[620px] max-h-[calc(100vh-95px)]"
+          className="w-full lg:w-auto shrink-0 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs p-3 space-y-2.5 text-xs overflow-visible lg:overflow-hidden flex flex-col min-h-0 lg:min-h-[620px] lg:max-h-[calc(100dvh-95px)]"
         >
           
           {/* STUDENT AUTO-COMPLETE SEARCH BAR & COHORT FILTERS */}
@@ -3109,7 +3219,7 @@ export default function StudentCertificateStudioView({
 
             {/* Quick Cohort & Session Filter Dropdowns & TC Tools Action */}
             <div className="space-y-1 pb-0.5 text-[9.5px]">
-              <div className="grid grid-cols-2 gap-1.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
                 {/* Cohort / Class Filter */}
                 <div className="flex items-center gap-1 min-w-0">
                   <span className="text-slate-500 dark:text-slate-400 font-bold text-[8.5px] uppercase tracking-wider shrink-0">Class:</span>
@@ -3118,12 +3228,12 @@ export default function StudentCertificateStudioView({
                     onChange={(e) => setActiveCohortFilter(e.target.value)}
                     className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 font-bold text-[10px] rounded-lg px-1.5 py-1 focus:ring-1 focus:ring-teal-500 focus:outline-none cursor-pointer truncate shadow-2xs"
                   >
-                    <option value="ALL">All Classes ({unifiedStudentDirectory.length})</option>
-                    <option value="12th">Class 12th ({unifiedStudentDirectory.filter(s => s.cls.includes('12')).length})</option>
-                    <option value="11th">Class 11th ({unifiedStudentDirectory.filter(s => s.cls.includes('11')).length})</option>
-                    <option value="10th">Class 10th ({unifiedStudentDirectory.filter(s => s.cls.includes('10')).length})</option>
-                    <option value="9th">Class 9th ({unifiedStudentDirectory.filter(s => s.cls.includes('9')).length})</option>
-                    <option value="past">Historical ({unifiedStudentDirectory.filter(s => s.sourceType === 'past').length})</option>
+                    <option value="ALL">All Classes ({cohortCounts.all})</option>
+                    <option value="12th">Class 12th ({cohortCounts['12th']})</option>
+                    <option value="11th">Class 11th ({cohortCounts['11th']})</option>
+                    <option value="10th">Class 10th ({cohortCounts['10th']})</option>
+                    <option value="9th">Class 9th ({cohortCounts['9th']})</option>
+                    <option value="past">Historical ({cohortCounts.past})</option>
                   </select>
                 </div>
 
@@ -3172,6 +3282,10 @@ export default function StudentCertificateStudioView({
             <div className="relative">
               <input
                 type="text"
+                aria-label="Search students by name, roll number, registration number, father, or mobile"
+                aria-expanded={isSearchDropdownOpen}
+                aria-controls="certificate-student-results"
+                role="combobox"
                 value={studentSearchQuery}
                 onFocus={() => setIsSearchDropdownOpen(true)}
                 onKeyDown={handleKeyDownOnSearch}
@@ -3190,6 +3304,7 @@ export default function StudentCertificateStudioView({
                     setStudentSearchQuery('');
                     setIsSearchDropdownOpen(false);
                   }}
+                  aria-label="Clear student search"
                   className="absolute right-2 top-2 text-slate-400 hover:text-slate-600 cursor-pointer"
                 >
                   <X size={12} />
@@ -3200,7 +3315,7 @@ export default function StudentCertificateStudioView({
             {/* Active Selected Student Badge (Quick Preview & Quick Actions) */}
             {selectedStudent && (
               <div className="space-y-1.5 animate-fadeIn">
-                <div className="p-2 rounded-xl bg-teal-50/90 dark:bg-teal-950/50 border border-teal-200/90 dark:border-teal-800 flex items-center justify-between gap-2">
+                <div className="p-2 rounded-xl bg-teal-50/90 dark:bg-teal-950/50 border border-teal-200/90 dark:border-teal-800 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
                   <div className="flex items-center gap-2 min-w-0">
                     {studentPhotoUrl ? (
                       <img src={studentPhotoUrl} alt={studentName} className="w-7 h-7 rounded-full object-cover border border-teal-300 shrink-0 shadow-2xs" />
@@ -3247,9 +3362,13 @@ export default function StudentCertificateStudioView({
                     <button
                       type="button"
                       onClick={() => {
+                        selectionRequestRef.current += 1;
                         setSelectedStudent(null);
+                        setPreviewedStudentId(null);
+                        setStudentPhotoUrl(null);
                         setStudentSearchQuery('');
                       }}
+                      aria-label="Clear selected student"
                       className="p-1 rounded-lg hover:bg-rose-100 dark:hover:bg-rose-950 text-slate-400 hover:text-rose-600 cursor-pointer"
                       title="Clear selected student"
                     >
@@ -3462,8 +3581,8 @@ export default function StudentCertificateStudioView({
             {isSearchDropdownOpen && (
               <div className="absolute top-full left-0 right-0 z-50 mt-1 bg-white dark:bg-slate-900 border border-teal-300/80 dark:border-teal-700/80 rounded-xl shadow-2xl overflow-hidden animate-fadeIn">
                 {/* Realtime Live Preview Controls Toolbar */}
-                <div className="px-2.5 py-1.5 bg-slate-100/90 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between gap-1 text-[10px] select-none">
-                  <div className="flex items-center gap-1.5 min-w-0">
+                <div className="px-2.5 py-1.5 bg-slate-100/90 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 flex flex-wrap items-center justify-between gap-1 text-[10px] select-none">
+                  <div className="flex flex-wrap items-center gap-1.5 min-w-0">
                     <button
                       type="button"
                       onClick={() => setIsLivePreviewEnabled(v => !v)}
@@ -3499,6 +3618,7 @@ export default function StudentCertificateStudioView({
                     <button
                       type="button"
                       onClick={() => setIsSearchDropdownOpen(false)}
+                      aria-label="Close student results"
                       className="p-1 hover:bg-slate-200 dark:hover:bg-slate-700 rounded text-slate-400 hover:text-slate-600 cursor-pointer"
                       title="Close list"
                     >
@@ -3509,6 +3629,9 @@ export default function StudentCertificateStudioView({
 
                 {/* Scrollable Students Container with Realtime Scroll Tracking */}
                 <div
+                  id="certificate-student-results"
+                  role="listbox"
+                  aria-label="Matching students"
                   ref={listContainerRef}
                   onScroll={handleListScroll}
                   className={`overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800 overscroll-contain transition-all ${
@@ -3521,18 +3644,21 @@ export default function StudentCertificateStudioView({
                     </div>
                   ) : (
                     filteredStudents.map((st, idx) => {
-                      const isPreviewed = (previewedStudentId === st.id) || (selectedStudent?.id === st.id);
+                      const studentKey = getCertificateStudentKey(st);
+                      const isPreviewed = (previewedStudentId === studentKey) || (getCertificateStudentKey(selectedStudent) === studentKey);
                       return (
                         <button
-                          key={st.id + st.sourceType + (st.rollNo || '') + idx}
+                          key={studentKey || `${st.id}-${idx}`}
                           type="button"
+                          role="option"
+                          aria-selected={isPreviewed}
                           data-student-index={idx}
                           data-student-id={st.id}
                           onMouseEnter={() => {
                             if (isLivePreviewEnabled) handleLivePreview(st);
                           }}
                           onClick={() => handleSelectStudent(st, { keepOpen: isDropdownPinned })}
-                          className={`w-full p-2 text-left flex items-center justify-between gap-2 cursor-pointer transition-all ${
+                          className={`cert-student-option w-full p-2 text-left flex items-center justify-between gap-2 cursor-pointer transition-all ${
                             isPreviewed
                               ? 'bg-teal-50/90 dark:bg-teal-950/60 border-l-4 border-teal-500 shadow-2xs ring-1 ring-teal-400/40'
                               : 'hover:bg-slate-50 dark:hover:bg-slate-800/60'
@@ -3540,7 +3666,7 @@ export default function StudentCertificateStudioView({
                         >
                           <div className="flex items-center gap-2 min-w-0">
                             {st.photo ? (
-                              <img src={st.photo} alt={st.name} className="w-8 h-8 rounded-full object-cover border border-slate-300 shrink-0" />
+                              <img src={st.photo} alt="" loading="lazy" decoding="async" className="w-8 h-8 rounded-full object-cover border border-slate-300 shrink-0" />
                             ) : (
                               <div className="w-8 h-8 rounded-full bg-teal-100 dark:bg-teal-950 text-teal-800 dark:text-teal-300 flex items-center justify-center text-[10.5px] font-black shrink-0">
                                 {st.name.charAt(0)}
@@ -3624,7 +3750,7 @@ export default function StudentCertificateStudioView({
             </div>
 
             {/* Expansive Compact Template Cards Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 overflow-y-auto p-1 flex-1 max-h-[calc(100vh-280px)] content-start items-start auto-rows-max rounded-xl bg-slate-50/50 dark:bg-slate-950/40 border border-slate-200/80 dark:border-slate-800/80">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 overflow-y-auto p-1 flex-1 max-h-[42dvh] lg:max-h-[calc(100dvh-280px)] content-start items-start auto-rows-max rounded-xl bg-slate-50/50 dark:bg-slate-950/40 border border-slate-200/80 dark:border-slate-800/80">
               {displayedTemplates.map((tpl) => {
                 const isSelected = selectedTemplateId === tpl.id;
                 const isDefault = defaultTemplateId === tpl.id;
@@ -3632,6 +3758,16 @@ export default function StudentCertificateStudioView({
                   <div
                     key={tpl.id}
                     onClick={() => handleSelectTemplate(tpl)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        handleSelectTemplate(tpl);
+                      }
+                    }}
+                    role="button"
+                    tabIndex={0}
+                    aria-pressed={isSelected}
+                    aria-label={`Use ${tpl.name}${isDefault ? ', default template' : ''}`}
                     className={`p-1.5 rounded-lg border text-left cursor-pointer transition-all flex flex-col gap-0.5 group relative h-auto ${
                       isSelected
                         ? 'bg-teal-50/90 dark:bg-teal-950/70 border-teal-600 dark:border-teal-500 shadow-2xs ring-1 ring-teal-500/40'
@@ -4567,7 +4703,7 @@ export default function StudentCertificateStudioView({
             {/* ================ A4 PAPER LIVE VIEWPORT & EDITOR ================ */}
             <div className="flex-1 w-full max-w-[840px] min-w-0">
               <div
-                className="text-slate-900 border-2 border-[#800000] outline outline-1 outline-[#c5a059] -outline-offset-4 rounded-xl p-4 sm:p-6 shadow-md max-h-[calc(100vh-95px)] overflow-y-auto relative flex flex-col justify-start min-h-[620px]"
+                className="text-slate-900 border-2 border-[#800000] outline outline-1 outline-[#c5a059] -outline-offset-4 rounded-xl p-4 sm:p-6 shadow-md max-h-[75dvh] lg:max-h-[calc(100dvh-95px)] overflow-y-auto relative flex flex-col justify-start min-h-[520px] lg:min-h-[620px]"
                 style={{
                   backgroundColor: '#fdfbf7',
                   backgroundImage: 'radial-gradient(ellipse at 50% 30%, #ffffff 0%, #fbf9f4 60%, #f6f1e7 100%), repeating-linear-gradient(45deg, rgba(197, 160, 89, 0.016) 0px, rgba(197, 160, 89, 0.016) 1.5px, transparent 1.5px, transparent 8px)'
@@ -5692,16 +5828,19 @@ export default function StudentCertificateStudioView({
       )}
 
       {/* == == == == == == == ==  CLOUD DOCUMENT HISTORY & ARCHIVE MODAL == == == == == == == ==  */}
-      <DocumentHistoryModal
-        isOpen={showHistoryModal}
-        onClose={() => setShowHistoryModal(false)}
-        defaultFilter="bonafide"
-        onLoadAsDraft={handleLoadDraftFromHistory}
-      />
+      {showHistoryModal && (
+        <DocumentHistoryModal
+          isOpen={true}
+          onClose={() => setShowHistoryModal(false)}
+          defaultFilter="bonafide"
+          onLoadAsDraft={handleLoadDraftFromHistory}
+        />
+      )}
 
       {/* == == == == == == == ==  STUDENT JKBOSE RESULT & TC DETAILS EDITOR MODAL == == == == == == == ==  */}
-      <StudentResultEditorModal
-        isOpen={showResultEditorModal}
+      {showResultEditorModal && (
+        <StudentResultEditorModal
+        isOpen={true}
         onClose={() => setShowResultEditorModal(false)}
         student={selectedStudent}
         onSaveSuccess={(updatedSt) => {
@@ -5719,11 +5858,13 @@ export default function StudentCertificateStudioView({
           showToast('✓ Student exam result & TC records updated!', 'success');
         }}
         showToast={showToast}
-      />
+        />
+      )}
 
       {/* == == == == == == == ==  JKBOSE RESULT & AI GAZETTE INGESTION HUB MODAL == == == == == == == ==  */}
-      <ResultIngestionModal
-        isOpen={showResultIngestionModal}
+      {showResultIngestionModal && (
+        <ResultIngestionModal
+        isOpen={true}
         onClose={() => setShowResultIngestionModal(false)}
         allStudents={combinedStudentPool.length > 0 ? combinedStudentPool : allStudents}
         onIngestSuccess={({ records = [], overwriteExamRoll = false } = {}) => {
@@ -5747,11 +5888,13 @@ export default function StudentCertificateStudioView({
           showToast('🎉 Ingestion complete! Certificate data refreshed from the synchronized results.', 'success');
         }}
         showToast={showToast}
-      />
+        />
+      )}
 
       {/* == == == == == == == ==  BULK TC / DISCHARGE CERTIFICATE GENERATOR MODAL == == == == == == == ==  */}
-      <BulkCertificateGeneratorModal
-        isOpen={showBulkGeneratorModal}
+      {showBulkGeneratorModal && (
+        <BulkCertificateGeneratorModal
+        isOpen={true}
         onClose={() => setShowBulkGeneratorModal(false)}
         allStudents={combinedStudentPool.length > 0 ? combinedStudentPool : allStudents}
         officeTitle={officeTitle}
@@ -5759,7 +5902,8 @@ export default function StudentCertificateStudioView({
         institutionAddress={institutionAddress}
         signatories={[signatoryLeft || 'I/c Admissions', 'Checked By', signatoryRight || 'Principal']}
         showToast={showToast}
-      />
+        />
+      )}
 
       {/* == == == == == == == ==  CUSTOM TEMPLATE DELETE CONFIRMATION & WARNING MODAL == == == == == == == ==  */}
       <ConfirmModal

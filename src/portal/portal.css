@@ -63,6 +63,13 @@
   padding-left: max(0.75rem, env(safe-area-inset-left));
 }
 
+/* Keep large certificate search result sets cheap to paint while preserving
+   their natural list height for keyboard and scroll navigation. */
+.cert-student-option {
+  content-visibility: auto;
+  contain-intrinsic-block-size: 49px;
+}
+
 @media screen and (max-width: 47.99rem) {
   .portal-page {
     overflow-x: clip;
