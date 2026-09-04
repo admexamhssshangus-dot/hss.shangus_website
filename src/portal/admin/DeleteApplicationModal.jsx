@@ -104,7 +104,7 @@ export default function DeleteApplicationModal({
   const handleExecuteDeleteWithProgress = async () => {
     try {
       setDeleting(true);
-      setArchiveStep('Archiving to Recycle Bin...');
+      setArchiveStep('Moving records to Recycle Bin…');
 
       const recordsToDelete = deleteScope === 'admissions'
         ? [{ ...student, _sourceCollection: student._source || 'admissions' }]
@@ -125,7 +125,7 @@ export default function DeleteApplicationModal({
         return moveToRecycleBin(rec, sourceColl, userEmail);
       }));
 
-      setArchiveStep('Logging activity...');
+      setArchiveStep('Recording the action…');
       logAdminActivity({
         actionType: 'delete',
         actionTitle: 'Application Archived to Recycle Bin',
@@ -134,7 +134,7 @@ export default function DeleteApplicationModal({
         metadata: { formNo, studentName, count: recordsToDelete.length }
       }).catch(() => {});
 
-      setArchiveStep('Done ✅');
+      setArchiveStep('Completed');
 
       if (onDeleteSuccess) {
         onDeleteSuccess(recordsToDelete);
@@ -154,13 +154,14 @@ export default function DeleteApplicationModal({
   };
 
   return createPortal(
-    <div className="fixed inset-0 z-[99999] flex items-center justify-center p-2.5 sm:p-4 bg-slate-950/80 backdrop-blur-md animate-fadeIn overflow-y-auto">
+    <div role="dialog" aria-modal="true" aria-label="Archive application" className="fixed inset-0 z-[99999] flex items-center justify-center p-2.5 sm:p-4 bg-slate-950/80 backdrop-blur-md animate-fadeIn overflow-y-auto">
       {deleting && (
         <div className="absolute inset-0 z-[100000] flex flex-col items-center justify-center bg-slate-950/85 backdrop-blur-md rounded-2xl sm:rounded-3xl p-6">
           <ModernLoader
             moduleKey="trash"
-            text={archiveStep || 'Archiving to Recycle Bin...'}
-            subtext="Please wait — safely securing record in Recycle Bin archives..."
+            text={archiveStep || 'Moving records to Recycle Bin…'}
+            subtext="Keep this window open until the action completes."
+            inverted
             className="w-full max-w-sm"
           />
         </div>

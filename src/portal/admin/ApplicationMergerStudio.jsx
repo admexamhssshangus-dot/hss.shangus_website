@@ -1288,7 +1288,7 @@ export default function ApplicationMergerStudio({ applications = [], onRefresh, 
             <RefreshCw size={15} className="animate-spin text-amber-600 shrink-0" />
             <div>
               <div className="font-black text-xs text-amber-900 dark:text-amber-100">{mergeProgress}</div>
-              <div className="text-[10.5px] text-amber-700 dark:text-amber-300 font-medium">Controlled consolidation in progress... You can stop at any time.</div>
+              <div className="text-[10.5px] text-amber-700 dark:text-amber-300 font-medium">Keep this page open. You can cancel before the current step finishes.</div>
             </div>
           </div>
           <button
@@ -1297,7 +1297,7 @@ export default function ApplicationMergerStudio({ applications = [], onRefresh, 
             className="px-3 py-1 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-black text-xs shadow-xs cursor-pointer transition-all flex items-center gap-1 shrink-0"
           >
             <X size={13} className="stroke-[3]" />
-            <span>⛔ Cancel Merge Operation</span>
+            <span>Cancel</span>
           </button>
         </div>
       )}

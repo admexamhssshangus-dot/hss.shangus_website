@@ -145,22 +145,22 @@ export default function RecycleBinModal({ isOpen, onClose, onRestoreSuccess }) {
     setConfirmModalConfig({
       isOpen: true,
       type: 'danger',
-      title: '🔥 Permanent Purge Warning',
+      title: 'Permanently Delete Record',
       message: `Are you sure you want to PERMANENTLY PURGE "${sName}" (Form #${fNo}) from Recycle Bin?`,
-      consequence: 'This action CANNOT be undone. The record will be permanently deleted with ZERO residual data left in Firebase.',
-      confirmText: '🔥 Confirm & Purge Permanently',
+      consequence: 'This action cannot be undone.',
+      confirmText: 'Delete Permanently',
       cancelText: 'Cancel',
       onConfirm: async () => {
         setConfirmModalConfig(null);
         setActionProgress({
-          title: `Permanently Purging "${sName}"`,
-          subtitle: `Form #${fNo} • Wiping all cloud records from database`,
+          title: `Deleting "${sName}"`,
+          subtitle: `Form #${fNo}`,
           percent: 25,
           step: 1,
           steps: [
-            'Verifying administrator audit authorization',
-            'Deleting database record and stored references',
-            'Updating audit logs & refreshing workspace'
+            'Starting deletion',
+            'Deleting record',
+            'Refreshing Recycle Bin'
           ]
         });
 
@@ -173,7 +173,7 @@ export default function RecycleBinModal({ isOpen, onClose, onRestoreSuccess }) {
           setActionProgress(prev => prev ? { ...prev, percent: 100, step: 3, done: true } : null);
 
           await new Promise(r => setTimeout(r, 450));
-          setToast({ type: 'info', message: `🗑️ Permanently purged "${sName}" from Recycle Bin.` });
+          setToast({ type: 'success', message: `Deleted "${sName}" permanently.` });
           setTimeout(() => setToast(null), 3000);
           await fetchItems();
         } catch (err) {
@@ -204,14 +204,14 @@ export default function RecycleBinModal({ isOpen, onClose, onRestoreSuccess }) {
         setConfirmModalConfig(null);
         setActionProgress({
           variant: 'restore',
-          title: `Restoring ${count} Student Record${count === 1 ? '' : 's'}`,
-          subtitle: 'Validating identities and restoring the selected records atomically',
+          title: `Restoring ${count} Record${count === 1 ? '' : 's'}`,
+          subtitle: 'Keep this window open until restoration completes.',
           percent: 20,
           step: 1,
           steps: [
-            'Validating archived records and active-record conflicts',
-            'Restoring records in one database transaction',
-            'Refreshing registers and recording the audit event'
+            'Checking records',
+            'Restoring records',
+            'Refreshing registers'
           ]
         });
 
@@ -251,22 +251,22 @@ export default function RecycleBinModal({ isOpen, onClose, onRestoreSuccess }) {
     setConfirmModalConfig({
       isOpen: true,
       type: 'danger',
-      title: '🔥 Permanent Bulk Purge Warning',
+      title: 'Permanently Delete Selected Records',
       message: `Are you sure you want to PERMANENTLY PURGE ${count} selected archived student records from the Recycle Bin?`,
-      consequence: 'This action CANNOT be undone. These records will be permanently erased with ZERO residual data left in Firebase.',
-      confirmText: `🔥 Confirm & Purge ${count} Records`,
+      consequence: 'This action cannot be undone.',
+      confirmText: `Delete ${count} Records`,
       cancelText: 'Cancel',
       onConfirm: async () => {
         setConfirmModalConfig(null);
         setActionProgress({
-          title: `Bulk Purging ${count} Records`,
-          subtitle: 'Permanently wiping selected student records from database',
+          title: `Deleting ${count} Records`,
+          subtitle: 'Keep this window open until deletion completes.',
           percent: 10,
           step: 1,
           steps: [
-            'Initializing bulk deletion batch',
-            `Erasing 0 of ${count} records`,
-            'Finalizing database audit log'
+            'Starting deletion',
+            `Deleting 0 of ${count} records`,
+            'Refreshing Recycle Bin'
           ]
         });
 
@@ -282,16 +282,16 @@ export default function RecycleBinModal({ isOpen, onClose, onRestoreSuccess }) {
               percent: pct,
               step: 2,
               steps: [
-                'Initializing bulk deletion batch',
-                `Erasing ${processed} of ${count} records (${pct}%)`,
-                'Finalizing database audit log'
+                'Deletion started',
+                `Deleting ${processed} of ${count} records`,
+                'Refreshing Recycle Bin'
               ]
             } : null);
           }
           setActionProgress(prev => prev ? { ...prev, percent: 100, step: 3, done: true } : null);
           await new Promise(r => setTimeout(r, 500));
 
-          setToast({ type: 'info', message: `🗑️ Permanently purged ${count} records from Recycle Bin!` });
+          setToast({ type: 'success', message: `Deleted ${count} records permanently.` });
           setTimeout(() => setToast(null), 3000);
           setSelectedTrashIds([]);
           await fetchItems();
@@ -313,22 +313,22 @@ export default function RecycleBinModal({ isOpen, onClose, onRestoreSuccess }) {
     setConfirmModalConfig({
       isOpen: true,
       type: 'danger',
-      title: '🧹 Clean Entire Recycle Bin',
+      title: 'Empty Recycle Bin',
       message: `Are you sure you want to PERMANENTLY PURGE ALL ${count} archived student records from the Recycle Bin?`,
-      consequence: 'This will wipe and clean the entire Recycle Bin. All archived records will be permanently erased with ZERO residual data left in Firebase.',
-      confirmText: `🧹 Confirm & Empty Entire Recycle Bin (${count})`,
+      consequence: 'These archived records will be permanently deleted and cannot be restored.',
+      confirmText: `Delete All ${count} Records`,
       cancelText: 'Cancel',
       onConfirm: async () => {
         setConfirmModalConfig(null);
         setActionProgress({
-          title: `Emptying Entire Recycle Bin (${count} Records)`,
-          subtitle: 'Performing deep sanitization and purging all archived records',
+          title: `Emptying Recycle Bin (${count} records)`,
+          subtitle: 'Keep this window open until deletion completes.',
           percent: 10,
           step: 1,
           steps: [
-            'Authorizing deep clean purge',
-            `Wiping 0 of ${count} archived items`,
-            'Cleaning index and recycling cache'
+            'Starting deletion',
+            `Deleting 0 of ${count} records`,
+            'Refreshing Recycle Bin'
           ]
         });
 
@@ -346,9 +346,9 @@ export default function RecycleBinModal({ isOpen, onClose, onRestoreSuccess }) {
                 percent: pct,
                 step: 2,
                 steps: [
-                  'Authorizing deep clean purge',
-                  `Wiping ${processed} of ${count} archived items (${pct}%)`,
-                  'Cleaning index and recycling cache'
+                  'Deletion started',
+                  `Deleting ${processed} of ${count} records`,
+                  'Refreshing Recycle Bin'
                 ]
               } : null);
             }
@@ -356,7 +356,7 @@ export default function RecycleBinModal({ isOpen, onClose, onRestoreSuccess }) {
           setActionProgress(prev => prev ? { ...prev, percent: 100, step: 3, done: true } : null);
           await new Promise(r => setTimeout(r, 500));
 
-          setToast({ type: 'info', message: `🧹 Successfully emptied entire Recycle Bin (${count} records purged)!` });
+          setToast({ type: 'success', message: `Recycle Bin emptied. ${count} records deleted.` });
           setTimeout(() => setToast(null), 3500);
           setSelectedTrashIds([]);
           await fetchItems();
@@ -374,7 +374,7 @@ export default function RecycleBinModal({ isOpen, onClose, onRestoreSuccess }) {
   if (!isOpen) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[99999] flex items-center justify-center p-2 sm:p-4 bg-slate-950/80 backdrop-blur-md animate-fadeIn overflow-y-auto" style={{ fontFamily: 'var(--font-admin-sans, "Plus Jakarta Sans", sans-serif)' }}>
+    <div role="dialog" aria-modal="true" aria-label="Recycle Bin" className="fixed inset-0 z-[99999] flex items-center justify-center p-2 sm:p-4 bg-slate-950/80 backdrop-blur-md animate-fadeIn overflow-y-auto" style={{ fontFamily: 'var(--font-admin-sans, "Plus Jakarta Sans", sans-serif)' }}>
       <div className="bg-white dark:bg-slate-900 border border-amber-500/30 rounded-2xl sm:rounded-3xl shadow-2xl w-full max-w-4xl overflow-hidden flex flex-col max-h-[94vh] sm:max-h-[90vh] my-auto">
         
         {/* Compact Modal Header */}
@@ -474,8 +474,8 @@ export default function RecycleBinModal({ isOpen, onClose, onRestoreSuccess }) {
           {loading ? (
             <ModernLoader
               moduleKey="trash"
-              text="Loading Recycle Bin Archives..."
-              subtext="Retrieving deleted student records & audit logs..."
+              text="Loading Recycle Bin…"
+              subtext="Please wait."
               className="py-10"
             />
           ) : filteredItems.length > 0 ? (
@@ -610,8 +610,8 @@ export default function RecycleBinModal({ isOpen, onClose, onRestoreSuccess }) {
 
         {/* Real-time Animated Action Progress Overlay */}
         {actionProgress && (
-          <div className="fixed inset-0 z-[100010] flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md animate-fadeIn">
-            <div className="bg-slate-900 border-2 border-rose-500/50 rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl text-center space-y-6 relative overflow-hidden">
+          <div role="status" aria-live="polite" aria-busy={!actionProgress.done} className="portal-progress-window fixed inset-0 z-[100010] flex items-center justify-center p-3 sm:p-4 bg-slate-950/90 backdrop-blur-md animate-fadeIn">
+            <div className="bg-white dark:bg-slate-900 border-2 border-rose-400 dark:border-rose-500/60 rounded-2xl sm:rounded-3xl p-4 sm:p-7 max-w-md w-full shadow-2xl text-center space-y-4 sm:space-y-5 relative overflow-y-auto max-h-[calc(100dvh-1.5rem)]">
               {/* Top Glow Accent */}
               <div className="absolute -top-12 left-1/2 -translate-x-1/2 w-40 h-40 bg-rose-500/20 rounded-full blur-3xl pointer-events-none" />
 
@@ -626,10 +626,10 @@ export default function RecycleBinModal({ isOpen, onClose, onRestoreSuccess }) {
 
               {/* Title & Subtitle */}
               <div className="space-y-1.5">
-                <h3 className="text-lg sm:text-xl font-black text-white tracking-tight">
+                <h3 id="recycle-progress-title" className="text-base sm:text-xl font-black text-slate-950 dark:text-white tracking-tight">
                   {actionProgress.title}
                 </h3>
-                <p className="text-xs font-semibold text-slate-400">
+                <p className="text-xs font-semibold text-slate-700 dark:text-slate-200">
                   {actionProgress.subtitle}
                 </p>
               </div>
@@ -637,10 +637,10 @@ export default function RecycleBinModal({ isOpen, onClose, onRestoreSuccess }) {
               {/* Modern Gradient Progress Bar with Percent */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between text-xs font-bold">
-                  <span className="text-slate-400">Database Purge Progress</span>
-                  <span className="text-rose-400 font-mono font-black">{actionProgress.percent}%</span>
+                  <span className="text-slate-800 dark:text-slate-100">Deletion progress</span>
+                  <span className="text-rose-700 dark:text-rose-300 font-mono font-black">{actionProgress.percent}%</span>
                 </div>
-                <div className="w-full h-3.5 bg-slate-800 rounded-full overflow-hidden p-0.5 border border-slate-700 shadow-inner">
+                <div role="progressbar" aria-label="Recycle Bin deletion progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow={actionProgress.percent} className="w-full h-3.5 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden p-0.5 border border-slate-300 dark:border-slate-700 shadow-inner">
                   <div
                     className="h-full bg-gradient-to-r from-amber-500 via-rose-500 to-red-600 rounded-full transition-all duration-300 shadow-sm"
                     style={{ width: `${actionProgress.percent}%` }}
@@ -649,7 +649,7 @@ export default function RecycleBinModal({ isOpen, onClose, onRestoreSuccess }) {
               </div>
 
               {/* Step-by-Step Status Checklist */}
-              <div className="bg-slate-950/60 rounded-2xl p-4 border border-slate-800 text-left space-y-2 text-xs">
+              <div className="bg-slate-100 dark:bg-slate-950/70 rounded-2xl p-3 sm:p-4 border border-slate-300 dark:border-slate-700 text-left space-y-2 text-xs">
                 {actionProgress.steps.map((stepText, idx) => {
                   const stepNum = idx + 1;
                   const isCurrent = actionProgress.step === stepNum && !actionProgress.done;
@@ -661,8 +661,8 @@ export default function RecycleBinModal({ isOpen, onClose, onRestoreSuccess }) {
                         isPassed
                           ? 'text-emerald-400 font-bold'
                           : isCurrent
-                          ? 'text-rose-300 font-extrabold animate-pulse'
-                          : 'text-slate-500 font-medium'
+                          ? 'text-rose-700 dark:text-rose-300 font-extrabold'
+                          : 'text-slate-600 dark:text-slate-300 font-medium'
                       }`}
                     >
                       {isPassed ? (
@@ -670,9 +670,9 @@ export default function RecycleBinModal({ isOpen, onClose, onRestoreSuccess }) {
                       ) : isCurrent ? (
                         <Loader2 size={15} className="flex-shrink-0 animate-spin text-rose-400" />
                       ) : (
-                        <div className="w-3.5 h-3.5 rounded-full border border-slate-700 flex-shrink-0" />
+                        <div className="w-3.5 h-3.5 rounded-full border border-slate-500 flex-shrink-0" />
                       )}
-                      <span className="truncate">{stepText}</span>
+                      <span className="whitespace-normal break-words">{stepText}</span>
                     </div>
                   );
                 })}

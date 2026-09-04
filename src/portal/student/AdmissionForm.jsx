@@ -1988,7 +1988,7 @@ export default function AdmissionForm() {
   };
 
   return (
-    <div className="w-full min-h-[85vh] px-2 py-2.5 sm:px-5 sm:py-4" style={{ backgroundColor: 'var(--bg-page, #f8fafc)' }}>
+    <div className="portal-page w-full min-h-[85vh] px-2 py-2.5 sm:px-5 sm:py-4" style={{ backgroundColor: 'var(--bg-page, #f8fafc)' }}>
       <SEO
         title="Online Admission Application"
         description="Fill out the official online admission form for Govt HSS Shangus."
@@ -2012,8 +2012,8 @@ export default function AdmissionForm() {
                 moduleKey="student"
                 title="Govt. Higher Secondary School Shangus"
                 badge="Admission Submission"
-                text="Securing & Submitting Application..."
-                subtext="Encrypting student records, validating photos, and generating verified registration ID…"
+                text="Submitting your application…"
+                subtext="Keep this window open until submission completes."
                 progress={88}
                 inverted={true}
                 className="py-1"
@@ -2023,15 +2023,15 @@ export default function AdmissionForm() {
               <div className="space-y-2.5 text-left pt-2 text-xs font-bold text-slate-100 bg-slate-950/80 p-4 rounded-2xl border border-slate-700/90 shadow-inner">
                 <div className="flex items-center gap-2.5 text-emerald-400">
                   <CheckCircle2 size={16} className="flex-shrink-0 text-emerald-400" />
-                  <span className="font-bold text-emerald-300">Validating student profile &amp; subjects</span>
+                  <span className="font-bold text-emerald-300">Checking form details</span>
                 </div>
                 <div className="flex items-center gap-2.5 text-teal-300">
                   <Loader2 size={16} className="animate-spin flex-shrink-0 text-teal-400" />
-                  <span className="font-bold text-teal-200">Encrypting photos &amp; identity details</span>
+                  <span className="font-bold text-teal-200">Saving student details</span>
                 </div>
                 <div className="flex items-center gap-2.5 text-slate-200">
                   <div className="w-4 h-4 rounded-full border-2 border-teal-400/60 flex-shrink-0" />
-                  <span className="font-semibold text-slate-200">Generating cryptographic verification QR</span>
+                  <span className="font-semibold text-slate-200">Finalizing submission</span>
                 </div>
               </div>
             </div>
@@ -2745,7 +2745,7 @@ export default function AdmissionForm() {
               <ModernLoader
                 moduleKey="student"
                 text="Initializing Admission Application"
-                subtext="Loading dynamic form schema, streams, and your saved profile records..."
+                subtext="Loading form fields and saved details…"
               />
             ) : (
               <form onSubmit={handleFinalSubmit} className="space-y-3">

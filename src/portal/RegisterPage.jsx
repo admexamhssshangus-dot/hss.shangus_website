@@ -317,8 +317,8 @@ export default function RegisterPage() {
               >
                 <ModernLoader
                   moduleKey="student"
-                  text="Creating Student Account..."
-                  subtext="Provisioning secure student portal profile…"
+                  text="Creating your account…"
+                  subtext="Please wait."
                   className="py-4"
                 />
               </div>

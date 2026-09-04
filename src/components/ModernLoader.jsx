@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 
 // Page & Module specific presets for minimal dynamic loading screens
 const PAGE_MODULE_PRESETS = {
@@ -226,28 +226,14 @@ export default function ModernLoader({
 
   const displayTitle = title || preset.title;
   const displayBadge = badge || preset.badge;
-  const hintsList = useMemo(
-    () => preset.hints || [preset.defaultText],
-    [preset]
-  );
-
-  const [hintIdx, setHintIdx] = useState(0);
   const [logoSrc, setLogoSrc] = useState('/logo512.png');
   const [logoFailed, setLogoFailed] = useState(false);
 
-  useEffect(() => {
-    if (hintsList.length <= 1) return;
-    const interval = setInterval(() => {
-      setHintIdx(prev => (prev + 1) % hintsList.length);
-    }, 2800);
-    return () => clearInterval(interval);
-  }, [hintsList]);
-
-  const mainStatusText = text || preset.defaultText;
+  const mainStatusText = text || 'Loading…';
   const secondarySubtext = subtext || (
     typeof totalRecords === 'number' && totalRecords > 0
       ? `Synchronizing ${totalRecords.toLocaleString()} student records…`
-      : hintsList[hintIdx]
+      : ''
   );
 
   const hasExplicitProgress = typeof progress === 'number' && !isNaN(progress);
@@ -260,7 +246,7 @@ export default function ModernLoader({
     : `w-full py-10 sm:py-14 px-4 flex flex-col items-center justify-center text-center animate-fadeIn ${className}`;
 
   return (
-    <div className={containerClasses}>
+    <div className={containerClasses} role="status" aria-live="polite" aria-busy="true">
       {/* Center Minimal Logo with Sleek Spinner Ring */}
       <div className="relative w-16 h-16 sm:w-20 sm:h-20 mb-4 flex items-center justify-center shrink-0">
         {/* Sleek minimal spinning track */}
@@ -320,7 +306,7 @@ export default function ModernLoader({
           {mainStatusText}
         </h2>
         {secondarySubtext && (
-          <p className={`text-[10.5px] sm:text-[11px] font-normal truncate max-w-full transition-opacity duration-300 ${
+          <p className={`text-[10.5px] sm:text-[11px] font-medium whitespace-normal break-words max-w-full transition-opacity duration-300 ${
             inverted ? 'text-slate-300 font-medium' : 'text-slate-500 dark:text-slate-400'
           }`}>
             {secondarySubtext}
@@ -330,9 +316,16 @@ export default function ModernLoader({
 
       {/* Modern Minimal Progress Line & Optional Minimal Percentage */}
       <div className="flex flex-col items-center gap-1.5">
-        <div className={`w-40 sm:w-48 h-1 rounded-full overflow-hidden relative shadow-2xs ${
-          inverted ? 'bg-slate-800' : 'bg-slate-100 dark:bg-slate-800'
-        }`}>
+        <div
+          role="progressbar"
+          aria-label={mainStatusText}
+          aria-valuemin={hasExplicitProgress ? 0 : undefined}
+          aria-valuemax={hasExplicitProgress ? 100 : undefined}
+          aria-valuenow={hasExplicitProgress ? clampedProgress : undefined}
+          className={`w-48 sm:w-56 h-2 rounded-full overflow-hidden relative shadow-2xs ${
+            inverted ? 'bg-slate-800' : 'bg-slate-200 dark:bg-slate-800'
+          }`}
+        >
           {hasExplicitProgress ? (
             <div
               className="absolute top-0 bottom-0 left-0 bg-gradient-to-r from-teal-500 to-emerald-500 rounded-full transition-all duration-300 ease-out shadow-xs"

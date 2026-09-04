@@ -133,7 +133,7 @@ export default function SessionArchivalModal({ isOpen, onClose, currentSession =
     setStep('executing');
     setErrorMsg(null);
     setProgressPercent(10);
-    setProgressStage('Packaging approved student records into masterRegisters chunk format...');
+    setProgressStage('Preparing approved student records…');
 
     try {
       // 1. Prepare masterRegisters chunks
@@ -155,7 +155,7 @@ export default function SessionArchivalModal({ isOpen, onClose, currentSession =
       }
 
       setProgressPercent(30);
-      setProgressStage(`Writing ${chunks.length} archival chunk documents to masterRegisters...`);
+      setProgressStage(`Saving archive files (0/${chunks.length})…`);
 
       // 2. Write Chunks to Firestore masterRegisters
       for (let i = 0; i < chunks.length; i++) {
@@ -168,9 +168,10 @@ export default function SessionArchivalModal({ isOpen, onClose, currentSession =
           archivedAt: new Date().toISOString()
         }, { merge: true });
         setProgressPercent(30 + Math.round(((i + 1) / chunks.length) * 35));
+        setProgressStage(`Saving archive files (${i + 1}/${chunks.length})…`);
       }
 
-      setProgressStage('Cleaning admissions collection and resetting active intake...');
+      setProgressStage('Updating active admissions…');
       setProgressPercent(75);
 
       // 3. Purge admissions documents that were archived or drafts
@@ -195,7 +196,7 @@ export default function SessionArchivalModal({ isOpen, onClose, currentSession =
       }
 
       setProgressPercent(90);
-      setProgressStage('Updating active academic session in system settings...');
+      setProgressStage('Updating the active session…');
 
       // 4. Update System Settings with New Session Tag
       await setDoc(doc(db, 'site', 'settings'), {
@@ -210,7 +211,7 @@ export default function SessionArchivalModal({ isOpen, onClose, currentSession =
       invalidateCache('masterRegisters');
 
       setProgressPercent(100);
-      setProgressStage('Annual Session Archival Successfully Completed!');
+      setProgressStage('Session archive completed.');
       setStep('completed');
 
       if (onArchivalComplete) {
@@ -265,8 +266,8 @@ export default function SessionArchivalModal({ isOpen, onClose, currentSession =
           {loading && (
             <ModernLoader
               moduleKey="archive"
-              text="Auditing Admissions Database"
-              subtext="Auditing current admissions database & analyzing student records..."
+              text="Checking admission records…"
+              subtext="Please wait."
               className="py-12"
             />
           )}
@@ -488,7 +489,7 @@ export default function SessionArchivalModal({ isOpen, onClose, currentSession =
             <div className="py-8 px-4">
               <ModernLoader
                 moduleKey="archive"
-                text="Archiving Session Records..."
+                text="Archiving session records…"
                 subtext={progressStage}
                 progress={progressPercent}
                 className="py-4"

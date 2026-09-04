@@ -388,7 +388,7 @@ export default function AdminDashboard() {
   const TOOL_MODULES = ADMIN_TOOL_MODULES;
 
   return (
-    <div className="admin-dashboard-theme w-full min-h-[85vh] py-0.5 sm:py-1 px-1 sm:px-2" style={{ backgroundColor: 'var(--bg-page, #f8fafc)' }}>
+    <div className="portal-page admin-dashboard-theme w-full min-h-[85vh] py-0.5 sm:py-1 px-1 sm:px-2" style={{ backgroundColor: 'var(--bg-page, #f8fafc)' }}>
       <SEO
         title="Admin Dashboard | HSS Shangus"
         description="Comprehensive Super Admin Panel for managing student applications, roll numbers, fee structures, and automations."

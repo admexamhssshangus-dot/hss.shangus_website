@@ -750,8 +750,8 @@ export default function LoginPage() {
               >
                 <ModernLoader
                   moduleKey={isSuperAdmin ? 'admin' : 'auth'}
-                  text="Authenticating Session..."
-                  subtext="Verifying credentials & loading workspace privileges…"
+                  text="Signing in…"
+                  subtext="Please wait."
                   className="py-4"
                 />
               </div>

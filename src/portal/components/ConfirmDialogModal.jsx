@@ -196,11 +196,11 @@ export default function ConfirmDialogModal({
             <div className="flex items-center justify-between text-[11px] font-black text-amber-800 dark:text-amber-300">
               <span className="flex items-center gap-1.5">
                 <RefreshCw size={12} className="animate-spin text-amber-600 dark:text-amber-400" />
-                Syncing Live Database & Local Cache...
+                Saving changes…
               </span>
-              <span className="font-mono text-[10px]">Processing</span>
+              <span className="font-mono text-[10px]">Please wait</span>
             </div>
-            <div className="w-full h-1.5 bg-amber-200 dark:bg-amber-900/60 rounded-full overflow-hidden">
+            <div role="progressbar" aria-label="Saving changes" className="w-full h-1.5 bg-amber-200 dark:bg-amber-900/60 rounded-full overflow-hidden">
               <div className="h-full bg-gradient-to-r from-amber-500 via-orange-500 to-emerald-500 rounded-full animate-pulse transition-all duration-300 w-full" />
             </div>
           </div>
@@ -225,7 +225,7 @@ export default function ConfirmDialogModal({
             {(loading || isSubmitting) ? (
               <>
                 <RefreshCw size={13} className="animate-spin" />
-                <span>Saving & Syncing...</span>
+                <span>Saving…</span>
               </>
             ) : (
               confirmText
