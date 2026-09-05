@@ -554,6 +554,19 @@ export default function StudentCertificateStudioView({
     return pool.filter(st => (st.searchToken || '').includes(q)).slice(0, limit);
   }, [unifiedStudentDirectory, deferredStudentQuery, activeCohortFilter, activeSessionFilter]);
 
+  // When active filters return 0 results but search query matches students in other sessions/cohorts
+  const crossFilterMatches = useMemo(() => {
+    const q = deferredStudentQuery.trim().toLowerCase();
+    if (!q) return [];
+    if (activeCohortFilter === 'ALL' && activeSessionFilter === 'ALL') return [];
+    if (filteredStudents.length > 0) return [];
+    return unifiedStudentDirectory
+      .filter(st => (st.searchToken || '').includes(q))
+      .slice(0, 80);
+  }, [unifiedStudentDirectory, deferredStudentQuery, activeCohortFilter, activeSessionFilter, filteredStudents.length]);
+
+  const effectiveDisplayList = filteredStudents.length > 0 ? filteredStudents : crossFilterMatches;
+
   // ─── Active Certificate Form State (Auto-filled + Manual Overrides) ───
   const [studentName, setStudentName] = useState('MOHAMMAD TAHIR WANI');
   const [fatherName, setFatherName] = useState('GHULAM NABI WANI');
@@ -1159,7 +1172,7 @@ export default function StudentCertificateStudioView({
 
   // Realtime scroll detector: as user scrolls list, auto-previews student in view
   const handleListScroll = useCallback(() => {
-    if (!isLivePreviewEnabled || !listContainerRef.current || !filteredStudents.length) return;
+    if (!isLivePreviewEnabled || !listContainerRef.current || !effectiveDisplayList.length) return;
     if (scrollPreviewTimeoutRef.current) clearTimeout(scrollPreviewTimeoutRef.current);
     scrollPreviewTimeoutRef.current = setTimeout(() => {
       const container = listContainerRef.current;
@@ -1171,38 +1184,38 @@ export default function StudentCertificateStudioView({
         const elRect = el.getBoundingClientRect();
         if (elRect.top <= targetY && elRect.bottom >= targetY) {
           const index = parseInt(el.getAttribute('data-student-index'), 10);
-          if (!isNaN(index) && filteredStudents[index]) {
-            handleLivePreview(filteredStudents[index]);
+          if (!isNaN(index) && effectiveDisplayList[index]) {
+            handleLivePreview(effectiveDisplayList[index]);
           }
           break;
         }
       }
     }, 120);
-  }, [isLivePreviewEnabled, filteredStudents, handleLivePreview]);
+  }, [isLivePreviewEnabled, effectiveDisplayList, handleLivePreview]);
 
   // Keyboard navigation on search input: ArrowUp / ArrowDown flips preview in real-time
   const handleKeyDownOnSearch = (e) => {
-    if (!filteredStudents.length) return;
+    if (!effectiveDisplayList.length) return;
     if (e.key === 'ArrowDown') {
       e.preventDefault();
       setIsSearchDropdownOpen(true);
-      const currentIndex = filteredStudents.findIndex(s => getCertificateStudentKey(s) === (previewedStudentId || getCertificateStudentKey(selectedStudent)));
-      const nextIndex = currentIndex < filteredStudents.length - 1 ? currentIndex + 1 : 0;
-      const nextStudent = filteredStudents[nextIndex];
+      const currentIndex = effectiveDisplayList.findIndex(s => getCertificateStudentKey(s) === (previewedStudentId || getCertificateStudentKey(selectedStudent)));
+      const nextIndex = currentIndex < effectiveDisplayList.length - 1 ? currentIndex + 1 : 0;
+      const nextStudent = effectiveDisplayList[nextIndex];
       handleLivePreview(nextStudent);
       const el = listContainerRef.current?.querySelector(`[data-student-index="${nextIndex}"]`);
       if (el) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
       setIsSearchDropdownOpen(true);
-      const currentIndex = filteredStudents.findIndex(s => getCertificateStudentKey(s) === (previewedStudentId || getCertificateStudentKey(selectedStudent)));
-      const prevIndex = currentIndex > 0 ? currentIndex - 1 : filteredStudents.length - 1;
-      const prevStudent = filteredStudents[prevIndex];
+      const currentIndex = effectiveDisplayList.findIndex(s => getCertificateStudentKey(s) === (previewedStudentId || getCertificateStudentKey(selectedStudent)));
+      const prevIndex = currentIndex > 0 ? currentIndex - 1 : effectiveDisplayList.length - 1;
+      const prevStudent = effectiveDisplayList[prevIndex];
       handleLivePreview(prevStudent);
       const el = listContainerRef.current?.querySelector(`[data-student-index="${prevIndex}"]`);
       if (el) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     } else if (e.key === 'Enter') {
-      const active = filteredStudents.find(s => getCertificateStudentKey(s) === (previewedStudentId || getCertificateStudentKey(selectedStudent))) || filteredStudents[0];
+      const active = effectiveDisplayList.find(s => getCertificateStudentKey(s) === (previewedStudentId || getCertificateStudentKey(selectedStudent))) || effectiveDisplayList[0];
       if (active) {
         handleSelectStudent(active, { keepOpen: isDropdownPinned });
       }
@@ -3629,7 +3642,9 @@ export default function StudentCertificateStudioView({
 
                   <div className="flex items-center gap-1.5 shrink-0 text-slate-500 dark:text-slate-400 font-semibold text-[9px]">
                     <span className="hidden sm:inline font-mono text-[8.5px] px-1 py-0.2 rounded bg-slate-200/70 dark:bg-slate-700 text-slate-600 dark:text-slate-300">↑ / ↓ Keys</span>
-                    <span className="font-bold text-teal-700 dark:text-teal-400">({filteredStudents.length})</span>
+                    <span className={`font-bold ${filteredStudents.length > 0 ? 'text-teal-700 dark:text-teal-400' : (crossFilterMatches.length > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-slate-500')}`}>
+                      ({filteredStudents.length > 0 ? filteredStudents.length : (crossFilterMatches.length > 0 ? `${crossFilterMatches.length} in other sessions` : 0)})
+                    </span>
                     <button
                       type="button"
                       onClick={() => setIsSearchDropdownOpen(false)}
@@ -3653,75 +3668,119 @@ export default function StudentCertificateStudioView({
                     isDropdownPinned ? 'max-h-96' : 'max-h-72'
                   }`}
                 >
-                  {filteredStudents.length === 0 ? (
-                    <div className="p-3 text-center text-xs text-slate-500 font-bold">
-                      {isLoadingStudents ? 'Loading student database...' : 'No matching students found.'}
+                  {filteredStudents.length === 0 && crossFilterMatches.length === 0 ? (
+                    <div className="p-4 text-center text-xs text-slate-500 font-bold space-y-1.5">
+                      <div>{isLoadingStudents ? 'Loading student database...' : 'No matching students found.'}</div>
+                      {(activeCohortFilter !== 'ALL' || activeSessionFilter !== 'ALL') && (
+                        <div className="text-[11px] text-slate-400 font-medium">
+                          Filtered by: {activeCohortFilter !== 'ALL' ? `Class: ${activeCohortFilter}` : ''}{activeCohortFilter !== 'ALL' && activeSessionFilter !== 'ALL' ? ' · ' : ''}{activeSessionFilter !== 'ALL' ? `Session: ${activeSessionFilter}` : ''}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setActiveCohortFilter('ALL');
+                              setActiveSessionFilter('ALL');
+                            }}
+                            className="ml-2 text-teal-600 dark:text-teal-400 underline font-bold cursor-pointer hover:text-teal-700"
+                          >
+                            Reset to All Classes &amp; Sessions
+                          </button>
+                        </div>
+                      )}
                     </div>
                   ) : (
-                    filteredStudents.map((st, idx) => {
-                      const studentKey = getCertificateStudentKey(st);
-                      const isPreviewed = (previewedStudentId === studentKey) || (getCertificateStudentKey(selectedStudent) === studentKey);
-                      return (
-                        <button
-                          key={studentKey || `${st.id}-${idx}`}
-                          type="button"
-                          role="option"
-                          aria-selected={isPreviewed}
-                          data-student-index={idx}
-                          data-student-id={st.id}
-                          onMouseEnter={() => {
-                            if (isLivePreviewEnabled) handleLivePreview(st);
-                          }}
-                          onClick={() => handleSelectStudent(st, { keepOpen: isDropdownPinned })}
-                          className={`cert-student-option w-full p-2 text-left flex items-center justify-between gap-2 cursor-pointer transition-all ${
-                            isPreviewed
-                              ? 'bg-teal-50/90 dark:bg-teal-950/60 border-l-4 border-teal-500 shadow-2xs ring-1 ring-teal-400/40'
-                              : 'hover:bg-slate-50 dark:hover:bg-slate-800/60'
-                          }`}
-                        >
-                          <div className="flex items-center gap-2 min-w-0">
-                            {st.photo ? (
-                              <img src={st.photo} alt="" loading="lazy" decoding="async" className="w-8 h-8 rounded-full object-cover border border-slate-300 shrink-0" />
-                            ) : (
-                              <div className="w-8 h-8 rounded-full bg-teal-100 dark:bg-teal-950 text-teal-800 dark:text-teal-300 flex items-center justify-center text-[10.5px] font-black shrink-0">
-                                {st.name.charAt(0)}
-                              </div>
-                            )}
-                            <div className="min-w-0">
-                              <div className="font-black text-xs text-slate-900 dark:text-white flex items-center gap-1.5 flex-wrap">
-                                <span className="truncate">{st.name}</span>
-                                <span className={`text-[8px] px-1.5 py-0.2 rounded font-extrabold shrink-0 ${
-                                  st.sourceType === 'present'
-                                    ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
-                                    : 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
-                                }`}>
-                                  {st.sourceType === 'present' ? 'Present' : 'Master Reg'}
-                                </span>
-                              </div>
-                              <div className="text-[10px] text-slate-500 dark:text-slate-400 font-medium truncate">
-                                {st.father && <span>F: <strong className="text-slate-700 dark:text-slate-300">{st.father}</strong> | </span>}
-                                <span>Class: <strong className="text-slate-700 dark:text-slate-300">{st.cls} ({st.stream})</strong></span>
-                                {st.rollNo && <span> | Roll: <strong className="text-slate-700 dark:text-slate-300">{st.rollNo}</strong></span>}
-                                {st.regNo && <span> | Reg: <strong className="text-slate-700 dark:text-slate-300">{st.regNo}</strong></span>}
+                    <>
+                      {filteredStudents.length === 0 && crossFilterMatches.length > 0 && (
+                        <div className="p-2.5 bg-amber-50 dark:bg-amber-950/60 border-b border-amber-200 dark:border-amber-800 text-xs">
+                          <div className="flex items-center justify-between gap-1.5 flex-wrap">
+                            <span className="text-amber-900 dark:text-amber-200 font-black text-[10.5px]">
+                              No student named &ldquo;{debouncedStudentQuery}&rdquo; in {activeCohortFilter !== 'ALL' ? `Class ${activeCohortFilter}` : ''}{activeCohortFilter !== 'ALL' && activeSessionFilter !== 'ALL' ? ' · ' : ''}{activeSessionFilter !== 'ALL' ? `Session ${activeSessionFilter}` : ''}.
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setActiveCohortFilter('ALL');
+                                setActiveSessionFilter('ALL');
+                              }}
+                              className="px-2 py-0.5 rounded bg-amber-600 hover:bg-amber-500 text-white font-black text-[9.5px] cursor-pointer shadow-2xs transition-all shrink-0"
+                            >
+                              Show All ({unifiedStudentDirectory.length})
+                            </button>
+                          </div>
+                          <div className="text-[9.5px] text-amber-700 dark:text-amber-300 font-bold mt-0.5">
+                            Found {crossFilterMatches.length} matching student(s) across other sessions/classes below:
+                          </div>
+                        </div>
+                      )}
+                      {effectiveDisplayList.map((st, idx) => {
+                        const studentKey = getCertificateStudentKey(st);
+                        const isPreviewed = (previewedStudentId === studentKey) || (getCertificateStudentKey(selectedStudent) === studentKey);
+                        return (
+                          <button
+                            key={studentKey || `${st.id}-${idx}`}
+                            type="button"
+                            role="option"
+                            aria-selected={isPreviewed}
+                            data-student-index={idx}
+                            data-student-id={st.id}
+                            onMouseEnter={() => {
+                              if (isLivePreviewEnabled) handleLivePreview(st);
+                            }}
+                            onClick={() => handleSelectStudent(st, { keepOpen: isDropdownPinned })}
+                            className={`cert-student-option w-full p-2 text-left flex items-center justify-between gap-2 cursor-pointer transition-all ${
+                              isPreviewed
+                                ? 'bg-teal-50/90 dark:bg-teal-950/60 border-l-4 border-teal-500 shadow-2xs ring-1 ring-teal-400/40'
+                                : 'hover:bg-slate-50 dark:hover:bg-slate-800/60'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2 min-w-0">
+                              {st.photo ? (
+                                <img src={st.photo} alt="" loading="lazy" decoding="async" className="w-8 h-8 rounded-full object-cover border border-slate-300 shrink-0" />
+                              ) : (
+                                <div className="w-8 h-8 rounded-full bg-teal-100 dark:bg-teal-950 text-teal-800 dark:text-teal-300 flex items-center justify-center text-[10.5px] font-black shrink-0">
+                                  {st.name.charAt(0)}
+                                </div>
+                              )}
+                              <div className="min-w-0">
+                                <div className="font-black text-xs text-slate-900 dark:text-white flex items-center gap-1.5 flex-wrap">
+                                  <span className="truncate">{st.name}</span>
+                                  {st.session && (
+                                    <span className="text-[8.5px] px-1.5 py-0.2 rounded font-extrabold bg-indigo-100 text-indigo-900 dark:bg-indigo-950 dark:text-indigo-300 shrink-0">
+                                      Session {st.session}
+                                    </span>
+                                  )}
+                                  <span className={`text-[8px] px-1.5 py-0.2 rounded font-extrabold shrink-0 ${
+                                    st.sourceType === 'present'
+                                      ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
+                                      : 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
+                                  }`}>
+                                    {st.sourceType === 'present' ? 'Present' : 'Master Reg'}
+                                  </span>
+                                </div>
+                                <div className="text-[10px] text-slate-500 dark:text-slate-400 font-medium truncate">
+                                  {st.father && <span>F: <strong className="text-slate-700 dark:text-slate-300">{st.father}</strong> | </span>}
+                                  <span>Class: <strong className="text-slate-700 dark:text-slate-300">{st.cls} ({st.stream})</strong></span>
+                                  {st.rollNo && <span> | Roll: <strong className="text-slate-700 dark:text-slate-300">{st.rollNo}</strong></span>}
+                                  {st.regNo && <span> | Reg: <strong className="text-slate-700 dark:text-slate-300">{st.regNo}</strong></span>}
+                                </div>
                               </div>
                             </div>
-                          </div>
 
-                          <div className="flex items-center gap-1 shrink-0">
-                            {isPreviewed ? (
-                              <span className="px-2 py-0.5 rounded bg-teal-600 text-white text-[9px] font-black flex items-center gap-0.5 shadow-2xs animate-pulse">
-                                <Eye size={9} />
-                                <span>Previewing</span>
-                              </span>
-                            ) : (
-                              <span className="px-2 py-0.5 rounded bg-slate-200 hover:bg-teal-600 hover:text-white dark:bg-slate-700 dark:hover:bg-teal-600 text-slate-700 dark:text-slate-200 text-[9px] font-bold transition-colors">
-                                Select
-                              </span>
-                            )}
-                          </div>
-                        </button>
-                      );
-                    })
+                            <div className="flex items-center gap-1 shrink-0">
+                              {isPreviewed ? (
+                                <span className="px-2 py-0.5 rounded bg-teal-600 text-white text-[9px] font-black flex items-center gap-0.5 shadow-2xs animate-pulse">
+                                  <Eye size={9} />
+                                  <span>Previewing</span>
+                                </span>
+                              ) : (
+                                <span className="px-2 py-0.5 rounded bg-slate-200 hover:bg-teal-600 hover:text-white dark:bg-slate-700 dark:hover:bg-teal-600 text-slate-700 dark:text-slate-200 text-[9px] font-bold transition-colors">
+                                  Select
+                                </span>
+                              )}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </>
                   )}
                 </div>
               </div>
