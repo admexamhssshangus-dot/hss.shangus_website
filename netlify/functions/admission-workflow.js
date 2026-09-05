@@ -17,29 +17,7 @@ const PROTECTED_FIELDS = new Set([
 ]);
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
-function parseServiceAccount(raw) {
-  if (!raw) throw new Error('FIREBASE_SERVICE_ACCOUNT_JSON is not configured');
-  let str = String(raw).trim();
-  if ((str.startsWith('"') && str.endsWith('"')) || (str.startsWith("'") && str.endsWith("'"))) {
-    try { str = JSON.parse(str); } catch (e) {}
-  }
-  if (!str.startsWith('{')) {
-    try {
-      const decoded = Buffer.from(str, 'base64').toString('utf8').trim();
-      if (decoded.startsWith('{')) str = decoded;
-    } catch (e) {}
-  }
-  const sa = typeof str === 'string' ? JSON.parse(str) : str;
-  if (sa && typeof sa.private_key === 'string') {
-    let pk = sa.private_key.trim();
-    if ((pk.startsWith('"') && pk.endsWith('"')) || (pk.startsWith("'") && pk.endsWith("'"))) {
-      pk = pk.slice(1, -1);
-    }
-    pk = pk.replace(/\\n/g, '\n').replace(/\\r/g, '');
-    sa.private_key = pk;
-  }
-  return sa;
-}
+const { parseServiceAccount } = require('./lib/serviceAccount');
 
 function getAdminApp() {
   if (getApps().length) return getApp();
@@ -487,26 +465,28 @@ async function saveDraft(db, token, body) {
   if (requestedId && !/^[a-zA-Z0-9_-]{1,128}$/.test(requestedId)) throw Object.assign(new Error('Invalid application ID.'), { status: 400 });
   ['Aadhar No.', "Father's Aadhar No.", 'Bank Account No.', 'Student Photo', 'photo_id', 'photo', 'photoUrl', 'photoPath'].forEach(key => delete sanitized[key]);
   const ref = requestedId ? db.collection('admissions').doc(requestedId) : db.collection('admissions').doc();
-  const existing = await ref.get();
-  if (existing.exists) {
-    const prior = existing.data();
-    if (!canClaimExisting(prior, token)) throw Object.assign(new Error('Application access denied.'), { status: 403 });
-    if (!['Draft', 'Rejected'].includes(prior.Status)) throw Object.assign(new Error('This application is locked and cannot be changed.'), { status: 409 });
-    if (prior.Status === 'Rejected' && prior.editableUntil?.toMillis?.() < Date.now()) throw Object.assign(new Error('The correction window has expired.'), { status: 409 });
-  }
-  const cls = normalizeClass(sanitized['Admission sought for class']);
-  const session = normalizeSession(valueOf(sanitized, 'Session', 'session'));
-  await ref.set({
-    ...sanitized,
-    ownerUid: token.uid,
-    emailNormalized: String(token.email || '').toLowerCase(),
-    classCanonical: cls || null,
-    sessionCanonical: session || null,
-    Status: existing.exists && existing.data().Status === 'Rejected' ? 'Rejected' : 'Draft',
-    workflowVersion: 2,
-    updatedAt: FieldValue.serverTimestamp(),
-    ...(!existing.exists ? { createdAt: FieldValue.serverTimestamp() } : {}),
-  }, { merge: true });
+  await db.runTransaction(async tx => {
+    const existing = await tx.get(ref);
+    if (existing.exists) {
+      const prior = existing.data();
+      if (!canClaimExisting(prior, token)) throw Object.assign(new Error('Application access denied.'), { status: 403 });
+      if (!['Draft', 'Rejected'].includes(prior.Status)) throw Object.assign(new Error('This application is locked and cannot be changed.'), { status: 409 });
+      if (prior.Status === 'Rejected' && prior.editableUntil?.toMillis?.() < Date.now()) throw Object.assign(new Error('The correction window has expired.'), { status: 409 });
+    }
+    const cls = normalizeClass(sanitized['Admission sought for class']);
+    const session = normalizeSession(valueOf(sanitized, 'Session', 'session'));
+    tx.set(ref, {
+      ...sanitized,
+      ownerUid: token.uid,
+      emailNormalized: String(token.email || '').toLowerCase(),
+      classCanonical: cls || null,
+      sessionCanonical: session || null,
+      Status: existing.exists && existing.data().Status === 'Rejected' ? 'Rejected' : 'Draft',
+      workflowVersion: 2,
+      updatedAt: FieldValue.serverTimestamp(),
+      ...(!existing.exists ? { createdAt: FieldValue.serverTimestamp() } : {}),
+    }, { merge: true });
+  });
   return { success: true, applicationId: ref.id, savedAt: new Date().toISOString() };
 }
 
@@ -744,8 +724,14 @@ exports.handler = async function handler(event) {
   if (Buffer.byteLength(event.body || '', 'utf8') > 750000) return response(413, { error: 'Request is too large. Upload files separately.' }, origin);
 
   try {
+    let body;
+    try {
+      body = JSON.parse(event.body || '{}');
+      if (!body || typeof body !== 'object' || Array.isArray(body)) throw new Error('Invalid body');
+    } catch (_) {
+      return response(400, { error: 'Invalid request. Please reload the form and try again.' }, origin);
+    }
     const token = await authenticate(event);
-    const body = JSON.parse(event.body || '{}');
     const action = cleanString(body.action, 20);
     if (!['load', 'draft', 'submit', 'withdraw'].includes(action)) return response(400, { error: 'Invalid action.' }, origin);
     const db = getFirestore(getAdminApp());
@@ -758,7 +744,9 @@ exports.handler = async function handler(event) {
   } catch (error) {
     console.error('Admission workflow error:', error.message);
     return response(error.status || (error.code?.startsWith('auth/') ? 401 : 500), {
-      error: error.message || 'Admission service is temporarily unavailable.',
+      error: error.status && error.status < 500 || error.code === 'admission/invalid-server-credentials'
+        ? error.message : 'Admission service is temporarily unavailable. Please try again later.',
+      code: error.code === 'admission/invalid-server-credentials' ? error.code : undefined,
       fieldErrors: error.errors || undefined,
     }, origin);
   }
