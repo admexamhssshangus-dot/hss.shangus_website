@@ -203,10 +203,10 @@ export function validateSubjectSelection(targetClass = '11th', stream = 'Science
     });
 
     const chosenGroupC = optionals.filter(s => groupC.some(c => s.toLowerCase().includes(c)));
-    if (chosenGroupC.length > 1) {
+    if (chosenGroupC.length !== 1 || optionals.length - chosenGroupC.length !== 3) {
       return {
         valid: false,
-        error: `Humanities Stream Rule: Only 1 subject allowed from Group C (${chosenGroupC.join(', ')}). Choose 3 from Group B and 1 from Group C.`,
+        error: 'Humanities Stream Rule: Choose exactly 3 subjects from Group B and 1 from Group C.',
         count: total,
         min: 5,
         max: 5

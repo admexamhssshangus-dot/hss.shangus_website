@@ -1668,6 +1668,7 @@ export default function DynamicFormField({
             const allSelectedSubjects = isReappearField ? currentArray : [...new Set([...compulsorySubjects, ...currentArray])];
 
             const isSecondary = cls9 || cls10 || cls8;
+            const isHumanities = ['humanities', 'arts'].includes(strm.toLowerCase());
 
             const subjectValidation = validateSubjectSelection(targetCls, strm, allSelectedSubjects, isReappearField);
 
@@ -1732,12 +1733,12 @@ export default function DynamicFormField({
                   {
                     title: isReappearField ? 'Reappear subjects' : (isSecondary ? 'Group B · Language' : 'Group B'),
                     subjects: groupB,
-                    hint: isReappearField ? 'Select subjects to reappear in' : `Choose ${isSecondary ? 1 : Math.max(0, 5 - compulsorySubjects.length - currentArray.filter(s => groupC.includes(s)).length)}`,
+                    hint: isReappearField ? 'Select subjects to reappear in' : isSecondary ? 'Choose 1' : isHumanities ? 'Choose exactly 3' : 'Choose 1 or 2',
                   },
                   {
                     title: isSecondary ? 'Group C · Vocational' : 'Group C',
                     subjects: isReappearField ? [] : groupC,
-                    hint: 'Optional · Choose up to 1',
+                    hint: isSecondary ? 'Optional · Choose up to 1' : isHumanities ? 'Choose exactly 1' : 'Choose 1 if only 1 is chosen from B',
                   },
                 ].filter(group => group.subjects.length).map(group => {
                   const selected = currentArray.filter(subject => group.subjects.includes(subject));
@@ -1769,6 +1770,11 @@ export default function DynamicFormField({
                     </details>
                   );
                 })}
+                {!isReappearField && (
+                  <p className="text-[11px] text-slate-600 dark:text-slate-300">
+                    {isSecondary ? 'Choose 1 language; vocational subject is optional.' : isHumanities ? 'Choose 3 from B + 1 from C. Total: 5 subjects including compulsory.' : 'Choose 2 electives: 2 from B, or 1 from B + 1 from C. Total: 5 subjects.'}
+                  </p>
+                )}
                 {!isReappearField && (
                   <p className={`text-[11px] leading-snug ${subjectValidation.valid ? 'text-teal-700 dark:text-teal-300' : 'text-slate-600 dark:text-slate-300'}`}>
                     {subjectValidation.valid ? `${allSelectedSubjects.length} subjects selected` : subjectValidation.error}
