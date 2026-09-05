@@ -79,9 +79,16 @@
     min-width: 0;
   }
 
-  .portal-page :where(input, select, textarea) {
+  .portal-page :where(input:not(.admin-search-input):not(table input), select:not(table select), textarea) {
     /* Prevent iOS from zooming the page when a form control receives focus. */
     font-size: max(1rem, 16px);
+  }
+
+  .portal-page input.admin-search-input {
+    font-size: 11.5px !important;
+    min-height: 28px !important;
+    height: 28px !important;
+    line-height: 1.2 !important;
   }
 
   /* Compact student screens only; retain generous touch targets and desktop layout. */
