@@ -1047,7 +1047,7 @@ export default function DynamicFormField({
           <div className="space-y-1">
             <textarea
               id={inputId}
-              rows={2}
+              rows={4}
               value={value}
               onChange={(e) => {
                 const val = e.target.value.slice(0, maxLen);
@@ -1059,8 +1059,8 @@ export default function DynamicFormField({
               aria-invalid={Boolean(error)}
               aria-describedby={error ? errorId : undefined}
               placeholder={placeholder || `Enter ${mainLabel}...`}
-              className="w-full px-2.5 py-1.5 rounded-lg sm:rounded-xl text-[11.5px] sm:text-xs font-semibold border focus:outline-none focus:ring-2 focus:ring-teal-500 transition-all"
-              style={inputStyle}
+              className="w-full px-3 py-2.5 rounded-lg sm:rounded-xl text-xs font-semibold border focus:outline-none focus:ring-2 focus:ring-teal-500 transition-all min-h-[105px] resize-y leading-relaxed"
+              style={{ ...inputStyle, minHeight: '105px' }}
             />
             <div className="flex items-center justify-between text-[10px] text-slate-400 dark:text-slate-500 font-bold px-1">
               <span>Max {maxLen} characters</span>

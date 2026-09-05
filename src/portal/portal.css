@@ -97,6 +97,10 @@
     padding: 8px 10px;
   }
 
+  .admission-mobile-compact [data-field-name] textarea {
+    min-height: 105px;
+  }
+
   .admission-mobile-compact .subject-checkbox-dropdown summary {
     min-height: 44px;
     overflow-wrap: anywhere;
