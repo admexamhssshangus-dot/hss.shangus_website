@@ -277,17 +277,24 @@ button, input, select, textarea { font: inherit; }
 .portal-auth-page select,
 .portal-auth-page button { min-height: var(--ui-control-height); }
 
-.admin-portal-container .text-\[9px\] { font-size: 0.75rem; }
-.admin-portal-container .text-\[10px\] { font-size: 0.75rem; }
-.admin-portal-container .text-\[11px\] { font-size: 0.8125rem; }
-.admin-portal-container button,
-.admin-portal-container select { min-height: 2.25rem; }
+.admin-portal-container .text-\[9px\]:not(table *):not(.status-badge-btn) { font-size: 0.75rem; }
+.admin-portal-container .text-\[10px\]:not(table *):not(.status-badge-btn) { font-size: 0.75rem; }
+.admin-portal-container .text-\[11px\]:not(table *):not(.status-badge-btn) { font-size: 0.8125rem; }
+.admin-portal-container button:not(table button):not(.status-badge-btn):not(.compact-btn),
+.admin-portal-container select:not(table select) { min-height: 2.25rem; }
+
+.admin-portal-container table button,
+.admin-portal-container table select,
+.admin-portal-container .status-badge-btn,
+.admin-portal-container .compact-btn {
+  min-height: unset;
+}
 
 @media (pointer: coarse) {
-  .portal-shell button,
-  .portal-shell [role='button'],
-  .portal-shell input:not([type='checkbox']):not([type='radio']),
-  .portal-shell select { min-height: 2.75rem; }
+  .portal-shell button:not(table button):not(.status-badge-btn):not(.compact-btn),
+  .portal-shell [role='button']:not(table *):not(.status-badge-btn):not(.compact-btn),
+  .portal-shell input:not([type='checkbox']):not([type='radio']):not(.admin-search-input):not(table input),
+  .portal-shell select:not(table select) { min-height: 2.75rem; }
   .admin-portal-container { font-size: 0.875rem; }
 }
 

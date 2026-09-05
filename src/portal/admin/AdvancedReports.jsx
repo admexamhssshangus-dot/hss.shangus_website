@@ -755,10 +755,11 @@ function UnifiedFiltersGroupDropdown({
           setIsOpen(nextOpen);
           if (nextOpen && onOpen) onOpen();
         }}
-        className={`px-2 py-1 sm:px-3 sm:py-1.5 rounded-lg sm:rounded-xl font-black text-[10.5px] sm:text-xs flex items-center gap-1 sm:gap-1.5 transition-all cursor-pointer shadow-sm ${totalActiveFilters > 0
+        className={`compact-btn px-2 py-0.5 sm:px-3 sm:py-1 rounded-lg sm:rounded-xl font-black text-[10.5px] sm:text-xs flex items-center gap-1 sm:gap-1.5 transition-all cursor-pointer shadow-sm !min-h-0 ${totalActiveFilters > 0
           ? 'bg-amber-700 text-white border border-amber-800'
           : 'bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 border border-slate-300 dark:border-slate-700 hover:bg-slate-50'
           }`}
+        style={{ minHeight: 'unset', height: '28px' }}
       >
         <span className="flex items-center gap-1">
           <span>🔍</span>
@@ -917,7 +918,8 @@ function MoreActionsDropdown({
         type="button"
         onClick={() => setIsOpen(!isOpen)}
         title="More Actions & Display Settings"
-        className="relative p-1 sm:p-1.5 rounded-lg sm:rounded-xl font-black bg-gradient-to-r from-indigo-700 to-indigo-800 hover:from-indigo-600 hover:to-indigo-700 text-white flex items-center justify-center shadow-sm transition-all cursor-pointer text-xs"
+        className="compact-btn relative p-1 sm:p-1.5 rounded-lg sm:rounded-xl font-black bg-gradient-to-r from-indigo-700 to-indigo-800 hover:from-indigo-600 hover:to-indigo-700 text-white flex items-center justify-center shadow-sm transition-all cursor-pointer text-xs !min-h-0"
+        style={{ minHeight: 'unset', height: '28px', width: '28px' }}
       >
         <Settings size={13} className="sm:w-3.5 sm:h-3.5" />
         {unreadRecycleBinCount > 0 && (
@@ -2137,7 +2139,8 @@ function StatusActionDropdown({ student, onViewEdit, onRefresh, onDeleteRecord, 
           setIsOpen(!isOpen);
         }}
         title="Click to view & execute form actions"
-        className={`inline-flex items-center justify-center gap-0.5 px-1 py-0.5 sm:px-1.5 rounded text-[8px] sm:text-[9px] font-black text-white ${bg} tracking-tight uppercase cursor-pointer shadow-2xs transition-all hover:scale-105 active:scale-95 leading-none`}
+        className={`status-badge-btn inline-flex items-center justify-center gap-0.5 px-1.5 py-0.5 rounded text-[8.5px] sm:text-[9px] font-black text-white ${bg} tracking-tight uppercase cursor-pointer shadow-2xs transition-all hover:scale-105 active:scale-95 leading-none !min-h-0 !h-auto`}
+        style={{ minHeight: 'unset', height: '20px' }}
       >
         <span>{actionLoading ? '...' : abbr}</span>
         <ChevronDown size={8} className={`transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
@@ -8787,7 +8790,8 @@ export default function AdvancedReports({
                 onKeyDown={() => {
                   if (showSearchHelp) setShowSearchHelp(false);
                 }}
-                className="w-full pl-6 sm:pl-7 pr-10 sm:pr-12 py-0.5 sm:py-1.5 rounded-lg sm:rounded-xl border border-slate-300 dark:border-slate-700 font-black text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-amber-500 text-[10.5px] sm:text-xs bg-slate-50 dark:bg-slate-950 shadow-2xs leading-normal"
+                className="admin-search-input w-full pl-6 sm:pl-7 pr-9 sm:pr-11 h-7 sm:h-7.5 rounded-lg sm:rounded-xl border border-slate-300 dark:border-slate-700 font-extrabold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1.5 focus:ring-amber-500 text-[11px] sm:text-xs bg-slate-50 dark:bg-slate-950 shadow-2xs leading-none !min-h-0"
+                style={{ minHeight: 'unset', height: '28px' }}
               />
               <div className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-0.5">
                 {searchTerm ? (
@@ -8893,7 +8897,7 @@ export default function AdvancedReports({
             </div>
 
             {/* Interactive Real-Time Data Sync & Records Counter Badge */}
-            <div className="relative overflow-hidden flex items-center px-1.5 py-0.5 sm:px-2.5 sm:py-1 rounded-lg sm:rounded-xl border text-[10px] sm:text-xs font-black bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 shadow-2xs flex-shrink-0 gap-1 text-slate-800 dark:text-slate-100 transition-all">
+            <div className="compact-btn relative overflow-hidden flex items-center px-1.5 sm:px-2 rounded-lg sm:rounded-xl border text-[10px] sm:text-[11px] font-black bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 shadow-2xs flex-shrink-0 gap-1 text-slate-800 dark:text-slate-100 transition-all !min-h-0" style={{ minHeight: 'unset', height: '28px' }}>
               {isFetchingData || loading ? (
                 <div className="flex items-center gap-1 sm:gap-1.5 text-amber-700 dark:text-amber-400 animate-pulse">
                   <RefreshCw size={11} className="animate-spin text-amber-600 shrink-0" />
@@ -8941,7 +8945,8 @@ export default function AdvancedReports({
                   if (nextState) handleMarkToolsSeen();
                 }}
                 title="Administrative Tools Suite"
-                className="relative p-1 sm:p-1.5 rounded-lg sm:rounded-xl flex items-center justify-center transition-all whitespace-nowrap cursor-pointer bg-indigo-700 hover:bg-indigo-600 text-white shadow-sm font-extrabold text-xs"
+                className="compact-btn relative p-1 sm:p-1.5 rounded-lg sm:rounded-xl flex items-center justify-center transition-all whitespace-nowrap cursor-pointer bg-indigo-700 hover:bg-indigo-600 text-white shadow-sm font-extrabold text-xs !min-h-0"
+                style={{ minHeight: 'unset', height: '28px', width: '28px' }}
               >
                 <Wrench size={13} className="sm:w-3.5 sm:h-3.5" />
                 {hasUnseenToolsUpdate && (
@@ -9005,7 +9010,8 @@ export default function AdvancedReports({
                 type="button"
                 onClick={handleResetColumnOrder}
                 title="Reset column positions back to official default order"
-                className="px-1.5 py-0.5 sm:px-2 sm:py-1 rounded-md sm:rounded-lg bg-amber-100 dark:bg-amber-950/60 hover:bg-amber-200 text-amber-900 dark:text-amber-300 font-black text-[9px] sm:text-xs flex items-center gap-1 border border-amber-300 dark:border-amber-700 cursor-pointer shadow-2xs transition-all animate-fadeIn"
+                className="compact-btn px-1.5 py-0.5 sm:px-2 sm:py-1 rounded-md sm:rounded-lg bg-amber-100 dark:bg-amber-950/60 hover:bg-amber-200 text-amber-900 dark:text-amber-300 font-black text-[9px] sm:text-xs flex items-center gap-1 border border-amber-300 dark:border-amber-700 cursor-pointer shadow-2xs transition-all animate-fadeIn !min-h-0"
+                style={{ minHeight: 'unset', height: '28px' }}
               >
                 <RotateCcw size={10} className="sm:w-3 sm:h-3" />
                 <span>Reset Order</span>
@@ -9019,16 +9025,18 @@ export default function AdvancedReports({
                   type="button"
                   disabled={currentPage === 1}
                   onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                  className="px-1 py-0.2 sm:px-1.5 sm:py-0.5 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 disabled:opacity-30 cursor-pointer"
+                  className="compact-btn px-1.5 py-0.5 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 disabled:opacity-30 cursor-pointer !min-h-0 flex items-center justify-center"
+                  style={{ minHeight: 'unset', height: '28px', minWidth: '22px' }}
                 >
                   ‹
                 </button>
-                <span className="whitespace-nowrap">{currentPage}/{totalPages}</span>
+                <span className="whitespace-nowrap px-0.5 leading-none">{currentPage}/{totalPages}</span>
                 <button
                   type="button"
                   disabled={currentPage >= totalPages}
                   onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                  className="px-1 py-0.2 sm:px-1.5 sm:py-0.5 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 disabled:opacity-30 cursor-pointer"
+                  className="compact-btn px-1.5 py-0.5 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 disabled:opacity-30 cursor-pointer !min-h-0 flex items-center justify-center"
+                  style={{ minHeight: 'unset', height: '28px', minWidth: '22px' }}
                 >
                   ›
                 </button>
