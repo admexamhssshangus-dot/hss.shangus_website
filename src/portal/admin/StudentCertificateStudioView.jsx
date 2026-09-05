@@ -264,6 +264,159 @@ const enrichCertificateIdentityFields = (primaryRaw, linkedRecords = []) => {
   return enriched;
 };
 
+// ─── Compact Checkbox-Style Multi-Select Dropdown for Class & Session Filters ───
+function StudioMultiSelectDropdown({
+  label,
+  options = [],
+  selected = [],
+  onChange,
+  align = 'left'
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchFilter, setSearchFilter] = useState('');
+  const dropdownRef = useRef(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    function handleClickOutside(event) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isOpen]);
+
+  const isAll = selected.length === 0;
+  const isNone = selected.includes('__NONE__');
+
+  const toggleOption = (val) => {
+    let next;
+    if (isNone) {
+      next = [val];
+    } else if (isAll) {
+      next = options.map(o => o.value).filter(v => v !== val);
+    } else if (selected.includes(val)) {
+      next = selected.filter(v => v !== val);
+    } else {
+      next = [...selected, val];
+    }
+
+    if (next.length === 0) {
+      next = ['__NONE__'];
+    } else if (next.length === options.length) {
+      next = [];
+    }
+    onChange(next);
+  };
+
+  const handleSelectAll = () => {
+    onChange([]);
+  };
+
+  const handleDeselectAll = () => {
+    onChange(['__NONE__']);
+  };
+
+  const visibleOptions = searchFilter
+    ? options.filter(o => o.label.toLowerCase().includes(searchFilter.toLowerCase()) || o.value.toLowerCase().includes(searchFilter.toLowerCase()))
+    : options;
+
+  const displayText = isAll
+    ? `All ${label}`
+    : isNone
+      ? `No ${label}`
+      : selected.length === 1
+        ? (options.find(o => o.value === selected[0])?.label || selected[0])
+        : `${label} (${selected.length})`;
+
+  return (
+    <div className="relative w-full text-left" ref={dropdownRef}>
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className={`compact-btn w-full px-2 py-1 rounded-lg text-[10px] font-bold flex items-center justify-between gap-1 transition-all cursor-pointer shadow-2xs !min-h-0 ${
+          !isAll
+            ? 'bg-teal-700 text-white border border-teal-800'
+            : 'bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-200 border border-slate-300 dark:border-slate-700 hover:border-teal-500'
+        }`}
+        style={{ minHeight: 'unset', height: '28px' }}
+      >
+        <span className="truncate flex-1 min-w-0 text-left">{displayText}</span>
+        <ChevronDown size={11} className={`flex-shrink-0 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+      </button>
+
+      {isOpen && (
+        <div
+          className={`absolute ${align === 'right' ? 'right-0' : 'left-0'} mt-1 w-56 max-w-[calc(100vw-32px)] rounded-xl border border-slate-300 dark:border-slate-700 shadow-2xl z-[100000] p-2 space-y-1.5 animate-fadeIn bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100`}
+        >
+          <div className="flex items-center justify-between px-1 pb-1 border-b border-slate-200 dark:border-slate-800 text-[10px] font-black gap-1">
+            <span className="text-[9px] text-teal-700 dark:text-teal-400 uppercase tracking-wider font-extrabold truncate flex-1 min-w-0">
+              {label} ({options.length})
+            </span>
+            <div className="flex items-center gap-1.5 shrink-0 text-[9px]">
+              <button
+                type="button"
+                onClick={handleSelectAll}
+                className="text-teal-600 dark:text-teal-400 hover:underline font-bold cursor-pointer"
+              >
+                All
+              </button>
+              <span className="text-slate-300 dark:text-slate-700">|</span>
+              <button
+                type="button"
+                onClick={handleDeselectAll}
+                className="text-rose-600 hover:underline font-bold cursor-pointer"
+              >
+                Clear
+              </button>
+            </div>
+          </div>
+
+          {options.length > 5 && (
+            <div className="px-0.5">
+              <input
+                type="text"
+                placeholder={`Search ${label}...`}
+                value={searchFilter}
+                onChange={(e) => setSearchFilter(e.target.value)}
+                className="w-full px-1.5 py-0.5 rounded border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-[9.5px] font-medium focus:outline-none focus:ring-1 focus:ring-teal-500"
+              />
+            </div>
+          )}
+
+          <div className="max-h-48 overflow-y-auto space-y-0.5 pr-0.5">
+            {visibleOptions.map((opt) => {
+              const checked = isAll || selected.includes(opt.value);
+              return (
+                <label
+                  key={opt.value}
+                  className="flex items-center justify-between px-1.5 py-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer text-[10px] font-semibold transition-colors"
+                >
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => toggleOption(opt.value)}
+                      className="w-3.5 h-3.5 rounded text-teal-600 accent-teal-600 cursor-pointer shrink-0"
+                    />
+                    <span className="truncate text-slate-800 dark:text-slate-200">{opt.label}</span>
+                  </div>
+                  {opt.count !== undefined && (
+                    <span className="text-[8.5px] font-mono font-bold text-slate-400 shrink-0 ml-1">
+                      {opt.count}
+                    </span>
+                  )}
+                </label>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function StudentCertificateStudioView({
   allStudents = [],
   identityStudents = [],
@@ -334,8 +487,8 @@ export default function StudentCertificateStudioView({
     return '2025-26';
   }, [allStudents]);
 
-  const [activeCohortFilter, setActiveCohortFilter] = useState('ALL'); // 'ALL' | '12th' | '11th' | '10th' | '9th' | 'present' | 'past'
-  const [activeSessionFilter, setActiveSessionFilter] = useState(() => defaultActiveSession);
+  const [selectedClasses, setSelectedClasses] = useState([]); // [] means ALL classes
+  const [selectedSessions, setSelectedSessions] = useState(() => (defaultActiveSession && defaultActiveSession !== 'ALL' ? [defaultActiveSession] : []));
   const [recentIngestedResults, setRecentIngestedResults] = useState([]);
   const isLoadingStudents = false;
 
@@ -491,6 +644,25 @@ export default function StudentCertificateStudioView({
     return counts;
   }, [unifiedStudentDirectory]);
 
+  const classOptions = useMemo(() => [
+    { value: '12th', label: 'Class 12th', count: cohortCounts['12th'] },
+    { value: '11th', label: 'Class 11th', count: cohortCounts['11th'] },
+    { value: '10th', label: 'Class 10th', count: cohortCounts['10th'] },
+    { value: '9th', label: 'Class 9th', count: cohortCounts['9th'] },
+    { value: 'past', label: 'Historical (Past)', count: cohortCounts.past }
+  ], [cohortCounts]);
+
+  const sessionOptions = useMemo(() => {
+    return dynamicSessions.map(s => {
+      const match = s.label.match(/\((\d+)\)/);
+      return {
+        value: s.value,
+        label: `Session ${s.value}`,
+        count: match ? match[1] : undefined
+      };
+    });
+  }, [dynamicSessions]);
+
   // ─── Student Search & Selection State ───
   const [studentSearchQuery, setStudentSearchQuery] = useState('');
   const [debouncedStudentQuery, setDebouncedStudentQuery] = useState('');
@@ -522,37 +694,47 @@ export default function StudentCertificateStudioView({
 
   const deferredStudentQuery = useDeferredValue(debouncedStudentQuery);
 
-  // Filtered search list with real cohort filters and ultra-fast pre-indexed searchToken matching
+  // Filtered search list strictly scoped to selected classes and sessions (Ultra-fast, zero lag)
   const filteredStudents = useMemo(() => {
     let pool = unifiedStudentDirectory;
 
-    // Apply Active Cohort / Class Filter Chip
-    if (activeCohortFilter === '12th') {
-      pool = pool.filter(st => st.cls.toLowerCase().includes('12'));
-    } else if (activeCohortFilter === '11th') {
-      pool = pool.filter(st => st.cls.toLowerCase().includes('11'));
-    } else if (activeCohortFilter === '10th') {
-      pool = pool.filter(st => st.cls.toLowerCase().includes('10'));
-    } else if (activeCohortFilter === '9th') {
-      pool = pool.filter(st => st.cls.toLowerCase().includes('9'));
-    } else if (activeCohortFilter === 'present') {
-      pool = pool.filter(st => st.sourceType === 'present');
-    } else if (activeCohortFilter === 'past') {
-      pool = pool.filter(st => st.sourceType === 'past');
+    // Apply Active Cohort / Class Multi-Select Filters
+    if (selectedClasses.length > 0 && !selectedClasses.includes('__NONE__')) {
+      const classSet = new Set(selectedClasses);
+      pool = pool.filter(st => {
+        const cls = (st.cls || '').toLowerCase();
+        if (classSet.has('12th') && cls.includes('12')) return true;
+        if (classSet.has('11th') && cls.includes('11')) return true;
+        if (classSet.has('10th') && cls.includes('10')) return true;
+        if (classSet.has('9th') && cls.includes('9')) return true;
+        if (classSet.has('past') && st.sourceType === 'past') return true;
+        return false;
+      });
+    } else if (selectedClasses.includes('__NONE__')) {
+      return [];
     }
 
-    // Apply Active Session Filter
-    if (activeSessionFilter !== 'ALL') {
-      pool = pool.filter(st => (st.session || '').toLowerCase().includes(activeSessionFilter.toLowerCase()));
+    // Apply Active Session Multi-Select Filters
+    if (selectedSessions.length > 0 && !selectedSessions.includes('__NONE__')) {
+      const sessionSet = new Set(selectedSessions.map(s => s.toLowerCase()));
+      pool = pool.filter(st => {
+        const sess = (st.session || '').toLowerCase();
+        for (const s of sessionSet) {
+          if (sess.includes(s)) return true;
+        }
+        return false;
+      });
+    } else if (selectedSessions.includes('__NONE__')) {
+      return [];
     }
 
     const q = deferredStudentQuery.trim().toLowerCase();
-    const hasFilter = activeCohortFilter !== 'ALL' || activeSessionFilter !== 'ALL';
+    const hasFilter = selectedClasses.length > 0 || selectedSessions.length > 0;
     const limit = hasFilter ? 160 : 80;
     if (!q) return pool.slice(0, limit);
 
     return pool.filter(st => (st.searchToken || '').includes(q)).slice(0, limit);
-  }, [unifiedStudentDirectory, deferredStudentQuery, activeCohortFilter, activeSessionFilter]);
+  }, [unifiedStudentDirectory, deferredStudentQuery, selectedClasses, selectedSessions]);
 
   // ─── Active Certificate Form State (Auto-filled + Manual Overrides) ───
   const [studentName, setStudentName] = useState('MOHAMMAD TAHIR WANI');
@@ -3232,39 +3414,31 @@ export default function StudentCertificateStudioView({
               </span>
             </div>
 
-            {/* Quick Cohort & Session Filter Dropdowns & TC Tools Action */}
+            {/* Quick Cohort & Session Filter Dropdowns (Checkbox Style) */}
             <div className="space-y-1 pb-0.5 text-[9.5px]">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-                {/* Cohort / Class Filter */}
+                {/* Cohort / Class Multi-Select Filter */}
                 <div className="flex items-center gap-1 min-w-0">
                   <span className="text-slate-500 dark:text-slate-400 font-bold text-[8.5px] uppercase tracking-wider shrink-0">Class:</span>
-                  <select
-                    value={activeCohortFilter}
-                    onChange={(e) => setActiveCohortFilter(e.target.value)}
-                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 font-bold text-[10px] rounded-lg px-1.5 py-1 focus:ring-1 focus:ring-teal-500 focus:outline-none cursor-pointer truncate shadow-2xs"
-                  >
-                    <option value="ALL">All Classes ({cohortCounts.all})</option>
-                    <option value="12th">Class 12th ({cohortCounts['12th']})</option>
-                    <option value="11th">Class 11th ({cohortCounts['11th']})</option>
-                    <option value="10th">Class 10th ({cohortCounts['10th']})</option>
-                    <option value="9th">Class 9th ({cohortCounts['9th']})</option>
-                    <option value="past">Historical ({cohortCounts.past})</option>
-                  </select>
+                  <StudioMultiSelectDropdown
+                    label="Classes"
+                    options={classOptions}
+                    selected={selectedClasses}
+                    onChange={setSelectedClasses}
+                    align="left"
+                  />
                 </div>
 
-                {/* Session Filter */}
+                {/* Session Multi-Select Filter */}
                 <div className="flex items-center gap-1 min-w-0">
                   <span className="text-slate-500 dark:text-slate-400 font-bold text-[8.5px] uppercase tracking-wider shrink-0">Session:</span>
-                  <select
-                    value={activeSessionFilter}
-                    onChange={(e) => setActiveSessionFilter(e.target.value)}
-                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 font-bold text-[10px] rounded-lg px-1.5 py-1 focus:ring-1 focus:ring-teal-500 focus:outline-none cursor-pointer truncate shadow-2xs"
-                  >
-                    <option value="ALL">All Sessions ({unifiedStudentDirectory.length})</option>
-                    {dynamicSessions.map((sess) => (
-                      <option key={sess.value} value={sess.value}>{sess.label}</option>
-                    ))}
-                  </select>
+                  <StudioMultiSelectDropdown
+                    label="Sessions"
+                    options={sessionOptions}
+                    selected={selectedSessions}
+                    onChange={setSelectedSessions}
+                    align="right"
+                  />
                 </div>
               </div>
 
@@ -3654,8 +3828,23 @@ export default function StudentCertificateStudioView({
                   }`}
                 >
                   {filteredStudents.length === 0 ? (
-                    <div className="p-3 text-center text-xs text-slate-500 font-bold">
-                      {isLoadingStudents ? 'Loading student database...' : 'No matching students found.'}
+                    <div className="p-3 text-center text-xs text-slate-500 font-bold space-y-1">
+                      <div>{isLoadingStudents ? 'Loading student database...' : 'No matching students found.'}</div>
+                      {(selectedClasses.length > 0 || selectedSessions.length > 0) && (
+                        <div className="text-[10px] text-slate-400 font-normal">
+                          Scoped to selected {selectedClasses.length > 0 ? `${selectedClasses.length} class(es)` : ''}{selectedClasses.length > 0 && selectedSessions.length > 0 ? ' and ' : ''}{selectedSessions.length > 0 ? `${selectedSessions.length} session(s)` : ''}.
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedClasses([]);
+                              setSelectedSessions([]);
+                            }}
+                            className="ml-1 text-teal-600 dark:text-teal-400 underline font-bold cursor-pointer hover:text-teal-700"
+                          >
+                            Reset to All
+                          </button>
+                        </div>
+                      )}
                     </div>
                   ) : (
                     filteredStudents.map((st, idx) => {
