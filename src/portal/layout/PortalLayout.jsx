@@ -75,10 +75,7 @@ export default function PortalLayout() {
     if (isPublicRoute) {
       return { loading: false, user: null, isAuthenticated: false };
     }
-    const saved = sessionManager.getSession();
-    if (saved?.user && sessionStorage.getItem('hss_explicit_logout') !== 'true') {
-      return { loading: false, user: saved.user, isAuthenticated: true };
-    }
+    // Cached roles are display data, never proof of authentication.
     return { loading: true, user: null, isAuthenticated: false };
   });
 
@@ -94,7 +91,7 @@ export default function PortalLayout() {
       prev.loading === newState.loading &&
       prev.isAuthenticated === newState.isAuthenticated &&
       prev.user?.email === newState.user?.email &&
-      prev.user?.role === newState.user?.role
+      JSON.stringify(prev.user) === JSON.stringify(newState.user)
     ) {
       return; // State is identical — skip re-render
     }
@@ -170,6 +167,7 @@ export default function PortalLayout() {
         // If session is already authenticated and active for this email, refresh claims silently in background without blocking UI
         if (sessionStateRef.current.isAuthenticated && sessionStateRef.current.user?.email === cleanEmail) {
           resolveUserProfile(fbUser).then(({ role: userRole, name: displayName, perms: userPerms, token: verifiedToken }) => {
+            if (auth.currentUser?.uid !== fbUser.uid) return;
             const updatedSession = {
               email: cleanEmail,
               name: displayName,
@@ -177,7 +175,7 @@ export default function PortalLayout() {
               perms: userPerms,
               uid: fbUser.uid,
             };
-            sessionManager.saveSession({ user: updatedSession, token: verifiedToken }, true);
+            sessionManager.saveSession({ user: updatedSession, token: verifiedToken }, localStorage.getItem('hss_persistent_login') !== 'false');
             setSessionStateStable({ loading: false, user: updatedSession, isAuthenticated: true });
           }).catch((err) => {
             console.warn('Silent token claims refresh note:', err);
@@ -188,6 +186,7 @@ export default function PortalLayout() {
         // Full session restore on cold start / page refresh
         try {
           const { role: userRole, name: displayName, perms: userPerms, token: verifiedToken } = await resolveUserProfile(fbUser);
+          if (auth.currentUser?.uid !== fbUser.uid) return;
           const defaultSession = {
             email: cleanEmail,
             name: displayName,
@@ -195,7 +194,7 @@ export default function PortalLayout() {
             perms: userPerms,
             uid: fbUser.uid,
           };
-          sessionManager.saveSession({ user: defaultSession, token: verifiedToken }, true);
+          sessionManager.saveSession({ user: defaultSession, token: verifiedToken }, localStorage.getItem('hss_persistent_login') !== 'false');
           setSessionStateStable({ loading: false, user: defaultSession, isAuthenticated: true });
         } catch (error) {
           sessionManager.clearSession();
@@ -290,7 +289,7 @@ export default function PortalLayout() {
   const refreshSession = useCallback(() => {
     const session = sessionManager.getSession();
     const fbUser = auth.currentUser;
-    if (session?.user) {
+    if (session?.user && fbUser && session.user.uid === fbUser.uid) {
       setSessionStateStable({ loading: false, user: session.user, isAuthenticated: true });
     } else if (!fbUser && !isPublicRoute) {
       navigate('/portal/login', { replace: true });

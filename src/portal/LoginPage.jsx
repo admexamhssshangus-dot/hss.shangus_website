@@ -11,7 +11,10 @@ import ModernLoader from '../components/ModernLoader';
 import { auth, db, googleProvider } from '../services/firebase';
 import { 
   getIdTokenResult, 
-  signInWithPopup, 
+  signInWithPopup,
+  setPersistence,
+  browserLocalPersistence,
+  browserSessionPersistence,
   signInWithEmailAndPassword, 
   signOut, 
   fetchSignInMethodsForEmail,
@@ -124,14 +127,9 @@ export default function LoginPage() {
 
   // Helper to construct verified user session
   const createVerifiedSession = async (firebaseUser, overrideEmail = null, cachedStaffProfile = null) => {
-    let tokenResult = null;
-    let claims = {};
-    if (firebaseUser?.getIdTokenResult) {
-      try {
-        tokenResult = await getIdTokenResult(firebaseUser, false);
-        claims = tokenResult?.claims || {};
-      } catch (_) {}
-    }
+    if (!firebaseUser?.uid) throw new Error('Please sign in again to verify your session.');
+    const tokenResult = await getIdTokenResult(firebaseUser, false);
+    const claims = tokenResult.claims || {};
     const emailLower = String(firebaseUser?.email || overrideEmail || '').toLowerCase().trim();
     
     // Resolve role from Firestore permissions & users collection & bootstrap (use cached if available)
@@ -396,6 +394,7 @@ export default function LoginPage() {
     setAlert(null);
     try {
       googleProvider.setCustomParameters({ prompt: 'select_account' });
+      await setPersistence(auth, keepLoggedIn ? browserLocalPersistence : browserSessionPersistence);
       const result = await signInWithPopup(auth, googleProvider);
       const fbUser = result.user;
       const cleanEmail = String(fbUser.email || '').toLowerCase().trim();
@@ -482,11 +481,12 @@ export default function LoginPage() {
 
     try {
       // 1. Authenticate credentials against Firebase Auth
+      await setPersistence(auth, keepLoggedIn ? browserLocalPersistence : browserSessionPersistence);
       const userCred = await signInWithEmailAndPassword(auth, cleanEmail, password);
       
       // 2. Resolve account profile from Firestore (configured strictly by Super Admin)
       const staffProfile = await resolveStaffRoleAndPerms(cleanEmail);
-      const isSuper = staffProfile?.role === 'SuperAdmin' || selectedRole === 'superadmin' || isBootstrapSuperAdminEmail(cleanEmail);
+      const isSuper = staffProfile?.role === 'SuperAdmin' || isBootstrapSuperAdminEmail(cleanEmail);
       const isAdmin = isSuper || staffProfile?.role === 'Admin';
       const isTeacher = staffProfile?.role === 'Teacher' || staffProfile?.role === 'Faculty';
 
@@ -514,7 +514,7 @@ export default function LoginPage() {
 
       // --- ADMIN TAB ACCESS ---
       if (selectedRole === 'admin' || selectedRole === 'superadmin') {
-        if (!isAdmin) {
+        if (!isAdmin || (selectedRole === 'superadmin' && !isSuper)) {
           await signOut(auth).catch(() => {});
           setAlert({
             type: 'error',
