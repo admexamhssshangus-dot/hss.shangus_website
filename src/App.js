@@ -1,4 +1,5 @@
 import React, { useEffect, Suspense, lazy } from 'react';
+import { portalArea } from './utils/portalRole';
 import { Routes, Route, Navigate, useLocation, useOutletContext } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
@@ -108,14 +109,15 @@ function RoleGuard({ allowedRoles, children }) {
   // Flexible role matching to prevent flash on hard refresh
   const allowed = allowedRoles.some((r) => {
     const normR = String(r).toLowerCase().trim();
-    if (normR === 'admin') return role.includes('admin') || isSuper;
-    if (normR === 'teacher') return role.includes('teacher') || role.includes('faculty');
-    if (normR === 'student') return role.includes('student') || role === 'user';
+    if (normR === 'admin') return portalArea(role) === 'admin' || isSuper;
+    if (normR === 'teacher') return portalArea(role) === 'teacher';
+    if (normR === 'student') return portalArea(role) === 'student';
     return role === normR;
   });
 
   if (!allowed) {
-    const dest = (isSuper || role.includes('admin')) ? '/portal/admin' : role.includes('teacher') ? '/portal/teacher' : '/portal/student';
+    const area = isSuper ? 'admin' : portalArea(role);
+    const dest = area ? `/portal/${area}` : '/portal/login';
     return <Navigate to={dest} replace />;
   }
 
