@@ -565,12 +565,17 @@ export default function AdmissionForm() {
   // Debounced, owner-scoped server draft. Sensitive identifiers and photos are
   // excluded by admissionWorkflowApi and never placed in browser storage.
   useEffect(() => {
-    if (Object.keys(formData).length === 0 || isFormLocked || autosaveServiceUnavailableRef.current) return undefined;
+    if (Object.keys(formData).length === 0 || isFormLocked || isSubmitting || submittedSuccessData || autosaveServiceUnavailableRef.current) return undefined;
     if (!formData['Admission sought for class'] && !formData["Student's Name (as per school records)"]) return undefined;
+    let cancelled = false;
     const timer = setTimeout(async () => {
       setDraftState('saving');
       try {
         const result = await saveAdmissionDraft({ formData, applicationId: applicationIdRef.current });
+        // Keep the first server ID even if typing invalidated this snapshot.
+        // Never replace an ID assigned by a subsequent submission.
+        if (!applicationIdRef.current && result.applicationId) applicationIdRef.current = result.applicationId;
+        if (cancelled) return;
         if (result.formNumber || result.applicationId) {
           const assignedNo = result.formNumber || result.applicationId;
           applicationIdRef.current = String(assignedNo);
@@ -588,13 +593,14 @@ export default function AdmissionForm() {
         setDraftState('saved');
         autosaveServiceUnavailableRef.current = false;
       } catch (error) {
+        if (cancelled) return;
         if (error.isServiceUnavailable) autosaveServiceUnavailableRef.current = true;
         else console.warn('Admission autosave failed:', error);
         setDraftState('error');
       }
     }, 2500);
-    return () => clearTimeout(timer);
-  }, [formData, isFormLocked]);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [formData, isFormLocked, isSubmitting, submittedSuccessData]);
 
   useEffect(() => {
     if (isFormLocked || Object.keys(formData).length === 0) return undefined;
@@ -1938,7 +1944,7 @@ export default function AdmissionForm() {
         return;
       }
 
-      if (res && res.success !== false) {
+      if (res?.success === true && res.applicationId && res.formNumber) {
         const formNo = res.formNumber || res['Form Number'] || res.formNo || res.data?.['Form Number'] || res.data?.formNo;
         applicationIdRef.current = res.applicationId || res.data?.docId || applicationIdRef.current || String(formNo);
         setApplicationId(applicationIdRef.current);
@@ -1988,7 +1994,7 @@ export default function AdmissionForm() {
   };
 
   return (
-    <div className="portal-page w-full min-h-[85vh] px-2 py-2.5 sm:px-5 sm:py-4" style={{ backgroundColor: 'var(--bg-page, #f8fafc)' }}>
+    <div className="portal-page admission-mobile-compact w-full min-h-[85vh] px-2 py-2.5 sm:px-5 sm:py-4" style={{ backgroundColor: 'var(--bg-page, #f8fafc)' }}>
       <SEO
         title="Online Admission Application"
         description="Fill out the official online admission form for Govt HSS Shangus."

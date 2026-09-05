@@ -345,7 +345,7 @@ export default function StudentDashboard() {
   };
 
   return (
-    <div className="portal-page w-full min-h-[85vh] py-3 px-2 sm:py-4 sm:px-4" style={{ backgroundColor: 'var(--bg-page, #f8fafc)' }}>
+    <div className="portal-page student-mobile-compact w-full min-h-[85vh] py-3 px-2 sm:py-4 sm:px-4" style={{ backgroundColor: 'var(--bg-page, #f8fafc)' }}>
       <SEO
         title="Student Dashboard"
         description="Govt HSS Shangus Online Student Admission Portal Dashboard."
@@ -476,7 +476,7 @@ export default function StudentDashboard() {
           />
         ) : (
           /* Application Status Box */
-          <div className="rounded-3xl p-6 sm:p-8 border shadow-xl space-y-6" style={{ backgroundColor: 'var(--bg-card, #ffffff)', borderColor: 'var(--border-ui, #e2e8f0)' }}>
+          <div className="rounded-xl sm:rounded-3xl p-3 sm:p-8 border shadow-sm sm:shadow-xl space-y-3 sm:space-y-6" style={{ backgroundColor: 'var(--bg-card, #ffffff)', borderColor: 'var(--border-ui, #e2e8f0)' }}>
             <div className="flex flex-col items-start justify-between gap-2 border-b pb-4 sm:flex-row sm:items-center" style={{ borderColor: 'var(--border-ui, #e2e8f0)' }}>
               <div>
                 <h2 className="text-lg font-extrabold" style={{ color: 'var(--text-main, #0f172a)' }}>

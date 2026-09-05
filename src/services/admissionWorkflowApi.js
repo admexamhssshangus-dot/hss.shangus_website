@@ -55,13 +55,18 @@ async function request(action, payload = {}, { force = false } = {}) {
     throw error;
   }
 
-  const result = await response.json().catch(() => ({}));
+  const result = await response.json().catch(() => null);
+  if (!result || typeof result !== 'object' || Array.isArray(result)) {
+    throw workflowError('The admission service returned an invalid response. Please try again. Your submission has not been confirmed.', 502);
+  }
   if (!response.ok) {
     const localMissing = response.status === 404 && window.location.hostname === 'localhost';
     const error = workflowError(
       localMissing
         ? 'The local admission backend is not running. Use Netlify Dev so the authenticated cloud workflow is available locally.'
-        : (result.error || 'Admission service is temporarily unavailable.'),
+        : (response.status >= 500 && !result.code
+          ? 'The admission service is temporarily unavailable. Please try again later; your submission has not been confirmed.'
+          : (result.error || 'Admission service is temporarily unavailable.')),
       response.status,
       result.fieldErrors || {},
     );
@@ -74,6 +79,13 @@ async function request(action, payload = {}, { force = false } = {}) {
 
   cachedServiceError = null;
   serviceUnavailableUntil = 0;
+  const validResult = action === 'load'
+    ? Array.isArray(result.applications)
+    : result.success === true && typeof result.applicationId === 'string' && result.applicationId.length > 0
+      && (action !== 'submit' || Boolean(result.formNumber));
+  if (!validResult) {
+    throw workflowError('The admission service did not confirm this operation. Please try again; your submission has not been confirmed.', 502);
+  }
   return result;
 }
 

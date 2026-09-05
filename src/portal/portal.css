@@ -84,6 +84,33 @@
     font-size: max(1rem, 16px);
   }
 
+  /* Compact student screens only; retain generous touch targets and desktop layout. */
+  .admission-mobile-compact [data-field-name] {
+    font-size: 12px;
+    line-height: 1.4;
+  }
+
+  .admission-mobile-compact [data-field-name] :where(input:not([type='checkbox']):not([type='radio']), select, textarea) {
+    font-size: 14px;
+    min-height: 44px;
+    padding: 8px 10px;
+  }
+
+  .admission-mobile-compact .subject-checkbox-dropdown summary {
+    min-height: 44px;
+    overflow-wrap: anywhere;
+  }
+
+  .admission-mobile-compact .subject-checkbox-dropdown label {
+    min-height: 44px;
+  }
+
+  .student-mobile-compact h1 { font-size: 18px; line-height: 1.3; }
+  .student-mobile-compact h2 { font-size: 15px; line-height: 1.4; }
+  .student-mobile-compact :where(.p-6, .p-8) { padding: 12px; }
+  .student-mobile-compact :where(.space-y-6) > :not([hidden]) ~ :not([hidden]) { margin-top: 12px; }
+  .student-mobile-compact :where(button, a[role='button']) { min-height: 44px; }
+
   .portal-page :where(button, a[role='button'], input, select, textarea) {
     touch-action: manipulation;
   }
