@@ -298,7 +298,7 @@ export function interpolateCertificateTemplate(templateHtml, studentData = {}, o
     dobFigures = '',
     dobWords = '',
     session = '2025-26',
-    address = 'Shangus, Anantnag',
+    address = '',
     gender = 'M',
     refNo = 'HSS/SHG/Bonafide/2026/01',
     date = new Date().toLocaleDateString('en-GB'),
@@ -321,7 +321,7 @@ export function interpolateCertificateTemplate(templateHtml, studentData = {}, o
     conductStatus = 'Satisfactory',
     village = '',
     tehsil = '',
-    district = 'Anantnag',
+    district = '',
     certificateNo = ''
   } = { ...studentData, ...options };
 
@@ -489,7 +489,7 @@ export function interpolateCertificateTemplate(templateHtml, studentData = {}, o
   result = result.replace(/\{CONDUCT_STATUS\}/gi, formatBlank(conductStatus, 'Satisfactory'));
   result = result.replace(/\{VILLAGE\}/gi, formatBlank(village || address, '----------------------------------------'));
   result = result.replace(/\{TEHSIL\}/gi, formatBlank(tehsil, '----------------'));
-  result = result.replace(/\{DISTRICT\}/gi, formatBlank(district, 'Anantnag'));
+  result = result.replace(/\{DISTRICT\}/gi, formatBlank(district, '----------------'));
   result = result.replace(/\{(?:CERTIFICATE_NO|TC_DC_NO|CERT_NO)\}/gi, formatBlank(certificateNo || refNo, '----------------'));
 
   // If salutations are disabled, also clean any literal salutations residing inside tags (e.g. <strong>Mr. ...</strong>)

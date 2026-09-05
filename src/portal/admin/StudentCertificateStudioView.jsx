@@ -401,8 +401,16 @@ export default function StudentCertificateStudioView({
       const gender = String(rawGender || '').toUpperCase().startsWith('F')
         ? 'F'
         : (String(rawGender || '').toUpperCase().startsWith('M') ? 'M' : '');
-      const village = extractVillage(effectiveStudent);
-      const address = village && village !== '—' ? `${village}, Shangus, Anantnag (J&K)` : 'Shangus, Anantnag — 192201 (J&K)';
+      const rawVillage = extractVillage(effectiveStudent);
+      const hasVillage = rawVillage && rawVillage !== '—' && rawVillage !== '-' && !/^(null|undefined|n\/a)$/i.test(rawVillage);
+      const rawAddress = effectiveStudent.address || effectiveStudent.residence || effectiveStudent['Permanent Address'] || '';
+      const hasAddress = rawAddress && rawAddress !== '—' && rawAddress !== '-' && !/^(null|undefined|n\/a)$/i.test(rawAddress);
+      let address = '';
+      if (hasAddress) {
+        address = rawAddress;
+      } else if (hasVillage) {
+        address = /shangus/i.test(rawVillage) ? `${rawVillage}, Anantnag (J&K)` : `${rawVillage}, Shangus, Anantnag (J&K)`;
+      }
       const mobile = extractMobile(effectiveStudent);
       const directPhoto = effectiveStudent.photo_id || effectiveStudent.photoId || effectiveStudent.photoUrl || effectiveStudent.photo || effectiveStudent['passport_photo'] || effectiveStudent['Student Photo'] || effectiveStudent['Photo'] || null;
 
@@ -556,7 +564,7 @@ export default function StudentCertificateStudioView({
   const [regNo, setRegNo] = useState('24SHG1101');
   const [dobRaw, setDobRaw] = useState('2007-08-15');
   const [session, setSession] = useState('2025-26');
-  const [address, setAddress] = useState('Shangus, Anantnag — 192201 (J&K)');
+  const [address, setAddress] = useState('');
   const [gender, setGender] = useState('M');
   const [withdrawalDate, setWithdrawalDate] = useState(() => toLocalDateKey());
   const [studentPhotoUrl, setStudentPhotoUrl] = useState(null);
@@ -1090,7 +1098,7 @@ export default function StudentCertificateStudioView({
     const resolvedDob = extractDob(raw);
     setDobRaw(resolvedDob && resolvedDob !== '—' ? resolvedDob : (st.dob || ''));
     setSession(st.session || '2025-26');
-    setAddress(st.address || 'Shangus, Anantnag');
+    setAddress(st.address || '');
     const resolvedGender = extractGender(raw);
     setGender(String(resolvedGender || '').toUpperCase().startsWith('F')
       ? 'F'
@@ -1367,9 +1375,13 @@ export default function StudentCertificateStudioView({
     const ccDcNo = refNo || extractStudentCertificateNumber(raw) || '—';
     const effAdmDate = admissionDate || extractStudentAdmissionDate(raw) || '—';
     const effAdmNo = admissionNo || extractStudentAdmissionNumber(raw) || '—';
-    const village = raw['Village/Town'] || raw.village || raw.address || address || 'Shangus';
-    const tehsil = raw['Tehsil'] || raw.tehsil || 'Anantnag';
-    const district = raw['District'] || raw.district || 'Anantnag';
+    const rawVillage = raw['Village/Town'] || raw.village || raw['Name of your village'] || '';
+    const cleanVillage = (rawVillage && rawVillage !== '—' && rawVillage !== '-' && !/^(null|undefined|n\/a)$/i.test(rawVillage)) ? rawVillage : '';
+    const village = cleanVillage || address || '';
+    const rawTehsil = raw['Tehsil'] || raw.tehsil || '';
+    const tehsil = (rawTehsil && rawTehsil !== '—' && rawTehsil !== '-' && !/^(null|undefined|n\/a)$/i.test(rawTehsil)) ? rawTehsil : '';
+    const rawDistrict = raw['District'] || raw.district || '';
+    const district = (rawDistrict && rawDistrict !== '—' && rawDistrict !== '-' && !/^(null|undefined|n\/a)$/i.test(rawDistrict)) ? rawDistrict : '';
 
     return interpolateCertificateTemplate(templateBody, {
       studentName,
@@ -2322,7 +2334,10 @@ export default function StudentCertificateStudioView({
       '{DOB_FIGURES}': parsedDob.figures || '—',
       '{DOB_WORDS}': parsedDob.words || '—',
       '{SESSION}': session || '2025-26',
-      '{ADDRESS}': address || 'Shangus, Anantnag',
+      '{ADDRESS}': address || '----------------------------------------',
+      '{VILLAGE}': (selectedStudent?.village && selectedStudent.village !== '—' && selectedStudent.village !== '-') ? selectedStudent.village : (address || '----------------------------------------'),
+      '{TEHSIL}': (selectedStudent?.tehsil && selectedStudent.tehsil !== '—' && selectedStudent.tehsil !== '-') ? selectedStudent.tehsil : '----------------',
+      '{DISTRICT}': (selectedStudent?.district && selectedStudent.district !== '—' && selectedStudent.district !== '-') ? selectedStudent.district : '----------------',
       '{REF_NO}': refNo || '—',
       '{DATE}': dateStr || new Date().toLocaleDateString('en-GB'),
       '{GENDER_TITLE}': studentTitle,

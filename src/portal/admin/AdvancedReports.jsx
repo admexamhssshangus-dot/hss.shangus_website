@@ -4245,12 +4245,12 @@ const DEFAULT_1_WIDTHS = {
   fatherName: 165,
   aadhar: 140,
   fatherAadhar: 140,
-  dob: 78,
-  village: 90,
+  dob: 101,
+  village: 100,
   gender: 60,
   category: 68,
   stream: 72,
-  subs: 80,
+  subs: 104,
   mobile: 100,
   pinCode: 70,
   state: 80,
@@ -4331,7 +4331,7 @@ function AdminStudentEditModal({ student, onClose, onSave, isSaving, restrictedC
       'Gender': student?.gender || student?.['Gender'] || 'Male',
       'Cat._JKBOSE': student?.category || student?.['Cat._JKBOSE'] || student?.['Category'] || 'General',
       'Religion': student?.religion || student?.['Religion'] || 'Muslim',
-      'Village/Town': student?.village || student?.['Name of your village'] || student?.['Village/Town'] || 'Shangus',
+      'Village/Town': student?.village || student?.['Name of your village'] || student?.['Village/Town'] || '',
       'Mobile No.': student?.mobile || student?.['Mobile No. (with working WhatsApp)'] || student?.["Student's Contact"] || '',
       "Parent's Contact": student?.parentContact || student?.["Parent's Contact"] || '',
       'Aadhar No.': student?.aadhar || student?.['Aadhar No.'] || '',
@@ -5759,7 +5759,7 @@ export default function AdvancedReports({
   const resetToDefault1 = () => {
     setColWidths(DEFAULT_1_WIDTHS);
     setVisibleCols(DEFAULT_VISIBLE_COLS);
-    setDensity('fit');
+    setDensity('compact');
     try {
       localStorage.removeItem('hss_admin_table_widths_v2');
       localStorage.removeItem('hss_admin_table_cols_v2');
@@ -5768,7 +5768,7 @@ export default function AdvancedReports({
     } catch (err) {
       console.error(err);
     }
-    setLayoutNotice({ type: 'reset', msg: 'Reset to System Default 1 widths & layout!' });
+    setLayoutNotice({ type: 'reset', msg: 'Reset to Default widths & column layout!' });
     setTimeout(() => setLayoutNotice(null), 3000);
   };
 
