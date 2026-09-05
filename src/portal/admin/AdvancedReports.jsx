@@ -4783,10 +4783,10 @@ function AdminStudentEditModal({ student, onClose, onSave, isSaving, restrictedC
               <div className="sm:col-span-2">
                 <label className="block text-slate-700 dark:text-slate-300 mb-1 font-black">Remarks / Special Notes</label>
                 <textarea
-                  rows={2}
+                  rows={4}
                   value={formData['Remarks']}
                   onChange={(e) => handleChange('Remarks', e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-bold focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                  className="w-full px-3 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-bold focus:ring-2 focus:ring-amber-500 focus:outline-none min-h-[100px] resize-y leading-relaxed"
                 />
               </div>
             </div>
