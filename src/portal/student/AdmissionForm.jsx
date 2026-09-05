@@ -323,7 +323,6 @@ export default function AdmissionForm() {
   const applicationIdRef = useRef('');
   const submissionKeyRef = useRef('');
   const autosaveServiceUnavailableRef = useRef(false);
-  const mobileCheckTimeoutRef = useRef(null);
   const [upgradeMode, setUpgradeMode] = useState(requestedUpgradeMode);
   const [upgradeSourceFormNo, setUpgradeSourceFormNo] = useState(null);
 
@@ -598,7 +597,7 @@ export default function AdmissionForm() {
         else console.warn('Admission autosave failed:', error);
         setDraftState('error');
       }
-    }, 2500);
+    }, 10000);
     return () => { cancelled = true; clearTimeout(timer); };
   }, [formData, isFormLocked, isSubmitting, submittedSuccessData]);
 
@@ -828,44 +827,7 @@ export default function AdmissionForm() {
       return next;
     });
 
-    // ── Real-time Database Duplicate Mobile Guard (for same session) ──
-    const STUDENT_MOBILE_KEY = "Mobile No. (with working WhatsApp)";
-    const PARENT_MOBILE_KEY  = "Parent's Mobile No. (must be working)";
-
-    if (fieldName === STUDENT_MOBILE_KEY || fieldName === PARENT_MOBILE_KEY) {
-      const mobileDigits = String(cleanValue || '').replace(/[^0-9]/g, '');
-      if (mobileDigits.length === 10) {
-        if (mobileCheckTimeoutRef.current) clearTimeout(mobileCheckTimeoutRef.current);
-        mobileCheckTimeoutRef.current = setTimeout(async () => {
-          try {
-            const res = await appsScriptApi.checkDuplicateMobileInSession({
-              mobile: mobileDigits,
-              session: formData.Session || formData.session,
-              currentApplicationId: applicationIdRef.current || applicationId || formData['Form Number'] || formData.FormNo || formData.formNo,
-              currentFormNo: formData['Form Number'] || formData.FormNo || formData.formNo,
-              currentOwnerUid: currentUser?.uid || auth.currentUser?.uid,
-              currentEmail: currentUser?.email || auth.currentUser?.email || formData['Email Address'] || formData.email,
-            });
-            if (res.isDuplicate) {
-              setFieldErrors((prev) => ({
-                ...prev,
-                [fieldName]: res.message,
-              }));
-            } else {
-              setFieldErrors((prev) => {
-                const next = { ...prev };
-                if (next[fieldName]?.includes('already linked to Form No.')) {
-                  delete next[fieldName];
-                }
-                return next;
-              });
-            }
-          } catch (e) {
-            console.warn('Real-time mobile duplicate check note:', e);
-          }
-        }, 350);
-      }
-    }
+    // Cross-applicant mobile checks run only inside the authenticated submission transaction.
 
     setFieldErrors((prev) => {
       const next = { ...prev };
@@ -1579,42 +1541,7 @@ export default function AdmissionForm() {
     else if (mobile.length === 10 && parentMobile === mobile)
       addError("Parent's Mobile No. (must be working)", "Student's and Parent's mobile numbers must be different");
 
-    // ── Session-Scoped Duplicate Mobile Validation Against Live Database ──
-    if (mobile.length === 10 && !errors["Mobile No. (with working WhatsApp)"]) {
-      try {
-        const studentDup = await appsScriptApi.checkDuplicateMobileInSession({
-          mobile,
-          session: formData.Session || formData.session,
-          currentApplicationId: applicationIdRef.current || applicationId || formData['Form Number'] || formData.FormNo || formData.formNo,
-          currentFormNo: formData['Form Number'] || formData.FormNo || formData.formNo,
-          currentOwnerUid: currentUser?.uid || auth.currentUser?.uid,
-          currentEmail: currentUser?.email || auth.currentUser?.email || formData['Email Address'] || formData.email,
-        });
-        if (studentDup.isDuplicate) {
-          addError("Mobile No. (with working WhatsApp)", studentDup.message);
-        }
-      } catch (dupErr) {
-        console.warn('Student mobile duplicate validation check note:', dupErr);
-      }
-    }
-
-    if (parentMobile.length === 10 && !errors["Parent's Mobile No. (must be working)"]) {
-      try {
-        const parentDup = await appsScriptApi.checkDuplicateMobileInSession({
-          mobile: parentMobile,
-          session: formData.Session || formData.session,
-          currentApplicationId: applicationIdRef.current || applicationId || formData['Form Number'] || formData.FormNo || formData.formNo,
-          currentFormNo: formData['Form Number'] || formData.FormNo || formData.formNo,
-          currentOwnerUid: currentUser?.uid || auth.currentUser?.uid,
-          currentEmail: currentUser?.email || auth.currentUser?.email || formData['Email Address'] || formData.email,
-        });
-        if (parentDup.isDuplicate) {
-          addError("Parent's Mobile No. (must be working)", parentDup.message);
-        }
-      } catch (dupErr) {
-        console.warn('Parent mobile duplicate validation check note:', dupErr);
-      }
-    }
+    // Cross-applicant mobile checks run only inside the authenticated submission transaction.
 
     // Email validation
     const emailFieldKey = Object.keys(formData).find(k => {
