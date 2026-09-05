@@ -91,7 +91,8 @@
   }
 
   .admission-mobile-compact [data-field-name] :where(input:not([type='checkbox']):not([type='radio']), select, textarea) {
-    font-size: 14px;
+    font-size: 13px;
+    font-weight: 400;
     min-height: 44px;
     padding: 8px 10px;
   }
@@ -99,6 +100,17 @@
   .admission-mobile-compact .subject-checkbox-dropdown summary {
     min-height: 44px;
     overflow-wrap: anywhere;
+  }
+
+  .admission-mobile-compact [data-field-name] input::placeholder,
+  .admission-mobile-compact [data-field-name] textarea::placeholder {
+    font-size: 13px;
+    font-weight: 400;
+  }
+
+  .admission-mobile-compact .subject-compulsory {
+    font-size: 12px;
+    margin: 0;
   }
 
   .admission-mobile-compact .subject-checkbox-dropdown label {
