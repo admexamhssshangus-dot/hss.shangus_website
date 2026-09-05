@@ -8,6 +8,15 @@ const root = path.resolve(__dirname, '..');
 const read = file => fs.readFileSync(path.join(root, file), 'utf8');
 const schemaSource = read('src/utils/defaultFormSchema.js');
 const formSource = read('src/portal/student/AdmissionForm.jsx');
+// Exercise the actual pure admission validator without loading the React page.
+const subjectSource = formSource.slice(formSource.indexOf('export const SUBJECT_CANONICAL_SYNONYMS'), formSource.indexOf('export default function AdmissionForm'));
+const validateSubjects = new Function(`${subjectSource.replace(/export /g, '')}; return validateSubjectSelection;`)();
+assert(validateSubjects('11th', 'Science', 'Biology, Mathematics').valid, 'Science must allow 2 from B');
+assert(validateSubjects('11th', 'Science', 'Biology, Healthcare').valid, 'Science must allow 1 B + 1 C');
+assert(!validateSubjects('11th', 'Science', 'Healthcare, Environmental Science').valid, 'Science must reject 2 from C');
+assert(validateSubjects('11th', 'Humanities', 'Urdu, Education, History, Healthcare').valid, 'Humanities must allow 3 B + 1 C');
+assert(!validateSubjects('11th', 'Humanities', 'Urdu, Education, History, Economics').valid, 'Humanities must reject 4 B + 0 C');
+assert(!validateSubjects('11th', 'Humanities', 'Urdu, Education, Healthcare, Environmental Science').valid, 'Humanities must reject 2 B + 2 C');
 const pdfSource = read('src/utils/pdfGenerator.js');
 
 const schemaFields = [...schemaSource.matchAll(/"Field Name"\s*:\s*"([^"]+)"/g)].map(match => match[1]);
