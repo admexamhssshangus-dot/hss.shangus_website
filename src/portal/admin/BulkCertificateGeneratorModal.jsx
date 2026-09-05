@@ -748,7 +748,10 @@ export default function BulkCertificateGeneratorModal({
         dobFigures: dobWordsObj.figures,
         dobWords: dobWordsObj.words,
         session: st.session,
-        address: `${st.village}, Shangus, Anantnag (J&K)`,
+        address: (st.village && st.village !== '—' && st.village !== '-' && !/^(null|undefined|n\/a)$/i.test(st.village))
+          ? (/shangus/i.test(st.village) ? `${st.village}, Anantnag (J&K)` : `${st.village}, Shangus, Anantnag (J&K)`)
+          : '',
+        village: (st.village && st.village !== '—' && st.village !== '-' && !/^(null|undefined|n\/a)$/i.test(st.village)) ? st.village : '',
         gender: st.gender,
         refNo: assignedCertNo,
         date: issueDate,
