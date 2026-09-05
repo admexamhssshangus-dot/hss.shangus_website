@@ -7,7 +7,7 @@ import ModernLoader from '../../components/ModernLoader';
 import LogoutConfirmModal from '../components/LogoutConfirmModal';
 import { auth, db } from '../../services/firebase';
 import { sendEmailVerification } from 'firebase/auth';
-import { doc, setDoc } from 'firebase/firestore';
+import { doc, setDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { selectStudentApplication } from '../../utils/studentApplicationSelection';
 import { generateStudentAdmissionPdf, generateProvisionalAdmissionPdf } from '../../utils/pdfGenerator';
 import { loadAdmissionWorkspace, withdrawAdmission } from '../../services/admissionWorkflowApi';
@@ -171,9 +171,89 @@ export default function StudentDashboard() {
           }
         }
         setAppData(currentApp);
+        if (currentApp && user?.uid) {
+          try {
+            localStorage.setItem(`hss_student_app_${user.uid}`, JSON.stringify({
+              currentApp,
+              applications,
+              activeSession,
+              cachedAt: Date.now()
+            }));
+          } catch (_) {}
+        }
       } catch (appErr) {
         console.warn('Student applications load note:', appErr);
-        setLoadError(appErr.message || 'Application status could not be loaded.');
+        let recovered = false;
+
+        // Resilient Fallback 1: Direct client-side Firestore query for student's own record
+        try {
+          const email = String(user?.email || '').toLowerCase().trim();
+          const queries = [
+            getDocs(query(collection(db, 'admissions'), where('ownerUid', '==', user.uid)))
+          ];
+          if (email) {
+            queries.push(getDocs(query(collection(db, 'admissions'), where('emailNormalized', '==', email))));
+            queries.push(getDocs(query(collection(db, 'admissions'), where('Email Address', '==', email))));
+          }
+          const snaps = await Promise.all(queries);
+          const directApps = [];
+          const seenIds = new Set();
+          snaps.forEach(snap => {
+            snap.forEach(docSnap => {
+              if (!seenIds.has(docSnap.id)) {
+                seenIds.add(docSnap.id);
+                directApps.push({ docId: docSnap.id, ...docSnap.data() });
+              }
+            });
+          });
+          if (directApps.length > 0) {
+            setAllApplications(directApps);
+            const fallbackApp = selectStudentApplication(directApps, activeSession);
+            if (fallbackApp) {
+              setAppData(fallbackApp);
+              setSessionInfo(fallbackApp.Session || fallbackApp.session || activeSession);
+              setLoadError(null);
+              recovered = true;
+              try {
+                localStorage.setItem(`hss_student_app_${user.uid}`, JSON.stringify({
+                  currentApp: fallbackApp,
+                  applications: directApps,
+                  activeSession,
+                  cachedAt: Date.now()
+                }));
+              } catch (_) {}
+            }
+          }
+        } catch (directErr) {
+          console.warn('Direct Firestore client read fallback note:', directErr);
+        }
+
+        // Resilient Fallback 2: Cached application from localStorage
+        if (!recovered && user?.uid) {
+          try {
+            const rawCache = localStorage.getItem(`hss_student_app_${user.uid}`);
+            if (rawCache) {
+              const cached = JSON.parse(rawCache);
+              if (cached?.currentApp) {
+                setAppData(cached.currentApp);
+                if (cached.applications) setAllApplications(cached.applications);
+                if (cached.activeSession) setSessionInfo(cached.activeSession);
+                setLoadError(null);
+                recovered = true;
+                setAlert({
+                  type: 'info',
+                  text: '⚡ Displaying your confirmed application details from local cache. The server is currently refreshing capacity.'
+                });
+              }
+            }
+          } catch (cacheErr) {
+            console.warn('Cache fallback read note:', cacheErr);
+          }
+        }
+
+        if (!recovered) {
+          setLoadError(appErr.message || 'Application status could not be loaded.');
+        }
       }
     } catch (fsErr) {
       console.error('Firestore student dashboard read error:', fsErr);

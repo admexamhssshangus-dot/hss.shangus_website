@@ -1891,6 +1891,16 @@ export default function AdmissionForm() {
 
         try {
           const uid = currentUser?.uid || 'guest';
+          if (uid && uid !== 'guest') {
+            try {
+              localStorage.setItem(`hss_student_app_${uid}`, JSON.stringify({
+                currentApp: submittedData,
+                applications: [submittedData],
+                activeSession: submittedData.session || submittedData.Session || '2025-26',
+                cachedAt: Date.now()
+              }));
+            } catch (_) {}
+          }
           localStorage.removeItem(`hss_student_draft_${uid}`);
           localStorage.removeItem('hss_student_draft_guest');
           localStorage.removeItem('hss_student_draft_local');
