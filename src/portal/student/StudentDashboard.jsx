@@ -7,7 +7,8 @@ import ModernLoader from '../../components/ModernLoader';
 import LogoutConfirmModal from '../components/LogoutConfirmModal';
 import { auth, db } from '../../services/firebase';
 import { sendEmailVerification } from 'firebase/auth';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, setDoc } from 'firebase/firestore';
+import { selectStudentApplication } from '../../utils/studentApplicationSelection';
 import { generateStudentAdmissionPdf, generateProvisionalAdmissionPdf } from '../../utils/pdfGenerator';
 import { loadAdmissionWorkspace, withdrawAdmission } from '../../services/admissionWorkflowApi';
 import { getStudentPhotoUrl, formatPhotoDisplayUrl } from '../../utils/imageCompressor';
@@ -33,6 +34,7 @@ export default function StudentDashboard() {
 
   // Dashboard Data State
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
   const [appData, setAppData] = useState(null);
   const [allApplications, setAllApplications] = useState([]);
   const [sessionInfo, setSessionInfo] = useState(() => getCurrentAcademicSession());
@@ -130,6 +132,8 @@ export default function StudentDashboard() {
   // Fetch student application & initial data (Fast SWR Firestore Workflow)
   const loadDashboardData = useCallback(async () => {
     setAlert(null);
+    setLoading(true);
+    setLoadError(null);
     if (!user) {
       setLoading(false);
       return;
@@ -139,21 +143,11 @@ export default function StudentDashboard() {
     try {
       let activeSession = getCurrentAcademicSession();
       try {
-        const settingsSnap = await getDoc(doc(db, 'site', 'settings'));
-        if (settingsSnap.exists()) {
-          const settingsData = settingsSnap.data();
-          activeSession = settingsData.session || settingsData.currentSession || activeSession;
-        }
-      } catch (e) {
-        console.warn('Settings load note:', e);
-      }
-      setSessionInfo(activeSession);
-
-      try {
         const applicationResult = await loadAdmissionWorkspace();
         const applications = applicationResult?.data?.applications || applicationResult?.applications || [];
+        activeSession = applicationResult?.data?.activeSession || applicationResult?.activeSession || activeSession;
         setAllApplications(applications);
-        let currentApp = applications.find(a => (a.Session || a.session || a['Academic Session']) === activeSession) || applications[0] || null;
+        let currentApp = selectStudentApplication(applications, activeSession);
         if (currentApp && (currentApp.Session || currentApp.session || currentApp['Academic Session'])) {
           activeSession = currentApp.Session || currentApp.session || currentApp['Academic Session'];
         } else {
@@ -179,9 +173,11 @@ export default function StudentDashboard() {
         setAppData(currentApp);
       } catch (appErr) {
         console.warn('Student applications load note:', appErr);
+        setLoadError(appErr.message || 'Application status could not be loaded.');
       }
     } catch (fsErr) {
       console.error('Firestore student dashboard read error:', fsErr);
+      setLoadError('Application status could not be loaded. Please retry.');
     } finally {
       setLoading(false);
     }
@@ -296,7 +292,7 @@ export default function StudentDashboard() {
   // Payment Gateway Configuration
   const [gatewayConfig, setGatewayConfig] = useState({ gatewayMode: 'off' });
 
-  const status = appData?.Status || 'No Application';
+  const status = appData?.Status || appData?.status || 'No Application';
   const formNum = appData?.['Form Number'] || 'N/A';
   const classSought = appData?.['Admission sought for class'] || 'N/A';
   const rollNo = appData?.['Class Roll No'] || appData?.['Class Roll No.'] || appData?.RollNo || '';
@@ -474,6 +470,13 @@ export default function StudentDashboard() {
             text="Loading Student Dashboard"
             subtext="Loading your application status…"
           />
+        ) : loadError ? (
+          <section role="alert" className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-slate-900 space-y-3">
+            <h2 className="font-bold">Application status unavailable</h2>
+            <p className="text-sm">We could not retrieve your application. This does not mean your submission failed. Please do not submit another form.</p>
+            <p className="text-xs">{loadError}</p>
+            <button type="button" onClick={loadDashboardData} className="rounded-lg bg-teal-700 text-white px-4 py-2 text-sm">Retry loading application</button>
+          </section>
         ) : (
           /* Application Status Box */
           <div className="rounded-xl sm:rounded-3xl p-3 sm:p-8 border shadow-sm sm:shadow-xl space-y-3 sm:space-y-6" style={{ backgroundColor: 'var(--bg-card, #ffffff)', borderColor: 'var(--border-ui, #e2e8f0)' }}>
