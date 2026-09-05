@@ -1723,40 +1723,52 @@ export default function DynamicFormField({
                 )}
 
 
-                <details className="subject-checkbox-dropdown rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900"
-                  onKeyDown={event => {
-                    if (event.key === 'Escape') {
-                      event.currentTarget.open = false;
-                      event.currentTarget.querySelector('summary')?.focus();
-                    }
-                  }}>
-                  <summary className="cursor-pointer px-3 py-2 text-xs font-semibold">
-                    {allSelectedSubjects.length ? allSelectedSubjects.join(', ') : 'Select subjects'}
-                    <span className="block text-[11px] font-normal text-slate-500 mt-1">
-                      {allSelectedSubjects.length} selected · Tap to change
-                    </span>
-                  </summary>
-                  <div className="max-h-64 overflow-y-auto border-t border-slate-200 dark:border-slate-700 p-2 space-y-2">
-                    {[
-                      { title: 'Compulsory', subjects: isReappearField ? [] : groupA, locked: true },
-                      { title: isReappearField ? 'Reappear subjects' : (isSecondary ? 'Language' : 'Group B'), subjects: groupB, locked: false },
-                      { title: isSecondary ? 'Vocational (optional)' : 'Group C (maximum 1)', subjects: isReappearField ? [] : groupC, locked: false }
-                    ].filter(group => group.subjects.length).map(group => (
-                      <fieldset key={group.title}>
-                        <legend className="px-1 text-[11px] font-semibold text-slate-500">{group.title}</legend>
+                {!isReappearField && (
+                  <p className="subject-compulsory text-xs leading-relaxed">
+                    <span className="font-semibold">Compulsory: </span>{compulsorySubjects.join(', ')}
+                  </p>
+                )}
+                {[
+                  {
+                    title: isReappearField ? 'Reappear subjects' : (isSecondary ? 'Group B · Language' : 'Group B'),
+                    subjects: groupB,
+                    hint: isReappearField ? 'Select subjects to reappear in' : `Choose ${isSecondary ? 1 : Math.max(0, 5 - compulsorySubjects.length - currentArray.filter(s => groupC.includes(s)).length)}`,
+                  },
+                  {
+                    title: isSecondary ? 'Group C · Vocational' : 'Group C',
+                    subjects: isReappearField ? [] : groupC,
+                    hint: 'Optional · Choose up to 1',
+                  },
+                ].filter(group => group.subjects.length).map(group => {
+                  const selected = currentArray.filter(subject => group.subjects.includes(subject));
+                  return (
+                    <details key={group.title} className="subject-checkbox-dropdown rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900"
+                      onKeyDown={event => {
+                        if (event.key === 'Escape') {
+                          event.currentTarget.open = false;
+                          event.currentTarget.querySelector('summary')?.focus();
+                        }
+                      }}>
+                      <summary className="cursor-pointer px-3 py-2 text-xs">
+                        <span className="font-semibold">{group.title}</span>
+                        <span className="ml-2 text-slate-600 dark:text-slate-300">{group.hint} · {selected.length} selected</span>
+                        {selected.length > 0 && <span className="block mt-1 text-teal-700 dark:text-teal-300">{selected.join(', ')}</span>}
+                      </summary>
+                      <fieldset className="max-h-64 overflow-y-auto border-t border-slate-200 dark:border-slate-700 p-2">
+                        <legend className="sr-only">{group.title}: {group.hint}</legend>
                         {group.subjects.map(subject => (
                           <label key={subject} className="flex items-center gap-2 px-2 py-2 text-xs rounded hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer">
-                            <input type="checkbox" checked={group.locked || currentArray.includes(subject)}
-                              disabled={disabled || group.locked}
+                            <input type="checkbox" checked={currentArray.includes(subject)}
+                              disabled={disabled}
                               onChange={event => handleCheckboxArrayChange(subject, event.target.checked, compulsorySubjects)}
                               className="h-4 w-4 shrink-0 accent-teal-600" />
-                            <span>{subject}{group.locked ? ' (required)' : ''}</span>
+                            <span>{subject}</span>
                           </label>
                         ))}
                       </fieldset>
-                    ))}
-                  </div>
-                </details>
+                    </details>
+                  );
+                })}
                 {!isReappearField && (
                   <p className={`text-[11px] leading-snug ${subjectValidation.valid ? 'text-teal-700 dark:text-teal-300' : 'text-slate-600 dark:text-slate-300'}`}>
                     {subjectValidation.valid ? `${allSelectedSubjects.length} subjects selected` : subjectValidation.error}
