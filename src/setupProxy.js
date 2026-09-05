@@ -94,7 +94,7 @@ module.exports = function(app) {
       if (fs.existsSync(path.resolve(__dirname, '../.env.local'))) {
         dotenv.config({ path: path.resolve(__dirname, '../.env.local'), override: true });
       }
-      dotenv.config({ path: path.resolve(__dirname, '../.env'), override: true });
+      dotenv.config({ path: path.resolve(__dirname, '../.env') });
     } catch (e) {}
 
     if (process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
@@ -114,7 +114,8 @@ module.exports = function(app) {
         Object.entries(result.headers || {}).forEach(([key, value]) => res.setHeader(key, value));
         return res.status(result.statusCode || 500).send(result.body || '');
       } catch (error) {
-        console.warn('Local admission function failed, falling back to upstream relay:', error.message);
+        console.warn('Local admission function failed:', error.message);
+        return res.status(503).json({ error: 'The local admission backend could not start. Check the development terminal and restart the server.' });
       }
     }
 

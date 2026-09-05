@@ -567,6 +567,8 @@ async function submitApplication(db, token, body) {
 
     // Duplicate Mobile Guard for Same Academic Session
     const mobileDigits = digits(valueOf(sanitized, 'Mobile No. (with working WhatsApp)', 'mobile', 'Mobile Number')).slice(-10);
+    const parentMobileDigits = digits(valueOf(sanitized, "Parent's Mobile No. (must be working)", 'parentMobile', 'Parent Mobile')).slice(-10);
+    let duplicateMobileField = 'Mobile No. (with working WhatsApp)';
     if (mobileDigits) {
       const mobileQuery = db.collection('admissions').where('sessionCanonical', '==', normalized.session);
       const mobileSnaps = await tx.get(mobileQuery);
@@ -577,17 +579,18 @@ async function submitApplication(db, token, body) {
         if (['Withdrawn', 'Purged', 'Deleted', 'Rejected'].includes(dData.Status) || dData._deleted === true || dData._purged === true) return false;
         const dMobile = digits(valueOf(dData, 'Mobile No. (with working WhatsApp)', 'mobile', 'Mobile Number')).slice(-10);
         const dParentMobile = digits(valueOf(dData, "Parent's Mobile No. (must be working)", 'parentMobile', 'Parent Mobile')).slice(-10);
-        return dMobile === mobileDigits || dParentMobile === mobileDigits;
+        if (dMobile === mobileDigits || dParentMobile === mobileDigits) return true;
+        if (parentMobileDigits && (dMobile === parentMobileDigits || dParentMobile === parentMobileDigits)) {
+          duplicateMobileField = "Parent's Mobile No. (must be working)";
+          return true;
+        }
+        return false;
       });
       if (dupMobileDoc) {
-        const dupData = dupMobileDoc.data();
-        const fNo = dupData['Form Number'] || dupData.FormNo || dupData.formNo || dupMobileDoc.id;
-        const cName = dupData.classCanonical || normalizeClass(valueOf(dupData, 'Admission sought for class', 'class')) || 'N/A';
-        const sName = dupData.sessionCanonical || normalizeSession(valueOf(dupData, 'Session', 'session')) || normalized.session;
-        throw Object.assign(new Error(`This mobile number is already linked to Form No. ${fNo} of Session ${sName} (Class ${cName}). Duplicate mobile submissions are not allowed for the same session.`), {
+        throw Object.assign(new Error('This mobile number is already used by another application in this session. Contact the school office for assistance.'), {
           status: 409,
           errors: {
-            'Mobile No. (with working WhatsApp)': `This mobile number is already linked to Form No. ${fNo} of Session ${sName} (Class ${cName}).`
+            [duplicateMobileField]: 'This number is already used in this session. Contact the school office.'
           }
         });
       }
@@ -743,7 +746,14 @@ exports.handler = async function handler(event) {
     return response(200, result, origin);
   } catch (error) {
     console.error('Admission workflow error:', error.message);
-    return response(error.status || (error.code?.startsWith('auth/') ? 401 : 500), {
+    const errorCode = String(error.code || '');
+    if (errorCode === '8' || errorCode === 'resource-exhausted' || /RESOURCE_EXHAUSTED/.test(error.message || '')) {
+      return response(503, {
+        code: 'admission/quota-exhausted',
+        error: 'The admission database has reached its usage limit. Keep this form open and try again after the administrator restores capacity. This operation has not been confirmed.',
+      }, origin);
+    }
+    return response(error.status || (errorCode.startsWith('auth/') ? 401 : 500), {
       error: error.status && error.status < 500 || error.code === 'admission/invalid-server-credentials'
         ? error.message : 'Admission service is temporarily unavailable. Please try again later.',
       code: error.code === 'admission/invalid-server-credentials' ? error.code : undefined,
