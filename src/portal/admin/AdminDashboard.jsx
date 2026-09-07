@@ -6,7 +6,7 @@ import GlobalDataSyncHUD from '../../components/GlobalDataSyncHUD';
 import AdminToolsDropdown, { ADMIN_TOOL_MODULES, isUserPermittedForModule } from './AdminToolsDropdown';
 import LogoutConfirmModal from '../components/LogoutConfirmModal';
 import TabLoadingOverlay from '../../components/TabLoadingOverlay';
-import { getCachedCollection, getCachedCollectionSync, subscribeToCollection, getPaginatedCollection, hydrateRemainingPages } from '../../services/dbCache';
+import { getCachedCollection, getCachedCollectionSync, subscribeToCollection, getPaginatedCollection, hydrateRemainingPages, ensureFirestoreConnected } from '../../services/dbCache';
 import { isBootstrapSuperAdminEmail } from '../../services/staffAuthService';
 
 // Lazy load heavy admin modules to keep tab transitions ultra-fast with zero UI hangs
@@ -162,6 +162,22 @@ export default function AdminDashboard() {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isToolsOpen]);
+
+  // Auto-heal Firestore connection and unfreeze UI on tab wake-up or focus
+  useEffect(() => {
+    const handleWakeUp = () => {
+      if (document.visibilityState === 'visible') {
+        ensureFirestoreConnected();
+        setLoading(false);
+      }
+    };
+    document.addEventListener('visibilitychange', handleWakeUp);
+    window.addEventListener('focus', handleWakeUp);
+    return () => {
+      document.removeEventListener('visibilitychange', handleWakeUp);
+      window.removeEventListener('focus', handleWakeUp);
+    };
+  }, []);
 
   // Applications Data State with Instant Cache + Silent Background Sync
   const [loading, setLoading] = useState(() => {
