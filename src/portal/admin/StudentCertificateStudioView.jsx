@@ -19,6 +19,7 @@ import {
   dobToWords,
   interpolateCertificateTemplate,
   retokenizeCertificateBody,
+  sanitizeTemplateObject,
   printStudentCertificate,
   generateStudentCertificateDocx
 } from '../../utils/certificateExportUtils';
@@ -843,10 +844,11 @@ export default function StudentCertificateStudioView({
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) {
-          return parsed.map(t => ({
-            ...t,
-            bodyHtml: retokenizeCertificateBody(t.bodyHtml)
-          }));
+          const sanitized = parsed.map(sanitizeTemplateObject);
+          try {
+            localStorage.setItem('hss_custom_certificate_templates', JSON.stringify(sanitized));
+          } catch (_) {}
+          return sanitized;
         }
       }
     } catch (e) {
@@ -881,7 +883,7 @@ export default function StudentCertificateStudioView({
   const isTcDcActive = useMemo(() => {
     if (selectedTemplateId?.startsWith('tc_dc')) return true;
     const currentTpl = [...customTemplates, ...BUILTIN_CERTIFICATE_TEMPLATES].find(t => t.id === selectedTemplateId);
-    return Boolean(currentTpl?.isTcDc || currentTpl?.category?.includes('TC/DC') || currentTpl?.category?.toLowerCase().includes('transfer'));
+    return Boolean(currentTpl?.isTcDc || currentTpl?.category === 'Transfer & Character Certificates (TC/DC)' || currentTpl?.category?.includes('TC/DC'));
   }, [selectedTemplateId, customTemplates]);
 
   const signatories = useMemo(() => {
@@ -948,15 +950,13 @@ export default function StudentCertificateStudioView({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Combined and deduplicated templates list (Cloud custom overrides take priority over built-ins)
+  // Combined and deduplicated templates list (Cloud custom overrides take priority over built-ins, with built-in templates canonical identity protected)
   const allTemplatesList = useMemo(() => {
     const map = new Map();
     BUILTIN_CERTIFICATE_TEMPLATES.forEach(t => map.set(t.id, t));
     customTemplates.forEach(t => {
-      map.set(t.id, {
-        ...t,
-        bodyHtml: retokenizeCertificateBody(t.bodyHtml)
-      });
+      const sanitized = sanitizeTemplateObject(t);
+      map.set(sanitized.id, sanitized);
     });
     return Array.from(map.values());
   }, [customTemplates]);
@@ -976,10 +976,7 @@ export default function StudentCertificateStudioView({
         if (!isMounted) return;
 
         if (templates && templates.length > 0) {
-          const sanitized = templates.map(t => ({
-            ...t,
-            bodyHtml: retokenizeCertificateBody(t.bodyHtml)
-          }));
+          const sanitized = templates.map(sanitizeTemplateObject);
           setCustomTemplates(sanitized);
         }
 
@@ -1241,7 +1238,7 @@ export default function StudentCertificateStudioView({
     setAdmissionDate(admDateResolved);
 
     // Synchronously resolve active template and sanitize its body tokens
-    let activeTpl = allTemplatesList.find(t => t.id === selectedTemplateId) || BUILTIN_CERTIFICATE_TEMPLATES[0];
+    let activeTpl = sanitizeTemplateObject(allTemplatesList.find(t => t.id === selectedTemplateId) || BUILTIN_CERTIFICATE_TEMPLATES[0]);
     const cleanTplBody = retokenizeCertificateBody(activeTpl.bodyHtml);
     setTemplateBody(cleanTplBody);
     if (activeTpl.certificateTitle) setCertificateTitle(activeTpl.certificateTitle);
@@ -1266,13 +1263,31 @@ export default function StudentCertificateStudioView({
         rollNo: st.rollNo || '—',
         regNo: st.regNo || '—',
         dobFigures: effDob,
+        dobWords: (typeof dobToWords === 'function' ? dobToWords(effDob).words : '—'),
         session: st.session || '2025-26',
         address: st.address || '',
         gender: effGender,
         refNo: immediateRef,
         date: dateStr,
         includeSalutations,
-        customFields
+        customFields,
+        // TC/DC tokens
+        examName: `Class ${st.cls || '12th'} Examination`,
+        examRollNo: primaryRaw['Exam Roll No'] || primaryRaw.examRoll || '',
+        examSession: primaryRaw['Exam Session'] || primaryRaw.examSession || '',
+        resultStatus: primaryRaw['Result Status'] || primaryRaw.resultStatus || 'Awaiting Result',
+        divisionDistinction: primaryRaw['Division'] || primaryRaw.division || '—',
+        marksObtained: primaryRaw['Marks Obtained'] || primaryRaw.marksObtained || '',
+        maxMarks: primaryRaw['Max Marks'] || primaryRaw.maxMarks || '500',
+        reappSubjects: primaryRaw['Reappear Subjects'] || primaryRaw.reappSubjects || '—',
+        admissionDate: admDateResolved || '',
+        admissionNo: admNoResolved || '',
+        withdrawalDate: rawWd || '',
+        conductStatus: 'Satisfactory',
+        village: primaryRaw['Village/Town'] || primaryRaw.village || st.address || '',
+        tehsil: primaryRaw['Tehsil'] || primaryRaw.tehsil || '',
+        district: primaryRaw['District'] || primaryRaw.district || '',
+        certificateNo: immediateRef
       });
       editorRef.current.innerHTML = sanitizeCertificateHtml(immediateHtml);
       pushSnapshot();
@@ -1499,11 +1514,45 @@ export default function StudentCertificateStudioView({
 
   // ─── Select Template Handler ───
   const handleSelectTemplate = (tpl) => {
-    setSelectedTemplateId(tpl.id);
-    const cleanBody = retokenizeCertificateBody(tpl.bodyHtml);
+    const sanitizedTpl = sanitizeTemplateObject(tpl);
+    setSelectedTemplateId(sanitizedTpl.id);
+    const cleanBody = retokenizeCertificateBody(sanitizedTpl.bodyHtml, {
+      studentName,
+      fatherName,
+      motherName,
+      rollNo,
+      regNo,
+      dobFigures: parsedDob.figures,
+      dobWords: parsedDob.words,
+      session,
+      className,
+      stream,
+      address
+    });
     setTemplateBody(cleanBody);
     setCustomCanvasHtml(null);
-    if (tpl.certificateTitle) setCertificateTitle(tpl.certificateTitle);
+
+    const canonicalTitle = sanitizedTpl.certificateTitle || BUILTIN_CERTIFICATE_TEMPLATES.find(b => b.id === sanitizedTpl.id)?.certificateTitle || 'CERTIFICATE';
+    setCertificateTitle(canonicalTitle);
+
+    const raw = selectedStudent?.raw || selectedStudent || {};
+    const resInfo = extractStudentResultMarks(raw);
+    const effMarksObt = tcMarksObtained !== '' ? tcMarksObtained : (resInfo.marksObtained || '—');
+    const effMaxMarks = tcMaxMarks || resInfo.maxMarks || '500';
+    const effDiv = tcDivision || resInfo.division || (effMarksObt !== '—' ? calculateDivision(effMarksObt, effMaxMarks).division : '—');
+    const effExamRoll = tcExamRoll || resInfo.examRoll || '—';
+    const effExamMode = tcExamMode || resInfo.examMode || '—';
+    const effResultStatus = tcResultStatus || resInfo.resultStatus || 'Awaiting Result';
+    const effReappSubjects = tcReappSubjects || resInfo.reappSubjects || '—';
+    const isPassed = normalizeResultStatus(effResultStatus) === 'Passed';
+    const effectiveWd = withdrawalDate || raw['Date of withdrawl'] || raw.withdrawalDate || raw['Result Date'] || raw.resultDate || toLocalDateKey();
+    const rawVillage = raw['Village/Town'] || raw.village || raw['Name of your village'] || '';
+    const cleanVillage = (rawVillage && rawVillage !== '—' && rawVillage !== '-' && !/^(null|undefined|n\/a)$/i.test(rawVillage)) ? rawVillage : '';
+    const village = cleanVillage || address || '';
+    const rawTehsil = raw['Tehsil'] || raw.tehsil || '';
+    const tehsil = (rawTehsil && rawTehsil !== '—' && rawTehsil !== '-' && !/^(null|undefined|n\/a)$/i.test(rawTehsil)) ? rawTehsil : '';
+    const rawDistrict = raw['District'] || raw.district || '';
+    const district = (rawDistrict && rawDistrict !== '—' && rawDistrict !== '-' && !/^(null|undefined|n\/a)$/i.test(rawDistrict)) ? rawDistrict : '';
 
     if (editorRef.current) {
       const immediateHtml = interpolateCertificateTemplate(cleanBody, {
@@ -1522,26 +1571,43 @@ export default function StudentCertificateStudioView({
         refNo,
         date: dateStr,
         includeSalutations,
-        customFields
+        customFields,
+        // TC / DC tokens
+        examName: `Class ${className || '12th'} Examination`,
+        examRollNo: effExamRoll,
+        examSession: effExamMode,
+        resultStatus: isPassed || sanitizedTpl.id.includes('qualified') ? 'Qualified' : (normalizeResultStatus(effResultStatus) === 'Reap' ? 'Re-appear' : (effResultStatus || 'Did Not Qualify')),
+        divisionDistinction: effDiv,
+        marksObtained: effMarksObt,
+        maxMarks: effMaxMarks,
+        reappSubjects: effReappSubjects,
+        admissionDate: admissionDate || extractStudentAdmissionDate(raw) || '—',
+        admissionNo: admissionNo || extractStudentAdmissionNumber(raw) || '—',
+        withdrawalDate: effectiveWd,
+        conductStatus: 'Satisfactory',
+        village,
+        tehsil,
+        district,
+        certificateNo: refNo || extractStudentCertificateNumber(raw) || '—'
       });
       editorRef.current.innerHTML = sanitizeCertificateHtml(immediateHtml);
       pushSnapshot();
     }
-    if (tpl.officeTitle) setOfficeTitle(tpl.officeTitle);
-    if (tpl.institutionName) setInstitutionName(tpl.institutionName);
-    if (tpl.institutionAddress) setInstitutionAddress(tpl.institutionAddress);
-    if (tpl.signatoryLeft !== undefined) setSignatoryLeft(tpl.signatoryLeft);
-    if (tpl.signatoryRight !== undefined) setSignatoryRight(tpl.signatoryRight);
-    if (tpl.watermark !== undefined) setWatermark(tpl.watermark);
-    if (tpl.includeSalutations !== undefined) setIncludeSalutations(tpl.includeSalutations);
-    if (tpl.showPhoto !== undefined) {
-      setShowPhoto(tpl.showPhoto);
-      if (tpl.showPhoto && !studentPhotoUrl) {
+    if (sanitizedTpl.officeTitle) setOfficeTitle(sanitizedTpl.officeTitle);
+    if (sanitizedTpl.institutionName) setInstitutionName(sanitizedTpl.institutionName);
+    if (sanitizedTpl.institutionAddress) setInstitutionAddress(sanitizedTpl.institutionAddress);
+    if (sanitizedTpl.signatoryLeft !== undefined) setSignatoryLeft(sanitizedTpl.signatoryLeft);
+    if (sanitizedTpl.signatoryRight !== undefined) setSignatoryRight(sanitizedTpl.signatoryRight);
+    if (sanitizedTpl.watermark !== undefined) setWatermark(sanitizedTpl.watermark);
+    if (sanitizedTpl.includeSalutations !== undefined) setIncludeSalutations(sanitizedTpl.includeSalutations);
+    if (sanitizedTpl.showPhoto !== undefined) {
+      setShowPhoto(sanitizedTpl.showPhoto);
+      if (sanitizedTpl.showPhoto && !studentPhotoUrl) {
         fetchAndResolveStudentPhoto();
       }
     }
     const issuedCertificateNo = extractStudentCertificateNumber(selectedStudent);
-    const selectingTcDc = Boolean(tpl.isTcDc || tpl.id?.startsWith('tc_dc_'));
+    const selectingTcDc = Boolean(sanitizedTpl.isTcDc || sanitizedTpl.id?.startsWith('tc_dc_'));
     if (issuedCertificateNo) {
       setRefNo(selectingTcDc
         ? (extractCertificateSerial(issuedCertificateNo) || issuedCertificateNo)
@@ -1551,13 +1617,13 @@ export default function StudentCertificateStudioView({
       fetchLastIssuedCertificateNumber()
         .then(lastNo => setRefNo(String(lastNo + 1)))
         .catch(error => showToast(error.message || 'Certificate registry could not be verified.', 'error'));
-    } else if (tpl.refPrefix) {
+    } else if (sanitizedTpl.refPrefix) {
       const cleanSerial = (rollNo && rollNo !== '—' && String(rollNo).length < 8)
         ? rollNo
         : (admissionNo && admissionNo !== '—' && String(admissionNo).length < 8 ? admissionNo : '1368');
-      setRefNo(`${tpl.refPrefix}/${cleanSerial}/${new Date().getFullYear()}`);
-    } else if (tpl.refNo) {
-      setRefNo(tpl.refNo);
+      setRefNo(`${sanitizedTpl.refPrefix}/${cleanSerial}/${new Date().getFullYear()}`);
+    } else if (sanitizedTpl.refNo) {
+      setRefNo(sanitizedTpl.refNo);
     }
   };
 
@@ -1696,6 +1762,13 @@ export default function StudentCertificateStudioView({
   // Active rendered HTML (Canvas override or cleanly interpolated preview)
   const activeDisplayHtml = customCanvasHtml !== null ? customCanvasHtml : interpolatedPreviewHtml;
 
+  // Synchronize editorRef DOM with clean interpolated preview whenever not in manual canvas-override mode
+  useEffect(() => {
+    if (customCanvasHtml === null && editorRef.current) {
+      editorRef.current.innerHTML = sanitizeCertificateHtml(interpolatedPreviewHtml);
+    }
+  }, [interpolatedPreviewHtml, customCanvasHtml]);
+
   // ─── 1-Click Set as Default Template ───
   const handleSetDefaultTemplate = async (templateId, e) => {
     e?.stopPropagation();
@@ -1746,7 +1819,7 @@ export default function StudentCertificateStudioView({
       refNo
     });
 
-    const targetTpl = {
+    const targetTpl = sanitizeTemplateObject({
       id: isUpdating ? selectedTemplateId : `custom_cert_${Date.now()}`,
       name: isUpdating ? (activeTpl.name || 'Bonafide Certificate') : newTplName.trim(),
       category: isUpdating ? (activeTpl.category || 'Bonafide & Age Certificates') : (newTplCategory || 'Custom Certificates'),
@@ -1763,7 +1836,7 @@ export default function StudentCertificateStudioView({
       watermark,
       includeSalutations,
       isCustom: true
-    };
+    });
 
     try {
       await saveCloudDocTemplate({
@@ -1807,11 +1880,11 @@ export default function StudentCertificateStudioView({
       refNo
     });
 
-    const targetTpl = {
+    const targetTpl = sanitizeTemplateObject({
       id: selectedTemplateId,
       name: activeTpl.name || 'Bonafide Certificate',
       category: activeTpl.category || 'Bonafide & Age Certificates',
-      certificateTitle: certificateTitle || 'BONAFIDE CERTIFICATE',
+      certificateTitle: activeTpl.certificateTitle || certificateTitle || 'BONAFIDE CERTIFICATE',
       officeTitle: officeTitle || 'OFFICE OF THE PRINCIPAL',
       institutionName: institutionName || 'GOVT. HIGHER SECONDARY SCHOOL SHANGUS',
       institutionAddress: institutionAddress || 'District Anantnag, Kashmir — 192201 (J&K)',
@@ -1824,7 +1897,7 @@ export default function StudentCertificateStudioView({
       watermark,
       includeSalutations,
       isCustom: true
-    };
+    });
 
     try {
       await saveCloudDocTemplate({
@@ -5088,21 +5161,19 @@ export default function StudentCertificateStudioView({
                 <div
                   style={{
                     marginTop: `${titleMetaGap}px`,
-                    marginBottom: `${metaBodyGap}in`,
-                    marginLeft: '0.5in',
-                    marginRight: '0.5in'
+                    marginBottom: `${metaBodyGap}in`
                   }}
-                  className="flex items-stretch justify-between bg-white border border-[#800000] rounded-md overflow-hidden text-[10px] font-sans shadow-2xs"
+                  className="w-full flex items-stretch justify-between bg-white border border-[#800000] rounded-md overflow-hidden text-[10px] font-sans shadow-2xs"
                 >
                   {/* Left Column: 2x2 Metadata Grid */}
-                  <div className="grid grid-cols-2 gap-x-4 gap-y-3 flex-1 px-3.5 py-3 leading-relaxed">
+                  <div className="grid grid-cols-[1fr_1.25fr] gap-x-3 gap-y-2 flex-1 px-3 py-2 leading-relaxed min-w-0">
                     <div className="flex items-baseline gap-1.5 min-w-0">
                       <span className="font-bold text-slate-600 text-[9px] shrink-0">Certificate No.:</span>
                       <span className="font-mono font-black text-red-600 truncate">{refNo || '—'}</span>
                     </div>
                     <div className="flex items-baseline gap-1.5 min-w-0">
-                      <span className="font-bold text-slate-600 text-[9px] shrink-0">Registration No.:</span>
-                      <span className="font-mono font-black text-blue-700 truncate">{regNo || '—'}</span>
+                      <span className="font-bold text-slate-600 text-[9px] shrink-0">Reg. No.:</span>
+                      <span className={`font-mono font-black text-blue-700 truncate ${String(regNo || '').length > 13 ? 'text-[8.5px] tracking-tight' : 'text-[9.5px]'}`}>{regNo || '—'}</span>
                     </div>
                     <div className="flex items-baseline gap-1.5 min-w-0">
                       <span className="font-bold text-slate-600 text-[9px] shrink-0">Admission No.:</span>
@@ -5115,11 +5186,11 @@ export default function StudentCertificateStudioView({
                   </div>
 
                   {/* Right Column: Integrated QR Security Badge */}
-                  <div className="flex flex-col items-center justify-center px-3.5 py-1.5 bg-slate-50 border-l border-dashed border-slate-300 shrink-0 self-stretch min-w-[84px]">
-                    <div className="w-14 h-14 bg-white border border-slate-200 rounded flex flex-col items-center justify-center text-[7.5px] font-mono text-slate-500 font-black shadow-2xs">
+                  <div className="flex flex-col items-center justify-center px-2 py-1.5 bg-slate-50 border-l border-dashed border-slate-300 shrink-0 self-stretch w-[82px] min-w-[82px] max-w-[82px] box-border">
+                    <div className="w-12 h-12 bg-white border border-slate-200 rounded flex flex-col items-center justify-center text-[7px] font-mono text-slate-500 font-black shadow-2xs">
                       <span>[ QR CODE ]</span>
                     </div>
-                    <span className="text-[6.5px] font-black tracking-wider text-[#800000] uppercase mt-1">SCAN TO VERIFY</span>
+                    <span className="text-[6px] font-black tracking-wider text-[#800000] uppercase mt-1 text-center whitespace-nowrap">SCAN TO VERIFY</span>
                   </div>
                 </div>
               )}

@@ -243,6 +243,43 @@ export const BUILTIN_CERTIFICATE_TEMPLATES = [
 ];
 
 /**
+ * Sanitizes and protects certificate templates against cross-contamination,
+ * title corruption (e.g. Bonafide having TC/DC title), and baked-in student details.
+ */
+export function sanitizeTemplateObject(tpl) {
+  if (!tpl || typeof tpl !== 'object') return tpl;
+  const builtin = BUILTIN_CERTIFICATE_TEMPLATES.find(b => b.id === tpl.id);
+  if (builtin) {
+    let cleanBody = retokenizeCertificateBody(tpl.bodyHtml || builtin.bodyHtml);
+    // If a non-TC/DC builtin template had TC/DC text accidentally saved into it
+    const isTcDcContaminated = !builtin.isTcDc && (
+      cleanBody.toLowerCase().includes('discharge/transfer') ||
+      cleanBody.toLowerCase().includes('tc/dc') ||
+      cleanBody.includes('{EXAM_NAME}') ||
+      cleanBody.includes('{PRONOUN_SO_DO}') ||
+      cleanBody.toLowerCase().includes('j&k board of school education')
+    );
+    if (isTcDcContaminated) {
+      cleanBody = builtin.bodyHtml;
+    }
+    return {
+      ...builtin,
+      ...tpl,
+      name: builtin.name,
+      category: builtin.category,
+      certificateTitle: builtin.certificateTitle,
+      isTcDc: builtin.isTcDc,
+      refPrefix: builtin.refPrefix,
+      bodyHtml: cleanBody
+    };
+  }
+  return {
+    ...tpl,
+    bodyHtml: retokenizeCertificateBody(tpl.bodyHtml)
+  };
+}
+
+/**
  * Standardize any date input strictly to DD-MM-YYYY format or return dashes for manual write-in
  */
 export function formatToDDMMYYYY(dateInput, fallbackDashes = '----------------') {
@@ -296,6 +333,12 @@ export function retokenizeCertificateBody(templateHtml, contextData = {}) {
   if (!templateHtml || typeof templateHtml !== 'string') return templateHtml || '';
   let res = templateHtml;
 
+  // Clean corrupted prefixes like "HisThis", "HerThis", "His This", etc.
+  res = res.replace(/\b(?:His|Her|He|She)This\b/gi, 'This');
+  res = res.replace(/\b(?:His|Her|He|She)\s+This\s+is\s+(?:to\s+)?certif/gi, 'This is to certif');
+  res = res.replace(/HisThis/g, 'This');
+  res = res.replace(/HerThis/g, 'This');
+
   // 1. If contextData provided with active student fields, replace those first
   if (contextData.studentName && contextData.studentName.trim().length >= 2 && !contextData.studentName.includes('{')) {
     const esc = escapeRegex(contextData.studentName.trim());
@@ -343,9 +386,19 @@ export function retokenizeCertificateBody(templateHtml, contextData = {}) {
   }
 
   // 2. Universal Pattern Detection: if student names were baked into standard sentence templates
-  // Matches "This is to certify that [Mr. Name], son of..."
+  // Matches "This is to certify that [Mr. Name], son of..." or "Certified that [Mr. Name], son of..."
   res = res.replace(
-    /((?:This\s+is\s+(?:to\s+)?certif(?:y|ied)\s+that\s+)(?:<strong>)?(?:(?:Mr\.|Mrs\.|Ms\.|Miss|Master|Smt\.|Shri)\s+)?)([^,<>{}\n]+?)((?:<\/strong>)?\s*,\s*(?:son|daughter|S\/o|D\/o|\{PRONOUN_SON_DAUGHTER\}|\{PRONOUN_SO_DO\}))/gi,
+    /((?:(?:(?:His|Her|He|She)\s*)?This\s+is\s+(?:to\s+)?certif(?:y|ied)\s+that|Certified\s+that|It\s+is\s+certified\s+that)\s*)(?:<strong>)?(?:(?:Mr\.|Mrs\.|Ms\.|Miss|Master|Smt\.|Shri)\s+)?([^,<>{}\n]+?)(?:<\/strong>)?(\s*,\s*(?:son|daughter|S\/o|D\/o|\{PRONOUN_SON_DAUGHTER\}|\{PRONOUN_SO_DO\}))/gi,
+    (m, p1, name, p3) => {
+      const cleanName = name.trim();
+      if (!cleanName || cleanName.includes('{') || cleanName.length < 2) return m;
+      return `This is to certify that <strong>{GENDER_TITLE} {STUDENT_NAME}</strong>${p3}`;
+    }
+  );
+
+  // Matches TC/DC "This is certified that [Name] S/o [Father] Mother's Name [Mother] R/o [Village] tehsil [Tehsil] district [District]..."
+  res = res.replace(
+    /((?:This\s+is\s+certified\s+that\s+)(?:<strong>)?)([^,<>{}\n]+?)(?:<\/strong>)?(\s+(?:S\/o|D\/o|\{PRONOUN_SO_DO\}|\{PRONOUN_SON_DAUGHTER\}))/gi,
     (m, p1, name, p3) => {
       const cleanName = name.trim();
       if (!cleanName || cleanName.includes('{') || cleanName.length < 2) return m;
@@ -435,6 +488,20 @@ export function retokenizeCertificateBody(templateHtml, contextData = {}) {
   res = res.replace(/(?:15[-/]08[-/]2007|2007[-/]08[-/]15)/gi, '{DOB_FIGURES}');
   res = res.replace(/Fifteenth\s+August\s+Two\s+Thousand\s+Seven/gi, '{DOB_WORDS}');
 
+  res = res.replace(/ZEESHAN\s+MUKHTAR/gi, '{STUDENT_NAME}');
+  res = res.replace(/MUKHTAR\s+AHMAD\s+MIR/gi, '{FATHER_NAME}');
+  res = res.replace(/SUMY\s+JAN/gi, '{MOTHER_NAME}');
+  res = res.replace(/2401000000900066/gi, '{REG_NO}');
+  res = res.replace(/Wangam,\s*Shangus,\s*Anantnag\s*\(J&K\)/gi, '{ADDRESS}');
+  res = res.replace(/08[-/]10[-/]2010/gi, '{DOB_FIGURES}');
+  res = res.replace(/Eighth\s+Day\s+of\s+October,\s*Two\s+Thousand\s+Ten/gi, '{DOB_WORDS}');
+
+  res = res.replace(/M(?:o)?hsin\s+Wakeel/gi, '{STUDENT_NAME}');
+  res = res.replace(/Wakeel\s+Ahmad\s+Khan/gi, '{FATHER_NAME}');
+  res = res.replace(/Aisha\s+Begam/gi, '{MOTHER_NAME}');
+  res = res.replace(/Andoora,\s*Shangus,\s*Anantnag\s*\(J&K\)/gi, '{ADDRESS}');
+  res = res.replace(/21010093880050800150/gi, '{REG_NO}');
+
   // Salutations / Pronoun canonical normalization
   res = res.replace(/(?:Mr\.|Master)\s+\{STUDENT_NAME\}/g, '{GENDER_TITLE} {STUDENT_NAME}');
   res = res.replace(/(?:Ms\.|Miss)\s+\{STUDENT_NAME\}/g, '{GENDER_TITLE} {STUDENT_NAME}');
@@ -454,14 +521,20 @@ export function interpolateCertificateTemplate(templateHtml, studentData = {}, o
 
   const mergedProps = { ...studentData, ...options };
 
-  // Auto-recovery: If template lacks {STUDENT_NAME} or contains static placeholder names,
-  // retokenize it automatically so real student details are always fetched and displayed.
-  let activeHtml = templateHtml;
+  // Auto-recovery: Clean corrupted prefixes like "HisThis", and retokenize if static names are present
+  let activeHtml = templateHtml
+    .replace(/\b(?:His|Her|He|She)This\b/gi, 'This')
+    .replace(/\b(?:His|Her|He|She)\s+This\s+is\s+(?:to\s+)?certif/gi, 'This is to certif')
+    .replace(/HisThis/g, 'This')
+    .replace(/HerThis/g, 'This');
+
   if (
     !activeHtml.includes('{STUDENT_NAME}') ||
     /MOHAMMAD\s+TAHIR\s+WANI/i.test(activeHtml) ||
     /GHULAM\s+NABI\s+WANI/i.test(activeHtml) ||
-    /24SHG1101/i.test(activeHtml)
+    /24SHG1101/i.test(activeHtml) ||
+    /ZEESHAN\s+MUKHTAR/i.test(activeHtml) ||
+    /M(?:o)?hsin\s+Wakeel/i.test(activeHtml)
   ) {
     activeHtml = retokenizeCertificateBody(activeHtml, mergedProps);
   }
@@ -897,8 +970,8 @@ export function printStudentCertificate({
                 <span class="meta-val val-red">${formatBlank(metaDetails.certificateNo || refNo, '----------------')}</span>
               </div>
               <div class="meta-grid-cell">
-                <span class="meta-label">Registration No.:</span>
-                <span class="meta-val val-blue">${formatBlank(metaDetails.regNo, '------------------------')}</span>
+                <span class="meta-label">Reg. No.:</span>
+                <span class="meta-val val-blue ${String(metaDetails.regNo || '').length > 13 ? 'val-long-reg' : ''}">${formatBlank(metaDetails.regNo, '------------------------')}</span>
               </div>
               <div class="meta-grid-cell">
                 <span class="meta-label">Admission No.:</span>
@@ -1230,8 +1303,8 @@ export function printStudentCertificate({
       align-items: center;
       justify-content: space-between;
       gap: 0;
-      margin: ${titleMetaGapPx}px 0.5in ${metaBodyGapInches}in 0.5in;
-      width: calc(100% - 1in);
+      margin: ${titleMetaGapPx}px 0 ${metaBodyGapInches}in 0;
+      width: 100%;
       box-sizing: border-box;
       background: #ffffff;
       border: 1.2px solid #800000;
@@ -1243,33 +1316,43 @@ export function printStudentCertificate({
     .meta-grid-box {
       flex: 1;
       display: grid;
-      grid-template-columns: 1.15fr 1fr;
-      column-gap: 14px;
-      row-gap: 9px;
-      padding: 9px 12px;
+      grid-template-columns: 1fr 1.25fr;
+      column-gap: 12px;
+      row-gap: 8px;
+      padding: 8px 12px;
       font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
+      min-width: 0;
     }
 
     .meta-grid-cell {
       display: flex;
       align-items: baseline;
       gap: 5px;
-      line-height: 1.8;
+      line-height: 1.6;
+      min-width: 0;
     }
 
     .meta-label {
-      font-size: 7.8pt;
+      font-size: 7.6pt;
       font-weight: 700;
       color: #475569;
       white-space: nowrap;
+      flex-shrink: 0;
     }
 
     .meta-val {
-      font-size: 8.4pt;
+      font-size: 8.2pt;
       font-weight: 800;
       font-family: 'Plus Jakarta Sans', 'Inter', monospace;
-      letter-spacing: 0.2px;
+      letter-spacing: 0.1px;
       white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .meta-val.val-long-reg {
+      font-size: 6.8pt !important;
+      letter-spacing: -0.3px !important;
     }
 
     .val-red {
@@ -1281,33 +1364,36 @@ export function printStudentCertificate({
     }
 
     .cert-qr-security-box {
-      width: 92px;
+      width: 82px !important;
+      min-width: 82px !important;
+      max-width: 82px !important;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      padding: 4px 6px;
+      padding: 4px 5px;
       background: #f8fafc;
       border-left: 1px dashed #cbd5e1;
-      flex-shrink: 0;
+      flex-shrink: 0 !important;
       align-self: stretch;
+      box-sizing: border-box;
     }
 
     .cert-qr-security-box svg {
-      width: 68px !important;
-      height: 68px !important;
+      width: 62px !important;
+      height: 62px !important;
       display: block;
+      margin: 0 auto;
     }
 
     .cert-qr-caption {
       font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
-      font-size: 5.8pt;
+      font-size: 5.5pt;
       font-weight: 900;
       color: #800000;
-      letter-spacing: 0.5px;
+      letter-spacing: 0.4px;
+      margin-top: 3px;
       text-align: center;
-      margin-top: 2px;
-      text-transform: uppercase;
       white-space: nowrap;
     }
 
@@ -1677,8 +1763,8 @@ export function printBatchStudentCertificates(studentsList = [], commonOptions =
                   <span class="meta-val val-red">${formatBlank(metaDetails.certificateNo, '----------------')}</span>
                 </div>
                 <div class="meta-grid-cell">
-                  <span class="meta-label">Registration No.:</span>
-                  <span class="meta-val val-blue">${formatBlank(metaDetails.regNo, '------------------------')}</span>
+                  <span class="meta-label">Reg. No.:</span>
+                  <span class="meta-val val-blue ${String(metaDetails.regNo || '').length > 13 ? 'val-long-reg' : ''}">${formatBlank(metaDetails.regNo, '------------------------')}</span>
                 </div>
                 <div class="meta-grid-cell">
                   <span class="meta-label">Admission No.:</span>
@@ -2005,8 +2091,8 @@ export function printBatchStudentCertificates(studentsList = [], commonOptions =
       align-items: center;
       justify-content: space-between;
       gap: 0;
-      margin: ${titleMetaGapPx}px 0.5in ${metaBodyGapInches}in 0.5in;
-      width: calc(100% - 1in);
+      margin: ${titleMetaGapPx}px 0 ${metaBodyGapInches}in 0;
+      width: 100%;
       box-sizing: border-box;
       background: #ffffff;
       border: 1.2px solid #800000;
@@ -2018,33 +2104,43 @@ export function printBatchStudentCertificates(studentsList = [], commonOptions =
     .meta-grid-box {
       flex: 1;
       display: grid;
-      grid-template-columns: 1.15fr 1fr;
-      column-gap: 14px;
-      row-gap: 9px;
-      padding: 9px 12px;
+      grid-template-columns: 1fr 1.25fr;
+      column-gap: 12px;
+      row-gap: 8px;
+      padding: 8px 12px;
       font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
+      min-width: 0;
     }
 
     .meta-grid-cell {
       display: flex;
       align-items: baseline;
       gap: 5px;
-      line-height: 1.8;
+      line-height: 1.6;
+      min-width: 0;
     }
 
     .meta-label {
-      font-size: 7.8pt;
+      font-size: 7.6pt;
       font-weight: 700;
       color: #475569;
       white-space: nowrap;
+      flex-shrink: 0;
     }
 
     .meta-val {
-      font-size: 8.4pt;
+      font-size: 8.2pt;
       font-weight: 800;
       font-family: 'Plus Jakarta Sans', 'Inter', monospace;
-      letter-spacing: 0.2px;
+      letter-spacing: 0.1px;
       white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .meta-val.val-long-reg {
+      font-size: 6.8pt !important;
+      letter-spacing: -0.3px !important;
     }
 
     .val-red {
@@ -2056,33 +2152,37 @@ export function printBatchStudentCertificates(studentsList = [], commonOptions =
     }
 
     .cert-qr-security-box {
-      width: 92px;
+      width: 82px !important;
+      min-width: 82px !important;
+      max-width: 82px !important;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      padding: 4px 6px;
+      padding: 4px 5px;
       background: #f8fafc;
       border-left: 1px dashed #cbd5e1;
-      flex-shrink: 0;
+      flex-shrink: 0 !important;
       align-self: stretch;
+      box-sizing: border-box;
     }
 
     .cert-qr-security-box svg {
-      width: 68px !important;
-      height: 68px !important;
+      width: 62px !important;
+      height: 62px !important;
       display: block;
+      margin: 0 auto;
     }
 
     .cert-qr-caption {
       font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
-      font-size: 5.8pt;
+      font-size: 5.5pt;
       font-weight: 900;
       color: #800000;
-      letter-spacing: 0.5px;
-      text-align: center;
-      margin-top: 2px;
+      letter-spacing: 0.4px;
+      margin-top: 3px;
       text-transform: uppercase;
+      text-align: center;
       white-space: nowrap;
     }
 
