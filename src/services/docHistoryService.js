@@ -227,8 +227,20 @@ export async function fetchGeneratedDocHistory({
  */
 function filterByDocType(list, docType) {
   if (!docType || docType === 'all') return list;
+  const isAdmissionDoc = (d) => {
+    const dt = (d.docType || '').toLowerCase();
+    if (dt === 'admission_form' || dt === 'admission' || dt === 'form') return true;
+    const titleLower = (d.title || '').toLowerCase();
+    return titleLower.includes('admission application form') ||
+           titleLower.includes('provisional admission slip') ||
+           titleLower.includes('application form');
+  };
+
+  if (docType === 'admission_form' || docType === 'admission' || docType === 'forms') {
+    return list.filter(d => isAdmissionDoc(d));
+  }
   if (docType === 'bonafide' || docType === 'certificate') {
-    return list.filter(d => d.docType === 'bonafide' || d.docType === 'certificate');
+    return list.filter(d => !isAdmissionDoc(d) && (d.docType === 'bonafide' || d.docType === 'certificate'));
   }
   return list.filter(d => d.docType === docType);
 }
