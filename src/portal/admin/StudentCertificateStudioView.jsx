@@ -18,6 +18,7 @@ import {
   BUILTIN_CERTIFICATE_TEMPLATES,
   dobToWords,
   interpolateCertificateTemplate,
+  retokenizeCertificateBody,
   printStudentCertificate,
   generateStudentCertificateDocx
 } from '../../utils/certificateExportUtils';
@@ -824,7 +825,15 @@ export default function StudentCertificateStudioView({
       return 'bonafide_dob';
     }
   });
-  const [templateBody, setTemplateBody] = useState(BUILTIN_CERTIFICATE_TEMPLATES[0].bodyHtml);
+  const [templateBody, setTemplateBody] = useState(() => {
+    try {
+      const defId = localStorage.getItem('hss_default_cert_template_id') || 'bonafide_dob';
+      const found = BUILTIN_CERTIFICATE_TEMPLATES.find(t => t.id === defId);
+      return retokenizeCertificateBody(found ? found.bodyHtml : BUILTIN_CERTIFICATE_TEMPLATES[0].bodyHtml);
+    } catch {
+      return retokenizeCertificateBody(BUILTIN_CERTIFICATE_TEMPLATES[0].bodyHtml);
+    }
+  });
   const [customCanvasHtml, setCustomCanvasHtml] = useState(null);
   const [templateToDelete, setTemplateToDelete] = useState(null);
   const [isDeletingTemplate, setIsDeletingTemplate] = useState(false);
@@ -833,7 +842,12 @@ export default function StudentCertificateStudioView({
       const saved = localStorage.getItem('hss_custom_certificate_templates');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return parsed;
+        if (Array.isArray(parsed)) {
+          return parsed.map(t => ({
+            ...t,
+            bodyHtml: retokenizeCertificateBody(t.bodyHtml)
+          }));
+        }
       }
     } catch (e) {
       console.error(e);
@@ -938,7 +952,12 @@ export default function StudentCertificateStudioView({
   const allTemplatesList = useMemo(() => {
     const map = new Map();
     BUILTIN_CERTIFICATE_TEMPLATES.forEach(t => map.set(t.id, t));
-    customTemplates.forEach(t => map.set(t.id, t));
+    customTemplates.forEach(t => {
+      map.set(t.id, {
+        ...t,
+        bodyHtml: retokenizeCertificateBody(t.bodyHtml)
+      });
+    });
     return Array.from(map.values());
   }, [customTemplates]);
 
@@ -957,17 +976,24 @@ export default function StudentCertificateStudioView({
         if (!isMounted) return;
 
         if (templates && templates.length > 0) {
-          setCustomTemplates(templates);
+          const sanitized = templates.map(t => ({
+            ...t,
+            bodyHtml: retokenizeCertificateBody(t.bodyHtml)
+          }));
+          setCustomTemplates(sanitized);
         }
 
         const activeDefId = cloudDefaultId || defaultTemplateId || 'bonafide_dob';
         if (cloudDefaultId) setDefaultTemplateId(cloudDefaultId);
 
-        const allTpls = [...(templates || []), ...BUILTIN_CERTIFICATE_TEMPLATES];
+        const allTpls = [
+          ...(templates || []).map(t => ({ ...t, bodyHtml: retokenizeCertificateBody(t.bodyHtml) })),
+          ...BUILTIN_CERTIFICATE_TEMPLATES
+        ];
         const found = allTpls.find(t => t.id === activeDefId) || BUILTIN_CERTIFICATE_TEMPLATES[0];
         if (found) {
           setSelectedTemplateId(found.id);
-          setTemplateBody(found.bodyHtml);
+          setTemplateBody(retokenizeCertificateBody(found.bodyHtml));
           if (found.certificateTitle) setCertificateTitle(found.certificateTitle);
           if (found.officeTitle) setOfficeTitle(found.officeTitle);
           if (found.institutionName) setInstitutionName(found.institutionName);
@@ -1186,10 +1212,73 @@ export default function StudentCertificateStudioView({
     // Reset canvas override so the new student data is cleanly interpolated from template tokens
     setCustomCanvasHtml(null);
 
-    // Historical/master-register rows often hold result data while the linked
-    // admission document holds identity details. Join them by the permanent
-    // board registration number before filling the certificate.
+    // ─── 1. SYNCHRONOUS IMMEDIATE POPULATION OF STUDENT CORE IDENTITY ───
     const primaryRaw = st.raw || st;
+    setStudentName(st.name || '');
+    setFatherName(st.father || '');
+    setMotherName(st.mother || '');
+    setClassName(st.cls || '11th');
+    setStream(st.stream || resolveCertificateStream(st, [], st.cls || extractClass(st)));
+    setRollNo(st.rollNo || '—');
+    setRegNo(st.regNo || '—');
+    const resolvedDob = extractDob(primaryRaw);
+    const effDob = resolvedDob && resolvedDob !== '—' ? resolvedDob : (st.dob || '');
+    setDobRaw(effDob);
+    setSession(st.session || '2025-26');
+    setAddress(st.address || '');
+    const rawGender = extractGender(primaryRaw);
+    const effGender = String(rawGender || '').toUpperCase().startsWith('F')
+      ? 'F'
+      : (String(rawGender || '').toUpperCase().startsWith('M') ? 'M' : (st.gender || ''));
+    setGender(effGender);
+    
+    const rawWd = primaryRaw['Date of withdrawl'] || primaryRaw.withdrawalDate || primaryRaw['Result Date'] || primaryRaw.resultDate || toLocalDateKey();
+    setWithdrawalDate(rawWd);
+
+    const admNoResolved = extractStudentAdmissionNumber(primaryRaw);
+    const admDateResolved = extractStudentAdmissionDate(primaryRaw);
+    setAdmissionNo(admNoResolved);
+    setAdmissionDate(admDateResolved);
+
+    // Synchronously resolve active template and sanitize its body tokens
+    let activeTpl = allTemplatesList.find(t => t.id === selectedTemplateId) || BUILTIN_CERTIFICATE_TEMPLATES[0];
+    const cleanTplBody = retokenizeCertificateBody(activeTpl.bodyHtml);
+    setTemplateBody(cleanTplBody);
+    if (activeTpl.certificateTitle) setCertificateTitle(activeTpl.certificateTitle);
+
+    // Auto-update Ref No immediately if known from raw record
+    const existingCertNo = extractStudentCertificateNumber(primaryRaw);
+    const isTcDcTemplate = Boolean(activeTpl.isTcDc || activeTpl.id?.startsWith('tc_dc_'));
+    let immediateRef = refNo;
+    if (existingCertNo && !/^(—|-|n\/?a|null|undefined)$/i.test(String(existingCertNo).trim())) {
+      immediateRef = isTcDcTemplate ? (extractCertificateSerial(existingCertNo) || String(existingCertNo).trim()) : String(existingCertNo).trim();
+      setRefNo(immediateRef);
+    }
+
+    // Force-sync WYSIWYG editor DOM synchronously with interpolated preview for immediate zero-delay display
+    if (editorRef.current) {
+      const immediateHtml = interpolateCertificateTemplate(cleanTplBody, {
+        studentName: st.name || '',
+        fatherName: st.father || '',
+        motherName: st.mother || '',
+        className: st.cls || '11th',
+        stream: st.stream || 'Science',
+        rollNo: st.rollNo || '—',
+        regNo: st.regNo || '—',
+        dobFigures: effDob,
+        session: st.session || '2025-26',
+        address: st.address || '',
+        gender: effGender,
+        refNo: immediateRef,
+        date: dateStr,
+        includeSalutations,
+        customFields
+      });
+      editorRef.current.innerHTML = sanitizeCertificateHtml(immediateHtml);
+      pushSnapshot();
+    }
+
+    // ─── 2. ASYNCHRONOUS BACKGROUND ENRICHMENT (REGISTRATION / ADMISSIONS / TC-DC / PHOTO) ───
     const targetReg = normalizeRegistrationKey(extractBoardRegNo(primaryRaw) || st.regNo);
     let registrationMatches = targetReg ? [...(registrationHistoryByReg.get(targetReg) || [])] : [];
     if (targetReg) {
@@ -1201,8 +1290,6 @@ export default function StudentCertificateStudioView({
         const hasAuthoritativeIdentity = registrationMatches.some(record =>
           extractStudentAdmissionNumber(record) || extractStudentAdmissionDate(record) || extractDob(record) !== '—'
         );
-        // Avoid a redundant full admissions read when the complete master-register
-        // pool already contains the linked admission identity.
         if (!hasAuthoritativeIdentity && !isPreviewOnly) {
           const cachedAdmissions = getCachedCollectionSync('admissions');
           const admissions = Array.isArray(cachedAdmissions) && cachedAdmissions.length > 0
@@ -1231,11 +1318,18 @@ export default function StudentCertificateStudioView({
           st = { ...st, raw: enrichedRaw };
           if (selectionRequestRef.current !== requestId) return;
           setSelectedStudent(st);
+          setStream(resolveCertificateStream(st, registrationMatches, st.cls || extractClass(st)));
+          const enrichedAdmNo = extractStudentAdmissionNumber(enrichedRaw);
+          const enrichedAdmDate = extractStudentAdmissionDate(enrichedRaw);
+          if (enrichedAdmNo) setAdmissionNo(enrichedAdmNo);
+          if (enrichedAdmDate) setAdmissionDate(enrichedAdmDate);
         }
       } catch (error) {
         console.warn('Certificate registration enrichment note:', error);
       }
     }
+
+    if (selectionRequestRef.current !== requestId) return;
 
     const raw = st.raw || st;
     const scopedResult = resolveScopedCertificateResult(
@@ -1254,43 +1348,16 @@ export default function StudentCertificateStudioView({
     setTcResultStatus(resInfo.resultStatus);
     setTcReappSubjects(resInfo.reappSubjects);
 
-    let activeTpl = [...customTemplates, ...BUILTIN_CERTIFICATE_TEMPLATES].find(t => t.id === selectedTemplateId) || BUILTIN_CERTIFICATE_TEMPLATES[0];
-
     // If a TC/DC template is active, automatically select the Qualified or Re-appear template variant
     if (activeTpl.isTcDc || selectedTemplateId.startsWith('tc_dc_')) {
       const targetId = isPassed ? 'tc_dc_qualified' : ((resInfo.isReap || resInfo.isFailed) ? 'tc_dc_reappear' : 'tc_dc_awaiting');
       const foundTarget = BUILTIN_CERTIFICATE_TEMPLATES.find(t => t.id === targetId) || activeTpl;
       setSelectedTemplateId(foundTarget.id);
       activeTpl = foundTarget;
+      setTemplateBody(retokenizeCertificateBody(foundTarget.bodyHtml));
       if (foundTarget.certificateTitle) setCertificateTitle(foundTarget.certificateTitle);
     }
 
-    setTemplateBody(activeTpl.bodyHtml);
-
-    setStudentName(st.name || '');
-    setFatherName(st.father || '');
-    setMotherName(st.mother || '');
-    setClassName(st.cls || '11th');
-    setStream(resolveCertificateStream(st, registrationMatches, st.cls || extractClass(st)));
-    setRollNo(st.rollNo || '—');
-    setRegNo(st.regNo || '—');
-    const resolvedDob = extractDob(raw);
-    setDobRaw(resolvedDob && resolvedDob !== '—' ? resolvedDob : (st.dob || ''));
-    setSession(st.session || '2025-26');
-    setAddress(st.address || '');
-    const resolvedGender = extractGender(raw);
-    setGender(String(resolvedGender || '').toUpperCase().startsWith('F')
-      ? 'F'
-      : (String(resolvedGender || '').toUpperCase().startsWith('M') ? 'M' : (st.gender || '')));
-    
-    const rawWd = raw['Date of withdrawl'] || raw.withdrawalDate || raw['Result Date'] || raw.resultDate || toLocalDateKey();
-    setWithdrawalDate(rawWd);
-
-    const admNoResolved = extractStudentAdmissionNumber(raw);
-    const admDateResolved = extractStudentAdmissionDate(raw);
-    setAdmissionNo(admNoResolved);
-    setAdmissionDate(admDateResolved);
-    
     // Resolve student photo from database (non-blocking for smooth live preview)
     if (isPreviewOnly || !showPhoto) {
       fetchAndResolveStudentPhoto(st, { requestId, allowNetwork: false }).catch(() => {});
@@ -1301,15 +1368,15 @@ export default function StudentCertificateStudioView({
     }
 
     // Auto-update Ref No / Certificate No cleanly without 16-digit Reg No or Form No
-    const existingCertNo = extractStudentCertificateNumber(raw);
-    const isTcDcTemplate = Boolean(activeTpl.isTcDc || activeTpl.id?.startsWith('tc_dc_'));
+    const finalExistingCertNo = extractStudentCertificateNumber(raw);
+    const finalIsTcDc = Boolean(activeTpl.isTcDc || activeTpl.id?.startsWith('tc_dc_'));
     
-    if (existingCertNo && !/^(—|-|n\/?a|null|undefined)$/i.test(String(existingCertNo).trim())) {
-      setRefNo(isTcDcTemplate ? (extractCertificateSerial(existingCertNo) || String(existingCertNo).trim()) : String(existingCertNo).trim());
+    if (finalExistingCertNo && !/^(—|-|n\/?a|null|undefined)$/i.test(String(finalExistingCertNo).trim())) {
+      setRefNo(finalIsTcDc ? (extractCertificateSerial(finalExistingCertNo) || String(finalExistingCertNo).trim()) : String(finalExistingCertNo).trim());
     } else if (isPreviewOnly) {
       const nextNo = lastIssuedCertificateRef.current ? lastIssuedCertificateRef.current + 1 : null;
       setRefNo(nextNo
-        ? (isTcDcTemplate ? String(nextNo) : `${activeTpl.refPrefix || 'HSS/SHG'}/${nextNo}/${new Date().getFullYear()}`)
+        ? (finalIsTcDc ? String(nextNo) : `${activeTpl.refPrefix || 'HSS/SHG'}/${nextNo}/${new Date().getFullYear()}`)
         : 'Assigned on issue');
     } else {
       let lastNo = 1367;
@@ -1319,7 +1386,7 @@ export default function StudentCertificateStudioView({
       if (selectionRequestRef.current !== requestId) return;
       lastIssuedCertificateRef.current = lastNo;
       const nextNo = lastNo + 1;
-      setRefNo(isTcDcTemplate ? String(nextNo) : `${activeTpl.refPrefix || 'HSS/SHG'}/${nextNo}/${new Date().getFullYear()}`);
+      setRefNo(finalIsTcDc ? String(nextNo) : `${activeTpl.refPrefix || 'HSS/SHG'}/${nextNo}/${new Date().getFullYear()}`);
     }
   };
 
@@ -1433,9 +1500,33 @@ export default function StudentCertificateStudioView({
   // ─── Select Template Handler ───
   const handleSelectTemplate = (tpl) => {
     setSelectedTemplateId(tpl.id);
-    setTemplateBody(tpl.bodyHtml);
+    const cleanBody = retokenizeCertificateBody(tpl.bodyHtml);
+    setTemplateBody(cleanBody);
     setCustomCanvasHtml(null);
     if (tpl.certificateTitle) setCertificateTitle(tpl.certificateTitle);
+
+    if (editorRef.current) {
+      const immediateHtml = interpolateCertificateTemplate(cleanBody, {
+        studentName,
+        fatherName,
+        motherName,
+        className,
+        stream,
+        rollNo,
+        regNo,
+        dobFigures: parsedDob.figures,
+        dobWords: parsedDob.words,
+        session,
+        address,
+        gender,
+        refNo,
+        date: dateStr,
+        includeSalutations,
+        customFields
+      });
+      editorRef.current.innerHTML = sanitizeCertificateHtml(immediateHtml);
+      pushSnapshot();
+    }
     if (tpl.officeTitle) setOfficeTitle(tpl.officeTitle);
     if (tpl.institutionName) setInstitutionName(tpl.institutionName);
     if (tpl.institutionAddress) setInstitutionAddress(tpl.institutionAddress);
@@ -1640,6 +1731,20 @@ export default function StudentCertificateStudioView({
     }
 
     const currentHtml = editorRef.current ? editorRef.current.innerHTML : (templateBody || activeDisplayHtml);
+    const cleanBodyHtml = retokenizeCertificateBody(currentHtml, {
+      studentName,
+      fatherName,
+      motherName,
+      rollNo,
+      regNo,
+      dobFigures: parsedDob.figures,
+      dobWords: parsedDob.words,
+      session,
+      address,
+      className,
+      stream,
+      refNo
+    });
 
     const targetTpl = {
       id: isUpdating ? selectedTemplateId : `custom_cert_${Date.now()}`,
@@ -1653,7 +1758,7 @@ export default function StudentCertificateStudioView({
       refPrefix: activeTpl.refPrefix || '',
       signatoryLeft: signatoryLeft || '',
       signatoryRight: signatoryRight || '',
-      bodyHtml: currentHtml,
+      bodyHtml: cleanBodyHtml,
       showPhoto,
       watermark,
       includeSalutations,
@@ -1670,7 +1775,7 @@ export default function StudentCertificateStudioView({
       const updated = [targetTpl, ...customTemplates.filter(t => t.id !== targetTpl.id)];
       setCustomTemplates(updated);
       setSelectedTemplateId(targetTpl.id);
-      setTemplateBody(currentHtml);
+      setTemplateBody(cleanBodyHtml);
       if (makeTemplateDefault || (isUpdating && selectedTemplateId === defaultTemplateId)) {
         setDefaultTemplateId(targetTpl.id);
       }
@@ -1687,6 +1792,20 @@ export default function StudentCertificateStudioView({
   const handleQuickUpdateTemplate = async () => {
     const activeTpl = allTemplatesList.find(t => t.id === selectedTemplateId) || BUILTIN_CERTIFICATE_TEMPLATES[0];
     const currentHtml = editorRef.current ? editorRef.current.innerHTML : (templateBody || activeDisplayHtml);
+    const cleanBodyHtml = retokenizeCertificateBody(currentHtml, {
+      studentName,
+      fatherName,
+      motherName,
+      rollNo,
+      regNo,
+      dobFigures: parsedDob.figures,
+      dobWords: parsedDob.words,
+      session,
+      address,
+      className,
+      stream,
+      refNo
+    });
 
     const targetTpl = {
       id: selectedTemplateId,
@@ -1700,7 +1819,7 @@ export default function StudentCertificateStudioView({
       refPrefix: activeTpl.refPrefix || '',
       signatoryLeft: signatoryLeft || '',
       signatoryRight: signatoryRight || '',
-      bodyHtml: currentHtml,
+      bodyHtml: cleanBodyHtml,
       showPhoto,
       watermark,
       includeSalutations,
@@ -1716,7 +1835,7 @@ export default function StudentCertificateStudioView({
 
       const updated = [targetTpl, ...customTemplates.filter(t => t.id !== targetTpl.id)];
       setCustomTemplates(updated);
-      setTemplateBody(currentHtml);
+      setTemplateBody(cleanBodyHtml);
       showToast(`☁️ Template "${targetTpl.name}" successfully overwritten and saved in Cloud!`, 'success');
     } catch (err) {
       console.error(err);
