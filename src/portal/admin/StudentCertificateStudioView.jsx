@@ -457,11 +457,19 @@ export default function StudentCertificateStudioView({
 
   const combinedStudentPool = useMemo(() => {
     const primary = Array.isArray(allStudents) && allStudents.length > 0 ? allStudents : (Array.isArray(identityStudents) ? identityStudents : []);
-    const list = [...primary];
+    const list = [...primary].filter(s => s && !Array.isArray(s.items) && !Array.isArray(s.students) && !Array.isArray(s.records));
     if (Array.isArray(masterRegistersList) && masterRegistersList.length > 0) {
-      const seenIds = new Set(list.map(s => String(s.formNo || s['Form Number'] || s['Form No.'] || s.boardRegNo || s.id || '').trim()).filter(Boolean));
+      const seenIds = new Set(list.map(s => {
+        const sess = extractSession(s);
+        const cls = extractClass(s);
+        const k = String(s.formNo || s['Form Number'] || s['Form No.'] || s.boardRegNo || s.id || '').trim();
+        return `${sess}_${cls}_${k}`;
+      }).filter(Boolean));
       masterRegistersList.forEach(m => {
-        const key = String(m.formNo || m['Form Number'] || m['Form No.'] || m.boardRegNo || m.id || '').trim();
+        const sess = extractSession(m);
+        const cls = extractClass(m);
+        const k = String(m.formNo || m['Form Number'] || m['Form No.'] || m.boardRegNo || m.id || '').trim();
+        const key = `${sess}_${cls}_${k}`;
         if (!key || !seenIds.has(key)) {
           list.push(m);
           if (key) seenIds.add(key);
