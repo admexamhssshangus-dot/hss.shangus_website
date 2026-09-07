@@ -1398,7 +1398,10 @@ export default function CustomRosterDocumentBuilderView({
 
   // Combine live intake with historical registers seamlessly with thorough deduplication
   const combinedRawStudents = useMemo(() => {
-    const list = Array.isArray(allStudents) ? [...allStudents] : [];
+    // Filter out raw chunk container documents from allStudents if any were passed
+    const list = Array.isArray(allStudents) 
+      ? allStudents.filter(s => s && !Array.isArray(s.items) && !Array.isArray(s.students) && !Array.isArray(s.records)) 
+      : [];
     if (Array.isArray(masterRegistersList) && masterRegistersList.length > 0) {
       const seenKeys = new Set();
       list.forEach(s => {
@@ -1407,12 +1410,12 @@ export default function CustomRosterDocumentBuilderView({
         const reg = String(s.boardRegNo || s['Board Registration Number'] || s['Board Reg. No.'] || s.regNo || '').replace(/[^a-z0-9]/gi, '').toLowerCase();
         const name = String(s.studentName || s['Student Name'] || s.name || '').trim().toLowerCase();
         const father = String(s.fatherName || s["Father's Name"] || s.parentName || '').trim().toLowerCase();
-        const sess = String(s.session || s.Session || '').trim().toLowerCase();
-        const cls = String(s.className || s.class || s.Class || '').trim().toLowerCase();
+        const sess = String(extractSession(s) || s.session || s.Session || '').trim().toLowerCase();
+        const cls = String(extractClass(s) || s.className || s.class || s.Class || '').trim().toLowerCase();
 
         if (id) seenKeys.add(`id:${id}`);
-        if (fNo) seenKeys.add(`fno:${fNo}`);
-        if (reg && reg !== '—') seenKeys.add(`reg:${reg}`);
+        if (fNo) seenKeys.add(`fno:${sess}:${cls}:${fNo}`);
+        if (reg && reg !== '—') seenKeys.add(`reg:${sess}:${cls}:${reg}`);
         if (name && father && cls) seenKeys.add(`name:${sess}:${cls}:${name}:${father}`);
       });
 
@@ -1422,20 +1425,20 @@ export default function CustomRosterDocumentBuilderView({
         const reg = String(m.boardRegNo || m['Board Registration Number'] || m['Board Reg. No.'] || m.regNo || '').replace(/[^a-z0-9]/gi, '').toLowerCase();
         const name = String(m.studentName || m['Student Name'] || m.name || '').trim().toLowerCase();
         const father = String(m.fatherName || m["Father's Name"] || m.parentName || '').trim().toLowerCase();
-        const sess = String(m.session || m.Session || '').trim().toLowerCase();
-        const cls = String(m.className || m.class || m.Class || '').trim().toLowerCase();
+        const sess = String(extractSession(m) || m.session || m.Session || '').trim().toLowerCase();
+        const cls = String(extractClass(m) || m.className || m.class || m.Class || '').trim().toLowerCase();
 
         const isDuplicate = 
           (id && seenKeys.has(`id:${id}`)) ||
-          (fNo && seenKeys.has(`fno:${fNo}`)) ||
-          (reg && reg !== '—' && seenKeys.has(`reg:${reg}`)) ||
+          (fNo && seenKeys.has(`fno:${sess}:${cls}:${fNo}`)) ||
+          (reg && reg !== '—' && seenKeys.has(`reg:${sess}:${cls}:${reg}`)) ||
           (name && father && cls && seenKeys.has(`name:${sess}:${cls}:${name}:${father}`));
 
         if (!isDuplicate) {
           list.push(m);
           if (id) seenKeys.add(`id:${id}`);
-          if (fNo) seenKeys.add(`fno:${fNo}`);
-          if (reg && reg !== '—') seenKeys.add(`reg:${reg}`);
+          if (fNo) seenKeys.add(`fno:${sess}:${cls}:${fNo}`);
+          if (reg && reg !== '—') seenKeys.add(`reg:${sess}:${cls}:${reg}`);
           if (name && father && cls) seenKeys.add(`name:${sess}:${cls}:${name}:${father}`);
         }
       });
@@ -1539,12 +1542,21 @@ export default function CustomRosterDocumentBuilderView({
         rawSubjectsWithStreamFull
       };
 
-      // Create unique deduplication key for student pool
+      // Skip empty or container objects that lack any identifying candidate details
+      if (studentName === '—' && fName === '—' && boardRegNo === '—' && formNo === '—') return;
+
+      // Create unique deduplication key for student pool (scoped to session + class so multi-year academic progression and bi-annual entries are preserved)
       const regKey = boardRegNo && boardRegNo !== '—' ? boardRegNo.replace(/[^a-z0-9]/gi, '').toLowerCase() : '';
       const fNoKey = formNo && formNo !== '—' ? formNo.toLowerCase() : '';
       const nameKey = (studentName !== '—' && fName !== '—') ? `${session}_${className}_${studentName}_${fName}`.toLowerCase() : '';
       
-      const dedupKey = regKey ? `reg_${regKey}` : (fNoKey ? `form_${fNoKey}` : (nameKey ? `name_${nameKey}` : `doc_${st.docId || st.id || idx}`));
+      const dedupKey = regKey 
+        ? `reg_${session}_${className}_${regKey}` 
+        : (fNoKey 
+          ? `form_${session}_${className}_${fNoKey}` 
+          : (nameKey 
+            ? `name_${nameKey}` 
+            : `doc_${session}_${className}_${st.docId || st.id || idx}`));
 
       if (!poolMap.has(dedupKey)) {
         poolMap.set(dedupKey, studentRecord);
