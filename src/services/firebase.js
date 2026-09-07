@@ -62,14 +62,26 @@ export const db = firestoreInstance;
 export const functions = getFunctions(app);
 export const storage = getStorage(app);
 
+let enableNetworkTimer = null;
+
 /**
- * Re-establish Firestore WebChannel connectivity after browser/tab sleep or inactivity
+ * Re-establish Firestore WebChannel connectivity after browser/tab sleep or inactivity.
+ * Debounced to avoid stream race conditions during rapid visibility/focus transitions.
  */
 export async function ensureFirestoreConnected() {
   try {
-    if (firestoreInstance) {
-      await enableNetwork(firestoreInstance).catch(() => {});
+    if (!firestoreInstance) return;
+    if (enableNetworkTimer) {
+      clearTimeout(enableNetworkTimer);
     }
+    enableNetworkTimer = setTimeout(async () => {
+      enableNetworkTimer = null;
+      try {
+        if (firestoreInstance) {
+          await enableNetwork(firestoreInstance).catch(() => {});
+        }
+      } catch (_) {}
+    }, 600);
   } catch (_) {}
 }
 

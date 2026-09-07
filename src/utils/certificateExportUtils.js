@@ -1669,19 +1669,34 @@ export function printStudentCertificate({
 </html>`;
 
   // Use a hidden iframe for seamless direct printing without popup tabs or lingering blank windows
-  let iframe = document.getElementById('student-certificate-print-frame');
-  if (!iframe) {
-    iframe = document.createElement('iframe');
-    iframe.id = 'student-certificate-print-frame';
-    iframe.style.position = 'fixed';
-    iframe.style.right = '0';
-    iframe.style.bottom = '0';
-    iframe.style.width = '0';
-    iframe.style.height = '0';
-    iframe.style.border = '0';
-    iframe.style.visibility = 'hidden';
-    document.body.appendChild(iframe);
+  const existingFrame = document.getElementById('student-certificate-print-frame');
+  if (existingFrame && existingFrame.parentNode) {
+    existingFrame.parentNode.removeChild(existingFrame);
   }
+
+  const iframe = document.createElement('iframe');
+  iframe.id = 'student-certificate-print-frame';
+  iframe.style.position = 'fixed';
+  iframe.style.right = '0';
+  iframe.style.bottom = '0';
+  iframe.style.width = '0';
+  iframe.style.height = '0';
+  iframe.style.border = '0';
+  iframe.style.visibility = 'hidden';
+  document.body.appendChild(iframe);
+
+  const cleanupIframe = () => {
+    try {
+      if (iframe && iframe.parentNode) {
+        iframe.parentNode.removeChild(iframe);
+      }
+    } catch (_) {}
+  };
+
+  try {
+    iframe.contentWindow.onafterprint = cleanupIframe;
+  } catch (_) {}
+  setTimeout(cleanupIframe, 120000);
 
   const doc = iframe.contentWindow.document;
   doc.open();
@@ -2476,19 +2491,34 @@ export function printBatchStudentCertificates(studentsList = [], commonOptions =
 </body>
 </html>`;
 
-  let iframe = document.getElementById('student-certificate-batch-print-frame');
-  if (!iframe) {
-    iframe = document.createElement('iframe');
-    iframe.id = 'student-certificate-batch-print-frame';
-    iframe.style.position = 'fixed';
-    iframe.style.right = '0';
-    iframe.style.bottom = '0';
-    iframe.style.width = '0';
-    iframe.style.height = '0';
-    iframe.style.border = '0';
-    iframe.style.visibility = 'hidden';
-    document.body.appendChild(iframe);
+  const existingBatchFrame = document.getElementById('student-certificate-batch-print-frame');
+  if (existingBatchFrame && existingBatchFrame.parentNode) {
+    existingBatchFrame.parentNode.removeChild(existingBatchFrame);
   }
+
+  const iframe = document.createElement('iframe');
+  iframe.id = 'student-certificate-batch-print-frame';
+  iframe.style.position = 'fixed';
+  iframe.style.right = '0';
+  iframe.style.bottom = '0';
+  iframe.style.width = '0';
+  iframe.style.height = '0';
+  iframe.style.border = '0';
+  iframe.style.visibility = 'hidden';
+  document.body.appendChild(iframe);
+
+  const cleanupBatchIframe = () => {
+    try {
+      if (iframe && iframe.parentNode) {
+        iframe.parentNode.removeChild(iframe);
+      }
+    } catch (_) {}
+  };
+
+  try {
+    iframe.contentWindow.onafterprint = cleanupBatchIframe;
+  } catch (_) {}
+  setTimeout(cleanupBatchIframe, 120000);
 
   const doc = iframe.contentWindow.document;
   doc.open();
