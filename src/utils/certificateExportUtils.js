@@ -283,9 +283,188 @@ export function formatBlank(val, defaultDashes = '------------------------') {
   return s;
 }
 
+function escapeRegex(str) {
+  return String(str || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * Converts hardcoded student details, sample values (e.g. MOHAMMAD TAHIR WANI),
+ * or previously baked-in text back into reusable template tokens.
+ * This guarantees custom-saved templates never burn in static student names.
+ */
+export function retokenizeCertificateBody(templateHtml, contextData = {}) {
+  if (!templateHtml || typeof templateHtml !== 'string') return templateHtml || '';
+  let res = templateHtml;
+
+  // 1. If contextData provided with active student fields, replace those first
+  if (contextData.studentName && contextData.studentName.trim().length >= 2 && !contextData.studentName.includes('{')) {
+    const esc = escapeRegex(contextData.studentName.trim());
+    res = res.replace(new RegExp(`\\b${esc}\\b`, 'gi'), '{STUDENT_NAME}');
+  }
+  if (contextData.fatherName && contextData.fatherName.trim().length >= 2 && !contextData.fatherName.includes('{')) {
+    const esc = escapeRegex(contextData.fatherName.trim());
+    res = res.replace(new RegExp(`\\b${esc}\\b`, 'gi'), '{FATHER_NAME}');
+  }
+  if (contextData.motherName && contextData.motherName.trim().length >= 2 && !contextData.motherName.includes('{')) {
+    const esc = escapeRegex(contextData.motherName.trim());
+    res = res.replace(new RegExp(`\\b${esc}\\b`, 'gi'), '{MOTHER_NAME}');
+  }
+  if (contextData.rollNo && contextData.rollNo.trim().length >= 1 && contextData.rollNo !== '—' && !contextData.rollNo.includes('{')) {
+    const esc = escapeRegex(contextData.rollNo.trim());
+    res = res.replace(new RegExp(`((?:Roll\\s*(?:No\\.?)?:?|Class\\s+Roll\\s+No:?)\\s*<strong>?\\s*)${esc}(\\s*<\\/strong>?)`, 'gi'), '$1{ROLL_NO}$2');
+  }
+  if (contextData.regNo && contextData.regNo.trim().length >= 4 && contextData.regNo !== '—' && !contextData.regNo.includes('{')) {
+    const esc = escapeRegex(contextData.regNo.trim());
+    res = res.replace(new RegExp(esc, 'gi'), '{REG_NO}');
+  }
+  if (contextData.dobFigures && contextData.dobFigures !== '—' && !contextData.dobFigures.includes('{')) {
+    const esc = escapeRegex(contextData.dobFigures.trim());
+    res = res.replace(new RegExp(esc, 'gi'), '{DOB_FIGURES}');
+  }
+  if (contextData.dobWords && contextData.dobWords.trim().length >= 5 && contextData.dobWords !== '—' && !contextData.dobWords.includes('{')) {
+    const esc = escapeRegex(contextData.dobWords.trim());
+    res = res.replace(new RegExp(esc, 'gi'), '{DOB_WORDS}');
+  }
+  if (contextData.session && contextData.session.trim().length >= 4 && !contextData.session.includes('{')) {
+    const esc = escapeRegex(contextData.session.trim());
+    res = res.replace(new RegExp(`((?:session|academic\\s+session)\\s*<strong>?\\s*)${esc}(\\s*<\\/strong>?)`, 'gi'), '$1{SESSION}$2');
+  }
+  if (contextData.className && contextData.className.trim() && !contextData.className.includes('{')) {
+    const esc = escapeRegex(contextData.className.trim());
+    res = res.replace(new RegExp(`(Class\\s*<strong>?\\s*)${esc}(\\s*<\\/strong>?)`, 'gi'), '$1{CLASS}$2');
+  }
+  if (contextData.stream && contextData.stream.trim().length >= 3 && !contextData.stream.includes('{')) {
+    const esc = escapeRegex(contextData.stream.trim());
+    res = res.replace(new RegExp(`(Stream:\\s*<strong>?\\s*)${esc}(\\s*<\\/strong>?)`, 'gi'), '$1{STREAM}$2');
+  }
+  if (contextData.address && contextData.address.trim().length >= 5 && !contextData.address.includes('{')) {
+    const esc = escapeRegex(contextData.address.trim());
+    res = res.replace(new RegExp(esc, 'gi'), '{ADDRESS}');
+  }
+
+  // 2. Universal Pattern Detection: if student names were baked into standard sentence templates
+  // Matches "This is to certify that [Mr. Name], son of..."
+  res = res.replace(
+    /((?:This\s+is\s+(?:to\s+)?certif(?:y|ied)\s+that\s+)(?:<strong>)?(?:(?:Mr\.|Mrs\.|Ms\.|Miss|Master|Smt\.|Shri)\s+)?)([^,<>{}\n]+?)((?:<\/strong>)?\s*,\s*(?:son|daughter|S\/o|D\/o|\{PRONOUN_SON_DAUGHTER\}|\{PRONOUN_SO_DO\}))/gi,
+    (m, p1, name, p3) => {
+      const cleanName = name.trim();
+      if (!cleanName || cleanName.includes('{') || cleanName.length < 2) return m;
+      return `${p1}{STUDENT_NAME}${p3}`;
+    }
+  );
+
+  // Matches "son of [Mr. Father Name] and Mrs..." or "son of [Mr. Father Name], resident..."
+  res = res.replace(
+    /(((?:son|daughter|S\/o|D\/o|\{PRONOUN_SON_DAUGHTER\}|\{PRONOUN_SO_DO\})\s+of\s+)(?:<strong>)?(?:Mr\.\s+)?)([^,<>{}\n]+?)((?:<\/strong>)?\s*(?:and\s+Mrs\.|\s+Mother's\s+Name|,\s*(?:resident|residing|R\/o)))/gi,
+    (m, p1, father, p3) => {
+      const clean = father.trim();
+      if (!clean || clean.includes('{') || clean.length < 2) return m;
+      return `${p1}{FATHER_NAME}${p3}`;
+    }
+  );
+
+  // Matches "and Mrs. [Mother Name], resident..." or "Mother's Name [Mother Name], R/o..."
+  res = res.replace(
+    /(((?:and\s+Mrs\.|\s+Mother's\s+Name)\s+)(?:<strong>)?)([^,<>{}\n]+?)((?:<\/strong>)?\s*,\s*(?:resident|residing|R\/o))/gi,
+    (m, p1, mother, p3) => {
+      const clean = mother.trim();
+      if (!clean || clean.includes('{') || clean.length < 2) return m;
+      return `${p1}{MOTHER_NAME}${p3}`;
+    }
+  );
+
+  // Matches Roll No: 1101 or Class Roll No: 1101
+  res = res.replace(
+    /((?:bearing\s+Class\s+Roll\s+No:?|Class\s+Roll\s+No:?|Roll\s+No:?)\s*<strong>?\s*)([0-9A-Za-z—–-]+?)(\s*<\/strong>?(?:\s+and\s+Registration|\s*,\s*(?:Session|academic)))/gi,
+    (m, p1, roll, p3) => {
+      if (roll.includes('{') || roll.trim() === '{ROLL_NO}') return m;
+      return `${p1}{ROLL_NO}${p3}`;
+    }
+  );
+
+  // Matches Registration No: 24SHG1101
+  res = res.replace(
+    /((?:and\s+Registration\s+No:?|Registration\s+No:?|Reg\s+No:?)\s*<strong>?\s*)([0-9A-Za-z/—–-]+?)(\s*<\/strong>?(?:\s+in\s+academic\s+session|\s+during\s+the\s+academic\s+session|\s+in\s+this\s+institution))/gi,
+    (m, p1, reg, p3) => {
+      if (reg.includes('{') || reg.trim() === '{REG_NO}') return m;
+      return `${p1}{REG_NO}${p3}`;
+    }
+  );
+
+  // Matches Class 11th / Class 12th in reading/studying phrases
+  res = res.replace(
+    /((?:reading\s+in|studying\s+in|admitted\s+to|enrolled\s+in)\s+<strong>?\s*Class\s+)([0-9]{1,2}(?:st|nd|rd|th)?)(\s*<\/strong>?)/gi,
+    (m, p1, cls, p3) => {
+      if (cls.includes('{')) return m;
+      return `${p1}{CLASS}${p3}`;
+    }
+  );
+
+  // Matches (Stream: Medical)
+  res = res.replace(
+    /(\(\s*Stream:\s*<strong>?\s*)([A-Za-z\s]+?)(\s*<\/strong>?\s*\))/gi,
+    (m, p1, str, p3) => {
+      if (str.includes('{')) return m;
+      return `${p1}{STREAM}${p3}`;
+    }
+  );
+
+  // Matches academic session 2024-25 / 2025-26 / 2026-27
+  res = res.replace(
+    /((?:academic\s+session|session)\s*<strong>?\s*)(202[0-9]-[23][0-9])(\s*<\/strong>?)/gi,
+    (m, p1, sess, p3) => {
+      if (sess.includes('{')) return m;
+      return `${p1}{SESSION}${p3}`;
+    }
+  );
+
+  // Matches resident of / residing at address
+  res = res.replace(
+    /((?:resident\s+of|residing\s+at)\s*<strong>?\s*)([^,<>{}\n]+?,\s*[^,<>{}\n]+?\s*\(J&K\)|Shangus,\s*Anantnag\s*[—–-]\s*192201\s*\(J&K\))(\s*<\/strong>?)/gi,
+    (m, p1, addr, p3) => {
+      if (addr.includes('{')) return m;
+      return `${p1}{ADDRESS}${p3}`;
+    }
+  );
+
+  // 3. Known default placeholder names & values explicitly replaced
+  res = res.replace(/MOHAMMAD\s+TAHIR\s+WANI/gi, '{STUDENT_NAME}');
+  res = res.replace(/GHULAM\s+NABI\s+WANI/gi, '{FATHER_NAME}');
+  res = res.replace(/FAHMEEDA\s+AKHTER/gi, '{MOTHER_NAME}');
+  res = res.replace(/24SHG1101/gi, '{REG_NO}');
+  res = res.replace(/(?:15[-/]08[-/]2007|2007[-/]08[-/]15)/gi, '{DOB_FIGURES}');
+  res = res.replace(/Fifteenth\s+August\s+Two\s+Thousand\s+Seven/gi, '{DOB_WORDS}');
+
+  // Salutations / Pronoun canonical normalization
+  res = res.replace(/(?:Mr\.|Master)\s+\{STUDENT_NAME\}/g, '{GENDER_TITLE} {STUDENT_NAME}');
+  res = res.replace(/(?:Ms\.|Miss)\s+\{STUDENT_NAME\}/g, '{GENDER_TITLE} {STUDENT_NAME}');
+  res = res.replace(/\bson\s+of\s+<strong>Mr\.\s+\{FATHER_NAME\}/gi, '{PRONOUN_SON_DAUGHTER} of <strong>Mr. {FATHER_NAME}');
+  res = res.replace(/\bdaughter\s+of\s+<strong>Mr\.\s+\{FATHER_NAME\}/gi, '{PRONOUN_SON_DAUGHTER} of <strong>Mr. {FATHER_NAME}');
+  res = res.replace(/\b(?:His|Her)\s+stay\b/gi, '{PRONOUN_HIS_HER} stay');
+  res = res.replace(/\b(?:His|Her)\s+conduct\b/gi, '{PRONOUN_HIS_HER} conduct');
+  res = res.replace(/\b(?:He|She)\s+has\b/gi, '{PRONOUN_HE_SHE} has');
+  res = res.replace(/----------------------------------------/g, '{STUDENT_NAME}');
+
+  return res;
+}
+
 // ─── REPLACES PLACEHOLDERS IN HTML TEMPLATES ───
 export function interpolateCertificateTemplate(templateHtml, studentData = {}, options = {}) {
   if (!templateHtml) return '';
+
+  const mergedProps = { ...studentData, ...options };
+
+  // Auto-recovery: If template lacks {STUDENT_NAME} or contains static placeholder names,
+  // retokenize it automatically so real student details are always fetched and displayed.
+  let activeHtml = templateHtml;
+  if (
+    !activeHtml.includes('{STUDENT_NAME}') ||
+    /MOHAMMAD\s+TAHIR\s+WANI/i.test(activeHtml) ||
+    /GHULAM\s+NABI\s+WANI/i.test(activeHtml) ||
+    /24SHG1101/i.test(activeHtml)
+  ) {
+    activeHtml = retokenizeCertificateBody(activeHtml, mergedProps);
+  }
 
   const {
     studentName = '',
@@ -388,7 +567,7 @@ export function interpolateCertificateTemplate(templateHtml, studentData = {}, o
   const effFatherName = includeSalutations ? (fatherName || '') : cleanSalutation(fatherName || '');
   const effMotherName = includeSalutations ? (motherName || '') : cleanSalutation(motherName || '');
 
-  let result = templateHtml;
+  let result = activeHtml;
 
   // If salutations are hidden, strip any hardcoded "Mr." / "Mrs." / "Ms." prefixes before tokens or names
   if (!includeSalutations) {
