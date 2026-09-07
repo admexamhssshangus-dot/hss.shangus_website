@@ -9,7 +9,7 @@ import {
   Trash2, X, FileText, Award, Calendar, User, Hash,
   CheckCircle2, Filter, AlertTriangle, ExternalLink,
   ChevronRight, RefreshCw, FileEdit, CheckSquare, Square,
-  Layers, ShieldAlert
+  Layers, ShieldAlert, ClipboardList
 } from 'lucide-react';
 import {
   fetchGeneratedDocHistory,
@@ -24,12 +24,51 @@ import {
   printStudentCertificate,
   generateStudentCertificateDocx
 } from '../../utils/certificateExportUtils';
+import {
+  generateStudentAdmissionPdf,
+  generateProvisionalAdmissionPdf
+} from '../../utils/pdfGenerator';
 import { sanitizeRichHtml } from '../../utils/sanitizeRichHtml';
+
+// Classification helper predicates
+export const isDischargeDoc = (r) => {
+  if (!r) return false;
+  const dt = (r.docType || '').toLowerCase();
+  if (dt === 'discharge') return true;
+  const titleLower = (r.title || '').toLowerCase();
+  return titleLower.includes('discharge') ||
+         titleLower.includes('transfer') ||
+         titleLower.includes('character') ||
+         titleLower.includes('tc');
+};
+
+export const isLetterDoc = (r) => {
+  if (!r) return false;
+  return (r.docType || '').toLowerCase() === 'letter';
+};
+
+export const isAdmissionFormDoc = (r) => {
+  if (!r) return false;
+  const dt = (r.docType || '').toLowerCase();
+  if (dt === 'admission_form' || dt === 'admission' || dt === 'form') return true;
+  const titleLower = (r.title || '').toLowerCase();
+  return titleLower.includes('admission application form') ||
+         titleLower.includes('provisional admission slip') ||
+         titleLower.includes('application form');
+};
+
+export const isBonafideDoc = (r) => {
+  if (!r) return false;
+  if (isDischargeDoc(r) || isLetterDoc(r) || isAdmissionFormDoc(r)) return false;
+  const dt = (r.docType || '').toLowerCase();
+  const titleLower = (r.title || '').toLowerCase();
+  return dt === 'bonafide' || dt === 'certificate' || titleLower.includes('bonafide');
+};
 
 export default function DocumentHistoryModal({
   isOpen,
   onClose,
-  defaultFilter = 'all', // 'all' | 'discharge' | 'bonafide' | 'letter'
+  defaultFilter = 'all', // 'all' | 'discharge' | 'bonafide' | 'letter' | 'admission'
   onLoadAsDraft = null
 }) {
   const [historyRecords, setHistoryRecords] = useState([]);
@@ -84,14 +123,15 @@ export default function DocumentHistoryModal({
     let discharge = 0;
     let bonafide = 0;
     let letter = 0;
+    let admission = 0;
 
     historyRecords.forEach(r => {
-      const titleLower = (r.title || '').toLowerCase();
-      const isDischarge = titleLower.includes('discharge') || titleLower.includes('transfer') || titleLower.includes('character') || titleLower.includes('tc');
-      if (isDischarge) {
+      if (isDischargeDoc(r)) {
         discharge++;
-      } else if (r.docType === 'letter') {
+      } else if (isLetterDoc(r)) {
         letter++;
+      } else if (isAdmissionFormDoc(r)) {
+        admission++;
       } else {
         bonafide++;
       }
@@ -101,7 +141,8 @@ export default function DocumentHistoryModal({
       all: historyRecords.length,
       discharge,
       bonafide,
-      letter
+      letter,
+      admission
     };
   }, [historyRecords]);
 
@@ -111,18 +152,13 @@ export default function DocumentHistoryModal({
 
     // Module / Category Filter
     if (moduleFilter === 'discharge') {
-      list = list.filter(r => {
-        const titleLower = (r.title || '').toLowerCase();
-        return titleLower.includes('discharge') || titleLower.includes('transfer') || titleLower.includes('character') || titleLower.includes('tc');
-      });
+      list = list.filter(r => isDischargeDoc(r));
     } else if (moduleFilter === 'bonafide') {
-      list = list.filter(r => {
-        const titleLower = (r.title || '').toLowerCase();
-        const isDischarge = titleLower.includes('discharge') || titleLower.includes('transfer') || titleLower.includes('character') || titleLower.includes('tc');
-        return !isDischarge && (r.docType === 'bonafide' || r.docType === 'certificate');
-      });
+      list = list.filter(r => isBonafideDoc(r));
     } else if (moduleFilter === 'letter') {
-      list = list.filter(r => r.docType === 'letter');
+      list = list.filter(r => isLetterDoc(r));
+    } else if (moduleFilter === 'admission' || moduleFilter === 'forms') {
+      list = list.filter(r => isAdmissionFormDoc(r));
     }
 
     // Action Filter
@@ -218,6 +254,17 @@ export default function DocumentHistoryModal({
   // Re-Print Handler
   const handleRePrint = (rec, e) => {
     e?.stopPropagation();
+    if (isAdmissionFormDoc(rec)) {
+      if (rec.extraData?.studentData) {
+        const titleLower = (rec.title || '').toLowerCase();
+        if (titleLower.includes('provisional')) {
+          generateProvisionalAdmissionPdf(rec.extraData.studentData);
+        } else {
+          generateStudentAdmissionPdf(rec.extraData.studentData);
+        }
+        return;
+      }
+    }
     if (rec.docType === 'letter') {
       printOfficialLetter({
         refNo: rec.refNo,
@@ -474,6 +521,19 @@ export default function DocumentHistoryModal({
 
             <button
               type="button"
+              onClick={() => setModuleFilter('admission')}
+              className={`px-2.5 py-1 rounded-lg text-[10.5px] font-black cursor-pointer transition-all flex items-center gap-1 ${
+                moduleFilter === 'admission'
+                  ? 'bg-amber-600 text-white shadow-xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              <ClipboardList size={11} />
+              <span>Admission Forms ({categoryCounts.admission})</span>
+            </button>
+
+            <button
+              type="button"
               onClick={() => setModuleFilter('letter')}
               className={`px-2.5 py-1 rounded-lg text-[10.5px] font-black cursor-pointer transition-all flex items-center gap-1 ${
                 moduleFilter === 'letter'
@@ -579,10 +639,10 @@ export default function DocumentHistoryModal({
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
               {filteredRecords.map((rec) => {
-                const isLetter = rec.docType === 'letter';
+                const isLetter = isLetterDoc(rec);
+                const isDischarge = isDischargeDoc(rec);
+                const isAdmission = isAdmissionFormDoc(rec);
                 const isSelected = selectedDocIds.has(rec.id);
-                const titleLower = (rec.title || '').toLowerCase();
-                const isDischarge = titleLower.includes('discharge') || titleLower.includes('transfer') || titleLower.includes('character') || titleLower.includes('tc');
 
                 const actionColor = (rec.actionType || '').includes('Print')
                   ? 'bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-800'
@@ -619,9 +679,11 @@ export default function DocumentHistoryModal({
                               ? 'bg-indigo-100 dark:bg-indigo-950 text-indigo-600' 
                               : isDischarge
                                 ? 'bg-rose-100 dark:bg-rose-950 text-rose-600'
-                                : 'bg-teal-100 dark:bg-teal-950 text-teal-600'
+                                : isAdmission
+                                  ? 'bg-amber-100 dark:bg-amber-950 text-amber-600'
+                                  : 'bg-teal-100 dark:bg-teal-950 text-teal-600'
                           }`}>
-                            {isLetter ? <FileText size={14} /> : <Award size={14} />}
+                            {isLetter ? <FileText size={14} /> : isAdmission ? <ClipboardList size={14} /> : <Award size={14} />}
                           </div>
 
                           <div className="min-w-0">
@@ -686,18 +748,20 @@ export default function DocumentHistoryModal({
                         </button>
 
                         {/* Direct Word .docx Download */}
-                        <button
-                          type="button"
-                          onClick={(e) => handleDownloadDocx(rec, e)}
-                          className="px-2 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-950 hover:bg-emerald-100 text-emerald-700 dark:text-emerald-300 font-bold text-[10px] flex items-center gap-1 cursor-pointer border border-emerald-200 dark:border-emerald-800"
-                          title="Download Word (.docx)"
-                        >
-                          <Download size={11} />
-                          <span>Word</span>
-                        </button>
+                        {!isAdmission && (
+                          <button
+                            type="button"
+                            onClick={(e) => handleDownloadDocx(rec, e)}
+                            className="px-2 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-950 hover:bg-emerald-100 text-emerald-700 dark:text-emerald-300 font-bold text-[10px] flex items-center gap-1 cursor-pointer border border-emerald-200 dark:border-emerald-800"
+                            title="Download Word (.docx)"
+                          >
+                            <Download size={11} />
+                            <span>Word</span>
+                          </button>
+                        )}
 
                         {/* Use as New Draft */}
-                        {onLoadAsDraft && (
+                        {!isAdmission && onLoadAsDraft && (
                           <button
                             type="button"
                             onClick={(e) => handleLoadAsDraft(rec, e)}
@@ -770,14 +834,16 @@ export default function DocumentHistoryModal({
                   <Printer size={12} />
                   <span>Print / Save PDF</span>
                 </button>
-                <button
-                  type="button"
-                  onClick={() => handleDownloadDocx(previewDoc)}
-                  className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-xs"
-                >
-                  <Download size={12} />
-                  <span>Word (.docx)</span>
-                </button>
+                {!isAdmissionFormDoc(previewDoc) && (
+                  <button
+                    type="button"
+                    onClick={() => handleDownloadDocx(previewDoc)}
+                    className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-xs"
+                  >
+                    <Download size={12} />
+                    <span>Word (.docx)</span>
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => setPreviewDoc(null)}
@@ -792,36 +858,60 @@ export default function DocumentHistoryModal({
             <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-slate-200 dark:bg-slate-950 flex justify-center custom-scrollbar">
               <div className="bg-white text-slate-900 border border-slate-300 rounded-xl p-6 sm:p-8 shadow-md w-full max-w-[760px] min-h-[500px]">
                 
-                {/* Header Banner */}
-                <div className="-mx-6 sm:-mx-8 -mt-6 sm:-mt-8 p-4 text-center bg-[#f0f8ff] border-b-[2.5px] border-[#800000] rounded-t-xl mb-4">
-                  <h3 className="text-[11px] font-black text-[#800000] uppercase tracking-[1.5px] m-0">
-                    {previewDoc.extraData?.officeTitle || 'OFFICE OF THE PRINCIPAL'}
-                  </h3>
-                  <h1 className="text-base sm:text-lg font-black text-[#0a192f] tracking-wide uppercase m-0 mt-0.5 font-serif">
-                    {previewDoc.extraData?.institutionName || 'GOVT. HIGHER SECONDARY SCHOOL SHANGUS'}
-                  </h1>
-                  <p className="text-[10px] text-slate-600 font-semibold m-0 mt-0.5">
-                    {previewDoc.extraData?.institutionAddress || 'District Anantnag, Kashmir — 192201 (J&K)'}
-                  </p>
-                </div>
+                {!isAdmissionFormDoc(previewDoc) && (
+                  <>
+                    {/* Header Banner */}
+                    <div className="-mx-6 sm:-mx-8 -mt-6 sm:-mt-8 p-4 text-center bg-[#f0f8ff] border-b-[2.5px] border-[#800000] rounded-t-xl mb-4">
+                      <h3 className="text-[11px] font-black text-[#800000] uppercase tracking-[1.5px] m-0">
+                        {previewDoc.extraData?.officeTitle || 'OFFICE OF THE PRINCIPAL'}
+                      </h3>
+                      <h1 className="text-base sm:text-lg font-black text-[#0a192f] tracking-wide uppercase m-0 mt-0.5 font-serif">
+                        {previewDoc.extraData?.institutionName || 'GOVT. HIGHER SECONDARY SCHOOL SHANGUS'}
+                      </h1>
+                      <p className="text-[10px] text-slate-600 font-semibold m-0 mt-0.5">
+                        {previewDoc.extraData?.institutionAddress || 'District Anantnag, Kashmir — 192201 (J&K)'}
+                      </p>
+                    </div>
 
-                {/* Ref & Date Bar */}
-                <div className="flex justify-between items-center text-xs pb-2 mb-3 border-b border-slate-200">
-                  <div>
-                    <span className="text-[#800000] font-black">Ref. No.:</span>{' '}
-                    <span className="text-slate-900 font-mono font-bold">{previewDoc.refNo || '—'}</span>
-                  </div>
-                  <div>
-                    <span className="text-[#800000] font-black">Date:</span>{' '}
-                    <span className="text-slate-900 font-semibold">{previewDoc.dateStr}</span>
-                  </div>
-                </div>
+                    {/* Ref & Date Bar */}
+                    <div className="flex justify-between items-center text-xs pb-2 mb-3 border-b border-slate-200">
+                      <div>
+                        <span className="text-[#800000] font-black">Ref. No.:</span>{' '}
+                        <span className="text-slate-900 font-mono font-bold">{previewDoc.refNo || '—'}</span>
+                      </div>
+                      <div>
+                        <span className="text-[#800000] font-black">Date:</span>{' '}
+                        <span className="text-slate-900 font-semibold">{previewDoc.dateStr}</span>
+                      </div>
+                    </div>
+                  </>
+                )}
 
                 {/* Body Snapshot */}
-                <div
-                  className="text-[13px] leading-relaxed text-slate-900 my-4"
-                  dangerouslySetInnerHTML={{ __html: sanitizeRichHtml(previewDoc.bodyHtml) }}
-                />
+                {previewDoc.bodyHtml ? (
+                  <div
+                    className="text-[13px] leading-relaxed text-slate-900 my-4"
+                    dangerouslySetInnerHTML={{ __html: sanitizeRichHtml(previewDoc.bodyHtml) }}
+                  />
+                ) : isAdmissionFormDoc(previewDoc) ? (
+                  <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl space-y-2">
+                    <div className="flex items-center gap-2 text-amber-800 font-bold text-sm">
+                      <ClipboardList size={18} />
+                      <span>{previewDoc.title}</span>
+                    </div>
+                    <p className="text-xs text-slate-600">
+                      Student: <strong>{previewDoc.recipientOrStudent}</strong> | Form No: <strong>{previewDoc.refNo}</strong> | Date: <strong>{previewDoc.dateStr}</strong>
+                    </p>
+                    <p className="text-[11px] text-slate-500">
+                      Click <strong>Print / Save PDF</strong> above to re-generate and view the complete printed admission form.
+                    </p>
+                  </div>
+                ) : (
+                  <div
+                    className="text-[13px] leading-relaxed text-slate-900 my-4"
+                    dangerouslySetInnerHTML={{ __html: sanitizeRichHtml(previewDoc.bodyHtml) }}
+                  />
+                )}
               </div>
             </div>
           </div>

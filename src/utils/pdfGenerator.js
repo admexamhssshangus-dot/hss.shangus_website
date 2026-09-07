@@ -1422,20 +1422,21 @@ export function generateStudentAdmissionPdf(studentData, options = {}) {
   // Record print event in per-application memory (strictly 3 most recent)
   recordApplicationPrint(studentData, 'Admission Form', 'Printed / Saved PDF', { formNo, studentName: rawName });
 
+  const htmlBody = buildStudentFormHtml(studentData, options);
+
   // Auto-archive in Document History
   saveGeneratedDocToHistory({
-    docType: 'bonafide',
+    docType: 'admission_form',
     title: `Admission Application Form (#${formNo})`,
     refNo: formNo,
     dateStr: new Date().toLocaleDateString('en-GB'),
     recipientOrStudent: rawName,
-    bodyHtml: '',
+    bodyHtml: htmlBody,
     actionType: 'Printed / Saved PDF',
     templateName: 'Standard Admission Form',
     extraData: { studentData }
   }).catch(() => {});
 
-  const htmlBody = buildStudentFormHtml(studentData, options);
   const fullDocument = wrapInPrintDocument(htmlBody, docTitle);
   
   // Temporarily set document.title so browser print dialog defaults to exact relevant file name
@@ -1745,20 +1746,20 @@ export function generateProvisionalAdmissionPdf(studentData) {
   // Record print event in per-application memory (strictly 3 most recent)
   recordApplicationPrint(studentData, 'Provisional Admission Slip', 'Printed / Saved PDF', { formNo, studentName: rawName });
 
+  const htmlBody = buildProvisionalFormHtml(studentData);
+
   // Auto-archive in Document History
   saveGeneratedDocToHistory({
-    docType: 'bonafide',
+    docType: 'admission_form',
     title: `Provisional Admission Slip (#${formNo})`,
     refNo: formNo,
     dateStr: new Date().toLocaleDateString('en-GB'),
     recipientOrStudent: rawName,
-    bodyHtml: '',
+    bodyHtml: htmlBody,
     actionType: 'Printed / Saved PDF',
     templateName: 'Provisional Admission Slip',
     extraData: { studentData }
   }).catch(() => {});
-
-  const htmlBody = buildProvisionalFormHtml(studentData);
   const provCss = `
     @page { size: A4 portrait; margin: 7mm; }
     .prov-page {
