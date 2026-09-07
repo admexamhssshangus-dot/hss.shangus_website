@@ -2602,9 +2602,9 @@ const formatPhotoDisplayUrl = (val, student = null) => {
 };
 
 function OnDemandStudentPhotoCell({ student, val }) {
-  const studentKey = `${student?.id || ''}_${student?.docId || ''}_${student?.boardRegNo || student?.regNo || ''}_${val || ''}`;
+  const studentKey = `${student?.id || student?.sno || ''}_${student?.boardRegNo || student?.regNo || ''}_${student?.studentName || ''}_${val || ''}`;
   const [photoUrl, setPhotoUrl] = useState(() => {
-    return formatPhotoDisplayUrl(val, student) || getStudentPhotoUrl(student) || '';
+    return formatPhotoDisplayUrl(val) || getStudentPhotoUrl(student) || '';
   });
 
   const [isHovered, setIsHovered] = useState(false);
@@ -2620,7 +2620,7 @@ function OnDemandStudentPhotoCell({ student, val }) {
 
   useEffect(() => {
     let isMounted = true;
-    const current = formatPhotoDisplayUrl(val, student) || getStudentPhotoUrl(student);
+    const current = formatPhotoDisplayUrl(val) || getStudentPhotoUrl(student);
     if (current && current !== '/logo.png' && current !== '—') {
       setPhotoUrl(current);
       return;
@@ -6335,7 +6335,7 @@ export default function AdvancedReports({
         st.photoId ||
         ''
       ).trim();
-      return formatPhotoDisplayUrl(raw, st);
+      return formatPhotoDisplayUrl(raw);
     };
 
     // Helper: detect bogus/dummy reg numbers that students leave as zeros (e.g. 2301000000000000)
@@ -6459,13 +6459,15 @@ export default function AdvancedReports({
         if (!oldAdmNoByIdentity.has(k)) oldAdmNoByIdentity.set(k, new Set());
         if (rawOldAdm) oldAdmNoByIdentity.get(k).add(rawOldAdm);
 
-        // ─── Photo indexing: Only track active admission photos ───
+        // ─── Photo indexing: Only track active admission photos with valid keys ───
         if (photoVal && !isHist) {
           const group = classPhotoGroup(recCls);
           const regKey = extractRegNoClean(rec);
           const admKey = cleanedAdm;
-          if (regKey) photoByReg.set(`${group}::reg_${regKey}`, photoVal);
-          if (admKey) photoByAdm.set(`${group}::adm_${admKey}`, photoVal);
+          if (regKey && isValidRegNo(regKey)) photoByReg.set(`${group}::reg_${regKey}`, photoVal);
+          if (admKey && admKey !== '—' && !/^(—|-|NA|N\/A|null|undefined)$/i.test(admKey) && admKey.length >= 2) {
+            photoByAdm.set(`${group}::adm_${admKey}`, { photo: photoVal, name: recName });
+          }
         }
 
         if (rollVal && rollVal !== '—' && rollVal !== 'N/A') {
@@ -6479,7 +6481,7 @@ export default function AdvancedReports({
       });
     });
 
-    // ─── getResolvedPhoto: reg-first then adm, no name-based fallback ───
+    // ─── getResolvedPhoto: reg-first then adm, strictly validated ───
     const getResolvedPhoto = (st) => {
       const explicit = extractPhotoVal(st);
       if (explicit) return explicit;
@@ -6488,16 +6490,22 @@ export default function AdvancedReports({
       const group = classPhotoGroup(stCls);
 
       const regKey = extractRegNoClean(st);
-      if (regKey) {
+      if (regKey && isValidRegNo(regKey)) {
         const byReg = photoByReg.get(`${group}::reg_${regKey}`);
         if (byReg) return byReg;
       }
 
       const rawAdm = extractRawAdmNo(st);
       const admKey = cleanAdmNoVal(rawAdm);
-      if (admKey) {
+      if (admKey && admKey !== '—' && !/^(—|-|NA|N\/A|null|undefined)$/i.test(admKey) && admKey.length >= 2) {
         const byAdm = photoByAdm.get(`${group}::adm_${admKey}`);
-        if (byAdm) return byAdm;
+        if (byAdm) {
+          const photo = typeof byAdm === 'object' ? byAdm.photo : byAdm;
+          const name = typeof byAdm === 'object' ? byAdm.name : '';
+          if (!name || areNamesCompatible(name, getStudentName(st))) {
+            return photo;
+          }
+        }
       }
 
       return '—';
@@ -6893,7 +6901,6 @@ export default function AdvancedReports({
       const religion = cleanVal(rec['Religion'] || rec.religion);
       const residence = cleanVal(rec['Residence (Village, District)'] || rec.residence);
       const prevSchool = cleanVal(rec['Previous School'] || rec['Name of the Institution last attended'] || rec.prevSchool);
-      const photo = cleanVal(extractPhotoVal(rec));
 
       const mergeProfile = (existing = {}) => ({
         dob: existing.dob || dob,
@@ -6912,8 +6919,7 @@ export default function AdvancedReports({
         category: existing.category || category,
         religion: existing.religion || religion,
         residence: existing.residence || residence,
-        prevSchool: existing.prevSchool || prevSchool,
-        photo: existing.photo || photo
+        prevSchool: existing.prevSchool || prevSchool
       });
 
       if (reg && isValidRegNo(reg)) {
@@ -7031,7 +7037,7 @@ export default function AdvancedReports({
       const sIfsc = m['IFSC code'] || m['IFSC Code'] || m.ifsc || demo.ifsc || '—';
       const sApaar = m['APAAR ID'] || m.apaarId || demo.apaar || '—';
       const sPrevSchool = m['Previous School'] || m['Name of the Institution last attended'] || m.prevSchool || demo.prevSchool || '—';
-      const sPhotoId = extractPhotoVal(m) || demo.photo || '';
+      const sPhotoId = extractPhotoVal(m) || '';
 
       const searchBlob = `${sName} ${fName} ${mName} ${cleanFNo} ${rawRoll} ${rawReg} ${finalAdmNo} ${targetClass} ${targetSession} ${sStream} ${sSubs} ${optedStream12th} ${optedSubs12th} ${sMobile} ${sVillage} ${sDob} ${sPen} ${sAadhar} ${sCategory} ${hasStreamMismatch ? 'mismatch stream' : ''} ${hasSubsMismatch ? 'mismatch subjects' : ''}`.toLowerCase();
 

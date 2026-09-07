@@ -14,7 +14,8 @@ import {
   updateCachedItem,
   getCachedCollectionSync,
   getCachedCollection,
-  fetchStudentPhotoOnDemand
+  fetchStudentPhotoOnDemand,
+  isValidPhotoKey
 } from '../../services/dbCache';
 import { logAdminActivity } from '../../services/adminActivityLogger';
 import { getStudentPhotoUrl } from '../../utils/imageCompressor';
@@ -1641,7 +1642,10 @@ export default function AdmissionRegisterSuite({
     let isMounted = true;
 
     const toFetch = filteredStudents.filter(st => {
-      const existing = photosMap[st.id] || photosMap[st.formNo] || photosMap[st.boardReg] || st.directPhoto;
+      const existing = (st.boardReg && isValidPhotoKey(st.boardReg) && photosMap[st.boardReg]) ||
+        (st.formNo && isValidPhotoKey(st.formNo) && photosMap[st.formNo]) ||
+        (st.id && isValidPhotoKey(st.id) && photosMap[st.id]) ||
+        st.directPhoto;
       return !existing || existing === '/logo.png';
     });
 
@@ -1674,9 +1678,9 @@ export default function AdmissionRegisterSuite({
             const next = { ...prev };
             results.forEach(r => {
               if (r && r.url) {
-                if (r.id) next[r.id] = r.url;
-                if (r.formNo) next[r.formNo] = r.url;
-                if (r.boardReg) next[r.boardReg] = r.url;
+                if (r.id && isValidPhotoKey(r.id)) next[r.id] = r.url;
+                if (r.formNo && isValidPhotoKey(r.formNo)) next[r.formNo] = r.url;
+                if (r.boardReg && isValidPhotoKey(r.boardReg)) next[r.boardReg] = r.url;
               }
             });
             return next;
@@ -1690,9 +1694,9 @@ export default function AdmissionRegisterSuite({
 
   const getResolvedStudentPhoto = (s) => {
     return (
-      photosMap[s.id] ||
-      photosMap[s.formNo] ||
-      photosMap[s.boardReg] ||
+      (s.boardReg && isValidPhotoKey(s.boardReg) && photosMap[s.boardReg]) ||
+      (s.formNo && isValidPhotoKey(s.formNo) && photosMap[s.formNo]) ||
+      (s.id && isValidPhotoKey(s.id) && photosMap[s.id]) ||
       s.directPhoto ||
       getStudentPhotoUrl(s.raw || s, '') ||
       ''

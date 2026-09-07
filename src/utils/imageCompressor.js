@@ -272,9 +272,20 @@ export const getStudentPhotoUrl = (st, fallback = '') => {
     }
   }
 
+  const isValidIdKey = (val) => {
+    if (!val) return false;
+    const s = String(val).trim();
+    if (s.length < 3) return false;
+    if (/^(—|-|#?N\/A|NA|Nill|Nil|null|undefined|none|0|nan|st|student)$/i.test(s)) return false;
+    if (/^(hist_|chunk_|rec_)/i.test(s)) return false;
+    return true;
+  };
+
   const cleanedBoardReg = cleanReg(rawBoardReg);
-  const fNo = String(st['Form Number'] || st['Form No.'] || st['FormNo'] || st.formNo || st.form_no || st['Application ID'] || st.appId || '').replace(/^'/, '').trim();
-  const rawId = String(st.docId || st._docId || st.id || '').trim();
+  const rawFormNo = String(st['Form Number'] || st['Form No.'] || st['FormNo'] || st.formNo || st.form_no || st['Application ID'] || st.appId || '').replace(/^'/, '').trim();
+  const fNo = isValidIdKey(rawFormNo) ? rawFormNo : '';
+  const candidateDocId = String(st.docId || st._docId || st.id || '').trim();
+  const rawId = isValidIdKey(candidateDocId) ? candidateDocId : '';
 
   // 1. PRIMARY PRIORITY: Central photo map keyed by Board Registration Number, Form No, or DocId
   if (typeof window !== 'undefined') {
@@ -284,7 +295,7 @@ export const getStudentPhotoUrl = (st, fallback = '') => {
       const cache2 = JSON.parse(localStorage.getItem('hss_student_photo_cache_v1') || '{}');
       const mergedMap = { ...cache2, ...cache1, ...memoryMap };
 
-      if (cleanedBoardReg) {
+      if (cleanedBoardReg && isValidIdKey(cleanedBoardReg)) {
         const rawClass = String(st.class || st.Class || st['Admission sought for class'] || '').toLowerCase();
         const targetClass = rawClass.includes('12') ? '12th' : rawClass.includes('11') ? '11th' : rawClass.includes('10') ? '10th' : (rawClass.includes('9') || rawClass.includes('ix')) ? '9th' : '';
 
@@ -307,20 +318,35 @@ export const getStudentPhotoUrl = (st, fallback = '') => {
           const formatted = formatPhotoDisplayUrl(classPhoto);
           if (formatted) return formatted;
         }
-      }
 
-      const regCandidates = [
-        ...(cleanedBoardReg ? [cleanedBoardReg, `photo_${cleanedBoardReg}`, `reg_${cleanedBoardReg}`, cleanedBoardReg.toLowerCase()] : []),
-        ...(fNo ? [`photo_form_${fNo}`, `form_${fNo}`, `photo_${fNo}`, fNo] : []),
-        ...(rawId ? [`photo_${rawId}`, rawId] : [])
-      ];
+        const regCandidates = [
+          cleanedBoardReg,
+          `photo_${cleanedBoardReg}`,
+          `reg_${cleanedBoardReg}`,
+          cleanedBoardReg.toLowerCase()
+        ];
+        for (const rKey of regCandidates) {
+          if (!isValidIdKey(rKey)) continue;
+          const p = mergedMap[rKey];
+          if (isValidPhotoStr(p)) {
+            const formatted = formatPhotoDisplayUrl(p);
+            if (formatted) return formatted;
+          }
+        }
+      } else {
+        // Fallback to Form No or DocId ONLY when no registration number exists on the record
+        const altCandidates = [
+          ...(fNo ? [`photo_form_${fNo}`, `form_${fNo}`, `photo_${fNo}`, fNo] : []),
+          ...(rawId ? [`photo_${rawId}`, rawId] : [])
+        ];
 
-      for (const rKey of regCandidates) {
-        if (!rKey) continue;
-        const p = mergedMap[rKey];
-        if (isValidPhotoStr(p)) {
-          const formatted = formatPhotoDisplayUrl(p);
-          if (formatted) return formatted;
+        for (const aKey of altCandidates) {
+          if (!isValidIdKey(aKey)) continue;
+          const p = mergedMap[aKey];
+          if (isValidPhotoStr(p)) {
+            const formatted = formatPhotoDisplayUrl(p);
+            if (formatted) return formatted;
+          }
         }
       }
     } catch (_) {}
