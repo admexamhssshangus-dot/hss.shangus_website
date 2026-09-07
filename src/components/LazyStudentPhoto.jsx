@@ -34,16 +34,21 @@ export default function LazyStudentPhoto({
   const [isLoading, setIsLoading] = useState(true);
   const containerRef = useRef(null);
 
+  const cleanKey = (v) => {
+    if (!v) return '';
+    const s = String(v).trim();
+    return /^(—|-|NA|N\/A|null|undefined|none|0)$/i.test(s) ? '' : s;
+  };
+
   const studentKey = String(
-    student?.boardRegNo ||
-    student?.regNo ||
-    student?.['Board Registration Number'] ||
-    student?.id ||
-    student?.formNo ||
-    student?.['Form Number'] ||
-    student?.docId ||
-    `${student?.name || student?.studentName || ''}_${student?.father || student?.fatherName || ''}_${student?.dob || ''}` ||
-    'unknown'
+    cleanKey(student?.boardRegNo) ||
+    cleanKey(student?.regNo) ||
+    cleanKey(student?.['Board Registration Number']) ||
+    cleanKey(student?.formNo) ||
+    cleanKey(student?.['Form Number']) ||
+    cleanKey(student?.docId) ||
+    cleanKey(student?.id) ||
+    `${student?.studentName || student?.name || 'st'}_${student?.session || ''}_${student?.class || ''}_${student?.sno || 'unknown'}`
   ).trim();
 
   // IntersectionObserver to detect when component is near the viewport

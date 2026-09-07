@@ -21,6 +21,19 @@ const DB_CACHE_VERSION = 'v8_excel_sync_live_preview_20260904';
 const PHOTO_CACHE_KEY = 'hss_photo_url_cache_v1';
 const MEMORY_ONLY_COLLECTIONS = new Set(['users', 'admissions', 'masterRegisters', 'legacyStudents', 'studentPhotos', 'omr_registrations']);
 
+/**
+ * Validates whether a photo lookup/cache key is genuine and non-placeholder.
+ * Strictly rejects dashes, placeholders, nulls, and internal synthetic prefixes.
+ */
+export function isValidPhotoKey(k) {
+  if (!k) return false;
+  const s = String(k).trim();
+  if (s.length < 3) return false;
+  if (/^(—|-|#?N\/A|NA|Nill|Nil|null|undefined|none|0|nan|st|student)$/i.test(s)) return false;
+  if (/^(hist_|chunk_|rec_)/i.test(s)) return false;
+  return true;
+}
+
 // In-memory cache for instant zero-latency cross-tab access
 const memoryCache = new Map();
 const memoryTs = new Map();
@@ -79,6 +92,23 @@ if (typeof window !== 'undefined') {
       clearAllMemoryCache();
       localStorage.setItem('hss_db_cache_version', DB_CACHE_VERSION);
     }
+    // Cleanse any poisoned placeholder keys ('—', '-', 'N/A', etc.) from photo caches
+    [PHOTO_CACHE_KEY, 'hss_student_photo_cache_v1'].forEach(cacheName => {
+      try {
+        const raw = localStorage.getItem(cacheName);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          let changed = false;
+          for (const key of Object.keys(parsed)) {
+            if (!isValidPhotoKey(key)) {
+              delete parsed[key];
+              changed = true;
+            }
+          }
+          if (changed) localStorage.setItem(cacheName, JSON.stringify(parsed));
+        }
+      } catch (_) {}
+    });
   } catch (_) {}
 }
 
@@ -119,10 +149,20 @@ export function getCachedCollectionSync(collectionName) {
             if (!item || typeof item !== 'object') return;
             const hasPhoto = item.photo_id || item['Student Photo'] || item.photoUrl || item.photoId;
             if (!hasPhoto) {
-              const keys = [item.id, item['Form Number'], item['Form No.'], item.formNo, item['Board Registration Number']].filter(Boolean);
+              const keys = [
+                item.boardRegNo,
+                item['Board Registration Number'],
+                item['Board Registration No.'],
+                item['Registration No.'],
+                item.regNo,
+                item['Form Number'],
+                item['Form No.'],
+                item.formNo,
+                item.id
+              ].filter(isValidPhotoKey);
               for (const k of keys) {
                 const p = photoCache[String(k).trim()];
-                if (p) {
+                if (p && isValidPhotoKey(k)) {
                   item.photo_id = p;
                   item['Student Photo'] = p;
                   break;
@@ -172,19 +212,25 @@ export function setCachedCollectionData(collectionName, list) {
     let dirty = false;
     list.forEach(item => {
       if (!item || typeof item !== 'object') return;
-      const docId = item.id || item['Form Number'] || item['Form No.'] || item.formNo || item['Board Registration Number'];
-      if (!docId) return;
       for (const field of PHOTO_FIELDS) {
         const val = item[field];
-        if (val && typeof val === 'string' && val.length > 5 && val !== '/logo.png') {
-          existingPhotoCache[String(docId)] = val;
-          if (item['Form Number']) existingPhotoCache[String(item['Form Number']).trim()] = val;
-          if (item['Form No.']) existingPhotoCache[String(item['Form No.']).trim()] = val;
-          if (item.formNo) existingPhotoCache[String(item.formNo).trim()] = val;
-          if (item.id) existingPhotoCache[String(item.id).trim()] = val;
-          if (item['Board Registration Number']) existingPhotoCache[String(item['Board Registration Number']).trim()] = val;
-          if (item.boardRegNo) existingPhotoCache[String(item.boardRegNo).trim()] = val;
-          dirty = true;
+        if (val && typeof val === 'string' && val.length > 20 && val !== '/logo.png') {
+          const validKeys = [
+            item.boardRegNo,
+            item['Board Registration Number'],
+            item['Board Registration No.'],
+            item['Registration No.'],
+            item.regNo,
+            item['Form Number'],
+            item['Form No.'],
+            item.formNo,
+            item.id
+          ].filter(isValidPhotoKey);
+
+          validKeys.forEach(k => {
+            existingPhotoCache[String(k).trim()] = val;
+            dirty = true;
+          });
           break;
         }
       }
@@ -1042,10 +1088,12 @@ export async function preloadStudentPhotosCache() {
           ].filter(Boolean);
 
           const stClass = normalizeCanonicalClass(st.class || st.Class || st['Admission sought for class'] || '');
+          let hasRegMatch = false;
           regCandidates.forEach(r => {
             const rawR = String(r).trim();
             const cleanR = normalizeRegNoKey(rawR);
-            if (cleanR) {
+            if (cleanR && isValidPhotoKey(cleanR)) {
+              hasRegMatch = true;
               if (stClass) {
                 photoMap[`${cleanR}_${stClass}`] = photoVal;
                 photoMap[`photo_${cleanR}_${stClass}`] = photoVal;
@@ -1055,19 +1103,34 @@ export async function preloadStudentPhotosCache() {
                 photoMap[`photo_${cleanR}`] = photoVal;
                 photoMap[`reg_${cleanR}`] = photoVal;
               }
-              photoMap[rawR] = photoVal;
-              photoMap[rawR.toLowerCase()] = photoVal;
+              if (isValidPhotoKey(rawR)) {
+                photoMap[rawR] = photoVal;
+                photoMap[rawR.toLowerCase()] = photoVal;
+              }
             }
           });
 
-          const formCandidates = [st.formNo, st['Form Number'], st['Form No.'], st.id].filter(Boolean);
-          formCandidates.forEach(f => {
-            photoMap[String(f).trim()] = photoVal;
-            photoMap[String(f).trim().toLowerCase()] = photoVal;
-          });
+          // ONLY index form candidates if there was no valid registration key
+          if (!hasRegMatch) {
+            const formCandidates = [st.formNo, st['Form Number'], st['Form No.']].filter(isValidPhotoKey);
+            formCandidates.forEach(f => {
+              const strF = String(f).trim();
+              if (isValidPhotoKey(strF)) {
+                photoMap[strF] = photoVal;
+                photoMap[strF.toLowerCase()] = photoVal;
+                photoMap[`form_${strF}`] = photoVal;
+                photoMap[`photo_form_${strF}`] = photoVal;
+              }
+            });
+          }
         }
       });
     } catch (_) {}
+
+    // Cleanse any invalid placeholder keys that might have been loaded
+    Object.keys(photoMap).forEach(k => {
+      if (!isValidPhotoKey(k)) delete photoMap[k];
+    });
 
     window._hss_central_photo_map = photoMap;
 
@@ -1142,15 +1205,14 @@ export function resolveStudentPhoto(student, fallback = null) {
   }
 
   // STRICT UNIQUE IDENTIFIERS ONLY - NO NAME KEYS
-  const candidates = cleanReg
-    ? [cleanReg, `photo_${cleanReg}`, `reg_${cleanReg}`, rawReg, rawReg.toLowerCase()].filter(Boolean)
+  const candidates = (cleanReg && isValidPhotoKey(cleanReg))
+    ? [cleanReg, `photo_${cleanReg}`, `reg_${cleanReg}`, rawReg, rawReg.toLowerCase()].filter(isValidPhotoKey)
     : [
-        formNo,
-        formNo.toLowerCase(),
-        formNo ? `photo_${formNo}` : null,
-        docId,
-        docId ? `photo_${docId}` : null,
-        docId ? docId.replace(/^photo_/, '') : null
+        isValidPhotoKey(formNo) ? formNo : null,
+        isValidPhotoKey(formNo) ? formNo.toLowerCase() : null,
+        isValidPhotoKey(formNo) ? `photo_${formNo}` : null,
+        isValidPhotoKey(docId) ? docId : null,
+        isValidPhotoKey(docId) ? `photo_${docId}` : null
       ].filter(Boolean);
 
   for (const c of candidates) {
@@ -1332,10 +1394,13 @@ export async function fetchStudentPhotoOnDemand(student) {
   if (!student) return '';
 
   // 1. Extract the canonical Board Registration Number first.
-  const reg = extractUniversalRegNo(student);
+  const rawRegCandidate = extractUniversalRegNo(student);
+  const reg = isValidPhotoKey(rawRegCandidate) ? rawRegCandidate : '';
   const rawBoardReg = reg;
-  const fNo = String(student.formNo || student['Form Number'] || student['Form No.'] || student.form_no || '').replace(/^'/, '').trim();
-  const rawId = String(student.docId || student._docId || student.id || '').trim();
+  const rawFormNo = String(student.formNo || student['Form Number'] || student['Form No.'] || student.form_no || '').replace(/^'/, '').trim();
+  const fNo = isValidPhotoKey(rawFormNo) ? rawFormNo : '';
+  const candidateDocId = String(student.docId || student._docId || student.id || '').trim();
+  const rawId = isValidPhotoKey(candidateDocId) ? candidateDocId : '';
   const targetClass = normalizeCanonicalClass(student.class || student.Class || student['Admission sought for class'] || '');
 
   // Registration-based cache entries are safe; form/document identifiers are
@@ -1356,20 +1421,18 @@ export async function fetchStudentPhotoOnDemand(student) {
     docCandidates.push(`photo_${reg.toLowerCase()}`);
     docCandidates.push(reg.toLowerCase());
     docCandidates.push(`reg_${reg}`);
-  }
-  if (rawBoardReg && rawBoardReg !== reg) {
-    docCandidates.push(`photo_${rawBoardReg}`);
-    docCandidates.push(rawBoardReg);
-  }
-  if (fNo) {
-    docCandidates.push(`photo_form_${fNo}`);
-    docCandidates.push(`photo_${fNo}`);
-    docCandidates.push(`form_${fNo}`);
-    docCandidates.push(fNo);
-  }
-  if (rawId) {
-    docCandidates.push(`photo_${rawId}`);
-    docCandidates.push(rawId);
+  } else {
+    // Only search by Form No or DocId if student genuinely has no registration number
+    if (fNo) {
+      docCandidates.push(`photo_form_${fNo}`);
+      docCandidates.push(`photo_${fNo}`);
+      docCandidates.push(`form_${fNo}`);
+      docCandidates.push(fNo);
+    }
+    if (rawId) {
+      docCandidates.push(`photo_${rawId}`);
+      docCandidates.push(rawId);
+    }
   }
 
   const cacheKey = reg || fNo || rawId;
@@ -1382,7 +1445,7 @@ export async function fetchStudentPhotoOnDemand(student) {
   const fetchPromise = (async () => {
     try {
       for (const targetDocId of docCandidates) {
-        if (!targetDocId) continue;
+        if (!targetDocId || !isValidPhotoKey(targetDocId.replace(/^(photo_|reg_|form_|photo_form_)/, ''))) continue;
         try {
           const snap = await getDoc(doc(db, 'studentPhotos', targetDocId));
           if (snap.exists()) {
@@ -1408,7 +1471,9 @@ export async function fetchStudentPhotoOnDemand(student) {
                   window._hss_central_photo_map[`photo_${reg}_${dClass}`] = formatted;
                 }
                 docCandidates.forEach(cand => {
-                  window._hss_central_photo_map[cand] = formatted;
+                  if (isValidPhotoKey(cand.replace(/^(photo_|reg_|form_|photo_form_)/, ''))) {
+                    window._hss_central_photo_map[cand] = formatted;
+                  }
                 });
               }
 
@@ -1742,16 +1807,13 @@ export async function syncStudentPhotoOnRegUpdate({ oldReg = '', newReg = '', st
           window._hss_central_photo_map[`${targetNewReg}_${sClass}`] = photoUrl;
           window._hss_central_photo_map[`photo_${targetNewReg}_${sClass}`] = photoUrl;
         }
-        if (sFormNo) {
+        if (sFormNo && isValidPhotoKey(sFormNo)) {
           window._hss_central_photo_map[sFormNo] = photoUrl;
           window._hss_central_photo_map[`form_${sFormNo}`] = photoUrl;
           window._hss_central_photo_map[`photo_form_${sFormNo}`] = photoUrl;
         }
-        if (sName) {
-          window._hss_central_photo_map[String(sName).trim().toLowerCase()] = photoUrl;
-        }
       }
-    } else if (sFormNo) {
+    } else if (sFormNo && isValidPhotoKey(sFormNo)) {
       let existingHistory = [];
       try {
         const curSnap = await getDoc(doc(db, 'studentPhotos', `photo_form_${sFormNo}`));
@@ -1788,9 +1850,6 @@ export async function syncStudentPhotoOnRegUpdate({ oldReg = '', newReg = '', st
         window._hss_central_photo_map[sFormNo] = photoUrl;
         window._hss_central_photo_map[`form_${sFormNo}`] = photoUrl;
         window._hss_central_photo_map[`photo_form_${sFormNo}`] = photoUrl;
-        if (sName) {
-          window._hss_central_photo_map[String(sName).trim().toLowerCase()] = photoUrl;
-        }
       }
     }
 

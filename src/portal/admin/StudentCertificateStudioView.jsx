@@ -1102,13 +1102,10 @@ export default function StudentCertificateStudioView({
       // 4. Query Firestore studentPhotos directly for key permutations
       const rawReg = (st.regNo || regNo || '').replace(/[^a-zA-Z0-9]/g, '');
       const rawRoll = (st.rollNo || rollNo || '').replace(/[^a-zA-Z0-9]/g, '');
+      const validReg = rawReg && rawReg.length >= 6 && !/^(0000|null|undefined)/i.test(rawReg) ? rawReg : '';
       const candidateKeys = [
-        rawReg ? `photo_${rawReg}` : null,
-        rawReg || null,
-        rawRoll ? `photo_${rawRoll}` : null,
-        rawRoll || null,
-        st.id ? `photo_${st.id}` : null,
-        st.id || null
+        validReg ? `photo_${validReg}` : null,
+        validReg || null
       ].filter(Boolean);
 
       for (const cKey of candidateKeys) {
@@ -1122,7 +1119,7 @@ export default function StudentCertificateStudioView({
               if (typeof window !== 'undefined') {
                 window._hss_central_photo_map = window._hss_central_photo_map || {};
                 window._hss_central_photo_map[cKey] = p;
-                if (rawReg) window._hss_central_photo_map[rawReg] = p;
+                if (validReg) window._hss_central_photo_map[validReg] = p;
               }
               if (isCurrentRequest()) setIsFetchingPhoto(false);
               return p;
