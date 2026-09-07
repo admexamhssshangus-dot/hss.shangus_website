@@ -7,7 +7,13 @@ import {
   indexedDBLocalPersistence,
   GoogleAuthProvider
 } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import {
+  initializeFirestore,
+  getFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager,
+  enableNetwork
+} from 'firebase/firestore';
 import { getFunctions } from 'firebase/functions';
 import { getStorage } from 'firebase/storage';
 import { initializeFirebaseAppCheck } from './firebaseAppCheck';
@@ -37,10 +43,34 @@ try {
   authInstance = getAuth(app);
 }
 
+// Export Firestore with resilient persistent multi-tab cache (IndexedDB)
+// Eliminates redundant network reads across page reloads and tab restarts
+let firestoreInstance;
+try {
+  firestoreInstance = initializeFirestore(app, {
+    localCache: persistentLocalCache({
+      tabManager: persistentMultipleTabManager()
+    })
+  });
+} catch (e) {
+  firestoreInstance = getFirestore(app);
+}
+
 export const auth = authInstance;
 export const googleProvider = new GoogleAuthProvider();
-export const db = getFirestore(app);
+export const db = firestoreInstance;
 export const functions = getFunctions(app);
 export const storage = getStorage(app);
+
+/**
+ * Re-establish Firestore WebChannel connectivity after browser/tab sleep or inactivity
+ */
+export async function ensureFirestoreConnected() {
+  try {
+    if (firestoreInstance) {
+      await enableNetwork(firestoreInstance).catch(() => {});
+    }
+  } catch (_) {}
+}
 
 export default app;

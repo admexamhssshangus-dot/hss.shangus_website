@@ -7,9 +7,11 @@
 // =================================================================
 
 import { collection, getDocs, onSnapshot, doc, getDoc, setDoc, deleteDoc, deleteField, query, limit, startAfter, getCountFromServer } from 'firebase/firestore';
-import { db } from './firebase';
+import { db, ensureFirestoreConnected } from './firebase';
 import { getStudentPhotoUrl, formatPhotoDisplayUrl } from '../utils/imageCompressor';
 import { updateStudentInRegIndex } from './studentIndexService';
+
+export { ensureFirestoreConnected };
 
 const CACHE_PREFIX = 'hss_cache_v8_';
 const DEFAULT_TTL_MS = 4 * 60 * 60 * 1000; // 4 hours cache TTL (was 60 mins — prevents unnecessary re-fetches)
@@ -282,6 +284,130 @@ export async function getCachedCollection(collectionName, forceRefresh = false, 
 
   inflightFetches.set(collectionName, fetchPromise);
   return fetchPromise;
+}
+
+/**
+ * Chunk IDs corresponding to deep historical archives (2006-07 through 2021-22).
+ * Chunks 006 to 075 contain older records prior to 2022.
+ */
+export const DEEP_ARCHIVE_CHUNK_REGEX = /^chunk_(00[6-9]|0[1-6][0-9]|07[0-5])$/;
+
+/**
+ * Modern / recent chunk IDs (2022-2026: previous 4 sessions + current active).
+ * Includes chunk_001..chunk_005 and chunk_076..chunk_123.
+ */
+export const MODERN_CHUNK_IDS = [
+  'chunk_001', 'chunk_002', 'chunk_003', 'chunk_004', 'chunk_005',
+  ...Array.from({ length: 48 }, (_, i) => `chunk_${String(76 + i).padStart(3, '0')}`)
+];
+
+/**
+ * Helper to unpack chunk or flat student documents into uniform student records.
+ */
+export function unpackMasterRegisterDoc(docSnap) {
+  const data = typeof docSnap.data === 'function' ? docSnap.data() : docSnap;
+  if (!data || data.Status === 'Deleted' || data.status === 'Deleted' || data._deleted === true) return [];
+
+  const chunkItems = data.items || data.students || data.records || data.data;
+  if (Array.isArray(chunkItems) && chunkItems.length > 0) {
+    const docSession = data.Session || data.session || data['Academic Session'] || data.groupKey?.split('_')[0] || (docSnap.id ? docSnap.id.split('_')[0] : '') || '';
+    const docClass = data.class || data.Class || data.className || data['Class'] || data.groupKey?.split('_')[1] || '';
+    const docStream = data.stream || data.Stream || data['Stream'] || data.groupKey?.split('_')[2] || '';
+
+    const list = [];
+    chunkItems.forEach((item, itemIdx) => {
+      if (!item || typeof item !== 'object') return;
+      if (item.Status === 'Deleted' || item.status === 'Deleted' || item._deleted === true) return;
+      list.push({
+        ...item,
+        id: item.id || item['Form Number'] || item['Form No.'] || item.formNo || item['Board Registration Number'] || `${docSnap.id || 'doc'}_${itemIdx}`,
+        Session: item.Session || item.session || item['Academic Session'] || docSession || '',
+        session: item.session || item.Session || item['Academic Session'] || docSession || '',
+        Class: item.Class || item.class || item['Class'] || docClass || '',
+        class: item.class || item.Class || item['Class'] || docClass || '',
+        Stream: item.Stream || item.stream || item['Stream'] || docStream || '',
+        stream: item.stream || item.Stream || item['Stream'] || docStream || '',
+        _source: 'masterRegisters',
+        _parentDocId: docSnap.id || null
+      });
+    });
+    return list;
+  }
+
+  return [{ ...data, id: data.id || docSnap.id, _docId: docSnap.id, _source: 'masterRegisters' }];
+}
+
+/**
+ * Demand-based Master Registers retrieval:
+ * By default, loads ONLY recent chunks (previous 4 sessions + active admissions, 2022-2026).
+ * Deep historical archives (2006-2021) are loaded ONLY when explicitly requested (forceAll = true).
+ */
+export async function getMasterRegistersScoped(options = {}) {
+  const forceAll = options?.forceAll === true;
+
+  // 1. If full cache is already present, return it immediately (0 reads)
+  if (typeof window !== 'undefined' && window._hssMasterRegistersCache && Array.isArray(window._hssMasterRegistersCache) && window._hssMasterRegistersCache.length > 0) {
+    if (!forceAll || window._hssMasterRegistersIsFull) {
+      return window._hssMasterRegistersCache;
+    }
+  }
+
+  // 2. If user explicitly requested full 20-year history:
+  if (forceAll) {
+    const all = await fetchFreshFromFirestore('masterRegisters');
+    if (typeof window !== 'undefined') {
+      window._hssMasterRegistersCache = all;
+      window._hssMasterRegistersIsFull = true;
+    }
+    return all;
+  }
+
+  // 3. If recent cache already exists, return it (0 reads)
+  if (typeof window !== 'undefined' && window._hssMasterRegistersCache && Array.isArray(window._hssMasterRegistersCache) && window._hssMasterRegistersCache.length > 0) {
+    return window._hssMasterRegistersCache;
+  }
+
+  // 4. Default: Load only modern/recent chunks from Firestore (saves ~70 reads!)
+  try {
+    const results = [];
+    const BATCH_SIZE = 15;
+    for (let i = 0; i < MODERN_CHUNK_IDS.length; i += BATCH_SIZE) {
+      const batchIds = MODERN_CHUNK_IDS.slice(i, i + BATCH_SIZE);
+      const snaps = await Promise.all(
+        batchIds.map(id => getDoc(doc(db, 'masterRegisters', id)).catch(() => null))
+      );
+      snaps.forEach(snap => {
+        if (snap && snap.exists()) {
+          results.push(...unpackMasterRegisterDoc(snap));
+        }
+      });
+    }
+
+    if (results.length > 0) {
+      if (typeof window !== 'undefined') {
+        window._hssMasterRegistersCache = results;
+        window._hssMasterRegistersIsFull = false;
+      }
+      return results;
+    }
+
+    // Fallback if specific chunk IDs returned nothing:
+    const querySnapshot = await getDocs(collection(db, 'masterRegisters'));
+    const fallbackList = [];
+    querySnapshot.forEach(docSnap => {
+      if (DEEP_ARCHIVE_CHUNK_REGEX.test(docSnap.id)) return;
+      fallbackList.push(...unpackMasterRegisterDoc(docSnap));
+    });
+
+    if (typeof window !== 'undefined') {
+      window._hssMasterRegistersCache = fallbackList;
+      window._hssMasterRegistersIsFull = false;
+    }
+    return fallbackList;
+  } catch (err) {
+    console.warn('[dbCache] getMasterRegistersScoped note:', err);
+    return window._hssMasterRegistersCache || [];
+  }
 }
 
 /**

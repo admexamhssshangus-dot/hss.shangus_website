@@ -3,9 +3,9 @@ import { createPortal } from 'react-dom';
 import JSZip from 'jszip';
 import { RefreshCw, Search, SearchX, Wrench, Columns, Printer, Check, X, Play, ChevronDown, ChevronLeft, ChevronRight, CheckSquare, Square, FileSpreadsheet, FileText, Maximize2, Settings, Hash, Layers, Mail, CreditCard, Camera, Upload, Image as ImageIcon, Download, Copy, Save, RotateCcw, Lock, LogOut, Unlock, Eye, History, Key, MessageSquare, AlertOctagon, Trash2, CheckCircle2, ClipboardCheck, CalendarCheck, Edit3, UserCheck, User, BookOpen, Landmark, CheckCircle, Loader2, PlusCircle, ShieldCheck, ShieldAlert, BarChart2, Building2, Database, Zap, Sliders, Sparkles, Star, FolderDown } from 'lucide-react';
 import appsScriptApi from '../../services/appsScriptApi';
-import { db, auth } from '../../services/firebase';
+import { db, auth, ensureFirestoreConnected } from '../../services/firebase';
 import { collection, getDocs, doc, updateDoc, setDoc, deleteDoc, deleteField, writeBatch, query, where } from 'firebase/firestore';
-import { invalidateCache, updateCachedItem, getCachedCollectionSync, getCachedCollection, getPhotoUrlFromCache, preloadStudentPhotosCache, fetchStudentPhotoOnDemand, fetchAllMatchingStudentPhotos, syncStudentPhotoOnRegUpdate, reconcileAllStudentPhotosInDatabase } from '../../services/dbCache';
+import { invalidateCache, updateCachedItem, getCachedCollectionSync, getCachedCollection, getMasterRegistersScoped, getPhotoUrlFromCache, preloadStudentPhotosCache, fetchStudentPhotoOnDemand, fetchAllMatchingStudentPhotos, syncStudentPhotoOnRegUpdate, reconcileAllStudentPhotosInDatabase } from '../../services/dbCache';
 import { compressImageFile, parsePhotoFilename, getStudentPhotoUrl } from '../../utils/imageCompressor';
 import ApplicationReviewModal from './ApplicationReviewModal';
 import DirectIngestionModal from './DirectIngestionModal';
@@ -5431,6 +5431,7 @@ export default function AdvancedReports({
   const [isSearching, setIsSearching] = useState(false);
   const [isHydratingMasterRegisters, setIsHydratingMasterRegisters] = useState(false);
   const [historyLoadRequested, setHistoryLoadRequested] = useState(false);
+  const [fullHistoryRequested, setFullHistoryRequested] = useState(false);
 
   useEffect(() => {
     if (searchTerm === debouncedSearch) {
@@ -6131,12 +6132,14 @@ export default function AdvancedReports({
     }
   };
 
-  // Auto-heal stuck loading states and re-authenticate on tab wake-up / window focus
+  // Auto-heal stuck loading states, reconnect Firestore and re-authenticate on tab wake-up / window focus
   useEffect(() => {
     const handleVisibilityOrFocus = () => {
       if (document.visibilityState === 'visible') {
+        ensureFirestoreConnected();
         setIsFetchingData(false);
         setIsHydratingMasterRegisters(false);
+        setIsSearching(false);
         setFetchProgress(0);
         if (auth?.currentUser) {
           auth.currentUser.getIdToken(false).catch(() => {});
@@ -7192,29 +7195,81 @@ export default function AdvancedReports({
     };
   }, [allStudents]);
 
-  // Lazy load masterRegisters on demand in a clean reactive useEffect (never inside useMemo)
-  useEffect(() => {
-    if ((historyLoadRequested || deferredSearchTerm.trim() !== '' || (selectedSessions && selectedSessions.length > 0 && !selectedSessions.includes('__NONE__'))) && masterHistoricalRecords.length === 0 && !isHydratingMasterRegisters && !historicalLoadAttemptedRef.current) {
-      historicalLoadAttemptedRef.current = true;
-      setIsHydratingMasterRegisters(true);
-      getCachedCollection('masterRegisters').then(ml => {
-        if (Array.isArray(ml) && ml.length > 0) {
-          setMasterHistoricalRecords(flattenAndFormatMasterRegisters(ml));
+  // Helper set of recent sessions: current active session + previous 4 sessions (e.g. 2022-23 through 2025-26)
+  const defaultSearchSessionsLowerSet = useMemo(() => {
+    const sessSet = new Set();
+    let distinctYears = 0;
+    const seenYears = new Set();
+    for (const sess of availableSessions) {
+      const match = String(sess).match(/\d{4}/);
+      const yr = match ? parseInt(match[0], 10) : null;
+      if (yr) {
+        if (!seenYears.has(yr)) {
+          seenYears.add(yr);
+          distinctYears++;
         }
-      }).catch((err) => {
-        console.warn('Master registers lazy fetch note:', err);
-      }).finally(() => {
-        setIsHydratingMasterRegisters(false);
-      });
+        if (distinctYears <= 5 || yr >= 2022) {
+          sessSet.add(String(sess).trim().toLowerCase());
+        }
+      } else {
+        sessSet.add(String(sess).trim().toLowerCase());
+      }
     }
-  }, [historyLoadRequested, deferredSearchTerm, selectedSessions, masterHistoricalRecords.length, isHydratingMasterRegisters]);
+    ['2025-26', '2026', '2025 apr/bian', '2026 apr/bian', '2024-25', '2024-25 (oct-nov)', '2024-25 (mar-apr)', '2023-24', '2022-23'].forEach(s => sessSet.add(s));
+    return sessSet;
+  }, [availableSessions]);
 
-  // Target dataset: when search query is active or user explicitly chooses specific/historical sessions,
-  // search across all records (active + historical); when empty default view, show active admissions for 0ms speed.
+  // Lazy load masterRegisters on demand with 4-session scoping:
+  // - Global search loads ONLY the previous 4 sessions by default (saves ~70 document reads!).
+  // - Older historical sessions (2006-2021) are loaded ONLY when fullHistoryRequested is true or an older session is chosen.
+  useEffect(() => {
+    const isSearchActive = deferredSearchTerm.trim() !== '';
+    const isSessionSelected = selectedSessions && selectedSessions.length > 0 && !selectedSessions.includes('__NONE__');
+
+    // Check if user specifically requested an older session from filter dropdown (< 2022)
+    const hasOldSessionSelected = isSessionSelected && selectedSessions.some(sess => {
+      const match = String(sess).match(/\d{4}/);
+      const yr = match ? parseInt(match[0], 10) : 2026;
+      return yr < 2022;
+    });
+
+    const shouldLoadFull = fullHistoryRequested || hasOldSessionSelected;
+    const shouldLoadMaster = historyLoadRequested || isSearchActive || isSessionSelected || shouldLoadFull;
+
+    if (shouldLoadMaster && !isHydratingMasterRegisters) {
+      const needFetch = (shouldLoadFull && !window._hssMasterRegistersIsFull) || (masterHistoricalRecords.length === 0 && !historicalLoadAttemptedRef.current);
+
+      if (needFetch) {
+        historicalLoadAttemptedRef.current = true;
+        setIsHydratingMasterRegisters(true);
+        getMasterRegistersScoped({ forceAll: shouldLoadFull }).then(ml => {
+          if (Array.isArray(ml) && ml.length > 0) {
+            setMasterHistoricalRecords(flattenAndFormatMasterRegisters(ml));
+          }
+        }).catch((err) => {
+          console.warn('Master registers scoped fetch note:', err);
+        }).finally(() => {
+          setIsHydratingMasterRegisters(false);
+        });
+      }
+    }
+  }, [historyLoadRequested, deferredSearchTerm, selectedSessions, masterHistoricalRecords.length, isHydratingMasterRegisters, fullHistoryRequested]);
+
+  // Target dataset:
+  // When searching, by default search across active admissions + previous 4 sessions for lightning speed.
+  // When fullHistoryRequested is true or an older session is picked, search across all 20+ years.
   const targetDataset = useMemo(() => {
     const activeQuery = (deferredSearchTerm || '').trim();
     if (activeQuery !== '') {
-      return allStudents;
+      if (fullHistoryRequested) {
+        return allStudents;
+      }
+      // By default: ONLY active admissions + previous 4 sessions
+      return allStudents.filter(s => {
+        if (s._isCurrentScope === true) return true;
+        const sSessLower = String(s.session || '').trim().toLowerCase();
+        return defaultSearchSessionsLowerSet.has(sSessLower);
+      });
     }
     if (selectedSessions && selectedSessions.length > 0 && !selectedSessions.includes('__NONE__')) {
       const activeSessionLowerSet = new Set(selectedSessions.map(s => String(s || '').trim().toLowerCase()));
@@ -7222,7 +7277,7 @@ export default function AdvancedReports({
     }
     // Default view ("All Sessions" without search query): only active admissions for 0ms instant speed
     return allStudents.filter(s => s._isCurrentScope === true);
-  }, [allStudents, deferredSearchTerm, selectedSessions]);
+  }, [allStudents, deferredSearchTerm, selectedSessions, fullHistoryRequested, defaultSearchSessionsLowerSet]);
 
   // ─── Pre-Parsed Google-like Intelligent Search & Relevance Engine ───
   const evaluateParsedGoogleSearch = useCallback((s, parsed) => {
@@ -8927,6 +8982,31 @@ export default function AdvancedReports({
                 </div>
               )}
             </div>
+
+            {/* Global Search Scope Tag (Previous 4 Sessions by default vs Full History) */}
+            {searchTerm.trim() && (
+              <div className="flex items-center gap-1 flex-shrink-0">
+                {fullHistoryRequested ? (
+                  <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-lg text-[9px] sm:text-[10px] font-extrabold bg-purple-100 dark:bg-purple-950/80 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 shadow-2xs">
+                    🌐 Full History (2006–26)
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFullHistoryRequested(true);
+                      setHistoryLoadRequested(true);
+                    }}
+                    title="By default, search is scoped to active admissions + previous 4 sessions (2022-2026). Click to load full 20-year history."
+                    className="inline-flex items-center gap-1 px-1.5 sm:px-2 py-0.5 rounded-lg text-[9px] sm:text-[10px] font-extrabold bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/70 dark:hover:bg-amber-900/80 text-amber-800 dark:text-amber-200 border border-amber-300 dark:border-amber-700 shadow-2xs transition-all cursor-pointer whitespace-nowrap !min-h-0"
+                    style={{ height: '28px' }}
+                  >
+                    <span>Scope: 4 Sessions</span>
+                    <span className="text-amber-600 dark:text-amber-400 font-black underline decoration-dotted ml-0.5">+ All History</span>
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
