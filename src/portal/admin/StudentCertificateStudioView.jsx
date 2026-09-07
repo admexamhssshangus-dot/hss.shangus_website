@@ -2657,16 +2657,17 @@ export default function StudentCertificateStudioView({
   // Helper to determine if editor cursor is at start of sentence
   const isCursorAtStartOfSentence = () => {
     try {
-      const activeRange = savedRangeRef.current || savedRange;
+      const activeRange = savedRangeRef.current || savedRange || (typeof window !== 'undefined' && window.getSelection && window.getSelection().rangeCount > 0 ? window.getSelection().getRangeAt(0) : null);
       if (!activeRange || !editorRef.current) return false;
       const preRange = document.createRange();
       preRange.selectNodeContents(editorRef.current);
       preRange.setEnd(activeRange.startContainer, activeRange.startOffset);
       const preText = preRange.toString().trimEnd();
       if (!preText || preText.length === 0) return true;
-      const lastChar = preText[preText.length - 1];
-      if (lastChar === '.' || lastChar === '!' || lastChar === '?' || lastChar === '\n' || lastChar === ':') {
-        if (/\b(?:Mr|Mrs|Ms|Dr|Prof|Shri|Smt)\.$/i.test(preText)) return false;
+      const stripped = preText.replace(/["'”’)\]]+$/, '');
+      const lastChar = stripped.length > 0 ? stripped[stripped.length - 1] : '';
+      if (lastChar === '.' || lastChar === '!' || lastChar === '?' || lastChar === '\n' || lastChar === ':' || lastChar === '—') {
+        if (/\b(?:Mr|Mrs|Ms|Dr|Prof|Shri|Smt)\.$/i.test(stripped)) return false;
         return true;
       }
       return false;

@@ -503,13 +503,32 @@ export function retokenizeCertificateBody(templateHtml, contextData = {}) {
   res = res.replace(/21010093880050800150/gi, '{REG_NO}');
 
   // Salutations / Pronoun canonical normalization
+  res = res.replace(/(?:his|her|he|she)\s*this\s+is\s+(?:to\s+)?certif/gi, 'This is to certif');
+  res = res.replace(/\b(?:his|her|he|she)this\b/gi, 'This');
+  res = res.replace(/(resident\s+of|residing\s+at)\s*(?:<strong>)?\s*(?:(?:Mr\.|Mrs\.|Ms\.|Miss|Master)\s+)?(?:MOHAMMAD\s+TAHIR\s+WANI|\{STUDENT_NAME\})\s*(?:<\/strong>)?(?=\s*,\s*(?:was|is))/gi, '$1 <strong>{ADDRESS}</strong>');
   res = res.replace(/(?:Mr\.|Master)\s+\{STUDENT_NAME\}/g, '{GENDER_TITLE} {STUDENT_NAME}');
   res = res.replace(/(?:Ms\.|Miss)\s+\{STUDENT_NAME\}/g, '{GENDER_TITLE} {STUDENT_NAME}');
   res = res.replace(/\bson\s+of\s+<strong>Mr\.\s+\{FATHER_NAME\}/gi, '{PRONOUN_SON_DAUGHTER} of <strong>Mr. {FATHER_NAME}');
   res = res.replace(/\bdaughter\s+of\s+<strong>Mr\.\s+\{FATHER_NAME\}/gi, '{PRONOUN_SON_DAUGHTER} of <strong>Mr. {FATHER_NAME}');
+  res = res.replace(/\b(?:His|Her)\s+studies\b/gi, '{PRONOUN_HIS_HER} studies');
+  res = res.replace(/\b(?:His|Her)\s+Date\s+of\s+Birth\b/gi, '{PRONOUN_HIS_HER} Date of Birth');
+  res = res.replace(/\b(?:His|Her)\s+verified\s+Date\s+of\s+Birth\b/gi, '{PRONOUN_HIS_HER} verified Date of Birth');
+  res = res.replace(/\b(?:His|Her)\s+academic\s+tenure\b/gi, '{PRONOUN_HIS_HER} academic tenure');
   res = res.replace(/\b(?:His|Her)\s+stay\b/gi, '{PRONOUN_HIS_HER} stay');
   res = res.replace(/\b(?:His|Her)\s+conduct\b/gi, '{PRONOUN_HIS_HER} conduct');
+  res = res.replace(/\b(?:His|Her)\s+admission\b/gi, '{PRONOUN_HIS_HER} admission');
+  res = res.replace(/\b(?:His|Her)\s+behaviour\b/gi, '{PRONOUN_HIS_HER} behaviour');
+  res = res.replace(/\b(?:His|Her)\s+name\b/gi, '{PRONOUN_HIS_HER} name');
+  res = res.replace(/\b(?:He|She)\s+bore\b/gi, '{PRONOUN_HE_SHE} bore');
+  res = res.replace(/\b(?:He|She)\s+bears\b/gi, '{PRONOUN_HE_SHE} bears');
   res = res.replace(/\b(?:He|She)\s+has\b/gi, '{PRONOUN_HE_SHE} has');
+  res = res.replace(/\b(?:He|She)\s+maintains\b/gi, '{PRONOUN_HE_SHE} maintains');
+  res = res.replace(/\b(?:He|She)\s+is\b/gi, '{PRONOUN_HE_SHE} is');
+  res = res.replace(/\b(?:He|She)\s+was\b/gi, '{PRONOUN_HE_SHE} was');
+  res = res.replace(/\b(?:Him|Her)\s+all\s+success\b/gi, '{PRONOUN_HIM_HER} all success');
+  res = res.replace(/\b(?:Him|Her)\s+bright\s+success\b/gi, '{PRONOUN_HIM_HER} bright success');
+  res = res.replace(/\bagainst\s+(?:Him|Her)\b/gi, 'against {PRONOUN_HIM_HER}');
+  res = res.replace(/\bto\s+(?:His|Her)\s+seeking\b/gi, 'to {PRONOUN_HIS_HER} seeking');
   res = res.replace(/----------------------------------------/g, '{STUDENT_NAME}');
 
   return res;
@@ -521,12 +540,11 @@ export function interpolateCertificateTemplate(templateHtml, studentData = {}, o
 
   const mergedProps = { ...studentData, ...options };
 
-  // Auto-recovery: Clean corrupted prefixes like "HisThis", and retokenize if static names are present
+  // Auto-recovery: Clean corrupted prefixes like "HisThis" or "hisThis", and retokenize if static names are present
   let activeHtml = templateHtml
-    .replace(/\b(?:His|Her|He|She)This\b/gi, 'This')
-    .replace(/\b(?:His|Her|He|She)\s+This\s+is\s+(?:to\s+)?certif/gi, 'This is to certif')
-    .replace(/HisThis/g, 'This')
-    .replace(/HerThis/g, 'This');
+    .replace(/(?:his|her|he|she)\s*this\s+is\s+(?:to\s+)?certif/gi, 'This is to certif')
+    .replace(/\b(?:his|her|he|she)this\b/gi, 'This')
+    .replace(/(?:his|her|he|she)this/gi, 'This');
 
   if (
     !activeHtml.includes('{STUDENT_NAME}') ||
@@ -756,15 +774,16 @@ export function interpolateCertificateTemplate(templateHtml, studentData = {}, o
     const preceding = htmlStr.slice(0, offset);
     const clean = preceding.replace(/<[^>]*>/g, '').trimEnd();
     if (clean.length === 0) return true;
-    const lastChar = clean[clean.length - 1];
+    const stripped = clean.replace(/["'”’)\]]+$/, '');
+    const lastChar = stripped.length > 0 ? stripped[stripped.length - 1] : '';
 
     if (lastChar === '.' || lastChar === '!' || lastChar === '?' || lastChar === '—' || lastChar === '\n' || lastChar === ':') {
-      if (/\b(?:Mr|Mrs|Ms|Dr|Prof|Shri|Smt)\.$/i.test(clean)) {
+      if (/\b(?:Mr|Mrs|Ms|Dr|Prof|Shri|Smt)\.$/i.test(stripped)) {
         return false;
       }
       return true;
     }
-    if (/<(?:p|h[1-6]|li|div|br)\s*\/?>\s*$/i.test(preceding)) {
+    if (/<(?:p|h[1-6]|li|div|br|td|th)\s*\/?>\s*$/i.test(preceding)) {
       return true;
     }
     return false;
@@ -786,10 +805,10 @@ export function interpolateCertificateTemplate(templateHtml, studentData = {}, o
   result = result.replace(/\{MOTHER_TITLE\}/gi, effMotherTitle);
 
   // Explicit Capitalized / Lowercase Pronoun replacements
-  result = result.replace(/\{(?:PRONOUN_HIS_HER_CAP|HIS_HER_CAP|PRONOUN_His_Her)\}/gi, pronounHisHerCap);
-  result = result.replace(/\{(?:PRONOUN_HIS_HER_LOW|HIS_HER_LOW|PRONOUN_his_her|his_her)\}/gi, pronounHisHerLow);
-  result = result.replace(/\{(?:PRONOUN_HE_SHE_CAP|HE_SHE_CAP|PRONOUN_He_She)\}/gi, pronounHeSheCap);
-  result = result.replace(/\{(?:PRONOUN_HE_SHE_LOW|HE_SHE_LOW|PRONOUN_he_she|he_she)\}/gi, pronounHeSheLow);
+  result = result.replace(/\{(?:PRONOUN_HIS_HER_CAP|HIS_HER_CAP)\}/gi, pronounHisHerCap);
+  result = result.replace(/\{(?:PRONOUN_HIS_HER_LOW|HIS_HER_LOW)\}/gi, pronounHisHerLow);
+  result = result.replace(/\{(?:PRONOUN_HE_SHE_CAP|HE_SHE_CAP)\}/gi, pronounHeSheCap);
+  result = result.replace(/\{(?:PRONOUN_HE_SHE_LOW|HE_SHE_LOW)\}/gi, pronounHeSheLow);
   result = result.replace(/\{(?:PRONOUN_SON_DAUGHTER_CAP|SON_DAUGHTER_CAP)\}/gi, pronounSonDaughterCap);
   result = result.replace(/\{(?:PRONOUN_SON_DAUGHTER_LOW|SON_DAUGHTER_LOW)\}/gi, pronounSonDaughter);
   result = result.replace(/\{(?:PRONOUN_HIM_HER_CAP|HIM_HER_CAP)\}/gi, pronounHimHerCap);
@@ -797,20 +816,20 @@ export function interpolateCertificateTemplate(templateHtml, studentData = {}, o
   result = result.replace(/\{(?:PRONOUN_SO_DO|SO_DO|S_O_D_O)\}/gi, pronounSoDo);
 
   // 1. Son / Daughter
-  result = replacePronounSmart(result, /\{(?:PRONOUN_SON_DAUGHTER|SON_DAUGHTER|PRONOUN_Son_Daughter|Son_Daughter)\}/gi, pronounSonDaughterCap, pronounSonDaughter);
-  result = replacePronounSmart(result, /\{(?:PRONOUN_SON_OF_DAUGHTER_OF|SON_OF_DAUGHTER_OF|PRONOUN_Son_Of_Daughter_Of|Son_Of_Daughter_Of)\}/gi, pronounSonOfDaughterOfCap, pronounSonOfDaughterOf);
+  result = replacePronounSmart(result, /\{(?:PRONOUN_SON_DAUGHTER|SON_DAUGHTER)\}/gi, pronounSonDaughterCap, pronounSonDaughter);
+  result = replacePronounSmart(result, /\{(?:PRONOUN_SON_OF_DAUGHTER_OF|SON_OF_DAUGHTER_OF)\}/gi, pronounSonOfDaughterOfCap, pronounSonOfDaughterOf);
 
   // 2. He / She
-  result = replacePronounSmart(result, /\{(?:PRONOUN_HE_SHE|HE_SHE|PRONOUN_he_she|he_she)\}/gi, pronounHeSheCap, pronounHeSheLow);
+  result = replacePronounSmart(result, /\{(?:PRONOUN_HE_SHE|HE_SHE)\}/gi, pronounHeSheCap, pronounHeSheLow);
 
   // 3. His / Her
-  result = replacePronounSmart(result, /\{(?:PRONOUN_HIS_HER|HIS_HER|PRONOUN_his_her|his_her)\}/gi, pronounHisHerCap, pronounHisHerLow);
+  result = replacePronounSmart(result, /\{(?:PRONOUN_HIS_HER|HIS_HER)\}/gi, pronounHisHerCap, pronounHisHerLow);
 
   // 4. Him / Her
-  result = replacePronounSmart(result, /\{(?:PRONOUN_HIM_HER|HIM_HER|PRONOUN_him_her|him_her)\}/gi, pronounHimHerCap, pronounHimHer);
+  result = replacePronounSmart(result, /\{(?:PRONOUN_HIM_HER|HIM_HER)\}/gi, pronounHimHerCap, pronounHimHer);
 
   // 5. Himself / Herself
-  result = replacePronounSmart(result, /\{(?:PRONOUN_HIMSELF_HERSELF|HIMSELF_HERSELF|PRONOUN_himself_herself|himself_herself)\}/gi, pronounHimselfHerselfCap, pronounHimselfHerself);
+  result = replacePronounSmart(result, /\{(?:PRONOUN_HIMSELF_HERSELF|HIMSELF_HERSELF)\}/gi, pronounHimselfHerselfCap, pronounHimselfHerself);
 
   // Custom dynamic fields interpolation
   if (options && Array.isArray(options.customFields)) {
@@ -827,7 +846,63 @@ export function interpolateCertificateTemplate(templateHtml, studentData = {}, o
   result = result.replace(/<strong>\s+/g, '<strong>');
   result = result.replace(/\s+<\/strong>/g, '</strong>');
 
+  // Post-processing sentence-boundary casing guard:
+  // Ensure that any pronoun (his, her, him, he, she, himself, herself) that does NOT start a sentence is strictly lowercase 'h'.
+  result = normalizePronounCasing(result, isFemale);
+
   return result;
+}
+
+/**
+ * Normalizes pronoun casing based on sentence boundaries:
+ * When a pronoun starts a sentence, it is capitalized (His, Her, He, She, Him).
+ * When it appears inside a sentence, its first letter is strictly lowercase (his, her, he, she, him).
+ */
+export function normalizePronounCasing(html, isFemale = false) {
+  if (!html || typeof html !== 'string') return html;
+
+  const isStart = (htmlStr, offset) => {
+    if (offset <= 0) return true;
+    const preceding = htmlStr.slice(0, offset);
+    const clean = preceding.replace(/<[^>]*>/g, '').trimEnd();
+    if (clean.length === 0) return true;
+    const stripped = clean.replace(/["'”’)\]]+$/, '');
+    const lastChar = stripped.length > 0 ? stripped[stripped.length - 1] : '';
+
+    if (lastChar === '.' || lastChar === '!' || lastChar === '?' || lastChar === '—' || lastChar === '\n' || lastChar === ':') {
+      if (/\b(?:Mr|Mrs|Ms|Dr|Prof|Shri|Smt)\.$/i.test(stripped)) {
+        return false;
+      }
+      return true;
+    }
+    if (/<(?:p|h[1-6]|li|div|br|td|th)\s*\/?>\s*$/i.test(preceding)) {
+      return true;
+    }
+    return false;
+  };
+
+  return html.replace(/(<[^>]*>)|(\b(His|Her|He|She|Him|Himself|Herself|his|her|he|she|him|himself|herself)\b)/gi, (m, tag, word, pronoun, offset, fullStr) => {
+    if (tag) return tag;
+    const startsSentence = isStart(fullStr, offset);
+    const pLow = pronoun.toLowerCase();
+
+    let resolved = pLow;
+    if (pLow === 'his' || pLow === 'her') {
+      resolved = isFemale ? 'her' : 'his';
+    } else if (pLow === 'he' || pLow === 'she') {
+      resolved = isFemale ? 'she' : 'he';
+    } else if (pLow === 'him') {
+      resolved = isFemale ? 'her' : 'him';
+    } else if (pLow === 'himself' || pLow === 'herself') {
+      resolved = isFemale ? 'herself' : 'himself';
+    }
+
+    if (startsSentence) {
+      return resolved.charAt(0).toUpperCase() + resolved.slice(1);
+    } else {
+      return resolved.toLowerCase();
+    }
+  });
 }
 
 // ─── UNIQUE CODE-128 MACHINE-READABLE BARCODE GENERATOR ───
