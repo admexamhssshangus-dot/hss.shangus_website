@@ -174,6 +174,15 @@ export const ADMIN_MODULE_CATALOG = Object.freeze([
     launcher: false,
   },
   {
+    id: 'boardSync',
+    label: 'Board Data Sync & Overwriter',
+    description: 'Bulk overwrite student admission fields with verified JKBOSE Excel data',
+    category: 'Operations & Automation',
+    maturity: 'production',
+    maturityNote: 'Safeguarded with field-selection checklist and 30-day batch rollback memory.',
+    launcher: true,
+  },
+  {
     id: 'adminMgmt',
     label: 'Administrator Access & Permissions',
     description: 'Manage staff accounts, roles and module permissions',

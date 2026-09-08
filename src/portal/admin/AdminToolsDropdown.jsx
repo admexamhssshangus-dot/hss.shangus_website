@@ -28,6 +28,7 @@ const MODULE_ICONS = {
   automations: Mail,
   funds: CreditCard,
   cms: PanelsTopLeft,
+  boardSync: FileSpreadsheet,
 };
 
 export const ADMIN_TOOL_MODULES = ADMIN_MODULE_CATALOG
@@ -65,6 +66,7 @@ export default function AdminToolsDropdown({
   onOpenDirectEntry,
   onOpenBulkTools,
   onOpenCustomRoster,
+  onOpenBoardSync,
   enableQuickCellEdit,
   setEnableQuickCellEdit,
   align = 'left'
@@ -98,11 +100,12 @@ export default function AdminToolsDropdown({
         (setEnableQuickCellEdit !== undefined ? 1 : 0) +
         (canReports ? 1 : 0) +
         (canDirectEntry ? 1 : 0) +
-        (canBulk ? 1 : 0)
+        (canBulk ? 1 : 0) +
+        (onOpenBoardSync ? 1 : 0)
       );
     }
     return permittedModules.filter(m => m.category === catKey).length;
-  }, [setEnableQuickCellEdit, canReports, canDirectEntry, canBulk, permittedModules]);
+  }, [setEnableQuickCellEdit, canReports, canDirectEntry, canBulk, onOpenBoardSync, permittedModules]);
 
   const visibleCategories = useMemo(() => {
     const activeList = categories.filter(cat => getCategoryCount(cat.key) > 0);
@@ -270,8 +273,13 @@ export default function AdminToolsDropdown({
                         key={t.id}
                         type="button"
                         onClick={() => {
-                          if (setActiveTab) setActiveTab(t.id);
-                          else if (onOpenCustomRoster) onOpenCustomRoster();
+                          if (t.id === 'boardSync' && onOpenBoardSync) {
+                            onOpenBoardSync();
+                          } else if (setActiveTab) {
+                            setActiveTab(t.id);
+                          } else if (onOpenCustomRoster) {
+                            onOpenCustomRoster();
+                          }
                           setIsOpen(false);
                         }}
                         aria-current={isActive ? 'page' : undefined}
@@ -412,6 +420,28 @@ export default function AdminToolsDropdown({
                           <span className={`rounded-md border px-1.5 py-0.2 text-[8px] font-black leading-none tracking-wide ${getModuleMaturity('optimized').badgeClass}`}>Optimized</span>
                         </div>
                         <div className="text-[10px] text-slate-400 font-normal">Bulk status updates, photo batch exports and recovery</div>
+                      </div>
+                    </button>
+                  )}
+
+                  {onOpenBoardSync && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onOpenBoardSync();
+                        setIsOpen(false);
+                      }}
+                      className="w-full text-left p-2.5 rounded-xl flex items-center gap-2.5 bg-white dark:bg-slate-900 hover:bg-emerald-50/70 dark:hover:bg-emerald-950/40 text-slate-800 dark:text-slate-200 hover:text-emerald-900 dark:hover:text-emerald-200 border border-slate-200 dark:border-slate-800 hover:border-emerald-300 dark:hover:border-emerald-700 transition-all cursor-pointer shadow-2xs group"
+                    >
+                      <div className="w-7 h-7 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                        <FileSpreadsheet size={14} />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-1.5">
+                          <div className="font-black text-xs text-slate-900 dark:text-white">Board Data Sync (JKBOSE)</div>
+                          <span className={`rounded-md border px-1.5 py-0.2 text-[8px] font-black leading-none tracking-wide ${getModuleMaturity('beta').badgeClass}`}>Beta</span>
+                        </div>
+                        <div className="text-[10px] text-slate-400 font-normal">Bulk overwrite student fields with verified board data</div>
                       </div>
                     </button>
                   )}
