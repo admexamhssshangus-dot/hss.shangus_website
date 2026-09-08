@@ -214,7 +214,9 @@ export function getCanonicalSubjectCodes(raw) {
     // Environmental Science
     if (t === 'es' || t === 'evs' || t.includes('environmental') || t.includes('environment')) { codes.add('ES'); return; }
     // Physical Education (MUST be checked BEFORE Physics since "physical education" contains "physic")
-    if (t === 'pd' || t === 'phe' || t === 'physical education' || t.includes('physical edu')) { codes.add('PD'); return; }
+    if (t === 'pd' || t === 'phe' || t === 'pe' || t === 'ped' || t === 'pes' || t === 'physical education' || t.includes('physical edu')) { codes.add('PD'); return; }
+    // Public Administration
+    if (t === 'pa' || t === 'pad' || t === 'pub ad' || t.includes('public admin') || t.includes('pub ad')) { codes.add('PA'); return; }
     // Physics
     if (t === 'ph' || t === 'physics' || (t.includes('physic') && !t.includes('education'))) { codes.add('PH'); return; }
     // Chemistry
@@ -292,6 +294,68 @@ export function areSubjectSetsMatching(raw1, raw2) {
   }
 
   return false;
+}
+
+/**
+ * Helper to compute only the mismatched subjects between 11th record and 12th opted form.
+ * Returns:
+ *  - onlyIn12th: Array of subject display names present in 12th but not in 11th
+ *  - onlyIn11th: Array of subject display names present in 11th but not in 12th
+ *  - mismatchNotice: Concise string stating only the mismatched subjects
+ */
+export function getMismatchedSubjectsDiff(subs11th, optedSubs12th) {
+  if (!subs11th || !optedSubs12th || subs11th === '—' || optedSubs12th === '—') {
+    return { onlyIn12th: [], onlyIn11th: [], mismatchNotice: null };
+  }
+
+  const parseTokens = (raw) => {
+    return (Array.isArray(raw) ? raw : String(raw).split(/[,;+/|\n\r]+/))
+      .map(s => String(s).trim())
+      .filter(s => s && s !== '—' && s !== '-' && !s.toLowerCase().includes('same as'));
+  };
+
+  const tokens11 = parseTokens(subs11th);
+  const tokens12 = parseTokens(optedSubs12th);
+
+  const map11 = new Map();
+  tokens11.forEach(t => {
+    const codes = getCanonicalSubjectCodes(t);
+    const code = [...codes][0] || t.toUpperCase();
+    if (!map11.has(code)) map11.set(code, t);
+  });
+
+  const map12 = new Map();
+  tokens12.forEach(t => {
+    const codes = getCanonicalSubjectCodes(t);
+    const code = [...codes][0] || t.toUpperCase();
+    if (!map12.has(code)) map12.set(code, t);
+  });
+
+  // Compare electives (exclude compulsory GE and ES)
+  const diffCodes12 = [...map12.keys()].filter(c => c !== 'GE' && c !== 'ES' && !map11.has(c));
+  const diffCodes11 = [...map11.keys()].filter(c => c !== 'GE' && c !== 'ES' && !map12.has(c));
+
+  if (diffCodes12.length === 0 && diffCodes11.length === 0) {
+    return { onlyIn12th: [], onlyIn11th: [], mismatchNotice: null };
+  }
+
+  const onlyIn12th = diffCodes12.map(c => map12.get(c) || c);
+  const onlyIn11th = diffCodes11.map(c => map11.get(c) || c);
+
+  let mismatchNotice = '';
+  if (onlyIn12th.length > 0 && onlyIn11th.length > 0) {
+    mismatchNotice = `⚠️ Subjects Mismatch: Opted [${onlyIn12th.join(', ')}] in 12th vs [${onlyIn11th.join(', ')}] in 11th`;
+  } else if (onlyIn12th.length > 0) {
+    mismatchNotice = `⚠️ Subjects Mismatch: Opted extra [${onlyIn12th.join(', ')}] in 12th`;
+  } else {
+    mismatchNotice = `⚠️ Subjects Mismatch: Missing [${onlyIn11th.join(', ')}] in 12th (Present in 11th)`;
+  }
+
+  return {
+    onlyIn12th,
+    onlyIn11th,
+    mismatchNotice
+  };
 }
 
 // ─── Global Helper to resolve authentic student stream without 'Same as in class 11th' ───
@@ -3814,8 +3878,13 @@ function SubjectStreamCell({ val, student }) {
             </div>
 
             {student.subsMismatchNotice && (
-              <div className="text-[9px] font-bold text-amber-700 dark:text-amber-400 bg-amber-100/50 dark:bg-amber-950/60 p-1.5 rounded-lg border border-amber-300/60">
-                {student.subsMismatchNotice}
+              <div className="p-2 rounded-xl bg-amber-100/70 dark:bg-amber-950/70 border border-amber-300/80 dark:border-amber-700/60 space-y-1">
+                <span className="font-extrabold text-amber-900 dark:text-amber-200 block text-[9.5px] uppercase tracking-wider">
+                  ⚠️ Mismatched Subjects Only:
+                </span>
+                <div className="text-[9px] font-bold text-amber-800 dark:text-amber-300">
+                  {student.subsMismatchNotice}
+                </div>
               </div>
             )}
           </div>
@@ -6728,7 +6797,8 @@ export default function AdvancedReports({
             const isMatch = areSubjectSetsMatching(subs11th, optedSubs12th);
             if (!isMatch) {
               hasSubsMismatch = true;
-              subsMismatchNotice = `⚠️ Subjects Mismatch: Opted [${optedSubs12th}] in 12th vs [${subs11th}] in 11th`;
+              const diff = getMismatchedSubjectsDiff(subs11th, optedSubs12th);
+              subsMismatchNotice = diff.mismatchNotice || `⚠️ Subjects Mismatch: Opted [${optedSubs12th}] in 12th vs [${subs11th}] in 11th`;
               // Ground truth subjects from 11th takes precedence!
               sSubs = subs11th;
             }
@@ -7015,7 +7085,8 @@ export default function AdvancedReports({
             const isMatch = areSubjectSetsMatching(subs11th, optedSubs12th);
             if (!isMatch) {
               hasSubsMismatch = true;
-              subsMismatchNotice = `⚠️ Subjects Mismatch: Opted [${optedSubs12th}] in 12th vs [${subs11th}] in 11th`;
+              const diff = getMismatchedSubjectsDiff(subs11th, optedSubs12th);
+              subsMismatchNotice = diff.mismatchNotice || `⚠️ Subjects Mismatch: Opted [${optedSubs12th}] in 12th vs [${subs11th}] in 11th`;
               sSubs = subs11th;
             }
           }

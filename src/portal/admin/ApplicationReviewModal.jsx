@@ -348,6 +348,11 @@ export default function ApplicationReviewModal({ app, onClose, onRefresh }) {
                   <div className="text-slate-700 dark:text-slate-300">Subjects: {app.optedSubs12th || '—'}</div>
                 </div>
               </div>
+              {app?.subsMismatchNotice && (
+                <div className="p-2 rounded-xl bg-amber-100/80 dark:bg-amber-950/80 border border-amber-300 dark:border-amber-700 text-[10.5px] font-black text-amber-900 dark:text-amber-200">
+                  {app.subsMismatchNotice}
+                </div>
+              )}
               <div className="text-[10px] text-amber-800 dark:text-amber-300 font-medium">
                 * Note: System has automatically defaulted this student's authoritative stream to <strong>{app.stream11th}</strong> to maintain strict 11th-to-12th continuity.
               </div>
