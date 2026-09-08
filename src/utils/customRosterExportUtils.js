@@ -16,8 +16,23 @@ export function printCustomRosterTable({
   rows = [],
   orientation = 'portrait',
   rowHeightPx = 36,
-  signatories = ['Incharge Admissions & Exam', 'Principal']
+  signatories = ['Incharge Admissions & Exam', 'Principal'],
+  layoutMode = 'standard',
+  examDetails = {},
+  rowsPerColumn = 25
 }) {
+  if (layoutMode === 'two_column_attendance') {
+    const attHtml = buildTwoColumnAttendanceHtml({
+      title,
+      examDetails,
+      rows,
+      rowHeightPx,
+      signatories,
+      rowsPerColumn
+    });
+    return executePrintIframe(attHtml, title);
+  }
+
   const isLandscape = orientation === 'landscape';
 
   const metaHtml = metaBadges.length > 0
@@ -237,7 +252,13 @@ export function printCustomRosterTable({
     </html>
   `;
 
-  // Use an offscreen iframe with real layout dimensions so browser renders and decodes images properly
+  return executePrintIframe(html, title);
+}
+
+/**
+ * Reusable helper to send HTML to an offscreen iframe and trigger browser print.
+ */
+function executePrintIframe(html, title = 'Document') {
   let iframe = document.getElementById('custom-roster-print-frame');
   if (!iframe) {
     iframe = document.createElement('iframe');
@@ -258,7 +279,6 @@ export function printCustomRosterTable({
   doc.write(html);
   doc.close();
 
-  // Wait for all images inside iframe to decode and load before triggering browser print
   const triggerPrint = () => {
     try {
       iframe.contentWindow.focus();
@@ -280,7 +300,6 @@ export function printCustomRosterTable({
       });
     });
 
-    // Resolve when all images load or timeout after 1.5s
     const timeoutPromise = new Promise(resolve => setTimeout(resolve, 1500));
     Promise.race([Promise.all(imagePromises), timeoutPromise]).then(() => {
       setTimeout(triggerPrint, 200);
@@ -289,13 +308,367 @@ export function printCustomRosterTable({
 }
 
 /**
+ * Render official Two-Column Daily Attendance Sheet HTML matching institution examination standards.
+ */
+function buildTwoColumnAttendanceHtml({
+  title = 'DAILY ATTENDANCE SHEET',
+  examDetails = {},
+  rows = [],
+  rowHeightPx = 36,
+  signatories = ['Sig. of the Asstt. Supdt.', 'Sig. of the Centre Supdt.'],
+  rowsPerColumn = 25
+}) {
+  const studentsPerCol = Math.max(10, Math.min(60, Number(rowsPerColumn) || 25));
+  const studentsPerPage = studentsPerCol * 2;
+
+  // Chunk students into pages
+  const pages = [];
+  if (rows.length <= studentsPerPage) {
+    const half = Math.ceil(rows.length / 2);
+    pages.push({
+      left: rows.slice(0, half),
+      right: rows.slice(half)
+    });
+  } else {
+    for (let p = 0; p < rows.length; p += studentsPerPage) {
+      const pageSlice = rows.slice(p, p + studentsPerPage);
+      const half = Math.ceil(pageSlice.length / 2);
+      pages.push({
+        left: pageSlice.slice(0, half),
+        right: pageSlice.slice(half)
+      });
+    }
+  }
+
+  const examNameText = examDetails.examName ? `<b>${examDetails.examName}</b>` : '...........................................................................';
+  const examYearText = examDetails.examYear ? `<b>${examDetails.examYear}</b>` : '.....................................';
+  const classText = examDetails.className ? `<b>${examDetails.className}</b>` : '..................................';
+  const dateText = examDetails.examDate ? `<b>${examDetails.examDate}</b>` : '..................................';
+  const subjectText = examDetails.subjectName ? `<b>${examDetails.subjectName}</b>` : '..................................';
+  const paperText = examDetails.paper ? `<b>${examDetails.paper}</b>` : '..................................';
+
+  const renderTableRows = (studentList, startIdx = 0) => {
+    return studentList.map((st, i) => {
+      const roll = (st.classRollNo && st.classRollNo !== '—' && st.classRollNo !== '-') ? st.classRollNo : (st.sno || (startIdx + i + 1));
+      const name = st.studentName || st.name || '—';
+      return `
+        <tr style="height: ${rowHeightPx}px;">
+          <td class="rno-cell">${roll}</td>
+          <td class="name-cell">${name}</td>
+          <td class="sig-cell"></td>
+        </tr>
+      `;
+    }).join('');
+  };
+
+  const pagesHtml = pages.map((pg, pageIdx) => {
+    const leftStart = pageIdx * studentsPerPage;
+    const rightStart = leftStart + pg.left.length;
+    return `
+      <div class="attendance-page">
+        <div class="inst-banner-box">
+          Govt. Higher Secondary School Shangus, Anantnag
+        </div>
+        <div class="attendance-title">${title || 'DAILY ATTENDANCE SHEET'}</div>
+        
+        <div class="exam-info-container">
+          <div class="exam-info-row">
+            <div class="exam-field" style="flex: 2.2;">
+              Name of the Examination <span class="dots">${examNameText}</span>
+            </div>
+            <div class="exam-field" style="flex: 1; text-align: right;">
+              Year <span class="dots">${examYearText}</span>
+            </div>
+          </div>
+          <div class="exam-info-row" style="margin-top: 5px;">
+            <div class="exam-field" style="flex: 1.1;">
+              Class <span class="dots">${classText}</span>
+            </div>
+            <div class="exam-field" style="flex: 1.1;">
+              Date <span class="dots">${dateText}</span>
+            </div>
+            <div class="exam-field" style="flex: 1.4;">
+              Subject <span class="dots">${subjectText}</span>
+            </div>
+            <div class="exam-field" style="flex: 1.1; text-align: right;">
+              Paper <span class="dots">${paperText}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="two-col-grid">
+          <div class="half-col">
+            <table class="att-table">
+              <thead>
+                <tr>
+                  <th style="width: 14%;">R.No.</th>
+                  <th style="width: 54%;">Name of the Candidate</th>
+                  <th style="width: 32%;">Sig. of the Candidate</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${renderTableRows(pg.left, leftStart)}
+              </tbody>
+            </table>
+          </div>
+          <div class="col-divider"></div>
+          <div class="half-col">
+            <table class="att-table">
+              <thead>
+                <tr>
+                  <th style="width: 14%;">R.No.</th>
+                  <th style="width: 54%;">Name of the Candidate</th>
+                  <th style="width: 32%;">Sig. of the Candidate</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${renderTableRows(pg.right, rightStart)}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="att-signatories">
+          <div class="sig-box">
+            <div class="sig-line"></div>
+            <div class="sig-title">${signatories[0] || 'Sig. of the Asstt. Supdt.'}</div>
+          </div>
+          <div class="sig-box">
+            <div class="sig-line"></div>
+            <div class="sig-title">${signatories[1] || 'Sig. of the Centre Supdt.'}</div>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>${title} - HSS Shangus</title>
+      <style>
+        @page {
+          size: A4 portrait;
+          margin: 0.35in 0.45in;
+        }
+        * {
+          box-sizing: border-box;
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+        }
+        html, body {
+          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+          color: #111827;
+          background: #ffffff;
+          margin: 0;
+          padding: 0;
+          width: 100%;
+          font-size: 9.5px;
+        }
+        .attendance-page {
+          page-break-after: always;
+          display: flex;
+          flex-direction: column;
+          min-height: 100%;
+        }
+        .attendance-page:last-child {
+          page-break-after: avoid;
+        }
+        .inst-banner-box {
+          background: #cbd5e1 !important;
+          border: 1.5px solid #334155;
+          color: #0f172a;
+          font-size: 15px;
+          font-weight: 900;
+          letter-spacing: 0.2px;
+          text-align: center;
+          padding: 3.5px 6px;
+          border-radius: 2px;
+          font-family: "Segoe UI", Arial, sans-serif;
+        }
+        .attendance-title {
+          font-size: 13.5px;
+          font-weight: 900;
+          text-align: center;
+          text-transform: uppercase;
+          text-decoration: underline;
+          margin: 6px 0 5px 0;
+          letter-spacing: 0.5px;
+          color: #000000;
+        }
+        .exam-info-container {
+          margin: 2px 0 6px 0;
+          font-size: 9.5px;
+          font-weight: 600;
+          color: #111827;
+        }
+        .exam-info-row {
+          display: flex;
+          justify-content: space-between;
+          align-items: baseline;
+          gap: 10px;
+        }
+        .dots {
+          letter-spacing: 1px;
+          color: #374151;
+          font-weight: 700;
+        }
+        .two-col-grid {
+          display: flex;
+          gap: 8px;
+          flex: 1;
+          align-items: flex-start;
+          width: 100%;
+        }
+        .half-col {
+          flex: 1;
+          min-width: 0;
+        }
+        .col-divider {
+          width: 1.5px;
+          background-color: transparent;
+        }
+        .att-table {
+          width: 100%;
+          border-collapse: collapse;
+          table-layout: fixed;
+        }
+        .att-table th {
+          background: #f1f5f9 !important;
+          color: #0f172a;
+          font-weight: 900;
+          font-size: 8.5px;
+          border: 1.5px solid #1e293b;
+          padding: 3.5px 2px;
+          text-align: left;
+          letter-spacing: 0.1px;
+        }
+        .att-table th:first-child {
+          text-align: center;
+        }
+        .att-table th:last-child {
+          text-align: center;
+        }
+        .att-table td {
+          border: 1.2px solid #475569;
+          padding: 2px 3.5px;
+          font-size: 9px;
+          vertical-align: middle;
+        }
+        .rno-cell {
+          text-align: center;
+          font-weight: 700;
+          color: #0f172a;
+        }
+        .name-cell {
+          font-weight: 600;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          color: #111827;
+        }
+        .sig-cell {
+          background: #ffffff;
+        }
+        .att-signatories {
+          display: flex;
+          justify-content: space-between;
+          margin-top: 18px;
+          padding: 0 25px 5px 25px;
+          page-break-inside: avoid;
+        }
+        .sig-box {
+          text-align: center;
+          width: 180px;
+        }
+        .sig-line {
+          border-bottom: 1.5px solid #334155;
+          margin-bottom: 4px;
+        }
+        .sig-title {
+          font-weight: 800;
+          font-size: 9px;
+          color: #0f172a;
+          text-transform: uppercase;
+        }
+        @media print {
+          html, body {
+            margin: 0;
+            padding: 0;
+          }
+          .attendance-page {
+            height: 100%;
+          }
+        }
+      </style>
+    </head>
+    <body>
+      ${pagesHtml}
+    </body>
+    </html>
+  `;
+}
+
+/**
  * Export customized student roster data to Excel (.xlsx).
+ * Supports both standard 1-column table and 2-column examination attendance structure.
  */
 export function exportCustomRosterExcel({
   title = 'Student_Roster',
   columns = [],
-  rows = []
+  rows = [],
+  layoutMode = 'standard',
+  examDetails = {}
 }) {
+  if (layoutMode === 'two_column_attendance') {
+    const half = Math.ceil(rows.length / 2);
+    const examName = examDetails.examName || '...........................................';
+    const examYear = examDetails.examYear || '.............................';
+    const className = examDetails.className || '..................';
+    const examDate = examDetails.examDate || '..................';
+    const subjectName = examDetails.subjectName || '..................';
+    const paper = examDetails.paper || '..................';
+
+    const wsData = [
+      ['Govt. Higher Secondary School Shangus, Anantnag'],
+      [title || 'DAILY ATTENDANCE SHEET'],
+      [`Name of the Examination: ${examName}`, '', '', '', `Year: ${examYear}`],
+      [`Class: ${className}`, `Date: ${examDate}`, `Subject: ${subjectName}`, '', `Paper: ${paper}`],
+      [],
+      ['R.No.', 'Name of the Candidate', 'Sig. of the Candidate', '', 'R.No.', 'Name of the Candidate', 'Sig. of the Candidate']
+    ];
+
+    for (let i = 0; i < half; i++) {
+      const left = rows[i];
+      const right = rows[half + i];
+      const leftRoll = left ? ((left.classRollNo && left.classRollNo !== '—' && left.classRollNo !== '-') ? left.classRollNo : (left.sno || i + 1)) : '';
+      const leftName = left ? (left.studentName || left.name || '') : '';
+      const rightRoll = right ? ((right.classRollNo && right.classRollNo !== '—' && right.classRollNo !== '-') ? right.classRollNo : (right.sno || half + i + 1)) : '';
+      const rightName = right ? (right.studentName || right.name || '') : '';
+
+      wsData.push([leftRoll, leftName, '', '', rightRoll, rightName, '']);
+    }
+
+    const ws = XLSX.utils.aoa_to_sheet(wsData);
+    ws['!cols'] = [
+      { wch: 9 },  // A: Left R.No.
+      { wch: 30 }, // B: Left Name
+      { wch: 22 }, // C: Left Signature
+      { wch: 3 },  // D: Gap
+      { wch: 9 },  // E: Right R.No.
+      { wch: 30 }, // F: Right Name
+      { wch: 22 }  // G: Right Signature
+    ];
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Attendance');
+
+    const filename = `${(title || 'Attendance_Sheet').toLowerCase().replace(/[^a-z0-9]/g, '_')}_${new Date().toISOString().slice(0, 10)}.xlsx`;
+    XLSX.writeFile(wb, filename);
+    return;
+  }
+
   const headers = columns.map(c => c.label || c.key);
   const data = rows.map((r, idx) => {
     return columns.map(c => {
@@ -328,12 +701,44 @@ export function exportCustomRosterExcel({
 
 /**
  * Export customized student roster data to CSV.
+ * Supports both standard 1-column table and 2-column examination attendance structure.
  */
 export function exportCustomRosterCsv({
   title = 'Student_Roster',
   columns = [],
-  rows = []
+  rows = [],
+  layoutMode = 'standard'
 }) {
+  if (layoutMode === 'two_column_attendance') {
+    const half = Math.ceil(rows.length / 2);
+    const csvLines = [
+      '"R.No.","Name of the Candidate","Sig. of the Candidate","","R.No.","Name of the Candidate","Sig. of the Candidate"'
+    ];
+
+    for (let i = 0; i < half; i++) {
+      const left = rows[i];
+      const right = rows[half + i];
+      const leftRoll = left ? ((left.classRollNo && left.classRollNo !== '—' && left.classRollNo !== '-') ? left.classRollNo : (left.sno || i + 1)) : '';
+      const leftName = left ? (left.studentName || left.name || '') : '';
+      const rightRoll = right ? ((right.classRollNo && right.classRollNo !== '—' && right.classRollNo !== '-') ? right.classRollNo : (right.sno || half + i + 1)) : '';
+      const rightName = right ? (right.studentName || right.name || '') : '';
+
+      csvLines.push(`"${leftRoll}","${leftName.replace(/"/g, '""')}","","","${rightRoll}","${rightName.replace(/"/g, '""')}",""`);
+    }
+
+    const csvContent = '\uFEFF' + csvLines.join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${(title || 'Attendance_Sheet').toLowerCase().replace(/[^a-z0-9]/g, '_')}_${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    return;
+  }
+
   const headers = columns.map(c => `"${(c.label || c.key).replace(/"/g, '""')}"`).join(',');
   const csvRows = rows.map((r, idx) => {
     return columns.map(c => {
