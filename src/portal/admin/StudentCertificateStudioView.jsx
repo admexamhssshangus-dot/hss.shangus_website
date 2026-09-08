@@ -783,12 +783,13 @@ export default function StudentCertificateStudioView({
   const parsedDob = useMemo(() => {
     try {
       if (typeof dobToWords === 'function') {
-        return dobToWords(dobRaw);
+        const res = dobToWords(dobRaw);
+        if (res) return { ...res, formatted: res.figures, inWords: res.words };
       }
     } catch (e) {
       console.warn('dobToWords execution error:', e);
     }
-    return { figures: dobRaw || '—', words: '—', standard: dobRaw || '—' };
+    return { figures: dobRaw || '—', words: '—', standard: dobRaw || '—', formatted: dobRaw || '—', inWords: '—' };
   }, [dobRaw]);
 
   // Certificate Header & Options State
@@ -800,7 +801,7 @@ export default function StudentCertificateStudioView({
   const [dateStr, setDateStr] = useState(() => new Date().toLocaleDateString('en-GB'));
   const [showPhoto, setShowPhoto] = useState(false);
   const [watermark, setWatermark] = useState(true);
-  const [includeSalutations, setIncludeSalutations] = useState(true);
+  const [includeSalutations, setIncludeSalutations] = useState(false); // Default: unchecked / without Mr./Mrs./Ms.
   const [signatoryLeft, setSignatoryLeft] = useState('Incharge Admissions & Exam');
   const [signatoryCenter, setSignatoryCenter] = useState('Checked By');
   const [signatoryRight, setSignatoryRight] = useState('Principal');
@@ -1006,7 +1007,7 @@ export default function StudentCertificateStudioView({
           if (found.signatoryLeft !== undefined) setSignatoryLeft(found.signatoryLeft);
           if (found.signatoryRight !== undefined) setSignatoryRight(found.signatoryRight);
           if (found.watermark !== undefined) setWatermark(found.watermark);
-          if (found.includeSalutations !== undefined) setIncludeSalutations(found.includeSalutations);
+          if (found.isCustom && found.includeSalutations !== undefined) setIncludeSalutations(found.includeSalutations);
           if (found.showPhoto !== undefined) setShowPhoto(found.showPhoto);
           if (found.refPrefix) {
             setRefNo(`${found.refPrefix}/${rollNo || regNo || '01'}/${new Date().getFullYear()}`);
@@ -1607,7 +1608,7 @@ export default function StudentCertificateStudioView({
     if (sanitizedTpl.signatoryLeft !== undefined) setSignatoryLeft(sanitizedTpl.signatoryLeft);
     if (sanitizedTpl.signatoryRight !== undefined) setSignatoryRight(sanitizedTpl.signatoryRight);
     if (sanitizedTpl.watermark !== undefined) setWatermark(sanitizedTpl.watermark);
-    if (sanitizedTpl.includeSalutations !== undefined) setIncludeSalutations(sanitizedTpl.includeSalutations);
+    if (sanitizedTpl.isCustom && sanitizedTpl.includeSalutations !== undefined) setIncludeSalutations(sanitizedTpl.includeSalutations);
     if (sanitizedTpl.showPhoto !== undefined) {
       setShowPhoto(sanitizedTpl.showPhoto);
       if (sanitizedTpl.showPhoto && !studentPhotoUrl) {
@@ -1641,6 +1642,27 @@ export default function StudentCertificateStudioView({
     setIncludeSalutations(next);
 
     if (editorRef.current) {
+      const raw = selectedStudent?.raw || selectedStudent || {};
+      const resInfo = extractStudentResultMarks(raw);
+      const effMarksObt = tcMarksObtained !== '' ? tcMarksObtained : (resInfo.marksObtained || '—');
+      const effMaxMarks = tcMaxMarks || resInfo.maxMarks || '500';
+      const effDiv = tcDivision || resInfo.division || (effMarksObt !== '—' ? calculateDivision(effMarksObt, effMaxMarks).division : '—');
+      const effExamRoll = tcExamRoll || resInfo.examRoll || '—';
+      const effExamMode = tcExamMode || resInfo.examMode || '—';
+      const effResultStatus = tcResultStatus || resInfo.resultStatus || 'Awaiting Result';
+      const effReappSubjects = tcReappSubjects || resInfo.reappSubjects || '—';
+      const isPassed = normalizeResultStatus(effResultStatus) === 'Passed';
+      const effectiveWd = withdrawalDate || raw['Date of withdrawl'] || raw.withdrawalDate || raw['Result Date'] || raw.resultDate || toLocalDateKey();
+      const rawVillage = raw['Village/Town'] || raw.village || raw['Name of your village'] || '';
+      const cleanVillage = (rawVillage && rawVillage !== '—' && rawVillage !== '-' && !/^(null|undefined|n\/a)$/i.test(rawVillage)) ? rawVillage : '';
+      const village = cleanVillage || (typeof extractVillage === 'function' ? extractVillage(raw) : '') || address || '';
+      const rawTehsil = raw['Tehsil'] || raw.tehsil || raw['Block'] || raw.block || '';
+      const cleanTehsil = (rawTehsil && rawTehsil !== '—' && rawTehsil !== '-' && !/^(null|undefined|n\/a)$/i.test(rawTehsil)) ? rawTehsil : '';
+      const tehsil = cleanTehsil || (address && /shangus/i.test(address) ? 'Shangus' : '') || 'Shangus';
+      const rawDistrict = raw['District'] || raw.district || '';
+      const cleanDistrict = (rawDistrict && rawDistrict !== '—' && rawDistrict !== '-' && !/^(null|undefined|n\/a)$/i.test(rawDistrict)) ? rawDistrict : '';
+      const district = cleanDistrict || (address && /anantnag/i.test(address) ? 'Anantnag' : '') || 'Anantnag';
+
       const newHtml = interpolateCertificateTemplate(templateBody, {
         studentName,
         fatherName,
@@ -1657,7 +1679,24 @@ export default function StudentCertificateStudioView({
         refNo,
         date: dateStr,
         includeSalutations: next,
-        customFields
+        customFields,
+        // TC / DC tokens
+        examName: `Class ${className || '12th'} Examination`,
+        examRollNo: effExamRoll,
+        examSession: effExamMode,
+        resultStatus: isPassed || selectedTemplateId.includes('qualified') ? 'Qualified' : (normalizeResultStatus(effResultStatus) === 'Reap' ? 'Re-appear' : (effResultStatus || 'Did Not Qualify')),
+        divisionDistinction: effDiv,
+        marksObtained: effMarksObt,
+        maxMarks: effMaxMarks,
+        reappSubjects: effReappSubjects,
+        admissionDate: admissionDate || extractStudentAdmissionDate(raw) || '—',
+        admissionNo: admissionNo || extractStudentAdmissionNumber(raw) || '—',
+        withdrawalDate: effectiveWd,
+        conductStatus: 'Satisfactory',
+        village,
+        tehsil,
+        district,
+        certificateNo: refNo || extractStudentCertificateNumber(raw) || '—'
       });
 
       if (!next) {
@@ -2762,7 +2801,25 @@ export default function StudentCertificateStudioView({
       '{HIM_HER}': pronounHimHer,
       '{him_her}': isFemale ? 'her' : 'him',
       '{PRONOUN_HIMSELF_HERSELF}': pronounHimselfHerself,
-      '{PRONOUN_himself_herself}': isFemale ? 'herself' : 'himself'
+      '{PRONOUN_himself_herself}': isFemale ? 'herself' : 'himself',
+      // TC / DC tokens
+      '{EXAM_NAME}': `Class ${className || '12th'} Examination`,
+      '{EXAM_ROLL_NO}': tcExamRoll || rollNo || '—',
+      '{EXAM_SESSION}': tcExamMode || session || '—',
+      '{RESULT_STATUS}': tcResultStatus || 'Qualified',
+      '{DIVISION_DISTINCTION}': tcDivision || 'Distinction',
+      '{DIVISION}': tcDivision || 'Distinction',
+      '{DISTINCTION}': tcDivision || 'Distinction',
+      '{MARKS_OBTAINED}': tcMarksObtained || '—',
+      '{MAX_MARKS}': tcMaxMarks || '500',
+      '{REAPP_SUBJECTS}': tcReappSubjects || '—',
+      '{ADMISSION_DATE}': admissionDate || '—',
+      '{ADMISSION_NO}': admissionNo || '—',
+      '{WITHDRAWAL_DATE}': withdrawalDate || '—',
+      '{RESULT_DATE}': withdrawalDate || '—',
+      '{CONDUCT_STATUS}': 'Satisfactory',
+      '{CERTIFICATE_NO}': refNo || '—',
+      '{TC_DC_NO}': refNo || '—'
     };
 
     if (tokenMap[str.toUpperCase()]) {
@@ -2775,6 +2832,27 @@ export default function StudentCertificateStudioView({
 
     // If it contains multiple tokens, interpolate cleanly
     if (str.includes('{') && str.includes('}')) {
+      const raw = selectedStudent?.raw || selectedStudent || {};
+      const resInfo = extractStudentResultMarks(raw);
+      const effMarksObt = tcMarksObtained !== '' ? tcMarksObtained : (resInfo.marksObtained || '—');
+      const effMaxMarks = tcMaxMarks || resInfo.maxMarks || '500';
+      const effDiv = tcDivision || resInfo.division || (effMarksObt !== '—' ? calculateDivision(effMarksObt, effMaxMarks).division : '—');
+      const effExamRoll = tcExamRoll || resInfo.examRoll || '—';
+      const effExamMode = tcExamMode || resInfo.examMode || '—';
+      const effResultStatus = tcResultStatus || resInfo.resultStatus || 'Awaiting Result';
+      const effReappSubjects = tcReappSubjects || resInfo.reappSubjects || '—';
+      const isPassed = normalizeResultStatus(effResultStatus) === 'Passed';
+      const effectiveWd = withdrawalDate || raw['Date of withdrawl'] || raw.withdrawalDate || raw['Result Date'] || raw.resultDate || toLocalDateKey();
+      const rawVillage = raw['Village/Town'] || raw.village || raw['Name of your village'] || '';
+      const cleanVillage = (rawVillage && rawVillage !== '—' && rawVillage !== '-' && !/^(null|undefined|n\/a)$/i.test(rawVillage)) ? rawVillage : '';
+      const village = cleanVillage || (typeof extractVillage === 'function' ? extractVillage(raw) : '') || address || '';
+      const rawTehsil = raw['Tehsil'] || raw.tehsil || raw['Block'] || raw.block || '';
+      const cleanTehsil = (rawTehsil && rawTehsil !== '—' && rawTehsil !== '-' && !/^(null|undefined|n\/a)$/i.test(rawTehsil)) ? rawTehsil : '';
+      const tehsil = cleanTehsil || (address && /shangus/i.test(address) ? 'Shangus' : '') || 'Shangus';
+      const rawDistrict = raw['District'] || raw.district || '';
+      const cleanDistrict = (rawDistrict && rawDistrict !== '—' && rawDistrict !== '-' && !/^(null|undefined|n\/a)$/i.test(rawDistrict)) ? rawDistrict : '';
+      const district = cleanDistrict || (address && /anantnag/i.test(address) ? 'Anantnag' : '') || 'Anantnag';
+
       return interpolateCertificateTemplate(str, {
         studentName,
         fatherName,
@@ -2791,7 +2869,23 @@ export default function StudentCertificateStudioView({
         refNo,
         date: dateStr,
         includeSalutations,
-        customFields
+        customFields,
+        examName: `Class ${className || '12th'} Examination`,
+        examRollNo: effExamRoll,
+        examSession: effExamMode,
+        resultStatus: isPassed || selectedTemplateId.includes('qualified') ? 'Qualified' : (normalizeResultStatus(effResultStatus) === 'Reap' ? 'Re-appear' : (effResultStatus || 'Did Not Qualify')),
+        divisionDistinction: effDiv,
+        marksObtained: effMarksObt,
+        maxMarks: effMaxMarks,
+        reappSubjects: effReappSubjects,
+        admissionDate: admissionDate || extractStudentAdmissionDate(raw) || '—',
+        admissionNo: admissionNo || extractStudentAdmissionNumber(raw) || '—',
+        withdrawalDate: effectiveWd,
+        conductStatus: 'Satisfactory',
+        village,
+        tehsil,
+        district,
+        certificateNo: refNo || extractStudentCertificateNumber(raw) || '—'
       });
     }
 
@@ -2845,6 +2939,27 @@ export default function StudentCertificateStudioView({
 
     // Auto-clean any un-interpolated curly bracket tokens that might have been typed or inserted
     if (editorRef.current.innerHTML.includes('{') && editorRef.current.innerHTML.includes('}')) {
+      const raw = selectedStudent?.raw || selectedStudent || {};
+      const resInfo = extractStudentResultMarks(raw);
+      const effMarksObt = tcMarksObtained !== '' ? tcMarksObtained : (resInfo.marksObtained || '—');
+      const effMaxMarks = tcMaxMarks || resInfo.maxMarks || '500';
+      const effDiv = tcDivision || resInfo.division || (effMarksObt !== '—' ? calculateDivision(effMarksObt, effMaxMarks).division : '—');
+      const effExamRoll = tcExamRoll || resInfo.examRoll || '—';
+      const effExamMode = tcExamMode || resInfo.examMode || '—';
+      const effResultStatus = tcResultStatus || resInfo.resultStatus || 'Awaiting Result';
+      const effReappSubjects = tcReappSubjects || resInfo.reappSubjects || '—';
+      const isPassed = normalizeResultStatus(effResultStatus) === 'Passed';
+      const effectiveWd = withdrawalDate || raw['Date of withdrawl'] || raw.withdrawalDate || raw['Result Date'] || raw.resultDate || toLocalDateKey();
+      const rawVillage = raw['Village/Town'] || raw.village || raw['Name of your village'] || '';
+      const cleanVillage = (rawVillage && rawVillage !== '—' && rawVillage !== '-' && !/^(null|undefined|n\/a)$/i.test(rawVillage)) ? rawVillage : '';
+      const village = cleanVillage || (typeof extractVillage === 'function' ? extractVillage(raw) : '') || address || '';
+      const rawTehsil = raw['Tehsil'] || raw.tehsil || raw['Block'] || raw.block || '';
+      const cleanTehsil = (rawTehsil && rawTehsil !== '—' && rawTehsil !== '-' && !/^(null|undefined|n\/a)$/i.test(rawTehsil)) ? rawTehsil : '';
+      const tehsil = cleanTehsil || (address && /shangus/i.test(address) ? 'Shangus' : '') || 'Shangus';
+      const rawDistrict = raw['District'] || raw.district || '';
+      const cleanDistrict = (rawDistrict && rawDistrict !== '—' && rawDistrict !== '-' && !/^(null|undefined|n\/a)$/i.test(rawDistrict)) ? rawDistrict : '';
+      const district = cleanDistrict || (address && /anantnag/i.test(address) ? 'Anantnag' : '') || 'Anantnag';
+
       const cleanedHtml = interpolateCertificateTemplate(editorRef.current.innerHTML, {
         studentName,
         fatherName,
@@ -2860,7 +2975,24 @@ export default function StudentCertificateStudioView({
         gender,
         refNo,
         date: dateStr,
-        customFields
+        includeSalutations,
+        customFields,
+        examName: `Class ${className || '12th'} Examination`,
+        examRollNo: effExamRoll,
+        examSession: effExamMode,
+        resultStatus: isPassed || selectedTemplateId.includes('qualified') ? 'Qualified' : (normalizeResultStatus(effResultStatus) === 'Reap' ? 'Re-appear' : (effResultStatus || 'Did Not Qualify')),
+        divisionDistinction: effDiv,
+        marksObtained: effMarksObt,
+        maxMarks: effMaxMarks,
+        reappSubjects: effReappSubjects,
+        admissionDate: admissionDate || extractStudentAdmissionDate(raw) || '—',
+        admissionNo: admissionNo || extractStudentAdmissionNumber(raw) || '—',
+        withdrawalDate: effectiveWd,
+        conductStatus: 'Satisfactory',
+        village,
+        tehsil,
+        district,
+        certificateNo: refNo || extractStudentCertificateNumber(raw) || '—'
       });
       if (cleanedHtml !== editorRef.current.innerHTML) {
         editorRef.current.innerHTML = cleanedHtml;
@@ -4492,20 +4624,20 @@ export default function StudentCertificateStudioView({
                         <button
                           type="button"
                           onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => { handleInsertPlaceholder(parsedDob.formatted || '{DOB_FIGURES}'); setShowInsertFieldDropdown(false); }}
+                          onClick={() => { handleInsertPlaceholder(parsedDob.figures || '{DOB_FIGURES}'); setShowInsertFieldDropdown(false); }}
                           className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
                         >
                           <span>DOB (DD-MM-YYYY)</span>
-                          <span className="text-[9px] text-slate-400">{parsedDob.formatted || '{DOB_FIGURES}'}</span>
+                          <span className="text-[9px] text-slate-400">{parsedDob.figures || '{DOB_FIGURES}'}</span>
                         </button>
                         <button
                           type="button"
                           onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => { handleInsertPlaceholder(parsedDob.inWords || '{DOB_WORDS}'); setShowInsertFieldDropdown(false); }}
+                          onClick={() => { handleInsertPlaceholder(parsedDob.words || '{DOB_WORDS}'); setShowInsertFieldDropdown(false); }}
                           className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
                         >
                           <span>DOB (in Words)</span>
-                          <span className="text-[9px] text-slate-400 truncate max-w-[120px]">{parsedDob.inWords || '{DOB_WORDS}'}</span>
+                          <span className="text-[9px] text-slate-400 truncate max-w-[120px]">{parsedDob.words || '{DOB_WORDS}'}</span>
                         </button>
                         <button
                           type="button"
