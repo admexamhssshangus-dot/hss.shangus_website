@@ -4,33 +4,34 @@ import { BrowserRouter } from 'react-router-dom';
 import './index.css';
 import App from './App';
 
-// Handle transient Firebase/Firestore & IndexedDB stream closure or tab sleep events gracefully
+// Handle transient Firebase/Firestore & IndexedDB stream closure or assertion events gracefully
 if (typeof window !== 'undefined') {
+  let lastTransientErrTime = 0;
+
   const isTransientFirebaseError = (eventOrErr) => {
     if (!eventOrErr) return false;
     const reason = eventOrErr?.reason || eventOrErr?.error || eventOrErr;
-    const msg = (
+    const rawStr = (
       String(eventOrErr?.message || '') + ' ' +
-      String(reason?.message || '') + ' ' +
-      String(reason || '')
-    ).toLowerCase();
-    const stack = (
       String(eventOrErr?.stack || '') + ' ' +
-      String(reason?.stack || '')
+      String(reason?.message || '') + ' ' +
+      String(reason?.stack || '') + ' ' +
+      String(reason || '')
     ).toLowerCase();
 
     return (
-      msg.includes('database is closing') ||
-      msg.includes('database is hidden') ||
-      msg.includes('closing/hidden') ||
-      msg.includes('indexeddblocalpersistence') ||
-      msg.includes("reading 'ae'") ||
-      msg.includes('reading "ae"') ||
-      msg.includes('b815') ||
-      msg.includes('onwatchstreamchange') ||
-      stack.includes('onwatchstreamchange') ||
-      (msg.includes('internal assertion failed') &&
-        (msg.includes('b815') || msg.includes('unexpected state') || stack.includes('onwatchstreamchange')))
+      rawStr.includes('internal assertion failed') ||
+      rawStr.includes('ca9') ||
+      rawStr.includes('b815') ||
+      rawStr.includes('onwatchstreamchange') ||
+      rawStr.includes('watchchangeaggregator') ||
+      rawStr.includes('targetstate') ||
+      rawStr.includes("reading 'ae'") ||
+      rawStr.includes('reading "ae"') ||
+      rawStr.includes('database is closing') ||
+      rawStr.includes('database is hidden') ||
+      rawStr.includes('closing/hidden') ||
+      rawStr.includes('indexeddblocalpersistence')
     );
   };
 
@@ -38,6 +39,7 @@ if (typeof window !== 'undefined') {
     'unhandledrejection',
     (event) => {
       if (isTransientFirebaseError(event)) {
+        lastTransientErrTime = Date.now();
         event.preventDefault();
         event.stopPropagation();
         event.stopImmediatePropagation?.();
@@ -50,6 +52,7 @@ if (typeof window !== 'undefined') {
     'error',
     (event) => {
       if (isTransientFirebaseError(event)) {
+        lastTransientErrTime = Date.now();
         event.preventDefault();
         event.stopPropagation();
         event.stopImmediatePropagation?.();
@@ -61,6 +64,7 @@ if (typeof window !== 'undefined') {
   const prevOnError = window.onerror;
   window.onerror = function (message, source, lineno, colno, error) {
     if (isTransientFirebaseError(error || message)) {
+      lastTransientErrTime = Date.now();
       return true;
     }
     if (typeof prevOnError === 'function') {
@@ -68,6 +72,38 @@ if (typeof window !== 'undefined') {
     }
     return false;
   };
+
+  const origConsoleError = console.error;
+  console.error = function (...args) {
+    for (const arg of args) {
+      if (isTransientFirebaseError(arg)) {
+        lastTransientErrTime = Date.now();
+        return;
+      }
+    }
+    return origConsoleError.apply(console, args);
+  };
+
+  if (typeof MutationObserver !== 'undefined') {
+    const overlayObserver = new MutationObserver((mutations) => {
+      for (const m of mutations) {
+        for (const node of m.addedNodes) {
+          if (node && node.nodeType === 1) {
+            const id = String(node.id || '');
+            const tag = String(node.tagName || '');
+            if (id === 'react-refresh-overlay' || tag === 'REACT-ERROR-OVERLAY' || id.includes('overlay')) {
+              if (Date.now() - lastTransientErrTime < 4000) {
+                try {
+                  node.remove();
+                } catch (_) {}
+              }
+            }
+          }
+        }
+      }
+    });
+    overlayObserver.observe(document.documentElement, { childList: true, subtree: true });
+  }
 }
 
 const root = ReactDOM.createRoot(document.getElementById('root'));

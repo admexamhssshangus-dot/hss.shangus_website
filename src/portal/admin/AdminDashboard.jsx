@@ -163,19 +163,20 @@ export default function AdminDashboard() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isToolsOpen]);
 
-  // Auto-heal Firestore connection and unfreeze UI on tab wake-up or focus
+  // Auto-heal stuck UI states on tab wake-up or focus; reconnect network only on actual online event
   useEffect(() => {
     const handleWakeUp = () => {
       if (document.visibilityState === 'visible') {
-        ensureFirestoreConnected();
         setLoading(false);
       }
     };
     document.addEventListener('visibilitychange', handleWakeUp);
     window.addEventListener('focus', handleWakeUp);
+    window.addEventListener('online', ensureFirestoreConnected);
     return () => {
       document.removeEventListener('visibilitychange', handleWakeUp);
       window.removeEventListener('focus', handleWakeUp);
+      window.removeEventListener('online', ensureFirestoreConnected);
     };
   }, []);
 
