@@ -284,7 +284,7 @@ export default function Navbar() {
 
   return (
     <>
-      <header ref={headerRef} className={`w-full shadow-md z-40 fixed top-0 left-0 right-0 bg-white transition-all duration-200 ease-out ${isVisible ? 'translate-y-0' : '-translate-y-full'}`}>
+      <header ref={headerRef} className={`w-full shadow-md z-50 fixed top-0 left-0 right-0 bg-white transition-all duration-200 ease-out ${isVisible ? 'translate-y-0' : '-translate-y-full'}`}>
         {/* WRAPPER: keep content in flow; header is transformed to hide/show to avoid layout jitter */}
         <div className="overflow-hidden">
           {/* ROW 1: Top Contact Bar (hidden on small screens) */}
