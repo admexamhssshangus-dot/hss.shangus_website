@@ -1,8 +1,8 @@
 # https://www.robotstxt.org/robotstxt.html
 User-agent: *
 Allow: /
-Disallow: /portal/
-Disallow: /admin/
-Disallow: /admin
+# Online-service pages return noindex headers. Allow crawling so bots can read them.
+Disallow: /.netlify/functions/
+Disallow: /api/
 
 Sitemap: https://hssshangus.netlify.app/sitemap.xml

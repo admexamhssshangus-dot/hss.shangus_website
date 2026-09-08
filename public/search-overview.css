@@ -1,0 +1,16 @@
+/* Public HTML remains readable before JavaScript starts or when it is disabled. */
+.search-overview { min-height: 100vh; background: #f5f9f8; color: #183c38; font-family: system-ui, sans-serif; line-height: 1.7; }
+.search-overview a { color: #126558; text-decoration: underline; text-underline-offset: 4px; }
+.search-overview a:focus-visible { outline: 3px solid #0d9488; outline-offset: 4px; }
+.search-overview__header { background: #fff; padding: 24px max(20px, calc((100% - 1040px) / 2)); border-bottom: 1px solid #d9e5e1; }
+.search-overview__brand { display: flex; align-items: center; gap: 16px; font-size: 24px; font-weight: 750; text-decoration: none !important; }
+.search-overview__brand img { flex-shrink: 0; object-fit: contain; }
+.search-overview__brand small { display: block; font-size: 13px; font-weight: 400; }
+.search-overview nav { display: flex; flex-wrap: wrap; gap: 12px 24px; margin-top: 20px; }
+.search-overview__main { max-width: 860px; margin: 0 auto; padding: 48px 24px; }
+.search-overview__eyebrow { font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.search-overview h1 { font-size: clamp(26px, 5vw, 40px); line-height: 1.2; font-weight: 750; margin: 16px 0 24px; }
+.search-overview__main > p { margin: 16px 0; }
+.search-overview__links a { background: #fff; border: 1px solid #ccded8; padding: 10px 16px; border-radius: 8px; }
+.search-overview__note { color: #475d57; font-size: 14px; margin-top: 28px; }
+.search-overview__footer { max-width: 1040px; margin: auto; padding: 24px; display: flex; flex-wrap: wrap; gap: 12px 24px; border-top: 1px solid #d9e5e1; font-size: 14px; }
