@@ -303,18 +303,8 @@ export function areSubjectSetsMatching(raw1, raw2) {
     return codes1.size === codes2.size && [...codes1].every(c => codes2.has(c));
   }
 
-  // Exact elective match
-  if (electives1.size === electives2.size && [...electives1].every(c => electives2.has(c))) {
-    return true;
-  }
-
-  // If both have at least 3 matching core electives and size difference <= 1
-  const common = [...electives1].filter(c => electives2.has(c));
-  if (common.length >= 3 && Math.abs(electives1.size - electives2.size) <= 1) {
-    if (electives1.size === electives2.size) return true;
-  }
-
-  return false;
+  // Exact elective match: all electives must match between 11th and 12th
+  return electives1.size === electives2.size && [...electives1].every(c => electives2.has(c));
 }
 
 /**
