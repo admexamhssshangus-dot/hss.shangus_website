@@ -295,9 +295,9 @@ export function areSubjectSetsMatching(raw1, raw2) {
 
   if (codes1.size === 0 || codes2.size === 0) return true;
 
-  // Filter out compulsory common subjects (GE, ES) when checking elective mismatches
-  const electives1 = new Set([...codes1].filter(c => c !== 'GE' && c !== 'ES'));
-  const electives2 = new Set([...codes2].filter(c => c !== 'GE' && c !== 'ES'));
+  // Filter out compulsory common subjects (GE) when checking elective mismatches
+  const electives1 = new Set([...codes1].filter(c => c !== 'GE'));
+  const electives2 = new Set([...codes2].filter(c => c !== 'GE'));
 
   if (electives1.size === 0 || electives2.size === 0) {
     return codes1.size === codes2.size && [...codes1].every(c => codes2.has(c));
@@ -346,9 +346,9 @@ export function getMismatchedSubjectsDiff(subs11th, optedSubs12th) {
     if (code && !map12.has(code)) map12.set(code, t);
   });
 
-  // Compare electives (exclude compulsory GE and ES)
-  const diffCodes12 = [...map12.keys()].filter(c => c !== 'GE' && c !== 'ES' && !map11.has(c));
-  const diffCodes11 = [...map11.keys()].filter(c => c !== 'GE' && c !== 'ES' && !map12.has(c));
+  // Compare electives (exclude compulsory GE)
+  const diffCodes12 = [...map12.keys()].filter(c => c !== 'GE' && !map11.has(c));
+  const diffCodes11 = [...map11.keys()].filter(c => c !== 'GE' && !map12.has(c));
 
   if (diffCodes12.length === 0 && diffCodes11.length === 0) {
     return { onlyIn12th: [], onlyIn11th: [], mismatchNotice: null };
