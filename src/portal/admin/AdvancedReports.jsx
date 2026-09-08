@@ -4990,6 +4990,9 @@ export default function AdvancedReports({
   const [showArchivalModal, setShowArchivalModal] = useState(false);
   const [dismissRolloverBanner, setDismissRolloverBanner] = useState(false);
   const [siteSettings, setSiteSettings] = useState(null);
+  const [hasUnseenToolsUpdate, setHasUnseenToolsUpdate] = useState(false);
+  const lastSyncedInputRef = useRef(null);
+  const recycleBinCount = unreadRecycleBinCount;
 
   // Load site settings for annual rollover schedule
   useEffect(() => {
@@ -5034,9 +5037,6 @@ export default function AdvancedReports({
       onTriggerActionHandled();
     }
   }, [triggerAction, onTriggerActionHandled]);
-  const recycleBinCount = unreadRecycleBinCount;
-  const [hasUnseenToolsUpdate, setHasUnseenToolsUpdate] = useState(false);
-  const lastSyncedInputRef = useRef(null);
 
   // Compute active user permissions signature
   const currentPermsSig = useMemo(() => {
@@ -9246,18 +9246,6 @@ export default function AdvancedReports({
 
           {/* Left Sub-Group on Mobile: Administrative Tools Suite + Mobile Filters Dropdown */}
           <div className="flex items-center gap-0.5 sm:gap-1 flex-shrink-0">
-            {/* Board Data Sync (JKBOSE) Quick Button */}
-            <button
-              type="button"
-              onClick={() => setShowBulkOverwriteModal(true)}
-              title="Board Data Sync & Overwriter: Bulk update and overwrite student fields with verified JKBOSE spreadsheet data"
-              className="compact-btn px-2 py-1 rounded-lg sm:rounded-xl flex items-center gap-1.5 transition-all whitespace-nowrap cursor-pointer bg-emerald-700 hover:bg-emerald-600 text-white shadow-xs font-black text-xs !min-h-0"
-              style={{ minHeight: 'unset', height: '28px' }}
-            >
-              <FileSpreadsheet size={13} className="sm:w-3.5 sm:h-3.5" />
-              <span className="hidden md:inline">Board Data Sync</span>
-            </button>
-
             {/* Wrench Tools Suite Dropdown Button */}
             <div className="relative inline-block text-left flex-shrink-0" ref={toolsDropdownRef}>
               <button
@@ -11788,11 +11776,15 @@ export default function AdvancedReports({
       <BulkFieldOverwriteModal
         isOpen={showBulkOverwriteModal}
         onClose={() => setShowBulkOverwriteModal(false)}
-        activeAdmissions={currentAdmissions}
-        masterHistoricalRecords={masterHistoricalRecords}
-        userEmail={user?.email || 'Admin'}
-        onOverwriteComplete={() => {
+        allStudents={allStudents.length > 0 ? allStudents : currentAdmissions}
+        currentSession="2025-26"
+        onComplete={() => {
           loadReportsData(true);
+          setToast({
+            type: 'success',
+            message: '🎉 Board Data successfully synchronized into student records!'
+          });
+          setTimeout(() => setToast(null), 5000);
         }}
       />
 
