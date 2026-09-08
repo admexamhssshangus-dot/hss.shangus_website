@@ -52,7 +52,7 @@ function getInitialTab() {
     const searchParams = new URLSearchParams(window.location.search);
     const urlTab = searchParams.get('tab');
     if (urlTab) {
-      if (urlTab === 'bulk') return 'reports';
+      if (urlTab === 'bulk' || urlTab === 'boardSync') return 'reports';
       if (urlTab === 'docStudio') {
         const sub = searchParams.get('subtab');
         if (sub === 'letter') return 'officialLetter';
@@ -109,6 +109,19 @@ export default function AdminDashboard() {
 
   const setActiveTab = useCallback((tab) => {
     if (!tab) return;
+    if (tab === 'boardSync') {
+      setHasMountedReports(true);
+      setActiveTabState('reports');
+      setTriggerAction('boardSync');
+      try {
+        sessionStorage.setItem('hss_admin_active_tab', 'reports');
+        const url = new URL(window.location.href);
+        url.searchParams.delete('tab');
+        url.searchParams.delete('subtab');
+        window.history.replaceState(null, '', url.toString());
+      } catch (_) {}
+      return;
+    }
     if (tab === activeTab && !isSwitchingTab) return;
 
     const isTargetReports = tab === 'reports';
@@ -195,7 +208,13 @@ export default function AdminDashboard() {
   });
   const [isToolsOpen, setIsToolsOpen] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
-  const [triggerAction, setTriggerAction] = useState(null); // 'analytics' | 'directEntry' | 'bulkTools'
+  const [triggerAction, setTriggerAction] = useState(() => {
+    try {
+      const searchParams = new URLSearchParams(window.location.search);
+      if (searchParams.get('tab') === 'boardSync') return 'boardSync';
+    } catch (_) {}
+    return null;
+  }); // 'analytics' | 'directEntry' | 'bulkTools' | 'boardSync'
   const [enableQuickCellEdit, setEnableQuickCellEditState] = useState(() => {
     try {
       return localStorage.getItem('hss_quick_cell_edit') === 'true';
@@ -546,6 +565,11 @@ export default function AdminDashboard() {
                       onOpenBulkTools={() => {
                         setActiveTab('reports');
                         setTriggerAction('bulkTools');
+                      }}
+                      onOpenBoardSync={() => {
+                        setHasMountedReports(true);
+                        setActiveTab('reports');
+                        setTriggerAction('boardSync');
                       }}
                       enableQuickCellEdit={enableQuickCellEdit}
                       setEnableQuickCellEdit={handleToggleQuickCellEdit}
