@@ -612,41 +612,41 @@ export function abbreviateSubjectName(subj) {
   let s = String(subj).trim();
   if (!s || s === '—') return '';
 
-  const clean = s.toLowerCase();
+  const clean = s.toLowerCase().replace(/^[•\-\*\s]+/, '').replace(/\s*\(\d+\)$/, '').trim();
 
   // Vocational & Specialized School Subjects (Checked first to avoid partial word collisions)
-  if (clean.includes('physical education & sports') || clean.includes('physical education and sports')) return 'PES';
-  if (clean.includes('physical education') || clean.includes('physical edu') || clean === 'pd' || clean === 'phe' || clean === 'ped') return 'PD';
-  if (clean.includes('it and ites') || clean.includes('it & ites') || clean.includes('it & ite') || clean.includes('it and ite') || clean.includes('information tech') || clean.includes('ites') || clean === 'ite') return 'ITE';
-  if (clean.includes('information practice') || clean === 'ip') return 'IP';
+  if (clean.includes('physical education & sports') || clean.includes('physical education and sports') || clean === 'pes') return 'PES';
+  if (clean.includes('physical education') || clean.includes('physical edu') || clean === 'pd' || clean === 'phe' || clean === 'ped' || clean === 'pe') return 'PD';
+  if (clean.includes('it and ites') || clean.includes('it & ites') || clean.includes('it & ite') || clean.includes('it and ite') || clean.includes('information tech') || clean.includes('ites') || clean === 'ite' || clean === 'it') return 'ITE';
+  if (clean.includes('information practice') || clean.includes('informatics practice') || clean === 'ip') return 'IP';
   if (clean.includes('computer science') || clean === 'cs') return 'CS';
-  if (clean.includes('healthcare') || clean.includes('health care') || clean.includes('health')) return 'HTC';
-  if (clean.includes('tourism and hospitality') || clean.includes('travel, tourism') || clean.includes('tourism')) return 'TOU';
-  if (clean.includes('retail')) return 'RET';
-  if (clean.includes('security')) return 'SEC';
-  if (clean.includes('agriculture')) return 'AGR';
-  if (clean.includes('media and entertainment')) return 'MDE';
-  if (clean.includes('beauty and wellness')) return 'BTW';
-  if (clean.includes('telecommunication')) return 'TLC';
+  if (clean.includes('healthcare') || clean.includes('health care') || clean.includes('health') || clean === 'htc' || clean === 'hc') return 'HTC';
+  if (clean.includes('tourism and hospitality') || clean.includes('travel, tourism') || clean.includes('tourism') || clean === 'tou' || clean === 'th') return 'TOU';
+  if (clean.includes('retail') || clean === 'ret') return 'RET';
+  if (clean.includes('security') || clean === 'sec') return 'SEC';
+  if (clean.includes('agriculture') || clean === 'agr' || clean === 'ag') return 'AGR';
+  if (clean.includes('media and entertainment') || clean === 'mde') return 'MDE';
+  if (clean.includes('beauty and wellness') || clean.includes('beauty & wellness') || clean === 'btw' || clean === 'bw') return 'BTW';
+  if (clean.includes('telecommunication') || clean === 'tlc') return 'TLC';
 
   // Core Academic Subjects
-  if (clean.includes('general english') || clean.includes('functional english') || clean === 'english' || clean === 'eng' || clean === 'en') return 'GE';
+  if (clean.includes('general english') || clean.includes('functional english') || clean === 'english' || clean === 'eng' || clean === 'en' || clean === 'ge' || clean === 'gn') return 'GE';
   if (clean.includes('environmental science') || clean.includes('environmental education') || clean === 'evs' || clean === 'es') return 'ES';
-  if (clean.includes('physics') || clean === 'phy') return 'PH';
-  if (clean.includes('chemistry') || clean === 'chem') return 'CH';
-  if (clean.includes('biology') || clean.includes('botany') || clean.includes('zoology') || clean === 'bio') return 'BI';
-  if (clean.includes('mathematics') || clean.includes('maths') || clean === 'math') return 'MA';
-  if (clean.includes('applied math')) return 'AM';
-  if (clean.includes('business math')) return 'BM';
-  if (clean.includes('political science') || clean.includes('political') || clean === 'pol sci' || clean === 'ps') return 'PS';
-  if (clean.includes('history') || clean === 'hist' || clean === 'ht') return 'HT';
-  if (clean.includes('education') || clean === 'edu' || clean === 'ed') return 'ED';
-  if (clean.includes('sociology') || clean === 'socio' || clean === 'so') return 'SO';
-  if (clean.includes('economics') || clean === 'eco' || clean === 'ec') return 'EC';
-  if (clean.includes('urdu') || clean === 'ur') return 'UR';
-  if (clean.includes('kashmiri') || clean === 'ka') return 'KA';
-  if (clean.includes('arabic') || clean === 'ar') return 'AR';
-  if (clean.includes('persian') || clean === 'pe') return 'PE';
+  if (clean.includes('physics') || clean === 'phy' || clean === 'ph') return 'PH';
+  if (clean.includes('chemistry') || clean === 'chem' || clean === 'ch') return 'CH';
+  if (clean.includes('biology') || clean.includes('botany') || clean.includes('zoology') || clean === 'bio' || clean === 'bi' || clean === 'bo' || clean === 'zo' || clean === 'bot' || clean === 'zoo') return 'BI';
+  if (clean.includes('mathematics') || clean.includes('maths') || clean === 'math' || clean === 'ma') return 'MA';
+  if (clean.includes('applied math') || clean === 'am') return 'AM';
+  if (clean.includes('business math') || clean === 'bm') return 'BM';
+  if (clean.includes('political science') || clean.includes('political') || clean === 'pol sci' || clean === 'pol' || clean === 'ps') return 'PS';
+  if (clean.includes('history') || clean === 'hist' || clean === 'ht' || (clean === 'hs' && !clean.includes('home'))) return 'HT';
+  if ((clean.includes('education') && !clean.includes('physical')) || clean === 'edu' || clean === 'ed') return 'ED';
+  if (clean.includes('sociology') || clean === 'socio' || clean === 'soc' || clean === 'so') return 'SO';
+  if (clean.includes('economics') || clean === 'eco' || clean === 'ec' || clean === 'eo') return 'EC';
+  if (clean.includes('urdu') || clean === 'ur' || clean === 'ud') return 'UR';
+  if (clean.includes('kashmiri') || clean === 'ka' || clean === 'kas') return 'KA';
+  if (clean.includes('arabic') || clean === 'ar' || clean === 'arb') return 'AR';
+  if (clean.includes('persian') || clean === 'pe' || clean === 'pr' || clean === 'per') return 'PE';
   if (clean.includes('hindi') || clean === 'hi') return 'HI';
   if (clean.includes('punjabi') || clean === 'pu') return 'PU';
   if (clean.includes('geography') || clean === 'geog' || clean === 'gg') return 'GG';
@@ -657,7 +657,7 @@ export function abbreviateSubjectName(subj) {
   if (clean.includes('buddhist studies') || clean === 'bu') return 'BU';
   if (clean.includes('public administration') || clean === 'pub ad' || clean === 'pa') return 'PA';
   if (clean.includes('statistics') || clean === 'stats' || clean === 'ss') return 'SS';
-  if (clean.includes('accountancy') || clean.includes('accounting') || clean === 'acc' || clean === 'ay') return 'AY';
+  if (clean.includes('accountancy') || clean.includes('accounting') || clean === 'acc' || clean === 'ay' || clean === 'ac') return 'AY';
   if (clean.includes('business studies') || clean === 'bst' || clean === 'bs') return 'BS';
   if (clean.includes('entrepreneurship') || clean === 'ep') return 'EP';
   if (clean.includes('geology') || clean === 'go') return 'GO';
@@ -665,9 +665,93 @@ export function abbreviateSubjectName(subj) {
   if (clean.includes('bio-chemistry') || clean.includes('biochemistry') || clean === 'bc') return 'BC';
   if (clean.includes('microbiology') || clean === 'mb') return 'MB';
   if (clean.includes('electronics') || clean === 'et') return 'ET';
-  if (clean.includes('home science') || clean === 'hs') return 'HS';
+  if (clean.includes('home science') || clean === 'hs' || clean === 'he') return 'HS';
   if (clean.includes('social science') || clean.includes('social studies') || clean === 'sst') return 'SST';
-  if (clean === 'science' || clean === 'sci') return 'SCI';
+  if (clean === 'science' || clean === 'sci' || clean === 'sc') return 'SCI';
+
+  return s;
+}
+
+// ─── Comprehensive HSS Shangus Subject Expansion & Normalization Engine ───
+export function expandSubjectName(subj) {
+  if (!subj) return '';
+  const s = String(subj).trim();
+  if (!s || s === '—' || /^(none|null|undefined|n\/a|-)$/i.test(s)) return '';
+
+  const clean = s.toLowerCase().replace(/^[•\-\*\s]+/, '').replace(/\s*\(\d+\)$/, '').trim();
+  if (!clean) return '';
+
+  // Core Languages
+  if (
+    clean === 'ge' || clean === 'gn' || clean === 'en' || clean === 'eng' || clean === 'english' ||
+    clean.includes('general english') || clean.includes('functional english') || clean === 'gen eng' || clean === 'gen english'
+  ) return 'General English';
+  if (clean === 'ur' || clean === 'ud' || clean.includes('urdu')) return 'Urdu';
+  if (clean === 'ka' || clean === 'kas' || clean.includes('kashmiri')) return 'Kashmiri';
+  if (clean === 'ar' || clean === 'arb' || clean.includes('arabic')) return 'Arabic';
+  if (clean === 'hi' || clean.includes('hindi')) return 'Hindi';
+  if (clean === 'pe' || clean === 'pr' || clean === 'per' || clean.includes('persian')) return 'Persian';
+  if (clean === 'pu' || clean.includes('punjabi')) return 'Punjabi';
+
+  // Science Stream
+  if (clean === 'ph' || clean === 'phy' || clean.includes('physics')) return 'Physics';
+  if (clean === 'ch' || clean === 'chem' || clean.includes('chemistry')) return 'Chemistry';
+  if (
+    clean === 'bi' || clean === 'bio' || clean === 'bo' || clean === 'zo' || clean === 'bot' || clean === 'zoo' ||
+    clean.includes('biology') || clean.includes('botany') || clean.includes('zoology')
+  ) return 'Biology';
+  if (clean === 'ma' || clean === 'math' || clean === 'maths' || clean.includes('mathematics')) return 'Mathematics';
+  if (clean === 'am' || clean.includes('applied math')) return 'Applied Mathematics';
+  if (clean === 'bm' || clean.includes('business math')) return 'Business Mathematics';
+  if (clean === 'cs' || clean.includes('computer science')) return 'Computer Science';
+  if (clean === 'ip' || clean.includes('information practice') || clean.includes('informatics practice')) return 'Informatics Practices';
+  if (clean === 'bt' || clean.includes('biotechnology')) return 'Biotechnology';
+  if (clean === 'bc' || clean.includes('biochemistry') || clean.includes('bio-chemistry')) return 'Bio-Chemistry';
+  if (clean === 'mb' || clean.includes('microbiology')) return 'Microbiology';
+  if (clean === 'et' || clean.includes('electronics')) return 'Electronics';
+  if (clean === 'go' || clean.includes('geology')) return 'Geology';
+  if (clean === 'es' || clean === 'evs' || clean.includes('environmental science') || clean.includes('environmental education')) return 'Environmental Science';
+  if (clean === 'sci' || clean === 'sc' || clean === 'science' || clean.includes('general science')) return 'Science';
+
+  // Humanities & Social Sciences
+  if (clean === 'ps' || clean === 'pol' || clean === 'pol sci' || clean.includes('political science') || clean.includes('political')) return 'Political Science';
+  if (clean === 'ht' || clean === 'hist' || (clean === 'hs' && !clean.includes('home')) || clean.includes('history')) return 'History';
+  if ((clean.includes('education') && !clean.includes('physical')) || clean === 'edu' || clean === 'ed') return 'Education';
+  if (clean === 'so' || clean === 'soc' || clean === 'socio' || clean.includes('sociology')) return 'Sociology';
+  if (clean === 'ec' || clean === 'eco' || clean === 'eo' || clean.includes('economics')) return 'Economics';
+  if (clean === 'gg' || clean === 'geog' || clean.includes('geography')) return 'Geography';
+  if (clean === 'py' || clean === 'psych' || clean.includes('psychology')) return 'Psychology';
+  if (clean === 'pl' || clean === 'phil' || clean.includes('philosophy')) return 'Philosophy';
+  if (clean === 'is' || clean.includes('islamic')) return 'Islamic Studies';
+  if (clean === 'vs' || clean.includes('vedic')) return 'Vedic Studies';
+  if (clean === 'bu' || clean.includes('buddhist')) return 'Buddhist Studies';
+  if (clean === 'pa' || clean === 'pub ad' || clean.includes('public administration')) return 'Public Administration';
+  if (clean === 'sst' || clean.includes('social science') || clean.includes('social studies')) return 'Social Science';
+
+  // Commerce
+  if (clean === 'ay' || clean === 'acc' || clean === 'ac' || clean.includes('accountancy') || clean.includes('accounting')) return 'Accountancy';
+  if (clean === 'bs' || clean === 'bst' || clean.includes('business studies')) return 'Business Studies';
+  if (clean === 'ep' || clean.includes('entrepreneurship')) return 'Entrepreneurship';
+  if (clean === 'ss' || clean === 'stats' || clean.includes('statistics')) return 'Statistics';
+
+  // Physical Education & Sports
+  if (clean === 'pes' || clean.includes('physical education & sports') || clean.includes('physical education and sports')) return 'Physical Education & Sports';
+  if (clean === 'pd' || clean === 'phe' || clean === 'ped' || clean === 'pe' || clean.includes('physical education') || clean.includes('physical edu')) return 'Physical Education';
+
+  // Vocational Subjects
+  if (
+    clean === 'ite' || clean === 'it' || clean === 'ites' || clean.includes('it and ites') || clean.includes('it & ites') ||
+    clean.includes('it & ite') || clean.includes('it and ite') || clean.includes('information tech')
+  ) return 'IT and ITES';
+  if (clean === 'htc' || clean === 'hc' || clean.includes('healthcare') || clean.includes('health care') || clean.includes('health')) return 'Healthcare';
+  if (clean === 'tou' || clean === 'th' || clean.includes('tourism and hospitality') || clean.includes('travel, tourism') || clean.includes('tourism')) return 'Tourism and Hospitality';
+  if (clean === 'ret' || clean.includes('retail')) return 'Retail';
+  if (clean === 'sec' || clean.includes('security')) return 'Security';
+  if (clean === 'agr' || clean === 'ag' || clean.includes('agriculture')) return 'Agriculture';
+  if (clean === 'mde' || clean.includes('media and entertainment')) return 'Media and Entertainment';
+  if (clean === 'btw' || clean === 'bw' || clean.includes('beauty and wellness') || clean.includes('beauty & wellness')) return 'Beauty and Wellness';
+  if (clean === 'tlc' || clean.includes('telecommunication')) return 'Telecommunication';
+  if (clean === 'hs' || clean === 'he' || clean.includes('home science')) return 'Home Science';
 
   return s;
 }
@@ -798,7 +882,22 @@ export function extractSubjects(st, useAbbr = true) {
     }
     if (typeof val === 'string' && val.trim() && !/^(—|N\/A|null|undefined)$/i.test(val.trim())) {
       if (!val.toLowerCase().includes('same as')) {
-        rawList = val.split(/[,+;]/).map(s => s.trim()).filter(Boolean);
+        const cleanedVal = val.trim()
+          .replace(/^(Science|Humanities|Arts|Commerce|General)\s*[-:]\s*/i, '')
+          .replace(/\s*\(\d+\)$/, '')
+          .trim();
+        if (cleanedVal.includes(',') || cleanedVal.includes(';') || cleanedVal.includes('+')) {
+          rawList = cleanedVal.split(/[,+;]/).map(s => s.trim()).filter(Boolean);
+        } else {
+          // If no commas, check if it's space-delimited subject codes (e.g. "GE PH CH BI PD")
+          const tokens = cleanedVal.split(/\s+/).filter(Boolean);
+          const allCodes = tokens.length >= 2 && tokens.every(t => /^[A-Za-z]{2,4}$/.test(t));
+          if (allCodes) {
+            rawList = tokens;
+          } else {
+            rawList = [cleanedVal];
+          }
+        }
         break;
       }
     }
@@ -897,20 +996,21 @@ export function extractSubjects(st, useAbbr = true) {
 
   if (rawList.length === 0) return '—';
 
-  // Clean and deduplicate preserving order
-  const uniqueSubjs = [];
+  // Clean, expand abbreviations to canonical full subject names, and deduplicate preserving order
+  const canonicalList = [];
   rawList.forEach(s => {
-    const clean = s.trim();
-    if (clean && !uniqueSubjs.includes(clean)) {
-      uniqueSubjs.push(clean);
+    const clean = String(s || '').trim().replace(/\s*\(\d+\)$/, '');
+    const expanded = expandSubjectName(clean);
+    if (expanded && !canonicalList.includes(expanded)) {
+      canonicalList.push(expanded);
     }
   });
 
-  if (uniqueSubjs.length === 0) return '—';
+  if (canonicalList.length === 0) return '—';
 
   if (useAbbr) {
     const abbrList = [];
-    uniqueSubjs.forEach(s => {
+    canonicalList.forEach(s => {
       const abbr = abbreviateSubjectName(s);
       if (abbr && !abbrList.includes(abbr)) {
         abbrList.push(abbr);
@@ -919,7 +1019,7 @@ export function extractSubjects(st, useAbbr = true) {
     return abbrList.join(', ');
   }
 
-  return uniqueSubjs.join(', ');
+  return canonicalList.join(', ');
 }
 
 export function extractStreamAbbr(st) {
@@ -1580,9 +1680,8 @@ export default function CustomRosterDocumentBuilderView({
     unifiedStudentPool.forEach(st => {
       const raw = st.rawSubjects || extractSubjects(st._rawStudent, false);
       if (!raw || raw === '—') return;
-      const parts = raw.split(/[,+;]/).map(s => s.trim()).filter(Boolean);
-      parts.forEach(p => {
-        const clean = p.replace(/\s+/g, ' ');
+      const parts = raw.split(/[,+;]/).map(s => expandSubjectName(s).trim()).filter(Boolean);
+      parts.forEach(clean => {
         if (clean && clean.length > 1 && !/^(—|none|null|undefined)$/i.test(clean)) {
           const key = clean.toLowerCase();
           if (!map.has(key)) {
@@ -2206,7 +2305,7 @@ export default function CustomRosterDocumentBuilderView({
     sessionClassStreamStudents.forEach(st => {
       String(st.rawSubjects || '')
         .split(/[,+;]/)
-        .map(subject => subject.trim().replace(/\s+/g, ' '))
+        .map(subject => expandSubjectName(subject.trim()).replace(/\s+/g, ' '))
         .filter(subject => subject && subject !== '—')
         .forEach(subject => {
           const key = subject.toLowerCase();
@@ -2265,9 +2364,18 @@ export default function CustomRosterDocumentBuilderView({
       if (normClass && !st.className.toLowerCase().includes(normClass)) return false;
       if (normStream && !st.stream.toLowerCase().includes(normStream)) return false;
       if (normSubject) {
+        const normSubjAbbr = abbreviateSubjectName(selectedSubject).toLowerCase();
         const hasSubject = String(st.rawSubjects || '')
           .split(/[,+;]/)
-          .some(subject => subject.trim().toLowerCase() === normSubject);
+          .some(subject => {
+            const trimmed = subject.trim().toLowerCase();
+            const expanded = expandSubjectName(trimmed).toLowerCase();
+            const abbr = abbreviateSubjectName(trimmed).toLowerCase();
+            return expanded === normSubject || 
+                   trimmed === normSubject || 
+                   abbr === normSubject || 
+                   (normSubjAbbr && (abbr === normSubjAbbr || trimmed === normSubjAbbr));
+          });
         if (!hasSubject) return false;
       }
       if (selectedGender !== 'ALL') {

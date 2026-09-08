@@ -104,9 +104,11 @@ export function formatStudentSubjects(rec) {
     if (!item) continue;
     if (Array.isArray(item) && item.length > 0) {
       const cleaned = item.filter(s => s && String(s).trim() !== '—' && !String(s).toLowerCase().includes('same as')).map(s => String(s).trim());
-      if (cleaned.length > 0) return cleaned.join(', ');
+      if (cleaned.length > 0) return cleaned.map(s => expandJkboseSubjectCodes(s) || s).join(', ');
     } else if (typeof item === 'string' && item.trim() && item.trim() !== '—' && !item.toLowerCase().includes('same as')) {
-      return item.trim();
+      const parts = item.split(/[,+;]/).map(s => s.trim()).filter(Boolean);
+      if (parts.length > 0) return parts.map(s => expandJkboseSubjectCodes(s) || s).join(', ');
+      return expandJkboseSubjectCodes(item.trim()) || item.trim();
     }
   }
 
