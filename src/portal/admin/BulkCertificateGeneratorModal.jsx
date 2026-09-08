@@ -755,6 +755,7 @@ export default function BulkCertificateGeneratorModal({
         gender: st.gender,
         refNo: assignedCertNo,
         date: issueDate,
+        includeSalutations: false,
         examName: `Class ${st.className} Examination`,
         examRollNo: st.examRollNo || '',
         examSession: examSessionOverride || st.session,

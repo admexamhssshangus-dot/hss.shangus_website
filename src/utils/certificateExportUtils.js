@@ -115,7 +115,7 @@ export function dobToWords(dobRaw) {
   const yearWord = yearToWords(year);
 
   const words = `${dayWord} Day of ${monthWord}, ${yearWord}`;
-  return { figures, words, standard };
+  return { figures, words, standard, formatted: figures, inWords: words };
 }
 
 // ─── OFFICIAL BUILT-IN CERTIFICATE TEMPLATES ───
@@ -128,7 +128,7 @@ export const BUILTIN_CERTIFICATE_TEMPLATES = [
     refPrefix: 'HSS/SHG/Bonafide',
     showPhoto: false,
     watermark: true,
-    bodyHtml: `<p>This is to certify that <strong>{GENDER_TITLE} {STUDENT_NAME}</strong>, {PRONOUN_SON_DAUGHTER} of <strong>Mr. {FATHER_NAME}</strong> and <strong>Mrs. {MOTHER_NAME}</strong>, residing at <strong>{ADDRESS}</strong>, is a bonafide student of this institution studying in <strong>Class {CLASS}</strong> (Stream: <strong>{STREAM}</strong>) under Class Roll No: <strong>{ROLL_NO}</strong> and Registration No: <strong>{REG_NO}</strong> during the academic session <strong>{SESSION}</strong>.</p>
+    bodyHtml: `<p>This is to certify that <strong>{GENDER_TITLE} {STUDENT_NAME}</strong>, {PRONOUN_SON_DAUGHTER} of <strong>{FATHER_TITLE} {FATHER_NAME}</strong> and <strong>{MOTHER_TITLE} {MOTHER_NAME}</strong>, residing at <strong>{ADDRESS}</strong>, is a bonafide student of this institution studying in <strong>Class {CLASS}</strong> (Stream: <strong>{STREAM}</strong>) under Class Roll No: <strong>{ROLL_NO}</strong> and Registration No: <strong>{REG_NO}</strong> during the academic session <strong>{SESSION}</strong>.</p>
 <p>As per the official school records and master admission register, {PRONOUN_HIS_HER} verified Date of Birth is <strong>{DOB_FIGURES}</strong> (in words: <strong><em>{DOB_WORDS}</em></strong>).</p>
 <p>To the best of my knowledge and belief, {PRONOUN_HE_SHE} bears a good moral character and has shown sincere dedication towards academic and extracurricular activities. This certificate is issued on the request of the student/parent for official purposes.</p>`
   },
@@ -140,7 +140,7 @@ export const BUILTIN_CERTIFICATE_TEMPLATES = [
     refPrefix: 'HSS/SHG/Char-Pres',
     showPhoto: false,
     watermark: true,
-    bodyHtml: `<p>This is to certify that <strong>{GENDER_TITLE} {STUDENT_NAME}</strong>, {PRONOUN_SON_DAUGHTER} of <strong>Mr. {FATHER_NAME}</strong> and <strong>Mrs. {MOTHER_NAME}</strong>, resident of <strong>{ADDRESS}</strong>, is a regular student of this institution reading in <strong>Class {CLASS}</strong> (Stream: <strong>{STREAM}</strong>) bearing Class Roll No: <strong>{ROLL_NO}</strong> and Registration No: <strong>{REG_NO}</strong> in academic session <strong>{SESSION}</strong>.</p>
+    bodyHtml: `<p>This is to certify that <strong>{GENDER_TITLE} {STUDENT_NAME}</strong>, {PRONOUN_SON_DAUGHTER} of <strong>{FATHER_TITLE} {FATHER_NAME}</strong> and <strong>{MOTHER_TITLE} {MOTHER_NAME}</strong>, resident of <strong>{ADDRESS}</strong>, is a regular student of this institution reading in <strong>Class {CLASS}</strong> (Stream: <strong>{STREAM}</strong>) bearing Class Roll No: <strong>{ROLL_NO}</strong> and Registration No: <strong>{REG_NO}</strong> in academic session <strong>{SESSION}</strong>.</p>
 <p>During {PRONOUN_HIS_HER} stay in this institution, {PRONOUN_HIS_HER} conduct and moral character have been found to be <strong>EXEMPLARY & SATISFACTORY</strong>. {PRONOUN_HE_SHE} has neither displayed any misconduct nor taken part in any subversive or undisciplined activities.</p>
 <p>{PRONOUN_HE_SHE} maintains high standards of discipline and regular attendance. I wish {PRONOUN_HIM_HER} all success in all future academic endeavors and pursuits.</p>`
   },
@@ -152,7 +152,7 @@ export const BUILTIN_CERTIFICATE_TEMPLATES = [
     refPrefix: 'HSS/SHG/Char-Past',
     showPhoto: false,
     watermark: true,
-    bodyHtml: `<p>This is to certify that <strong>{GENDER_TITLE} {STUDENT_NAME}</strong>, {PRONOUN_SON_DAUGHTER} of <strong>Mr. {FATHER_NAME}</strong> and <strong>Mrs. {MOTHER_NAME}</strong>, resident of <strong>{ADDRESS}</strong>, was a bonafide student of this institution and has successfully completed {PRONOUN_HIS_HER} studies in <strong>Class {CLASS}</strong> (Stream: <strong>{STREAM}</strong>) under Registration No: <strong>{REG_NO}</strong> and Roll No: <strong>{ROLL_NO}</strong> during the academic session <strong>{SESSION}</strong>.</p>
+    bodyHtml: `<p>This is to certify that <strong>{GENDER_TITLE} {STUDENT_NAME}</strong>, {PRONOUN_SON_DAUGHTER} of <strong>{FATHER_TITLE} {FATHER_NAME}</strong> and <strong>{MOTHER_TITLE} {MOTHER_NAME}</strong>, resident of <strong>{ADDRESS}</strong>, was a bonafide student of this institution and has successfully completed {PRONOUN_HIS_HER} studies in <strong>Class {CLASS}</strong> (Stream: <strong>{STREAM}</strong>) under Registration No: <strong>{REG_NO}</strong> and Roll No: <strong>{ROLL_NO}</strong> during the academic session <strong>{SESSION}</strong>.</p>
 <p>As per the official record file, {PRONOUN_HIS_HER} Date of Birth recorded in the institutional register is <strong>{DOB_FIGURES}</strong> (in words: <strong><em>{DOB_WORDS}</em></strong>).</p>
 <p>During {PRONOUN_HIS_HER} academic tenure at Govt. Higher Secondary School Shangus, {PRONOUN_HE_SHE} bore a <strong>GOOD MORAL CHARACTER</strong> and exhibited commendable discipline and cordial behavior towards teachers and fellow students. I wish {PRONOUN_HIM_HER} bright success in all future prospects.</p>`
   },
@@ -164,8 +164,8 @@ export const BUILTIN_CERTIFICATE_TEMPLATES = [
     refPrefix: 'HSS/SHG/Prov-Adm',
     showPhoto: false,
     watermark: true,
-    bodyHtml: `<p>This is to certify that <strong>{GENDER_TITLE} {STUDENT_NAME}</strong>, {PRONOUN_SON_DAUGHTER} of <strong>Mr. {FATHER_NAME}</strong>, resident of <strong>{ADDRESS}</strong>, has been provisionally admitted to <strong>Class {CLASS}</strong> (Stream: <strong>{STREAM}</strong>) at Govt. Higher Secondary School Shangus for the academic session <strong>{SESSION}</strong>.</p>
-<p>The student has been allotted Class Roll No: <strong>{ROLL_NO}</strong> and is attending regular classroom lectures and practical laboratory assignments. {PRONOUN_HIS_HER} admission is subject to final confirmation and verification of eligibility documents by JKBOSE / Department of School Education.</p>
+    bodyHtml: `<p>This is to certify that <strong>{GENDER_TITLE} {STUDENT_NAME}</strong>, {PRONOUN_SON_DAUGHTER} of <strong>{FATHER_TITLE} {FATHER_NAME}</strong> and <strong>{MOTHER_TITLE} {MOTHER_NAME}</strong>, resident of <strong>{ADDRESS}</strong>, has been provisionally admitted to <strong>Class {CLASS}</strong> (Stream: <strong>{STREAM}</strong>) at Govt. Higher Secondary School Shangus for the academic session <strong>{SESSION}</strong>.</p>
+<p>The student has been allotted Class Roll No: <strong>{ROLL_NO}</strong> and Registration No: <strong>{REG_NO}</strong>, and is attending regular classroom lectures and practical laboratory assignments. {PRONOUN_HIS_HER} admission is subject to final confirmation and verification of eligibility documents by JKBOSE / Department of School Education.</p>
 <p>This provisional bonafide certificate is issued upon request to enable the student to apply for scholarship / transport concession / government welfare schemes.</p>`
   },
   {
@@ -176,7 +176,7 @@ export const BUILTIN_CERTIFICATE_TEMPLATES = [
     refPrefix: 'HSS/SHG/NOC',
     showPhoto: false,
     watermark: true,
-    bodyHtml: `<p>This is to certify that <strong>{GENDER_TITLE} {STUDENT_NAME}</strong>, {PRONOUN_SON_DAUGHTER} of <strong>Mr. {FATHER_NAME}</strong>, resident of <strong>{ADDRESS}</strong>, was enrolled in <strong>Class {CLASS}</strong> (Stream: <strong>{STREAM}</strong>) under Registration No: <strong>{REG_NO}</strong> and Roll No: <strong>{ROLL_NO}</strong> in this institution.</p>
+    bodyHtml: `<p>This is to certify that <strong>{GENDER_TITLE} {STUDENT_NAME}</strong>, {PRONOUN_SON_DAUGHTER} of <strong>{FATHER_TITLE} {FATHER_NAME}</strong> and <strong>{MOTHER_TITLE} {MOTHER_NAME}</strong>, resident of <strong>{ADDRESS}</strong>, was enrolled in <strong>Class {CLASS}</strong> (Stream: <strong>{STREAM}</strong>) under Registration No: <strong>{REG_NO}</strong> and Roll No: <strong>{ROLL_NO}</strong> during session <strong>{SESSION}</strong> in this institution.</p>
 <p>This institution has <strong>NO OBJECTION</strong> whatsoever to {PRONOUN_HIS_HER} seeking admission / migration / transfer to any other recognized higher educational institution or Board for further studies.</p>
 <p>All institutional dues, library books, and laboratory equipment in {PRONOUN_HIS_HER} name have been cleared in full, and there are no outstanding liabilities against the candidate.</p>`
   },
@@ -188,12 +188,12 @@ export const BUILTIN_CERTIFICATE_TEMPLATES = [
     refPrefix: 'HSS/SHG/Fee-Bonafide',
     showPhoto: false,
     watermark: true,
-    bodyHtml: `<p>This is to certify that <strong>{GENDER_TITLE} {STUDENT_NAME}</strong>, {PRONOUN_SON_DAUGHTER} of <strong>Mr. {FATHER_NAME}</strong>, resident of <strong>{ADDRESS}</strong>, is a regular bonafide student of <strong>Class {CLASS}</strong> (Stream: <strong>{STREAM}</strong>), Roll No: <strong>{ROLL_NO}</strong>, Session <strong>{SESSION}</strong> in Govt. Higher Secondary School Shangus.</p>
+    bodyHtml: `<p>This is to certify that <strong>{GENDER_TITLE} {STUDENT_NAME}</strong>, {PRONOUN_SON_DAUGHTER} of <strong>{FATHER_TITLE} {FATHER_NAME}</strong> and <strong>{MOTHER_TITLE} {MOTHER_NAME}</strong>, resident of <strong>{ADDRESS}</strong>, is a regular bonafide student of <strong>Class {CLASS}</strong> (Stream: <strong>{STREAM}</strong>), Roll No: <strong>{ROLL_NO}</strong> and Registration No: <strong>{REG_NO}</strong> during academic session <strong>{SESSION}</strong> in Govt. Higher Secondary School Shangus.</p>
 <p>It is further certified that the student has paid all prescribed institutional tuition, examination, laboratory, and development fees up to date and has no pending dues against {PRONOUN_HIM_HER} as of <strong>{DATE}</strong>.</p>
 <p>This certificate is issued to facilitate the student's application for post-matric scholarship / fee reimbursement from the competent social welfare authorities.</p>`
   },
   {
-    id: 'tc_dc_qualified',
+    id: 'tc_dc_passed',
     name: 'Discharge / Transfer cum Character Certificate (Qualified / Passed)',
     category: 'Transfer & Character Certificates (TC/DC)',
     certificateTitle: 'Discharge/Transfer cum Character Certificate',
@@ -202,7 +202,7 @@ export const BUILTIN_CERTIFICATE_TEMPLATES = [
     watermark: true,
     isTcDc: true,
     resultType: 'Passed',
-    bodyHtml: `<p>This is certified that <strong>{STUDENT_NAME}</strong> {PRONOUN_SO_DO} <strong>{FATHER_NAME}</strong> Mother's Name <strong>{MOTHER_NAME}</strong> R/o <strong>{VILLAGE}</strong> tehsil <strong>{TEHSIL}</strong> district <strong>{DISTRICT}</strong>, who appeared in <strong>{EXAM_NAME}</strong> conducted by the J&K Board of School Education (JKBOSE), Srinagar, through this school during the session <strong>{EXAM_SESSION}</strong> under examination roll number <strong>{EXAM_ROLL_NO}</strong>, has been declared <strong>{RESULT_STATUS}</strong> with <strong>{DIVISION_DISTINCTION}</strong> in the said examination, securing <strong>{MARKS_OBTAINED} / {MAX_MARKS}</strong> marks as per the preliminary result records of the JKBOSE.</p>
+    bodyHtml: `<p>This is certified that <strong>{GENDER_TITLE} {STUDENT_NAME}</strong> {PRONOUN_SO_DO} <strong>{FATHER_TITLE} {FATHER_NAME}</strong> Mother's Name <strong>{MOTHER_TITLE} {MOTHER_NAME}</strong> R/o <strong>{VILLAGE}</strong> tehsil <strong>{TEHSIL}</strong> district <strong>{DISTRICT}</strong>, who appeared in <strong>{EXAM_NAME}</strong> conducted by the J&K Board of School Education (JKBOSE), Srinagar, through this school during the session <strong>{EXAM_SESSION}</strong> under examination roll number <strong>{EXAM_ROLL_NO}</strong>, has been declared <strong>{RESULT_STATUS}</strong> with <strong>{DIVISION_DISTINCTION}</strong> in the said examination, securing <strong>{MARKS_OBTAINED} / {MAX_MARKS}</strong> marks as per the preliminary result records of the JKBOSE.</p>
 <p><strong>{PRONOUN_HIS_HER_CAP}</strong> date of birth (DoB) as per the records of this school is <strong>{DOB_FIGURES}</strong> (<em>{DOB_WORDS}</em>).</p>
 <p>There are no outstanding dues against the student in this institution.</p>
 <p><strong>{PRONOUN_HIS_HER_CAP}</strong> behaviour and conduct remained <strong>{CONDUCT_STATUS}</strong> during <strong>{PRONOUN_HIS_HER_LOW}</strong> stay in the school.</p>
@@ -218,7 +218,7 @@ export const BUILTIN_CERTIFICATE_TEMPLATES = [
     watermark: true,
     isTcDc: true,
     resultType: 'Reap',
-    bodyHtml: `<p>This is certified that <strong>{STUDENT_NAME}</strong> {PRONOUN_SO_DO} <strong>{FATHER_NAME}</strong> Mother's Name <strong>{MOTHER_NAME}</strong> R/o <strong>{VILLAGE}</strong> tehsil <strong>{TEHSIL}</strong> district <strong>{DISTRICT}</strong>, who appeared in <strong>{EXAM_NAME}</strong> conducted by the J&K Board of School Education (JKBOSE), Srinagar, through this school during the session <strong>{EXAM_SESSION}</strong> under examination roll number <strong>{EXAM_ROLL_NO}</strong>, has been placed under <strong>{RESULT_STATUS}</strong> in subject(s) (<strong>{REAPP_SUBJECTS}</strong>) in the said examination as per the preliminary result records of the JKBOSE.</p>
+    bodyHtml: `<p>This is certified that <strong>{GENDER_TITLE} {STUDENT_NAME}</strong> {PRONOUN_SO_DO} <strong>{FATHER_TITLE} {FATHER_NAME}</strong> Mother's Name <strong>{MOTHER_TITLE} {MOTHER_NAME}</strong> R/o <strong>{VILLAGE}</strong> tehsil <strong>{TEHSIL}</strong> district <strong>{DISTRICT}</strong>, who appeared in <strong>{EXAM_NAME}</strong> conducted by the J&K Board of School Education (JKBOSE), Srinagar, through this school during the session <strong>{EXAM_SESSION}</strong> under examination roll number <strong>{EXAM_ROLL_NO}</strong>, has been placed under <strong>{RESULT_STATUS}</strong> in subject(s) (<strong>{REAPP_SUBJECTS}</strong>) in the said examination as per the preliminary result records of the JKBOSE.</p>
 <p><strong>{PRONOUN_HIS_HER_CAP}</strong> date of birth (DoB) as per the records of this school is <strong>{DOB_FIGURES}</strong> (<em>{DOB_WORDS}</em>).</p>
 <p>There are no outstanding dues against the student in this institution.</p>
 <p><strong>{PRONOUN_HIS_HER_CAP}</strong> behaviour and conduct remained <strong>{CONDUCT_STATUS}</strong> during <strong>{PRONOUN_HIS_HER_LOW}</strong> stay in the school.</p>
@@ -234,7 +234,7 @@ export const BUILTIN_CERTIFICATE_TEMPLATES = [
     watermark: true,
     isTcDc: true,
     resultType: 'Awaiting',
-    bodyHtml: `<p>This is certified that <strong>{STUDENT_NAME}</strong> {PRONOUN_SO_DO} <strong>{FATHER_NAME}</strong>, Mother's Name <strong>{MOTHER_NAME}</strong>, R/o <strong>{VILLAGE}</strong>, tehsil <strong>{TEHSIL}</strong>, district <strong>{DISTRICT}</strong>, studied in <strong>Class {CLASS}</strong> through this school during the session <strong>{EXAM_SESSION}</strong>. The final examination result is not recorded in the selected class and session record; therefore no pass, re-appear, division or marks status is certified in this document.</p>
+    bodyHtml: `<p>This is certified that <strong>{GENDER_TITLE} {STUDENT_NAME}</strong> {PRONOUN_SO_DO} <strong>{FATHER_TITLE} {FATHER_NAME}</strong>, Mother's Name <strong>{MOTHER_TITLE} {MOTHER_NAME}</strong>, R/o <strong>{VILLAGE}</strong>, tehsil <strong>{TEHSIL}</strong>, district <strong>{DISTRICT}</strong>, studied in <strong>Class {CLASS}</strong> through this school during the session <strong>{EXAM_SESSION}</strong>. The final examination result is not recorded in the selected class and session record; therefore no pass, re-appear, division or marks status is certified in this document.</p>
 <p><strong>{PRONOUN_HIS_HER_CAP}</strong> date of birth (DoB) as per the records of this school is <strong>{DOB_FIGURES}</strong> (<em>{DOB_WORDS}</em>).</p>
 <p>There are no outstanding dues against the student in this institution.</p>
 <p><strong>{PRONOUN_HIS_HER_CAP}</strong> behaviour and conduct remained <strong>{CONDUCT_STATUS}</strong> during <strong>{PRONOUN_HIS_HER_LOW}</strong> stay in the school.</p>
@@ -508,8 +508,11 @@ export function retokenizeCertificateBody(templateHtml, contextData = {}) {
   res = res.replace(/(resident\s+of|residing\s+at)\s*(?:<strong>)?\s*(?:(?:Mr\.|Mrs\.|Ms\.|Miss|Master)\s+)?(?:MOHAMMAD\s+TAHIR\s+WANI|\{STUDENT_NAME\})\s*(?:<\/strong>)?(?=\s*,\s*(?:was|is))/gi, '$1 <strong>{ADDRESS}</strong>');
   res = res.replace(/(?:Mr\.|Master)\s+\{STUDENT_NAME\}/g, '{GENDER_TITLE} {STUDENT_NAME}');
   res = res.replace(/(?:Ms\.|Miss)\s+\{STUDENT_NAME\}/g, '{GENDER_TITLE} {STUDENT_NAME}');
-  res = res.replace(/\bson\s+of\s+<strong>Mr\.\s+\{FATHER_NAME\}/gi, '{PRONOUN_SON_DAUGHTER} of <strong>Mr. {FATHER_NAME}');
-  res = res.replace(/\bdaughter\s+of\s+<strong>Mr\.\s+\{FATHER_NAME\}/gi, '{PRONOUN_SON_DAUGHTER} of <strong>Mr. {FATHER_NAME}');
+  res = res.replace(/(?:Mr\.|Shri)\s*\{FATHER_NAME\}/gi, '{FATHER_TITLE} {FATHER_NAME}');
+  res = res.replace(/(?:Mrs\.|Smt\.|Miss)\s*\{MOTHER_NAME\}/gi, '{MOTHER_TITLE} {MOTHER_NAME}');
+  res = res.replace(/\bson\s+of\s+<strong>(?:Mr\.\s*|\{FATHER_TITLE\}\s*)?\{FATHER_NAME\}/gi, '{PRONOUN_SON_DAUGHTER} of <strong>{FATHER_TITLE} {FATHER_NAME}');
+  res = res.replace(/\bdaughter\s+of\s+<strong>(?:Mr\.\s*|\{FATHER_TITLE\}\s*)?\{FATHER_NAME\}/gi, '{PRONOUN_SON_DAUGHTER} of <strong>{FATHER_TITLE} {FATHER_NAME}');
+  res = res.replace(/and\s+<strong>(?:Mrs\.\s*|\{MOTHER_TITLE\}\s*)?\{MOTHER_NAME\}/gi, 'and <strong>{MOTHER_TITLE} {MOTHER_NAME}');
   res = res.replace(/\b(?:His|Her)\s+studies\b/gi, '{PRONOUN_HIS_HER} studies');
   res = res.replace(/\b(?:His|Her)\s+Date\s+of\s+Birth\b/gi, '{PRONOUN_HIS_HER} Date of Birth');
   res = res.replace(/\b(?:His|Her)\s+verified\s+Date\s+of\s+Birth\b/gi, '{PRONOUN_HIS_HER} verified Date of Birth');
@@ -572,7 +575,7 @@ export function interpolateCertificateTemplate(templateHtml, studentData = {}, o
     gender = 'M',
     refNo = 'HSS/SHG/Bonafide/2026/01',
     date = new Date().toLocaleDateString('en-GB'),
-    includeSalutations = true, // Hide/unhide Mr./Mrs./Ms.
+    includeSalutations = false, // Hide/unhide Mr./Mrs./Ms. (Default: false / unchecked)
     studentTitle = null,
     fatherTitle = null,
     motherTitle = null,
@@ -654,9 +657,15 @@ export function interpolateCertificateTemplate(templateHtml, studentData = {}, o
     return String(nameStr).replace(/^(?:Mr\.|Mrs\.|Ms\.|Miss|Master|Smt\.|Shri)\s+/i, '').trim();
   };
 
-  const effStudentName = includeSalutations ? (studentName || '') : cleanSalutation(studentName || '');
-  const effFatherName = includeSalutations ? (fatherName || '') : cleanSalutation(fatherName || '');
-  const effMotherName = includeSalutations ? (motherName || '') : cleanSalutation(motherName || '');
+  const effStudentName = includeSalutations
+    ? (activeHtml.includes('{GENDER_TITLE}') || activeHtml.includes('{TITLE}') ? cleanSalutation(studentName || '') : (studentName || ''))
+    : cleanSalutation(studentName || '');
+  const effFatherName = includeSalutations
+    ? (activeHtml.includes('{FATHER_TITLE}') ? cleanSalutation(fatherName || '') : (fatherName || ''))
+    : cleanSalutation(fatherName || '');
+  const effMotherName = includeSalutations
+    ? (activeHtml.includes('{MOTHER_TITLE}') ? cleanSalutation(motherName || '') : (motherName || ''))
+    : cleanSalutation(motherName || '');
 
   let result = activeHtml;
 
@@ -842,7 +851,8 @@ export function interpolateCertificateTemplate(templateHtml, studentData = {}, o
     });
   }
 
-  // Cleanup: clean any double spaces or leading spaces in strong tags
+  // Cleanup: clean duplicate titles, double spaces or leading spaces in strong tags
+  result = result.replace(/\b(Mr\.|Mrs\.|Ms\.|Miss|Master)\s+(Mr\.|Mrs\.|Ms\.|Miss|Master)\b/gi, '$2');
   result = result.replace(/<strong>\s+/g, '<strong>');
   result = result.replace(/\s+<\/strong>/g, '</strong>');
 
