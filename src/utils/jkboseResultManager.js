@@ -91,38 +91,60 @@ export const JKBOSE_SUBJECT_CODES = [
 export function expandJkboseSubjectCodes(codeStr) {
   if (!codeStr) return '';
   const cleanStr = String(codeStr).replace(/^Reap\s+/i, '').trim();
-  if (!cleanStr || /^(passed|pass|promoted|—|-|n\/a)$/i.test(cleanStr)) return cleanStr;
+  if (!cleanStr || /^(passed|pass|promoted|—|-|n\/a|and|&|or|with)$/i.test(cleanStr)) {
+    if (/^(and|&|or|with)$/i.test(cleanStr)) return '';
+    return cleanStr;
+  }
+
+  // Normalize punctuation and extraneous ", and, "
+  const preCleaned = cleanStr
+    .replace(/\b,\s*and\s*,?\s*/gi, ', ')
+    .replace(/\b\s*and\s+(?=[A-Za-z])/gi, (match, offset, str) => {
+      const prefix = str.slice(Math.max(0, offset - 15), offset).toLowerCase();
+      if (prefix.includes('it ') || prefix.includes('beauty ') || prefix.includes('tourism ') || prefix.includes('media ') || prefix.includes('typewriting ')) {
+        return match;
+      }
+      return ', ';
+    });
 
   // If already contains full subject names or commas, split by comma/semicolon/newline
   let rawTokens = [];
-  if (cleanStr.includes(',') || cleanStr.includes(';') || cleanStr.includes('\n')) {
-    rawTokens = cleanStr.split(/[,;\n\r\t]+/).map(s => s.trim()).filter(Boolean);
+  if (preCleaned.includes(',') || preCleaned.includes(';') || preCleaned.includes('\n')) {
+    rawTokens = preCleaned.split(/[,;\n\r\t]+/).map(s => s.trim()).filter(Boolean);
   } else {
     // If no commas, check if it's space-separated 2-4 letter codes (e.g. "GN ED UD PD" or "GE EC HT PS PD")
-    const words = cleanStr.split(/[\s+/]+/).filter(Boolean);
+    const words = preCleaned.split(/[\s+/]+/).filter(Boolean);
     const allShortCodes = words.length > 0 && words.every(w => /^[A-Za-z]{2,4}$/.test(w));
     if (allShortCodes) {
       rawTokens = words;
     } else {
-      rawTokens = [cleanStr];
+      rawTokens = [preCleaned];
     }
   }
 
-  const expanded = rawTokens.map(t => {
-    const trimmed = t.trim();
+  const seen = new Set();
+  const expanded = [];
+
+  rawTokens.forEach(t => {
+    const trimmed = t.trim().replace(/^(and|&)\s+/i, '').trim();
+    if (!trimmed || /^(and|&|or|with|same as|none|nil|null|undefined|—|-|n\/?a)$/i.test(trimmed)) return;
     const upper = trimmed.toUpperCase();
+    let name = trimmed;
     if (upper === 'PHE' || upper === 'PE' || upper === 'PD' || upper === 'PED') {
-      return 'Physical Education';
+      name = 'Physical Education';
+    } else if (upper === 'PES') {
+      name = 'Physical Education & Sports';
+    } else if (upper === 'PA' || upper === 'PAD') {
+      name = 'Public Administration';
+    } else {
+      const found = JKBOSE_SUBJECT_CODES.find(c => c.code.toUpperCase() === upper);
+      if (found) name = found.name;
     }
-    if (upper === 'PES') {
-      return 'Physical Education & Sports';
+
+    if (!seen.has(name.toLowerCase())) {
+      seen.add(name.toLowerCase());
+      expanded.push(name);
     }
-    if (upper === 'PA' || upper === 'PAD') {
-      return 'Public Administration';
-    }
-    const found = JKBOSE_SUBJECT_CODES.find(c => c.code.toUpperCase() === upper);
-    if (found) return found.name;
-    return trimmed;
   });
 
   return expanded.join(', ');
