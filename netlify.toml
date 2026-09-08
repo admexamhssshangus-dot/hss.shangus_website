@@ -7,6 +7,10 @@
   NODE_VERSION = "22"
   GENERATE_SOURCEMAP = "false"
 
+# Canonical public URL redirects are generated explicitly during the build.
+[build.processing.html]
+  pretty_urls = false
+
 [functions]
   node_bundler = "esbuild"
 
@@ -39,7 +43,7 @@
 
 [[redirects]]
   from = "/*"
-  to = "/index.html"
+  to = "/app-shell.html"
   status = 200
 
 [[headers]]
@@ -62,6 +66,42 @@
   for = "/static/*"
   [headers.values]
     Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/portal"
+  [headers.values]
+    X-Robots-Tag = "noindex, follow"
+    Cache-Control = "no-store"
+
+[[headers]]
+  for = "/portal/*"
+  [headers.values]
+    X-Robots-Tag = "noindex, follow"
+    Cache-Control = "no-store"
+
+[[headers]]
+  for = "/admin"
+  [headers.values]
+    X-Robots-Tag = "noindex, follow"
+    Cache-Control = "no-store"
+
+[[headers]]
+  for = "/admin/*"
+  [headers.values]
+    X-Robots-Tag = "noindex, follow"
+    Cache-Control = "no-store"
+
+[[headers]]
+  for = "/verify-student"
+  [headers.values]
+    X-Robots-Tag = "noindex, follow"
+    Cache-Control = "no-store"
+
+[[headers]]
+  for = "/verify-student/*"
+  [headers.values]
+    X-Robots-Tag = "noindex, follow"
+    Cache-Control = "no-store"
 
 [[headers]]
   for = "/slides/*"

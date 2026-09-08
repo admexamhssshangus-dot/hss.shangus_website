@@ -19,7 +19,8 @@
   },
   "scripts": {
     "start": "react-scripts start",
-    "build": "react-scripts build",
+    "build": "react-scripts build && node scripts/generate-search-pages.js && node scripts/seo-regression-check.js",
+    "seo:check": "node scripts/seo-regression-check.js",
     "test": "react-scripts test",
     "admission:check": "node scripts/admission-regression-check.js",
     "security:check": "node scripts/security-regression-check.js",
