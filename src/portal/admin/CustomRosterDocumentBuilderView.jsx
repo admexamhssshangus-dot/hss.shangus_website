@@ -13,7 +13,8 @@ import {
   Settings2, RefreshCw, X, UserCheck, BookOpen, User,
   ChevronDown, ChevronUp, ArrowLeft, ArrowRight, GripVertical,
   ArrowUpDown, ArrowUp, ArrowDown, Edit3, Save, RotateCcw, Check, Bookmark, Award,
-  Calculator, IndianRupee, FlaskConical, CheckCircle2, Cloud, Info, Zap
+  Calculator, IndianRupee, FlaskConical, CheckCircle2, Cloud, Info, Zap,
+  Columns, ClipboardList
 } from 'lucide-react';
 import { generateCustomRosterDocx } from '../../utils/customRosterDocxGenerator';
 import {
@@ -1652,6 +1653,58 @@ export default function CustomRosterDocumentBuilderView({
   const [selectedRowHeightIdx, setSelectedRowHeightIdx] = useState(2); // Default: Signature (52px)
   const [signatories] = useState(['Incharge Admissions & Exam', 'Principal']);
 
+  // ─── 2-Column Attendance Sheet Layout States ───
+  const [layoutMode, setLayoutMode] = useState('standard'); // 'standard' | 'two_column_attendance'
+  const [attendanceExamName, setAttendanceExamName] = useState('Annual Regular Examination');
+  const [attendanceExamYear, setAttendanceExamYear] = useState('');
+  const [attendanceClass, setAttendanceClass] = useState('');
+  const [attendanceDate, setAttendanceDate] = useState('');
+  const [attendanceSubject, setAttendanceSubject] = useState('');
+  const [attendancePaper, setAttendancePaper] = useState('');
+  const [attendanceRowsPerColumn, setAttendanceRowsPerColumn] = useState(25);
+
+  const effectiveExamDetails = useMemo(() => {
+    return {
+      examName: attendanceExamName,
+      examYear: attendanceExamYear || (selectedSession !== 'ALL' ? selectedSession : '2025-26'),
+      className: attendanceClass || (selectedClass !== 'ALL' ? selectedClass : ''),
+      examDate: attendanceDate,
+      subjectName: attendanceSubject || (selectedSubject !== 'ALL' ? selectedSubject : ''),
+      paper: attendancePaper
+    };
+  }, [attendanceExamName, attendanceExamYear, selectedSession, attendanceClass, selectedClass, attendanceDate, attendanceSubject, selectedSubject, attendancePaper]);
+
+  const handleLayoutModeChange = (mode) => {
+    setLayoutMode(mode);
+    if (mode === 'two_column_attendance') {
+      if (docTitle === 'STUDENT RECORD & SIGNATURE SHEET' || !docTitle) {
+        setDocTitle('DAILY ATTENDANCE SHEET');
+      }
+    } else {
+      if (docTitle === 'DAILY ATTENDANCE SHEET') {
+        setDocTitle('STUDENT RECORD & SIGNATURE SHEET');
+      }
+    }
+  };
+
+  const handlePrefillExamDetails = () => {
+    setAttendanceExamName('Annual Regular Examination');
+    setAttendanceExamYear(selectedSession !== 'ALL' ? selectedSession : '2025-26');
+    setAttendanceClass(selectedClass !== 'ALL' ? selectedClass : '');
+    setAttendanceDate(new Date().toLocaleDateString('en-GB'));
+    setAttendanceSubject(selectedSubject !== 'ALL' ? selectedSubject : '');
+    setAttendancePaper('Paper I');
+  };
+
+  const handleClearExamDetails = () => {
+    setAttendanceExamName('');
+    setAttendanceExamYear('');
+    setAttendanceClass('');
+    setAttendanceDate('');
+    setAttendanceSubject('');
+    setAttendancePaper('');
+  };
+
   // ─── Draggable Dual-Pane Splitter State (Left Palette % vs Right Preview %) ───
   const [leftSplitPct, setLeftSplitPct] = useState(() => {
     try {
@@ -2342,14 +2395,16 @@ export default function CustomRosterDocumentBuilderView({
     setIsExporting(true);
     try {
       await generateCustomRosterDocx({
-        title: docTitle || 'STUDENT ROSTER',
+        title: docTitle || (layoutMode === 'two_column_attendance' ? 'DAILY ATTENDANCE SHEET' : 'STUDENT ROSTER'),
         subtitle: docSubtitle,
         metaBadges,
         columns: activeTableColumns,
         rows: processedRows,
         orientation,
         rowHeightDxa: ROW_HEIGHT_PRESETS[selectedRowHeightIdx].dxa,
-        signatories
+        signatories,
+        layoutMode,
+        examDetails: effectiveExamDetails
       });
     } catch (err) {
       console.error('Word export error:', err);
@@ -2375,14 +2430,17 @@ export default function CustomRosterDocumentBuilderView({
       }));
 
       printCustomRosterTable({
-      title: docTitle || 'STUDENT ROSTER',
-      subtitle: docSubtitle,
-      metaBadges,
-      columns: activeTableColumns,
-      rows: printableRows,
-      orientation,
-      rowHeightPx: ROW_HEIGHT_PRESETS[selectedRowHeightIdx].px,
-      signatories
+        title: docTitle || (layoutMode === 'two_column_attendance' ? 'DAILY ATTENDANCE SHEET' : 'STUDENT ROSTER'),
+        subtitle: docSubtitle,
+        metaBadges,
+        columns: activeTableColumns,
+        rows: printableRows,
+        orientation,
+        rowHeightPx: ROW_HEIGHT_PRESETS[selectedRowHeightIdx].px,
+        signatories,
+        layoutMode,
+        examDetails: effectiveExamDetails,
+        rowsPerColumn: attendanceRowsPerColumn
       });
     } finally {
       setIsExporting(false);
@@ -2392,18 +2450,21 @@ export default function CustomRosterDocumentBuilderView({
   // Export to Excel (.xlsx)
   const handleExportExcel = () => {
     exportCustomRosterExcel({
-      title: docTitle || 'Student_Roster',
+      title: docTitle || (layoutMode === 'two_column_attendance' ? 'Daily_Attendance_Sheet' : 'Student_Roster'),
       columns: activeTableColumns,
-      rows: processedRows
+      rows: processedRows,
+      layoutMode,
+      examDetails: effectiveExamDetails
     });
   };
 
   // Export to CSV
   const handleExportCsv = () => {
     exportCustomRosterCsv({
-      title: docTitle || 'Student_Roster',
+      title: docTitle || (layoutMode === 'two_column_attendance' ? 'Daily_Attendance_Sheet' : 'Student_Roster'),
       columns: activeTableColumns,
-      rows: processedRows
+      rows: processedRows,
+      layoutMode
     });
   };
 
@@ -2436,6 +2497,36 @@ export default function CustomRosterDocumentBuilderView({
               placeholder="DOCUMENT TITLE (PRINTED ON REGISTER)"
               className="w-full px-2 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-black text-[10.5px] uppercase shadow-2xs text-slate-900 dark:text-slate-100"
             />
+          </div>
+
+          {/* Layout Structure Toggle (Standard Table vs 2-Column Attendance Sheet) */}
+          <div className="inline-flex rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 p-0.5 text-[9.5px] font-black">
+            <button
+              type="button"
+              onClick={() => handleLayoutModeChange('standard')}
+              className={`px-2 py-0.5 rounded cursor-pointer transition-all flex items-center gap-1 ${
+                layoutMode === 'standard'
+                  ? 'bg-indigo-600 text-white shadow-2xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+              title="Standard multi-column cohort roster"
+            >
+              <Columns size={10} />
+              <span>Standard</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleLayoutModeChange('two_column_attendance')}
+              className={`px-2 py-0.5 rounded cursor-pointer transition-all flex items-center gap-1 ${
+                layoutMode === 'two_column_attendance'
+                  ? 'bg-amber-600 text-white shadow-2xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+              title="Official two-column examination daily attendance sheet"
+            >
+              <ClipboardList size={10} />
+              <span>2-Col Attendance</span>
+            </button>
           </div>
 
           {/* Orientation Toggle */}
@@ -2822,14 +2913,266 @@ export default function CustomRosterDocumentBuilderView({
           style={{ width: isDesktop ? `${100 - leftSplitPct}%` : '100%' }}
           className="w-full lg:flex-1 sticky top-3 self-start pl-0 lg:pl-1 min-w-0"
         >
+          {/* Quick Examination Attendance Setup Toolbar (Visible when in 2-Column Attendance layout) */}
+          {layoutMode === 'two_column_attendance' && (
+            <div className="mb-2 p-2 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-xs shadow-2xs space-y-1.5">
+              <div className="flex items-center justify-between gap-1 flex-wrap">
+                <span className="font-black text-[11px] text-amber-900 dark:text-amber-300 flex items-center gap-1">
+                  <ClipboardList size={13} className="text-amber-600" />
+                  <span>Examination Attendance Sheet Setup</span>
+                </span>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={handlePrefillExamDetails}
+                    className="px-2 py-0.5 rounded bg-amber-200/70 hover:bg-amber-300 dark:bg-amber-900/60 dark:hover:bg-amber-800 text-amber-900 dark:text-amber-200 font-extrabold text-[9.5px] cursor-pointer transition-colors"
+                    title="Auto-fill exam details from active cohort filters"
+                  >
+                    ⚡ Auto-Fill
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleClearExamDetails}
+                    className="px-2 py-0.5 rounded bg-slate-200/70 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-extrabold text-[9.5px] cursor-pointer transition-colors"
+                    title="Clear exam details"
+                  >
+                    Clear
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-1.5">
+                <div className="sm:col-span-2 lg:col-span-2">
+                  <label className="block text-[8.5px] font-black text-slate-600 dark:text-slate-400 uppercase">Exam Name</label>
+                  <input
+                    type="text"
+                    value={attendanceExamName}
+                    onChange={(e) => setAttendanceExamName(e.target.value)}
+                    placeholder="Annual Regular Examination"
+                    className="w-full px-1.5 py-0.5 rounded border border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-900 text-[10px] font-bold text-slate-900 dark:text-slate-100"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[8.5px] font-black text-slate-600 dark:text-slate-400 uppercase">Year</label>
+                  <input
+                    type="text"
+                    value={attendanceExamYear}
+                    onChange={(e) => setAttendanceExamYear(e.target.value)}
+                    placeholder="2025-26"
+                    className="w-full px-1.5 py-0.5 rounded border border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-900 text-[10px] font-bold text-slate-900 dark:text-slate-100"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[8.5px] font-black text-slate-600 dark:text-slate-400 uppercase">Class</label>
+                  <input
+                    type="text"
+                    value={attendanceClass}
+                    onChange={(e) => setAttendanceClass(e.target.value)}
+                    placeholder="11th / 12th"
+                    className="w-full px-1.5 py-0.5 rounded border border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-900 text-[10px] font-bold text-slate-900 dark:text-slate-100"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[8.5px] font-black text-slate-600 dark:text-slate-400 uppercase">Date</label>
+                  <input
+                    type="text"
+                    value={attendanceDate}
+                    onChange={(e) => setAttendanceDate(e.target.value)}
+                    placeholder="DD/MM/YYYY"
+                    className="w-full px-1.5 py-0.5 rounded border border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-900 text-[10px] font-bold text-slate-900 dark:text-slate-100"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[8.5px] font-black text-slate-600 dark:text-slate-400 uppercase">Subject</label>
+                  <input
+                    type="text"
+                    value={attendanceSubject}
+                    onChange={(e) => setAttendanceSubject(e.target.value)}
+                    placeholder="General English"
+                    className="w-full px-1.5 py-0.5 rounded border border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-900 text-[10px] font-bold text-slate-900 dark:text-slate-100"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[8.5px] font-black text-slate-600 dark:text-slate-400 uppercase">Paper</label>
+                  <input
+                    type="text"
+                    value={attendancePaper}
+                    onChange={(e) => setAttendancePaper(e.target.value)}
+                    placeholder="Paper I"
+                    className="w-full px-1.5 py-0.5 rounded border border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-900 text-[10px] font-bold text-slate-900 dark:text-slate-100"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Paper Sheet Preview Container (Independent Scrollable Window) */}
           <div className="bg-white text-slate-900 border border-slate-300 rounded-xl p-3 sm:p-5 shadow-sm overflow-x-auto max-h-[calc(100vh-100px)] overflow-y-auto">
-            
-            {/* Institution Official Letterhead Header */}
-            <div className="text-center border-b-2 border-[#800000] pb-2 mb-2.5">
-              <h2 className="text-sm sm:text-base font-black text-[#800000] tracking-wide m-0">
-                GOVERNMENT HIGHER SECONDARY SCHOOL SHANGUS
-              </h2>
+            {layoutMode === 'two_column_attendance' ? (
+              /* ── 2-COLUMN EXAMINATION ATTENDANCE PREVIEW ── */
+              <div>
+                {/* Official Gray Institutional Header Banner */}
+                <div className="bg-[#cbd5e1] text-slate-950 font-black text-center py-1.5 px-3 text-sm sm:text-base tracking-wide border-2 border-slate-800 shadow-2xs font-serif">
+                  Govt. Higher Secondary School Shangus, Anantnag
+                </div>
+
+                {/* Centered Underlined Attendance Sheet Title */}
+                <h3 className="text-center font-black text-xs sm:text-sm uppercase underline tracking-wider text-slate-950 my-2.5 font-serif">
+                  {docTitle || 'DAILY ATTENDANCE SHEET'}
+                </h3>
+
+                {/* Exam Details Dotted Metadata Header */}
+                <div className="text-[10px] font-semibold text-slate-900 space-y-1.5 mb-3 px-1">
+                  <div className="flex items-baseline justify-between flex-wrap gap-2">
+                    <div className="flex items-baseline gap-1">
+                      <span className="font-bold">Name of the Examination</span>
+                      <span className="font-mono text-slate-800 font-semibold border-b border-dotted border-slate-700 min-w-[200px] px-1 inline-block">
+                        {effectiveExamDetails.examName || '...........................................................................'}
+                      </span>
+                    </div>
+                    <div className="flex items-baseline gap-1">
+                      <span className="font-bold">Year</span>
+                      <span className="font-mono text-slate-800 font-semibold border-b border-dotted border-slate-700 min-w-[90px] px-1 inline-block text-center">
+                        {effectiveExamDetails.examYear || '.............................'}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex items-baseline justify-between flex-wrap gap-2">
+                    <div className="flex items-baseline gap-1">
+                      <span className="font-bold">Class</span>
+                      <span className="font-mono text-slate-800 font-semibold border-b border-dotted border-slate-700 min-w-[70px] px-1 inline-block text-center">
+                        {effectiveExamDetails.className || '..................'}
+                      </span>
+                    </div>
+                    <div className="flex items-baseline gap-1">
+                      <span className="font-bold">Date</span>
+                      <span className="font-mono text-slate-800 font-semibold border-b border-dotted border-slate-700 min-w-[70px] px-1 inline-block text-center">
+                        {effectiveExamDetails.examDate || '..................'}
+                      </span>
+                    </div>
+                    <div className="flex items-baseline gap-1">
+                      <span className="font-bold">Subject</span>
+                      <span className="font-mono text-slate-800 font-semibold border-b border-dotted border-slate-700 min-w-[100px] px-1 inline-block text-center">
+                        {effectiveExamDetails.subjectName || '..................'}
+                      </span>
+                    </div>
+                    <div className="flex items-baseline gap-1">
+                      <span className="font-bold">Paper</span>
+                      <span className="font-mono text-slate-800 font-semibold border-b border-dotted border-slate-700 min-w-[60px] px-1 inline-block text-center">
+                        {effectiveExamDetails.paper || '..................'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Two-Column Side-by-Side Tables */}
+                {processedRows.length === 0 ? (
+                  <div className="text-center py-10 text-slate-400 font-bold text-xs border border-dashed border-slate-300 rounded-lg">
+                    No student records match the selected cohort filters.
+                  </div>
+                ) : (
+                  (() => {
+                    const previewRows = showAllPreviewRows ? processedRows : processedRows.slice(0, attendanceRowsPerColumn * 2);
+                    const half = Math.ceil(previewRows.length / 2);
+
+                    return (
+                      <div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                          {/* Left Column Table */}
+                          <div className="overflow-hidden border-2 border-slate-800">
+                            <table className="w-full table-fixed border-collapse text-xs">
+                              <thead>
+                                <tr className="bg-slate-100 text-slate-900 border-b-2 border-slate-800 font-serif">
+                                  <th className="border-r border-slate-700 px-1 py-1 font-black text-[9px] w-[18%] text-center">R.No.</th>
+                                  <th className="border-r border-slate-700 px-1.5 py-1 font-black text-[9px] w-[54%] text-left">Name of the Candidate</th>
+                                  <th className="px-1 py-1 font-black text-[9px] w-[28%] text-center">Sig. of the Candidate</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-slate-400">
+                                {Array.from({ length: half }).map((_, i) => {
+                                  const row = previewRows[i];
+                                  if (!row) return null;
+                                  const roll = (row.classRollNo && row.classRollNo !== '—' && row.classRollNo !== '-') ? row.classRollNo : (row.sno || i + 1);
+                                  return (
+                                    <tr key={i} className="h-8.5 hover:bg-slate-50">
+                                      <td className="border-r border-slate-400 text-center font-bold text-[9px] px-1 text-slate-900">{roll}</td>
+                                      <td className="border-r border-slate-400 font-semibold text-[9px] px-1.5 truncate text-slate-900">{row.studentName || row.name || '—'}</td>
+                                      <td className="bg-white"></td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+
+                          {/* Right Column Table */}
+                          <div className="overflow-hidden border-2 border-slate-800">
+                            <table className="w-full table-fixed border-collapse text-xs">
+                              <thead>
+                                <tr className="bg-slate-100 text-slate-900 border-b-2 border-slate-800 font-serif">
+                                  <th className="border-r border-slate-700 px-1 py-1 font-black text-[9px] w-[18%] text-center">R.No.</th>
+                                  <th className="border-r border-slate-700 px-1.5 py-1 font-black text-[9px] w-[54%] text-left">Name of the Candidate</th>
+                                  <th className="px-1 py-1 font-black text-[9px] w-[28%] text-center">Sig. of the Candidate</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-slate-400">
+                                {Array.from({ length: half }).map((_, i) => {
+                                  const row = previewRows[half + i];
+                                  const roll = row ? ((row.classRollNo && row.classRollNo !== '—' && row.classRollNo !== '-') ? row.classRollNo : (row.sno || half + i + 1)) : '';
+                                  return (
+                                    <tr key={i} className="h-8.5 hover:bg-slate-50">
+                                      <td className="border-r border-slate-400 text-center font-bold text-[9px] px-1 text-slate-900">{roll}</td>
+                                      <td className="border-r border-slate-400 font-semibold text-[9px] px-1.5 truncate text-slate-900">{row ? (row.studentName || row.name || '') : ''}</td>
+                                      <td className="bg-white"></td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+
+                        {/* Pagination / Expand Preview Note */}
+                        {processedRows.length > attendanceRowsPerColumn * 2 && (
+                          <div className="mt-3 text-center">
+                            <button
+                              type="button"
+                              onClick={() => setShowAllPreviewRows(!showAllPreviewRows)}
+                              className="px-3 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 font-bold text-[10px] border border-amber-200 cursor-pointer"
+                            >
+                              {showAllPreviewRows ? (
+                                <span>▲ Collapse Preview to Page 1 ({attendanceRowsPerColumn * 2} Candidates)</span>
+                              ) : (
+                                <span>▼ Show All {processedRows.length} Candidates on Preview Sheet (Export & Print always includes all {processedRows.length} candidates)</span>
+                              )}
+                            </button>
+                          </div>
+                        )}
+
+                        {/* Superintendent Signature Blocks */}
+                        <div className="flex items-center justify-between pt-8 px-6 text-center mt-4">
+                          <div className="w-44 sm:w-56 text-center">
+                            <div className="border-b-2 border-slate-700 mb-1"></div>
+                            <div className="font-black text-[9.5px] text-slate-900 uppercase tracking-tight">Sig. of the Asstt. Supdt.</div>
+                          </div>
+                          <div className="w-44 sm:w-56 text-center">
+                            <div className="border-b-2 border-slate-700 mb-1"></div>
+                            <div className="font-black text-[9.5px] text-slate-900 uppercase tracking-tight">Sig. of the Centre Supdt.</div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()
+                )}
+              </div>
+            ) : (
+              /* ── STANDARD MULTI-COLUMN ROSTER PREVIEW ── */
+              <div>
+                {/* Institution Official Letterhead Header */}
+                <div className="text-center border-b-2 border-[#800000] pb-2 mb-2.5">
+                  <h2 className="text-sm sm:text-base font-black text-[#800000] tracking-wide m-0">
+                    GOVERNMENT HIGHER SECONDARY SCHOOL SHANGUS
+                  </h2>
               <p className="text-[9.5px] text-slate-600 font-semibold m-0 mt-0.5">
                 District Anantnag, Kashmir — 192201 | Official Institutional Record
               </p>
@@ -3067,7 +3410,9 @@ export default function CustomRosterDocumentBuilderView({
               ))}
             </div>
           </div>
-        </div>
+        )}
+      </div>
+    </div>
 
       </div>
 

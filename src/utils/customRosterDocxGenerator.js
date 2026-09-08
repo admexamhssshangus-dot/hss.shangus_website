@@ -88,8 +88,20 @@ export async function generateCustomRosterDocx({
   rows = [],
   orientation = 'portrait',
   rowHeightDxa = 450,
-  signatories = ['Incharge Admissions & Exam', 'Principal']
+  signatories = ['Incharge Admissions & Exam', 'Principal'],
+  layoutMode = 'standard',
+  examDetails = {}
 }) {
+  if (layoutMode === 'two_column_attendance') {
+    return generateTwoColumnAttendanceDocx({
+      title,
+      examDetails,
+      rows,
+      rowHeightDxa,
+      signatories
+    });
+  }
+
   const isLandscape = orientation === 'landscape';
 
   // Define standard cell border
@@ -439,6 +451,327 @@ export async function generateCustomRosterDocx({
   // 7. Pack and Download
   const blob = await Packer.toBlob(doc);
   const sanitizedFilename = `${title.toLowerCase().replace(/[^a-z0-9]/g, '_')}_${new Date().toISOString().slice(0, 10)}.docx`;
+  downloadBlob(blob, sanitizedFilename);
+  return true;
+}
+
+/**
+ * Generate and download a Two-Column Examination Attendance Sheet in Word (.docx) format.
+ */
+async function generateTwoColumnAttendanceDocx({
+  title = 'DAILY ATTENDANCE SHEET',
+  examDetails = {},
+  rows = [],
+  rowHeightDxa = 500,
+  signatories = ['Sig. of the Asstt. Supdt.', 'Sig. of the Centre Supdt.']
+}) {
+  const cellBorder = {
+    top: { style: BorderStyle.SINGLE, size: 4, color: '666666' },
+    bottom: { style: BorderStyle.SINGLE, size: 4, color: '666666' },
+    left: { style: BorderStyle.SINGLE, size: 4, color: '666666' },
+    right: { style: BorderStyle.SINGLE, size: 4, color: '666666' }
+  };
+
+  const headerCellBorder = {
+    top: { style: BorderStyle.SINGLE, size: 8, color: '222222' },
+    bottom: { style: BorderStyle.SINGLE, size: 8, color: '222222' },
+    left: { style: BorderStyle.SINGLE, size: 4, color: '444444' },
+    right: { style: BorderStyle.SINGLE, size: 4, color: '444444' }
+  };
+
+  const gapCellBorder = {
+    top: { style: BorderStyle.NONE },
+    bottom: { style: BorderStyle.NONE },
+    left: { style: BorderStyle.NONE },
+    right: { style: BorderStyle.NONE }
+  };
+
+  const headerCells = [
+    new TableCell({
+      width: { size: 9, type: WidthType.PERCENTAGE },
+      shading: { fill: 'F1F5F9' },
+      borders: headerCellBorder,
+      margins: { top: 80, bottom: 80, left: 60, right: 60 },
+      children: [
+        new Paragraph({
+          alignment: AlignmentType.CENTER,
+          children: [new TextRun({ text: 'R.No.', bold: true, size: 17, font: 'Calibri' })]
+        })
+      ]
+    }),
+    new TableCell({
+      width: { size: 27, type: WidthType.PERCENTAGE },
+      shading: { fill: 'F1F5F9' },
+      borders: headerCellBorder,
+      margins: { top: 80, bottom: 80, left: 60, right: 60 },
+      children: [
+        new Paragraph({
+          alignment: AlignmentType.LEFT,
+          children: [new TextRun({ text: 'Name of the Candidate', bold: true, size: 17, font: 'Calibri' })]
+        })
+      ]
+    }),
+    new TableCell({
+      width: { size: 13, type: WidthType.PERCENTAGE },
+      shading: { fill: 'F1F5F9' },
+      borders: headerCellBorder,
+      margins: { top: 80, bottom: 80, left: 60, right: 60 },
+      children: [
+        new Paragraph({
+          alignment: AlignmentType.CENTER,
+          children: [new TextRun({ text: 'Sig. of the Candidate', bold: true, size: 16, font: 'Calibri' })]
+        })
+      ]
+    }),
+    new TableCell({
+      width: { size: 2, type: WidthType.PERCENTAGE },
+      borders: gapCellBorder,
+      children: [new Paragraph({ children: [] })]
+    }),
+    new TableCell({
+      width: { size: 9, type: WidthType.PERCENTAGE },
+      shading: { fill: 'F1F5F9' },
+      borders: headerCellBorder,
+      margins: { top: 80, bottom: 80, left: 60, right: 60 },
+      children: [
+        new Paragraph({
+          alignment: AlignmentType.CENTER,
+          children: [new TextRun({ text: 'R.No.', bold: true, size: 17, font: 'Calibri' })]
+        })
+      ]
+    }),
+    new TableCell({
+      width: { size: 27, type: WidthType.PERCENTAGE },
+      shading: { fill: 'F1F5F9' },
+      borders: headerCellBorder,
+      margins: { top: 80, bottom: 80, left: 60, right: 60 },
+      children: [
+        new Paragraph({
+          alignment: AlignmentType.LEFT,
+          children: [new TextRun({ text: 'Name of the Candidate', bold: true, size: 17, font: 'Calibri' })]
+        })
+      ]
+    }),
+    new TableCell({
+      width: { size: 13, type: WidthType.PERCENTAGE },
+      shading: { fill: 'F1F5F9' },
+      borders: headerCellBorder,
+      margins: { top: 80, bottom: 80, left: 60, right: 60 },
+      children: [
+        new Paragraph({
+          alignment: AlignmentType.CENTER,
+          children: [new TextRun({ text: 'Sig. of the Candidate', bold: true, size: 16, font: 'Calibri' })]
+        })
+      ]
+    })
+  ];
+
+  const tableHeaderRow = new TableRow({
+    tableHeader: true,
+    height: { value: 340, rule: HeightRule.ATLEAST },
+    children: headerCells
+  });
+
+  const half = Math.ceil(rows.length / 2);
+  const dataRows = [];
+
+  for (let i = 0; i < half; i++) {
+    const left = rows[i];
+    const right = rows[half + i];
+
+    const leftRoll = left ? ((left.classRollNo && left.classRollNo !== '—' && left.classRollNo !== '-') ? left.classRollNo : (left.sno || i + 1)) : '';
+    const leftName = left ? (left.studentName || left.name || '') : '';
+    const rightRoll = right ? ((right.classRollNo && right.classRollNo !== '—' && right.classRollNo !== '-') ? right.classRollNo : (right.sno || half + i + 1)) : '';
+    const rightName = right ? (right.studentName || right.name || '') : '';
+
+    const cells = [
+      new TableCell({
+        width: { size: 9, type: WidthType.PERCENTAGE },
+        borders: cellBorder,
+        margins: { top: 60, bottom: 60, left: 40, right: 40 },
+        children: [
+          new Paragraph({
+            alignment: AlignmentType.CENTER,
+            children: [new TextRun({ text: String(leftRoll), bold: true, size: 17, font: 'Calibri' })]
+          })
+        ]
+      }),
+      new TableCell({
+        width: { size: 27, type: WidthType.PERCENTAGE },
+        borders: cellBorder,
+        margins: { top: 60, bottom: 60, left: 60, right: 40 },
+        children: [
+          new Paragraph({
+            alignment: AlignmentType.LEFT,
+            children: [new TextRun({ text: leftName, size: 17, font: 'Calibri' })]
+          })
+        ]
+      }),
+      new TableCell({
+        width: { size: 13, type: WidthType.PERCENTAGE },
+        borders: cellBorder,
+        children: [new Paragraph({ children: [] })]
+      }),
+      new TableCell({
+        width: { size: 2, type: WidthType.PERCENTAGE },
+        borders: gapCellBorder,
+        children: [new Paragraph({ children: [] })]
+      }),
+      new TableCell({
+        width: { size: 9, type: WidthType.PERCENTAGE },
+        borders: right ? cellBorder : gapCellBorder,
+        margins: { top: 60, bottom: 60, left: 40, right: 40 },
+        children: [
+          new Paragraph({
+            alignment: AlignmentType.CENTER,
+            children: [new TextRun({ text: String(rightRoll), bold: true, size: 17, font: 'Calibri' })]
+          })
+        ]
+      }),
+      new TableCell({
+        width: { size: 27, type: WidthType.PERCENTAGE },
+        borders: right ? cellBorder : gapCellBorder,
+        margins: { top: 60, bottom: 60, left: 60, right: 40 },
+        children: [
+          new Paragraph({
+            alignment: AlignmentType.LEFT,
+            children: [new TextRun({ text: rightName, size: 17, font: 'Calibri' })]
+          })
+        ]
+      }),
+      new TableCell({
+        width: { size: 13, type: WidthType.PERCENTAGE },
+        borders: right ? cellBorder : gapCellBorder,
+        children: [new Paragraph({ children: [] })]
+      })
+    ];
+
+    dataRows.push(new TableRow({
+      height: { value: Math.max(Number(rowHeightDxa) || 450, 480), rule: HeightRule.ATLEAST },
+      children: cells
+    }));
+  }
+
+  const attendanceTable = new Table({
+    width: { size: 100, type: WidthType.PERCENTAGE },
+    rows: [tableHeaderRow, ...dataRows]
+  });
+
+  const examNameText = examDetails.examName || '...........................................................................';
+  const examYearText = examDetails.examYear || '.....................................';
+  const classText = examDetails.className || '..................................';
+  const dateText = examDetails.examDate || '..................................';
+  const subjectText = examDetails.subjectName || '..................................';
+  const paperText = examDetails.paper || '..................................';
+
+  const doc = new Document({
+    sections: [
+      {
+        properties: {
+          page: {
+            orientation: PageOrientation.PORTRAIT,
+            margin: { top: 400, bottom: 400, left: 500, right: 500 }
+          }
+        },
+        children: [
+          new Paragraph({
+            alignment: AlignmentType.CENTER,
+            shading: { fill: 'CBD5E1' },
+            spacing: { after: 80 },
+            children: [
+              new TextRun({
+                text: 'GOVERNMENT HIGHER SECONDARY SCHOOL SHANGUS, ANANTNAG',
+                bold: true,
+                size: 23,
+                font: 'Calibri',
+                color: '0F172A'
+              })
+            ]
+          }),
+          new Paragraph({
+            alignment: AlignmentType.CENTER,
+            spacing: { after: 80 },
+            children: [
+              new TextRun({
+                text: (title || 'DAILY ATTENDANCE SHEET').toUpperCase(),
+                bold: true,
+                size: 24,
+                font: 'Calibri',
+                underline: { type: 'single', color: '111111' },
+                color: '111111'
+              })
+            ]
+          }),
+          new Paragraph({
+            alignment: AlignmentType.LEFT,
+            spacing: { after: 40 },
+            children: [
+              new TextRun({ text: 'Name of the Examination: ', bold: true, size: 17, font: 'Calibri' }),
+              new TextRun({ text: `${examNameText}          `, size: 17, font: 'Calibri' }),
+              new TextRun({ text: 'Year: ', bold: true, size: 17, font: 'Calibri' }),
+              new TextRun({ text: examYearText, size: 17, font: 'Calibri' })
+            ]
+          }),
+          new Paragraph({
+            alignment: AlignmentType.LEFT,
+            spacing: { after: 140 },
+            children: [
+              new TextRun({ text: 'Class: ', bold: true, size: 17, font: 'Calibri' }),
+              new TextRun({ text: `${classText}      `, size: 17, font: 'Calibri' }),
+              new TextRun({ text: 'Date: ', bold: true, size: 17, font: 'Calibri' }),
+              new TextRun({ text: `${dateText}      `, size: 17, font: 'Calibri' }),
+              new TextRun({ text: 'Subject: ', bold: true, size: 17, font: 'Calibri' }),
+              new TextRun({ text: `${subjectText}      `, size: 17, font: 'Calibri' }),
+              new TextRun({ text: 'Paper: ', bold: true, size: 17, font: 'Calibri' }),
+              new TextRun({ text: paperText, size: 17, font: 'Calibri' })
+            ]
+          }),
+          attendanceTable,
+          new Paragraph({ spacing: { before: 280 }, children: [] }),
+          new Table({
+            width: { size: 100, type: WidthType.PERCENTAGE },
+            rows: [
+              new TableRow({
+                children: [
+                  new TableCell({
+                    width: { size: 50, type: WidthType.PERCENTAGE },
+                    borders: gapCellBorder,
+                    children: [
+                      new Paragraph({
+                        alignment: AlignmentType.CENTER,
+                        children: [new TextRun({ text: '_______________________________', color: '666666', size: 16 })]
+                      }),
+                      new Paragraph({
+                        alignment: AlignmentType.CENTER,
+                        children: [new TextRun({ text: (signatories && signatories[0]) || 'Sig. of the Asstt. Supdt.', bold: true, size: 17, font: 'Calibri' })]
+                      })
+                    ]
+                  }),
+                  new TableCell({
+                    width: { size: 50, type: WidthType.PERCENTAGE },
+                    borders: gapCellBorder,
+                    children: [
+                      new Paragraph({
+                        alignment: AlignmentType.CENTER,
+                        children: [new TextRun({ text: '_______________________________', color: '666666', size: 16 })]
+                      }),
+                      new Paragraph({
+                        alignment: AlignmentType.CENTER,
+                        children: [new TextRun({ text: (signatories && signatories[1]) || 'Sig. of the Centre Supdt.', bold: true, size: 17, font: 'Calibri' })]
+                      })
+                    ]
+                  })
+                ]
+              })
+            ]
+          })
+        ]
+      }
+    ]
+  });
+
+  const blob = await Packer.toBlob(doc);
+  const sanitizedFilename = `${(title || 'Attendance_Sheet').toLowerCase().replace(/[^a-z0-9]/g, '_')}_${new Date().toISOString().slice(0, 10)}.docx`;
   downloadBlob(blob, sanitizedFilename);
   return true;
 }
