@@ -63,25 +63,33 @@ export const functions = getFunctions(app);
 export const storage = getStorage(app);
 
 let enableNetworkTimer = null;
+let isReenablingNetwork = false;
 
 /**
- * Re-establish Firestore WebChannel connectivity after browser/tab sleep or inactivity.
- * Debounced to avoid stream race conditions during rapid visibility/focus transitions.
+ * Re-establish Firestore WebChannel connectivity after browser/tab sleep or offline events.
+ * Debounced and guarded to avoid watch stream race conditions and ID: ca9 assertion failures.
  */
 export async function ensureFirestoreConnected() {
   try {
-    if (!firestoreInstance) return;
+    if (!firestoreInstance || !navigator.onLine || isReenablingNetwork) return;
     if (enableNetworkTimer) {
       clearTimeout(enableNetworkTimer);
     }
     enableNetworkTimer = setTimeout(async () => {
       enableNetworkTimer = null;
+      if (isReenablingNetwork || !navigator.onLine) return;
+      isReenablingNetwork = true;
       try {
         if (firestoreInstance) {
           await enableNetwork(firestoreInstance).catch(() => {});
         }
       } catch (_) {}
-    }, 600);
+      finally {
+        setTimeout(() => {
+          isReenablingNetwork = false;
+        }, 3000);
+      }
+    }, 1500);
   } catch (_) {}
 }
 

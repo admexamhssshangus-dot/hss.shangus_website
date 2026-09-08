@@ -6132,11 +6132,10 @@ export default function AdvancedReports({
     }
   };
 
-  // Auto-heal stuck loading states, reconnect Firestore and re-authenticate on tab wake-up / window focus
+  // Auto-heal stuck loading states and re-authenticate on tab wake-up / window focus; reconnect network only on actual online event
   useEffect(() => {
     const handleVisibilityOrFocus = () => {
       if (document.visibilityState === 'visible') {
-        ensureFirestoreConnected();
         setIsFetchingData(false);
         setIsHydratingMasterRegisters(false);
         setIsSearching(false);
@@ -6149,9 +6148,11 @@ export default function AdvancedReports({
 
     document.addEventListener('visibilitychange', handleVisibilityOrFocus);
     window.addEventListener('focus', handleVisibilityOrFocus);
+    window.addEventListener('online', ensureFirestoreConnected);
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
       window.removeEventListener('focus', handleVisibilityOrFocus);
+      window.removeEventListener('online', ensureFirestoreConnected);
     };
   }, []);
 
