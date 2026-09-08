@@ -92,19 +92,83 @@ export default function AdminDashboard() {
   // Tab State: 'reports' | 'controls' | 'rollNo' | 'bulk' | 'automations' | 'funds' | 'practicals' | 'attendanceMgmt' | 'gkTest' | 'idCards'
   const [activeTab, setActiveTabState] = useState(getInitialTab);
 
+  // Keep-Alive Flags: Heavy modules stay mounted in DOM once opened so switching between
+  // them is instantaneous (0ms) and preserves search query, filters, scroll position & document setup.
+  const [hasMountedReports, setHasMountedReports] = useState(() => {
+    const init = getInitialTab();
+    return init === 'reports' || !init;
+  });
+  const [hasMountedRoster, setHasMountedRoster] = useState(() => {
+    const init = getInitialTab();
+    return init === 'customRoster' || init === 'docStudio';
+  });
+
+  // Explicit tab transition state for responsive loading indicator when mounting tabs
+  const [isSwitchingTab, setIsSwitchingTab] = useState(false);
+  const [targetSwitchTab, setTargetSwitchTab] = useState(null);
+
   const setActiveTab = useCallback((tab) => {
-    setActiveTabState(tab);
-    try {
-      sessionStorage.setItem('hss_admin_active_tab', tab);
-      const url = new URL(window.location.href);
-      if (tab === 'reports') {
-        url.searchParams.delete('tab');
-        url.searchParams.delete('subtab');
-      } else {
-        url.searchParams.set('tab', tab);
+    if (!tab) return;
+    if (tab === activeTab && !isSwitchingTab) return;
+
+    const isTargetReports = tab === 'reports';
+    const isTargetRoster = tab === 'customRoster' || tab === 'docStudio';
+
+    const syncUrl = (targetTab) => {
+      try {
+        sessionStorage.setItem('hss_admin_active_tab', targetTab);
+        const url = new URL(window.location.href);
+        if (targetTab === 'reports') {
+          url.searchParams.delete('tab');
+          url.searchParams.delete('subtab');
+        } else {
+          url.searchParams.set('tab', targetTab);
+        }
+        window.history.replaceState(null, '', url.toString());
+      } catch (_) {}
+    };
+
+    // If target tab is already mounted and preserved in DOM, switch is 0ms instant!
+    const isTargetAlreadyMounted =
+      (isTargetReports && hasMountedReports) ||
+      (isTargetRoster && hasMountedRoster);
+
+    if (isTargetAlreadyMounted) {
+      setActiveTabState(tab);
+      syncUrl(tab);
+      return;
+    }
+
+    // Otherwise, target tab is being loaded/mounted for the first time.
+    // Display TabLoadingOverlay immediately to give instant visual feedback
+    // and eliminate any perceived browser stalls while React mounts the tree.
+    setIsSwitchingTab(true);
+    setTargetSwitchTab(tab);
+    syncUrl(tab);
+
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        if (isTargetReports) setHasMountedReports(true);
+        if (isTargetRoster) setHasMountedRoster(true);
+        setActiveTabState(tab);
+        setIsSwitchingTab(false);
+        setTargetSwitchTab(null);
+      }, 50);
+    });
+  }, [activeTab, isSwitchingTab, hasMountedReports, hasMountedRoster]);
+
+  // Handle browser Back/Forward navigation
+  useEffect(() => {
+    const handlePopState = () => {
+      const tab = getInitialTab();
+      if (tab) {
+        if (tab === 'reports') setHasMountedReports(true);
+        if (tab === 'customRoster' || tab === 'docStudio') setHasMountedRoster(true);
+        setActiveTabState(tab);
       }
-      window.history.replaceState(null, '', url.toString());
-    } catch (_) {}
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
   // Sync initial tab into URL if loaded from sessionStorage
@@ -322,10 +386,10 @@ export default function AdminDashboard() {
   }, [activeTab, commitApplications, loadAdminData]);
 
   const identityStudents = useMemo(() => {
-    if (!IDENTITY_DATA_TABS.has(activeTab)) return applications;
     const master = getCachedCollectionSync('masterRegisters') || [];
+    if (!master.length) return applications || [];
     return [...(applications || []), ...master];
-  }, [activeTab, applications]);
+  }, [applications]);
 
   const handleRecordDeleted = (student) => {
     if (!student) return;
@@ -358,7 +422,7 @@ export default function AdminDashboard() {
   };
 
   // Calculate all counters in one pass rather than scanning the full cohort five times.
-  const { totalCount, approvedCount, submittedCount, draftCount, rejectedCount } = useMemo(() => {
+  const stats = useMemo(() => {
     const next = {
       totalCount: applications.length,
       approvedCount: 0,
@@ -366,7 +430,6 @@ export default function AdminDashboard() {
       draftCount: 0,
       rejectedCount: 0
     };
-    if (activeTab !== 'reports') return next;
     applications.forEach((application) => {
       if (hasClassRollVal(application)) {
         next.approvedCount += 1;
@@ -377,7 +440,7 @@ export default function AdminDashboard() {
       else if (application?.Status === 'Draft' || !application?.Status) next.draftCount += 1;
     });
     return next;
-  }, [activeTab, applications]);
+  }, [applications]);
 
   const TOOL_MODULES = ADMIN_TOOL_MODULES;
 
@@ -513,116 +576,138 @@ export default function AdminDashboard() {
                   </button>
                 </div>
               ) : (
-                <React.Suspense fallback={<TabLoadingOverlay moduleKey={activeTab} />}>
-                  {/* TAB 1: Master Register & Database */}
-                  {activeTab === 'reports' && (
-                    <AdvancedReports
-                      setActiveTab={setActiveTab}
-                      setCounts={setCounts}
-                      user={user}
-                      onLogout={handleLogoutRequest}
-                      onSync={() => loadAdminData(true)}
-                      stats={{ totalCount, submittedCount, draftCount, approvedCount, rejectedCount }}
-                      initialData={applications}
-                      onRecordDeleted={handleRecordDeleted}
-                      triggerAction={triggerAction}
-                      onTriggerActionHandled={() => setTriggerAction(null)}
-                      enableQuickCellEdit={enableQuickCellEdit}
-                      setEnableQuickCellEdit={handleToggleQuickCellEdit}
-                    />
+                <>
+                  {isSwitchingTab && (
+                    <TabLoadingOverlay moduleKey={targetSwitchTab || activeTab} />
                   )}
 
-                  {/* TAB 2: Combined Controls & Subjects Config v2 */}
-                  {activeTab === 'controls' && <ControlsAndSubjects />}
+                  <div className={isSwitchingTab ? 'hidden' : 'block w-full'}>
+                    <React.Suspense fallback={<TabLoadingOverlay moduleKey={activeTab} />}>
+                      {/* TAB 1: Master Register & Database (Kept mounted to eliminate tab-switch stalls and preserve scroll/search/filter state) */}
+                      {hasMountedReports && (
+                        <div
+                          key="master-records-reports-container"
+                          className={activeTab === 'reports' ? 'block w-full' : 'hidden'}
+                          style={activeTab === 'reports' ? undefined : { display: 'none' }}
+                          aria-hidden={activeTab !== 'reports'}
+                        >
+                          <AdvancedReports
+                            setActiveTab={setActiveTab}
+                            setCounts={setCounts}
+                            user={user}
+                            onLogout={handleLogoutRequest}
+                            onSync={() => loadAdminData(true)}
+                            stats={stats}
+                            initialData={applications}
+                            onRecordDeleted={handleRecordDeleted}
+                            triggerAction={triggerAction}
+                            onTriggerActionHandled={() => setTriggerAction(null)}
+                            enableQuickCellEdit={enableQuickCellEdit}
+                            setEnableQuickCellEdit={handleToggleQuickCellEdit}
+                          />
+                        </div>
+                      )}
 
-                  {/* TAB: Competitive Exam Prep & OMR Registrations Manager */}
-                  {activeTab === 'gkTest' && (
-                    <AdminGkTestManager
-                      allStudents={identityStudents || applications}
-                      onRefresh={loadAdminData}
-                    />
-                  )}
+                      {/* TAB 2: Combined Controls & Subjects Config v2 */}
+                      {activeTab === 'controls' && <ControlsAndSubjects />}
 
-                  {/* TAB: Admission Register & Sentup Suite */}
-                  {activeTab === 'admRegisterSuite' && (
-                    <AdmissionRegisterSuite
-                      students={applications}
-                      allHistory={getCachedCollectionSync('masterRegisters') || []}
-                      onClose={() => setActiveTab('reports')}
-                      onDataUpdated={() => loadAdminData(true)}
-                      user={user}
-                    />
-                  )}
+                      {/* TAB: Competitive Exam Prep & OMR Registrations Manager */}
+                      {activeTab === 'gkTest' && (
+                        <AdminGkTestManager
+                          allStudents={identityStudents || applications}
+                          onRefresh={loadAdminData}
+                        />
+                      )}
 
-                  {/* TAB: Student ID Cards Suite */}
-                  {activeTab === 'idCards' && (
-                    <StudentIdCardManager
-                      students={applications}
-                      onClose={() => setActiveTab('reports')}
-                    />
-                  )}
+                      {/* TAB: Admission Register & Sentup Suite */}
+                      {activeTab === 'admRegisterSuite' && (
+                        <AdmissionRegisterSuite
+                          students={applications}
+                          allHistory={getCachedCollectionSync('masterRegisters') || []}
+                          onClose={() => setActiveTab('reports')}
+                          onDataUpdated={() => loadAdminData(true)}
+                          user={user}
+                        />
+                      )}
 
-                  {/* TAB: Student Roster & Registers Studio */}
-                  {(activeTab === 'customRoster' || activeTab === 'docStudio') && (
-                    <CustomRosterDocumentBuilderView
-                      allStudents={identityStudents}
-                      onClose={() => setActiveTab('reports')}
-                    />
-                  )}
+                      {/* TAB: Student ID Cards Suite */}
+                      {activeTab === 'idCards' && (
+                        <StudentIdCardManager
+                          students={applications}
+                          onClose={() => setActiveTab('reports')}
+                        />
+                      )}
 
-                  {/* TAB: Official Letterhead Writer */}
-                  {activeTab === 'officialLetter' && (
-                    <OfficialLetterWriterView
-                      onClose={() => setActiveTab('reports')}
-                      showSettingsDrawerProp={isStudioSetupOpen}
-                      onToggleSettingsDrawer={() => setIsStudioSetupOpen(prev => !prev)}
-                    />
-                  )}
+                      {/* TAB: Student Roster & Registers Studio (Kept mounted once opened to eliminate tab-switch stalls and preserve document setup) */}
+                      {hasMountedRoster && (
+                        <div
+                          key="student-roster-registers-container"
+                          className={(activeTab === 'customRoster' || activeTab === 'docStudio') ? 'block w-full' : 'hidden'}
+                          style={(activeTab === 'customRoster' || activeTab === 'docStudio') ? undefined : { display: 'none' }}
+                          aria-hidden={activeTab !== 'customRoster' && activeTab !== 'docStudio'}
+                        >
+                          <CustomRosterDocumentBuilderView
+                            allStudents={identityStudents}
+                            onClose={() => setActiveTab('reports')}
+                          />
+                        </div>
+                      )}
 
-                  {/* TAB: Student Bonafides & Certificates Studio */}
-                  {(activeTab === 'certStudio' || activeTab === 'certificate') && (
-                    <StudentCertificateStudioView
-                      allStudents={identityStudents}
-                      identityStudents={identityStudents}
-                      onClose={() => setActiveTab('reports')}
-                      showSettingsDrawerProp={isStudioSetupOpen}
-                      onToggleSettingsDrawer={() => setIsStudioSetupOpen(prev => !prev)}
-                    />
-                  )}
+                      {/* TAB: Official Letterhead Writer */}
+                      {activeTab === 'officialLetter' && (
+                        <OfficialLetterWriterView
+                          onClose={() => setActiveTab('reports')}
+                          showSettingsDrawerProp={isStudioSetupOpen}
+                          onToggleSettingsDrawer={() => setIsStudioSetupOpen(prev => !prev)}
+                        />
+                      )}
 
-                  {/* TAB 3: Roll No Assignment */}
-                  {activeTab === 'rollNo' && (
-                    <RollNoAssignment applications={applications} onRefresh={loadAdminData} />
-                  )}
+                      {/* TAB: Student Bonafides & Certificates Studio */}
+                      {(activeTab === 'certStudio' || activeTab === 'certificate') && (
+                        <StudentCertificateStudioView
+                          allStudents={identityStudents}
+                          identityStudents={identityStudents}
+                          onClose={() => setActiveTab('reports')}
+                          showSettingsDrawerProp={isStudioSetupOpen}
+                          onToggleSettingsDrawer={() => setIsStudioSetupOpen(prev => !prev)}
+                        />
+                      )}
 
-                  {/* TAB: Application Merger & Deduplication Studio */}
-                  {activeTab === 'mergeStudio' && (
-                    <ApplicationMergerStudio
-                      applications={applications}
-                      onRefresh={loadAdminData}
-                      onClose={() => setActiveTab('reports')}
-                    />
-                  )}
+                      {/* TAB 3: Roll No Assignment */}
+                      {activeTab === 'rollNo' && (
+                        <RollNoAssignment applications={applications} onRefresh={loadAdminData} />
+                      )}
 
-                  {/* TAB 5: Automations & Group Email Composer */}
-                  {activeTab === 'automations' && (
-                    <AutomationsPage applications={applications} user={user} />
-                  )}
+                      {/* TAB: Application Merger & Deduplication Studio */}
+                      {activeTab === 'mergeStudio' && (
+                        <ApplicationMergerStudio
+                          applications={applications}
+                          onRefresh={loadAdminData}
+                          onClose={() => setActiveTab('reports')}
+                        />
+                      )}
 
-                  {/* TAB 7: Fund Distribution */}
-                  {activeTab === 'funds' && <FundDistribution />}
+                      {/* TAB 5: Automations & Group Email Composer */}
+                      {activeTab === 'automations' && (
+                        <AutomationsPage applications={applications} user={user} />
+                      )}
 
-                  {/* TAB 8: Practicals & Awards */}
-                  {activeTab === 'practicals' && <AdminPracticals />}
+                      {/* TAB 7: Fund Distribution */}
+                      {activeTab === 'funds' && <FundDistribution />}
 
-                  {/* TAB 9: Attendance Management */}
-                  {activeTab === 'attendanceMgmt' && <AdminAttendance />}
+                      {/* TAB 8: Practicals & Awards */}
+                      {activeTab === 'practicals' && <AdminPracticals />}
 
-                  {/* Unified replacement for the former independent Administrative Portal login. */}
-                  {activeTab === 'cms' && (
-                    <AdministrativeCms embeddedUser={user} onEmbeddedLogout={handleLogoutRequest} />
-                  )}
-                </React.Suspense>
+                      {/* TAB 9: Attendance Management */}
+                      {activeTab === 'attendanceMgmt' && <AdminAttendance />}
+
+                      {/* Unified replacement for the former independent Administrative Portal login. */}
+                      {activeTab === 'cms' && (
+                        <AdministrativeCms embeddedUser={user} onEmbeddedLogout={handleLogoutRequest} />
+                      )}
+                    </React.Suspense>
+                  </div>
+                </>
               )}
         </div>
 
