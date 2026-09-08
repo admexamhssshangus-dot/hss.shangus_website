@@ -64,9 +64,13 @@ export const JKBOSE_SUBJECT_CODES = [
   { code: 'AC', name: 'Accountancy', category: 'Commerce' },
   { code: 'BS', name: 'Business Studies', category: 'Commerce' },
   { code: 'BST', name: 'Business Studies', category: 'Commerce' },
-  { code: 'PD', name: 'Public Administration', category: 'Arts/Humanities' },
+  { code: 'PA', name: 'Public Administration', category: 'Arts/Humanities' },
+  { code: 'PAD', name: 'Public Administration', category: 'Arts/Humanities' },
+  { code: 'PD', name: 'Physical Education', category: 'Arts/General' },
+  { code: 'PED', name: 'Physical Education', category: 'Arts/General' },
   { code: 'PHE', name: 'Physical Education', category: 'Arts/General' },
   { code: 'PE', name: 'Physical Education', category: 'Arts/General' },
+  { code: 'PES', name: 'Physical Education & Sports', category: 'Arts/General' },
   { code: 'HE', name: 'Home Science', category: 'Arts/Humanities' },
   { code: 'ITE', name: 'IT & ITeS', category: 'Vocational' },
   { code: 'IT', name: 'IT & ITeS', category: 'Vocational' },
@@ -82,7 +86,7 @@ export const JKBOSE_SUBJECT_CODES = [
 ];
 
 /**
- * Expand JKBOSE subject codes (e.g. "GN ED UD PD" -> "General English, Education, Urdu, Public Administration")
+ * Expand JKBOSE subject codes (e.g. "GN ED UD PD" -> "General English, Education, Urdu, Physical Education")
  */
 export function expandJkboseSubjectCodes(codeStr) {
   if (!codeStr) return '';
@@ -107,11 +111,17 @@ export function expandJkboseSubjectCodes(codeStr) {
   const expanded = rawTokens.map(t => {
     const trimmed = t.trim();
     const upper = trimmed.toUpperCase();
-    const found = JKBOSE_SUBJECT_CODES.find(c => c.code.toUpperCase() === upper);
-    if (found) return found.name;
-    if (upper === 'PHE' || upper === 'PE' || upper === 'PD') {
+    if (upper === 'PHE' || upper === 'PE' || upper === 'PD' || upper === 'PED') {
       return 'Physical Education';
     }
+    if (upper === 'PES') {
+      return 'Physical Education & Sports';
+    }
+    if (upper === 'PA' || upper === 'PAD') {
+      return 'Public Administration';
+    }
+    const found = JKBOSE_SUBJECT_CODES.find(c => c.code.toUpperCase() === upper);
+    if (found) return found.name;
     return trimmed;
   });
 
