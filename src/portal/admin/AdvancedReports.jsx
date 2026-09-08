@@ -15,6 +15,10 @@ import AnalyticsSuiteModal from './AnalyticsSuiteModal';
 import DeleteApplicationModal from './DeleteApplicationModal';
 import RecycleBinModal from './RecycleBinModal';
 import AdminToolsDropdown from './AdminToolsDropdown';
+import BulkFieldOverwriteModal from './BulkFieldOverwriteModal';
+import MasterRegisterQuickEditModal from './MasterRegisterQuickEditModal';
+import SessionArchivalModal from './SessionArchivalModal';
+import { loadSiteSettings } from '../../utils/settingsLoader';
 import { moveToRecycleBin } from '../../services/recycleBinService';
 import { logAdminActivity } from '../../services/adminActivityLogger';
 import { generateStudentAdmissionPdf, generateBulkAdmissionPdf, downloadStudentAdmissionPdf, downloadBulkAdmissionPdf } from '../../utils/pdfGenerator';
@@ -4981,6 +4985,34 @@ export default function AdvancedReports({
   const [bulkTableActionBusy, setBulkTableActionBusy] = useState(false);
   const [showRecycleBinModal, setShowRecycleBinModal] = useState(false);
   const [unreadRecycleBinCount, setUnreadRecycleBinCount] = useState(0);
+  const [showBulkOverwriteModal, setShowBulkOverwriteModal] = useState(false);
+  const [quickEditMasterStudent, setQuickEditMasterStudent] = useState(null);
+  const [showArchivalModal, setShowArchivalModal] = useState(false);
+  const [dismissRolloverBanner, setDismissRolloverBanner] = useState(false);
+  const [siteSettings, setSiteSettings] = useState(null);
+
+  // Load site settings for annual rollover schedule
+  useEffect(() => {
+    loadSiteSettings().then(cfg => {
+      if (cfg) setSiteSettings(cfg);
+    }).catch(() => {});
+  }, []);
+
+  const isRolloverDue = useMemo(() => {
+    if (dismissRolloverBanner) return false;
+    const cutoffMonth = siteSettings?.annualRolloverCutoff?.rolloverMonth ?? 10;
+    const cutoffDay = siteSettings?.annualRolloverCutoff?.rolloverDay ?? 15;
+    const now = new Date();
+    const currentMonth = now.getMonth() + 1; // 1-12
+    const currentDay = now.getDate();
+    const pastCutoff = (currentMonth > cutoffMonth) || (currentMonth === cutoffMonth && currentDay >= cutoffDay);
+
+    const hasActiveAdmissions = Array.isArray(currentAdmissions) && currentAdmissions.some(s => {
+      const sess = String(s.session || s.Session || '');
+      return sess.includes('2025-26');
+    });
+    return pastCutoff && hasActiveAdmissions;
+  }, [dismissRolloverBanner, siteSettings, currentAdmissions]);
 
   // Handle triggerAction from global module launcher
   useEffect(() => {
@@ -4991,6 +5023,10 @@ export default function AdvancedReports({
       setShowDirectIngestionModal(true);
     } else if (triggerAction === 'bulkTools') {
       setShowToolsModal(true);
+    } else if (triggerAction === 'boardSync') {
+      setShowBulkOverwriteModal(true);
+    } else if (triggerAction === 'archival' || triggerAction === 'rollover') {
+      setShowArchivalModal(true);
     } else if (triggerAction === 'recycleBin') {
       setShowRecycleBinModal(true);
     }
@@ -6967,6 +7003,11 @@ export default function AdvancedReports({
 
     // Build index of seen active admission keys to prevent duplicate entries when historical records are merged
     const seenActiveKeys = new Set();
+    const seenActiveRegs = new Set();
+    const seenActiveFormNos = new Set();
+    const seenActiveAdmNos = new Set();
+    const seenActiveNames = new Set();
+
     combined.forEach(c => {
       const cleanFNo = String(c.formNo || '').replace(/[^a-z0-9]/g, '').toLowerCase();
       const cleanReg = String(c.boardRegNo || '').replace(/[^a-z0-9]/g, '').toLowerCase();
@@ -6975,11 +7016,28 @@ export default function AdvancedReports({
       const fName = String(c.fatherName || '').toLowerCase().trim();
       const cls = String(c.class || '').toLowerCase().trim();
       const sess = String(c.session || '').toLowerCase().trim();
+      const normSess = normalizeSessionVal(sess).toLowerCase().trim();
 
-      if (cleanFNo && cleanFNo !== '—') seenActiveKeys.add(`fno_${sess}_${cleanFNo}`);
-      if (cleanReg && cleanReg.length > 5 && !cleanReg.endsWith('00000000')) seenActiveKeys.add(`reg_${cls}_${sess}_${cleanReg}`);
-      if (cleanAdm && cleanAdm !== '—') seenActiveKeys.add(`adm_${cls}_${sess}_${cleanAdm}`);
-      if (sName && sName !== 'student') seenActiveKeys.add(`name_${cls}_${sess}_${sName}_${fName.slice(0, 8)}`);
+      if (cleanFNo && cleanFNo !== '—') {
+        seenActiveKeys.add(`fno_${sess}_${cleanFNo}`);
+        seenActiveKeys.add(`fno_${normSess}_${cleanFNo}`);
+        seenActiveFormNos.add(cleanFNo);
+      }
+      if (cleanReg && cleanReg.length > 5 && !cleanReg.endsWith('00000000')) {
+        seenActiveKeys.add(`reg_${cls}_${sess}_${cleanReg}`);
+        seenActiveKeys.add(`reg_${cls}_${normSess}_${cleanReg}`);
+        seenActiveRegs.add(cleanReg);
+      }
+      if (cleanAdm && cleanAdm !== '—') {
+        seenActiveKeys.add(`adm_${cls}_${sess}_${cleanAdm}`);
+        seenActiveKeys.add(`adm_${cls}_${normSess}_${cleanAdm}`);
+        seenActiveAdmNos.add(cleanAdm);
+      }
+      if (sName && sName !== 'student') {
+        seenActiveKeys.add(`name_${cls}_${sess}_${sName}_${fName.slice(0, 8)}`);
+        seenActiveKeys.add(`name_${cls}_${normSess}_${sName}_${fName.slice(0, 8)}`);
+        seenActiveNames.add(`${cls}_${sName}_${fName.slice(0, 8)}`);
+      }
     });
 
     // Build comprehensive master demographic profile map for cross-session autofill (e.g. Bi-annual / Repeater / Exam records)
@@ -7065,12 +7123,26 @@ export default function AdvancedReports({
       const checkAdm = String(finalAdmNo).replace(/[^a-z0-9]/g, '').toLowerCase();
       const targetClsLower = targetClass.toLowerCase().trim();
       const targetSessLower = targetSession.toLowerCase().trim();
+      const targetNormSess = normalizeSessionVal(targetSession).toLowerCase().trim();
       const checkNameKey = `name_${targetClsLower}_${targetSessLower}_${sName.toLowerCase().trim()}_${fName.toLowerCase().trim().slice(0, 8)}`;
+      const checkNormNameKey = `name_${targetClsLower}_${targetNormSess}_${sName.toLowerCase().trim()}_${fName.toLowerCase().trim().slice(0, 8)}`;
 
-      if (checkFNo && checkFNo !== '—' && seenActiveKeys.has(`fno_${targetSessLower}_${checkFNo}`)) return;
-      if (checkReg && checkReg.length > 5 && !checkReg.endsWith('00000000') && seenActiveKeys.has(`reg_${targetClsLower}_${targetSessLower}_${checkReg}`)) return;
-      if (checkAdm && checkAdm !== '—' && seenActiveKeys.has(`adm_${targetClsLower}_${targetSessLower}_${checkAdm}`)) return;
-      if (seenActiveKeys.has(checkNameKey)) return;
+      // Guard 1: Direct key matches across raw or normalized session string
+      if (checkFNo && checkFNo !== '—' && (seenActiveKeys.has(`fno_${targetSessLower}_${checkFNo}`) || seenActiveKeys.has(`fno_${targetNormSess}_${checkFNo}`))) return;
+      if (checkReg && checkReg.length > 5 && !checkReg.endsWith('00000000') && (seenActiveKeys.has(`reg_${targetClsLower}_${targetSessLower}_${checkReg}`) || seenActiveKeys.has(`reg_${targetClsLower}_${targetNormSess}_${checkReg}`))) return;
+      if (checkAdm && checkAdm !== '—' && (seenActiveKeys.has(`adm_${targetClsLower}_${targetSessLower}_${checkAdm}`) || seenActiveKeys.has(`adm_${targetClsLower}_${targetNormSess}_${checkAdm}`))) return;
+      if (seenActiveKeys.has(checkNameKey) || seenActiveKeys.has(checkNormNameKey)) return;
+
+      // Guard 2: Active Session Living Workspace Deduplication Guard (2025-26)
+      // Active admissions is the single source of truth for the active 2025-26 session until the October 15th rollover.
+      // Any premature historical chunk entry matching on regNo, formNo, admNo, or student name must be suppressed.
+      const isHistoricalCurrentSession = targetSessLower.includes('2025-26') || targetNormSess.includes('2025-26');
+      if (isHistoricalCurrentSession) {
+        if (checkReg && checkReg.length > 5 && !checkReg.endsWith('00000000') && seenActiveRegs.has(checkReg)) return;
+        if (checkFNo && checkFNo !== '—' && seenActiveFormNos.has(checkFNo)) return;
+        if (checkAdm && checkAdm !== '—' && seenActiveAdmNos.has(checkAdm)) return;
+        if (sName && sName !== 'student' && seenActiveNames.has(`${targetClsLower}_${sName.toLowerCase().trim()}_${fName.toLowerCase().trim().slice(0, 8)}`)) return;
+      }
 
       const regKey = extractRegNoClean(m);
       const admKey = cleanAdmNoVal(finalAdmNo);
@@ -8934,6 +9006,48 @@ export default function AdvancedReports({
 
   return (
     <div className="space-y-0.5 text-xs sm:text-sm animate-fadeIn relative">
+      {/* Annual Session Cutoff / Rollover Due Warning Banner */}
+      {isRolloverDue && (
+        <div className="p-2.5 sm:p-3 mb-1 rounded-xl bg-gradient-to-r from-amber-500/15 via-orange-500/10 to-purple-500/15 border-2 border-amber-500/70 dark:border-amber-500/50 text-slate-800 dark:text-slate-100 shadow-sm flex items-center justify-between gap-3 animate-fadeIn">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-8 h-8 rounded-xl bg-amber-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+              <CalendarCheck size={18} />
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <h4 className="text-xs font-black text-slate-900 dark:text-white flex items-center gap-1.5">
+                  <span>Academic Session Rollover Due ({siteSettings?.annualRolloverCutoff?.rolloverFormatted || '15th October'})</span>
+                </h4>
+                <span className="px-1.5 py-0.5 rounded-full text-[9px] font-black bg-amber-200 dark:bg-amber-900 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-800">
+                  Cutoff Arrived
+                </span>
+              </div>
+              <p className="text-[11px] font-bold text-slate-600 dark:text-slate-400 truncate">
+                Admissions for session 2025–26 are ready to be pushed into permanent Master Registers to archive and initialize the upcoming academic session.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              type="button"
+              onClick={() => setShowArchivalModal(true)}
+              className="px-3 py-1.5 rounded-xl bg-amber-700 hover:bg-amber-600 text-white font-black text-xs shadow-xs flex items-center gap-1.5 cursor-pointer transition-all"
+            >
+              <Layers size={13} />
+              <span>Launch Rollover</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setDismissRolloverBanner(true)}
+              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+              title="Dismiss banner for this session"
+            >
+              <X size={15} />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Sleek Ultra-Compact Control Bar */}
       {/* Ultra-Responsive Control Bar: Single Row on Desktop / Minimal 2-Rows on Mobile */}
       <div className="px-1 py-0.5 sm:px-1.5 sm:py-1 rounded-lg sm:rounded-xl border shadow-2xs space-y-0.5 sm:space-y-0 sm:flex sm:items-center sm:justify-between sm:gap-1.5 text-xs font-extrabold" style={{ backgroundColor: 'var(--bg-card, #ffffff)', borderColor: 'var(--border-ui, #cbd5e1)' }}>
@@ -9132,6 +9246,18 @@ export default function AdvancedReports({
 
           {/* Left Sub-Group on Mobile: Administrative Tools Suite + Mobile Filters Dropdown */}
           <div className="flex items-center gap-0.5 sm:gap-1 flex-shrink-0">
+            {/* Board Data Sync (JKBOSE) Quick Button */}
+            <button
+              type="button"
+              onClick={() => setShowBulkOverwriteModal(true)}
+              title="Board Data Sync & Overwriter: Bulk update and overwrite student fields with verified JKBOSE spreadsheet data"
+              className="compact-btn px-2 py-1 rounded-lg sm:rounded-xl flex items-center gap-1.5 transition-all whitespace-nowrap cursor-pointer bg-emerald-700 hover:bg-emerald-600 text-white shadow-xs font-black text-xs !min-h-0"
+              style={{ minHeight: 'unset', height: '28px' }}
+            >
+              <FileSpreadsheet size={13} className="sm:w-3.5 sm:h-3.5" />
+              <span className="hidden md:inline">Board Data Sync</span>
+            </button>
+
             {/* Wrench Tools Suite Dropdown Button */}
             <div className="relative inline-block text-left flex-shrink-0" ref={toolsDropdownRef}>
               <button
@@ -9163,6 +9289,7 @@ export default function AdvancedReports({
                 onOpenAnalytics={() => setShowAnalyticsModal(true)}
                 onOpenDirectEntry={() => setShowDirectIngestionModal(true)}
                 onOpenBulkTools={() => setShowToolsModal(true)}
+                onOpenBoardSync={() => setShowBulkOverwriteModal(true)}
                 onOpenRecycleBin={() => setShowRecycleBinModal(true)}
                 enableQuickCellEdit={enableQuickCellEdit}
                 setEnableQuickCellEdit={setEnableQuickCellEdit}
@@ -9469,7 +9596,14 @@ export default function AdvancedReports({
                     _visibleCols: visibleCols,
                     _setPreviewPhotoModal: setPreviewPhotoModal,
                     _setSelectedApp: setSelectedApp,
-                    _setEditingStudent: setEditingStudent,
+                    _setEditingStudent: (st) => {
+                      if (st?._isHistorical) {
+                        setQuickEditMasterStudent(st);
+                      } else {
+                        setEditingStudent(st);
+                      }
+                    },
+                    _setQuickEditMasterStudent: setQuickEditMasterStudent,
                     _onRefresh: () => loadReportsData(false),
                     _onDeleteRecord: handleRecordDeleted,
                     _onTriggerDelete: (st) => setDeletingStudentTarget(st),
@@ -11647,6 +11781,55 @@ export default function AdvancedReports({
         onClose={() => setShowRecycleBinModal(false)}
         onRestoreSuccess={() => {
           // Live admissions listener refreshes restored records without a full scan.
+        }}
+      />
+
+      {/* Board Data Sync & Bulk Overwrite Modal */}
+      <BulkFieldOverwriteModal
+        isOpen={showBulkOverwriteModal}
+        onClose={() => setShowBulkOverwriteModal(false)}
+        activeAdmissions={currentAdmissions}
+        masterHistoricalRecords={masterHistoricalRecords}
+        userEmail={user?.email || 'Admin'}
+        onOverwriteComplete={() => {
+          loadReportsData(true);
+        }}
+      />
+
+      {/* Master Register Quick Editor Modal */}
+      <MasterRegisterQuickEditModal
+        isOpen={Boolean(quickEditMasterStudent)}
+        onClose={() => setQuickEditMasterStudent(null)}
+        student={quickEditMasterStudent}
+        userEmail={user?.email || 'Admin'}
+        onSaved={(updatedStudent) => {
+          setMasterHistoricalRecords(prev => prev.map(s => {
+            if (s.id === updatedStudent.id || s.formNo === updatedStudent.formNo) {
+              return { ...s, ...updatedStudent };
+            }
+            return s;
+          }));
+          setToast({
+            type: 'success',
+            message: `✅ Master Register entry updated for ${updatedStudent.studentName || 'Student'}!`
+          });
+          setTimeout(() => setToast(null), 4000);
+        }}
+      />
+
+      {/* Session Archival & Push Admissions to Master Registers Modal */}
+      <SessionArchivalModal
+        isOpen={showArchivalModal}
+        onClose={() => setShowArchivalModal(false)}
+        currentSession="2025-26"
+        onArchivalComplete={() => {
+          loadReportsData(true);
+          setShowArchivalModal(false);
+          setToast({
+            type: 'success',
+            message: '🎉 Admissions successfully archived into Master Registers!'
+          });
+          setTimeout(() => setToast(null), 5000);
         }}
       />
 

@@ -4,7 +4,7 @@ import {
   Trash2, Wand2, Mail, Plus, X, Database, Sparkles, Copy, Download, UserPlus, Edit3, 
   Lock, ShieldAlert, Check, ArrowRight, Layers, FileCheck, FileSpreadsheet, GitMerge, 
   PanelsTopLeft, Send, Key, UserCheck, Phone, GraduationCap, Eye, EyeOff, Search,
-  RotateCcw, ArrowUpDown, Pencil
+  RotateCcw, ArrowUpDown, Pencil, CalendarCheck
 } from 'lucide-react';
 import appsScriptApi from '../../services/appsScriptApi';
 import { db } from '../../services/firebase';
@@ -194,6 +194,10 @@ export default function ControlsAndSubjects() {
   const [practicalsSubmissionOpen, setPracticalsSubmissionOpen] = useState(true);
   const [attendanceSubmissionOpen, setAttendanceSubmissionOpen] = useState(true);
 
+  // Annual Session Rollover Cutoff States (Default: 15th October)
+  const [rolloverMonth, setRolloverMonth] = useState(10); // 1-12 (October)
+  const [rolloverDay, setRolloverDay] = useState(15); // 1-31
+
   // Email Functionality Toggles
   const [emailSubmission, setEmailSubmission] = useState(true);
   const [emailUpgradePdf, setEmailUpgradePdf] = useState(true);
@@ -375,6 +379,12 @@ export default function ControlsAndSubjects() {
           if (siteSettings.practicalsSubmissionOpen !== undefined) setPracticalsSubmissionOpen(Boolean(siteSettings.practicalsSubmissionOpen));
           if (siteSettings.attendanceSubmissionOpen !== undefined) setAttendanceSubmissionOpen(Boolean(siteSettings.attendanceSubmissionOpen));
 
+          // Populate annual session cutoff date
+          if (siteSettings.annualRolloverCutoff) {
+            if (siteSettings.annualRolloverCutoff.month !== undefined) setRolloverMonth(Number(siteSettings.annualRolloverCutoff.month));
+            if (siteSettings.annualRolloverCutoff.day !== undefined) setRolloverDay(Number(siteSettings.annualRolloverCutoff.day));
+          }
+
           // Populate class admission toggles
           if (siteSettings.allow_9th !== undefined) setAllow9th(Boolean(siteSettings.allow_9th));
           else if (siteSettings.allow9th !== undefined) setAllow9th(Boolean(siteSettings.allow9th));
@@ -538,6 +548,11 @@ export default function ControlsAndSubjects() {
         email_rejection: emailRejection,
         email_reg_otp: emailRegOtp,
         email_reset_otp: emailResetOtp,
+        annualRolloverCutoff: {
+          month: Number(rolloverMonth),
+          day: Number(rolloverDay),
+          formatted: `${rolloverDay} ${['January','February','March','April','May','June','July','August','September','October','November','December'][Number(rolloverMonth) - 1]}`
+        },
       };
 
       try {
@@ -2280,6 +2295,63 @@ export default function ControlsAndSubjects() {
             <p className="text-xs font-bold text-slate-600 dark:text-slate-300 leading-relaxed">
               When an academic intake concludes (e.g., in <strong>October</strong>), this utility cleanly packages all approved students with roll numbers from <code className="font-mono font-black text-purple-600 dark:text-purple-400">admissions</code> into permanent, searchable <code className="font-mono font-black text-purple-600 dark:text-purple-400">masterRegisters</code> chunks in Firestore with native Base64 photos preserved. Unsubmitted drafts are cleaned, and admissions intake is reset for the new academic year.
             </p>
+
+            {/* Annual Session Cutoff Date Manager & Caution Guard */}
+            <div className="p-3.5 rounded-2xl border-2 border-purple-300/80 dark:border-purple-800/80 bg-purple-50/60 dark:bg-purple-950/30 space-y-3">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <div className="flex items-center gap-2 font-black text-xs text-purple-950 dark:text-purple-200">
+                  <CalendarCheck size={16} className="text-purple-600 dark:text-purple-400" />
+                  <span>Annual Session Rollover Cutoff Date (Current: {rolloverDay} {['January','February','March','April','May','June','July','August','September','October','November','December'][rolloverMonth - 1]})</span>
+                </div>
+                <span className="text-[10px] font-black px-2 py-0.5 rounded-md bg-purple-200/80 dark:bg-purple-900/80 text-purple-900 dark:text-purple-200">
+                  Super Admin Controlled
+                </span>
+              </div>
+
+              {/* Date Inputs */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] font-black uppercase text-purple-900 dark:text-purple-300 mb-1">
+                    Cutoff Month
+                  </label>
+                  <select
+                    value={rolloverMonth}
+                    onChange={(e) => setRolloverMonth(Number(e.target.value))}
+                    className="w-full px-2.5 py-1.5 rounded-lg border border-purple-300 dark:border-purple-700 bg-white dark:bg-slate-900 font-bold text-xs text-slate-800 dark:text-slate-200"
+                  >
+                    {['January','February','March','April','May','June','July','August','September','October','November','December'].map((mName, idx) => (
+                      <option key={mName} value={idx + 1}>{mName} (Month {idx + 1})</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-black uppercase text-purple-900 dark:text-purple-300 mb-1">
+                    Cutoff Day of Month
+                  </label>
+                  <select
+                    value={rolloverDay}
+                    onChange={(e) => setRolloverDay(Number(e.target.value))}
+                    className="w-full px-2.5 py-1.5 rounded-lg border border-purple-300 dark:border-purple-700 bg-white dark:bg-slate-900 font-bold text-xs text-slate-800 dark:text-slate-200"
+                  >
+                    {Array.from({ length: 31 }, (_, i) => i + 1).map(d => (
+                      <option key={d} value={d}>Day {d}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Institutional Policy Warning Alert */}
+              <div className="p-3 rounded-xl bg-amber-100/70 dark:bg-amber-950/70 border border-amber-300/80 dark:border-amber-700/80 text-amber-900 dark:text-amber-200 space-y-1">
+                <div className="flex items-center gap-1.5 font-black text-[11px]">
+                  <AlertCircle size={14} className="text-amber-700 dark:text-amber-400 shrink-0" />
+                  <span>CRITICAL WARNING: Institutional Rollover Schedule Impact</span>
+                </div>
+                <p className="text-[10px] font-bold leading-relaxed text-amber-800 dark:text-amber-300">
+                  This date dictates when the automated portal prompt requests administrators to archive the active intake to Master Registers and reset the forms for the upcoming session (e.g. 2026–27). Setting this date prematurely will trigger archival warnings while students are still completing admissions, while setting it too late will delay the upcoming session's intake.
+                </p>
+              </div>
+            </div>
 
             {/* 3 Safety Pillars */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1">
