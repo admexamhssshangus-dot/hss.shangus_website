@@ -75,6 +75,48 @@ export function normalizeSessionVal(sess) {
   return str;
 }
 
+// ─── Helper to parse, expand, clean and deduplicate subject tokens ───
+export function cleanRawSubjectTokens(raw) {
+  if (!raw) return [];
+  const text = Array.isArray(raw) ? raw.join(', ') : String(raw);
+
+  // Normalize punctuation and remove extraneous conjunctions like ", and, " or ", and "
+  const preCleaned = text
+    .replace(/\b,\s*and\s*,?\s*/gi, ', ')
+    .replace(/\b\s*and\s+(?=[A-Za-z])/gi, (match, offset, str) => {
+      const prefix = str.slice(Math.max(0, offset - 15), offset).toLowerCase();
+      if (prefix.includes('it ') || prefix.includes('beauty ') || prefix.includes('tourism ') || prefix.includes('media ') || prefix.includes('typewriting ')) {
+        return match;
+      }
+      return ', ';
+    });
+
+  const rawList = preCleaned
+    .split(/[,;+/|\n\r]+/)
+    .map(s => s.trim())
+    .map(s => s.replace(/^(and|&)\s+/i, '').trim())
+    .filter(s => s && !/^(and|&|or|with|same as|none|nil|null|undefined|—|-|n\/?a)$/i.test(s));
+
+  const seenCanonical = new Set();
+  const result = [];
+
+  for (const token of rawList) {
+    const expanded = expandJkboseSubjectCodes(token) || token;
+    const cleanExp = expanded.replace(/^(and|&)\s+/i, '').trim();
+    if (!cleanExp || /^(and|&|or|with|same as|none|nil|null|undefined|—|-|n\/?a)$/i.test(cleanExp)) continue;
+
+    const codes = getCanonicalSubjectCodes(cleanExp);
+    const primaryCode = [...codes][0] || cleanExp.toLowerCase();
+
+    if (!seenCanonical.has(primaryCode)) {
+      seenCanonical.add(primaryCode);
+      result.push(cleanExp);
+    }
+  }
+
+  return result;
+}
+
 // ─── Global Helper to extract formatted subject string from any student record ───
 export function formatStudentSubjects(rec) {
   if (!rec) return '—';
@@ -102,32 +144,23 @@ export function formatStudentSubjects(rec) {
 
   for (const item of rawCandidates) {
     if (!item) continue;
-    if (Array.isArray(item) && item.length > 0) {
-      const cleaned = item.filter(s => s && String(s).trim() !== '—' && !String(s).toLowerCase().includes('same as')).map(s => String(s).trim());
-      if (cleaned.length > 0) return cleaned.map(s => expandJkboseSubjectCodes(s) || s).join(', ');
-    } else if (typeof item === 'string' && item.trim() && item.trim() !== '—' && !item.toLowerCase().includes('same as')) {
-      const parts = item.split(/[,+;]/).map(s => s.trim()).filter(Boolean);
-      if (parts.length > 0) return parts.map(s => expandJkboseSubjectCodes(s) || s).join(', ');
-      return expandJkboseSubjectCodes(item.trim()) || item.trim();
+    if (typeof item === 'string' && item.toLowerCase().includes('same as')) continue;
+    const cleaned = cleanRawSubjectTokens(item);
+    if (cleaned.length > 0) {
+      return cleaned.join(', ');
     }
   }
 
   // 2. Individual subjects1..6 fields (Subjects1, Subjects2, Subjects3, etc.)
-  const subjList = [];
   const subjKeys = [
     'Subjects1', 'Subjects2', 'Subjects3', 'Subjects4', 'Subjects5', 'Subjects6', 'Subject6',
     'subject1', 'subject2', 'subject3', 'subject4', 'subject5', 'subject6'
   ];
 
-  subjKeys.forEach(k => {
-    const val = rec[k];
-    if (val && typeof val === 'string' && val.trim() && val.trim() !== '—' && !subjList.includes(val.trim())) {
-      subjList.push(val.trim());
-    }
-  });
-
-  if (subjList.length > 0) {
-    return subjList.join(', ');
+  const rawIndividual = subjKeys.map(k => rec[k]).filter(Boolean);
+  const cleanedIndiv = cleanRawSubjectTokens(rawIndividual);
+  if (cleanedIndiv.length > 0) {
+    return cleanedIndiv.join(', ');
   }
 
   return '—';
@@ -148,10 +181,7 @@ export function extractIndividualSubjectsList(rec) {
   ].filter(s => s && String(s).trim() !== '—' && String(s).trim() !== '-');
 
   if (explicitSubs.length > 0) {
-    return explicitSubs.map(s => {
-      const str = String(s).trim();
-      return expandJkboseSubjectCodes(str) || str;
-    });
+    return cleanRawSubjectTokens(explicitSubs);
   }
 
   // 2. Check all composite subject fields
@@ -177,19 +207,10 @@ export function extractIndividualSubjectsList(rec) {
 
   for (const item of rawCandidates) {
     if (!item) continue;
-    if (Array.isArray(item) && item.length > 0) {
-      const cleaned = item.filter(s => s && String(s).trim() !== '—' && !String(s).toLowerCase().includes('same as')).map(s => String(s).trim());
-      if (cleaned.length > 0) {
-        return cleaned.map(s => expandJkboseSubjectCodes(s) || s);
-      }
-    } else if (typeof item === 'string' && item.trim() && item.trim() !== '—' && !item.toLowerCase().includes('same as')) {
-      const parts = String(item)
-        .split(/[,;\n\r\t]+/)
-        .map(p => p.trim())
-        .filter(p => p && p !== '—' && p !== '-' && !p.toLowerCase().includes('same as'));
-      if (parts.length > 0) {
-        return parts.map(p => expandJkboseSubjectCodes(p) || p);
-      }
+    if (typeof item === 'string' && item.toLowerCase().includes('same as')) continue;
+    const cleaned = cleanRawSubjectTokens(item);
+    if (cleaned.length > 0) {
+      return cleaned;
     }
   }
 
@@ -206,8 +227,8 @@ export function getCanonicalSubjectCodes(raw) {
   const codes = new Set();
 
   tokens.forEach(token => {
-    const t = String(token).toLowerCase().trim();
-    if (!t || t === '—' || t === 'n/a' || t === '-' || t.includes('same as')) return;
+    const t = String(token).toLowerCase().trim().replace(/^(and|&)\s+/i, '').trim();
+    if (!t || t === '—' || t === 'n/a' || t === '-' || t.includes('same as') || t === 'and' || t === '&' || t === 'or' || t === 'with') return;
 
     // English
     if (t === 'ge' || t === 'en' || t.includes('english')) { codes.add('GE'); return; }
@@ -308,27 +329,21 @@ export function getMismatchedSubjectsDiff(subs11th, optedSubs12th) {
     return { onlyIn12th: [], onlyIn11th: [], mismatchNotice: null };
   }
 
-  const parseTokens = (raw) => {
-    return (Array.isArray(raw) ? raw : String(raw).split(/[,;+/|\n\r]+/))
-      .map(s => String(s).trim())
-      .filter(s => s && s !== '—' && s !== '-' && !s.toLowerCase().includes('same as'));
-  };
-
-  const tokens11 = parseTokens(subs11th);
-  const tokens12 = parseTokens(optedSubs12th);
+  const tokens11 = cleanRawSubjectTokens(subs11th);
+  const tokens12 = cleanRawSubjectTokens(optedSubs12th);
 
   const map11 = new Map();
   tokens11.forEach(t => {
     const codes = getCanonicalSubjectCodes(t);
-    const code = [...codes][0] || t.toUpperCase();
-    if (!map11.has(code)) map11.set(code, t);
+    const code = [...codes][0] || (t.length > 1 && !/^(and|&|or|with)$/i.test(t) ? t.toUpperCase() : null);
+    if (code && !map11.has(code)) map11.set(code, t);
   });
 
   const map12 = new Map();
   tokens12.forEach(t => {
     const codes = getCanonicalSubjectCodes(t);
-    const code = [...codes][0] || t.toUpperCase();
-    if (!map12.has(code)) map12.set(code, t);
+    const code = [...codes][0] || (t.length > 1 && !/^(and|&|or|with)$/i.test(t) ? t.toUpperCase() : null);
+    if (code && !map12.has(code)) map12.set(code, t);
   });
 
   // Compare electives (exclude compulsory GE and ES)
@@ -1182,43 +1197,59 @@ const SUBJECT_ABBR_MAP = {
 
 const abbreviateSubjects = (str) => {
   if (!str || str === '—') return '—';
-  const parts = String(str).split(',').map(s => s.trim()).filter(Boolean);
-  const abbrParts = parts.map(part => {
-    if (SUBJECT_ABBR_MAP[part]) return SUBJECT_ABBR_MAP[part];
-    const foundKey = Object.keys(SUBJECT_ABBR_MAP).find(k => k.toLowerCase() === part.toLowerCase());
-    if (foundKey) return SUBJECT_ABBR_MAP[foundKey];
+  const parts = String(str)
+    .split(/[,;+/|\n\r]+/)
+    .map(s => s.trim().replace(/^(and|&)\s+/i, '').trim())
+    .filter(s => s && !/^(and|&|or|with|same as|none|nil|null|undefined|—|-|n\/?a)$/i.test(s));
 
-    if (/general english|functional english|english/i.test(part)) return 'GE';
-    if (/math/i.test(part)) return 'MA';
-    if (/social science|social studies|sst/i.test(part)) return 'SST';
-    if (/^science$|general science|sci/i.test(part)) return 'SCI';
-    if (/environmental|evs/i.test(part)) return 'ES';
-    if (/physics/i.test(part)) return 'PH';
-    if (/chemistry/i.test(part)) return 'CH';
-    if (/biology|botany|zoology/i.test(part)) return 'BI';
-    if (/urdu/i.test(part)) return 'UR';
-    if (/health/i.test(part)) return 'HTC';
-    if (/it and ites|it & ites|information tech|ites/i.test(part)) return 'ITE';
-    if (/physical education & sports|sports/i.test(part)) return 'PES';
-    if (/physical education/i.test(part)) return 'PD';
-    if (/history/i.test(part)) return 'HT';
-    if (/political/i.test(part)) return 'PS';
-    if (/sociology/i.test(part)) return 'SO';
-    if (/economics/i.test(part)) return 'EC';
-    if (/education/i.test(part)) return 'ED';
-    if (/arabic/i.test(part)) return 'AR';
-    if (/kashmiri/i.test(part)) return 'KA';
-    if (/hindi/i.test(part)) return 'HI';
-    if (/retail/i.test(part)) return 'RET';
-    if (/tourism/i.test(part)) return 'TOU';
+  const seenCodes = new Set();
+  const abbrParts = [];
 
-    if (part.length > 4) {
-      return part.slice(0, 3).toUpperCase();
+  parts.forEach(part => {
+    let abbr = null;
+    if (SUBJECT_ABBR_MAP[part]) abbr = SUBJECT_ABBR_MAP[part];
+    else {
+      const foundKey = Object.keys(SUBJECT_ABBR_MAP).find(k => k.toLowerCase() === part.toLowerCase());
+      if (foundKey) abbr = SUBJECT_ABBR_MAP[foundKey];
     }
-    return part.toUpperCase();
+
+    if (!abbr) {
+      if (/general english|functional english|english/i.test(part)) abbr = 'GE';
+      else if (/math/i.test(part)) abbr = 'MA';
+      else if (/social science|social studies|sst/i.test(part)) abbr = 'SST';
+      else if (/^science$|general science|sci/i.test(part)) abbr = 'SCI';
+      else if (/environmental|evs/i.test(part)) abbr = 'ES';
+      else if (/physics/i.test(part)) abbr = 'PH';
+      else if (/chemistry/i.test(part)) abbr = 'CH';
+      else if (/biology|botany|zoology/i.test(part)) abbr = 'BI';
+      else if (/urdu/i.test(part)) abbr = 'UR';
+      else if (/health/i.test(part)) abbr = 'HTC';
+      else if (/it and ites|it & ites|information tech|ites/i.test(part)) abbr = 'ITE';
+      else if (/physical education & sports|sports/i.test(part)) abbr = 'PES';
+      else if (/physical education/i.test(part)) abbr = 'PD';
+      else if (/history/i.test(part)) abbr = 'HT';
+      else if (/political/i.test(part)) abbr = 'PS';
+      else if (/sociology/i.test(part)) abbr = 'SO';
+      else if (/economics/i.test(part)) abbr = 'EC';
+      else if (/education/i.test(part)) abbr = 'ED';
+      else if (/arabic/i.test(part)) abbr = 'AR';
+      else if (/kashmiri/i.test(part)) abbr = 'KA';
+      else if (/hindi/i.test(part)) abbr = 'HI';
+      else if (/retail/i.test(part)) abbr = 'RET';
+      else if (/tourism/i.test(part)) abbr = 'TOU';
+      else if (/public admin/i.test(part)) abbr = 'PA';
+      else if (/^(and|&|or|with)$/i.test(part)) return;
+      else if (part.length > 4) abbr = part.slice(0, 3).toUpperCase();
+      else abbr = part.toUpperCase();
+    }
+
+    if (abbr && !seenCodes.has(abbr) && !/^(AND|&|OR|WITH)$/i.test(abbr)) {
+      seenCodes.add(abbr);
+      abbrParts.push(abbr);
+    }
   });
 
-  return abbrParts.join(', ');
+  return abbrParts.join(', ') || '—';
 };
 
 // Helper: Automatically convert DOB figures (e.g. 08-05-2011, 16-04-2008, 1996-01-01) to official DOB words
@@ -3710,17 +3741,31 @@ function SubjectStreamCell({ val, student }) {
       setIsExpanded(false);
     } else {
       const rect = e.currentTarget.getBoundingClientRect();
-      const popoverWidth = 290;
+      const popoverWidth = 310;
       let left = rect.right - popoverWidth;
       if (left < 12) left = 12;
-      if (left + popoverWidth > window.innerWidth - 12) left = window.innerWidth - popoverWidth - 12;
-
-      let top = rect.bottom + 6;
-      if (top + 220 > window.innerHeight) {
-        top = Math.max(12, rect.top - 220);
+      if (left + popoverWidth > window.innerWidth - 12) {
+        left = Math.max(12, window.innerWidth - popoverWidth - 12);
       }
 
-      setPopoverCoords({ top, left });
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const spaceAbove = rect.top;
+      // If trigger is in the lower portion of viewport (spaceBelow < 320) and there's more room above, flip upward!
+      const openUpward = spaceBelow < 320 && spaceAbove > spaceBelow;
+
+      let top = null;
+      let bottom = null;
+      let maxHeight = 460;
+
+      if (openUpward) {
+        bottom = Math.max(12, window.innerHeight - rect.top + 6);
+        maxHeight = Math.min(460, Math.max(180, spaceAbove - 20));
+      } else {
+        top = Math.max(12, rect.bottom + 6);
+        maxHeight = Math.min(460, Math.max(180, spaceBelow - 20));
+      }
+
+      setPopoverCoords({ top, bottom, left, maxHeight });
       setIsExpanded(true);
     }
   };
@@ -3831,12 +3876,14 @@ function SubjectStreamCell({ val, student }) {
         <div
           style={{
             position: 'fixed',
-            top: `${popoverCoords.top}px`,
+            ...(popoverCoords.top != null ? { top: `${popoverCoords.top}px` } : {}),
+            ...(popoverCoords.bottom != null ? { bottom: `${popoverCoords.bottom}px` } : {}),
             left: `${popoverCoords.left}px`,
+            maxHeight: `${popoverCoords.maxHeight || 450}px`,
             zIndex: 999999
           }}
           onClick={(e) => e.stopPropagation()}
-          className="p-3 rounded-2xl bg-white dark:bg-slate-900 border-2 border-amber-500 shadow-2xl text-[10px] leading-snug w-[290px] max-w-[95vw] animate-fadeIn text-slate-800 dark:text-slate-100"
+          className="p-3 rounded-2xl bg-white dark:bg-slate-900 border-2 border-amber-500 shadow-2xl text-[10px] leading-snug w-[310px] max-w-[95vw] overflow-y-auto custom-scrollbar animate-fadeIn text-slate-800 dark:text-slate-100"
         >
           <div className="flex items-center justify-between font-black text-amber-800 dark:text-amber-300 border-b border-amber-200 dark:border-slate-800 pb-1.5 mb-2">
             <span className="flex items-center gap-1">
@@ -3861,7 +3908,7 @@ function SubjectStreamCell({ val, student }) {
                 Stream: <span className="text-emerald-700 dark:text-emerald-300 font-black">{student.stream11th || student.stream || 'N/A'}</span>
               </div>
               <div className="text-slate-600 dark:text-slate-400 text-[9px] mt-0.5 font-mono">
-                Subjs: {student.subs11th || student.subs || '—'}
+                Subjs: {cleanRawSubjectTokens(student.subs11th || student.subs).join(', ') || '—'}
               </div>
             </div>
 
@@ -3873,7 +3920,7 @@ function SubjectStreamCell({ val, student }) {
                 Stream: <span className="text-amber-700 dark:text-amber-300 font-black">{student.optedStream12th || student.stream || 'N/A'}</span>
               </div>
               <div className="text-slate-600 dark:text-slate-400 text-[9px] mt-0.5 font-mono">
-                Subjs: {student.optedSubs12th || student.subs || '—'}
+                Subjs: {cleanRawSubjectTokens(student.optedSubs12th || student.subs).join(', ') || '—'}
               </div>
             </div>
 
