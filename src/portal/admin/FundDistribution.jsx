@@ -1562,44 +1562,44 @@ export default function FundDistribution() {
         </div>
       )}
 
-      {/* ─────────────────── SHARED TAB NAVIGATION BAR (always visible) ─────────────────── */}
-      <div className="flex flex-wrap items-center justify-between gap-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl px-3 py-2 shadow-2xs">
-        <div className="flex items-center gap-1">
+      {/* ─────────────────── SHARED TAB NAVIGATION BAR (always visible, mobile-first) ─────────────────── */}
+      <div className="flex flex-wrap items-center justify-between gap-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl sm:rounded-2xl px-2 sm:px-3 py-1.5 sm:py-2 shadow-2xs">
+        <div className="flex items-center gap-1 overflow-x-auto no-scrollbar w-full sm:w-auto">
           <button
             type="button"
             onClick={() => setActiveTab('entry')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-black flex items-center gap-1.5 transition-all cursor-pointer ${
+            className={`px-2.5 py-1.5 sm:px-3 sm:py-1.5 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-black flex items-center gap-1 sm:gap-1.5 whitespace-nowrap transition-all cursor-pointer ${
               activeTab === 'entry'
                 ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/20'
                 : 'text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
             }`}
           >
-            <FileText size={13} />
+            <FileText size={12} />
             <span>Report Entry</span>
           </button>
           <button
             type="button"
             onClick={() => setActiveTab('history')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-black flex items-center gap-1.5 transition-all cursor-pointer ${
+            className={`px-2.5 py-1.5 sm:px-3 sm:py-1.5 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-black flex items-center gap-1 sm:gap-1.5 whitespace-nowrap transition-all cursor-pointer ${
               activeTab === 'history'
                 ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/20'
                 : 'text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
             }`}
           >
-            <FolderArchive size={13} />
+            <FolderArchive size={12} />
             <span>History ({distributions.length})</span>
           </button>
           <button
             type="button"
             onClick={() => setActiveTab('analytics')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-black flex items-center gap-1.5 transition-all cursor-pointer ${
+            className={`px-2.5 py-1.5 sm:px-3 sm:py-1.5 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-black flex items-center gap-1 sm:gap-1.5 whitespace-nowrap transition-all cursor-pointer ${
               activeTab === 'analytics'
                 ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/20'
                 : 'text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
             }`}
           >
-            <BarChart3 size={13} />
-            <span>Analytics & Ledger Matrix</span>
+            <BarChart3 size={12} />
+            <span>Analytics & Ledger</span>
             {filteredAnalyticsReports.length > 0 && (
               <span className={`px-1.5 py-0.2 text-[9px] rounded-full font-bold ml-0.5 ${
                 activeTab === 'analytics' ? 'bg-blue-800 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'

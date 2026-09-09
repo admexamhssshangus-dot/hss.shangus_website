@@ -2724,9 +2724,9 @@ export default function AdmissionRegisterSuite({
         }
       `}</style>
 
-      {/* ─── ULTRA-COMPACT CONSOLIDATED 1-ROW TOOLBAR ─── */}
-      <header className="no-print sticky top-0 z-50 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 shadow-xs px-2.5 py-1">
-        <div className="w-full max-w-[2000px] mx-auto flex items-center justify-between gap-1 xl:gap-2 flex-nowrap overflow-visible">
+      {/* ─── ULTRA-COMPACT CONSOLIDATED 1-ROW TOOLBAR (MOBILE-FIRST & RESPONSIVE) ─── */}
+      <header className="no-print sticky top-0 z-50 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 shadow-xs px-2 sm:px-2.5 py-1">
+        <div className="w-full max-w-[2000px] mx-auto flex items-center justify-between gap-1 xl:gap-2 flex-nowrap overflow-x-auto sm:overflow-visible no-scrollbar">
           {/* Left Cluster: Module Selector, Direct Class Scope, + Re-Adm, and Filters Popover */}
           <div className="flex items-center gap-1 xl:gap-1.5 flex-nowrap shrink-0">
             {/* 1. Main Suite Module Dropdown */}

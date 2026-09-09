@@ -611,80 +611,80 @@ export default function AdminGkTestManager({ allStudents = [], onRefresh }) {
   const effectiveStatus = examConfig.isOpen && !isDeadlinePassed;
 
   return (
-    <div className="space-y-6">
-      {/* Header Banner */}
-      <div className="bg-gradient-to-r from-teal-950 via-teal-900 to-slate-900 text-white rounded-3xl p-6 sm:p-7 shadow-xl relative overflow-hidden border border-teal-800/40">
-        <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-5">
-          <div className="space-y-1.5">
-            <div className="inline-flex items-center gap-2 bg-teal-500/20 backdrop-blur-md border border-teal-400/30 rounded-full px-3 py-1 text-xs font-bold text-teal-200">
-              <Award size={14} className="text-amber-400" />
-              <span>Competitive Exams & Talent Search Engine</span>
+    <div className="space-y-3 sm:space-y-4">
+      {/* Header Banner: Mobile-First, Minimal & Compact */}
+      <div className="bg-gradient-to-r from-teal-950 via-teal-900 to-slate-900 text-white rounded-xl sm:rounded-2xl p-3 sm:p-5 shadow-sm relative overflow-hidden border border-teal-800/40">
+        <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-3 sm:gap-4">
+          <div className="space-y-1">
+            <div className="inline-flex items-center gap-1.5 bg-teal-500/20 backdrop-blur-xs border border-teal-400/30 rounded-full px-2.5 py-0.5 text-[10px] sm:text-xs font-bold text-teal-200">
+              <Award size={13} className="text-amber-400" />
+              <span>Competitive Exams & Talent Search</span>
             </div>
-            <h2 className="text-2xl sm:text-3xl font-black tracking-tight text-white m-0">
+            <h2 className="text-base sm:text-xl font-black tracking-tight text-white m-0">
               {examConfig.examTitle}
             </h2>
-            <p className="text-teal-200/90 text-xs sm:text-sm m-0 max-w-2xl leading-relaxed">
-              Manage competitive tests, science/math olympiads, scholarship entrance exams, customize exam schedules, and issue admit cards.
+            <p className="hidden sm:block text-teal-200/90 text-xs m-0 max-w-2xl leading-relaxed">
+              Manage competitive tests, science/math olympiads, scholarship entrance exams, schedules, and admit cards.
             </p>
           </div>
 
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-1.5 flex-wrap w-full md:w-auto">
             <button
               onClick={() => setShowAddModal(true)}
-              className="px-4 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-500 active:bg-teal-700 text-white text-xs font-black transition-all shadow-md flex items-center gap-2 cursor-pointer"
+              className="flex-1 sm:flex-none px-2.5 py-1.5 rounded-lg bg-teal-600 hover:bg-teal-500 active:bg-teal-700 text-white text-xs font-bold transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
             >
-              <UserPlus size={15} />
-              <span>Register Candidate</span>
+              <UserPlus size={13} />
+              <span>Register</span>
             </button>
             <button
               onClick={() => setShowBulkImportModal(true)}
-              className="px-4 py-2.5 rounded-xl bg-indigo-700 hover:bg-indigo-600 active:bg-indigo-800 text-white text-xs font-black transition-all shadow-md flex items-center gap-2 cursor-pointer"
+              className="flex-1 sm:flex-none px-2.5 py-1.5 rounded-lg bg-indigo-700 hover:bg-indigo-600 active:bg-indigo-800 text-white text-xs font-bold transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
             >
-              <Users size={15} />
+              <Users size={13} />
               <span>Bulk Import</span>
             </button>
             <button
               onClick={handleExportCsv}
               disabled={registrations.length === 0}
-              className="px-3.5 py-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 active:bg-slate-900 text-teal-200 text-xs font-bold transition-all border border-teal-700/40 shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+              className="px-2.5 py-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 active:bg-slate-900 text-teal-200 text-xs font-bold transition-all border border-teal-700/40 shadow-xs flex items-center gap-1 cursor-pointer disabled:opacity-50"
             >
-              <Download size={14} />
+              <Download size={13} />
               <span>CSV</span>
             </button>
             <button
               onClick={() => fetchRegistrations(true)}
               disabled={loading}
-              className="px-3.5 py-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 active:bg-slate-900 text-teal-200 text-xs font-bold transition-all border border-teal-700/40 shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+              className="px-2.5 py-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 active:bg-slate-900 text-teal-200 text-xs font-bold transition-all border border-teal-700/40 shadow-xs flex items-center gap-1 cursor-pointer disabled:opacity-50"
               title="Refresh candidate records"
             >
-              <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+              <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
             </button>
           </div>
         </div>
 
         {/* Public Portal Shortcut Bar */}
-        <div className="mt-5 pt-4 border-t border-teal-800/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-          <div className="flex items-center gap-2 text-teal-200">
-            <span className="font-bold">Public Portal:</span>
-            <code className="bg-black/30 px-2 py-0.5 rounded-lg border border-teal-500/30 text-teal-300 font-mono text-[11px]">
+        <div className="mt-3 pt-2.5 border-t border-teal-800/50 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+          <div className="flex items-center gap-1.5 text-teal-200">
+            <span className="font-bold text-[11px]">Portal:</span>
+            <code className="bg-black/30 px-1.5 py-0.5 rounded border border-teal-500/30 text-teal-300 font-mono text-[10px]">
               /gk-test
             </code>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
             <button
               onClick={handleCopyPublicLink}
-              className="px-3 py-1 rounded-lg bg-teal-800/80 hover:bg-teal-700 text-white text-[11px] font-bold flex items-center gap-1.5 cursor-pointer transition-all border border-teal-600/40"
+              className="px-2.5 py-1 rounded-lg bg-teal-800/80 hover:bg-teal-700 text-white text-[11px] font-bold flex items-center gap-1 cursor-pointer transition-all border border-teal-600/40"
             >
-              {copiedUrl ? <Check size={13} className="text-emerald-300" /> : <Copy size={13} />}
-              <span>{copiedUrl ? 'Copied Link!' : 'Copy Portal Link'}</span>
+              {copiedUrl ? <Check size={12} className="text-emerald-300" /> : <Copy size={12} />}
+              <span>{copiedUrl ? 'Copied!' : 'Copy Link'}</span>
             </button>
             <a
               href="/gk-test"
               target="_blank"
               rel="noopener noreferrer"
-              className="px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold flex items-center gap-1.5 cursor-pointer transition-all shadow-sm"
+              className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold flex items-center gap-1 cursor-pointer transition-all shadow-xs"
             >
-              <ExternalLink size={13} />
+              <ExternalLink size={12} />
               <span>Open Public Page</span>
             </a>
           </div>
@@ -692,32 +692,32 @@ export default function AdminGkTestManager({ allStudents = [], onRefresh }) {
       </div>
 
       {/* Comprehensive Exam Configuration Panel */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-5 shadow-sm space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-3">
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-teal-100 dark:bg-teal-900/40 text-teal-800 dark:text-teal-300 flex items-center justify-center font-black">
-              <Sliders size={20} />
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl sm:rounded-2xl p-3 sm:p-4 shadow-xs space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-2.5">
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-teal-100 dark:bg-teal-900/40 text-teal-800 dark:text-teal-300 flex items-center justify-center font-black flex-shrink-0">
+              <Sliders size={16} />
             </div>
             <div>
-              <h3 className="text-sm font-black text-slate-900 dark:text-white m-0">Exam Parameters & Registration Settings</h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400 m-0 mt-0.5">Configure exam title, type, date, venue, instructions, and registration deadline.</p>
+              <h3 className="text-xs sm:text-sm font-black text-slate-900 dark:text-white m-0">Exam Parameters & Registration Settings</h3>
+              <p className="hidden sm:block text-[11px] text-slate-500 dark:text-slate-400 m-0 mt-0.5">Configure title, type, date, venue, instructions, and deadline.</p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <span className={`px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider flex items-center gap-1.5 shadow-2xs ${
+          <div className="flex items-center gap-1.5 justify-between sm:justify-end">
+            <span className={`px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-black uppercase tracking-wider flex items-center gap-1 shadow-2xs ${
               effectiveStatus
                 ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800'
                 : 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300 border border-rose-300 dark:border-rose-800'
             }`}>
-              {effectiveStatus ? <Unlock size={13} /> : <Lock size={13} />}
-              {effectiveStatus ? 'Portal OPEN' : isDeadlinePassed ? 'Closed (Deadline Passed)' : 'Portal CLOSED'}
+              {effectiveStatus ? <Unlock size={11} /> : <Lock size={11} />}
+              <span>{effectiveStatus ? 'Portal OPEN' : isDeadlinePassed ? 'Closed (Deadline)' : 'Portal CLOSED'}</span>
             </span>
             <button
               onClick={() => setIsConfigExpanded(prev => !prev)}
-              className="p-1.5 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition-colors cursor-pointer"
+              className="p-1 sm:p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition-colors cursor-pointer"
               title="Expand / Collapse settings"
             >
-              {isConfigExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+              {isConfigExpanded ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
             </button>
           </div>
         </div>

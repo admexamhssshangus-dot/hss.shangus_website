@@ -1040,13 +1040,13 @@ export default function ControlsAndSubjects() {
         </div>
       )}
       {/* Sleek Standard Sub Navigation Bar */}
-      <div className="flex items-center gap-1.5 overflow-x-auto pb-1.5 border-b border-slate-200 dark:border-slate-800">
+      <div className="flex items-center gap-1 sm:gap-1.5 overflow-x-auto no-scrollbar pb-1 border-b border-slate-200 dark:border-slate-800">
         {[
-          { id: 'controls', label: '1. Admission & Controls', icon: Sliders },
-          { id: 'subjects', label: '2. Subject Config (v2)', icon: BookOpen },
-          { id: 'schools', label: '3. Feeder Schools Directory', icon: GraduationCap },
-          { id: 'permissions', label: '4. Admin Permissions', icon: ShieldCheck },
-          { id: 'lab', label: '5. Session Lifecycle (Rollover)', icon: Database },
+          { id: 'controls', label: '1. Admission Controls', icon: Sliders },
+          { id: 'subjects', label: '2. Subjects (v2)', icon: BookOpen },
+          { id: 'schools', label: '3. Feeder Schools', icon: GraduationCap },
+          { id: 'permissions', label: '4. Permissions', icon: ShieldCheck },
+          { id: 'lab', label: '5. Session Rollover', icon: Database },
         ].map((sub) => {
           const Icon = sub.icon;
           const isActive = activeSubTab === sub.id;
@@ -1055,13 +1055,13 @@ export default function ControlsAndSubjects() {
               key={sub.id}
               type="button"
               onClick={() => setActiveSubTab(sub.id)}
-              className={`py-1.5 px-3 rounded-xl font-black text-xs flex items-center gap-1.5 transition-all whitespace-nowrap cursor-pointer shadow-2xs ${
+              className={`py-1 px-2.5 sm:py-1.5 sm:px-3 rounded-lg sm:rounded-xl font-black text-[11px] sm:text-xs flex items-center gap-1 sm:gap-1.5 transition-all whitespace-nowrap cursor-pointer shadow-2xs ${
                 isActive
                   ? 'bg-amber-600 text-white border border-amber-700 shadow-sm ring-1 ring-amber-500/30'
                   : 'bg-slate-100 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700/60 hover:bg-slate-200 dark:hover:bg-slate-700'
               }`}
             >
-              <Icon size={13} className={isActive ? 'text-white' : 'text-slate-500 dark:text-slate-400'} />
+              <Icon size={12} className={isActive ? 'text-white' : 'text-slate-500 dark:text-slate-400'} />
               <span>{sub.label}</span>
             </button>
           );
