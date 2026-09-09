@@ -2,7 +2,8 @@ import React, { useState, useMemo } from 'react';
 import { 
   X, AlertTriangle, CheckSquare, Square, FileSpreadsheet, 
   Upload, Copy, CheckCircle2, User, BookOpen, Award, Hash,
-  ArrowRight, Sparkles, Filter, RefreshCw, Layers, Eye, Plus, Trash2
+  ArrowRight, Sparkles, RefreshCw, Eye, EyeOff, Plus, Trash2,
+  ChevronDown, ChevronUp, Database, Sliders
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { db } from '../../services/firebase';
@@ -11,9 +12,10 @@ import { updateCachedItem, getCachedCollectionSync } from '../../services/dbCach
 import { logAdminActivity } from '../../services/adminActivityLogger';
 import { saveCsvImportBatch } from '../../services/csvBatchManager';
 import { toTitleCase } from '../../utils/textFormatting';
-import { cleanRawSubjectTokens, expandJkboseSubjectCodes, formatDobToDisplay } from './AdvancedReports';
+import { cleanRawSubjectTokens, formatDobToDisplay } from './AdvancedReports';
 
-export const FIELD_CATEGORIES = [
+// ─── Standard Database Fields Grouped by Functional Categories ───
+export const STANDARD_DB_CATEGORIES = [
   {
     id: 'core_bio',
     title: 'Core Board Identity & Bio',
@@ -23,10 +25,13 @@ export const FIELD_CATEGORIES = [
     icon: User,
     fields: [
       { key: 'studentName', label: "Student's Name", defaultChecked: true, dbKeys: ["Student's Name (as per school records)", "Student's Name", 'Student Name', 'studentName', 'name'], excelKeys: ['studentname', 'name', 'candidatename', 'nameofstudent', 'candidate'] },
-      { key: 'fatherName', label: "Father's Name", defaultChecked: true, dbKeys: ["Father's/Guardian's Name (as per school records)", "Father's Name", 'Father Name', 'fatherName', "Parent's Name"], excelKeys: ['fathername', 'fathersname', 'parentname', 'parentage'] },
+      { key: 'fatherName', label: "Father's Name", defaultChecked: true, dbKeys: ["Father's/Guardian's Name (as per school records)", "Father's Name", 'Father Name', 'fatherName', "Parent's Name", 'parentName', 'parentage'], excelKeys: ['fathername', 'fathersname', 'parentname', 'parentage'] },
       { key: 'motherName', label: "Mother's Name", defaultChecked: true, dbKeys: ["Mother's Name (as per school records)", "Mother's Name", 'Mother Name', 'motherName'], excelKeys: ['mothername', 'mothersname'] },
-      { key: 'dob', label: "Date of Birth (DoB)", defaultChecked: true, dbKeys: ['DoB (figures)', 'DoB (as per school records)', 'dob', 'DoB'], excelKeys: ['dob', 'dateofbirth', 'dobfigures', 'birthdate'] },
-      { key: 'gender', label: "Gender", defaultChecked: true, dbKeys: ['Gender', 'gender', 'Sex'], excelKeys: ['gender', 'sex'] },
+      { key: 'dob', label: "Date of Birth (DoB)", defaultChecked: true, dbKeys: ['DoB (figures)', 'DoB (as per school records)', 'dob', 'DoB', 'dateOfBirth'], excelKeys: ['dob', 'dateofbirth', 'dobfigures', 'birthdate'] },
+      { key: 'dobWords', label: "DoB (in words)", defaultChecked: false, dbKeys: ['DoB (words)', 'dobWords', 'dateOfBirthInWords'], excelKeys: ['dobwords', 'dateofbirthinwords'] },
+      { key: 'gender', label: "Gender", defaultChecked: true, dbKeys: ['Gender', 'gender', 'Sex', 'sex'], excelKeys: ['gender', 'sex'] },
+      { key: 'bloodGroup', label: "Blood Group", defaultChecked: false, dbKeys: ['Blood Group', 'bloodGroup', 'blood_group'], excelKeys: ['bloodgroup', 'blood'] },
+      { key: 'religion', label: "Religion", defaultChecked: false, dbKeys: ['Religion', 'religion'], excelKeys: ['religion'] },
     ]
   },
   {
@@ -37,9 +42,18 @@ export const FIELD_CATEGORIES = [
     color: 'blue',
     icon: BookOpen,
     fields: [
-      { key: 'stream', label: "Stream", defaultChecked: true, dbKeys: ['Stream', 'stream', 'Stream for Class 11th', 'Stream & Subjects for Class 12th'], excelKeys: ['stream', 'faculty'] },
-      { key: 'subjects', label: "Subjects (Auto-Expand)", defaultChecked: true, dbKeys: ['Subjects', 'subjects', 'selectedSubjects', 'Subjects to be taken in Class 12th', 'Subjects to be taken in Class 11th'], excelKeys: ['subjects', 'subs', 'subjectsoffered', 'subjectcomb', 'subjectcombination'] },
-      { key: 'classRollNo', label: "Class Roll No.", defaultChecked: false, dbKeys: ['Class Roll No', 'Class Roll No.', 'rollNo', 'classRollNo', 'RL. NO.'], excelKeys: ['classrollno', 'classroll', 'rno'] },
+      { key: 'stream', label: "Stream", defaultChecked: true, dbKeys: ['Stream', 'stream', 'Stream for Class 11th', 'Stream opted in Class 11th', 'Stream & Subjects for Class 12th', 'faculty'], excelKeys: ['stream', 'faculty'] },
+      { key: 'subjects', label: "Subjects (Auto-Expand)", defaultChecked: true, dbKeys: ['Subjects', 'subjects', 'selectedSubjects', 'Subjects to be taken in Class 12th', 'Subjects to be taken in Class 11th', 'subs', 'Subs', 'Subjects Offered'], excelKeys: ['subjects', 'subs', 'subjectsoffered', 'subjectcomb', 'subjectcombination'] },
+      { key: 'classRollNo', label: "Class Roll No.", defaultChecked: false, dbKeys: ['Class Roll No', 'Class Roll No.', 'rollNo', 'classRollNo', 'RL. NO.', 'RL. NO', 'Class R.No.', 'Class R.No'], excelKeys: ['classrollno', 'classroll', 'rno'] },
+      { key: 'className', label: "Class", defaultChecked: false, dbKeys: ['Admission sought for class', 'Class', 'class', 'className'], excelKeys: ['class', 'classname', 'admissionsoughtforclass'] },
+      { key: 'session', label: "Session", defaultChecked: false, dbKeys: ['Session', 'session'], excelKeys: ['session', 'academicsession'] },
+      { key: 'admissionType', label: "Admission Type", defaultChecked: false, dbKeys: ['Admission Type', 'admissionType', 'Type of Admission'], excelKeys: ['admissiontype', 'typeofadmission'] },
+      { key: 'prevSchool', label: "Previous School", defaultChecked: false, dbKeys: ['Previous School', 'prevSchool', 'Name of the Institution last attended', 'Name of the institution last attended', 'School last attended'], excelKeys: ['previousschool', 'prevschool', 'lastschool'] },
+      { key: 'prevExamRollNo', label: "10th Exam Roll No.", defaultChecked: false, dbKeys: ['Exam R.No. (Prev.)', 'Roll No. (Class 10th)', 'prevExamRollNo', 'examRollPrev', 'Exam R.no. (Prev.)'], excelKeys: ['prevexamrollno', '10thexamrollno', 'rollnoclass10th', 'prevrollno'] },
+      { key: 'prevMarks', label: "10th Marks Obtained", defaultChecked: false, dbKeys: ['10th/11th Marks', 'Marks Obt. (Prev.)', 'Marks Obtained (Class 10th)', 'prevMarks', 'Marks obtained in previous examination'], excelKeys: ['prevmarks', '10thmarks', 'marks10th', 'previousmarks', 'marksobtprev'] },
+      { key: 'prevMaxMarks', label: "10th Max Marks", defaultChecked: false, dbKeys: ['Max. Marks (Prev.)', 'Max Marks (Class 10th)', 'prevMaxMarks'], excelKeys: ['prevmaxmarks', '10thmaxmarks', 'maxmarksprev'] },
+      { key: 'prevPercentage', label: "10th Percentage (%)", defaultChecked: false, dbKeys: ['%age (Prev.)', 'Percentage (Class 10th)', 'prevPercentage'], excelKeys: ['prevpercentage', '10thpercentage', 'prevpercent'] },
+      { key: 'prevDivision', label: "10th Division / Grade", defaultChecked: false, dbKeys: ['Div/Distinc (Prev.)', 'prevDivision'], excelKeys: ['prevdivision', '10thdivision', 'prevgrade'] },
     ]
   },
   {
@@ -50,9 +64,9 @@ export const FIELD_CATEGORIES = [
     color: 'amber',
     icon: Award,
     fields: [
-      { key: 'boardRollNo', label: "Exam Roll No. (Board)", defaultChecked: false, dbKeys: ['Board Roll Number', 'Board Roll No.', 'Board Roll No', 'boardRollNo', 'examRollNo', 'Roll No.'], excelKeys: ['boardrollno', 'examrollno', 'boardrollnumber', 'boardroll', 'rollnumber', 'rollno'] },
-      { key: 'result', label: "Board Result Status", defaultChecked: false, dbKeys: ['Board Result', 'Result', 'result', 'boardResult', 'statusResult'], excelKeys: ['boardresult', 'result', 'resultstatus', 'examresult', 'status'] },
-      { key: 'marks', label: "Marks Obtained", defaultChecked: false, dbKeys: ['Marks Obtained', 'Marks', 'marks', 'totalMarks', 'marksObtained'], excelKeys: ['marksobtained', 'marks', 'totalmarks', 'securedmarks', 'obtmarks'] },
+      { key: 'boardRollNo', label: "Exam Roll No. (Board)", defaultChecked: false, dbKeys: ['Exam R.No. (Current)', 'Board Roll Number', 'Board Roll No.', 'Board Roll No', 'boardRollNo', 'examRollNo', 'currExamRollNo', 'Roll No.', 'Roll No', 'Exam R.No.'], excelKeys: ['boardrollno', 'examrollno', 'boardrollnumber', 'boardroll', 'rollnumber', 'rollno', 'examroll'] },
+      { key: 'result', label: "Board Result Status", defaultChecked: false, dbKeys: ['Board Result', 'Result (Current)', 'Result', 'result', 'boardResult', 'currResult', 'statusResult'], excelKeys: ['boardresult', 'result', 'resultstatus', 'examresult', 'status'] },
+      { key: 'marks', label: "Marks Obtained", defaultChecked: false, dbKeys: ['Marks/Reapp (Current)', 'Marks Obtained', 'Marks', 'marks', 'totalMarks', 'marksObtained', 'currMarksReapp'], excelKeys: ['marksobtained', 'marks', 'totalmarks', 'securedmarks', 'obtmarks'] },
       { key: 'maxMarks', label: "Max Marks", defaultChecked: false, dbKeys: ['Max Marks', 'Maximum Marks', 'maxMarks', 'totalMaxMarks'], excelKeys: ['maxmarks', 'maximummarks', 'totalmax', 'outof'] },
       { key: 'percentage', label: "Percentage (%)", defaultChecked: false, dbKeys: ['Percentage', 'percentage', 'percent', 'pct'], excelKeys: ['percentage', 'percent', 'pct', 'markspercentage'] },
       { key: 'grade', label: "Grade / Division", defaultChecked: false, dbKeys: ['Grade', 'Division', 'grade', 'division'], excelKeys: ['grade', 'division', 'gradeawarded'] },
@@ -60,20 +74,33 @@ export const FIELD_CATEGORIES = [
   },
   {
     id: 'ids_demographics',
-    title: 'Official IDs & Demographics',
+    title: 'Official IDs, Contact & Demographics',
     badge: 'Registry',
     badgeClass: 'bg-purple-100 dark:bg-purple-950/80 text-purple-800 dark:text-purple-300 border-purple-300 dark:border-purple-800',
     color: 'purple',
     icon: Hash,
     fields: [
-      { key: 'category', label: "Social Category", defaultChecked: false, dbKeys: ['Cat._JKBOSE', 'Category', 'Social Category', 'category'], excelKeys: ['category', 'socialcategory', 'catjkbose', 'caste'] },
-      { key: 'boardRegNo', label: "Board Reg. No.", defaultChecked: false, dbKeys: ['Board Registration Number', 'Board Registration No. (Class 11th)', 'Board Reg. No.', 'boardRegNo', 'regNo'], excelKeys: ['registrationno', 'regno', 'boardregno', 'boardregistrationno'] },
+      { key: 'category', label: "Social Category", defaultChecked: false, dbKeys: ['Cat._JKBOSE', 'Category', 'Social Category', 'Social category', 'category'], excelKeys: ['category', 'socialcategory', 'catjkbose', 'caste'] },
+      { key: 'boardRegNo', label: "Board Reg. No.", defaultChecked: false, dbKeys: ['Board Registration Number', 'Board Registration No. (Class 11th)', 'Board Registration No. (Class 10th)', 'Board Reg. No.', 'boardRegNo', 'regNo', 'Registration No. (allotted by JKBOSE)', 'REG. NO.'], excelKeys: ['registrationno', 'regno', 'boardregno', 'boardregistrationno'] },
       { key: 'admNo', label: "Admission No.", defaultChecked: false, dbKeys: ['Admission No.', 'Adm. No.', 'admNo', 'admissionNo'], excelKeys: ['admissionno', 'admno', 'admissionnumber'] },
-      { key: 'apaarId', label: "APAAR ID (12-Digit)", defaultChecked: false, dbKeys: ['APAAR ID', 'apaarId', 'apaar'], excelKeys: ['apaarid', 'apaar', 'apaarnumber'] },
-      { key: 'penNo', label: "Student PEN No.", defaultChecked: false, dbKeys: ['PEN No', 'PEN No.', 'pen', 'penNo'], excelKeys: ['penno', 'pen', 'pennumber', 'studentpen'] },
-      { key: 'aadhaarNo', label: "Aadhaar Card No.", defaultChecked: false, dbKeys: ['Aadhaar Number', 'Aadhaar No', 'aadhaarNo', 'aadhaar'], excelKeys: ['aadhaarno', 'aadhaar', 'aadharnumber', 'uid'] },
-      { key: 'phone', label: "Mobile No.", defaultChecked: false, dbKeys: ['Mobile No.', 'Mobile Number', 'phone', 'mobileNo', 'contactNo'], excelKeys: ['mobileno', 'mobilenumber', 'phone', 'contactno', 'mobile'] },
-      { key: 'address', label: "Village / Address", defaultChecked: false, dbKeys: ['Name of your village', 'Village/Town', 'village', 'address'], excelKeys: ['village', 'nameofyourvillage', 'town', 'address', 'locality'] },
+      { key: 'apaarId', label: "APAAR ID (12-Digit)", defaultChecked: false, dbKeys: ['APAAR ID', 'apaarId', 'apaar', 'apaarNumber'], excelKeys: ['apaarid', 'apaar', 'apaarnumber'] },
+      { key: 'penNo', label: "Student PEN No.", defaultChecked: false, dbKeys: ['Permanent Education Number (PEN)', 'PEN No', 'PEN No.', 'pen', 'penNo'], excelKeys: ['penno', 'pen', 'pennumber', 'studentpen'] },
+      { key: 'aadhaarNo', label: "Aadhaar Card No.", defaultChecked: false, dbKeys: ['Aadhaar Number (12 Digits)', 'Aadhaar Number', 'Aadhaar No', 'aadhaarNo', 'aadhaar', 'aadhar', 'Aadhar No.'], excelKeys: ['aadhaarno', 'aadhaar', 'aadharnumber', 'uid', 'aadhar'] },
+      { key: 'fatherAadhar', label: "Father's Aadhaar No.", defaultChecked: false, dbKeys: ["Father's Aadhar No.", "Father's Aadhaar No.", 'fatherAadhar'], excelKeys: ['fatheraadhar', 'fatheraadhaar', 'fatheraadharno'] },
+      { key: 'phone', label: "Mobile No.", defaultChecked: false, dbKeys: ['Mobile No. (with working WhatsApp)', 'Mobile No.', 'Mobile Number', 'phone', 'mobileNo', 'contactNo', 'mobile'], excelKeys: ['mobileno', 'mobilenumber', 'phone', 'contactno', 'mobile'] },
+      { key: 'parentMobile', label: "Parent's Mobile", defaultChecked: false, dbKeys: ["Parent's Contact", "Parent's Mobile No. (must be working)", "Parent's Mobile No.", "Father's Mobile No.", 'parentMobile', 'parentContact'], excelKeys: ['parentmobile', 'parentscontact', 'fathermobile'] },
+      { key: 'email', label: "Email Address", defaultChecked: false, dbKeys: ['Email', 'Email Address', 'email', 'email1'], excelKeys: ['email', 'emailaddress'] },
+      { key: 'address', label: "Village / Address", defaultChecked: false, dbKeys: ['Name of your village', 'Permanent Address', 'Village / Town', 'Village/Town', 'village', 'address', 'Residence (Village, District)'], excelKeys: ['village', 'nameofyourvillage', 'town', 'address', 'locality'] },
+      { key: 'block', label: "Block", defaultChecked: false, dbKeys: ['Block', 'block'], excelKeys: ['block'] },
+      { key: 'tehsil', label: "Tehsil", defaultChecked: false, dbKeys: ['Tehsil', 'tehsil'], excelKeys: ['tehsil'] },
+      { key: 'district', label: "District", defaultChecked: false, dbKeys: ['District', 'district'], excelKeys: ['district'] },
+      { key: 'pinCode', label: "PIN Code", defaultChecked: false, dbKeys: ['PIN code', 'Pin Code', 'pinCode'], excelKeys: ['pincode', 'pin'] },
+      { key: 'state', label: "State / UT", defaultChecked: false, dbKeys: ['State/UT', 'State', 'state'], excelKeys: ['state', 'stateut'] },
+      { key: 'bankAccount', label: "Bank Account No.", defaultChecked: false, dbKeys: ['Bank Account Number', 'Bank Account No.', 'bankAccount', 'bankAccountNo', 'bank'], excelKeys: ['bankaccount', 'bankaccountno', 'accountno', 'accno'] },
+      { key: 'bankName', label: "Bank Name", defaultChecked: false, dbKeys: ['Name of the Bank', 'Name of Bank', 'Bank Name', 'bankName'], excelKeys: ['bankname', 'bank'] },
+      { key: 'ifsc', label: "IFSC Code", defaultChecked: false, dbKeys: ['IFSC Code of the Bank Branch', 'IFSC Code', 'IFSC code', 'ifsc', 'ifscCode'], excelKeys: ['ifsc', 'ifsccode'] },
+      { key: 'disability', label: "Disability Status", defaultChecked: false, dbKeys: ['Whether specially-abled (PwD)', 'Disability Status', 'disability', 'pwd'], excelKeys: ['disability', 'pwd', 'speciallyabled'] },
+      { key: 'remarks', label: "Remarks", defaultChecked: false, dbKeys: ['Remarks', 'remarks'], excelKeys: ['remarks', 'remark'] },
     ]
   }
 ];
@@ -91,6 +118,9 @@ export default function BulkFieldOverwriteModal({
   const [targetSession, setTargetSession] = useState(currentSession || '2025-26');
   const [matchIdentifier, setMatchIdentifier] = useState('regNo'); // 'regNo' | 'admNo' | 'formNo'
 
+  // Hide / Unhide field selection matrix (defaults to true; can be hidden/unhidden at any time)
+  const [showFieldMatrix, setShowFieldMatrix] = useState(true);
+
   // Custom fields added dynamically by user
   const [customFields, setCustomFields] = useState([]);
   const [customFieldInput, setCustomFieldInput] = useState('');
@@ -98,7 +128,7 @@ export default function BulkFieldOverwriteModal({
   // Selected fields to overwrite
   const [selectedFields, setSelectedFields] = useState(() => {
     const initial = {};
-    FIELD_CATEGORIES.forEach(cat => {
+    STANDARD_DB_CATEGORIES.forEach(cat => {
       cat.fields.forEach(f => {
         initial[f.key] = Boolean(f.defaultChecked);
       });
@@ -124,14 +154,102 @@ export default function BulkFieldOverwriteModal({
   // Helper to normalize alphanumeric keys
   const cleanKey = (val) => String(val || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase().trim();
 
-  // All active field definitions (standard + custom)
+  // Dynamic discovery of any additional fields present in actual database records
+  const dynamicDatabaseCategories = useMemo(() => {
+    const knownDbKeysSet = new Set();
+    STANDARD_DB_CATEGORIES.forEach(cat => {
+      cat.fields.forEach(f => {
+        f.dbKeys.forEach(k => knownDbKeysSet.add(cleanKey(k)));
+        knownDbKeysSet.add(cleanKey(f.key));
+        knownDbKeysSet.add(cleanKey(f.label));
+      });
+    });
+
+    const discoveredFields = [];
+    const discoveredKeysSeen = new Set();
+
+    // Scan all loaded student records to detect any custom or institutional keys
+    const sampleStudents = Array.isArray(allStudents) ? allStudents : [];
+    sampleStudents.forEach(st => {
+      if (!st || typeof st !== 'object') return;
+      Object.keys(st).forEach(rawK => {
+        if (
+          rawK.startsWith('_') || 
+          rawK.startsWith('$') || 
+          rawK === 'id' || 
+          rawK === 'docId' || 
+          rawK === 'createdAt' || 
+          rawK === 'updatedAt' || 
+          rawK === 'ownerUid' || 
+          rawK === 'photo_id' || 
+          rawK === 'photoUrl' ||
+          rawK === 'photoId' ||
+          rawK === 'Student Photo' || 
+          rawK === 'studentPhoto' ||
+          rawK === 'pdfUrl' ||
+          rawK === 'PDF_URL' ||
+          rawK === 'sno' ||
+          rawK === 'hasMismatch' ||
+          rawK === 'hasStreamMismatch' ||
+          rawK === 'hasSubsMismatch' ||
+          rawK === 'streamMismatchNotice' ||
+          rawK === 'subsMismatchNotice' ||
+          rawK === 'stream11th' ||
+          rawK === 'subs11th' ||
+          rawK === 'optedStream12th' ||
+          rawK === 'optedSubs12th'
+        ) {
+          return;
+        }
+        const cKey = cleanKey(rawK);
+        if (!cKey || knownDbKeysSet.has(cKey) || discoveredKeysSeen.has(cKey)) return;
+
+        discoveredKeysSeen.add(cKey);
+        discoveredFields.push({
+          key: cKey,
+          label: rawK,
+          defaultChecked: false,
+          dbKeys: [rawK, cKey],
+          excelKeys: [cKey]
+        });
+      });
+    });
+
+    if (discoveredFields.length === 0) {
+      return STANDARD_DB_CATEGORIES;
+    }
+
+    return [
+      ...STANDARD_DB_CATEGORIES,
+      {
+        id: 'discovered_db',
+        title: `Discovered in Database (${discoveredFields.length})`,
+        badge: 'Live Database',
+        badgeClass: 'bg-teal-100 dark:bg-teal-950/80 text-teal-800 dark:text-teal-300 border-teal-300 dark:border-teal-800',
+        color: 'teal',
+        icon: Database,
+        fields: discoveredFields
+      }
+    ];
+  }, [allStudents]);
+
+  // All active field definitions (standard + discovered + custom)
   const allFieldDefinitions = useMemo(() => {
     const std = [];
-    FIELD_CATEGORIES.forEach(cat => {
+    dynamicDatabaseCategories.forEach(cat => {
       std.push(...cat.fields);
     });
     return [...std, ...customFields];
-  }, [customFields]);
+  }, [dynamicDatabaseCategories, customFields]);
+
+  // Active selected field labels for the compact summary pill
+  const activeFieldLabels = useMemo(() => {
+    return allFieldDefinitions
+      .filter(f => selectedFields[f.key])
+      .map(f => f.label);
+  }, [allFieldDefinitions, selectedFields]);
+
+  const selectedCount = activeFieldLabels.length;
 
   // Toggle field selection
   const handleToggleField = (fieldKey) => {
@@ -149,7 +267,7 @@ export default function BulkFieldOverwriteModal({
         const resKeys = ['boardRollNo', 'result', 'marks', 'maxMarks', 'percentage', 'grade'];
         next[f.key] = resKeys.includes(f.key);
       } else if (presetType === 'bio_and_ids') {
-        const idKeys = ['studentName', 'fatherName', 'motherName', 'dob', 'gender', 'stream', 'subjects', 'category', 'apaarId', 'penNo', 'aadhaarNo'];
+        const idKeys = ['studentName', 'fatherName', 'motherName', 'dob', 'gender', 'stream', 'subjects', 'category', 'boardRegNo', 'admNo', 'apaarId', 'penNo', 'aadhaarNo'];
         next[f.key] = idKeys.includes(f.key);
       } else if (presetType === 'all') {
         next[f.key] = true;
@@ -168,7 +286,7 @@ export default function BulkFieldOverwriteModal({
     if (!cleanK) return;
 
     if (allFieldDefinitions.some(f => f.key === cleanK || cleanKey(f.label) === cleanK)) {
-      setErrorMsg(`Field "${clean}" already exists in the selector.`);
+      setErrorMsg(`Field "${clean}" already exists in the database schema.`);
       return;
     }
 
@@ -450,32 +568,14 @@ export default function BulkFieldOverwriteModal({
           const newVal = inc[fieldDef.key];
           if (!newVal) return;
 
-          if (fieldDef.key === 'studentName') {
-            payload["Student's Name (as per school records)"] = newVal;
-            payload["Student's Name"] = newVal;
-            payload['Student Name'] = newVal;
-            payload.studentName = newVal;
-          } else if (fieldDef.key === 'fatherName') {
-            payload["Father's/Guardian's Name (as per school records)"] = newVal;
-            payload["Father's Name"] = newVal;
-            payload['Father Name'] = newVal;
-            payload.fatherName = newVal;
-          } else if (fieldDef.key === 'motherName') {
-            payload["Mother's Name (as per school records)"] = newVal;
-            payload["Mother's Name"] = newVal;
-            payload['Mother Name'] = newVal;
-            payload.motherName = newVal;
-          } else if (fieldDef.key === 'dob') {
-            payload['DoB (figures)'] = newVal;
-            payload['DoB (as per school records)'] = newVal;
-            payload.dob = newVal;
-          } else if (fieldDef.key === 'gender') {
-            payload['Gender'] = newVal;
-            payload.gender = newVal;
-          } else if (fieldDef.key === 'stream') {
-            payload['Stream'] = newVal;
-            payload.stream = newVal;
-          } else if (fieldDef.key === 'subjects') {
+          // Set all database keys registered for this field
+          fieldDef.dbKeys.forEach(dbk => {
+            payload[dbk] = newVal;
+          });
+          payload[fieldDef.key] = newVal;
+
+          // Special subject slots formatting
+          if (fieldDef.key === 'subjects') {
             const cleanedSubs = cleanRawSubjectTokens(newVal);
             payload['selectedSubjects'] = cleanedSubs;
             payload['Subjects'] = cleanedSubs.join(', ');
@@ -488,81 +588,6 @@ export default function BulkFieldOverwriteModal({
                 payload[`subject${sIdx + 1}`] = subName;
               }
             });
-          } else if (fieldDef.key === 'classRollNo') {
-            payload['Class Roll No'] = newVal;
-            payload['Class Roll No.'] = newVal;
-            payload.classRollNo = newVal;
-            payload.rollNo = newVal;
-          } else if (fieldDef.key === 'boardRollNo') {
-            payload['Board Roll Number'] = newVal;
-            payload['Board Roll No.'] = newVal;
-            payload['Board Roll No'] = newVal;
-            payload.boardRollNo = newVal;
-            payload.examRollNo = newVal;
-          } else if (fieldDef.key === 'result') {
-            payload['Board Result'] = newVal;
-            payload['Result'] = newVal;
-            payload.result = newVal;
-            payload.boardResult = newVal;
-          } else if (fieldDef.key === 'marks') {
-            payload['Marks Obtained'] = newVal;
-            payload['Marks'] = newVal;
-            payload.marks = newVal;
-            payload.totalMarks = newVal;
-          } else if (fieldDef.key === 'maxMarks') {
-            payload['Max Marks'] = newVal;
-            payload['Maximum Marks'] = newVal;
-            payload.maxMarks = newVal;
-          } else if (fieldDef.key === 'percentage') {
-            payload['Percentage'] = newVal;
-            payload.percentage = newVal;
-            payload.percent = newVal;
-          } else if (fieldDef.key === 'grade') {
-            payload['Grade'] = newVal;
-            payload['Division'] = newVal;
-            payload.grade = newVal;
-            payload.division = newVal;
-          } else if (fieldDef.key === 'category') {
-            payload['Cat._JKBOSE'] = newVal;
-            payload['Category'] = newVal;
-            payload['Social Category'] = newVal;
-            payload.category = newVal;
-          } else if (fieldDef.key === 'boardRegNo') {
-            payload['Board Registration Number'] = newVal;
-            payload['Board Registration No. (Class 11th)'] = newVal;
-            payload['Board Reg. No.'] = newVal;
-            payload.boardRegNo = newVal;
-            payload.regNo = newVal;
-          } else if (fieldDef.key === 'admNo') {
-            payload['Admission No.'] = newVal;
-            payload['Adm. No.'] = newVal;
-            payload.admNo = newVal;
-          } else if (fieldDef.key === 'apaarId') {
-            payload['APAAR ID'] = newVal;
-            payload.apaarId = newVal;
-            payload.apaar = newVal;
-          } else if (fieldDef.key === 'penNo') {
-            payload['PEN No'] = newVal;
-            payload['PEN No.'] = newVal;
-            payload.penNo = newVal;
-            payload.pen = newVal;
-          } else if (fieldDef.key === 'aadhaarNo') {
-            payload['Aadhaar Number'] = newVal;
-            payload['Aadhaar No'] = newVal;
-            payload.aadhaarNo = newVal;
-            payload.aadhaar = newVal;
-          } else if (fieldDef.key === 'phone') {
-            payload['Mobile No.'] = newVal;
-            payload['Mobile Number'] = newVal;
-            payload.phone = newVal;
-            payload.mobileNo = newVal;
-          } else if (fieldDef.key === 'address') {
-            payload['Name of your village'] = newVal;
-            payload['Village/Town'] = newVal;
-            payload.village = newVal;
-          } else {
-            // Custom mapped fields
-            payload[fieldDef.key] = newVal;
           }
         });
 
@@ -701,7 +726,7 @@ export default function BulkFieldOverwriteModal({
               <h2 className="text-sm font-black text-slate-900 dark:text-white flex items-center gap-2">
                 <span>Board Data Sync & Bulk Overwriter</span>
                 <span className="px-2 py-0.5 rounded-full text-[9px] font-black bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
-                  JKBOSE Universal
+                  Database Schema Grounded
                 </span>
               </h2>
               <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400">
@@ -782,18 +807,33 @@ export default function BulkFieldOverwriteModal({
                 </div>
               </div>
 
-              {/* Categorized Field Selection Matrix (Design matching Screenshot 3) */}
-              <div className="space-y-2.5">
-                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 dark:border-slate-800 pb-2">
-                  <div>
-                    <h3 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-                      <CheckSquare size={14} className="text-emerald-600" />
-                      <span>Select Fields to Overwrite From Spreadsheet</span>
-                    </h3>
-                    <p className="text-[10.5px] text-slate-500">Only checked fields will be overwritten; all other student records remain untouched</p>
+              {/* Collapsible Database Fields Selector (Hide / Unhide Matrix) */}
+              <div className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xs space-y-2.5">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div 
+                    onClick={() => setShowFieldMatrix(prev => !prev)}
+                    className="flex items-center gap-2 cursor-pointer select-none"
+                    title={showFieldMatrix ? "Click to hide field selection" : "Click to unhide field selection"}
+                  >
+                    <div className="w-6 h-6 rounded-lg bg-emerald-100 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                      <Database size={13} />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-200">
+                          Select Fields to Overwrite From Spreadsheet
+                        </h3>
+                        <span className="px-1.5 py-0.2 rounded-full text-[9px] font-black bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
+                          {selectedCount} Active
+                        </span>
+                      </div>
+                      <p className="text-[10.5px] text-slate-500">
+                        Based on database fields • Only checked fields will be overwritten; all other student records remain untouched
+                      </p>
+                    </div>
                   </div>
 
-                  {/* Preset Buttons */}
+                  {/* Preset Buttons + Hide/Unhide Toggle Button */}
                   <div className="flex flex-wrap items-center gap-1.5">
                     <button
                       type="button"
@@ -822,113 +862,182 @@ export default function BulkFieldOverwriteModal({
                     <button
                       type="button"
                       onClick={() => handleSelectPreset('none')}
-                      className="px-2 py-1 rounded-lg text-[10.5px] font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 transition-all cursor-pointer"
+                      className="px-2 py-1 rounded-lg text-[10.5px] font-bold text-slate-500 hover:text-rose-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all cursor-pointer"
                     >
                       Clear All
+                    </button>
+
+                    {/* Dedicated Hide / Unhide Toggle */}
+                    <button
+                      type="button"
+                      onClick={() => setShowFieldMatrix(prev => !prev)}
+                      className={`px-3 py-1 rounded-lg text-[10.5px] font-black border transition-all cursor-pointer flex items-center gap-1.5 shadow-2xs ${
+                        showFieldMatrix
+                          ? 'bg-slate-800 text-white dark:bg-slate-200 dark:text-slate-900 border-slate-800 dark:border-slate-200 hover:bg-slate-700'
+                          : 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800 hover:bg-emerald-100'
+                      }`}
+                      title={showFieldMatrix ? 'Collapse and hide the field matrix' : 'Unhide and customize individual database fields'}
+                    >
+                      {showFieldMatrix ? (
+                        <>
+                          <EyeOff size={12} />
+                          <span>Hide Fields</span>
+                          <ChevronUp size={13} />
+                        </>
+                      ) : (
+                        <>
+                          <Eye size={12} />
+                          <span>Unhide Fields ({selectedCount})</span>
+                          <ChevronDown size={13} />
+                        </>
+                      )}
                     </button>
                   </div>
                 </div>
 
-                {/* 4 Categorized Column Panels */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {FIELD_CATEGORIES.map(category => {
-                    const CatIcon = category.icon;
-                    return (
-                      <div 
-                        key={category.id} 
-                        className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xs space-y-2.5"
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <div className="w-5 h-5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 flex items-center justify-center">
-                              <CatIcon size={12} />
-                            </div>
-                            <span className="font-black text-[11px] uppercase tracking-wider text-slate-800 dark:text-slate-200">
-                              {category.title}
-                            </span>
-                          </div>
-                          <span className={`px-1.5 py-0.2 rounded text-[8.5px] font-black border ${category.badgeClass}`}>
-                            {category.badge}
-                          </span>
-                        </div>
+                {/* Compact Summary Strip when Collapsed */}
+                {!showFieldMatrix && (
+                  <div 
+                    onClick={() => setShowFieldMatrix(true)}
+                    className="p-2.5 px-3 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-[11px] animate-fadeIn cursor-pointer hover:border-emerald-400 dark:hover:border-emerald-700 transition-colors group"
+                  >
+                    <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
+                      <span className="font-black text-slate-500 uppercase text-[9.5px] shrink-0 flex items-center gap-1">
+                        <CheckSquare size={11} className="text-emerald-600" />
+                        <span>Selected Database Columns ({selectedCount}):</span>
+                      </span>
+                      <span className="font-bold text-emerald-700 dark:text-emerald-400 truncate max-w-xl">
+                        {activeFieldLabels.join(', ') || 'None selected'}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); setShowFieldMatrix(true); }}
+                      className="text-xs font-black text-indigo-600 group-hover:text-indigo-800 dark:text-indigo-400 shrink-0 cursor-pointer flex items-center gap-0.5"
+                    >
+                      <Sliders size={12} />
+                      <span>Unhide & Edit Selection ▾</span>
+                    </button>
+                  </div>
+                )}
 
-                        {/* Field checkboxes */}
-                        <div className="flex flex-wrap gap-1.5">
-                          {category.fields.map(f => {
-                            const isChecked = Boolean(selectedFields[f.key]);
-                            return (
-                              <button
-                                key={f.key}
-                                type="button"
-                                onClick={() => handleToggleField(f.key)}
-                                className={`px-2.5 py-1.5 rounded-lg border text-xs font-black flex items-center gap-1.5 transition-all cursor-pointer ${
-                                  isChecked
-                                    ? 'bg-emerald-50 dark:bg-emerald-950/60 border-emerald-500 text-emerald-900 dark:text-emerald-200 shadow-xs'
-                                    : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:border-slate-300'
-                                }`}
-                              >
-                                {isChecked ? (
-                                  <CheckSquare size={13} className="text-emerald-600 dark:text-emerald-400 shrink-0" />
-                                ) : (
-                                  <Square size={13} className="text-slate-400 shrink-0" />
-                                )}
-                                <span>{f.label}</span>
-                              </button>
-                            );
-                          })}
+                {/* Full Categorized Database Fields Matrix (When Unhidden/Expanded) */}
+                {showFieldMatrix && (
+                  <div className="space-y-3 pt-2 border-t border-slate-100 dark:border-slate-800 animate-fadeIn">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {dynamicDatabaseCategories.map(category => {
+                        const CatIcon = category.icon;
+                        return (
+                          <div 
+                            key={category.id} 
+                            className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/40 shadow-2xs space-y-2.5"
+                          >
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <div className="w-5 h-5 rounded-md bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 flex items-center justify-center shadow-2xs">
+                                  <CatIcon size={12} />
+                                </div>
+                                <span className="font-black text-[11px] uppercase tracking-wider text-slate-800 dark:text-slate-200">
+                                  {category.title}
+                                </span>
+                              </div>
+                              <span className={`px-1.5 py-0.2 rounded text-[8.5px] font-black border ${category.badgeClass}`}>
+                                {category.badge}
+                              </span>
+                            </div>
+
+                            {/* Field checkboxes */}
+                            <div className="flex flex-wrap gap-1.5">
+                              {category.fields.map(f => {
+                                const isChecked = Boolean(selectedFields[f.key]);
+                                return (
+                                  <button
+                                    key={f.key}
+                                    type="button"
+                                    onClick={() => handleToggleField(f.key)}
+                                    className={`px-2.5 py-1.5 rounded-lg border text-xs font-black flex items-center gap-1.5 transition-all cursor-pointer ${
+                                      isChecked
+                                        ? 'bg-emerald-50 dark:bg-emerald-950/60 border-emerald-500 text-emerald-900 dark:text-emerald-200 shadow-xs'
+                                        : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:border-slate-300'
+                                    }`}
+                                  >
+                                    {isChecked ? (
+                                      <CheckSquare size={13} className="text-emerald-600 dark:text-emerald-400 shrink-0" />
+                                    ) : (
+                                      <Square size={13} className="text-slate-400 shrink-0" />
+                                    )}
+                                    <span>{f.label}</span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Custom Database Column Adder & Active Chips */}
+                    <div className="p-3 rounded-xl border border-dashed border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 space-y-2">
+                      <div className="flex flex-col sm:flex-row items-center gap-2">
+                        <span className="text-[10.5px] font-black uppercase text-slate-500 dark:text-slate-400 flex items-center gap-1.5 whitespace-nowrap">
+                          <Plus size={12} className="text-indigo-600" />
+                          <span>Custom Database Column:</span>
+                        </span>
+                        <div className="flex-1 w-full flex items-center gap-1.5">
+                          <input
+                            type="text"
+                            placeholder="Type any column (e.g. migrationNo, scholarship, remarks, etc.)..."
+                            value={customFieldInput}
+                            onChange={(e) => setCustomFieldInput(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === 'Enter') handleAddCustomField(); }}
+                            className="flex-1 px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-200 text-xs font-mono"
+                          />
+                          <button
+                            type="button"
+                            onClick={handleAddCustomField}
+                            className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-black text-xs shadow-xs cursor-pointer transition-colors"
+                          >
+                            Add Column
+                          </button>
                         </div>
                       </div>
-                    );
-                  })}
-                </div>
 
-                {/* Custom Field Adder & Custom Fields Chips */}
-                <div className="p-3 rounded-xl border border-dashed border-slate-300 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-950/40 space-y-2">
-                  <div className="flex flex-col sm:flex-row items-center gap-2">
-                    <span className="text-[10.5px] font-black uppercase text-slate-500 dark:text-slate-400 flex items-center gap-1.5 whitespace-nowrap">
-                      <Plus size={12} className="text-indigo-600" />
-                      <span>Custom Database Column:</span>
-                    </span>
-                    <div className="flex-1 w-full flex items-center gap-1.5">
-                      <input
-                        type="text"
-                        placeholder="Type any column (e.g. migrationNo, scholarship, remarks, etc.)..."
-                        value={customFieldInput}
-                        onChange={(e) => setCustomFieldInput(e.target.value)}
-                        onKeyDown={(e) => { if (e.key === 'Enter') handleAddCustomField(); }}
-                        className="flex-1 px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 text-xs font-mono"
-                      />
+                      {customFields.length > 0 && (
+                        <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                          <span className="text-[10px] font-black text-slate-400 uppercase">Active Custom Columns:</span>
+                          {customFields.map(cf => (
+                            <span 
+                              key={cf.key} 
+                              className="px-2 py-0.5 rounded-md bg-indigo-100 dark:bg-indigo-950 text-indigo-800 dark:text-indigo-300 border border-indigo-300 dark:border-indigo-800 text-[10.5px] font-bold flex items-center gap-1.5"
+                            >
+                              <span>{cf.label}</span>
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveCustomField(cf.key)}
+                                className="text-indigo-500 hover:text-rose-600 cursor-pointer"
+                              >
+                                <X size={11} />
+                              </button>
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Bottom Hide Matrix Button for convenience */}
+                    <div className="flex justify-center pt-1">
                       <button
                         type="button"
-                        onClick={handleAddCustomField}
-                        className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-black text-xs shadow-xs cursor-pointer transition-colors"
+                        onClick={() => setShowFieldMatrix(false)}
+                        className="text-[11px] font-bold text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 flex items-center gap-1.5 cursor-pointer transition-colors py-1 px-3 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"
                       >
-                        Add Column
+                        <EyeOff size={12} />
+                        <span>Hide Field Matrix</span>
+                        <ChevronUp size={13} />
                       </button>
                     </div>
                   </div>
-
-                  {customFields.length > 0 && (
-                    <div className="flex flex-wrap items-center gap-1.5 pt-1">
-                      <span className="text-[10px] font-black text-slate-400 uppercase">Active Custom Columns:</span>
-                      {customFields.map(cf => (
-                        <span 
-                          key={cf.key} 
-                          className="px-2 py-0.5 rounded-md bg-indigo-100 dark:bg-indigo-950 text-indigo-800 dark:text-indigo-300 border border-indigo-300 dark:border-indigo-800 text-[10.5px] font-bold flex items-center gap-1.5"
-                        >
-                          <span>{cf.label}</span>
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveCustomField(cf.key)}
-                            className="text-indigo-500 hover:text-rose-600 cursor-pointer"
-                          >
-                            <X size={11} />
-                          </button>
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
+                )}
               </div>
 
               {/* Data Ingestion: Excel Upload & Direct Paste Side-by-Side */}
