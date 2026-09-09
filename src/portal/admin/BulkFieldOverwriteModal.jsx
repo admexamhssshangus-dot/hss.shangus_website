@@ -574,6 +574,7 @@ export default function BulkFieldOverwriteModal({
     const studentByReg = new Map();
     const studentByAdm = new Map();
     const studentByForm = new Map();
+    const studentByCohortRoll = new Map();
 
     allStudents.forEach(st => {
       const reg = cleanKey(st.boardRegNo || st.regNo || st['Board Registration Number'] || st['Board Reg. No.']);
@@ -581,6 +582,7 @@ export default function BulkFieldOverwriteModal({
       const form = cleanKey(st.formNo || st['Form Number'] || st['Form No.'] || st.id);
       const sess = cleanKey(st.selectedSession || st.Session || st.session || st['Academic Session']);
       const cls = cleanKey(st.selectedClass || st.Class || st.class || st['Admission sought for class']);
+      const roll = cleanKey(st.classRollNo || st['Class Roll No'] || st['Class Roll No.'] || st.rollNo || st['RL. NO.']);
 
       if (reg && reg.length > 5 && !reg.endsWith('00000000')) {
         studentBy3Point.set(`${reg}|${sess}|${cls}`, st);
@@ -590,6 +592,10 @@ export default function BulkFieldOverwriteModal({
       }
       if (adm && adm !== '—') studentByAdm.set(adm, st);
       if (form && form !== '—') studentByForm.set(form, st);
+      if (roll && roll !== '—') {
+        if (sess && cls) studentByCohortRoll.set(`${roll}|${sess}|${cls}`, st);
+        if (cls) studentByCohortRoll.set(`${roll}|${cls}`, st);
+      }
     });
 
     const targetSessClean = cleanKey(targetSession);
@@ -611,10 +617,13 @@ export default function BulkFieldOverwriteModal({
                      normalizedRow['regno'] || normalizedRow['boardregno'] || normalizedRow['registrationnumber'] || '';
       const rawAdm = normalizedRow['admissionno'] || normalizedRow['admno'] || normalizedRow['admissionnumber'] || '';
       const rawForm = normalizedRow['formno'] || normalizedRow['formnumber'] || normalizedRow['fno'] || '';
+      const rawRoll = row['Class Roll No.'] || row['Class Roll No'] || row['Roll No.'] || row['Roll No'] ||
+                      normalizedRow['classrollno'] || normalizedRow['classroll'] || normalizedRow['rollno'] || normalizedRow['rollnumber'] || '';
 
       const cleanReg = cleanKey(rawReg);
       const cleanAdm = cleanKey(rawAdm);
       const cleanForm = cleanKey(rawForm);
+      const cleanRoll = cleanKey(rawRoll);
 
       let matchedStudent = null;
 
@@ -633,9 +642,18 @@ export default function BulkFieldOverwriteModal({
         }
       }
 
-      // Secondary fallback
+      // Secondary fallbacks
       if (!matchedStudent && cleanAdm) matchedStudent = studentByAdm.get(cleanAdm);
       if (!matchedStudent && cleanForm) matchedStudent = studentByForm.get(cleanForm);
+      // Tertiary fallback: Scoped cohort Class Roll No
+      if (!matchedStudent && cleanRoll && targetClass !== 'All') {
+        if (targetSession !== 'All') {
+          matchedStudent = studentByCohortRoll.get(`${cleanRoll}|${targetSessClean}|${targetClsClean}`);
+        }
+        if (!matchedStudent) {
+          matchedStudent = studentByCohortRoll.get(`${cleanRoll}|${targetClsClean}`);
+        }
+      }
 
       // Extract all incoming fields dynamically
       const incomingFields = {};
@@ -1043,7 +1061,7 @@ export default function BulkFieldOverwriteModal({
         </div>
 
         {/* Modal Body Content */}
-        <div className="p-4 sm:p-5 overflow-y-auto flex-1 custom-scrollbar space-y-4 text-xs">
+        <div className="p-4 sm:p-5 overflow-y-auto flex-1 custom-scrollbar space-y-4 text-xs max-h-[calc(94vh-130px)]">
           
           {/* ═════════ TAB 2: EXPRESS DIRECT INGESTION (SINGLE RECORD) ═════════ */}
           {modalMode === 'express' && (
