@@ -372,12 +372,14 @@ export function resolveStudentStream(st, masterMatch = null) {
 
   // 1. Check direct stream fields
   const candidates = [
-    st?.['Stream for Class 11th'],
-    st?.['Stream opted in Class 11th'],
-    st?.['Stream & Subjects for Class 12th'],
-    st?.['Stream / Faculty'],
+    st?.['Stream for Class 12th'],
+    st?.['Stream opted in Class 12th'],
+    st?.['Stream'],
     st?.stream,
     st?.Stream,
+    st?.['Stream for Class 11th'],
+    st?.['Stream opted in Class 11th'],
+    st?.['Stream / Faculty'],
     masterMatch?.['Stream'],
     masterMatch?.stream,
     masterMatch?.['Stream for Class 11th'],
@@ -388,14 +390,23 @@ export function resolveStudentStream(st, masterMatch = null) {
     if (cand && typeof cand === 'string') {
       const trimmed = cand.trim();
       const lower = trimmed.toLowerCase();
-      if (lower && !lower.includes('same as') && lower !== '—' && lower !== 'n/a' && lower !== 'null' && lower !== 'undefined' && lower !== '-') {
-        if (lower.includes('hum') || lower.includes('art')) return 'Humanities';
-        if (lower.includes('com')) return 'Commerce';
-        if (lower.includes('sci') || lower.includes('med')) return 'Science';
+      if (!lower || lower.includes('same as') || lower === '—' || lower === 'n/a' || lower === 'null' || lower === 'undefined' || lower === '-') continue;
+
+      // Reject comma-separated subject lists from being treated as stream names
+      if (trimmed.includes(',') || trimmed.split(/\s+/).length > 3) {
+        if (lower.includes('sci') || lower.includes('med') || lower.includes('physic') || lower.includes('chem') || lower.includes('bio')) return 'Science';
+        if (lower.includes('hum') || lower.includes('art') || lower.includes('hist') || lower.includes('pol') || lower.includes('soci')) return 'Humanities';
+        if (lower.includes('com') || lower.includes('acc') || lower.includes('b.st')) return 'Commerce';
         if (lower.includes('home sci') || lower.includes('home-sci')) return 'Home Science';
-        if (lower.includes('gen')) return 'General';
-        return trimmed;
+        continue;
       }
+
+      if (lower.includes('hum') || lower.includes('art')) return 'Humanities';
+      if (lower.includes('com')) return 'Commerce';
+      if (lower.includes('sci') || lower.includes('med') || lower.includes('non-med')) return 'Science';
+      if (lower.includes('home sci') || lower.includes('home-sci')) return 'Home Science';
+      if (lower === 'general' || lower === 'gen' || lower.includes('general stream')) return 'General';
+      return trimmed;
     }
   }
 
@@ -1450,6 +1461,8 @@ const cleanAdmNoVal = (val) => {
   ) {
     return '';
   }
+  // Admission numbers are short institutional identifiers; reject long notes, sentences, or multi-word texts
+  if (str.length > 20 || str.split(/\s+/).length > 2) return '';
   // Reject ordinal class names like "11th", "12th", "9th", "10th"
   if (/^\d{1,2}(st|nd|rd|th)$/i.test(str)) return '';
   // Reject explicit class strings like "Class 11", "Class 12", "11th Class", "Class 11th"
@@ -1505,8 +1518,21 @@ const extractRawAdmNo = (rec) => {
       (kLower.includes('adm') && (kLower.includes('no') || kLower.includes('number') || kLower.includes('#'))) ||
       (kLower.includes('admission') && (kLower.includes('no') || kLower.includes('number') || kLower.includes('#')))
     ) {
-      // Skip fields that are NOT admission numbers
-      if (kLower.includes('readmission') || kLower.includes('status') || kLower.includes('sought') || kLower.includes('class') || kLower.includes('date') || kLower.includes('form')) continue;
+      // Skip fields that are NOT admission numbers (notes, status, sought, upgrade, remarks, etc.)
+      if (
+        kLower.includes('readmission') ||
+        kLower.includes('status') ||
+        kLower.includes('sought') ||
+        kLower.includes('class') ||
+        kLower.includes('date') ||
+        kLower.includes('form') ||
+        kLower.includes('note') ||
+        kLower.includes('remark') ||
+        kLower.includes('upgrade') ||
+        kLower.includes('reason') ||
+        kLower.includes('comment') ||
+        kLower.includes('type')
+      ) continue;
       const cleaned = cleanAdmNoVal(rec[key]);
       if (cleaned && !/^(yes|no|true|false)$/i.test(cleaned)) {
         return cleaned;
