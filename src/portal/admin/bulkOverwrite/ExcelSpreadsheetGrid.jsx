@@ -1,0 +1,378 @@
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { 
+  FileSpreadsheet, Plus, Trash2, Copy, Download, RefreshCw, 
+  ArrowRight, Search, Check, AlertCircle, Sparkles, Users
+} from 'lucide-react';
+
+/**
+ * ExcelSpreadsheetGrid
+ * Authentic tabular Excel-like spreadsheet interface for direct copy-paste.
+ * Supports clipboard Ctrl+V tab-delimited paste, editable cells, row numbers,
+ * column letters (A, B, C...), and pre-filling current cohort students.
+ * Column 1 is strictly Board Registration Number (regNo).
+ */
+export default function ExcelSpreadsheetGrid({
+  activeFields = [],
+  onParseData,
+  allStudents = [],
+  targetClass = 'All',
+  targetSession = '2025-26',
+  showToast
+}) {
+  // Generate letter labels for columns: A, B, C, D...
+  const getColLetter = (index) => {
+    return String.fromCharCode(65 + index); // 0 -> A, 1 -> B, etc.
+  };
+
+  const createBlankRow = (id = Date.now() + Math.random()) => {
+    const row = { id: String(id), regNo: '' };
+    activeFields.forEach(f => {
+      row[f.key] = '';
+    });
+    return row;
+  };
+
+  // Grid rows state
+  const [rows, setRows] = useState(() => {
+    return Array.from({ length: 8 }, (_, i) => createBlankRow(i + 1));
+  });
+
+  const [focusedCell, setFocusedCell] = useState(null); // { rowIndex, colKey }
+  const gridContainerRef = useRef(null);
+
+  // Sync rows whenever activeFields changes, preserving already typed values
+  useEffect(() => {
+    setRows(prev => prev.map(r => {
+      const updated = { ...r };
+      activeFields.forEach(f => {
+        if (updated[f.key] === undefined) updated[f.key] = '';
+      });
+      return updated;
+    }));
+  }, [activeFields]);
+
+  // Handle cell edit
+  const handleCellChange = (rowIndex, key, value) => {
+    setRows(prev => {
+      const copy = [...prev];
+      copy[rowIndex] = { ...copy[rowIndex], [key]: value };
+      return copy;
+    });
+  };
+
+  // Add new blank row
+  const handleAddRow = () => {
+    setRows(prev => [...prev, createBlankRow()]);
+  };
+
+  // Remove a specific row
+  const handleRemoveRow = (index) => {
+    setRows(prev => {
+      if (prev.length <= 1) return [createBlankRow()];
+      return prev.filter((_, i) => i !== index);
+    });
+  };
+
+  // Clear entire grid
+  const handleClearGrid = () => {
+    setRows(Array.from({ length: 8 }, (_, i) => createBlankRow(i + 1)));
+    if (showToast) showToast('Cleared spreadsheet grid.', 'info');
+  };
+
+  // Pre-fill grid with students from the selected cohort
+  const handlePreFillCohort = () => {
+    const filtered = (allStudents || []).filter(st => {
+      const sCls = String(st.selectedClass || st.Class || st.class || '').toLowerCase();
+      const sSess = String(st.selectedSession || st.Session || st.session || '').toLowerCase();
+      const matchCls = targetClass === 'All' || sCls.includes(targetClass.toLowerCase());
+      const matchSess = targetSession === 'All' || sSess.includes(targetSession.toLowerCase());
+      return matchCls && matchSess;
+    });
+
+    if (filtered.length === 0) {
+      if (showToast) showToast(`No student records found matching Class ${targetClass} & Session ${targetSession}.`, 'warning');
+      return;
+    }
+
+    const cohortRows = filtered.map((st, idx) => {
+      const reg = st.boardRegNo || st.regNo || st['Board Registration Number'] || st['Board Reg. No.'] || '';
+      const r = { id: `cohort_${idx}_${Date.now()}`, regNo: reg };
+      activeFields.forEach(f => {
+        let val = '';
+        for (const k of f.dbKeys) {
+          if (st[k] !== undefined && String(st[k]).trim() !== '') {
+            val = String(st[k]).trim();
+            break;
+          }
+        }
+        r[f.key] = val;
+      });
+      return r;
+    });
+
+    setRows(cohortRows);
+    if (showToast) showToast(`✓ Pre-filled grid with ${cohortRows.length} students from Class ${targetClass} (${targetSession})!`, 'success');
+  };
+
+  // Clipboard Paste Interceptor
+  const handleGridPaste = useCallback((e) => {
+    const text = e.clipboardData?.getData('text');
+    if (!text || !text.trim()) return;
+
+    // Check if pasted text contains tab delimiters or newline delimiters
+    const lines = text.trim().split(/\r?\n/).filter(line => line.trim().length > 0);
+    if (lines.length === 0) return;
+
+    // Prevent default browser text paste into single input if multi-cell
+    if (lines.length > 1 || lines[0].includes('\t')) {
+      e.preventDefault();
+
+      const startRow = focusedCell?.rowIndex !== null && focusedCell?.rowIndex !== undefined ? focusedCell.rowIndex : 0;
+      const parsedData = lines.map(line => line.split('\t').map(c => c.trim()));
+
+      setRows(prevRows => {
+        const nextRows = [...prevRows];
+        parsedData.forEach((rowValues, rIdx) => {
+          const targetIndex = startRow + rIdx;
+          const newRow = targetIndex < nextRows.length ? { ...nextRows[targetIndex] } : createBlankRow(`paste_${Date.now()}_${rIdx}`);
+          
+          // Column 0 is strictly Registration Number
+          if (rowValues[0] !== undefined) {
+            newRow.regNo = rowValues[0];
+          }
+
+          // Column 1..N map to activeFields
+          activeFields.forEach((field, fIdx) => {
+            const cellVal = rowValues[fIdx + 1];
+            if (cellVal !== undefined) {
+              newRow[field.key] = cellVal;
+            }
+          });
+
+          if (targetIndex < nextRows.length) {
+            nextRows[targetIndex] = newRow;
+          } else {
+            nextRows.push(newRow);
+          }
+        });
+
+        return nextRows;
+      });
+
+      if (showToast) {
+        showToast(`📋 Pasted ${lines.length} row(s) and ${parsedData[0]?.length || 1} column(s) into Excel grid!`, 'success');
+      }
+    }
+  }, [focusedCell, activeFields, showToast]);
+
+  // Parse grid rows and submit to 3-point matching engine
+  const handleTriggerCompare = () => {
+    // Filter rows that have at least a registration number or some field entered
+    const validRows = rows.filter(r => r.regNo && r.regNo.trim().length > 0);
+    
+    if (validRows.length === 0) {
+      if (showToast) {
+        showToast('Please fill or paste at least one row with a valid Registration Number in Column A.', 'warning');
+      }
+      return;
+    }
+
+    // Convert grid rows into incoming format with normalized keys
+    const incomingRows = validRows.map(r => {
+      const rowObj = {
+        'Board Registration Number': r.regNo.trim(),
+        registrationno: r.regNo.trim(),
+        regno: r.regNo.trim()
+      };
+      activeFields.forEach(f => {
+        rowObj[f.label] = r[f.key] !== undefined ? String(r[f.key]).trim() : '';
+        rowObj[f.key] = r[f.key] !== undefined ? String(r[f.key]).trim() : '';
+      });
+      return rowObj;
+    });
+
+    onParseData(incomingRows, 'Excel Tabular Spreadsheet Grid');
+  };
+
+  const nonEmptyRowCount = rows.filter(r => r.regNo && r.regNo.trim().length > 0).length;
+
+  return (
+    <div 
+      ref={gridContainerRef}
+      onPaste={handleGridPaste}
+      className="space-y-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm"
+    >
+      {/* Excel Top Ribbon Header */}
+      <div className="flex items-center justify-between flex-wrap gap-2 pb-2 border-b border-slate-200 dark:border-slate-800">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-lg bg-[#107c41] text-white flex items-center justify-center font-black shadow-xs">
+            <FileSpreadsheet size={18} />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="text-xs font-black text-slate-900 dark:text-white">
+                Excel Tabular Clipboard Grid
+              </h3>
+              <span className="text-[9px] px-2 py-0.5 rounded-full font-black bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
+                Direct Ctrl+V Paste
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-500 font-medium">
+              Copy rows from Excel or Google Sheets, click anywhere in the grid, and press <kbd className="px-1 py-0.5 bg-slate-100 dark:bg-slate-800 rounded font-mono text-[10px] border border-slate-300 dark:border-slate-700">Ctrl+V</kbd>
+            </p>
+          </div>
+        </div>
+
+        {/* Ribbon Tools */}
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <button
+            type="button"
+            onClick={handleAddRow}
+            className="px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold text-[11px] flex items-center gap-1 cursor-pointer transition-colors"
+            title="Add blank row at the bottom"
+          >
+            <Plus size={13} />
+            <span>Add Row</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handlePreFillCohort}
+            className="px-2.5 py-1 rounded-lg bg-blue-50 dark:bg-blue-950/60 hover:bg-blue-100 dark:hover:bg-blue-900/80 text-blue-700 dark:text-blue-300 font-bold text-[11px] flex items-center gap-1 border border-blue-200 dark:border-blue-800 cursor-pointer transition-colors"
+            title="Load existing students from current cohort into grid"
+          >
+            <Users size={13} />
+            <span>Load Cohort Records</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleClearGrid}
+            className="px-2.5 py-1 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/40 text-rose-600 dark:text-rose-400 font-bold text-[11px] flex items-center gap-1 cursor-pointer transition-colors"
+            title="Clear all rows"
+          >
+            <Trash2 size={13} />
+            <span>Clear Grid</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Spreadsheet Table Container */}
+      <div className="relative border border-slate-200 dark:border-slate-800 rounded-xl overflow-x-auto max-h-[380px] bg-slate-50/50 dark:bg-slate-950/50 custom-scrollbar">
+        <table className="w-full text-left border-collapse min-w-[700px] text-xs">
+          {/* Header Rows */}
+          <thead>
+            {/* Row 1: Column Letters (A, B, C, D...) */}
+            <tr className="bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-mono text-[10px] text-center border-b border-slate-300 dark:border-slate-700">
+              <th className="w-10 py-1 border-r border-slate-300 dark:border-slate-700 bg-slate-300 dark:bg-slate-900 text-slate-700 dark:text-slate-400">
+                #
+              </th>
+              <th className="py-1 px-2 border-r border-slate-300 dark:border-slate-700 bg-emerald-700 text-white font-black tracking-wider">
+                Col {getColLetter(0)} (Key)
+              </th>
+              {activeFields.map((field, idx) => (
+                <th key={field.key} className="py-1 px-2 border-r border-slate-300 dark:border-slate-700 font-bold">
+                  Col {getColLetter(idx + 1)}
+                </th>
+              ))}
+              <th className="w-10 py-1"></th>
+            </tr>
+
+            {/* Row 2: Human Field Names */}
+            <tr className="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 font-black text-[11px] border-b-2 border-emerald-500 shadow-xs">
+              <th className="w-10 py-2 text-center text-slate-400 font-mono text-[10px] border-r border-slate-200 dark:border-slate-800">
+                —
+              </th>
+              <th className="py-2 px-3 border-r border-slate-200 dark:border-slate-800 text-emerald-800 dark:text-emerald-400 bg-emerald-50/50 dark:bg-emerald-950/30">
+                <div className="flex items-center gap-1.5">
+                  <span>Registration No.</span>
+                  <span className="text-rose-500 font-black">*</span>
+                </div>
+              </th>
+              {activeFields.map((field) => (
+                <th key={field.key} className="py-2 px-3 border-r border-slate-200 dark:border-slate-800 truncate max-w-[180px]" title={field.label}>
+                  {field.label}
+                </th>
+              ))}
+              <th className="w-10 py-2 text-center text-slate-400"></th>
+            </tr>
+          </thead>
+
+          {/* Grid Rows */}
+          <tbody>
+            {rows.map((row, rIdx) => (
+              <tr 
+                key={row.id || rIdx}
+                className="hover:bg-emerald-50/30 dark:hover:bg-emerald-950/20 transition-colors border-b border-slate-200 dark:border-slate-800"
+              >
+                {/* Row Number (1, 2, 3...) */}
+                <td className="w-10 py-1 text-center font-mono text-[10px] font-bold text-slate-400 bg-slate-100 dark:bg-slate-800/80 border-r border-slate-200 dark:border-slate-800 select-none">
+                  {rIdx + 1}
+                </td>
+
+                {/* Column A: Registration No.* */}
+                <td className="p-0 border-r border-slate-200 dark:border-slate-800 bg-emerald-50/20 dark:bg-emerald-950/10">
+                  <input
+                    type="text"
+                    value={row.regNo || ''}
+                    onChange={(e) => handleCellChange(rIdx, 'regNo', e.target.value)}
+                    onFocus={() => setFocusedCell({ rowIndex: rIdx, colKey: 'regNo' })}
+                    placeholder={`e.g. 2161234-2024-${String(rIdx + 1).padStart(4, '0')}`}
+                    className="w-full px-2.5 py-1.5 bg-transparent border-0 focus:ring-2 focus:ring-emerald-500 rounded-none text-xs font-mono font-bold text-emerald-900 dark:text-emerald-300 outline-none"
+                  />
+                </td>
+
+                {/* Columns B..N: Active Fields */}
+                {activeFields.map((field) => (
+                  <td key={field.key} className="p-0 border-r border-slate-200 dark:border-slate-800">
+                    <input
+                      type="text"
+                      value={row[field.key] || ''}
+                      onChange={(e) => handleCellChange(rIdx, field.key, e.target.value)}
+                      onFocus={() => setFocusedCell({ rowIndex: rIdx, colKey: field.key })}
+                      placeholder={`Enter ${field.label}...`}
+                      className="w-full px-2.5 py-1.5 bg-transparent border-0 focus:ring-2 focus:ring-blue-500 rounded-none text-xs text-slate-800 dark:text-slate-200 outline-none"
+                    />
+                  </td>
+                ))}
+
+                {/* Row Delete Action */}
+                <td className="w-10 p-1 text-center">
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveRow(rIdx)}
+                    className="p-1 rounded text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/50 transition-colors cursor-pointer"
+                    title="Delete row"
+                  >
+                    <Trash2 size={12} />
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Grid Bottom Action Toolbar */}
+      <div className="flex items-center justify-between flex-wrap gap-2 pt-1">
+        <div className="text-[11px] text-slate-500 font-bold flex items-center gap-2">
+          <span>{nonEmptyRowCount} student record(s) ready with Registration Numbers.</span>
+          {activeFields.length > 0 && (
+            <span className="text-slate-400">• {activeFields.length} data field(s) mapped across columns</span>
+          )}
+        </div>
+
+        <button
+          type="button"
+          onClick={handleTriggerCompare}
+          disabled={nonEmptyRowCount === 0}
+          className="px-5 py-2 rounded-xl bg-gradient-to-r from-emerald-700 to-teal-700 hover:from-emerald-600 hover:to-teal-600 text-white font-black text-xs shadow-md flex items-center gap-2 cursor-pointer transition-all disabled:opacity-40 disabled:cursor-not-allowed active:scale-98"
+        >
+          <Search size={14} />
+          <span>Parse & Compare Against Database ({nonEmptyRowCount})</span>
+          <ArrowRight size={14} />
+        </button>
+      </div>
+    </div>
+  );
+}

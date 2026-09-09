@@ -90,7 +90,7 @@ import TabLoadingOverlay from '../../components/TabLoadingOverlay';
 import { scheduleIdleWork } from '../../utils/scheduleIdleWork';
 
 const StudentResultEditorModal = React.lazy(() => import('./StudentResultEditorModal'));
-const ResultIngestionModal = React.lazy(() => import('./ResultIngestionModal'));
+const ResultIngestionModal = React.lazy(() => import('./BulkFieldOverwriteModal'));
 const BulkCertificateGeneratorModal = React.lazy(() => import('./BulkCertificateGeneratorModal'));
 const DocumentHistoryModal = React.lazy(() => import('./DocumentHistoryModal'));
 
@@ -6399,6 +6399,8 @@ export default function StudentCertificateStudioView({
         isOpen={true}
         onClose={() => setShowResultIngestionModal(false)}
         allStudents={combinedStudentPool.length > 0 ? combinedStudentPool : allStudents}
+        initialMode="gazette_ai"
+        currentSession="2025-26"
         onIngestSuccess={({ records = [], overwriteExamRoll = false } = {}) => {
           const committedRows = records.map(row => ({ ...row, overwriteExamRoll }));
           setRecentIngestedResults(committedRows);
