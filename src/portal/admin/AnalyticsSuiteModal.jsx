@@ -63,43 +63,43 @@ function MultiSelectDropdown({ label, options = [], selected = [], onChange, ali
     : `${label} (${selected.length})`;
 
   return (
-    <div className="relative text-left flex-1 sm:flex-none" ref={dropdownRef}>
+    <div className="relative text-left flex-1 sm:flex-none min-w-[90px] sm:min-w-0" ref={dropdownRef}>
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className={`w-full sm:w-auto px-2.5 py-1.5 rounded-xl text-xs font-black flex items-center justify-between gap-1.5 transition-all cursor-pointer shadow-2xs ${
+        className={`w-full sm:w-auto px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-lg text-[11px] sm:text-xs font-bold flex items-center justify-between gap-1 transition-all cursor-pointer ${
           !isAllSelected
-            ? 'bg-amber-700 text-white border border-amber-800'
-            : 'bg-white text-slate-900 dark:bg-slate-900 dark:text-slate-100 border border-slate-300 dark:border-slate-700 hover:border-amber-500 hover:bg-slate-50'
+            ? 'bg-amber-600 text-white'
+            : 'bg-white text-slate-800 dark:bg-slate-900 dark:text-slate-200 border border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800'
         }`}
       >
-        <span className="truncate max-w-[130px] sm:max-w-[150px] font-black text-left">{displayText}</span>
-        <ChevronDown size={12} className={`flex-shrink-0 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+        <span className="truncate max-w-[100px] sm:max-w-[140px] text-left">{displayText}</span>
+        <ChevronDown size={11} className={`flex-shrink-0 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 
       {isOpen && (
-        <div className={`absolute ${align === 'right' ? 'right-0' : 'left-0'} mt-1.5 w-52 max-w-[calc(100vw-32px)] rounded-2xl border border-slate-300 dark:border-slate-700 shadow-2xl z-50 p-2 space-y-1.5 animate-fadeIn bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100`}>
-          <div className="flex items-center justify-between px-1 py-0.5 border-b border-slate-200 dark:border-slate-800 text-xs font-black gap-1">
-            <span className="text-[10px] text-indigo-600 dark:text-indigo-400 uppercase tracking-wider font-black truncate flex-1">{label}</span>
+        <div className={`absolute ${align === 'right' ? 'right-0' : 'left-0'} mt-1 w-48 max-w-[calc(100vw-32px)] rounded-xl border border-slate-200 dark:border-slate-700 shadow-xl z-50 p-1.5 space-y-1 animate-fadeIn bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100`}>
+          <div className="flex items-center justify-between px-1 py-0.5 border-b border-slate-100 dark:border-slate-800 text-[10px] font-black gap-1">
+            <span className="text-indigo-600 dark:text-indigo-400 uppercase tracking-wider truncate flex-1">{label}</span>
             <div className="flex items-center gap-1 flex-shrink-0">
               <button
                 type="button"
                 onClick={handleSelectAll}
-                className="px-1.5 py-0.5 rounded-lg bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-200 text-[10px] font-black cursor-pointer transition-colors shadow-2xs"
+                className="px-1 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 text-[9px] font-black cursor-pointer"
               >
                 All
               </button>
               <button
                 type="button"
                 onClick={handleDeselectAll}
-                className="px-1.5 py-0.5 rounded-lg bg-rose-100 dark:bg-rose-950/80 text-rose-800 dark:text-rose-300 hover:bg-rose-200 text-[10px] font-black cursor-pointer transition-colors shadow-2xs"
+                className="px-1 py-0.5 rounded bg-rose-100 dark:bg-rose-950/80 text-rose-800 dark:text-rose-300 text-[9px] font-black cursor-pointer"
               >
                 None
               </button>
             </div>
           </div>
 
-          <div className="max-h-48 overflow-y-auto space-y-0.5 py-0.5">
+          <div className="max-h-44 overflow-y-auto space-y-0.5 py-0.5 custom-scrollbar">
             {options.map((opt, idx) => {
               const checked = isAllSelected || (selected.includes(opt) && !isNoneSelected);
               return (
@@ -107,12 +107,12 @@ function MultiSelectDropdown({ label, options = [], selected = [], onChange, ali
                   key={`${opt}_${idx}`}
                   type="button"
                   onClick={() => toggleOption(opt)}
-                  className="w-full flex items-center gap-2 px-1.5 py-1.5 rounded-lg text-xs font-extrabold hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-left text-slate-900 dark:text-slate-100 cursor-pointer"
+                  className="w-full flex items-center gap-1.5 px-1.5 py-1 rounded text-[11px] font-medium hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-left text-slate-900 dark:text-slate-100 cursor-pointer"
                 >
                   {checked ? (
-                    <CheckSquare size={14} className="text-indigo-600 dark:text-indigo-400 flex-shrink-0" />
+                    <CheckSquare size={13} className="text-indigo-600 dark:text-indigo-400 flex-shrink-0" />
                   ) : (
-                    <Square size={14} className="text-slate-400 dark:text-slate-500 flex-shrink-0" />
+                    <Square size={13} className="text-slate-400 dark:text-slate-500 flex-shrink-0" />
                   )}
                   <span className="truncate flex-1 min-w-0">{opt}</span>
                 </button>
@@ -1387,288 +1387,387 @@ export default function AnalyticsSuiteModal({ isOpen, onClose, students = [] }) 
   if (!isOpen) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[99999] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-1.5 sm:p-4 animate-fadeIn overflow-y-auto">
-      <div className="bg-white dark:bg-slate-900 rounded-2xl sm:rounded-3xl max-w-6xl w-full p-3 sm:p-6 shadow-2xl border border-slate-300 dark:border-slate-800 space-y-3 sm:space-y-4 max-h-[94vh] sm:max-h-[92vh] flex flex-col my-auto">
-        {/* Top Title Bar */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2.5 sm:pb-3 gap-2">
-          <div>
-            <h2 className="text-sm sm:text-lg font-black flex items-center gap-1.5 sm:gap-2 text-slate-900 dark:text-white tracking-tight">
-              <BarChart2 size={18} className="text-indigo-600 dark:text-indigo-400 flex-shrink-0" />
-              <span>Analytics & Statistical Reports Suite</span>
+    <div className="fixed inset-0 z-[99999] bg-black/75 backdrop-blur-xs flex items-center justify-center p-1 sm:p-4 animate-fadeIn">
+      <div className="bg-white dark:bg-slate-900 rounded-xl sm:rounded-2xl max-w-6xl w-full p-2 sm:p-5 shadow-xl border border-slate-200 dark:border-slate-800 space-y-1.5 sm:space-y-3 h-[98vh] sm:h-auto max-h-[98vh] sm:max-h-[92vh] flex flex-col overflow-hidden">
+        {/* Top Title Bar: Single Row on All Devices */}
+        <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-1.5 sm:pb-2.5 gap-2 flex-shrink-0">
+          <div className="min-w-0 flex-1">
+            <h2 className="text-xs sm:text-base font-black flex items-center gap-1.5 text-slate-900 dark:text-white truncate">
+              <BarChart2 size={16} className="text-indigo-600 dark:text-indigo-400 flex-shrink-0" />
+              <span className="truncate">Analytics & Statistical Reports Suite</span>
             </h2>
-            <p className="text-[11px] sm:text-xs font-bold text-slate-500 dark:text-slate-400 mt-0.5 leading-snug">
-              Comprehensive enrollment analysis, subject counts, and gender breakdown across all sessions.
+            <p className="hidden sm:block text-[11px] font-medium text-slate-500 dark:text-slate-400 mt-0.5 truncate">
+              Enrollment analysis, subject counts, and gender breakdown.
             </p>
           </div>
 
-          <div className="flex items-center gap-1.5 w-full sm:w-auto justify-between sm:justify-end flex-wrap flex-shrink-0">
-            {/* Batch Auto-Generate Button & Dropdown */}
-            <div className="relative">
+          <div className="flex items-center gap-1.5 flex-shrink-0">
+            {/* Desktop Action Buttons */}
+            <div className="hidden sm:flex items-center gap-1.5">
+              {/* Batch Auto-Generate Button & Dropdown */}
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setShowBatchMenu(!showBatchMenu)}
+                  className="px-2.5 py-1.5 rounded-lg font-bold text-xs text-white bg-amber-600 hover:bg-amber-700 flex items-center justify-center gap-1 cursor-pointer transition-all"
+                  title="Auto-generate and download multiple report types at once"
+                >
+                  <Sparkles size={13} />
+                  <span>Batch Auto-Generate</span>
+                  <ChevronDown size={11} className={`transition-transform ${showBatchMenu ? 'rotate-180' : ''}`} />
+                </button>
+
+                {showBatchMenu && (
+                  <div className="absolute right-0 mt-1.5 w-72 max-w-[calc(100vw-32px)] bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-slate-200 dark:border-slate-800 z-[100000] p-2.5 space-y-2 animate-fadeIn">
+                    <div className="flex items-center justify-between pb-1.5 border-b border-slate-100 dark:border-slate-800">
+                      <span className="text-[10px] font-black text-slate-700 dark:text-slate-200 uppercase tracking-wider">Select Reports</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (selectedBatchModes.length === REPORT_MODES.length) setSelectedBatchModes([]);
+                          else setSelectedBatchModes(REPORT_MODES.map((m) => m.id));
+                        }}
+                        className="text-[10px] font-bold text-amber-600 dark:text-amber-400 hover:underline cursor-pointer"
+                      >
+                        {selectedBatchModes.length === REPORT_MODES.length ? 'Deselect All' : 'Select All'}
+                      </button>
+                    </div>
+
+                    <div className="space-y-1 max-h-40 overflow-y-auto pr-1 custom-scrollbar">
+                      {REPORT_MODES.map((mode) => (
+                        <label
+                          key={mode.id}
+                          className="flex items-center gap-1.5 p-1 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/60 cursor-pointer text-xs text-slate-700 dark:text-slate-200 font-medium transition-colors"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedBatchModes.includes(mode.id)}
+                            onChange={() => {
+                              if (selectedBatchModes.includes(mode.id)) {
+                                setSelectedBatchModes(selectedBatchModes.filter((id) => id !== mode.id));
+                              } else {
+                                setSelectedBatchModes([...selectedBatchModes, mode.id]);
+                              }
+                            }}
+                            className="w-3.5 h-3.5 text-amber-600 rounded cursor-pointer"
+                          />
+                          <span>{mode.label}</span>
+                        </label>
+                      ))}
+                    </div>
+
+                    <div className="pt-1.5 border-t border-slate-100 dark:border-slate-800 space-y-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          handleBatchPDFPrint();
+                          setShowBatchMenu(false);
+                        }}
+                        disabled={selectedBatchModes.length === 0}
+                        className="w-full py-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold rounded-lg text-xs flex items-center justify-center gap-1 shadow-xs transition-all cursor-pointer"
+                      >
+                        <Printer size={12} />
+                        <span>Batch PDF Packet ({selectedBatchModes.length})</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          handleBatchExcelExport();
+                          setShowBatchMenu(false);
+                        }}
+                        disabled={selectedBatchModes.length === 0}
+                        className="w-full py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold rounded-lg text-xs flex items-center justify-center gap-1 shadow-xs transition-all cursor-pointer"
+                      >
+                        <FileSpreadsheet size={12} />
+                        <span>Batch Excel File ({selectedBatchModes.length})</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
               <button
                 type="button"
-                onClick={() => setShowBatchMenu(!showBatchMenu)}
-                className="px-2.5 py-1.5 sm:px-3.5 sm:py-2 rounded-xl font-black text-xs text-white bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer transition-all"
-                title="Auto-generate and download multiple report types at once"
+                onClick={handlePrintPDF}
+                className="px-2.5 py-1.5 rounded-lg font-bold text-xs text-white bg-indigo-600 hover:bg-indigo-700 flex items-center justify-center gap-1 cursor-pointer transition-all"
               >
-                <Sparkles size={14} />
-                <span className="text-[11px] sm:text-xs">Batch Auto-Generate</span>
-                <ChevronDown size={12} className={`transition-transform ${showBatchMenu ? 'rotate-180' : ''}`} />
+                <Printer size={13} />
+                <span>Print PDF</span>
               </button>
 
-              {showBatchMenu && (
-                <div className="absolute right-0 mt-2 w-72 max-w-[calc(100vw-32px)] bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 z-[100000] p-3 space-y-3 animate-fadeIn">
-                  <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
-                    <span className="text-[11px] font-black text-slate-700 dark:text-slate-200 uppercase tracking-wider">Select Reports to Generate</span>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (selectedBatchModes.length === REPORT_MODES.length) setSelectedBatchModes([]);
-                        else setSelectedBatchModes(REPORT_MODES.map((m) => m.id));
-                      }}
-                      className="text-[11px] font-bold text-amber-600 dark:text-amber-400 hover:underline cursor-pointer"
-                    >
-                      {selectedBatchModes.length === REPORT_MODES.length ? 'Deselect All' : 'Select All'}
-                    </button>
-                  </div>
-
-                  <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
-                    {REPORT_MODES.map((mode) => (
-                      <label
-                        key={mode.id}
-                        className="flex items-center gap-2 p-1.5 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/60 cursor-pointer text-xs text-slate-700 dark:text-slate-200 font-bold transition-colors"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={selectedBatchModes.includes(mode.id)}
-                          onChange={() => {
-                            if (selectedBatchModes.includes(mode.id)) {
-                              setSelectedBatchModes(selectedBatchModes.filter((id) => id !== mode.id));
-                            } else {
-                              setSelectedBatchModes([...selectedBatchModes, mode.id]);
-                            }
-                          }}
-                          className="w-3.5 h-3.5 text-amber-600 rounded cursor-pointer"
-                        />
-                        <span>{mode.label}</span>
-                      </label>
-                    ))}
-                  </div>
-
-                  <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-1.5">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        handleBatchPDFPrint();
-                        setShowBatchMenu(false);
-                      }}
-                      disabled={selectedBatchModes.length === 0}
-                      className="w-full py-2 bg-indigo-700 hover:bg-indigo-600 disabled:opacity-50 text-white font-black rounded-xl text-xs flex items-center justify-center gap-1.5 shadow transition-all cursor-pointer"
-                    >
-                      <Printer size={13} />
-                      <span>Batch PDF Packet ({selectedBatchModes.length})</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        handleBatchExcelExport();
-                        setShowBatchMenu(false);
-                      }}
-                      disabled={selectedBatchModes.length === 0}
-                      className="w-full py-2 bg-emerald-700 hover:bg-emerald-600 disabled:opacity-50 text-white font-black rounded-xl text-xs flex items-center justify-center gap-1.5 shadow transition-all cursor-pointer"
-                    >
-                      <FileSpreadsheet size={13} />
-                      <span>Batch Excel File ({selectedBatchModes.length})</span>
-                    </button>
-                  </div>
-                </div>
-              )}
+              <button
+                type="button"
+                onClick={handleExportExcel}
+                className="px-2.5 py-1.5 rounded-lg font-bold text-xs text-white bg-emerald-600 hover:bg-emerald-700 flex items-center justify-center gap-1 cursor-pointer transition-all"
+              >
+                <FileSpreadsheet size={13} />
+                <span>Export Excel</span>
+              </button>
             </div>
 
-            <button
-              type="button"
-              onClick={handlePrintPDF}
-              className="flex-1 sm:flex-none px-2.5 py-1.5 sm:px-3.5 sm:py-2 rounded-xl font-black text-xs text-white bg-indigo-700 hover:bg-indigo-600 shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer transition-all"
-            >
-              <Printer size={14} />
-              <span className="text-[11px] sm:text-xs">Print PDF</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={handleExportExcel}
-              className="flex-1 sm:flex-none px-2.5 py-1.5 sm:px-3.5 sm:py-2 rounded-xl font-black text-xs text-white bg-emerald-700 hover:bg-emerald-600 shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer transition-all"
-            >
-              <FileSpreadsheet size={14} />
-              <span className="text-[11px] sm:text-xs">Export Excel</span>
-            </button>
-
+            {/* Pinned Close Button: ALWAYS in the Top-Right */}
             <button
               type="button"
               onClick={onClose}
-              className="p-1.5 sm:p-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-900 dark:hover:text-white cursor-pointer transition-colors"
+              className="p-1 sm:p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-900 dark:hover:text-white cursor-pointer transition-colors"
+              aria-label="Close"
             >
-              <X size={18} />
+              <X size={16} />
             </button>
           </div>
         </div>
 
-        {/* 6-Filter Interactive Toolbar (Exact Match to User Reference Screenshot) */}
-        <div className="bg-slate-100 dark:bg-slate-950 p-2 sm:p-2.5 rounded-2xl border border-slate-200 dark:border-slate-800 flex items-center gap-1.5 sm:gap-2 flex-wrap shadow-inner">
-          <div className="flex items-center gap-1 text-[11px] sm:text-xs font-black text-slate-500 dark:text-slate-400 pr-1 border-r border-slate-300 dark:border-slate-700 flex-shrink-0">
-            <Filter size={12} className="text-indigo-600" />
-            <span>Filters:</span>
+        {/* Mobile Action Bar: Compact 3-Button Row */}
+        <div className="flex sm:hidden items-center gap-1 flex-shrink-0">
+          <div className="relative flex-1">
+            <button
+              type="button"
+              onClick={() => setShowBatchMenu(!showBatchMenu)}
+              className="w-full py-1 px-1.5 rounded-lg font-bold text-[11px] text-white bg-amber-600 hover:bg-amber-700 flex items-center justify-center gap-1 cursor-pointer transition-all"
+            >
+              <Sparkles size={11} />
+              <span>Batch Auto</span>
+              <ChevronDown size={10} className={`transition-transform ${showBatchMenu ? 'rotate-180' : ''}`} />
+            </button>
+
+            {showBatchMenu && (
+              <div className="absolute left-0 mt-1 w-72 max-w-[calc(100vw-32px)] bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-slate-200 dark:border-slate-800 z-[100000] p-2 space-y-1.5 animate-fadeIn">
+                <div className="flex items-center justify-between pb-1 border-b border-slate-100 dark:border-slate-800">
+                  <span className="text-[10px] font-black text-slate-700 dark:text-slate-200 uppercase tracking-wider">Reports to Generate</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (selectedBatchModes.length === REPORT_MODES.length) setSelectedBatchModes([]);
+                      else setSelectedBatchModes(REPORT_MODES.map((m) => m.id));
+                    }}
+                    className="text-[10px] font-bold text-amber-600 dark:text-amber-400 hover:underline cursor-pointer"
+                  >
+                    {selectedBatchModes.length === REPORT_MODES.length ? 'Deselect All' : 'Select All'}
+                  </button>
+                </div>
+
+                <div className="space-y-0.5 max-h-36 overflow-y-auto pr-1 custom-scrollbar">
+                  {REPORT_MODES.map((mode) => (
+                    <label
+                      key={mode.id}
+                      className="flex items-center gap-1.5 p-1 rounded hover:bg-slate-50 dark:hover:bg-slate-800/60 cursor-pointer text-[11px] text-slate-700 dark:text-slate-200 font-medium transition-colors"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedBatchModes.includes(mode.id)}
+                        onChange={() => {
+                          if (selectedBatchModes.includes(mode.id)) {
+                            setSelectedBatchModes(selectedBatchModes.filter((id) => id !== mode.id));
+                          } else {
+                            setSelectedBatchModes([...selectedBatchModes, mode.id]);
+                          }
+                        }}
+                        className="w-3.5 h-3.5 text-amber-600 rounded cursor-pointer"
+                      />
+                      <span className="truncate">{mode.label}</span>
+                    </label>
+                  ))}
+                </div>
+
+                <div className="pt-1 border-t border-slate-100 dark:border-slate-800 space-y-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleBatchPDFPrint();
+                      setShowBatchMenu(false);
+                    }}
+                    disabled={selectedBatchModes.length === 0}
+                    className="w-full py-1 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold rounded text-[11px] flex items-center justify-center gap-1 shadow-xs cursor-pointer"
+                  >
+                    <Printer size={11} />
+                    <span>PDF Packet ({selectedBatchModes.length})</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleBatchExcelExport();
+                      setShowBatchMenu(false);
+                    }}
+                    disabled={selectedBatchModes.length === 0}
+                    className="w-full py-1 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold rounded text-[11px] flex items-center justify-center gap-1 shadow-xs cursor-pointer"
+                  >
+                    <FileSpreadsheet size={11} />
+                    <span>Excel File ({selectedBatchModes.length})</span>
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
-          {/* 1. Report Mode Selector */}
-          <select
-            value={analysisMode}
-            onChange={(e) => setAnalysisMode(e.target.value)}
-            className="w-full sm:w-auto p-1.5 sm:p-2 rounded-xl text-xs font-black border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-2xs cursor-pointer min-w-[150px]"
+          <button
+            type="button"
+            onClick={handlePrintPDF}
+            className="flex-1 py-1 px-1.5 rounded-lg font-bold text-[11px] text-white bg-indigo-600 hover:bg-indigo-700 flex items-center justify-center gap-1 cursor-pointer transition-all"
           >
-            <option value="subject">Subject-wise Analysis</option>
-            <option value="stream_gender">Stream & Gender Breakdown</option>
-            <option value="roll_stmt">Roll Statement (Roll Stmt)</option>
-            <option value="enrollment">Class Enrollment Summary</option>
-          </select>
+            <Printer size={11} />
+            <span>Print PDF</span>
+          </button>
 
-          {/* 1.5 Form Status Multi-Select Checkbox Dropdown */}
-          <MultiSelectDropdown
-            label="Form Status"
-            customAllLabel="All Form Statuses"
-            options={['Approved', 'Submitted', 'Draft', 'Rejected']}
-            selected={selectedStatuses}
-            onChange={setSelectedStatuses}
-          />
-
-          {/* 2. Session Multi-Select Checkbox Dropdown */}
-          <MultiSelectDropdown
-            label="Sessions"
-            options={availableSessions}
-            selected={selectedSessions}
-            onChange={setSelectedSessions}
-          />
-
-          {/* 3. Class Multi-Select Checkbox Dropdown */}
-          <MultiSelectDropdown
-            label="Classes"
-            options={availableClasses}
-            selected={selectedClasses}
-            onChange={setSelectedClasses}
-          />
-
-          {/* 4. Gender Multi-Select Checkbox Dropdown */}
-          <MultiSelectDropdown
-            label="Genders"
-            options={availableGenders}
-            selected={selectedGenders}
-            onChange={setSelectedGenders}
-          />
-
-          {/* 5. Stream Multi-Select Checkbox Dropdown */}
-          <MultiSelectDropdown
-            label="Streams"
-            options={availableStreams}
-            selected={selectedStreams}
-            onChange={setSelectedStreams}
-          />
-
-          {/* 6. Subject Multi-Select Checkbox Dropdown */}
-          <MultiSelectDropdown
-            label="Subjects"
-            options={availableSubjects}
-            selected={selectedSubjects}
-            onChange={setSelectedSubjects}
-          />
+          <button
+            type="button"
+            onClick={handleExportExcel}
+            className="flex-1 py-1 px-1.5 rounded-lg font-bold text-[11px] text-white bg-emerald-600 hover:bg-emerald-700 flex items-center justify-center gap-1 cursor-pointer transition-all"
+          >
+            <FileSpreadsheet size={11} />
+            <span>Export Excel</span>
+          </button>
         </div>
 
-        {/* Executive Summary Stat Cards */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <div className="p-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 space-y-1">
-            <span className="text-[11px] font-black text-slate-500 dark:text-slate-400 block uppercase tracking-wider">Total Enrolled</span>
-            <div className="text-xl font-black text-slate-900 dark:text-white flex items-center gap-1.5">
-              <Users size={16} className="text-indigo-600" />
+        {/* 6-Filter Interactive Toolbar: Compact & Mobile-First */}
+        <div className="bg-slate-50 dark:bg-slate-950 p-1 sm:p-2 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs flex-shrink-0">
+          <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-1 sm:gap-1.5">
+            {/* 1. Report Mode Selector */}
+            <select
+              value={analysisMode}
+              onChange={(e) => setAnalysisMode(e.target.value)}
+              className="col-span-2 sm:col-span-1 py-1 px-2 rounded-lg text-[11px] sm:text-xs font-bold border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white cursor-pointer"
+            >
+              <option value="enrollment">Class Enrollment Summary</option>
+              <option value="subject">Subject-wise Analysis</option>
+              <option value="stream_gender">Stream & Gender Breakdown</option>
+              <option value="roll_stmt">Roll Statement (Roll Stmt)</option>
+            </select>
+
+            {/* Dropdown Filters */}
+            <MultiSelectDropdown
+              label="Status"
+              customAllLabel="All Statuses"
+              options={['Approved', 'Submitted', 'Draft', 'Rejected']}
+              selected={selectedStatuses}
+              onChange={setSelectedStatuses}
+            />
+
+            <MultiSelectDropdown
+              label="Sessions"
+              options={availableSessions}
+              selected={selectedSessions}
+              onChange={setSelectedSessions}
+            />
+
+            <MultiSelectDropdown
+              label="Classes"
+              options={availableClasses}
+              selected={selectedClasses}
+              onChange={setSelectedClasses}
+            />
+
+            <MultiSelectDropdown
+              label="Genders"
+              options={availableGenders}
+              selected={selectedGenders}
+              onChange={setSelectedGenders}
+            />
+
+            <MultiSelectDropdown
+              label="Streams"
+              options={availableStreams}
+              selected={selectedStreams}
+              onChange={setSelectedStreams}
+            />
+
+            <MultiSelectDropdown
+              label="Subjects"
+              options={availableSubjects}
+              selected={selectedSubjects}
+              onChange={setSelectedSubjects}
+            />
+          </div>
+        </div>
+
+        {/* Executive Summary Stat Cards: Ultra-Compact & Responsive */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-1 sm:gap-2 flex-shrink-0">
+          <div className="p-1 sm:p-2 rounded-lg sm:rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950">
+            <span className="text-[9px] sm:text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Total Enrolled</span>
+            <div className="text-xs sm:text-base font-black text-slate-900 dark:text-white flex items-center gap-1">
+              <Users size={12} className="text-indigo-600 flex-shrink-0" />
               <span>{stats.totalStudents}</span>
             </div>
           </div>
 
-          <div className="p-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 space-y-1">
-            <span className="text-[11px] font-black text-slate-500 dark:text-slate-400 block uppercase tracking-wider">Male Strength</span>
-            <div className="text-xl font-black text-sky-600 dark:text-sky-400 flex items-center gap-1.5">
+          <div className="p-1 sm:p-2 rounded-lg sm:rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950">
+            <span className="text-[9px] sm:text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Male Strength</span>
+            <div className="text-xs sm:text-base font-black text-sky-600 flex items-center gap-1">
               <span>{stats.maleCount}</span>
-              <span className="text-xs font-bold text-slate-500">
+              <span className="text-[9px] sm:text-[10px] font-normal text-slate-500">
                 ({stats.totalStudents > 0 ? ((stats.maleCount / stats.totalStudents) * 100).toFixed(0) : 0}%)
               </span>
             </div>
           </div>
 
-          <div className="p-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 space-y-1">
-            <span className="text-[11px] font-black text-slate-500 dark:text-slate-400 block uppercase tracking-wider">Female Strength</span>
-            <div className="text-xl font-black text-rose-600 dark:text-rose-400 flex items-center gap-1.5">
+          <div className="p-1 sm:p-2 rounded-lg sm:rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950">
+            <span className="text-[9px] sm:text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Female Strength</span>
+            <div className="text-xs sm:text-base font-black text-rose-600 flex items-center gap-1">
               <span>{stats.femaleCount}</span>
-              <span className="text-xs font-bold text-slate-500">
+              <span className="text-[9px] sm:text-[10px] font-normal text-slate-500">
                 ({stats.totalStudents > 0 ? ((stats.femaleCount / stats.totalStudents) * 100).toFixed(0) : 0}%)
               </span>
             </div>
           </div>
 
-          <div className="p-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 space-y-1">
-            <span className="text-[11px] font-black text-slate-500 dark:text-slate-400 block uppercase tracking-wider">Top Enrolled Subject</span>
-            <div className="text-sm font-black text-amber-600 dark:text-amber-400 truncate" title={stats.topSubject}>
+          <div className="p-1 sm:p-2 rounded-lg sm:rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950">
+            <span className="text-[9px] sm:text-[10px] font-bold text-slate-500 uppercase tracking-wider block truncate">Top Subject</span>
+            <div className="text-[11px] sm:text-xs font-black text-amber-600 dark:text-amber-400 truncate" title={stats.topSubject}>
               {stats.topSubject}
             </div>
           </div>
         </div>
 
-        {/* Main Analytics Data Table View */}
-        <div className="overflow-y-auto flex-1 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm pr-1">
-          <table className="w-full text-left text-xs font-bold border-collapse">
-            <thead className="sticky top-0 bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-black uppercase text-[11px] border-b border-slate-200 dark:border-slate-700">
+        {/* Main Analytics Data Table View: Scrollable & Compact */}
+        <div className="overflow-auto flex-1 min-h-0 rounded-lg sm:rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 custom-scrollbar">
+          <table className="w-full text-left text-[10.5px] sm:text-xs font-medium border-collapse min-w-[480px]">
+            <thead className="sticky top-0 bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-black uppercase text-[9.5px] sm:text-[10.5px] border-b border-slate-200 dark:border-slate-700 z-10">
               {analysisMode === 'subject' && (
                 <tr>
-                  <th className="p-3 w-12 text-center">#</th>
-                  <th className="p-3">Subject Name</th>
-                  <th className="p-3">Dominant Stream</th>
-                  {showMaleCol && <th className="p-3 text-center">Male (M)</th>}
-                  {showFemaleCol && <th className="p-3 text-center">Female (F)</th>}
-                  <th className="p-3 text-center">Total Enrolled</th>
-                  <th className="p-3 text-right">% Class Share</th>
+                  <th className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 w-8 text-center">#</th>
+                  <th className="py-1 px-1.5 sm:py-1.5 sm:px-2.5">Subject Name</th>
+                  <th className="py-1 px-1.5 sm:py-1.5 sm:px-2.5">Stream</th>
+                  {showMaleCol && <th className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-center">Male (M)</th>}
+                  {showFemaleCol && <th className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-center">Female (F)</th>}
+                  <th className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-center">Enrolled</th>
+                  <th className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-right">% Share</th>
                 </tr>
               )}
 
               {analysisMode === 'stream_gender' && (
                 <tr>
-                  <th className="p-3 w-12 text-center">#</th>
-                  <th className="p-3">Stream Bracket</th>
-                  {showMaleCol && <th className="p-3 text-center">Male Candidates</th>}
-                  {showFemaleCol && <th className="p-3 text-center">Female Candidates</th>}
-                  <th className="p-3 text-center">Total Strength</th>
-                  <th className="p-3 text-right">Gender Split (M / F)</th>
+                  <th className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 w-8 text-center">#</th>
+                  <th className="py-1 px-1.5 sm:py-1.5 sm:px-2.5">Stream Bracket</th>
+                  {showMaleCol && <th className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-center">Male</th>}
+                  {showFemaleCol && <th className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-center">Female</th>}
+                  <th className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-center">Total Strength</th>
+                  <th className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-right">Gender Split (M / F)</th>
                 </tr>
               )}
 
               {analysisMode === 'roll_stmt' && (
                 <tr>
-                  <th className="p-3 w-12 text-center">#</th>
-                  <th className="p-3">Class & Stream Bracket</th>
-                  <th className="p-3">Assigned Roll Range</th>
-                  {showMaleCol && <th className="p-3 text-center">Male (M)</th>}
-                  {showFemaleCol && <th className="p-3 text-center">Female (F)</th>}
-                  <th className="p-3 text-center">Board Reg. Count</th>
-                  <th className="p-3 text-right">Total Candidates</th>
+                  <th className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 w-8 text-center">#</th>
+                  <th className="py-1 px-1.5 sm:py-1.5 sm:px-2.5">Class & Stream</th>
+                  <th className="py-1 px-1.5 sm:py-1.5 sm:px-2.5">Roll Range</th>
+                  {showMaleCol && <th className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-center">Male (M)</th>}
+                  {showFemaleCol && <th className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-center">Female (F)</th>}
+                  <th className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-center">Reg. Count</th>
+                  <th className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-right">Total</th>
                 </tr>
               )}
 
               {analysisMode === 'enrollment' && (
                 <tr>
-                  <th className="p-3 w-12 text-center">#</th>
-                  <th className="p-3">Class Bracket</th>
-                  {showApprovedCol && <th className="p-3 text-center">Approved</th>}
-                  {showSubmittedCol && <th className="p-3 text-center">Submitted</th>}
-                  {showDraftCol && <th className="p-3 text-center">Draft</th>}
-                  {showMaleCol && <th className="p-3 text-center">Male (M)</th>}
-                  {showFemaleCol && <th className="p-3 text-center">Female (F)</th>}
-                  <th className="p-3 text-right">Total Strength</th>
+                  <th className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 w-8 text-center">#</th>
+                  <th className="py-1 px-1.5 sm:py-1.5 sm:px-2.5">Class</th>
+                  {showApprovedCol && <th className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-center">Approved</th>}
+                  {showSubmittedCol && <th className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-center">Submitted</th>}
+                  {showDraftCol && <th className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-center">Draft</th>}
+                  {showMaleCol && <th className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-center">Male (M)</th>}
+                  {showFemaleCol && <th className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-center">Female (F)</th>}
+                  <th className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-right">Total</th>
                 </tr>
               )}
             </thead>
@@ -1679,17 +1778,17 @@ export default function AnalyticsSuiteModal({ isOpen, onClose, students = [] }) 
                   const share = stats.totalStudents > 0 ? ((sub.total / stats.totalStudents) * 100).toFixed(1) : '0';
                   return (
                     <tr key={sub.name} className="hover:bg-slate-50 dark:hover:bg-slate-950 transition-colors">
-                      <td className="p-3 text-center text-slate-400 font-mono">{idx + 1}</td>
-                      <td className="p-3 font-black text-slate-900 dark:text-white">{sub.name}</td>
-                      <td className="p-3">
-                        <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-extrabold text-[10px]">
+                      <td className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-center text-slate-400 font-mono">{idx + 1}</td>
+                      <td className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 font-bold text-slate-900 dark:text-white">{sub.name}</td>
+                      <td className="py-1 px-1.5 sm:py-1.5 sm:px-2.5">
+                        <span className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold text-[9.5px]">
                           {sub.stream}
                         </span>
                       </td>
-                      {showMaleCol && <td className="p-3 text-center text-sky-600 font-black">{sub.male}</td>}
-                      {showFemaleCol && <td className="p-3 text-center text-rose-600 font-black">{sub.female}</td>}
-                      <td className="p-3 text-center font-black text-slate-900 dark:text-white">{sub.total}</td>
-                      <td className="p-3 text-right font-black text-indigo-600 dark:text-indigo-400">{share}%</td>
+                      {showMaleCol && <td className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-center text-sky-600 font-bold">{sub.male}</td>}
+                      {showFemaleCol && <td className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-center text-rose-600 font-bold">{sub.female}</td>}
+                      <td className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-center font-bold text-slate-900 dark:text-white">{sub.total}</td>
+                      <td className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-right font-bold text-indigo-600 dark:text-indigo-400">{share}%</td>
                     </tr>
                   );
                 })}
@@ -1700,12 +1799,12 @@ export default function AnalyticsSuiteModal({ isOpen, onClose, students = [] }) 
                   const fPct = stm.total > 0 ? ((stm.female / stm.total) * 100).toFixed(1) : '0';
                   return (
                     <tr key={stm.name} className="hover:bg-slate-50 dark:hover:bg-slate-950 transition-colors">
-                      <td className="p-3 text-center text-slate-400 font-mono">{idx + 1}</td>
-                      <td className="p-3 font-black text-slate-900 dark:text-white">{stm.name}</td>
-                      {showMaleCol && <td className="p-3 text-center text-sky-600 font-black">{stm.male}</td>}
-                      {showFemaleCol && <td className="p-3 text-center text-rose-600 font-black">{stm.female}</td>}
-                      <td className="p-3 text-center font-black text-slate-900 dark:text-white">{stm.total}</td>
-                      <td className="p-3 text-right font-black">
+                      <td className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-center text-slate-400 font-mono">{idx + 1}</td>
+                      <td className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 font-bold text-slate-900 dark:text-white">{stm.name}</td>
+                      {showMaleCol && <td className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-center text-sky-600 font-bold">{stm.male}</td>}
+                      {showFemaleCol && <td className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-center text-rose-600 font-bold">{stm.female}</td>}
+                      <td className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-center font-bold text-slate-900 dark:text-white">{stm.total}</td>
+                      <td className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-right font-bold text-[10px] sm:text-xs">
                         <span className="text-sky-600">{mPct}% M</span> / <span className="text-rose-600">{fPct}% F</span>
                       </td>
                     </tr>
@@ -1717,28 +1816,28 @@ export default function AnalyticsSuiteModal({ isOpen, onClose, students = [] }) 
                   <React.Fragment key={`grp_${grp.className}`}>
                     {grp.items.map((r) => (
                       <tr key={r.key} className="hover:bg-slate-50 dark:hover:bg-slate-950 transition-colors">
-                        <td className="p-3 text-center text-slate-400 font-mono">{r.globalIdx}</td>
-                        <td className="p-3 font-black text-slate-900 dark:text-white">{r.key}</td>
-                        <td className="p-3 font-mono font-bold text-amber-700 dark:text-amber-400">{r.rollRange}</td>
-                        {showMaleCol && <td className="p-3 text-center text-sky-600 font-black">{r.male}</td>}
-                        {showFemaleCol && <td className="p-3 text-center text-rose-600 font-black">{r.female}</td>}
-                        <td className="p-3 text-center font-bold">{r.regCount}</td>
-                        <td className="p-3 text-right font-black text-slate-900 dark:text-white">{r.total}</td>
+                        <td className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-center text-slate-400 font-mono">{r.globalIdx}</td>
+                        <td className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 font-bold text-slate-900 dark:text-white">{r.key}</td>
+                        <td className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 font-mono font-bold text-amber-700 dark:text-amber-400">{r.rollRange}</td>
+                        {showMaleCol && <td className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-center text-sky-600 font-bold">{r.male}</td>}
+                        {showFemaleCol && <td className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-center text-rose-600 font-bold">{r.female}</td>}
+                        <td className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-center font-medium">{r.regCount}</td>
+                        <td className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-right font-bold text-slate-900 dark:text-white">{r.total}</td>
                       </tr>
                     ))}
 
                     {/* Combined Class Subtotal Row */}
                     {grp.items.length > 1 && (
-                      <tr className="bg-indigo-50/80 dark:bg-indigo-950/40 font-black text-indigo-950 dark:text-indigo-200 border-t border-b border-indigo-200 dark:border-indigo-800">
-                        <td className="p-2.5 text-center text-indigo-600 font-mono text-[11px]">∑</td>
-                        <td className="p-2.5 font-black uppercase text-[11px] text-indigo-900 dark:text-indigo-300">
-                          Combined {grp.className} Class Total ({grp.items.length} Streams)
+                      <tr className="bg-indigo-50/80 dark:bg-indigo-950/40 font-bold text-indigo-950 dark:text-indigo-200 border-t border-b border-indigo-200 dark:border-indigo-800">
+                        <td className="py-1 px-1.5 text-center text-indigo-600 font-mono text-[10px]">∑</td>
+                        <td className="py-1 px-1.5 uppercase text-[10px] text-indigo-900 dark:text-indigo-300">
+                          Combined {grp.className} ({grp.items.length} Streams)
                         </td>
-                        <td className="p-2.5 text-indigo-600 dark:text-indigo-400 text-[11px] font-bold">All Streams Combined</td>
-                        {showMaleCol && <td className="p-2.5 text-center text-sky-700 dark:text-sky-400 font-black">{grp.male}</td>}
-                        {showFemaleCol && <td className="p-2.5 text-center text-rose-700 dark:text-rose-400 font-black">{grp.female}</td>}
-                        <td className="p-2.5 text-center font-black">{grp.regCount}</td>
-                        <td className="p-2.5 text-right font-black text-indigo-900 dark:text-indigo-200">{grp.total}</td>
+                        <td className="py-1 px-1.5 text-indigo-600 dark:text-indigo-400 text-[10px]">All Streams Combined</td>
+                        {showMaleCol && <td className="py-1 px-1.5 text-center text-sky-700 dark:text-sky-400 font-bold">{grp.male}</td>}
+                        {showFemaleCol && <td className="py-1 px-1.5 text-center text-rose-700 dark:text-rose-400 font-bold">{grp.female}</td>}
+                        <td className="py-1 px-1.5 text-center font-bold">{grp.regCount}</td>
+                        <td className="py-1 px-1.5 text-right font-black text-indigo-900 dark:text-indigo-200">{grp.total}</td>
                       </tr>
                     )}
                   </React.Fragment>
@@ -1747,14 +1846,14 @@ export default function AnalyticsSuiteModal({ isOpen, onClose, students = [] }) 
               {analysisMode === 'enrollment' &&
                 stats.sortedClasses.map((c, idx) => (
                   <tr key={c.className} className="hover:bg-slate-50 dark:hover:bg-slate-950 transition-colors">
-                    <td className="p-3 text-center text-slate-400 font-mono">{idx + 1}</td>
-                    <td className="p-3 font-black text-slate-900 dark:text-white">Class {c.className}</td>
-                    {showApprovedCol && <td className="p-3 text-center text-emerald-600 font-black">{c.approved}</td>}
-                    {showSubmittedCol && <td className="p-3 text-center text-amber-600 font-black">{c.submitted}</td>}
-                    {showDraftCol && <td className="p-3 text-center text-slate-500 font-black">{c.draft}</td>}
-                    {showMaleCol && <td className="p-3 text-center text-sky-600 font-black">{c.male}</td>}
-                    {showFemaleCol && <td className="p-3 text-center text-rose-600 font-black">{c.female}</td>}
-                    <td className="p-3 text-right font-black text-slate-900 dark:text-white">{c.total}</td>
+                    <td className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-center text-slate-400 font-mono">{idx + 1}</td>
+                    <td className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 font-bold text-slate-900 dark:text-white">Class {c.className}</td>
+                    {showApprovedCol && <td className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-center text-emerald-600 font-bold">{c.approved}</td>}
+                    {showSubmittedCol && <td className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-center text-amber-600 font-bold">{c.submitted}</td>}
+                    {showDraftCol && <td className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-center text-slate-500 font-bold">{c.draft}</td>}
+                    {showMaleCol && <td className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-center text-sky-600 font-bold">{c.male}</td>}
+                    {showFemaleCol && <td className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-center text-rose-600 font-bold">{c.female}</td>}
+                    <td className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-right font-bold text-slate-900 dark:text-white">{c.total}</td>
                   </tr>
                 ))}
 
@@ -1764,7 +1863,7 @@ export default function AnalyticsSuiteModal({ isOpen, onClose, students = [] }) 
                     analysisMode === 'enrollment' ? enrollmentColsCount :
                     analysisMode === 'roll_stmt' ? rollStmtColsCount :
                     analysisMode === 'stream_gender' ? streamGenderColsCount : subjectColsCount
-                  } className="p-8 text-center text-slate-500 font-bold">
+                  } className="p-6 text-center text-slate-500 font-bold text-xs">
                     No student records match the active filter criteria.
                   </td>
                 </tr>
@@ -1772,46 +1871,46 @@ export default function AnalyticsSuiteModal({ isOpen, onClose, students = [] }) 
             </tbody>
 
             {stats.totalStudents > 0 && (
-              <tfoot className="sticky bottom-0 bg-slate-100 dark:bg-slate-800 font-black text-slate-900 dark:text-white border-t-2 border-slate-300 dark:border-slate-700 shadow-md">
+              <tfoot className="sticky bottom-0 bg-slate-100 dark:bg-slate-800 font-black text-slate-900 dark:text-white border-t-2 border-slate-300 dark:border-slate-700 shadow-xs z-10">
                 {analysisMode === 'enrollment' && (
                   <tr>
-                    <td colSpan="2" className="p-3 uppercase">Summary Totals</td>
-                    {showApprovedCol && <td className="p-3 text-center text-emerald-600 font-black">{stats.approvedCount}</td>}
-                    {showSubmittedCol && <td className="p-3 text-center text-amber-600 font-black">{stats.submittedCount}</td>}
-                    {showDraftCol && <td className="p-3 text-center text-slate-500 font-black">{stats.draftCount}</td>}
-                    {showMaleCol && <td className="p-3 text-center text-sky-600 font-black">{stats.maleCount}</td>}
-                    {showFemaleCol && <td className="p-3 text-center text-rose-600 font-black">{stats.femaleCount}</td>}
-                    <td className="p-3 text-right font-black text-slate-900 dark:text-white">{stats.totalStudents}</td>
+                    <td colSpan="2" className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 uppercase">Totals</td>
+                    {showApprovedCol && <td className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-center text-emerald-600 font-bold">{stats.approvedCount}</td>}
+                    {showSubmittedCol && <td className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-center text-amber-600 font-bold">{stats.submittedCount}</td>}
+                    {showDraftCol && <td className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-center text-slate-500 font-bold">{stats.draftCount}</td>}
+                    {showMaleCol && <td className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-center text-sky-600 font-bold">{stats.maleCount}</td>}
+                    {showFemaleCol && <td className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-center text-rose-600 font-bold">{stats.femaleCount}</td>}
+                    <td className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-right font-black text-slate-900 dark:text-white">{stats.totalStudents}</td>
                   </tr>
                 )}
 
                 {analysisMode === 'subject' && (
                   <tr>
-                    <td colSpan="3" className="p-3 uppercase">Summary Totals</td>
-                    {showMaleCol && <td className="p-3 text-center text-sky-600">{stats.maleCount}</td>}
-                    {showFemaleCol && <td className="p-3 text-center text-rose-600">{stats.femaleCount}</td>}
-                    <td className="p-3 text-center font-black">{stats.totalStudents}</td>
-                    <td className="p-3 text-right font-black">100%</td>
+                    <td colSpan="3" className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 uppercase">Totals</td>
+                    {showMaleCol && <td className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-center text-sky-600 font-bold">{stats.maleCount}</td>}
+                    {showFemaleCol && <td className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-center text-rose-600 font-bold">{stats.femaleCount}</td>}
+                    <td className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-center font-black">{stats.totalStudents}</td>
+                    <td className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-right font-black">100%</td>
                   </tr>
                 )}
 
                 {analysisMode === 'stream_gender' && (
                   <tr>
-                    <td colSpan="2" className="p-3 uppercase">Summary Totals</td>
-                    {showMaleCol && <td className="p-3 text-center text-sky-600">{stats.maleCount}</td>}
-                    {showFemaleCol && <td className="p-3 text-center text-rose-600">{stats.femaleCount}</td>}
-                    <td className="p-3 text-center font-black">{stats.totalStudents}</td>
-                    <td className="p-3 text-right font-black">100%</td>
+                    <td colSpan="2" className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 uppercase">Totals</td>
+                    {showMaleCol && <td className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-center text-sky-600 font-bold">{stats.maleCount}</td>}
+                    {showFemaleCol && <td className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-center text-rose-600 font-bold">{stats.femaleCount}</td>}
+                    <td className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-center font-black">{stats.totalStudents}</td>
+                    <td className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-right font-black">100%</td>
                   </tr>
                 )}
 
                 {analysisMode === 'roll_stmt' && (
                   <tr>
-                    <td colSpan="3" className="p-3 uppercase">Summary Totals</td>
-                    {showMaleCol && <td className="p-3 text-center text-sky-600">{stats.maleCount}</td>}
-                    {showFemaleCol && <td className="p-3 text-center text-rose-600">{stats.femaleCount}</td>}
-                    <td className="p-3 text-center font-black">{stats.regCount}</td>
-                    <td className="p-3 text-right font-black text-slate-900 dark:text-white">{stats.totalStudents}</td>
+                    <td colSpan="3" className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 uppercase">Totals</td>
+                    {showMaleCol && <td className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-center text-sky-600 font-bold">{stats.maleCount}</td>}
+                    {showFemaleCol && <td className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-center text-rose-600 font-bold">{stats.femaleCount}</td>}
+                    <td className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-center font-black">{stats.regCount}</td>
+                    <td className="py-1 px-1.5 sm:py-1.5 sm:px-2.5 text-right font-black text-slate-900 dark:text-white">{stats.totalStudents}</td>
                   </tr>
                 )}
               </tfoot>
