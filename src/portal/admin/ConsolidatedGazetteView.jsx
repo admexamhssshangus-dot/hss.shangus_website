@@ -24,8 +24,6 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
 
   const [practicalsDocs, setPracticalsDocs] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [isPrinting, setIsPrinting] = useState(false);
-  const printRef = useRef(null);
 
   // Load available custom evaluations from Firestore
   useEffect(() => {
@@ -51,7 +49,6 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
   const loadPracticalsData = useCallback(async () => {
     setLoading(true);
     try {
-      // Fetch practicalsData collection
       let docs = [];
       try {
         const cached = await getCachedCollection('practicalsData', false, 10 * 60 * 1000).catch(() => []);
@@ -99,7 +96,7 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
     });
 
     // 2. Discover all subjects evaluated in matching documents
-    const subjectsMap = new Map(); // subjectCode -> { code, name, maxMarks }
+    const subjectsMap = new Map();
     matchingDocs.forEach(d => {
       const sCode = d.subjectCode || String(d.subject || 'SUB').slice(0, 4).toUpperCase();
       const sName = d.subject || d.subjectName || sCode;
@@ -114,11 +111,9 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
 
     const discoveredSubjects = Array.from(subjectsMap.values());
 
-    // 3. Build a student map to accumulate marks per student
-    // Key: Student Roll No or Reg No or Form No
+    // 3. Build student map
     const studentRecordsMap = new Map();
 
-    // First populate from allStudents matching Class and Session
     (allStudents || []).forEach(st => {
       const stClass = String(st.class || st.Class || st['Admission sought for class'] || '').toLowerCase();
       const stSession = String(st.session || st.Session || st['Academic Session'] || '').toLowerCase();
@@ -146,14 +141,14 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
             fatherName: fatherName || '—',
             stream: stream,
             status: status,
-            subjectMarks: {}, // sCode -> { marks, maxMarks, isAbsent }
+            subjectMarks: {},
             enrolled: true
           });
         }
       }
     });
 
-    // Second: overlay marks from matchingDocs records
+    // Overlay marks
     matchingDocs.forEach(d => {
       const sCode = d.subjectCode || String(d.subject || 'SUB').slice(0, 4).toUpperCase();
       const dMax = Number(d.maxMarks) || 100;
@@ -167,7 +162,6 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
           const rName = String(r.name || r.studentName || '').trim();
           const rFather = String(r.parentName || r.fatherName || '').trim();
 
-          // Find existing student in map
           let existing = null;
           if (rRoll && studentRecordsMap.has(rRoll)) existing = studentRecordsMap.get(rRoll);
           else if (rReg && studentRecordsMap.has(rReg)) existing = studentRecordsMap.get(rReg);
@@ -197,7 +191,6 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
             if (rRoll && existing.rollNo === '—') existing.rollNo = rRoll;
             if (rFather && existing.fatherName === '—') existing.fatherName = rFather;
           } else {
-            // Student entered directly in teacher portal but not found in primary directory
             const newKey = rRoll || rReg || rBoard || rName.toLowerCase() || `rec_${Math.random()}`;
             studentRecordsMap.set(newKey, {
               key: newKey,
@@ -218,8 +211,7 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
       }
     });
 
-    // 4. Calculate Grand Totals, Percentages, Pass/Fail, Division
-    const minPassPct = 0.36; // 36% passing threshold (JKBOSE standard)
+    const minPassPct = 0.36;
     const compiledRows = [];
 
     let totalEnrolled = 0;
@@ -302,7 +294,6 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
       });
     });
 
-    // Sort by Roll Number ascending numerically
     compiledRows.sort((a, b) => {
       const numA = parseInt(a.rollNo, 10);
       const numB = parseInt(b.rollNo, 10);
@@ -330,7 +321,6 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
   const filteredRows = useMemo(() => {
     let rows = gazetteRows;
 
-    // Stream filter
     if (selectedStream !== 'All') {
       rows = rows.filter(r => {
         const stStream = String(r.stream || '').toLowerCase();
@@ -338,7 +328,6 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
       });
     }
 
-    // Search query
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase().trim();
       rows = rows.filter(r =>
@@ -359,7 +348,6 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
       return;
     }
 
-    // Prepare table headers
     const headerRow = [
       'S.No',
       'Board Reg. No',
@@ -375,7 +363,6 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
 
     headerRow.push('Grand Total', 'Max Marks', 'Percentage %', 'Result Status', 'Division / Grade');
 
-    // Prepare data rows
     const dataRows = filteredRows.map((r, idx) => {
       const row = [
         idx + 1,
@@ -464,7 +451,7 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
   };
 
   return (
-    <div className="space-y-4 text-slate-100">
+    <div className="space-y-4 text-slate-900 dark:text-slate-100">
       {/* Printable Style Sheet */}
       <style dangerouslySetInnerHTML={{
         __html: `
@@ -491,17 +478,17 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
       `}} />
 
       {/* Top Filter & Toolbar Bar */}
-      <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 shadow-xs space-y-3 no-print">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 border-b border-slate-800/80 pb-3">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 sm:p-5 shadow-sm space-y-3 no-print">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-3">
           <div>
-            <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-orange-500/15 border border-orange-500/30 text-orange-300 text-[10px] font-bold">
-              <Award size={11} className="text-orange-400" />
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-orange-50 dark:bg-orange-950/40 border border-orange-200 dark:border-orange-800/60 text-orange-800 dark:text-orange-300 text-[10px] font-bold">
+              <Award size={11} className="text-orange-600 dark:text-orange-400" />
               <span>Consolidated Tabulation Authority</span>
             </div>
-            <h2 className="text-base sm:text-lg font-black text-white mt-1 m-0">
+            <h2 className="text-base sm:text-lg font-black text-slate-900 dark:text-white mt-1 m-0">
               Master Gazette & Multi-Subject Analytics
             </h2>
-            <p className="text-xs text-slate-400 m-0">
+            <p className="text-xs text-slate-600 dark:text-slate-300 m-0 font-medium">
               Live consolidated award rolls compiled across all subjects submitted by teachers.
             </p>
           </div>
@@ -512,7 +499,7 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
               type="button"
               onClick={handlePrint}
               disabled={filteredRows.length === 0}
-              className="px-3 py-1.5 rounded-xl bg-teal-600 hover:bg-teal-500 text-slate-950 font-black text-xs flex items-center gap-1.5 transition-all shadow-xs cursor-pointer disabled:opacity-50"
+              className="px-3.5 py-2 rounded-xl bg-teal-700 hover:bg-teal-600 active:bg-teal-800 text-white font-black text-xs flex items-center gap-1.5 transition-all shadow-xs cursor-pointer disabled:opacity-50"
             >
               <Printer size={14} />
               <span>Print Official Gazette</span>
@@ -521,7 +508,7 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
               type="button"
               onClick={handleExportExcel}
               disabled={filteredRows.length === 0}
-              className="px-3 py-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white font-bold text-xs flex items-center gap-1.5 transition-all shadow-xs cursor-pointer disabled:opacity-50"
+              className="px-3.5 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white font-bold text-xs flex items-center gap-1.5 transition-all shadow-xs cursor-pointer disabled:opacity-50"
             >
               <Download size={14} />
               <span>Export Excel (.xlsx)</span>
@@ -530,7 +517,7 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
               type="button"
               onClick={handleExportCsv}
               disabled={filteredRows.length === 0}
-              className="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 font-semibold text-xs flex items-center gap-1 transition-all cursor-pointer disabled:opacity-50"
+              className="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 font-semibold text-xs flex items-center gap-1 transition-all cursor-pointer disabled:opacity-50"
             >
               <Download size={13} />
               <span>CSV</span>
@@ -539,7 +526,7 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
               type="button"
               onClick={loadPracticalsData}
               disabled={loading}
-              className="p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 transition-all cursor-pointer disabled:opacity-50"
+              className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 transition-all cursor-pointer disabled:opacity-50"
               title="Refresh database records"
             >
               <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
@@ -551,13 +538,13 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
         <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-2.5 pt-1">
           {/* Evaluation Type */}
           <div>
-            <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+            <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">
               Assessment Type
             </label>
             <select
               value={selectedEvalType}
               onChange={(e) => setSelectedEvalType(e.target.value)}
-              className="w-full px-2.5 py-1.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-teal-300 font-bold focus:outline-none focus:border-teal-500"
+              className="w-full px-2.5 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-xs text-teal-800 dark:text-teal-300 font-bold focus:outline-none focus:border-teal-600"
             >
               {availableEvaluations.map(ev => (
                 <option key={ev.id || ev.evalType} value={ev.evalType}>
@@ -572,13 +559,13 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
 
           {/* Class */}
           <div>
-            <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+            <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">
               Class
             </label>
             <select
               value={selectedClass}
               onChange={(e) => setSelectedClass(e.target.value)}
-              className="w-full px-2.5 py-1.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-white font-bold focus:outline-none focus:border-teal-500"
+              className="w-full px-2.5 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-xs text-slate-900 dark:text-white font-bold focus:outline-none focus:border-teal-600"
             >
               {CLASSES.map(cls => (
                 <option key={cls} value={cls}>Class {cls}</option>
@@ -588,13 +575,13 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
 
           {/* Academic Session */}
           <div>
-            <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+            <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">
               Academic Session
             </label>
             <select
               value={selectedSession}
               onChange={(e) => setSelectedSession(e.target.value)}
-              className="w-full px-2.5 py-1.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-white font-bold focus:outline-none focus:border-teal-500"
+              className="w-full px-2.5 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-xs text-slate-900 dark:text-white font-bold focus:outline-none focus:border-teal-600"
             >
               {SESSIONS.map(sess => (
                 <option key={sess} value={sess}>{sess}</option>
@@ -604,13 +591,13 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
 
           {/* Stream */}
           <div>
-            <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+            <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">
               Stream
             </label>
             <select
               value={selectedStream}
               onChange={(e) => setSelectedStream(e.target.value)}
-              className="w-full px-2.5 py-1.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-white font-bold focus:outline-none focus:border-teal-500"
+              className="w-full px-2.5 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-xs text-slate-900 dark:text-white font-bold focus:outline-none focus:border-teal-600"
             >
               {STREAMS.map(str => (
                 <option key={str} value={str}>{str}</option>
@@ -620,78 +607,78 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
 
           {/* Search Query */}
           <div className="col-span-2 sm:col-span-4 lg:col-span-1">
-            <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+            <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">
               Search Candidate
             </label>
             <div className="relative">
-              <Search size={13} className="absolute left-2.5 top-2 text-slate-500" />
+              <Search size={13} className="absolute left-2.5 top-2.5 text-slate-400" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Roll / Reg / Name..."
-                className="w-full pl-7 pr-3 py-1.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-white focus:outline-none focus:border-teal-500"
+                className="w-full pl-7 pr-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-teal-600"
               />
             </div>
           </div>
         </div>
       </div>
 
-      {/* KPI Performance Badges */}
+      {/* KPI Performance Badges with Light & Dark Theme Support */}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 no-print">
-        <div className="p-3 rounded-2xl bg-slate-900/80 border border-slate-800 flex items-center gap-3">
-          <div className="w-8 h-8 rounded-xl bg-blue-950 text-blue-400 flex items-center justify-center font-black">
-            <Users size={16} />
+        <div className="p-3.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center gap-3 shadow-xs">
+          <div className="w-9 h-9 rounded-xl bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-400 flex items-center justify-center font-black">
+            <Users size={18} />
           </div>
           <div>
-            <span className="text-[10px] font-bold text-slate-400 uppercase">Enrolled</span>
-            <p className="text-base font-black text-white m-0 leading-tight">{stats.totalEnrolled}</p>
+            <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase">Enrolled</span>
+            <p className="text-lg font-black text-slate-900 dark:text-white m-0 leading-tight">{stats.totalEnrolled}</p>
           </div>
         </div>
 
-        <div className="p-3 rounded-2xl bg-slate-900/80 border border-slate-800 flex items-center gap-3">
-          <div className="w-8 h-8 rounded-xl bg-indigo-950 text-indigo-400 flex items-center justify-center font-black">
-            <FileText size={16} />
+        <div className="p-3.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center gap-3 shadow-xs">
+          <div className="w-9 h-9 rounded-xl bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-400 flex items-center justify-center font-black">
+            <FileText size={18} />
           </div>
           <div>
-            <span className="text-[10px] font-bold text-slate-400 uppercase">Appeared</span>
-            <p className="text-base font-black text-indigo-300 m-0 leading-tight">{stats.appearedCount}</p>
+            <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase">Appeared</span>
+            <p className="text-lg font-black text-indigo-700 dark:text-indigo-300 m-0 leading-tight">{stats.appearedCount}</p>
           </div>
         </div>
 
-        <div className="p-3 rounded-2xl bg-slate-900/80 border border-slate-800 flex items-center gap-3">
-          <div className="w-8 h-8 rounded-xl bg-emerald-950 text-emerald-400 flex items-center justify-center font-black">
-            <CheckCircle2 size={16} />
+        <div className="p-3.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center gap-3 shadow-xs">
+          <div className="w-9 h-9 rounded-xl bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400 flex items-center justify-center font-black">
+            <CheckCircle2 size={18} />
           </div>
           <div>
-            <span className="text-[10px] font-bold text-slate-400 uppercase">Passed</span>
-            <p className="text-base font-black text-emerald-400 m-0 leading-tight">{stats.passedCount}</p>
+            <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase">Passed</span>
+            <p className="text-lg font-black text-emerald-700 dark:text-emerald-400 m-0 leading-tight">{stats.passedCount}</p>
           </div>
         </div>
 
-        <div className="p-3 rounded-2xl bg-slate-900/80 border border-slate-800 flex items-center gap-3">
-          <div className="w-8 h-8 rounded-xl bg-amber-950 text-amber-400 flex items-center justify-center font-black">
-            <TrendingUp size={16} />
+        <div className="p-3.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center gap-3 shadow-xs">
+          <div className="w-9 h-9 rounded-xl bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-400 flex items-center justify-center font-black">
+            <TrendingUp size={18} />
           </div>
           <div>
-            <span className="text-[10px] font-bold text-slate-400 uppercase">Pass Rate</span>
-            <p className="text-base font-black text-amber-300 m-0 leading-tight">{stats.overallPassPct}%</p>
+            <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase">Pass Rate</span>
+            <p className="text-lg font-black text-amber-700 dark:text-amber-300 m-0 leading-tight">{stats.overallPassPct}%</p>
           </div>
         </div>
 
-        <div className="p-3 rounded-2xl bg-slate-900/80 border border-slate-800 flex items-center gap-3 col-span-2 sm:col-span-1">
-          <div className="w-8 h-8 rounded-xl bg-teal-950 text-teal-400 flex items-center justify-center font-black">
-            <BarChart3 size={16} />
+        <div className="p-3.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center gap-3 col-span-2 sm:col-span-1 shadow-xs">
+          <div className="w-9 h-9 rounded-xl bg-teal-50 dark:bg-teal-950 text-teal-700 dark:text-teal-400 flex items-center justify-center font-black">
+            <BarChart3 size={18} />
           </div>
           <div>
-            <span className="text-[10px] font-bold text-slate-400 uppercase">Avg Score</span>
-            <p className="text-base font-black text-teal-300 m-0 leading-tight">{stats.avgScorePct}%</p>
+            <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase">Avg Score</span>
+            <p className="text-lg font-black text-teal-700 dark:text-teal-300 m-0 leading-tight">{stats.avgScorePct}%</p>
           </div>
         </div>
       </div>
 
-      {/* Main Gazette Table Container (Also used as print target) */}
-      <div id="official-gazette-print-area" className="bg-slate-900/90 border border-slate-800 rounded-2xl overflow-hidden shadow-xs">
+      {/* Main Gazette Table Container */}
+      <div id="official-gazette-print-area" className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-xs">
         {/* Printable Official Institutional Header (Hidden on screen, visible on print) */}
         <div className="hidden print:block p-4 text-center border-b-2 border-black space-y-1">
           <h1 className="text-xl font-black uppercase tracking-wider text-black m-0">
@@ -705,20 +692,20 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
           </p>
         </div>
 
-        {/* High Density Gazette Table */}
+        {/* High Density Gazette Table with Clean High-Contrast Alternating Rows */}
         <div className="overflow-x-auto max-h-[620px] overflow-y-auto custom-scrollbar">
           <table className="w-full text-left text-xs border-collapse select-text">
-            <thead className="sticky top-0 z-20 bg-slate-950 border-b border-slate-800 text-slate-300 uppercase text-[10px] font-black tracking-wider">
+            <thead className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-950 border-b-2 border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 uppercase text-[10px] font-black tracking-wider">
               <tr>
                 <th className="p-2.5 text-center w-10">S.No</th>
                 <th className="p-2.5">Roll No</th>
                 <th className="p-2.5">Reg. No</th>
-                <th className="p-2.5 min-w-[150px]">Candidate & Parentage</th>
+                <th className="p-2.5 min-w-[160px]">Candidate & Parentage</th>
                 <th className="p-2.5">Stream</th>
                 {subjectsList.map(s => (
                   <th key={s.code} className="p-2 text-center min-w-[70px]" title={s.name}>
                     <span className="block truncate max-w-[80px]">{s.code}</span>
-                    <span className="text-[8px] font-normal text-slate-500">/{s.maxMarks}</span>
+                    <span className="text-[8px] font-semibold text-slate-500">/{s.maxMarks}</span>
                   </th>
                 ))}
                 <th className="p-2.5 text-center">Grand Total</th>
@@ -727,7 +714,7 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
                 <th className="p-2.5 text-center">Grade</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-800/60 font-mono text-[11px]">
+            <tbody className="divide-y divide-slate-200 dark:divide-slate-800 text-[11px]">
               {filteredRows.map((row, idx) => {
                 const isPass = row.resultStatus === 'PASS';
                 const isAbsent = row.resultStatus === 'ABSENT';
@@ -735,25 +722,25 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
                 return (
                   <tr
                     key={row.key}
-                    className={`hover:bg-slate-850/60 transition-colors ${
-                      idx % 2 === 0 ? 'bg-slate-900/40' : 'bg-slate-900/90'
+                    className={`hover:bg-teal-50/50 dark:hover:bg-slate-800/60 transition-colors ${
+                      idx % 2 === 0 ? 'bg-white dark:bg-slate-900/40' : 'bg-slate-50/70 dark:bg-slate-900/90'
                     }`}
                   >
-                    <td className="p-2 text-center text-slate-400 font-sans text-xs">{idx + 1}</td>
-                    <td className="p-2 font-bold text-white text-xs">{row.rollNo}</td>
-                    <td className="p-2 text-slate-400 text-[10px] font-mono">{row.regNo}</td>
+                    <td className="p-2 text-center text-slate-500 dark:text-slate-400 font-sans text-xs">{idx + 1}</td>
+                    <td className="p-2 font-mono font-bold text-slate-900 dark:text-white text-xs">{row.rollNo}</td>
+                    <td className="p-2 text-slate-600 dark:text-slate-400 text-[10px] font-mono">{row.regNo}</td>
                     <td className="p-2 font-sans">
-                      <p className="font-bold text-white text-xs m-0 leading-tight">{row.name}</p>
-                      <p className="text-[10px] text-slate-400 m-0 leading-tight">S/O: {row.fatherName}</p>
+                      <p className="font-bold text-slate-900 dark:text-white text-xs m-0 leading-tight">{row.name}</p>
+                      <p className="text-[10px] text-slate-500 dark:text-slate-400 m-0 leading-tight">S/O: {row.fatherName}</p>
                     </td>
-                    <td className="p-2 font-sans text-xs text-slate-300">{row.stream}</td>
+                    <td className="p-2 font-sans text-xs text-slate-700 dark:text-slate-300 font-medium">{row.stream}</td>
 
                     {/* Subject Marks Columns */}
                     {subjectsList.map(s => {
                       const markObj = row.subjectMarks[s.code];
                       if (!markObj) {
                         return (
-                          <td key={s.code} className="p-2 text-center text-slate-600">
+                          <td key={s.code} className="p-2 text-center text-slate-400 dark:text-slate-600 font-mono">
                             —
                           </td>
                         );
@@ -761,7 +748,7 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
 
                       if (markObj.isAbsent) {
                         return (
-                          <td key={s.code} className="p-2 text-center text-rose-400 font-bold text-[10px]">
+                          <td key={s.code} className="p-2 text-center text-rose-700 dark:text-rose-400 font-bold text-[10px] font-mono">
                             AB
                           </td>
                         );
@@ -774,8 +761,8 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
                       return (
                         <td
                           key={s.code}
-                          className={`p-2 text-center font-bold ${
-                            isFailed ? 'text-rose-400 bg-rose-950/20' : 'text-slate-100'
+                          className={`p-2 text-center font-mono font-bold ${
+                            isFailed ? 'text-rose-700 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/30' : 'text-slate-900 dark:text-slate-100'
                           }`}
                         >
                           {val !== null ? val : '—'}
@@ -784,12 +771,12 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
                     })}
 
                     {/* Grand Total & Max */}
-                    <td className="p-2 text-center font-bold text-white">
+                    <td className="p-2 text-center font-mono font-bold text-slate-900 dark:text-white">
                       {row.totalMax > 0 ? `${row.totalObtained}/${row.totalMax}` : '—'}
                     </td>
 
                     {/* Percentage */}
-                    <td className="p-2 text-center font-bold text-teal-300">
+                    <td className="p-2 text-center font-mono font-black text-teal-700 dark:text-teal-300">
                       {row.percentage}
                     </td>
 
@@ -798,10 +785,10 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
                       <span
                         className={`px-2 py-0.5 rounded-md text-[9.5px] font-black uppercase tracking-wider inline-block ${
                           isPass
-                            ? 'bg-emerald-950 text-emerald-300 border border-emerald-800'
+                            ? 'bg-emerald-100 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800'
                             : isAbsent
-                            ? 'bg-slate-800 text-slate-400 border border-slate-700'
-                            : 'bg-rose-950 text-rose-300 border border-rose-800'
+                            ? 'bg-slate-200 text-slate-800 dark:bg-slate-800 dark:text-slate-300 border border-slate-300 dark:border-slate-700'
+                            : 'bg-rose-100 text-rose-900 dark:bg-rose-950 dark:text-rose-300 border border-rose-300 dark:border-rose-800'
                         }`}
                       >
                         {row.resultStatus}
@@ -809,7 +796,7 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
                     </td>
 
                     {/* Division */}
-                    <td className="p-2 text-center font-sans text-xs font-semibold text-slate-300">
+                    <td className="p-2 text-center font-sans text-xs font-semibold text-slate-700 dark:text-slate-300">
                       {row.division}
                     </td>
                   </tr>
