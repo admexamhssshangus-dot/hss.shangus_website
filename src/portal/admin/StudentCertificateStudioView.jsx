@@ -89,12 +89,23 @@ import {
 import { saveGeneratedDocToHistory } from '../../services/docHistoryService';
 import { recordApplicationPrint } from '../../services/printTrackerService';
 import TabLoadingOverlay from '../../components/TabLoadingOverlay';
+import ModuleErrorBoundary from '../../components/ModuleErrorBoundary';
+import { lazyWithChunkRecovery } from '../../utils/lazyWithChunkRecovery';
 import { scheduleIdleWork } from '../../utils/scheduleIdleWork';
 
-const StudentResultEditorModal = React.lazy(() => import('./StudentResultEditorModal'));
-const ResultIngestionModal = React.lazy(() => import('./BulkFieldOverwriteModal'));
-const BulkCertificateGeneratorModal = React.lazy(() => import('./BulkCertificateGeneratorModal'));
-const DocumentHistoryModal = React.lazy(() => import('./DocumentHistoryModal'));
+const StudentResultEditorModal = lazyWithChunkRecovery(() => import('./StudentResultEditorModal'), 'student-result-editor');
+const ResultIngestionModal = lazyWithChunkRecovery(() => import('./BulkFieldOverwriteModal'), 'result-ingestion-modal');
+const BulkCertificateGeneratorModal = lazyWithChunkRecovery(() => import('./BulkCertificateGeneratorModal'), 'bulk-certificate-gen');
+const DocumentHistoryModal = lazyWithChunkRecovery(() => import('./DocumentHistoryModal'), 'document-history');
+
+const StudioModalFallback = ({ text = 'Loading module...' }) => (
+  <div className="fixed inset-0 z-[9999] bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+    <div className="bg-white dark:bg-slate-900 rounded-2xl p-5 shadow-2xl border border-slate-200 dark:border-slate-800 flex items-center gap-3">
+      <RefreshCw size={18} className="animate-spin text-indigo-600 dark:text-indigo-400" />
+      <span className="text-xs font-bold text-slate-800 dark:text-slate-200">{text}</span>
+    </div>
+  </div>
+);
 
 export const sanitizeCertificateHtml = (rawHtml) => {
   if (!rawHtml || typeof rawHtml !== 'string') return '';
@@ -6384,82 +6395,98 @@ export default function StudentCertificateStudioView({
 
       {/* == == == == == == == ==  CLOUD DOCUMENT HISTORY & ARCHIVE MODAL == == == == == == == ==  */}
       {showHistoryModal && (
-        <DocumentHistoryModal
-          isOpen={true}
-          onClose={() => setShowHistoryModal(false)}
-          defaultFilter="bonafide"
-          onLoadAsDraft={handleLoadDraftFromHistory}
-        />
+        <ModuleErrorBoundary key="doc-history-modal">
+          <React.Suspense fallback={<StudioModalFallback text="Opening Document Archive..." />}>
+            <DocumentHistoryModal
+              isOpen={true}
+              onClose={() => setShowHistoryModal(false)}
+              defaultFilter="bonafide"
+              onLoadAsDraft={handleLoadDraftFromHistory}
+            />
+          </React.Suspense>
+        </ModuleErrorBoundary>
       )}
 
       {/* == == == == == == == ==  STUDENT JKBOSE RESULT & TC DETAILS EDITOR MODAL == == == == == == == ==  */}
       {showResultEditorModal && (
-        <StudentResultEditorModal
-        isOpen={true}
-        onClose={() => setShowResultEditorModal(false)}
-        student={selectedStudent}
-        onSaveSuccess={(updatedSt) => {
-          setSelectedStudent(updatedSt);
-          const res = extractStudentResultMarks(updatedSt?.raw || updatedSt);
-          setTcMarksObtained(res.marksObtained);
-          setTcMaxMarks(res.maxMarks);
-          setTcDivision(res.division);
-          setTcExamRoll(res.examRoll || updatedSt?.rollNo || '');
-          setTcExamMode(res.examMode);
-          setTcResultStatus(res.resultStatus);
-          setTcReappSubjects(res.reappSubjects);
-          if (updatedSt?.withdrawalDate) setWithdrawalDate(updatedSt.withdrawalDate);
-          setCustomCanvasHtml(null);
-          showToast('✓ Student exam result & TC records updated!', 'success');
-        }}
-        showToast={showToast}
-        />
+        <ModuleErrorBoundary key="result-editor-modal">
+          <React.Suspense fallback={<StudioModalFallback text="Opening Result Editor..." />}>
+            <StudentResultEditorModal
+              isOpen={true}
+              onClose={() => setShowResultEditorModal(false)}
+              student={selectedStudent}
+              onSaveSuccess={(updatedSt) => {
+                setSelectedStudent(updatedSt);
+                const res = extractStudentResultMarks(updatedSt?.raw || updatedSt);
+                setTcMarksObtained(res.marksObtained);
+                setTcMaxMarks(res.maxMarks);
+                setTcDivision(res.division);
+                setTcExamRoll(res.examRoll || updatedSt?.rollNo || '');
+                setTcExamMode(res.examMode);
+                setTcResultStatus(res.resultStatus);
+                setTcReappSubjects(res.reappSubjects);
+                if (updatedSt?.withdrawalDate) setWithdrawalDate(updatedSt.withdrawalDate);
+                setCustomCanvasHtml(null);
+                showToast('✓ Student exam result & TC records updated!', 'success');
+              }}
+              showToast={showToast}
+            />
+          </React.Suspense>
+        </ModuleErrorBoundary>
       )}
 
       {/* == == == == == == == ==  JKBOSE RESULT & AI GAZETTE INGESTION HUB MODAL == == == == == == == ==  */}
       {showResultIngestionModal && (
-        <ResultIngestionModal
-        isOpen={true}
-        onClose={() => setShowResultIngestionModal(false)}
-        allStudents={combinedStudentPool.length > 0 ? combinedStudentPool : allStudents}
-        initialMode="gazette_ai"
-        currentSession="2025-26"
-        onIngestSuccess={({ records = [], overwriteExamRoll = false } = {}) => {
-          const committedRows = records.map(row => ({ ...row, overwriteExamRoll }));
-          setRecentIngestedResults(committedRows);
-          const selectedRow = committedRows.find(row => ingestionRowMatchesStudent(row, selectedStudent));
-          if (selectedRow && selectedStudent) {
-            const updatedStudent = mergeIngestedResultIntoStudent(selectedStudent, selectedRow, overwriteExamRoll);
-            const resultInfo = extractStudentResultMarks(updatedStudent.raw || updatedStudent);
-            setSelectedStudent(updatedStudent);
-            setTcMarksObtained(resultInfo.marksObtained);
-            setTcMaxMarks(resultInfo.maxMarks);
-            setTcDivision(resultInfo.division);
-            setTcExamRoll(resultInfo.examRoll);
-            setTcExamMode(resultInfo.examMode);
-            setTcResultStatus(resultInfo.resultStatus);
-            setTcReappSubjects(resultInfo.reappSubjects);
-            if (selectedRow.withdrawalDate) setWithdrawalDate(selectedRow.withdrawalDate);
-            setCustomCanvasHtml(null);
-          }
-          showToast('🎉 Ingestion complete! Certificate data refreshed from the synchronized results.', 'success');
-        }}
-        showToast={showToast}
-        />
+        <ModuleErrorBoundary key="result-ingestion-modal">
+          <React.Suspense fallback={<StudioModalFallback text="Opening Result & AI Gazette Ingestion Hub..." />}>
+            <ResultIngestionModal
+              isOpen={true}
+              onClose={() => setShowResultIngestionModal(false)}
+              allStudents={combinedStudentPool.length > 0 ? combinedStudentPool : allStudents}
+              initialMode="gazette_ai"
+              currentSession="2025-26"
+              onIngestSuccess={({ records = [], overwriteExamRoll = false } = {}) => {
+                const committedRows = records.map(row => ({ ...row, overwriteExamRoll }));
+                setRecentIngestedResults(committedRows);
+                const selectedRow = committedRows.find(row => ingestionRowMatchesStudent(row, selectedStudent));
+                if (selectedRow && selectedStudent) {
+                  const updatedStudent = mergeIngestedResultIntoStudent(selectedStudent, selectedRow, overwriteExamRoll);
+                  const resultInfo = extractStudentResultMarks(updatedStudent.raw || updatedStudent);
+                  setSelectedStudent(updatedStudent);
+                  setTcMarksObtained(resultInfo.marksObtained);
+                  setTcMaxMarks(resultInfo.maxMarks);
+                  setTcDivision(resultInfo.division);
+                  setTcExamRoll(resultInfo.examRoll);
+                  setTcExamMode(resultInfo.examMode);
+                  setTcResultStatus(resultInfo.resultStatus);
+                  setTcReappSubjects(resultInfo.reappSubjects);
+                  if (selectedRow.withdrawalDate) setWithdrawalDate(selectedRow.withdrawalDate);
+                  setCustomCanvasHtml(null);
+                }
+                showToast('🎉 Ingestion complete! Certificate data refreshed from the synchronized results.', 'success');
+              }}
+              showToast={showToast}
+            />
+          </React.Suspense>
+        </ModuleErrorBoundary>
       )}
 
       {/* == == == == == == == ==  BULK TC / DISCHARGE CERTIFICATE GENERATOR MODAL == == == == == == == ==  */}
       {showBulkGeneratorModal && (
-        <BulkCertificateGeneratorModal
-        isOpen={true}
-        onClose={() => setShowBulkGeneratorModal(false)}
-        allStudents={combinedStudentPool.length > 0 ? combinedStudentPool : allStudents}
-        officeTitle={officeTitle}
-        institutionName={institutionName}
-        institutionAddress={institutionAddress}
-        signatories={[signatoryLeft || 'I/c Admissions', 'Checked By', signatoryRight || 'Principal']}
-        showToast={showToast}
-        />
+        <ModuleErrorBoundary key="bulk-cert-gen-modal">
+          <React.Suspense fallback={<StudioModalFallback text="Opening Bulk Certificate Generator..." />}>
+            <BulkCertificateGeneratorModal
+              isOpen={true}
+              onClose={() => setShowBulkGeneratorModal(false)}
+              allStudents={combinedStudentPool.length > 0 ? combinedStudentPool : allStudents}
+              officeTitle={officeTitle}
+              institutionName={institutionName}
+              institutionAddress={institutionAddress}
+              signatories={[signatoryLeft || 'I/c Admissions', 'Checked By', signatoryRight || 'Principal']}
+              showToast={showToast}
+            />
+          </React.Suspense>
+        </ModuleErrorBoundary>
       )}
 
       {/* == == == == == == == ==  CUSTOM TEMPLATE DELETE CONFIRMATION & WARNING MODAL == == == == == == == ==  */}

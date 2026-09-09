@@ -21,7 +21,7 @@ import {
   ShieldAlert, Lock, Award, Shield, Copy, Check
 } from 'lucide-react';
 import ModernLoader from '../components/ModernLoader';
-import { getStudentRollVal, normalizeStudentClass, generateVerificationSignature } from '../utils/idCardRenderer';
+import { getStudentRollVal, normalizeStudentClass, generateVerificationSignature, sanitizeVerificationField } from '../utils/idCardRenderer';
 import { getStudentPhotoUrl, formatPhotoDisplayUrl } from '../utils/imageCompressor';
 
 // Anti-Automation Client Rate Limiter (Max 15 lookups per minute)
@@ -46,16 +46,21 @@ const checkClientRateLimit = () => {
 
 export default function StudentVerificationPage() {
   const [searchParams] = useSearchParams();
-  const regParam = searchParams.get('reg') || '';
-  const rollParam = searchParams.get('roll') || '';
-  const fNoParam = searchParams.get('fNo') || '';
-  const certParam = searchParams.get('cert') || '';
+  const rawReg = searchParams.get('reg') || '';
+  const rawRoll = searchParams.get('roll') || '';
+  const rawFNo = searchParams.get('fNo') || '';
+  const rawCert = searchParams.get('cert') || '';
   const docParam = searchParams.get('doc') || '';
   const sigParam = searchParams.get('sig') || '';
   const nameParam = searchParams.get('name') || '';
   const fatherParam = searchParams.get('father') || '';
   const classParam = searchParams.get('class') || '';
   const sessionParam = searchParams.get('session') || '';
+
+  const regParam = sanitizeVerificationField(rawReg);
+  const rollParam = sanitizeVerificationField(rawRoll);
+  const fNoParam = sanitizeVerificationField(rawFNo);
+  const certParam = sanitizeVerificationField(rawCert);
 
   const [student, setStudent] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -129,8 +134,20 @@ export default function StudentVerificationPage() {
       // 🔒 Cryptographic Signature Validation
       const expectedSigWithCert = generateVerificationSignature(regParam, rollParam, fNoParam, certParam);
       const expectedSigWithoutCert = generateVerificationSignature(regParam, rollParam, fNoParam, '');
+      
+      // Backward compatibility: old URLs may have hashed with literal raw values or '—'
+      const legacySig1 = generateVerificationSignature(rawReg, rawRoll, rawFNo, rawCert);
+      const legacySig2 = generateVerificationSignature(rawReg, rawRoll, rawFNo, '');
+      const legacySig3 = generateVerificationSignature(regParam || '—', rollParam || '—', fNoParam || '—', certParam);
+
       const isCryptographicallyValid = Boolean(
-        sigParam && (sigParam === expectedSigWithCert || sigParam === expectedSigWithoutCert)
+        sigParam && (
+          sigParam === expectedSigWithCert ||
+          sigParam === expectedSigWithoutCert ||
+          sigParam === legacySig1 ||
+          sigParam === legacySig2 ||
+          sigParam === legacySig3
+        )
       );
 
       // Flag as tampered if signature parameter was present but failed validation against institutional keys
@@ -146,7 +163,8 @@ export default function StudentVerificationPage() {
           { type: 'regNo', value: regParam },
           { type: 'formNo', value: fNoParam },
           { type: 'certNo', value: certParam },
-        ].filter(item => item.value && item.value !== '—' && String(item.value).trim().length >= 4);
+          { type: 'rollNo', value: rollParam },
+        ].filter(item => item.value && item.value !== '—' && String(item.value).trim().length >= 1);
 
         // 1. Primary: Netlify/Serverless backend lookup (if available)
         for (const candidate of lookupCandidates) {

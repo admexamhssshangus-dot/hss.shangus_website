@@ -194,22 +194,25 @@ export default function ExcelSpreadsheetGrid({
       const startRow = focusedCell?.rowIndex !== null && focusedCell?.rowIndex !== undefined ? focusedCell.rowIndex : 0;
       const parsedData = lines.map(line => line.split('\t').map(c => c.trim()));
 
+      // Build ordered column key list: Column 0 is 'regNo', columns 1..N are activeFields
+      const allColKeys = ['regNo', ...activeFields.map(f => f.key)];
+      let startColIdx = 0;
+      if (focusedCell?.colKey) {
+        const foundIdx = allColKeys.indexOf(focusedCell.colKey);
+        if (foundIdx >= 0) startColIdx = foundIdx;
+      }
+
       setRows(prevRows => {
         const nextRows = [...prevRows];
         parsedData.forEach((rowValues, rIdx) => {
           const targetIndex = startRow + rIdx;
           const newRow = targetIndex < nextRows.length ? { ...nextRows[targetIndex] } : createBlankRow(`paste_${Date.now()}_${rIdx}`);
           
-          // Column 0 is strictly Registration Number
-          if (rowValues[0] !== undefined) {
-            newRow.regNo = rowValues[0];
-          }
-
-          // Column 1..N map to activeFields
-          activeFields.forEach((field, fIdx) => {
-            const cellVal = rowValues[fIdx + 1];
-            if (cellVal !== undefined) {
-              newRow[field.key] = cellVal;
+          rowValues.forEach((val, cIdx) => {
+            const targetColKey = allColKeys[startColIdx + cIdx];
+            if (targetColKey) {
+              // When pasting into non-zero columns, regNo is preserved untouched
+              newRow[targetColKey] = val;
             }
           });
 
@@ -359,10 +362,10 @@ export default function ExcelSpreadsheetGrid({
           <thead>
             {/* Row 1: Column Letters (A, B, C, D...) */}
             <tr className="bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-mono text-[10px] text-center border-b border-slate-300 dark:border-slate-700">
-              <th className="w-10 py-1 border-r border-slate-300 dark:border-slate-700 bg-slate-300 dark:bg-slate-900 text-slate-700 dark:text-slate-400">
+              <th className="sticky left-0 z-30 w-10 py-1 border-r border-slate-300 dark:border-slate-700 bg-slate-300 dark:bg-slate-900 text-slate-700 dark:text-slate-400 select-none">
                 #
               </th>
-              <th className="py-1 px-2 border-r border-slate-300 dark:border-slate-700 bg-emerald-700 text-white font-black tracking-wider">
+              <th className="sticky left-10 z-30 py-1 px-2 border-r border-slate-300 dark:border-slate-700 bg-emerald-700 text-white font-black tracking-wider min-w-[170px]">
                 Col {getColLetter(0)} (Key)
               </th>
               {activeFields.map((field, idx) => (
@@ -375,12 +378,12 @@ export default function ExcelSpreadsheetGrid({
 
             {/* Row 2: Human Field Names */}
             <tr className="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 font-black text-[11px] border-b-2 border-emerald-500 shadow-xs">
-              <th className="w-10 py-2 text-center text-slate-400 font-mono text-[10px] border-r border-slate-200 dark:border-slate-800">
+              <th className="sticky left-0 z-30 w-10 py-2 text-center text-slate-400 font-mono text-[10px] border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
                 —
               </th>
               <th 
                 onClick={() => handleSortGridBy('regNo')}
-                className="py-2 px-3 border-r border-slate-200 dark:border-slate-800 text-emerald-800 dark:text-emerald-400 bg-emerald-50/50 dark:bg-emerald-950/30 cursor-pointer select-none hover:bg-emerald-100/60 dark:hover:bg-emerald-900/40 transition-colors"
+                className="sticky left-10 z-30 py-2 px-3 border-r border-slate-200 dark:border-slate-800 text-emerald-800 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950 cursor-pointer select-none hover:bg-emerald-100 dark:hover:bg-emerald-900 transition-colors min-w-[170px]"
                 title="Click to sort by Registration No"
               >
                 <div className="flex items-center justify-between gap-1.5">
@@ -424,12 +427,12 @@ export default function ExcelSpreadsheetGrid({
                 className="hover:bg-emerald-50/30 dark:hover:bg-emerald-950/20 transition-colors border-b border-slate-200 dark:border-slate-800"
               >
                 {/* Row Number (1, 2, 3...) */}
-                <td className="w-10 py-1 text-center font-mono text-[10px] font-bold text-slate-400 bg-slate-100 dark:bg-slate-800/80 border-r border-slate-200 dark:border-slate-800 select-none">
+                <td className="sticky left-0 z-20 w-10 py-1 text-center font-mono text-[10px] font-bold text-slate-400 bg-slate-100 dark:bg-slate-800 border-r border-slate-200 dark:border-slate-800 select-none">
                   {rIdx + 1}
                 </td>
 
                 {/* Column A: Registration No.* */}
-                <td className="p-0 border-r border-slate-200 dark:border-slate-800 bg-emerald-50/20 dark:bg-emerald-950/10">
+                <td className="sticky left-10 z-20 p-0 border-r border-slate-200 dark:border-slate-800 bg-emerald-50 dark:bg-emerald-950">
                   <input
                     type="text"
                     value={row.regNo || ''}

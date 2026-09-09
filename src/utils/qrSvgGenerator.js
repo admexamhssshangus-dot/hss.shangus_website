@@ -8,10 +8,35 @@ import QRCode from 'qrcode';
 const qrCache = new Map();
 
 /**
+ * Normalizes placeholder/empty values ('—', '-', '--', 'null', 'undefined') to empty string.
+ * Guarantees that values omitted in URL search parameters produce the exact same signature hash.
+ */
+export function sanitizeVerificationField(val) {
+  if (val === null || val === undefined) return '';
+  const s = String(val).trim();
+  if (
+    s === '' ||
+    s === '—' ||
+    s === '-' ||
+    s === '--' ||
+    s === '---' ||
+    s.toLowerCase() === 'null' ||
+    s.toLowerCase() === 'undefined'
+  ) {
+    return '';
+  }
+  return s;
+}
+
+/**
  * Deterministic cryptographic verification signature for official QR verification URLs.
  */
 export function generateVerificationSignature(reg = '', roll = '', fNo = '', cert = '') {
-  const clean = `${String(reg).trim()}_${String(roll).trim()}_${String(fNo).trim()}_${String(cert).trim()}_HSS_SHANGUS_SECURE_AUTH`;
+  const cleanReg = sanitizeVerificationField(reg);
+  const cleanRoll = sanitizeVerificationField(roll);
+  const cleanFNo = sanitizeVerificationField(fNo);
+  const cleanCert = sanitizeVerificationField(cert);
+  const clean = `${cleanReg}_${cleanRoll}_${cleanFNo}_${cleanCert}_HSS_SHANGUS_SECURE_AUTH`;
   let hash = 0;
   for (let i = 0; i < clean.length; i++) {
     const char = clean.charCodeAt(i);
@@ -49,10 +74,10 @@ export function buildCertificateVerificationUrl({
   doc = ''
 }) {
   const origin = getPublicVerificationOrigin();
-  const cleanReg = String(reg || '').trim();
-  const cleanRoll = String(roll || '').trim();
-  const cleanFNo = String(fNo || '').trim();
-  const cleanCert = String(cert || '').trim();
+  const cleanReg = sanitizeVerificationField(reg);
+  const cleanRoll = sanitizeVerificationField(roll);
+  const cleanFNo = sanitizeVerificationField(fNo);
+  const cleanCert = sanitizeVerificationField(cert);
 
   // Clean doc title: strip parenthetical noise like "(with DOB in Figures & Words)"
   const cleanDoc = String(doc || 'Certificate')
@@ -63,10 +88,10 @@ export function buildCertificateVerificationUrl({
   const sig = generateVerificationSignature(cleanReg, cleanRoll, cleanFNo, cleanCert);
 
   const params = new URLSearchParams();
-  if (cleanReg && cleanReg !== '—') params.set('reg', cleanReg);
-  if (cleanRoll && cleanRoll !== '—') params.set('roll', cleanRoll);
-  if (cleanFNo && cleanFNo !== '—') params.set('fNo', cleanFNo);
-  if (cleanCert && cleanCert !== '—') params.set('cert', cleanCert);
+  if (cleanReg) params.set('reg', cleanReg);
+  if (cleanRoll) params.set('roll', cleanRoll);
+  if (cleanFNo) params.set('fNo', cleanFNo);
+  if (cleanCert) params.set('cert', cleanCert);
   if (cleanDoc) params.set('doc', cleanDoc);
   if (sig) params.set('sig', sig);
 

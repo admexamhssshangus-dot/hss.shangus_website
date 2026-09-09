@@ -2,7 +2,7 @@
  * idCardRenderer.js — Core Design System & Utilities for Student ID Card Suite
  * Govt. Higher Secondary School Shangus
  */
-import { createQrSvgDataUri, generateVerificationSignature, getPublicVerificationOrigin } from './qrSvgGenerator';
+import { createQrSvgDataUri, generateVerificationSignature, getPublicVerificationOrigin, sanitizeVerificationField } from './qrSvgGenerator';
 import {
   getAssignedClassRollNumber,
   resolveStudentAdmissionStatus,
@@ -485,19 +485,24 @@ export function abbreviateSubjectName(subjectStr) {
 
 // In-memory memoization cache for generated student QR SVGs
 const qrMemoryCache = new Map();
-export { generateVerificationSignature, getPublicVerificationOrigin };
+export { generateVerificationSignature, getPublicVerificationOrigin, sanitizeVerificationField };
 /**
  * Generate an offline standalone verification QR SVG Data URI with 0 network latency (<0.01ms)
  */
 export function generateVerificationQrUrl(student, size = 160) {
   if (!student) return '';
-  const reg = student['Board Registration Number'] || student.boardRegNo || student.regNo || '—';
-  const roll = getStudentRollVal(student) || '—';
-  const fNo = student['Form Number'] || student['Form No.'] || student.formNo || '—';
+  const reg = sanitizeVerificationField(student['Board Registration Number'] || student.boardRegNo || student.regNo || '');
+  const roll = sanitizeVerificationField(getStudentRollVal(student) || '');
+  const fNo = sanitizeVerificationField(student['Form Number'] || student['Form No.'] || student.formNo || '');
 
   const origin = getPublicVerificationOrigin();
   const sig = generateVerificationSignature(reg, roll, fNo);
-  const verifyUrl = `${origin}/verify-student?reg=${encodeURIComponent(reg)}&roll=${encodeURIComponent(roll)}&fNo=${encodeURIComponent(fNo)}&sig=${encodeURIComponent(sig)}`;
+  const params = new URLSearchParams();
+  if (reg) params.set('reg', reg);
+  if (roll) params.set('roll', roll);
+  if (fNo) params.set('fNo', fNo);
+  if (sig) params.set('sig', sig);
+  const verifyUrl = `${origin}/verify-student?${params.toString()}`;
   const cacheKey = `${verifyUrl}_${size}`;
   if (qrMemoryCache.has(cacheKey)) return qrMemoryCache.get(cacheKey);
 
