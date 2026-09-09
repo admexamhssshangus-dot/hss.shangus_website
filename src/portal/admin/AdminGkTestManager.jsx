@@ -16,6 +16,12 @@ import ModernLoader from '../../components/ModernLoader';
 import SchoolAssessmentsHub from './SchoolAssessmentsHub';
 import ConsolidatedGazetteView from './ConsolidatedGazetteView';
 
+const HUB_TABS = [
+  { id: 'school', label: 'School Assessments & Pre-Board Hub', icon: Award },
+  { id: 'gazette', label: 'Consolidated Gazette & Analytics', icon: FileText },
+  { id: 'competitive', label: 'Competitive Exams & OMR', icon: Sparkles }
+];
+
 const EXAM_PRESETS = [
   {
     id: 'gk',
@@ -623,13 +629,9 @@ export default function AdminGkTestManager({ allStudents = [], onRefresh }) {
 
   return (
     <div className="space-y-3 sm:space-y-4">
-      {/* Sleek Segmented Hub Navigation with High-Contrast Light & Dark Theme Support */}
-      <div className="flex items-center gap-1.5 p-1.5 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-x-auto custom-scrollbar no-print shadow-2xs">
-        {[
-          { id: 'school', label: 'School Assessments & Pre-Board Hub', icon: Award },
-          { id: 'gazette', label: 'Consolidated Gazette & Analytics', icon: FileText },
-          { id: 'competitive', label: 'Competitive Exams & OMR', icon: Sparkles }
-        ].map((tab) => {
+      {/* Sub-Navigation Bar */}
+      <div className="flex items-center gap-1 p-1 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-x-auto custom-scrollbar no-print">
+        {HUB_TABS.map(tab => {
           const Icon = tab.icon;
           const isActive = activeHubTab === tab.id;
           return (
@@ -644,13 +646,13 @@ export default function AdminGkTestManager({ allStudents = [], onRefresh }) {
                   window.history.replaceState({}, '', url.toString());
                 } catch (_) {}
               }}
-              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-black transition-all whitespace-nowrap cursor-pointer ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black transition-all whitespace-nowrap cursor-pointer ${
                 isActive
-                  ? 'bg-teal-700 dark:bg-teal-600 text-white shadow-sm'
-                  : 'text-slate-700 dark:text-slate-300 hover:text-slate-950 dark:hover:text-white hover:bg-white dark:hover:bg-slate-800/80'
+                  ? 'bg-teal-700 dark:bg-teal-600 text-white shadow-xs'
+                  : 'text-slate-600 dark:text-slate-300 hover:text-slate-950 dark:hover:text-white hover:bg-white/80 dark:hover:bg-slate-800/80'
               }`}
             >
-              <Icon size={14} className={isActive ? 'text-white' : 'text-teal-600 dark:text-teal-400'} />
+              <Icon size={13} className={isActive ? 'text-white' : 'text-teal-600 dark:text-teal-400'} />
               <span>{tab.label}</span>
             </button>
           );
@@ -675,180 +677,152 @@ export default function AdminGkTestManager({ allStudents = [], onRefresh }) {
       {/* TAB 3: Competitive Exams & OMR */}
       {activeHubTab === 'competitive' && (
         <>
-          {/* Header Banner: Mobile-First, Minimal & Compact */}
-          <div className="bg-gradient-to-r from-teal-950 via-teal-900 to-slate-900 text-white rounded-xl sm:rounded-2xl p-3 sm:p-5 shadow-sm relative overflow-hidden border border-teal-800/40">
-        <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-3 sm:gap-4">
-          <div className="space-y-1">
-            <div className="inline-flex items-center gap-1.5 bg-teal-500/20 backdrop-blur-xs border border-teal-400/30 rounded-full px-2.5 py-0.5 text-[10px] sm:text-xs font-bold text-teal-200">
-              <Award size={13} className="text-amber-400" />
-              <span>Competitive Exams & Talent Search</span>
+          {/* Unified Compact Command Header */}
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 shadow-2xs space-y-2.5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+              {/* Title, Badge & Public Portal Pill */}
+              <div className="flex items-center gap-2.5 min-w-0 flex-wrap">
+                <div className="w-8 h-8 rounded-lg bg-teal-50 dark:bg-teal-950 text-teal-700 dark:text-teal-400 flex items-center justify-center font-black flex-shrink-0">
+                  <Award size={16} />
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h2 className="text-sm font-black text-slate-900 dark:text-white tracking-tight m-0 truncate">
+                      {examConfig.examTitle}
+                    </h2>
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider flex items-center gap-1 shadow-2xs ${
+                      effectiveStatus
+                        ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800'
+                        : 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300 border border-rose-300 dark:border-rose-800'
+                    }`}>
+                      {effectiveStatus ? <Unlock size={10} /> : <Lock size={10} />}
+                      <span>{effectiveStatus ? 'Portal Open' : isDeadlinePassed ? 'Closed (Deadline)' : 'Closed'}</span>
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 m-0 truncate">
+                    Competitive entrance, Olympiads & talent examination manager.
+                  </p>
+                </div>
+
+                {/* Portal Link Pill */}
+                <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs ml-auto sm:ml-0">
+                  <span className="text-[10px] text-slate-500 dark:text-slate-400 font-bold">Portal:</span>
+                  <code className="text-teal-700 dark:text-teal-300 font-mono font-bold text-[11px]">/gk-test</code>
+                  <button
+                    type="button"
+                    onClick={handleCopyPublicLink}
+                    title="Copy public registration link"
+                    className="p-0.5 rounded hover:bg-white dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition-colors cursor-pointer"
+                  >
+                    {copiedUrl ? <Check size={12} className="text-emerald-600 dark:text-emerald-400" /> : <Copy size={12} />}
+                  </button>
+                  <a
+                    href="/gk-test"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title="Open public registration page"
+                    className="p-0.5 rounded hover:bg-white dark:hover:bg-slate-800 text-emerald-700 dark:text-emerald-400 transition-colors cursor-pointer"
+                  >
+                    <ExternalLink size={12} />
+                  </a>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex items-center gap-1.5 flex-wrap flex-shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setShowAddModal(true)}
+                  className="h-8 px-3 rounded-lg bg-teal-700 hover:bg-teal-600 text-white text-xs font-black transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <UserPlus size={13} />
+                  <span>Register</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowBulkImportModal(true)}
+                  className="h-8 px-3 rounded-lg bg-indigo-700 hover:bg-indigo-600 text-white text-xs font-black transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <Users size={13} />
+                  <span>Bulk Import</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleExportCsv}
+                  disabled={registrations.length === 0}
+                  className="h-8 px-2.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs font-semibold transition-all border border-slate-300 dark:border-slate-700 flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                  title="Export CSV"
+                >
+                  <Download size={12} />
+                  <span>CSV</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsConfigExpanded(prev => !prev)}
+                  className={`h-8 px-2.5 rounded-lg border text-xs font-bold flex items-center gap-1 transition-all cursor-pointer ${
+                    isConfigExpanded
+                      ? 'bg-teal-50 dark:bg-teal-950 border-teal-400 text-teal-800 dark:text-teal-300'
+                      : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700'
+                  }`}
+                  title="Toggle exam settings"
+                >
+                  <Sliders size={13} />
+                  <span>Settings</span>
+                  {isConfigExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => fetchRegistrations(true)}
+                  disabled={loading}
+                  className="h-8 w-8 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 flex items-center justify-center transition-all cursor-pointer disabled:opacity-50"
+                  title="Refresh candidate records"
+                >
+                  <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
+                </button>
+              </div>
             </div>
-            <h2 className="text-base sm:text-xl font-black tracking-tight text-white m-0">
-              {examConfig.examTitle}
-            </h2>
-            <p className="hidden sm:block text-teal-200/90 text-xs m-0 max-w-2xl leading-relaxed">
-              Manage competitive tests, science/math olympiads, scholarship entrance exams, schedules, and admit cards.
-            </p>
-          </div>
 
-          <div className="flex items-center gap-1.5 flex-wrap w-full md:w-auto">
-            <button
-              onClick={() => setShowAddModal(true)}
-              className="flex-1 sm:flex-none px-2.5 py-1.5 rounded-lg bg-teal-600 hover:bg-teal-500 active:bg-teal-700 text-white text-xs font-bold transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
-            >
-              <UserPlus size={13} />
-              <span>Register</span>
-            </button>
-            <button
-              onClick={() => setShowBulkImportModal(true)}
-              className="flex-1 sm:flex-none px-2.5 py-1.5 rounded-lg bg-indigo-700 hover:bg-indigo-600 active:bg-indigo-800 text-white text-xs font-bold transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
-            >
-              <Users size={13} />
-              <span>Bulk Import</span>
-            </button>
-            <button
-              onClick={handleExportCsv}
-              disabled={registrations.length === 0}
-              className="px-2.5 py-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 active:bg-slate-900 text-teal-200 text-xs font-bold transition-all border border-teal-700/40 shadow-xs flex items-center gap-1 cursor-pointer disabled:opacity-50"
-            >
-              <Download size={13} />
-              <span>CSV</span>
-            </button>
-            <button
-              onClick={() => fetchRegistrations(true)}
-              disabled={loading}
-              className="px-2.5 py-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 active:bg-slate-900 text-teal-200 text-xs font-bold transition-all border border-teal-700/40 shadow-xs flex items-center gap-1 cursor-pointer disabled:opacity-50"
-              title="Refresh candidate records"
-            >
-              <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
-            </button>
-          </div>
-        </div>
+            {/* Quick Parameters & Presets Single-Line Strip */}
+            <div className="pt-2 border-t border-slate-100 dark:border-slate-800 grid grid-cols-1 sm:grid-cols-12 gap-2 items-center">
+              {/* Template Selector Dropdown */}
+              <div className="sm:col-span-3">
+                <select
+                  value={EXAM_PRESETS.find(p => p.examType === examConfig.examType)?.id || ''}
+                  onChange={(e) => {
+                    if (e.target.value) handleApplyPreset(e.target.value);
+                  }}
+                  className="w-full h-8 px-2.5 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-xs text-teal-800 dark:text-teal-300 font-bold focus:outline-none focus:border-teal-600"
+                >
+                  <option value="" disabled>Select Preset Template...</option>
+                  {EXAM_PRESETS.map(preset => (
+                    <option key={preset.id} value={preset.id}>{preset.label}</option>
+                  ))}
+                </select>
+              </div>
 
-        {/* Public Portal Shortcut Bar */}
-        <div className="mt-3 pt-2.5 border-t border-teal-800/50 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
-          <div className="flex items-center gap-1.5 text-teal-200">
-            <span className="font-bold text-[11px]">Portal:</span>
-            <code className="bg-black/30 px-1.5 py-0.5 rounded border border-teal-500/30 text-teal-300 font-mono text-[10px]">
-              /gk-test
-            </code>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <button
-              onClick={handleCopyPublicLink}
-              className="px-2.5 py-1 rounded-lg bg-teal-800/80 hover:bg-teal-700 text-white text-[11px] font-bold flex items-center gap-1 cursor-pointer transition-all border border-teal-600/40"
-            >
-              {copiedUrl ? <Check size={12} className="text-emerald-300" /> : <Copy size={12} />}
-              <span>{copiedUrl ? 'Copied!' : 'Copy Link'}</span>
-            </button>
-            <a
-              href="/gk-test"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold flex items-center gap-1 cursor-pointer transition-all shadow-xs"
-            >
-              <ExternalLink size={12} />
-              <span>Open Public Page</span>
-            </a>
-          </div>
-        </div>
-      </div>
+              {/* Title input */}
+              <div className="sm:col-span-4">
+                <input
+                  type="text"
+                  value={examConfig.examTitle}
+                  onChange={e => setExamConfig(prev => ({ ...prev, examTitle: e.target.value }))}
+                  placeholder="Exam Title..."
+                  className="w-full h-8 px-2.5 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:border-teal-600"
+                />
+              </div>
 
-      {/* Comprehensive Exam Configuration Panel */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl sm:rounded-2xl p-3 sm:p-4 shadow-xs space-y-3">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-2.5">
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-teal-100 dark:bg-teal-900/40 text-teal-800 dark:text-teal-300 flex items-center justify-center font-black flex-shrink-0">
-              <Sliders size={16} />
-            </div>
-            <div>
-              <h3 className="text-xs sm:text-sm font-black text-slate-900 dark:text-white m-0">Exam Parameters & Registration Settings</h3>
-              <p className="hidden sm:block text-[11px] text-slate-500 dark:text-slate-400 m-0 mt-0.5">Configure title, type, date, venue, instructions, and deadline.</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-1.5 justify-between sm:justify-end">
-            <span className={`px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-black uppercase tracking-wider flex items-center gap-1 shadow-2xs ${
-              effectiveStatus
-                ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800'
-                : 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300 border border-rose-300 dark:border-rose-800'
-            }`}>
-              {effectiveStatus ? <Unlock size={11} /> : <Lock size={11} />}
-              <span>{effectiveStatus ? 'Portal OPEN' : isDeadlinePassed ? 'Closed (Deadline)' : 'Portal CLOSED'}</span>
-            </span>
-            <button
-              onClick={() => setIsConfigExpanded(prev => !prev)}
-              className="p-1 sm:p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition-colors cursor-pointer"
-              title="Expand / Collapse settings"
-            >
-              {isConfigExpanded ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
-            </button>
-          </div>
-        </div>
-
-        {/* Minimal Deadline Alert if Closed */}
-        {!effectiveStatus && (
-          <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-slate-300">
-            <div className="flex items-center gap-2">
-              <Lock size={14} className="text-amber-400 shrink-0" />
-              <span>
-                <strong>Portal Closed.</strong> Public registration is currently locked.
-              </span>
-            </div>
-            <button
-              onClick={() => {
-                handleExtendDeadlineDays(30);
-                handleSaveSettings({ ...examConfig, isOpen: true, registrationDeadline: defaultFutureDeadline });
-              }}
-              className="px-3 py-1 rounded-lg bg-teal-600 hover:bg-teal-500 text-slate-950 font-bold text-xs transition-all cursor-pointer"
-            >
-              Reopen Portal
-            </button>
-          </div>
-        )}
-
-        {/* Quick Exam Presets */}
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-xs font-bold text-slate-500 dark:text-slate-400 flex items-center gap-1">
-            <Sparkles size={13} className="text-amber-500" /> Exam Templates:
-          </span>
-          {EXAM_PRESETS.map(preset => (
-            <button
-              key={preset.id}
-              type="button"
-              onClick={() => handleApplyPreset(preset.id)}
-              className={`px-3 py-1 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
-                examConfig.examType === preset.examType
-                  ? 'bg-teal-50 border-teal-400 text-teal-800 dark:bg-teal-950 dark:border-teal-700 dark:text-teal-300 shadow-xs'
-                  : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100'
-              }`}
-            >
-              {preset.label}
-            </button>
-          ))}
-        </div>
-
-        {/* Basic Fields Always Visible */}
-        <div className="grid grid-cols-1 sm:grid-cols-12 gap-4 items-end pt-1">
-          <div className="sm:col-span-6 space-y-1.5">
-            <label className="text-xs font-bold text-slate-600 dark:text-slate-300">Exam Title / Competition Name</label>
-            <input
-              type="text"
-              value={examConfig.examTitle}
-              onChange={e => setExamConfig(prev => ({ ...prev, examTitle: e.target.value }))}
-              className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-teal-500 outline-none"
-            />
-          </div>
-
-          <div className="sm:col-span-3 space-y-1.5">
-            <div className="flex items-center justify-between">
-              <label className="text-xs font-bold text-slate-600 dark:text-slate-300 flex items-center gap-1">
-                <Calendar size={13} /> Registration Deadline
-              </label>
-              <div className="flex items-center gap-1">
+              {/* Registration Deadline */}
+              <div className="sm:col-span-3 flex items-center gap-1">
+                <input
+                  type="datetime-local"
+                  value={examConfig.registrationDeadline}
+                  onChange={e => setExamConfig(prev => ({ ...prev, registrationDeadline: e.target.value }))}
+                  className="w-full h-8 px-2 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-[11px] font-bold text-slate-800 dark:text-slate-200 focus:outline-none focus:border-teal-600"
+                />
                 <button
                   type="button"
                   onClick={() => handleExtendDeadlineDays(7)}
-                  className="text-[9px] font-black px-1.5 py-0.5 rounded bg-teal-50 dark:bg-teal-950 text-teal-700 dark:text-teal-300 border border-teal-200 dark:border-teal-800 hover:bg-teal-100"
+                  className="h-8 px-1.5 rounded-lg bg-teal-50 dark:bg-teal-950 text-teal-700 dark:text-teal-300 border border-teal-200 dark:border-teal-800 hover:bg-teal-100 text-[10px] font-black cursor-pointer whitespace-nowrap"
                   title="Extend +7 days"
                 >
                   +7d
@@ -856,217 +830,185 @@ export default function AdminGkTestManager({ allStudents = [], onRefresh }) {
                 <button
                   type="button"
                   onClick={() => handleExtendDeadlineDays(30)}
-                  className="text-[9px] font-black px-1.5 py-0.5 rounded bg-teal-50 dark:bg-teal-950 text-teal-700 dark:text-teal-300 border border-teal-200 dark:border-teal-800 hover:bg-teal-100"
+                  className="h-8 px-1.5 rounded-lg bg-teal-50 dark:bg-teal-950 text-teal-700 dark:text-teal-300 border border-teal-200 dark:border-teal-800 hover:bg-teal-100 text-[10px] font-black cursor-pointer whitespace-nowrap"
                   title="Extend +30 days"
                 >
                   +30d
                 </button>
               </div>
+
+              {/* Portal Toggle Switch & Save */}
+              <div className="sm:col-span-2 flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setExamConfig(prev => ({ ...prev, isOpen: !prev.isOpen }))}
+                  className={`flex-1 h-8 px-2 rounded-lg border text-xs font-black flex items-center justify-center gap-1 transition-all cursor-pointer ${
+                    examConfig.isOpen
+                      ? 'bg-emerald-50 border-emerald-300 text-emerald-800 dark:bg-emerald-950/40 dark:border-emerald-700 dark:text-emerald-300'
+                      : 'bg-slate-100 border-slate-300 text-slate-600 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-400'
+                  }`}
+                  title={examConfig.isOpen ? 'Click to close portal' : 'Click to open portal'}
+                >
+                  {examConfig.isOpen ? <Unlock size={12} /> : <Lock size={12} />}
+                  <span>{examConfig.isOpen ? 'Open' : 'Closed'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSaveSettings()}
+                  disabled={savingSettings}
+                  className="h-8 px-2.5 rounded-lg bg-teal-700 hover:bg-teal-600 text-white text-xs font-black flex items-center gap-1 transition-all cursor-pointer disabled:opacity-50 flex-shrink-0"
+                  title="Save settings"
+                >
+                  <Save size={12} />
+                  <span>{savingSettings ? '...' : 'Save'}</span>
+                </button>
+              </div>
             </div>
-            <input
-              type="datetime-local"
-              value={examConfig.registrationDeadline}
-              onChange={e => setExamConfig(prev => ({ ...prev, registrationDeadline: e.target.value }))}
-              className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-teal-500 outline-none"
-            />
+
+            {/* Detailed Config Options (Expanded on demand) */}
+            {isConfigExpanded && (
+              <div className="pt-2.5 border-t border-slate-100 dark:border-slate-800 grid grid-cols-1 sm:grid-cols-12 gap-2.5 animate-fadeIn">
+                <div className="sm:col-span-3 space-y-1">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase">Category</label>
+                  <input
+                    type="text"
+                    value={examConfig.examType}
+                    onChange={e => setExamConfig(prev => ({ ...prev, examType: e.target.value }))}
+                    className="w-full h-8 px-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-800 dark:text-slate-200 outline-none"
+                  />
+                </div>
+
+                <div className="sm:col-span-3 space-y-1">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase">Exam Date</label>
+                  <input
+                    type="text"
+                    value={examConfig.examDate}
+                    onChange={e => setExamConfig(prev => ({ ...prev, examDate: e.target.value }))}
+                    placeholder="e.g. Sunday, 30th August 2026"
+                    className="w-full h-8 px-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-800 dark:text-slate-200 outline-none"
+                  />
+                </div>
+
+                <div className="sm:col-span-3 space-y-1">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase">Timing</label>
+                  <input
+                    type="text"
+                    value={examConfig.examTime}
+                    onChange={e => setExamConfig(prev => ({ ...prev, examTime: e.target.value }))}
+                    placeholder="e.g. 11:00 AM – 01:00 PM"
+                    className="w-full h-8 px-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-800 dark:text-slate-200 outline-none"
+                  />
+                </div>
+
+                <div className="sm:col-span-3 space-y-1">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase">Max Marks</label>
+                  <input
+                    type="number"
+                    value={examConfig.maxMarks}
+                    onChange={e => setExamConfig(prev => ({ ...prev, maxMarks: parseInt(e.target.value, 10) || 100 }))}
+                    className="w-full h-8 px-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-800 dark:text-slate-200 outline-none"
+                  />
+                </div>
+
+                <div className="sm:col-span-6 space-y-1">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase">Exam Venue / Center</label>
+                  <input
+                    type="text"
+                    value={examConfig.examCenter}
+                    onChange={e => setExamConfig(prev => ({ ...prev, examCenter: e.target.value }))}
+                    className="w-full h-8 px-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-800 dark:text-slate-200 outline-none"
+                  />
+                </div>
+
+                <div className="sm:col-span-6 space-y-1">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase">Candidate Instructions</label>
+                  <input
+                    type="text"
+                    value={instructionsText}
+                    onChange={e => setInstructionsText(e.target.value)}
+                    placeholder="Instructions for admit card..."
+                    className="w-full h-8 px-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-medium text-slate-800 dark:text-slate-200 outline-none"
+                  />
+                </div>
+              </div>
+            )}
+
+            {settingsMsg && (
+              <p className="text-xs font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 p-2 rounded-lg border border-emerald-200 dark:border-emerald-800 m-0">
+                ✅ {settingsMsg}
+              </p>
+            )}
           </div>
 
-          <div className="sm:col-span-3 space-y-1.5">
-            <label className="text-xs font-bold text-slate-600 dark:text-slate-300">Portal Open Switch</label>
-            <button
-              type="button"
-              onClick={() => setExamConfig(prev => ({ ...prev, isOpen: !prev.isOpen }))}
-              className={`w-full py-2 px-3 rounded-xl border text-xs font-extrabold flex items-center justify-center gap-2 transition-all cursor-pointer ${
-                examConfig.isOpen
-                  ? 'bg-emerald-50 border-emerald-300 text-emerald-800 dark:bg-emerald-900/30 dark:border-emerald-700 dark:text-emerald-300'
-                  : 'bg-slate-100 border-slate-300 text-slate-600 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-400'
-              }`}
-            >
-              {examConfig.isOpen ? <Unlock size={14} /> : <Lock size={14} />}
-              <span>{examConfig.isOpen ? 'Allow Registrations' : 'Force Closed'}</span>
-            </button>
+          {/* Ultra-Modern Compact KPI Metric Ribbon */}
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-2 px-3 flex items-center justify-between gap-3 overflow-x-auto custom-scrollbar shadow-2xs">
+            <div className="flex items-center gap-4 sm:gap-6 text-xs font-semibold text-slate-700 dark:text-slate-300 divide-x divide-slate-200 dark:divide-slate-800">
+              <div className="flex items-center gap-1.5 whitespace-nowrap">
+                <UserCheck size={14} className="text-teal-600 dark:text-teal-400" />
+                <span className="text-slate-500 dark:text-slate-400 text-[11px]">Total Registered:</span>
+                <span className="font-black text-slate-900 dark:text-white">{totalCount}</span>
+              </div>
+              <div className="flex items-center gap-1.5 pl-4 sm:pl-6 whitespace-nowrap">
+                <CheckCircle2 size={14} className="text-emerald-600 dark:text-emerald-400" />
+                <span className="text-slate-500 dark:text-slate-400 text-[11px]">Database Matched:</span>
+                <span className="font-black text-emerald-700 dark:text-emerald-400">{matchedCount}</span>
+              </div>
+              <div className="flex items-center gap-1.5 pl-4 sm:pl-6 whitespace-nowrap">
+                <FileText size={14} className="text-amber-600 dark:text-amber-400" />
+                <span className="text-slate-500 dark:text-slate-400 text-[11px]">Manual Entries:</span>
+                <span className="font-black text-amber-700 dark:text-amber-400">{manualCount}</span>
+              </div>
+            </div>
+            <div className="text-[11px] font-bold text-slate-400 whitespace-nowrap pl-2 border-l border-slate-100 dark:border-slate-800">
+              Filtered: {filtered.length} candidates
+            </div>
           </div>
-        </div>
 
-        {/* Detailed Config Options (Expanded) */}
-        {isConfigExpanded && (
-          <div className="pt-3 border-t border-slate-100 dark:border-slate-800 grid grid-cols-1 sm:grid-cols-12 gap-4 animate-fadeIn">
-            <div className="sm:col-span-4 space-y-1.5">
-              <label className="text-xs font-bold text-slate-600 dark:text-slate-300">Exam Category / Type</label>
+          {/* Compact Toolbar: Search & Filter & Multi-Print */}
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 shadow-2xs flex flex-col sm:flex-row items-center justify-between gap-2">
+            {/* Search */}
+            <div className="relative w-full sm:w-80">
+              <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
               <input
                 type="text"
-                value={examConfig.examType}
-                onChange={e => setExamConfig(prev => ({ ...prev, examType: e.target.value }))}
-                className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-800 dark:text-slate-200 outline-none"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Search Name, Reg No, Roll..."
+                className="w-full h-8 pl-8 pr-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-none focus:border-teal-500 transition-all placeholder-slate-400"
               />
             </div>
 
-            <div className="sm:col-span-4 space-y-1.5">
-              <label className="text-xs font-bold text-slate-600 dark:text-slate-300">Exam Date</label>
-              <input
-                type="text"
-                value={examConfig.examDate}
-                onChange={e => setExamConfig(prev => ({ ...prev, examDate: e.target.value }))}
-                placeholder="e.g. Sunday, 30th August 2026"
-                className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-800 dark:text-slate-200 outline-none"
-              />
-            </div>
+            {/* Filter by Class & Actions */}
+            <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap justify-end">
+              <div className="flex items-center gap-1.5">
+                <Filter size={13} className="text-slate-400" />
+                <select
+                  value={selectedClass}
+                  onChange={e => setSelectedClass(e.target.value)}
+                  className="h-8 px-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-800 dark:text-slate-200 focus:outline-none focus:border-teal-500"
+                >
+                  <option value="ALL">All Classes & Entries</option>
+                  <option value="9th">9th Class</option>
+                  <option value="10th">10th Class</option>
+                  <option value="11th">11th Class</option>
+                  <option value="12th">12th Class</option>
+                  <option value="MANUAL">Manual Entry Only</option>
+                </select>
+              </div>
 
-            <div className="sm:col-span-4 space-y-1.5">
-              <label className="text-xs font-bold text-slate-600 dark:text-slate-300">Exam Timing</label>
-              <input
-                type="text"
-                value={examConfig.examTime}
-                onChange={e => setExamConfig(prev => ({ ...prev, examTime: e.target.value }))}
-                placeholder="e.g. 11:00 AM – 01:00 PM"
-                className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-800 dark:text-slate-200 outline-none"
-              />
-            </div>
-
-            <div className="sm:col-span-6 space-y-1.5">
-              <label className="text-xs font-bold text-slate-600 dark:text-slate-300">Exam Venue / Center</label>
-              <input
-                type="text"
-                value={examConfig.examCenter}
-                onChange={e => setExamConfig(prev => ({ ...prev, examCenter: e.target.value }))}
-                className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-800 dark:text-slate-200 outline-none"
-              />
-            </div>
-
-            <div className="sm:col-span-3 space-y-1.5">
-              <label className="text-xs font-bold text-slate-600 dark:text-slate-300">Duration</label>
-              <input
-                type="text"
-                value={examConfig.duration}
-                onChange={e => setExamConfig(prev => ({ ...prev, duration: e.target.value }))}
-                placeholder="e.g. 120 Minutes"
-                className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-800 dark:text-slate-200 outline-none"
-              />
-            </div>
-
-            <div className="sm:col-span-3 space-y-1.5">
-              <label className="text-xs font-bold text-slate-600 dark:text-slate-300">Max Marks</label>
-              <input
-                type="number"
-                value={examConfig.maxMarks}
-                onChange={e => setExamConfig(prev => ({ ...prev, maxMarks: parseInt(e.target.value, 10) || 100 }))}
-                className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-800 dark:text-slate-200 outline-none"
-              />
-            </div>
-
-            <div className="sm:col-span-12 space-y-1.5">
-              <label className="text-xs font-bold text-slate-600 dark:text-slate-300">Candidate Instructions (1 per line)</label>
-              <textarea
-                rows={3}
-                value={instructionsText}
-                onChange={e => setInstructionsText(e.target.value)}
-                placeholder="Enter bulleted instructions to print on student admit cards..."
-                className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-medium text-slate-800 dark:text-slate-200 outline-none resize-y"
-              />
+              {filtered.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => handlePrintBatch(true)}
+                  className="h-8 px-3 rounded-lg bg-teal-800 hover:bg-teal-700 active:bg-teal-900 text-white text-xs font-black flex items-center gap-1.5 cursor-pointer shadow-xs transition-all"
+                  title="Print all filtered admit cards in one batch"
+                >
+                  <Printer size={13} />
+                  <span>Print All ({filtered.length})</span>
+                </button>
+              )}
             </div>
           </div>
-        )}
-
-        <div className="flex justify-end pt-2">
-          <button
-            type="button"
-            onClick={() => handleSaveSettings()}
-            disabled={savingSettings}
-            className="py-2.5 px-6 rounded-xl bg-teal-800 hover:bg-teal-700 active:bg-teal-900 text-white text-xs font-black shadow-md flex items-center justify-center gap-2 transition-all disabled:opacity-50 cursor-pointer"
-          >
-            <Save size={14} />
-            <span>{savingSettings ? 'Saving Settings...' : 'Save & Publish Exam Settings'}</span>
-          </button>
-        </div>
-
-        {settingsMsg && (
-          <p className="text-xs font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 p-2.5 rounded-xl border border-emerald-200 dark:border-emerald-800 animate-fadeIn">
-            ✅ {settingsMsg}
-          </p>
-        )}
-      </div>
-
-      {/* Metrics Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm flex items-center gap-4">
-          <div className="w-12 h-12 rounded-xl bg-teal-100 dark:bg-teal-900/40 text-teal-800 dark:text-teal-300 flex items-center justify-center font-black">
-            <UserCheck size={24} />
-          </div>
-          <div>
-            <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide m-0">Total Registered</p>
-            <p className="text-2xl font-black text-slate-900 dark:text-white m-0">{totalCount}</p>
-          </div>
-        </div>
-
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm flex items-center gap-4">
-          <div className="w-12 h-12 rounded-xl bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-300 flex items-center justify-center font-black">
-            <CheckCircle2 size={24} />
-          </div>
-          <div>
-            <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide m-0">Database Matched</p>
-            <p className="text-2xl font-black text-slate-900 dark:text-white m-0">{matchedCount}</p>
-          </div>
-        </div>
-
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm flex items-center gap-4">
-          <div className="w-12 h-12 rounded-xl bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300 flex items-center justify-center font-black">
-            <FileText size={24} />
-          </div>
-          <div>
-            <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide m-0">Manual Entries</p>
-            <p className="text-2xl font-black text-slate-900 dark:text-white m-0">{manualCount}</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Toolbar: Search & Filter & Multi-Print */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm flex flex-col md:flex-row items-center justify-between gap-3">
-        {/* Search */}
-        <div className="relative w-full md:w-80">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input
-            type="text"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="Search by Name, Reg No, Exam Roll..."
-            className="w-full pl-9 pr-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-teal-500 transition-all placeholder-slate-400"
-          />
-        </div>
-
-        {/* Filter by Class & Actions */}
-        <div className="flex items-center gap-2 w-full md:w-auto flex-wrap justify-end">
-          <div className="flex items-center gap-1.5">
-            <Filter size={14} className="text-slate-400" />
-            <select
-              value={selectedClass}
-              onChange={e => setSelectedClass(e.target.value)}
-              className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-teal-500 transition-all"
-            >
-              <option value="ALL">All Classes & Entries</option>
-              <option value="9th">9th Class</option>
-              <option value="10th">10th Class</option>
-              <option value="11th">11th Class</option>
-              <option value="12th">12th Class</option>
-              <option value="MANUAL">Manual Entry Only</option>
-            </select>
-          </div>
-
-          <span className="text-xs font-bold text-slate-500 dark:text-slate-400 whitespace-nowrap">
-            ({filtered.length} shown)
-          </span>
-
-          {filtered.length > 0 && (
-            <button
-              onClick={() => handlePrintBatch(true)}
-              className="px-3.5 py-2 rounded-xl bg-teal-800 hover:bg-teal-700 active:bg-teal-900 text-white text-xs font-extrabold flex items-center gap-1.5 cursor-pointer shadow-sm transition-all"
-              title="Print all filtered admit cards in one batch"
-            >
-              <Printer size={14} />
-              <span>Print All ({filtered.length})</span>
-            </button>
-          )}
-        </div>
-      </div>
 
       {/* Multi-Selection Sticky Action Bar */}
       {selectedIds.size > 0 && (
