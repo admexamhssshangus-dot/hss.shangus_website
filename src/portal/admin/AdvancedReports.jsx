@@ -995,7 +995,7 @@ function MoreActionsDropdown({
         className="compact-btn relative p-1 sm:p-1.5 rounded-lg sm:rounded-xl font-black bg-gradient-to-r from-indigo-700 to-indigo-800 hover:from-indigo-600 hover:to-indigo-700 text-white flex items-center justify-center shadow-sm transition-all cursor-pointer text-xs !min-h-0"
         style={{ minHeight: 'unset', height: '28px', width: '28px' }}
       >
-        <Settings size={13} className="sm:w-3.5 sm:h-3.5" />
+        <Settings size={13} className={`sm:w-3.5 sm:h-3.5 transition-transform ${loading ? 'animate-spin text-amber-300' : ''}`} />
         {unreadRecycleBinCount > 0 && (
           <span className="absolute -top-1.5 -right-1.5 px-1 sm:px-1.5 py-0.2 sm:py-0.5 rounded-full bg-rose-600 text-white text-[8px] sm:text-[9px] font-black font-mono shadow-sm animate-bounce">
             {unreadRecycleBinCount}
@@ -5626,6 +5626,13 @@ export default function AdvancedReports({
     }
   });
 
+  const handleSetDensity = useCallback((newDensity) => {
+    setDensity(newDensity);
+    try {
+      localStorage.setItem('hss_admin_table_density_v1', newDensity);
+    } catch (_) {}
+  }, []);
+
 
   // Default System Visible Columns (Strictly matches the 16 standard table columns)
   const DEFAULT_VISIBLE_COLS = {
@@ -8403,7 +8410,11 @@ export default function AdvancedReports({
 
   // Export Filtered Table to CSV/Excel
   const handleExportCSV = () => {
-    if (filteredStudents.length === 0) return;
+    if (filteredStudents.length === 0) {
+      setToast({ message: '⚠️ No student records match current filters to export.', type: 'error' });
+      setTimeout(() => setToast(null), 3000);
+      return;
+    }
     const headers = ['S.No.', 'Roll No.', 'Adm. No.', 'Form No.', 'Class', 'Session', 'Board Reg. No.', "Student's Name", "Father's Name", "Mother's Name", 'Aadhaar No.', "Father's Aadhaar", 'PEN No.', 'DoB', 'Village/Town', 'Gender', 'Category', 'Stream', 'Subjects', 'Mobile (S)', 'Mobile (P)'];
 
     const cleanVal = (val) => {
@@ -8443,19 +8454,23 @@ export default function AdvancedReports({
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    setToast({ message: `✅ Exported ${filteredStudents.length} student records to CSV/Excel!`, type: 'success' });
+    setTimeout(() => setToast(null), 3500);
   };
 
   // Dedicated Print Register Generator with full data rendering
   const handlePrintRegister = () => {
     if (filteredStudents.length === 0) {
-      alert('No student records found to print.');
+      setToast({ message: '⚠️ No student records found to print.', type: 'error' });
+      setTimeout(() => setToast(null), 3000);
       return;
     }
 
     const visibleColsList = orderedVisibleColumns;
     const printWin = window.open('', '_blank');
     if (!printWin) {
-      alert('Please allow popup windows in your browser to print the official report.');
+      setToast({ message: '⚠️ Please allow popup windows in your browser to print the official report.', type: 'error' });
+      setTimeout(() => setToast(null), 4000);
       return;
     }
 
@@ -8516,6 +8531,9 @@ export default function AdvancedReports({
       </html>
     `);
     printWin.document.close();
+    try {
+      printWin.focus();
+    } catch (_) {}
   };
 
   // ─── Photo Manager Handlers ───
@@ -9365,14 +9383,24 @@ export default function AdvancedReports({
             {/* Table Settings Dropdown (Includes Layout, Columns, Density, Export, Print, Sync, and 90-Day Recycle Bin) */}
             <MoreActionsDropdown
               density={density}
-              setDensity={setDensity}
+              setDensity={handleSetDensity}
               setShowColumnManager={setShowColumnManager}
               onPrint={handlePrintRegister}
               onExportCSV={handleExportCSV}
-              onSync={onSync || (() => loadReportsData(true))}
+              onSync={async () => {
+                try {
+                  if (typeof onSync === 'function') await onSync();
+                  await loadReportsData(true);
+                  setToast({ message: '✅ All student records synchronized directly from Cloud Firestore!', type: 'success' });
+                  setTimeout(() => setToast(null), 3500);
+                } catch (e) {
+                  setToast({ message: `❌ Sync failed: ${e?.message || 'Network error'}`, type: 'error' });
+                  setTimeout(() => setToast(null), 4000);
+                }
+              }}
               onOpenRecycleBin={() => setShowRecycleBinModal(true)}
               unreadRecycleBinCount={recycleBinCount}
-              loading={loading}
+              loading={loading || isFetchingData}
             />
           </div>
         </div>
