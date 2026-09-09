@@ -1,4 +1,4 @@
-import React, { useEffect, Suspense, lazy } from 'react';
+import React, { useEffect, Suspense } from 'react';
 import { portalArea } from './utils/portalRole';
 import { Routes, Route, Navigate, useLocation, useOutletContext } from 'react-router-dom';
 import Navbar from './components/Navbar';
@@ -14,31 +14,7 @@ import './styles/ui-system.css';
 
 // Core Portal components — statically imported for 100% render reliability & instant navigation
 
-// ---------------------------------------------------------------------------
-// Lazy-loaded pages — code-split to reduce initial bundle size. During a new
-// deployment or local hot-reload the browser can briefly retain an obsolete
-// chunk filename. Reload once to obtain the current asset manifest, then surface
-// a genuine error if the new chunk still cannot be loaded.
-// ---------------------------------------------------------------------------
-const lazyWithChunkRecovery = (importer, chunkKey) => lazy(async () => {
-  const retryKey = `hss_chunk_retry_${chunkKey}`;
-  try {
-    const module = await importer();
-    try { sessionStorage.removeItem(retryKey); } catch (_) {}
-    return module;
-  } catch (error) {
-    const message = String(error?.message || error || '');
-    const isChunkFailure = /ChunkLoadError|Loading chunk|Failed to fetch dynamically imported module/i.test(message);
-    let alreadyRetried = false;
-    try { alreadyRetried = sessionStorage.getItem(retryKey) === '1'; } catch (_) {}
-    if (isChunkFailure && !alreadyRetried && typeof window !== 'undefined') {
-      try { sessionStorage.setItem(retryKey, '1'); } catch (_) {}
-      window.location.reload();
-      return new Promise(() => {});
-    }
-    throw error;
-  }
-});
+import { lazyWithChunkRecovery } from './utils/lazyWithChunkRecovery';
 
 const About = lazyWithChunkRecovery(() => import('./pages/About'), 'about');
 const Academics = lazyWithChunkRecovery(() => import('./pages/Academics'), 'academics');

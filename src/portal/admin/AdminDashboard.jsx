@@ -6,26 +6,28 @@ import GlobalDataSyncHUD from '../../components/GlobalDataSyncHUD';
 import AdminToolsDropdown, { ADMIN_TOOL_MODULES, isUserPermittedForModule } from './AdminToolsDropdown';
 import LogoutConfirmModal from '../components/LogoutConfirmModal';
 import TabLoadingOverlay from '../../components/TabLoadingOverlay';
+import ModuleErrorBoundary from '../../components/ModuleErrorBoundary';
+import { lazyWithChunkRecovery } from '../../utils/lazyWithChunkRecovery';
 import { getCachedCollection, getCachedCollectionSync, subscribeToCollection, getPaginatedCollection, hydrateRemainingPages, ensureFirestoreConnected } from '../../services/dbCache';
 import { isBootstrapSuperAdminEmail } from '../../services/staffAuthService';
 
-// Lazy load heavy admin modules to keep tab transitions ultra-fast with zero UI hangs
-const AdvancedReports = React.lazy(() => import('./AdvancedReports'));
-const ApplicationReviewModal = React.lazy(() => import('./ApplicationReviewModal'));
-const CustomRosterDocumentBuilderView = React.lazy(() => import('./CustomRosterDocumentBuilderView'));
-const OfficialLetterWriterView = React.lazy(() => import('./OfficialLetterWriterView'));
-const StudentCertificateStudioView = React.lazy(() => import('./StudentCertificateStudioView'));
-const StudentIdCardManager = React.lazy(() => import('./StudentIdCardManager'));
-const AdmissionRegisterSuite = React.lazy(() => import('./AdmissionRegisterSuite'));
-const ApplicationMergerStudio = React.lazy(() => import('./ApplicationMergerStudio'));
-const ControlsAndSubjects = React.lazy(() => import('./ControlsAndSubjects'));
-const AdminPracticals = React.lazy(() => import('./AdminPracticals'));
-const AdminAttendance = React.lazy(() => import('./AdminAttendance'));
-const AdminGkTestManager = React.lazy(() => import('./AdminGkTestManager'));
-const RollNoAssignment = React.lazy(() => import('./RollNoAssignment'));
-const AutomationsPage = React.lazy(() => import('./AutomationsPage'));
-const FundDistribution = React.lazy(() => import('./FundDistribution'));
-const AdministrativeCms = React.lazy(() => import('../../pages/AdminPortal'));
+// Resilient lazy load of heavy admin modules with automated chunk recovery & retry
+const AdvancedReports = lazyWithChunkRecovery(() => import('./AdvancedReports'), 'admin-reports');
+const ApplicationReviewModal = lazyWithChunkRecovery(() => import('./ApplicationReviewModal'), 'admin-review-modal');
+const CustomRosterDocumentBuilderView = lazyWithChunkRecovery(() => import('./CustomRosterDocumentBuilderView'), 'admin-roster');
+const OfficialLetterWriterView = lazyWithChunkRecovery(() => import('./OfficialLetterWriterView'), 'admin-letter');
+const StudentCertificateStudioView = lazyWithChunkRecovery(() => import('./StudentCertificateStudioView'), 'admin-certificate');
+const StudentIdCardManager = lazyWithChunkRecovery(() => import('./StudentIdCardManager'), 'admin-id-cards');
+const AdmissionRegisterSuite = lazyWithChunkRecovery(() => import('./AdmissionRegisterSuite'), 'admin-register-suite');
+const ApplicationMergerStudio = lazyWithChunkRecovery(() => import('./ApplicationMergerStudio'), 'admin-merger');
+const ControlsAndSubjects = lazyWithChunkRecovery(() => import('./ControlsAndSubjects'), 'admin-controls');
+const AdminPracticals = lazyWithChunkRecovery(() => import('./AdminPracticals'), 'admin-practicals');
+const AdminAttendance = lazyWithChunkRecovery(() => import('./AdminAttendance'), 'admin-attendance');
+const AdminGkTestManager = lazyWithChunkRecovery(() => import('./AdminGkTestManager'), 'admin-gk-test');
+const RollNoAssignment = lazyWithChunkRecovery(() => import('./RollNoAssignment'), 'admin-roll-no');
+const AutomationsPage = lazyWithChunkRecovery(() => import('./AutomationsPage'), 'admin-automations');
+const FundDistribution = lazyWithChunkRecovery(() => import('./FundDistribution'), 'admin-fund-dist');
+const AdministrativeCms = lazyWithChunkRecovery(() => import('../../pages/AdminPortal'), 'admin-cms');
 
 // Only subscribe to the large admissions collection where live mutation is part
 // of the workflow. Read-only studios hydrate once and reuse the in-memory data.
@@ -606,7 +608,8 @@ export default function AdminDashboard() {
                   )}
 
                   <div className={isSwitchingTab ? 'hidden' : 'block w-full'}>
-                    <React.Suspense fallback={<TabLoadingOverlay moduleKey={activeTab} />}>
+                    <ModuleErrorBoundary key={activeTab}>
+                      <React.Suspense fallback={<TabLoadingOverlay moduleKey={activeTab} />}>
                       {/* TAB 1: Master Register & Database (Kept mounted to eliminate tab-switch stalls and preserve scroll/search/filter state) */}
                       {hasMountedReports && (
                         <div
@@ -730,20 +733,23 @@ export default function AdminDashboard() {
                         <AdministrativeCms embeddedUser={user} onEmbeddedLogout={handleLogoutRequest} />
                       )}
                     </React.Suspense>
-                  </div>
+                  </ModuleErrorBoundary>
+                </div>
                 </>
               )}
         </div>
 
         {/* Application Review Modal Popup */}
         {selectedApp && (
-          <React.Suspense fallback={null}>
-            <ApplicationReviewModal
-              app={selectedApp}
-              onClose={() => setSelectedApp(null)}
-              onRefresh={loadAdminData}
-            />
-          </React.Suspense>
+          <ModuleErrorBoundary key="review-modal">
+            <React.Suspense fallback={null}>
+              <ApplicationReviewModal
+                app={selectedApp}
+                onClose={() => setSelectedApp(null)}
+                onRefresh={loadAdminData}
+              />
+            </React.Suspense>
+          </ModuleErrorBoundary>
         )}
         {/* Logout Confirmation Dialog */}
         <LogoutConfirmModal
