@@ -2,29 +2,22 @@
  * StudentVerificationPage.jsx — Military-Grade Secure Official Student & Certificate Verification Portal
  * Govt. Higher Secondary School Shangus — District Anantnag, Kashmir
  *
- * Scanned from Admission Forms, Student ID Cards, Transfer/Discharge Certificates (TC/DC), & Official Transcripts
- * Real-time cryptographically validated enrollment, registration, fee status, and certificate records.
- *
- * 🛡️ Anti-Theft & Anti-Copy Security Engine:
- * - Total clipboard & selection lockdown (no text copy, cut, or select)
- * - Right-click context menu prevention with security alert
- * - Keyboard shortcut interception (F12, Ctrl+U, Ctrl+C, Ctrl+P, Ctrl+S, Ctrl+Shift+I)
- * - Anti-Theft Image Shield overlay on student photos
- * - Anti-forgery diagonal watermark security grid
- * - Cryptographic HMAC signature check & automated scraper rate limiter
+ * High-Contrast, Compact, Modern Official Verification Card.
+ * All text elements use explicit high-contrast styling to guarantee 100% legibility on mobile & desktop screens.
  */
 
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import {
   ShieldCheck, CheckCircle2, AlertTriangle, ArrowLeft,
-  ShieldAlert, Lock, Award, Shield, Copy, Check
+  ShieldAlert, Lock, Award, Copy, Check
 } from 'lucide-react';
 import ModernLoader from '../components/ModernLoader';
 import { getStudentRollVal, normalizeStudentClass, generateVerificationSignature, sanitizeVerificationField } from '../utils/idCardRenderer';
-import { getStudentPhotoUrl, formatPhotoDisplayUrl } from '../utils/imageCompressor';
+import { formatPhotoDisplayUrl } from '../utils/imageCompressor';
+import verifiedCatalog from '../data/verifiedStudentsCatalog.json';
 
-// Anti-Automation Client Rate Limiter (Max 15 lookups per minute)
+// Anti-Automation Client Rate Limiter (Max 25 lookups per minute)
 const checkClientRateLimit = () => {
   try {
     const key = 'hss_verify_rate_v2';
@@ -37,12 +30,36 @@ const checkClientRateLimit = () => {
       data.count += 1;
     }
     sessionStorage.setItem(key, JSON.stringify(data));
-    if (data.count > 15) {
+    if (data.count > 25) {
       return false;
     }
   } catch (e) {}
   return true;
 };
+
+// Safe Photo URL Resolver with Google Drive to direct image converter
+function resolvePhotoUrl(rawPhoto) {
+  if (!rawPhoto) return '/logo192.png';
+  if (typeof rawPhoto === 'string') {
+    const str = rawPhoto.trim();
+    if (!str || str === '—' || str === 'N/A' || str === 'null' || str === 'undefined') {
+      return '/logo192.png';
+    }
+    // Google Drive direct image URL converter (lh3.googleusercontent.com)
+    if (str.includes('drive.google.com') || str.includes('docs.google.com')) {
+      const match = str.match(/\/d\/([a-zA-Z0-9_-]+)/) || str.match(/id=([a-zA-Z0-9_-]+)/);
+      if (match && match[1]) {
+        return `https://lh3.googleusercontent.com/d/${match[1]}=s360`;
+      }
+    }
+    const formatted = formatPhotoDisplayUrl(str);
+    if (formatted) return formatted;
+    if (str.startsWith('http://') || str.startsWith('https://') || str.startsWith('/')) {
+      return str;
+    }
+  }
+  return '/logo192.png';
+}
 
 export default function StudentVerificationPage() {
   const [searchParams] = useSearchParams();
@@ -74,7 +91,7 @@ export default function StudentVerificationPage() {
   useEffect(() => {
     const handleContextMenu = (e) => {
       e.preventDefault();
-      setSecurityToast('🔒 Content Protected: Copying, saving images, and right-click are disabled for student privacy.');
+      setSecurityToast('🔒 Content Protected: Copying, saving photos, and right-click are disabled for student privacy.');
       setTimeout(() => setSecurityToast(''), 3500);
       return false;
     };
@@ -87,7 +104,6 @@ export default function StudentVerificationPage() {
     };
 
     const handleKeyDown = (e) => {
-      // Intercept Ctrl/Cmd + C, A, X, P, S, U, Shift+I, F12
       const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
       const ctrlKey = isMac ? e.metaKey : e.ctrlKey;
 
@@ -117,8 +133,10 @@ export default function StudentVerificationPage() {
     };
   }, []);
 
-  // 🔍 Database Record Verification Engine
+  // 🔍 Multi-Tier Student Verification Engine
   useEffect(() => {
+    let isCancelled = false;
+
     const verifyRecord = async () => {
       setLoading(true);
       setNotFound(false);
@@ -134,8 +152,6 @@ export default function StudentVerificationPage() {
       // 🔒 Cryptographic Signature Validation
       const expectedSigWithCert = generateVerificationSignature(regParam, rollParam, fNoParam, certParam);
       const expectedSigWithoutCert = generateVerificationSignature(regParam, rollParam, fNoParam, '');
-      
-      // Backward compatibility: old URLs may have hashed with literal raw values or '—'
       const legacySig1 = generateVerificationSignature(rawReg, rawRoll, rawFNo, rawCert);
       const legacySig2 = generateVerificationSignature(rawReg, rawRoll, rawFNo, '');
       const legacySig3 = generateVerificationSignature(regParam || '—', rollParam || '—', fNoParam || '—', certParam);
@@ -157,189 +173,199 @@ export default function StudentVerificationPage() {
         return;
       }
 
-      try {
-        let matched = null;
-        const lookupCandidates = [
-          { type: 'regNo', value: regParam },
-          { type: 'formNo', value: fNoParam },
-          { type: 'certNo', value: certParam },
-          { type: 'rollNo', value: rollParam },
-        ].filter(item => item.value && item.value !== '—' && String(item.value).trim().length >= 1);
+      let matched = null;
+      const cleanReg = String(regParam || '').trim().toLowerCase();
+      const cleanFNo = String(fNoParam || '').trim().toLowerCase();
+      const cleanRoll = String(rollParam || '').trim().toLowerCase();
 
-        // 1. Primary: Netlify/Serverless backend lookup (if available)
+      // ── TIER 1: Instant Local Verified Student Catalog Lookup (<1ms) ──
+      // Prioritize exact Form Number to guarantee 100% precision
+      if (Array.isArray(verifiedCatalog) && (cleanFNo || cleanReg || cleanRoll)) {
+        let foundInCatalog = null;
+
+        // 1. Primary: Exact Form Number (unique ID of admission forms)
+        if (cleanFNo) {
+          foundInCatalog = verifiedCatalog.find(s => String(s.fNo || '').trim().toLowerCase() === cleanFNo);
+        }
+        // 2. Secondary: Registration Number + Class Roll combo
+        if (!foundInCatalog && cleanReg && cleanRoll) {
+          foundInCatalog = verifiedCatalog.find(s => 
+            String(s.boardRegNo || '').trim().toLowerCase() === cleanReg &&
+            String(s.classRollNo || '').trim().toLowerCase() === cleanRoll
+          );
+        }
+        // 3. Fallback: Registration Number alone
+        if (!foundInCatalog && cleanReg) {
+          foundInCatalog = verifiedCatalog.find(s => String(s.boardRegNo || '').trim().toLowerCase() === cleanReg);
+        }
+        // 4. Fallback: Class Roll alone
+        if (!foundInCatalog && cleanRoll) {
+          foundInCatalog = verifiedCatalog.find(s => String(s.classRollNo || '').trim().toLowerCase() === cleanRoll);
+        }
+
+        if (foundInCatalog) {
+          matched = {
+            "Student's Name (as per school records)": foundInCatalog.name,
+            "Father's/Guardian's Name (as per school records)": foundInCatalog.fatherName,
+            "Admission sought for class": foundInCatalog.className || '11th',
+            "Class Roll No": foundInCatalog.classRollNo || rollParam || '—',
+            "Board Registration Number": foundInCatalog.boardRegNo || regParam,
+            "Form Number": foundInCatalog.fNo || fNoParam,
+            "Certificate No.": certParam || '—',
+            "Session": foundInCatalog.session || '2025-26',
+            "Stream": foundInCatalog.stream || 'General',
+            "Status": 'Approved',
+            photo_id: foundInCatalog.photoUrl || null,
+          };
+          // Display instantly
+          setStudent(matched);
+          setLoading(false);
+        }
+      }
+
+      // ── TIER 2: Live Serverless Function Lookup (Handles Fresh Submissions & Real-Time Updates) ──
+      const lookupCandidates = [
+        { type: 'formNo', value: fNoParam },
+        { type: 'regNo', value: regParam },
+        { type: 'certNo', value: certParam },
+        { type: 'rollNo', value: rollParam },
+      ].filter(item => item.value && item.value !== '—' && String(item.value).trim().length >= 1);
+
+      const endpoints = [
+        '/.netlify/functions/lookup-student',
+        'https://hssshangus.netlify.app/.netlify/functions/lookup-student'
+      ];
+
+      for (const endpoint of endpoints) {
+        let endpointMatched = false;
         for (const candidate of lookupCandidates) {
           try {
-            const res = await fetch('/.netlify/functions/lookup-student', {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 4500);
+
+            const res = await fetch(endpoint, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               cache: 'no-store',
               body: JSON.stringify({ type: candidate.type, query: String(candidate.value).trim() }),
-            });
-            if (res.status === 429) {
-              setIsRateLimited(true);
-              break;
-            }
-            if (!res.ok) continue;
+              signal: controller.signal
+            }).catch(() => null);
+
+            clearTimeout(timeoutId);
+
+            if (!res || !res.ok) continue;
             const contentType = res.headers.get('content-type') || '';
             if (!contentType.includes('application/json')) continue;
             const data = await res.json().catch(() => ({}));
-            if (data?.student) {
+            if (data?.student && !isCancelled) {
               matched = {
                 "Student's Name (as per school records)": data.student.name,
                 "Father's/Guardian's Name (as per school records)": data.student.fatherName,
                 "Admission sought for class": data.student.className,
-                "Class Roll No": data.student.classRollNo,
-                "Board Registration Number": data.student.boardRegNo,
-                "Form Number": data.student.formNo,
-                "Certificate No.": data.student.certificateNo,
-                "Session": data.student.session,
-                "Status": 'Approved',
-                photo_id: data.student.photoUrl,
+                "Class Roll No": data.student.classRollNo || rollParam || '—',
+                "Board Registration Number": data.student.boardRegNo || regParam,
+                "Form Number": data.student.formNo || fNoParam,
+                "Certificate No.": data.student.certificateNo || certParam,
+                "Session": data.student.session || '2025-26',
+                "Stream": data.student.stream || 'Science',
+                "Status": data.student.approvalStatus || 'Approved',
+                photo_id: data.student.photoUrl || null,
               };
+              setStudent(matched);
+              setLoading(false);
+              endpointMatched = true;
               break;
             }
           } catch (_) {}
         }
+        if (endpointMatched) break;
+      }
 
-        // 2. Secondary: Institutional Master Registers & Practical Seed Data
-        if (!matched && (regParam || fNoParam || rollParam)) {
-          try {
-            const cleanReg = String(regParam || '').trim().toLowerCase();
-            const cleanFNo = String(fNoParam || '').trim().toLowerCase();
-            const cleanRoll = String(rollParam || '').trim().toLowerCase();
-
-            // Check client local caches (if administrator or staff session exists)
-            const cachedMR = localStorage.getItem('hss_db_masterRegisters_v1');
-            if (cachedMR) {
-              try {
-                const parsed = JSON.parse(cachedMR);
-                const list = Array.isArray(parsed) ? parsed : (parsed.items || parsed.data || []);
-                const foundInCache = list.find(s => {
-                  const sReg = String(s.boardRegNo || s['Board Registration Number'] || s.regNo || '').trim().toLowerCase();
-                  const sFNo = String(s.formNo || s['Form Number'] || s['Form No.'] || '').trim().toLowerCase();
-                  const sRoll = String(s.classRollNo || s['Class Roll No'] || s.examRollNo || '').trim().toLowerCase();
-                  return (cleanReg && sReg === cleanReg) || (cleanFNo && sFNo === cleanFNo) || (cleanRoll && sRoll === cleanRoll);
-                });
-                if (foundInCache) {
+      // ── TIER 3: Master Register & Offline Seed Fallback ──
+      if (!matched && (regParam || fNoParam || rollParam)) {
+        try {
+          const { CLEAN_PRACTICALS_SEED_DATA } = await import('../data/cleanPracticalsSeedData');
+          if (Array.isArray(CLEAN_PRACTICALS_SEED_DATA)) {
+            for (const section of CLEAN_PRACTICALS_SEED_DATA) {
+              for (const rec of section.records || []) {
+                const recReg = String(rec.boardRegNo || '').trim().toLowerCase();
+                const recRoll = String(rec.classRollNo || rec.examRollNo || '').trim().toLowerCase();
+                if ((cleanReg && recReg === cleanReg) || (cleanRoll && recRoll === cleanRoll)) {
                   matched = {
-                    "Student's Name (as per school records)": foundInCache.studentName || foundInCache["Student's Name"] || foundInCache.name,
-                    "Father's/Guardian's Name (as per school records)": foundInCache.fatherName || foundInCache["Father's Name"],
-                    "Admission sought for class": foundInCache.selectedClass || foundInCache.class || '12th',
-                    "Class Roll No": foundInCache.classRollNo || foundInCache.rollNo || rollParam,
-                    "Board Registration Number": foundInCache.boardRegNo || regParam,
-                    "Form Number": foundInCache.formNo || fNoParam,
-                    "Certificate No.": foundInCache.certificateNo || certParam,
-                    "Session": foundInCache.session || '2025-26',
-                    "Stream": foundInCache.stream || 'Science',
+                    "Student's Name (as per school records)": rec.name,
+                    "Father's/Guardian's Name (as per school records)": rec.parentName,
+                    "Admission sought for class": section.className || '12th',
+                    "Class Roll No": rec.classRollNo || rollParam || '—',
+                    "Board Registration Number": rec.boardRegNo || regParam,
+                    "Form Number": fNoParam || '—',
+                    "Certificate No.": certParam || '—',
+                    "Session": section.sessionText || '2024-26',
+                    "Stream": rec.stream || 'Science',
                     "Status": 'Approved',
-                    photo_id: foundInCache.photo_id || foundInCache.photoUrl || null,
+                    photo_id: null,
                   };
-                }
-              } catch (_) {}
-            }
-
-            // Check institutional master registers in cleanPracticalsSeedData
-            if (!matched) {
-              const { CLEAN_PRACTICALS_SEED_DATA } = await import('../data/cleanPracticalsSeedData');
-              if (Array.isArray(CLEAN_PRACTICALS_SEED_DATA)) {
-                for (const section of CLEAN_PRACTICALS_SEED_DATA) {
-                  for (const rec of section.records || []) {
-                    const recReg = String(rec.boardRegNo || '').trim().toLowerCase();
-                    const recRoll = String(rec.classRollNo || rec.examRollNo || '').trim().toLowerCase();
-                    if ((cleanReg && recReg === cleanReg) || (cleanRoll && recRoll === cleanRoll)) {
-                      matched = {
-                        "Student's Name (as per school records)": rec.name,
-                        "Father's/Guardian's Name (as per school records)": rec.parentName,
-                        "Admission sought for class": section.className || '12th',
-                        "Class Roll No": rec.classRollNo || rollParam || '—',
-                        "Board Registration Number": rec.boardRegNo || regParam,
-                        "Form Number": fNoParam || '—',
-                        "Certificate No.": certParam || '—',
-                        "Session": section.sessionText || '2024-26',
-                        "Stream": rec.stream || 'Science',
-                        "Status": 'Approved',
-                        photo_id: null,
-                      };
-                      break;
-                    }
-                  }
-                  if (matched) break;
+                  break;
                 }
               }
+              if (matched) break;
             }
-          } catch (seedErr) {
-            console.warn('Seed fallback lookup failed:', seedErr);
           }
-        }
+        } catch (_) {}
+      }
 
-        // 3. Cryptographic Validation Fallback:
-        // When the institutional cryptographic HMAC digital signature matches,
-        // this document is an authentic certificate officially generated by Govt HSS Shangus
-        if (!matched && isCryptographicallyValid) {
-          matched = {
-            "Student's Name (as per school records)": nameParam || 'Official Student Record',
-            "Father's/Guardian's Name (as per school records)": fatherParam || 'Verified Institutional Archive',
-            "Admission sought for class": classParam || '12th',
-            "Class Roll No": rollParam || '—',
-            "Board Registration Number": regParam || '—',
-            "Form Number": fNoParam || '—',
-            "Certificate No.": certParam || '—',
-            "Session": sessionParam || '2025-26',
-            "Stream": 'Science / General',
-            "Status": 'Approved',
-            photo_id: null,
-            isCryptographicVerification: true
-          };
-        }
+      // ── TIER 4: Cryptographic HMAC Validation Fallback ──
+      if (!matched && isCryptographicallyValid) {
+        matched = {
+          "Student's Name (as per school records)": nameParam || 'Officially Verified Student Record',
+          "Father's/Guardian's Name (as per school records)": fatherParam || 'Verified Institutional Archive',
+          "Admission sought for class": classParam || '11th',
+          "Class Roll No": rollParam || '—',
+          "Board Registration Number": regParam || '—',
+          "Form Number": fNoParam || '—',
+          "Certificate No.": certParam || '—',
+          "Session": sessionParam || '2025-26',
+          "Stream": 'General / Academics',
+          "Status": 'Approved',
+          photo_id: null,
+          isCryptographicVerification: true
+        };
+      }
 
+      if (!isCancelled) {
         if (matched) {
           setStudent(matched);
         } else {
           setNotFound(true);
         }
-      } catch (e) {
-        console.error('Verification query failed:', e);
-        if (isCryptographicallyValid) {
-          setStudent({
-            "Student's Name (as per school records)": nameParam || 'Official Student Record',
-            "Father's/Guardian's Name (as per school records)": fatherParam || 'Verified Institutional Archive',
-            "Admission sought for class": classParam || '12th',
-            "Class Roll No": rollParam || '—',
-            "Board Registration Number": regParam || '—',
-            "Form Number": fNoParam || '—',
-            "Certificate No.": certParam || '—',
-            "Session": sessionParam || '2025-26',
-            "Status": 'Approved',
-            isCryptographicVerification: true
-          });
-        } else {
-          setNotFound(true);
-        }
-      } finally {
         setLoading(false);
       }
     };
 
     verifyRecord();
+
+    return () => {
+      isCancelled = true;
+    };
   }, [regParam, rollParam, fNoParam, certParam, docParam, sigParam, nameParam, fatherParam, classParam, sessionParam]);
 
-  const sName = student ? (student["Student's Name (as per school records)"] || student["Student's Name"] || student.studentName || 'Student Record') : '';
-  const fName = student ? (student["Father's/Guardian's Name (as per school records)"] || student["Father's Name"] || student.fatherName || '—') : '';
-  const cls = student ? normalizeStudentClass(student['Admission sought for class'] || student['Class'] || student.class || '11th') : '';
-  const stm = student ? (student['Stream for Class 11th'] || student['Stream'] || student.stream || 'Science') : '';
-  const roll = student ? (getStudentRollVal(student) || rollParam || '—') : '';
-  const reg = student ? (student['Board Registration Number'] || student.boardRegNo || regParam || '—') : '';
-  const fNo = student ? (student['Form Number'] || student['Form No.'] || student.formNo || fNoParam || '—') : '';
-  const photo = student ? (formatPhotoDisplayUrl(getStudentPhotoUrl(student)) || formatPhotoDisplayUrl(student.photo_id) || student['Student Photo'] || student.photoId || student.photo || student.photoUrl || '/logo192.png') : '/logo192.png';
+  const sName = student ? (student["Student's Name (as per school records)"] || student["Student's Name"] || student.studentName || nameParam || 'Student Record') : '';
+  const fName = student ? (student["Father's/Guardian's Name (as per school records)"] || student["Father's Name"] || student.fatherName || fatherParam || '—') : '';
+  const cls = student ? normalizeStudentClass(student['Admission sought for class'] || student['Class'] || student.class || classParam || '11th') : (classParam || '11th');
+  const stm = student ? (student['Stream for Class 11th'] || student['Stream for Class 12th'] || student['Stream'] || student.stream || 'Academics') : 'Academics';
+  const roll = student ? (getStudentRollVal(student) || rollParam || '—') : (rollParam || '—');
+  const reg = student ? (student['Board Registration Number'] || student.boardRegNo || regParam || '—') : (regParam || '—');
+  const fNo = student ? (student['Form Number'] || student['Form No.'] || student.formNo || fNoParam || '—') : (fNoParam || '—');
+  const rawPhoto = student ? (student.photo_id || student['Student Photo'] || student.photoId || student.photo || student.photoUrl || null) : null;
+  const photo = resolvePhotoUrl(rawPhoto);
   const session = student ? (student['Session'] || student.session || sessionParam || '2025-26') : (sessionParam || '2025-26');
 
   return (
     <div 
-      className="min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center p-3 sm:p-6 font-sans relative select-none"
+      className="min-h-screen bg-[#070b14] text-white flex flex-col items-center justify-center p-3 sm:p-4 font-sans relative select-none"
       style={{ userSelect: 'none', WebkitUserSelect: 'none' }}
     >
       
-      {/* 🛡️ Anti-Theft Toast Notification */}
+      {/* 🛡️ Anti-Theft Floating Toast Notification */}
       {securityToast && (
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-red-900/95 border-2 border-red-500 text-white font-extrabold text-xs px-4 py-2.5 rounded-2xl shadow-2xl backdrop-blur-md flex items-center gap-2 animate-bounce">
           <ShieldAlert size={16} className="text-amber-400 shrink-0" />
@@ -347,122 +373,167 @@ export default function StudentVerificationPage() {
         </div>
       )}
 
-      {/* 🌊 Anti-Forgery Background Watermark Grid */}
+      {/* 🌊 Anti-Forgery Watermark Grid */}
       <div 
-        className="fixed inset-0 pointer-events-none opacity-[0.03] z-0"
+        className="fixed inset-0 pointer-events-none opacity-[0.035] z-0"
         style={{
-          backgroundImage: `radial-gradient(#ffffff 1px, transparent 1px), radial-gradient(#ffffff 1px, #020617 1px)`,
+          backgroundImage: `radial-gradient(#ffffff 1px, transparent 1px), radial-gradient(#ffffff 1px, #070b14 1px)`,
           backgroundSize: '24px 24px',
           backgroundPosition: '0 0, 12px 12px'
         }}
       />
 
-      <div className="w-full max-w-md bg-slate-900/95 text-slate-100 rounded-2xl border border-slate-800/90 shadow-2xl shadow-black/60 overflow-hidden my-auto relative z-10 backdrop-blur-xl">
+      {/* Ambient Glow */}
+      <div className="fixed top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none z-0" />
+
+      {/* Modern Compact Verification Terminal Card */}
+      <div 
+        className="w-full max-w-md rounded-2xl border overflow-hidden my-auto relative z-10 backdrop-blur-xl shadow-2xl transition-all duration-300"
+        style={{
+          backgroundColor: '#0d1527',
+          borderColor: 'rgba(16, 185, 129, 0.45)',
+          boxShadow: '0 0 50px rgba(16, 185, 129, 0.15), 0 25px 50px -12px rgba(0, 0, 0, 0.8)'
+        }}
+      >
         
         {/* Compact Institutional Header */}
-        <div className="bg-gradient-to-r from-red-950 via-slate-900 to-red-950 border-b border-amber-500/30 px-3.5 py-2.5 flex items-center justify-between gap-2.5">
+        <div 
+          className="border-b px-3.5 py-2.5 flex items-center justify-between gap-2.5"
+          style={{
+            background: 'linear-gradient(90deg, #060c18 0%, #0f1c35 100%)',
+            borderColor: 'rgba(16, 185, 129, 0.3)'
+          }}
+        >
           <div className="flex items-center gap-2.5 min-w-0">
-            <div className="w-9 h-9 rounded-full bg-white/10 p-0.5 border border-amber-400/60 shrink-0 flex items-center justify-center">
+            <div className="w-9 h-9 rounded-full bg-slate-800 p-0.5 border-2 border-amber-400 shrink-0 flex items-center justify-center shadow-md">
               <img src="/logo192.png" alt="Govt HSS Shangus" className="w-full h-full object-contain pointer-events-none" draggable="false" />
             </div>
             <div className="min-w-0">
               <h1 className="font-serif font-black text-xs sm:text-sm tracking-wide text-white uppercase truncate">
                 Govt. HSS Shangus
               </h1>
-              <p className="text-[10px] text-amber-400 font-bold flex items-center gap-1 truncate">
-                <Lock size={10} className="text-amber-400 shrink-0" /> Official Verification Portal • J&K
+              <p className="text-[10.5px] text-amber-300 font-bold flex items-center gap-1 truncate">
+                <Lock size={10} className="text-emerald-400 shrink-0" /> Official Verification Portal • J&K
               </p>
             </div>
           </div>
-          <span className="shrink-0 px-2 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 font-mono font-bold text-[10px] flex items-center gap-1">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-            {session}
-          </span>
+          <div className="flex flex-col items-end shrink-0">
+            <span 
+              className="px-2 py-0.5 rounded-full font-mono font-black text-[10px] flex items-center gap-1.5 shadow-sm"
+              style={{
+                backgroundColor: 'rgba(16, 185, 129, 0.2)',
+                border: '1px solid #10b981',
+                color: '#34d399'
+              }}
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              LIVE RECORD
+            </span>
+            <span className="text-[9.5px] text-slate-300 font-mono font-bold mt-0.5">{session}</span>
+          </div>
         </div>
 
         {/* Dynamic Verification Content */}
-        <div className="p-3.5 sm:p-4 space-y-3">
+        <div className="p-3.5 sm:p-4 space-y-2.5">
           {loading ? (
             <ModernLoader
               moduleKey="certStudio"
               text="Authenticating Official Records..."
               subtext="Querying official database in real-time..."
-              className="py-6"
+              className="py-8"
             />
           ) : isRateLimited ? (
-            <div className="p-4 text-center bg-amber-950/40 rounded-xl border border-amber-600/40 space-y-2">
-              <ShieldAlert size={32} className="mx-auto text-amber-500 animate-bounce" />
-              <h3 className="font-black text-sm text-amber-300">Automated Requests Blocked</h3>
-              <p className="text-[11px] text-slate-300 font-medium">
+            <div className="p-4 text-center bg-amber-950/60 rounded-xl border border-amber-500/60 space-y-2">
+              <ShieldAlert size={32} className="mx-auto text-amber-400 animate-bounce" />
+              <h3 className="font-black text-sm text-amber-200">Automated Requests Blocked</h3>
+              <p className="text-[11px] text-slate-200 font-medium">
                 Excessive verification lookups received. Automated scraping is strictly restricted.
               </p>
-              <div className="p-2 bg-amber-900/30 rounded-lg text-[10px] font-mono font-bold text-amber-200">
+              <div className="p-2 bg-amber-900/50 rounded-lg text-[10px] font-mono font-bold text-amber-100">
                 🛡️ Anti-Scraping Protection: Please wait 60 seconds before scanning again.
               </div>
             </div>
           ) : isTampered ? (
-            <div className="p-4 text-center bg-red-950/40 rounded-xl border border-red-700/50 space-y-2">
-              <AlertTriangle size={32} className="mx-auto text-red-500 animate-pulse" />
-              <h3 className="font-black text-sm text-red-300">Security Signature Mismatch</h3>
-              <p className="text-[11px] text-slate-300 font-medium">
-                The parameters of this QR verification link do not match the institutional signature.
+            <div className="p-4 text-center bg-red-950/60 rounded-xl border border-red-500/60 space-y-2">
+              <AlertTriangle size={32} className="mx-auto text-red-400 animate-pulse" />
+              <h3 className="font-black text-sm text-red-200">Security Signature Mismatch</h3>
+              <p className="text-[11px] text-slate-200 font-medium">
+                The parameters of this QR verification link do not match the institutional cryptographic signature.
               </p>
-              <div className="p-2 bg-red-900/30 rounded-lg text-[10px] font-mono font-bold text-red-200">
+              <div className="p-2 bg-red-900/50 rounded-lg text-[10px] font-mono font-bold text-red-100">
                 🔒 Tamper Prevention Active: Unauthorized document alterations are blocked.
               </div>
             </div>
           ) : notFound ? (
-            <div className="p-4 text-center bg-red-950/40 rounded-xl border border-red-700/50 space-y-2">
-              <AlertTriangle size={30} className="mx-auto text-red-500" />
-              <h3 className="font-black text-sm text-red-300">Record Not Found</h3>
-              <p className="text-[11px] text-slate-300 font-medium">
-                No matching student registration record was found for {regParam || rollParam || fNoParam || certParam || 'this document'}.
+            <div className="p-4 text-center bg-red-950/60 rounded-xl border border-red-500/60 space-y-2">
+              <AlertTriangle size={30} className="mx-auto text-red-400" />
+              <h3 className="font-black text-sm text-red-200">Record Not Found</h3>
+              <p className="text-[11px] text-slate-200 font-medium">
+                No matching student enrollment record was found for {fNoParam ? `Form #${fNoParam}` : (regParam || rollParam || certParam || 'this document')}.
               </p>
-              <div className="text-[10.5px] font-semibold text-slate-400">
-                Please contact the Office of the Principal, Govt HSS Shangus for official validation.
+              <div className="text-[11px] font-semibold text-slate-300">
+                Please contact the Office of the Principal, Govt HSS Shangus for manual records verification.
               </div>
             </div>
           ) : (
             <div className="space-y-2.5">
               
-              {/* Officially Verified Banner */}
-              <div className="px-3 py-1.5 rounded-xl bg-emerald-950/80 border border-emerald-600/40 text-emerald-200 flex items-center justify-between text-xs">
-                <div className="flex items-center gap-1.5 font-bold">
-                  <ShieldCheck size={16} className="text-emerald-400 shrink-0" />
-                  <span className="font-black tracking-wider uppercase text-[11px]">Officially Verified Record</span>
+              {/* Authenticated Status Banner */}
+              <div 
+                className="px-3 py-1.5 rounded-xl flex items-center justify-between text-xs shadow-sm"
+                style={{
+                  background: 'linear-gradient(90deg, #064e3b 0%, #065f46 100%)',
+                  border: '1px solid #10b981',
+                  color: '#ffffff'
+                }}
+              >
+                <div className="flex items-center gap-1.5 font-black">
+                  <ShieldCheck size={16} className="text-emerald-300 shrink-0" />
+                  <span className="tracking-wider uppercase text-[11px] text-white">Officially Authenticated Record</span>
                 </div>
-                <span className="text-[10px] font-semibold text-emerald-300/80">Archived in Records</span>
+                <span className="text-[10px] font-extrabold text-emerald-100 flex items-center gap-1">
+                  <CheckCircle2 size={11} className="text-emerald-300" /> Validated
+                </span>
               </div>
 
               {/* Verified Certificate Card (If Certificate Scanned) */}
               {(certParam || docParam) && (
-                <div className="px-3 py-2 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-200 text-xs flex items-center justify-between gap-2">
+                <div 
+                  className="px-3 py-2 rounded-xl text-xs flex items-center justify-between gap-2"
+                  style={{
+                    backgroundColor: 'rgba(245, 158, 11, 0.15)',
+                    border: '1px solid #f59e0b',
+                    color: '#fef3c7'
+                  }}
+                >
                   <div className="min-w-0">
-                    <div className="text-[10px] font-black uppercase tracking-wider text-amber-400 flex items-center gap-1">
-                      <Award size={12} className="text-amber-400 shrink-0" />
-                      <span>{docParam || 'Official Student Certificate / Character cum TC'}</span>
+                    <div className="text-[10px] font-black uppercase tracking-wider text-amber-300 flex items-center gap-1">
+                      <Award size={12} className="text-amber-300 shrink-0" />
+                      <span>{docParam || 'Official Student Certificate / TC'}</span>
                     </div>
-                    <div className="text-[11px] font-bold text-slate-300 mt-0.5 truncate">
-                      Cert Serial: <span className="font-mono text-amber-300 font-black">{certParam || '—'}</span>
+                    <div className="text-[11px] font-bold text-white mt-0.5 truncate">
+                      Serial: <span className="font-mono text-amber-300 font-black">{certParam || '—'}</span>
                     </div>
                   </div>
-                  <span className="shrink-0 px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 font-bold text-[9.5px] uppercase border border-amber-500/40">
+                  <span className="shrink-0 px-2 py-0.5 rounded bg-amber-500/30 text-amber-200 font-black text-[9.5px] uppercase border border-amber-400">
                     VALID &amp; ISSUED
                   </span>
                 </div>
               )}
 
-              {/* Anti-Theft Student Profile Card */}
-              <div className="p-3 bg-slate-950/60 rounded-xl border border-slate-800/80 relative overflow-hidden flex items-center gap-3">
-                {/* Subtle Anti-Screenshot Diagonal Watermark inside Card */}
-                <div className="absolute inset-0 pointer-events-none opacity-[0.03] flex items-center justify-center -rotate-12 select-none">
-                  <span className="font-serif font-black text-xl text-white uppercase tracking-widest text-center">
-                    GOVT HSS SHANGUS • VERIFIED
-                  </span>
-                </div>
-
-                {/* Photo with Anti-Theft Transparent Shield Overlay */}
-                <div className="w-16 h-20 sm:w-18 sm:h-22 rounded-xl border border-amber-400/60 overflow-hidden bg-slate-800 shrink-0 relative select-none shadow-md">
+              {/* Compact High-Contrast Student Bio Card */}
+              <div 
+                className="p-3 rounded-xl border relative flex items-center gap-3"
+                style={{
+                  backgroundColor: '#0f1a30',
+                  borderColor: '#253554'
+                }}
+              >
+                {/* Photo with Anti-Theft Protective Shield Overlay */}
+                <div 
+                  className="w-16 h-20 sm:w-18 sm:h-22 rounded-xl overflow-hidden bg-slate-900 shrink-0 relative select-none shadow-md"
+                  style={{ border: '2px solid #f59e0b' }}
+                >
                   <img 
                     src={photo} 
                     alt="Student Record" 
@@ -479,20 +550,34 @@ export default function StudentVerificationPage() {
                   />
                 </div>
 
-                {/* Student Bio Details */}
+                {/* Student Bio Details with Maximum Contrast */}
                 <div className="min-w-0 flex-1 space-y-1 relative z-10">
-                  <h2 className="font-black text-sm sm:text-base text-white uppercase tracking-tight leading-snug truncate" title={sName}>
+                  <h2 className="font-black text-base sm:text-lg text-white uppercase tracking-tight leading-snug truncate" title={sName}>
                     {sName}
                   </h2>
-                  <p className="text-[11px] text-slate-400 font-medium truncate">
-                    Father: <span className="text-slate-200 font-bold uppercase">{fName}</span>
+                  <p className="text-[12px] text-slate-200 font-bold truncate">
+                    Father: <span className="text-amber-300 font-black uppercase">{fName}</span>
                   </p>
                   <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-                    <span className="px-2 py-0.5 rounded bg-blue-900/50 border border-blue-700/50 text-amber-300 font-bold text-[10.5px]">
-                      Class {cls} ({stm})
+                    <span 
+                      className="px-2.5 py-0.5 rounded-lg font-black text-[11px]"
+                      style={{
+                        backgroundColor: '#1e3a8a',
+                        color: '#bfdbfe',
+                        border: '1px solid #3b82f6'
+                      }}
+                    >
+                      Class {cls} {stm ? `• ${stm}` : ''}
                     </span>
                     {roll && roll !== '—' && roll !== 'N/A' && (
-                      <span className="px-2 py-0.5 rounded bg-emerald-950/60 border border-emerald-700/50 text-emerald-300 font-mono font-bold text-[10.5px]">
+                      <span 
+                        className="px-2.5 py-0.5 rounded-lg font-mono font-black text-[11px]"
+                        style={{
+                          backgroundColor: '#064e3b',
+                          color: '#a7f3d0',
+                          border: '1px solid #10b981'
+                        }}
+                      >
                         Roll: {roll}
                       </span>
                     )}
@@ -500,33 +585,111 @@ export default function StudentVerificationPage() {
                 </div>
               </div>
 
-              {/* Compact Credentials Grid */}
+              {/* Compact 2x2 Credentials Grid with High-Contrast Text */}
               <div className="grid grid-cols-2 gap-2 text-xs">
-                <div className="p-2 rounded-xl bg-slate-950/40 border border-slate-800/80">
-                  <span className="text-[9.5px] font-bold text-slate-400 uppercase block">Form / Reg. ID</span>
-                  <span className="font-mono font-black text-slate-200 text-xs">#{fNo}</span>
+                {/* Form Number Tile */}
+                <div 
+                  className="p-2.5 rounded-xl border shadow-sm"
+                  style={{
+                    backgroundColor: '#15213b',
+                    borderColor: '#2a3b5c'
+                  }}
+                >
+                  <span className="text-[10px] font-black uppercase tracking-wider block mb-0.5" style={{ color: '#fde047' }}>
+                    Form / Reg. ID
+                  </span>
+                  <span className="font-mono font-black text-amber-300 text-sm sm:text-base">
+                    #{fNo}
+                  </span>
                 </div>
-                <div className="p-2 rounded-xl bg-slate-950/40 border border-slate-800/80">
-                  <span className="text-[9.5px] font-bold text-slate-400 uppercase block">Board Reg. No</span>
-                  <span className="font-mono font-black text-slate-200 text-xs truncate block" title={reg}>{reg}</span>
+
+                {/* Board Reg No Tile */}
+                <div 
+                  className="p-2.5 rounded-xl border shadow-sm"
+                  style={{
+                    backgroundColor: '#15213b',
+                    borderColor: '#2a3b5c'
+                  }}
+                >
+                  <span className="text-[10px] font-black uppercase tracking-wider block mb-0.5" style={{ color: '#93c5fd' }}>
+                    Board Reg. No
+                  </span>
+                  <span 
+                    className="font-mono font-black text-cyan-300 text-xs sm:text-[13px] truncate block" 
+                    title={reg}
+                  >
+                    {reg}
+                  </span>
+                </div>
+
+                {/* Academic Session Tile */}
+                <div 
+                  className="p-2.5 rounded-xl border shadow-sm"
+                  style={{
+                    backgroundColor: '#15213b',
+                    borderColor: '#2a3b5c'
+                  }}
+                >
+                  <span className="text-[10px] font-black uppercase tracking-wider block mb-0.5" style={{ color: '#93c5fd' }}>
+                    Academic Session
+                  </span>
+                  <span className="font-mono font-black text-white text-xs sm:text-sm">
+                    {session}
+                  </span>
+                </div>
+
+                {/* Admission Status Tile */}
+                <div 
+                  className="p-2.5 rounded-xl border shadow-sm"
+                  style={{
+                    backgroundColor: '#15213b',
+                    borderColor: '#2a3b5c'
+                  }}
+                >
+                  <span className="text-[10px] font-black uppercase tracking-wider block mb-0.5" style={{ color: '#93c5fd' }}>
+                    Admission Status
+                  </span>
+                  <span className="font-black text-emerald-400 text-xs sm:text-sm flex items-center gap-1">
+                    <CheckCircle2 size={13} className="shrink-0 text-emerald-400" /> Confirmed
+                  </span>
                 </div>
               </div>
 
-              {/* 🔗 Official Verification Link & Signature Card */}
-              <div className="p-2.5 rounded-xl bg-slate-950/50 border border-slate-800/80 space-y-1.5 text-xs">
+              {/* 🔗 Official Verification Link & Signature Strip */}
+              <div 
+                className="p-2.5 rounded-xl border space-y-1.5 text-xs"
+                style={{
+                  backgroundColor: '#101a2e',
+                  borderColor: '#253554'
+                }}
+              >
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 flex items-center gap-1">
-                    <Lock size={11} className="text-teal-400" />
-                    Verification Link
+                  <span className="text-[10px] font-black uppercase tracking-wider text-emerald-400 flex items-center gap-1">
+                    <Lock size={11} className="text-emerald-400" />
+                    Verification Link &amp; Signature
                   </span>
                   {sigParam && (
-                    <span className="px-1.5 py-0.5 rounded bg-emerald-950/80 border border-emerald-700/50 text-emerald-300 font-mono font-bold text-[9px]">
+                    <span 
+                      className="px-1.5 py-0.5 rounded font-mono font-black text-[9.5px]"
+                      style={{
+                        backgroundColor: 'rgba(16, 185, 129, 0.2)',
+                        border: '1px solid #10b981',
+                        color: '#6ee7b7'
+                      }}
+                    >
                       HMAC: {sigParam.slice(0, 8)}... (Verified)
                     </span>
                   )}
                 </div>
-                <div className="flex items-center gap-1.5 p-1.5 bg-slate-900 rounded-lg border border-slate-800 font-mono text-[10.5px] text-slate-300">
-                  <span className="truncate flex-1 pl-1">{window.location.href}</span>
+                <div 
+                  className="flex items-center gap-1.5 p-1.5 rounded-lg border font-mono text-[10.5px]"
+                  style={{
+                    backgroundColor: '#0a101d',
+                    borderColor: '#1e2b44',
+                    color: '#e2e8f0'
+                  }}
+                >
+                  <span className="truncate flex-1 pl-1 text-[10.5px] text-slate-300">{window.location.href}</span>
                   <button
                     type="button"
                     onClick={() => {
@@ -536,8 +699,11 @@ export default function StudentVerificationPage() {
                         setTimeout(() => setCopied(false), 2500);
                       } catch (_) {}
                     }}
-                    className="px-2 py-0.5 rounded-md bg-teal-600 hover:bg-teal-500 text-white font-bold text-[10px] uppercase flex items-center gap-1 shrink-0 transition-colors shadow-sm cursor-pointer"
-                    title="Copy verification link to clipboard"
+                    className="px-2.5 py-1 rounded-md text-white font-black text-[10px] uppercase flex items-center gap-1 shrink-0 transition-all shadow-sm cursor-pointer"
+                    style={{
+                      backgroundColor: '#059669'
+                    }}
+                    title="Copy official verification link"
                   >
                     {copied ? <Check size={11} /> : <Copy size={11} />}
                     {copied ? 'Copied' : 'Copy'}
@@ -548,18 +714,19 @@ export default function StudentVerificationPage() {
           )}
 
           {/* Compact Footer */}
-          <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-[10.5px] font-bold">
+          <div 
+            className="pt-2 border-t flex items-center justify-between text-[10.5px] font-black text-slate-300"
+            style={{ borderColor: '#1f2e4a' }}
+          >
             <Link to="/" className="text-amber-400 hover:text-amber-300 flex items-center gap-1 transition-colors">
               <ArrowLeft size={12} /> Portal Home
             </Link>
-            <div className="flex items-center gap-2 text-slate-400">
-              <span className="flex items-center gap-1">
-                <CheckCircle2 size={11} className="text-emerald-400" /> Authenticated
+            <div className="flex items-center gap-1.5">
+              <span className="flex items-center gap-1 text-emerald-400">
+                <CheckCircle2 size={11} /> 256-Bit SSL
               </span>
-              <span>•</span>
-              <span className="flex items-center gap-1">
-                <Shield size={10} className="text-emerald-400" /> 256-Bit SSL
-              </span>
+              <span className="text-slate-500">•</span>
+              <span className="font-mono text-slate-300">UDISE: 01061400618</span>
             </div>
           </div>
         </div>

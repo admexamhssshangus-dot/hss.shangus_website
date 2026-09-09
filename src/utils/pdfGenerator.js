@@ -483,7 +483,20 @@ export function buildStudentFormHtml(studentData, options = {}) {
   const cleanFNo = String(formNo).replace(/[^0-9]/g, '') || formNo;
   const origin = getPublicVerificationOrigin();
   const sig = generateVerificationSignature(regNo, rollVal, cleanFNo);
-  const verifyUrl = `${origin}/verify-student?reg=${encodeURIComponent(regNo)}&roll=${encodeURIComponent(rollVal)}&fNo=${encodeURIComponent(cleanFNo)}&sig=${encodeURIComponent(sig)}`;
+  const sName = studentData["Student's Name (as per school records)"] || studentData["Student's Name"] || studentData['studentName'] || studentData['name'] || '';
+  const fName = studentData["Father's/Guardian's Name (as per school records)"] || studentData["Father's Name"] || studentData['fatherName'] || '';
+  const sClass = studentData['Admission sought for class'] || studentData['Class'] || studentData['class'] || '';
+  const sSession = studentData['Session'] || studentData['session'] || '';
+  const verifyParams = new URLSearchParams();
+  if (regNo && regNo !== '—') verifyParams.set('reg', regNo);
+  if (rollVal && rollVal !== '—') verifyParams.set('roll', rollVal);
+  if (cleanFNo && cleanFNo !== '—') verifyParams.set('fNo', cleanFNo);
+  if (sig) verifyParams.set('sig', sig);
+  if (sName) verifyParams.set('name', sName);
+  if (fName) verifyParams.set('father', fName);
+  if (sClass) verifyParams.set('class', sClass);
+  if (sSession) verifyParams.set('session', sSession);
+  const verifyUrl = `${origin}/verify-student?${verifyParams.toString()}`;
   
   const qrCodeUrl = createQrSvgDataUri(verifyUrl, 160) || `https://api.qrserver.com/v1/create-qr-code/?size=160x160&margin=2&ecc=M&data=${encodeURIComponent(verifyUrl)}`;
 
@@ -1541,7 +1554,20 @@ export function buildProvisionalFormHtml(studentData) {
   const cleanFNo = String(formNo).replace(/[^0-9]/g, '') || formNo;
   const origin = getPublicVerificationOrigin();
   const sig = generateVerificationSignature(regNo, rollVal, cleanFNo);
-  const verifyUrl = `${origin}/verify-student?reg=${encodeURIComponent(regNo)}&roll=${encodeURIComponent(rollVal)}&fNo=${encodeURIComponent(cleanFNo)}&sig=${encodeURIComponent(sig)}`;
+  const provName = studentData["Student's Name (as per school records)"] || studentData["Student's Name"] || studentData['studentName'] || studentData['name'] || '';
+  const provFather = studentData["Father's/Guardian's Name (as per school records)"] || studentData["Father's Name"] || studentData['fatherName'] || '';
+  const provClass = studentData['Admission sought for class'] || studentData['Class'] || studentData['class'] || '';
+  const provSession = studentData['Session'] || studentData['session'] || '';
+  const provParams = new URLSearchParams();
+  if (regNo && regNo !== '—' && regNo !== 'N/A') provParams.set('reg', regNo);
+  if (rollVal && rollVal !== '—' && rollVal !== 'N/A') provParams.set('roll', rollVal);
+  if (cleanFNo && cleanFNo !== '—') provParams.set('fNo', cleanFNo);
+  if (sig) provParams.set('sig', sig);
+  if (provName) provParams.set('name', provName);
+  if (provFather) provParams.set('father', provFather);
+  if (provClass) provParams.set('class', provClass);
+  if (provSession) provParams.set('session', provSession);
+  const verifyUrl = `${origin}/verify-student?${provParams.toString()}`;
   const qrCodeUrl = createQrSvgDataUri(verifyUrl, 160) || `https://api.qrserver.com/v1/create-qr-code/?size=160x160&margin=2&ecc=M&data=${encodeURIComponent(verifyUrl)}`;
 
   return `

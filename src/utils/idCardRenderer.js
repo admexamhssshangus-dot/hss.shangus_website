@@ -494,6 +494,10 @@ export function generateVerificationQrUrl(student, size = 160) {
   const reg = sanitizeVerificationField(student['Board Registration Number'] || student.boardRegNo || student.regNo || '');
   const roll = sanitizeVerificationField(getStudentRollVal(student) || '');
   const fNo = sanitizeVerificationField(student['Form Number'] || student['Form No.'] || student.formNo || '');
+  const sName = sanitizeVerificationField(student["Student's Name (as per school records)"] || student["Student's Name"] || student.studentName || student.name || '');
+  const fName = sanitizeVerificationField(student["Father's/Guardian's Name (as per school records)"] || student["Father's Name"] || student.fatherName || '');
+  const sClass = sanitizeVerificationField(student['Admission sought for class'] || student['Class'] || student.class || '');
+  const sSession = sanitizeVerificationField(student['Session'] || student.session || '');
 
   const origin = getPublicVerificationOrigin();
   const sig = generateVerificationSignature(reg, roll, fNo);
@@ -502,6 +506,10 @@ export function generateVerificationQrUrl(student, size = 160) {
   if (roll) params.set('roll', roll);
   if (fNo) params.set('fNo', fNo);
   if (sig) params.set('sig', sig);
+  if (sName) params.set('name', sName);
+  if (fName) params.set('father', fName);
+  if (sClass) params.set('class', sClass);
+  if (sSession) params.set('session', sSession);
   const verifyUrl = `${origin}/verify-student?${params.toString()}`;
   const cacheKey = `${verifyUrl}_${size}`;
   if (qrMemoryCache.has(cacheKey)) return qrMemoryCache.get(cacheKey);
