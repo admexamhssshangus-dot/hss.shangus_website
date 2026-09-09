@@ -242,6 +242,83 @@ function getDivisionFromPercentage(pctStr) {
 }
 
 /**
+ * Accurately resolve authentic stream name (Science, Humanities, Commerce, Home Science, General)
+ * and prevent subject lists from ever being displayed in the Stream field.
+ */
+export function resolveCleanStream(studentData, cleanClass = '') {
+  if (!studentData) return 'General';
+
+  // 1. Direct explicit stream candidates
+  const candidates = [
+    studentData["Stream for Class 12th"],
+    studentData["Stream opted in Class 12th"],
+    studentData["Stream"],
+    studentData["stream"],
+    studentData["Stream for Class 11th"],
+    studentData["Stream opted in Class 11th"],
+    studentData["Stream Studied in Class 11th"],
+    studentData["Stream / Faculty"]
+  ];
+
+  for (const cand of candidates) {
+    if (cand && typeof cand === 'string') {
+      const trimmed = cand.trim();
+      const lower = trimmed.toLowerCase();
+      if (!lower || lower === '—' || lower === 'n/a' || lower === 'null' || lower === '-' || lower.includes('same as')) continue;
+      
+      // If candidate is a comma-separated list of subjects or sentence, reject as raw stream name
+      if (trimmed.includes(',') || trimmed.split(/\s+/).length > 3) {
+        if (lower.includes('physic') || lower.includes('chem') || lower.includes('bio') || lower.includes('math') || lower.includes('sci')) return 'Science';
+        if (lower.includes('hist') || lower.includes('pol') || lower.includes('soci') || lower.includes('art') || lower.includes('hum') || lower.includes('geography') || lower.includes('urdu lit')) return 'Humanities';
+        if (lower.includes('comm') || lower.includes('acc') || lower.includes('b.st') || lower.includes('business')) return 'Commerce';
+        if (lower.includes('home sci')) return 'Home Science';
+        continue;
+      }
+
+      if (lower.includes('hum') || lower.includes('art')) return 'Humanities';
+      if (lower.includes('com')) return 'Commerce';
+      if (lower.includes('sci') || lower.includes('med') || lower.includes('non-med')) return 'Science';
+      if (lower.includes('home sci') || lower.includes('home-sci')) return 'Home Science';
+      if (lower === 'general' || lower === 'gen' || lower.includes('general stream')) return 'General';
+      return trimmed;
+    }
+  }
+
+  // 2. Infer from subject combination fields if explicit stream is missing
+  const rawSubs = String(
+    studentData["Stream & Subjects for Class 12th"] ||
+    studentData["Stream & Subjects for Class 11th"] ||
+    studentData["Subjects to be taken in Class 12th"] ||
+    studentData["Subjects to be taken in Class 11th"] ||
+    studentData["Subjects Studied in Class 11th"] ||
+    studentData["Subjects Offered"] ||
+    studentData["subjects_offered"] ||
+    studentData["subs"] ||
+    studentData["Subjects"] ||
+    ''
+  ).toLowerCase();
+
+  if (rawSubs.includes('physic') || rawSubs.includes('chem') || rawSubs.includes('bio') || rawSubs.includes('math') || rawSubs.includes('sci')) {
+    return 'Science';
+  }
+  if (rawSubs.includes('hist') || rawSubs.includes('pol') || rawSubs.includes('soci') || rawSubs.includes('art') || rawSubs.includes('hum') || rawSubs.includes('geography')) {
+    return 'Humanities';
+  }
+  if (rawSubs.includes('comm') || rawSubs.includes('acc') || rawSubs.includes('b.st') || rawSubs.includes('business')) {
+    return 'Commerce';
+  }
+  if (rawSubs.includes('home sci')) {
+    return 'Home Science';
+  }
+
+  const cls = String(cleanClass || studentData["Admission sought for class"] || studentData["Class"] || '').toLowerCase();
+  if (cls.includes('9') || cls.includes('10') || cls.includes('8')) {
+    return 'General';
+  }
+  return 'General';
+}
+
+/**
  * Helper to build HTML for single or bulk student form pages based on section options.
  */
 export function buildStudentFormHtml(studentData, options = {}) {
@@ -312,10 +389,7 @@ export function buildStudentFormHtml(studentData, options = {}) {
   // Current & Previous Class Info
   const classSought = studentData["Admission sought for class"] || studentData["Class"] || studentData['class'] || 'N/A';
   const cleanClass = String(classSought).replace(/Class/i, '').trim();
-  const is12th = cleanClass.includes('12');
-  const stream12th = studentData["Stream opted in Class 11th"] || studentData["Stream Studied in Class 11th"] || studentData["Stream & Subjects for Class 12th"] || studentData["Stream for Class 12th"];
-  const stream11th = studentData["Stream for Class 11th"] || studentData["Stream opted in Class 11th"];
-  const stream = (is12th ? (stream12th || stream11th) : stream11th) || studentData["Stream"] || studentData['stream'] || 'General';
+  const stream = resolveCleanStream(studentData, cleanClass);
 
   // Comprehensive Subject Extraction across all class levels (8th, 9th, 10th, 11th, 12th)
   const rawSubjects = 
@@ -346,7 +420,9 @@ export function buildStudentFormHtml(studentData, options = {}) {
   const subjects = formatAllSubjects(rawSubjects, classSought, stream) || 'N/A';
   const photoUrl = getStudentPhotoUrl(studentData, '/logo.png');
   const rollNo = studentData["Class Roll No"] || studentData["rollNo"] || studentData["Class R.No."] || '—';
-  const admNo = studentData["Admission Number"] || studentData["admNo"] || studentData["Adm No."] || '—';
+  const rawAdmNo = studentData["Admission Number"] || studentData["admNo"] || studentData["Adm No."] || studentData["Admission No."] || '';
+  const cleanAdmNo = (rawAdmNo && rawAdmNo !== '—' && rawAdmNo !== 'N/A' && String(rawAdmNo).trim().length <= 20 && String(rawAdmNo).trim().split(/\s+/).length <= 2) ? String(rawAdmNo).trim() : '';
+  const admNo = cleanAdmNo || '—';
   const section = studentData["Section"] || studentData['section'] || '—';
   const session = studentData["Session"] || studentData['session'] || getCurrentAcademicSession();
   const aadhaar = studentData["Aadhar No."] || studentData["Aadhaar Number"] || studentData["Aadhaar No."] || studentData['aadhar'] || studentData['aadhaar'] || 'N/A';
@@ -419,6 +495,9 @@ export function buildStudentFormHtml(studentData, options = {}) {
     studentData[`Year of Passing Class ${prevExamClass}`] ||
     studentData[`Year of Passing Class ${cleanClass}`] ||
     studentData[`Year of Passing (Class ${prevExamClass})`] ||
+    studentData[`Year of Appearing (Class ${prevExamClass})`] ||
+    studentData[`Year of Appearing (Class ${cleanClass})`] ||
+    studentData[`Year of Appearing`] ||
     studentData["Year of Passing"] ||
     studentData["Previous Year of Passing"] ||
     studentData['prevYear'] ||
@@ -1499,7 +1578,7 @@ export function buildProvisionalFormHtml(studentData) {
   const previousClass = classNumber === '12' ? '11th' : classNumber === '11' ? '10th' : classNumber === '10' ? '9th' : '8th';
   const stream = classNumber === '9' || classNumber === '10'
     ? 'General'
-    : studentData['Stream for Class 11th'] || studentData['Stream opted in Class 11th'] || studentData['Stream'] || studentData['stream'] || 'N/A';
+    : resolveCleanStream(studentData, classSought);
   const session = studentData['Session'] || studentData['session'] || getCurrentAcademicSession();
   const photoUrl = getStudentPhotoUrl(studentData, '/logo.png');
   const rawSubjects = studentData['Subjects to be taken in Class 9th']
