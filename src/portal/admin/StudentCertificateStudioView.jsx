@@ -23,6 +23,8 @@ import {
   printStudentCertificate,
   generateStudentCertificateDocx
 } from '../../utils/certificateExportUtils';
+import { buildCertificateVerificationUrl, createQrSvgDataUri } from '../../utils/qrSvgGenerator';
+import { getStudentRollVal } from '../../utils/idCardRenderer';
 import ConfirmModal from '../components/ConfirmModal';
 import { fetchLastIssuedCertificateNumber, extractCertificateSerial, commitIssuedCertificateBatch, revokeCertificateNumberBatch } from '../../services/certificateRegistryService';
 import {
@@ -901,6 +903,21 @@ export default function StudentCertificateStudioView({
     }
     return [signatoryLeft || 'Incharge Admissions & Exam', signatoryRight || 'Principal'].filter(Boolean);
   }, [isTcDcActive, signatoryLeft, signatoryCenter, signatoryRight]);
+
+  // Live Scannable Canvas QR Code URL & Data URI (Direct screen scan testable)
+  const canvasVerifyUrl = useMemo(() => {
+    return buildCertificateVerificationUrl({
+      reg: regNo || selectedStudent?.boardRegNo || selectedStudent?.regNo || '',
+      roll: rollNo || selectedStudent?.classRollNo || selectedStudent?.rollNo || getStudentRollVal(selectedStudent) || '',
+      fNo: admissionNo || extractStudentAdmissionNumber(selectedStudent) || '',
+      cert: refNo || '',
+      doc: certificateTitle || ''
+    });
+  }, [regNo, rollNo, selectedStudent, admissionNo, refNo, certificateTitle]);
+
+  const canvasQrUri = useMemo(() => {
+    return createQrSvgDataUri(canvasVerifyUrl, 140);
+  }, [canvasVerifyUrl]);
 
   const [toast, setToast] = useState(null); // { message: string, type: 'success' | 'error' | 'info' | 'warning' }
   const toastTimeoutRef = useRef(null);
@@ -3315,7 +3332,8 @@ export default function StudentCertificateStudioView({
       certificateNo: effectiveRefNo || extractStudentCertificateNumber(raw) || '—',
       admissionDate: admissionDate || extractStudentAdmissionDate(raw) || '—',
       admissionNo: admissionNo || extractStudentAdmissionNumber(raw) || '—',
-      regNo: regNo || '—'
+      regNo: regNo || '—',
+      rollNo: rollNo || selectedStudent?.classRollNo || selectedStudent?.rollNo || getStudentRollVal(selectedStudent) || ''
     };
 
     // Auto-record print in per-app memory (max 3)
@@ -3428,7 +3446,8 @@ export default function StudentCertificateStudioView({
       certificateNo: effectiveRefNo || extractStudentCertificateNumber(raw) || '—',
       admissionDate: admissionDate || extractStudentAdmissionDate(raw) || '—',
       admissionNo: admissionNo || extractStudentAdmissionNumber(raw) || '—',
-      regNo: regNo || '—'
+      regNo: regNo || '—',
+      rollNo: rollNo || selectedStudent?.classRollNo || selectedStudent?.rollNo || getStudentRollVal(selectedStudent) || ''
     };
 
     // Auto-record in per-app memory (max 3)
@@ -5327,9 +5346,13 @@ export default function StudentCertificateStudioView({
                   </div>
 
                   {/* Right Column: Integrated QR Security Badge */}
-                  <div className="flex flex-col items-center justify-center px-2 py-1.5 bg-slate-50 border-l border-dashed border-slate-300 shrink-0 self-stretch w-[82px] min-w-[82px] max-w-[82px] box-border">
-                    <div className="w-12 h-12 bg-white border border-slate-200 rounded flex flex-col items-center justify-center text-[7px] font-mono text-slate-500 font-black shadow-2xs">
-                      <span>[ QR CODE ]</span>
+                  <div className="flex flex-col items-center justify-center px-2 py-1.5 bg-white border-l border-dashed border-slate-300 shrink-0 self-stretch w-[88px] min-w-[88px] max-w-[88px] box-border">
+                    <div className="w-14 h-14 bg-white border border-slate-200 rounded p-0.5 flex items-center justify-center shadow-2xs">
+                      {canvasQrUri ? (
+                        <img src={canvasQrUri} alt="Verification QR Code" className="w-full h-full object-contain" />
+                      ) : (
+                        <span className="text-[7px] font-mono text-slate-500 font-black">[ QR CODE ]</span>
+                      )}
                     </div>
                     <span className="text-[6px] font-black tracking-wider text-[#800000] uppercase mt-1 text-center whitespace-nowrap">SCAN TO VERIFY</span>
                   </div>

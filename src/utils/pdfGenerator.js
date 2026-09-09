@@ -6,7 +6,7 @@
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
 import { generateVerificationSignature, getStudentRollVal } from './idCardRenderer';
-import { createQrSvgDataUri } from './qrSvgGenerator';
+import { createQrSvgDataUri, getPublicVerificationOrigin } from './qrSvgGenerator';
 import { getStudentPhotoUrl } from './imageCompressor';
 import { recordApplicationPrint } from '../services/printTrackerService';
 import { saveGeneratedDocToHistory } from '../services/docHistoryService';
@@ -481,7 +481,7 @@ export function buildStudentFormHtml(studentData, options = {}) {
   const regNo = studentData['Board Registration Number'] || studentData['boardRegNo'] || studentData['regNo'] || '—';
   const rollVal = getStudentRollVal(studentData) || rollNo || '—';
   const cleanFNo = String(formNo).replace(/[^0-9]/g, '') || formNo;
-  const origin = (typeof window !== 'undefined' && window.location && window.location.origin) ? window.location.origin : 'https://admexamhssshangus.web.app';
+  const origin = getPublicVerificationOrigin();
   const sig = generateVerificationSignature(regNo, rollVal, cleanFNo);
   const verifyUrl = `${origin}/verify-student?reg=${encodeURIComponent(regNo)}&roll=${encodeURIComponent(rollVal)}&fNo=${encodeURIComponent(cleanFNo)}&sig=${encodeURIComponent(sig)}`;
   
@@ -1539,7 +1539,7 @@ export function buildProvisionalFormHtml(studentData) {
 
   // Generate cryptographically signed verification URL QR Code for Provisional Form
   const cleanFNo = String(formNo).replace(/[^0-9]/g, '') || formNo;
-  const origin = (typeof window !== 'undefined' && window.location && window.location.origin) ? window.location.origin : 'https://admexamhssshangus.web.app';
+  const origin = getPublicVerificationOrigin();
   const sig = generateVerificationSignature(regNo, rollVal, cleanFNo);
   const verifyUrl = `${origin}/verify-student?reg=${encodeURIComponent(regNo)}&roll=${encodeURIComponent(rollVal)}&fNo=${encodeURIComponent(cleanFNo)}&sig=${encodeURIComponent(sig)}`;
   const qrCodeUrl = createQrSvgDataUri(verifyUrl, 160) || `https://api.qrserver.com/v1/create-qr-code/?size=160x160&margin=2&ecc=M&data=${encodeURIComponent(verifyUrl)}`;
