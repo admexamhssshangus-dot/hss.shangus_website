@@ -8,7 +8,6 @@ import { collection, getDocs, doc, updateDoc, setDoc, deleteDoc, deleteField, wr
 import { invalidateCache, updateCachedItem, getCachedCollectionSync, getCachedCollection, getMasterRegistersScoped, getPhotoUrlFromCache, preloadStudentPhotosCache, fetchStudentPhotoOnDemand, fetchAllMatchingStudentPhotos, syncStudentPhotoOnRegUpdate, reconcileAllStudentPhotosInDatabase } from '../../services/dbCache';
 import { compressImageFile, parsePhotoFilename, getStudentPhotoUrl } from '../../utils/imageCompressor';
 import ApplicationReviewModal from './ApplicationReviewModal';
-import DirectIngestionModal from './DirectIngestionModal';
 import ConfirmDialogModal from '../components/ConfirmDialogModal';
 import ConfirmModal from '../components/ConfirmModal';
 import AnalyticsSuiteModal from './AnalyticsSuiteModal';
@@ -4986,6 +4985,7 @@ export default function AdvancedReports({
   const [showRecycleBinModal, setShowRecycleBinModal] = useState(false);
   const [unreadRecycleBinCount, setUnreadRecycleBinCount] = useState(0);
   const [showBulkOverwriteModal, setShowBulkOverwriteModal] = useState(false);
+  const [bulkOverwriteMode, setBulkOverwriteMode] = useState('overwrite');
   const [quickEditMasterStudent, setQuickEditMasterStudent] = useState(null);
   const [showArchivalModal, setShowArchivalModal] = useState(false);
   const [dismissRolloverBanner, setDismissRolloverBanner] = useState(false);
@@ -5023,10 +5023,12 @@ export default function AdvancedReports({
     if (triggerAction === 'analytics') {
       setShowAnalyticsModal(true);
     } else if (triggerAction === 'directEntry') {
-      setShowDirectIngestionModal(true);
+      setBulkOverwriteMode('express');
+      setShowBulkOverwriteModal(true);
     } else if (triggerAction === 'bulkTools') {
       setShowToolsModal(true);
     } else if (triggerAction === 'boardSync') {
+      setBulkOverwriteMode('overwrite');
       setShowBulkOverwriteModal(true);
     } else if (triggerAction === 'archival' || triggerAction === 'rollover') {
       setShowArchivalModal(true);
@@ -5931,7 +5933,6 @@ export default function AdvancedReports({
   const [showToolsModal, setShowToolsModal] = useState(false);
   const [activeToolsTab, setActiveToolsTab] = useState('bulk_forms');
   const [bulkFormsRenderLimit, setBulkFormsRenderLimit] = useState(BULK_FORM_ROW_BATCH_SIZE);
-  const [showDirectIngestionModal, setShowDirectIngestionModal] = useState(false);
 
   // Global Custom Confirmation Modal State
   const [confirmModalConfig, setConfirmModalConfig] = useState(null);
@@ -9275,9 +9276,15 @@ export default function AdvancedReports({
                 user={user}
                 onOpenCustomRoster={() => setShowCustomRosterModal(true)}
                 onOpenAnalytics={() => setShowAnalyticsModal(true)}
-                onOpenDirectEntry={() => setShowDirectIngestionModal(true)}
+                onOpenDirectEntry={() => {
+                  setBulkOverwriteMode('express');
+                  setShowBulkOverwriteModal(true);
+                }}
                 onOpenBulkTools={() => setShowToolsModal(true)}
-                onOpenBoardSync={() => setShowBulkOverwriteModal(true)}
+                onOpenBoardSync={() => {
+                  setBulkOverwriteMode('overwrite');
+                  setShowBulkOverwriteModal(true);
+                }}
                 onOpenRecycleBin={() => setShowRecycleBinModal(true)}
                 enableQuickCellEdit={enableQuickCellEdit}
                 setEnableQuickCellEdit={setEnableQuickCellEdit}
@@ -11732,14 +11739,6 @@ export default function AdvancedReports({
         );
       })()}
 
-      {/* Direct Express Admin Student Record Ingestion Modal */}
-      <DirectIngestionModal
-        isOpen={showDirectIngestionModal}
-        onClose={() => setShowDirectIngestionModal(false)}
-        onRecordAdded={handleDirectRecordAdded}
-        allStudents={allStudents.length > 0 ? allStudents : currentAdmissions}
-      />
-
       {/* Analytics & Statistical Reports Suite Modal */}
       <AnalyticsSuiteModal
         isOpen={showAnalyticsModal}
@@ -11772,17 +11771,19 @@ export default function AdvancedReports({
         }}
       />
 
-      {/* Board Data Sync & Bulk Overwrite Modal */}
+      {/* Unified Master Student Data & Board Ingestion Hub */}
       <BulkFieldOverwriteModal
         isOpen={showBulkOverwriteModal}
         onClose={() => setShowBulkOverwriteModal(false)}
         allStudents={allStudents.length > 0 ? allStudents : currentAdmissions}
         currentSession="2025-26"
+        initialMode={bulkOverwriteMode}
+        onRecordAdded={handleDirectRecordAdded}
         onComplete={() => {
           loadReportsData(true);
           setToast({
             type: 'success',
-            message: '🎉 Board Data successfully synchronized into student records!'
+            message: '🎉 Records successfully updated in live database!'
           });
           setTimeout(() => setToast(null), 5000);
         }}

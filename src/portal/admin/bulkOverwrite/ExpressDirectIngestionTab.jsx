@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { 
   User, BookOpen, Phone, Landmark, Image as ImageIcon, Save, PlusCircle, 
   CheckCircle2, AlertTriangle, RefreshCw, Upload, Trash2, Camera, Sparkles,
@@ -158,6 +158,27 @@ export default function ExpressDirectIngestionTab({
     setPhotoPreview(null);
     if (photoInputRef.current) photoInputRef.current.value = '';
   };
+
+  // Dynamically load subjects configured in Super Admin's Subject Config (v2)
+  const availableQuickSubjects = useMemo(() => {
+    try {
+      const saved = localStorage.getItem('hss_subject_config_map_v2');
+      if (saved) {
+        const configMap = JSON.parse(saved);
+        const key = `${formData.class}_${formData.stream}`;
+        const cfg = configMap[key] || configMap[`${formData.class}_General`] || configMap['11th_Science'];
+        if (cfg) {
+          const combined = [
+            ...(Array.isArray(cfg.groupA) ? cfg.groupA : []),
+            ...(Array.isArray(cfg.groupB) ? cfg.groupB : []),
+            ...(Array.isArray(cfg.groupC) ? cfg.groupC : [])
+          ].filter(Boolean);
+          if (combined.length > 0) return Array.from(new Set(combined));
+        }
+      }
+    } catch (e) {}
+    return QUICK_SUBJECTS_BY_STREAM[formData.stream] || QUICK_SUBJECTS_BY_STREAM['Science'];
+  }, [formData.class, formData.stream]);
 
   // Quick subject toggle
   const toggleSubject = (subName) => {
@@ -689,7 +710,7 @@ export default function ExpressDirectIngestionTab({
 
               {/* Quick Subject Tags */}
               <div className="flex items-center gap-1.5 flex-wrap pt-1">
-                {(QUICK_SUBJECTS_BY_STREAM[formData.stream] || QUICK_SUBJECTS_BY_STREAM['Science']).map(s => {
+                {availableQuickSubjects.map(s => {
                   const isSelected = formData.subs?.toLowerCase().includes(s.toLowerCase());
                   return (
                     <button
