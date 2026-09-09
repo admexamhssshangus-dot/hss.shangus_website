@@ -1170,8 +1170,10 @@ export function printStudentCertificate({
 <head>
   <meta charset="utf-8">
   <title>${certificateTitle} — ${refNo}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;800&family=Lora:ital,wght@0,400;0,600;0,700;1,400&family=Plus+Jakarta+Sans:wght@600;700&family=Inter:wght@500;600;700&display=swap">
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@700;800;900&family=Lora:ital,wght@0,400;0,500;0,600;0,700;1,400;1,600&family=Playfair+Display:ital,wght@0,600;0,700;0,800;1,600&family=Plus+Jakarta+Sans:wght@500;600;700;800;900&family=Merriweather:ital,wght@0,400;0,700;1,400&family=Inter:wght@400;500;600;700;800;900&display=swap');
 
     @page {
       size: A4 portrait;
@@ -1741,14 +1743,22 @@ export function printStudentCertificate({
 
     @media print {
       html, body {
-        background: transparent !important;
+        background: #ffffff !important;
         margin: 0 !important;
         padding: 0 !important;
         width: 100% !important;
         height: 100% !important;
       }
+      * {
+        box-shadow: none !important;
+        text-shadow: none !important;
+        filter: none !important;
+      }
       .cert-page {
         margin: 0 !important;
+        background: #ffffff !important;
+        background-color: #ffffff !important;
+        background-image: none !important;
         box-shadow: none !important;
         width: 100% !important;
         height: 100% !important;
@@ -1762,6 +1772,11 @@ export function printStudentCertificate({
       .cert-page:last-child {
         page-break-after: auto !important;
         break-after: auto !important;
+      }
+      .watermark {
+        opacity: 0.045 !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
       }
     }
   </style>
@@ -1811,15 +1826,29 @@ export function printStudentCertificate({
   doc.write(html);
   doc.close();
 
-  // Trigger print cleanly once iframe content is ready
-  setTimeout(() => {
+  // Trigger print cleanly once iframe content is ready without stalling the print spooler
+  const triggerPrint = () => {
     try {
       iframe.contentWindow.focus();
       iframe.contentWindow.print();
     } catch (err) {
       console.warn('Silent print fallback:', err);
     }
-  }, 350);
+  };
+
+  if (iframe.contentWindow.document.fonts && iframe.contentWindow.document.fonts.ready) {
+    let triggered = false;
+    const runOnce = () => {
+      if (!triggered) {
+        triggered = true;
+        setTimeout(triggerPrint, 30);
+      }
+    };
+    iframe.contentWindow.document.fonts.ready.then(runOnce).catch(runOnce);
+    setTimeout(runOnce, 250);
+  } else {
+    setTimeout(triggerPrint, 150);
+  }
 }
 
 // ─── BATCH STUDENT CERTIFICATES PRINT ENGINE (2 PAGES PER STUDENT SEQUENTIALLY) ───
@@ -2027,8 +2056,10 @@ export function printBatchStudentCertificates(studentsList = [], commonOptions =
 <head>
   <meta charset="utf-8">
   <title>Batch Certificates (${studentsList.length} Students) — HSS Shangus</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;800&family=Lora:ital,wght@0,400;0,600;0,700;1,400&family=Plus+Jakarta+Sans:wght@600;700&family=Inter:wght@500;600;700&display=swap">
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@700;800;900&family=Lora:ital,wght@0,400;0,500;0,600;0,700;1,400;1,600&family=Playfair+Display:ital,wght@0,600;0,700;0,800;1,600&family=Plus+Jakarta+Sans:wght@500;600;700;800;900&family=Merriweather:ital,wght@0,400;0,700;1,400&family=Inter:wght@400;500;600;700;800;900&display=swap');
 
     @page {
       size: A4 portrait;
@@ -2591,14 +2622,22 @@ export function printBatchStudentCertificates(studentsList = [], commonOptions =
 
     @media print {
       html, body {
-        background: transparent !important;
+        background: #ffffff !important;
         margin: 0 !important;
         padding: 0 !important;
         width: 100% !important;
         height: 100% !important;
       }
+      * {
+        box-shadow: none !important;
+        text-shadow: none !important;
+        filter: none !important;
+      }
       .cert-page {
         margin: 0 !important;
+        background: #ffffff !important;
+        background-color: #ffffff !important;
+        background-image: none !important;
         box-shadow: none !important;
         width: 100% !important;
         height: 100% !important;
@@ -2612,6 +2651,11 @@ export function printBatchStudentCertificates(studentsList = [], commonOptions =
       .cert-page:last-child {
         page-break-after: auto !important;
         break-after: auto !important;
+      }
+      .watermark {
+        opacity: 0.045 !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
       }
     }
   </style>
@@ -2655,14 +2699,28 @@ export function printBatchStudentCertificates(studentsList = [], commonOptions =
   doc.write(html);
   doc.close();
 
-  setTimeout(() => {
+  const triggerBatchPrint = () => {
     try {
       iframe.contentWindow.focus();
       iframe.contentWindow.print();
     } catch (err) {
       console.warn('Batch silent print fallback:', err);
     }
-  }, 400);
+  };
+
+  if (iframe.contentWindow.document.fonts && iframe.contentWindow.document.fonts.ready) {
+    let triggered = false;
+    const runOnce = () => {
+      if (!triggered) {
+        triggered = true;
+        setTimeout(triggerBatchPrint, 40);
+      }
+    };
+    iframe.contentWindow.document.fonts.ready.then(runOnce).catch(runOnce);
+    setTimeout(runOnce, 300);
+  } else {
+    setTimeout(triggerBatchPrint, 200);
+  }
 }
 
 // ─── WORD DOCUMENT (.DOCX) GENERATOR ───
