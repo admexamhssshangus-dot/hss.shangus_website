@@ -2,7 +2,7 @@
  * idCardRenderer.js — Core Design System & Utilities for Student ID Card Suite
  * Govt. Higher Secondary School Shangus
  */
-import { createQrSvgDataUri } from './qrSvgGenerator';
+import { createQrSvgDataUri, generateVerificationSignature, getPublicVerificationOrigin } from './qrSvgGenerator';
 import {
   getAssignedClassRollNumber,
   resolveStudentAdmissionStatus,
@@ -485,23 +485,7 @@ export function abbreviateSubjectName(subjectStr) {
 
 // In-memory memoization cache for generated student QR SVGs
 const qrMemoryCache = new Map();
-
-/**
- * Legacy synchronous signature hook.
-/**
- * Generates a deterministic authentication signature for official QR verification URLs.
- */
-export function generateVerificationSignature(reg = '', roll = '', fNo = '', cert = '') {
-  const clean = `${String(reg).trim()}_${String(roll).trim()}_${String(fNo).trim()}_${String(cert).trim()}_HSS_SHANGUS_SECURE_AUTH`;
-  let hash = 0;
-  for (let i = 0; i < clean.length; i++) {
-    const char = clean.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
-    hash = hash & hash;
-  }
-  return Math.abs(hash).toString(36).toUpperCase();
-}
-
+export { generateVerificationSignature, getPublicVerificationOrigin };
 /**
  * Generate an offline standalone verification QR SVG Data URI with 0 network latency (<0.01ms)
  */
@@ -511,7 +495,7 @@ export function generateVerificationQrUrl(student, size = 160) {
   const roll = getStudentRollVal(student) || '—';
   const fNo = student['Form Number'] || student['Form No.'] || student.formNo || '—';
 
-  const origin = (typeof window !== 'undefined' && window.location && window.location.origin) ? window.location.origin : 'https://admexamhssshangus.web.app';
+  const origin = getPublicVerificationOrigin();
   const sig = generateVerificationSignature(reg, roll, fNo);
   const verifyUrl = `${origin}/verify-student?reg=${encodeURIComponent(reg)}&roll=${encodeURIComponent(roll)}&fNo=${encodeURIComponent(fNo)}&sig=${encodeURIComponent(sig)}`;
   const cacheKey = `${verifyUrl}_${size}`;

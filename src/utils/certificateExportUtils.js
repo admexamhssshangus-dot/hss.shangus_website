@@ -16,8 +16,8 @@ import {
   Packer
 } from 'docx';
 import { convertHtmlToDocxElements } from './htmlDocxConverter';
-import { createQrSvg } from './qrSvgGenerator';
-import { generateVerificationSignature, getStudentRollVal } from './idCardRenderer';
+import { createQrSvg, buildCertificateVerificationUrl } from './qrSvgGenerator';
+import { getStudentRollVal } from './idCardRenderer';
 
 function downloadBlob(blob, filename) {
   const url = URL.createObjectURL(blob);
@@ -1001,14 +1001,18 @@ export function printStudentCertificate({
   const dateSigGapInches = Math.max(Number(dateSigGap) ?? 0.50, 0.05);
   const sigReceiptGapPx = Math.max(Number(sigReceiptGap) ?? 12, 0);
   const logoSrc = '/logo192.png';
-  const origin = (typeof window !== 'undefined' && window.location && window.location.origin) ? window.location.origin : 'https://admexamhssshangus.web.app';
   const certId = metaDetails.certificateNo || refNo || 'SHG-2026';
   const regId = metaDetails.regNo || '';
   const admId = metaDetails.admissionNo || '';
   const rollId = metaDetails.rollNo || '';
-  const sig = generateVerificationSignature(regId, rollId, admId, certId);
-  const verifyUrl = `${origin}/verify-student?reg=${encodeURIComponent(regId)}&roll=${encodeURIComponent(rollId)}&fNo=${encodeURIComponent(admId)}&cert=${encodeURIComponent(certId)}&doc=${encodeURIComponent(certificateTitle)}&sig=${encodeURIComponent(sig)}`;
-  const qrSvg = createQrSvg(verifyUrl, { margin: 1, errorCorrectionLevel: 'M' });
+  const verifyUrl = buildCertificateVerificationUrl({
+    reg: regId,
+    roll: rollId,
+    fNo: admId,
+    cert: certId,
+    doc: certificateTitle
+  });
+  const qrSvg = createQrSvg(verifyUrl, { margin: 2, errorCorrectionLevel: 'M', darkColor: '#000000', lightColor: '#ffffff' });
 
   const renderSingleCopyPage = (isOfficeCopy = false) => `
     <div class="cert-page ${isOfficeCopy ? 'office-copy-page' : 'student-copy-page'}">
@@ -1069,7 +1073,9 @@ export function printStudentCertificate({
             </div>
 
             <div class="cert-qr-security-box">
-              ${qrSvg}
+              <div class="cert-qr-inner-wrap">
+                ${qrSvg}
+              </div>
               <div class="cert-qr-caption">SCAN TO VERIFY</div>
             </div>
           </div>
@@ -1469,26 +1475,42 @@ export function printStudentCertificate({
     }
 
     .cert-qr-security-box {
-      width: 82px !important;
-      min-width: 82px !important;
-      max-width: 82px !important;
+      width: 104px !important;
+      min-width: 104px !important;
+      max-width: 104px !important;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      padding: 4px 5px;
-      background: #f8fafc;
-      border-left: 1px dashed #cbd5e1;
+      padding: 5px 6px;
+      background: #ffffff;
+      border-left: 1.2px solid #800000;
       flex-shrink: 0 !important;
       align-self: stretch;
       box-sizing: border-box;
     }
 
+    .cert-qr-inner-wrap {
+      width: 86px !important;
+      height: 86px !important;
+      padding: 3px;
+      background: #ffffff;
+      border: 1px solid #cbd5e1;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-sizing: border-box;
+    }
+
     .cert-qr-security-box svg {
-      width: 62px !important;
-      height: 62px !important;
+      width: 100% !important;
+      height: 100% !important;
+      max-width: 80px !important;
+      max-height: 80px !important;
       display: block;
       margin: 0 auto;
+      shape-rendering: crispEdges;
     }
 
     .cert-qr-caption {
@@ -1496,8 +1518,9 @@ export function printStudentCertificate({
       font-size: 5.5pt;
       font-weight: 900;
       color: #800000;
-      letter-spacing: 0.4px;
+      letter-spacing: 0.5px;
       margin-top: 3px;
+      text-transform: uppercase;
       text-align: center;
       white-space: nowrap;
     }
@@ -1836,14 +1859,18 @@ export function printBatchStudentCertificates(studentsList = [], commonOptions =
 
   const allPagesHtml = studentsList.map((item, idx) => {
     const { student, bodyHtml, metaDetails = {} } = item;
-    const origin = (typeof window !== 'undefined' && window.location && window.location.origin) ? window.location.origin : 'https://admexamhssshangus.web.app';
     const certId = metaDetails.certificateNo || 'SHG-2026';
     const regId = metaDetails.regNo || '';
     const admId = metaDetails.admissionNo || '';
     const rollId = metaDetails.rollNo || getStudentRollVal(student) || '';
-    const sig = generateVerificationSignature(regId, rollId, admId, certId);
-    const verifyUrl = `${origin}/verify-student?reg=${encodeURIComponent(regId)}&roll=${encodeURIComponent(rollId)}&fNo=${encodeURIComponent(admId)}&cert=${encodeURIComponent(certId)}&doc=${encodeURIComponent(certificateTitle)}&sig=${encodeURIComponent(sig)}`;
-    const qrSvg = createQrSvg(verifyUrl, { margin: 1, errorCorrectionLevel: 'M' });
+    const verifyUrl = buildCertificateVerificationUrl({
+      reg: regId,
+      roll: rollId,
+      fNo: admId,
+      cert: certId,
+      doc: certificateTitle
+    });
+    const qrSvg = createQrSvg(verifyUrl, { margin: 2, errorCorrectionLevel: 'M', darkColor: '#000000', lightColor: '#ffffff' });
     const photoUrl = showPhoto ? (student?.photo || null) : null;
 
     const renderBatchPage = (isOfficeCopy = false) => `
@@ -1901,7 +1928,9 @@ export function printBatchStudentCertificates(studentsList = [], commonOptions =
               </div>
 
               <div class="cert-qr-security-box">
-                ${qrSvg}
+                <div class="cert-qr-inner-wrap">
+                  ${qrSvg}
+                </div>
                 <div class="cert-qr-caption">SCAN TO VERIFY</div>
               </div>
             </div>
@@ -2296,26 +2325,42 @@ export function printBatchStudentCertificates(studentsList = [], commonOptions =
     }
 
     .cert-qr-security-box {
-      width: 82px !important;
-      min-width: 82px !important;
-      max-width: 82px !important;
+      width: 104px !important;
+      min-width: 104px !important;
+      max-width: 104px !important;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      padding: 4px 5px;
-      background: #f8fafc;
-      border-left: 1px dashed #cbd5e1;
+      padding: 5px 6px;
+      background: #ffffff;
+      border-left: 1.2px solid #800000;
       flex-shrink: 0 !important;
       align-self: stretch;
       box-sizing: border-box;
     }
 
+    .cert-qr-inner-wrap {
+      width: 86px !important;
+      height: 86px !important;
+      padding: 3px;
+      background: #ffffff;
+      border: 1px solid #cbd5e1;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-sizing: border-box;
+    }
+
     .cert-qr-security-box svg {
-      width: 62px !important;
-      height: 62px !important;
+      width: 100% !important;
+      height: 100% !important;
+      max-width: 80px !important;
+      max-height: 80px !important;
       display: block;
       margin: 0 auto;
+      shape-rendering: crispEdges;
     }
 
     .cert-qr-caption {
@@ -2323,7 +2368,7 @@ export function printBatchStudentCertificates(studentsList = [], commonOptions =
       font-size: 5.5pt;
       font-weight: 900;
       color: #800000;
-      letter-spacing: 0.4px;
+      letter-spacing: 0.5px;
       margin-top: 3px;
       text-transform: uppercase;
       text-align: center;
