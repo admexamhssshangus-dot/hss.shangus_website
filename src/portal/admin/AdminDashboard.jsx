@@ -21,7 +21,6 @@ const StudentIdCardManager = lazyWithChunkRecovery(() => import('./StudentIdCard
 const AdmissionRegisterSuite = lazyWithChunkRecovery(() => import('./AdmissionRegisterSuite'), 'admin-register-suite');
 const ApplicationMergerStudio = lazyWithChunkRecovery(() => import('./ApplicationMergerStudio'), 'admin-merger');
 const ControlsAndSubjects = lazyWithChunkRecovery(() => import('./ControlsAndSubjects'), 'admin-controls');
-const HeroButtonsManager = lazyWithChunkRecovery(() => import('./HeroButtonsManager'), 'admin-hero-buttons');
 const AdminPracticals = lazyWithChunkRecovery(() => import('./AdminPracticals'), 'admin-practicals');
 const AdminAttendance = lazyWithChunkRecovery(() => import('./AdminAttendance'), 'admin-attendance');
 const AdminGkTestManager = lazyWithChunkRecovery(() => import('./AdminGkTestManager'), 'admin-gk-test');
@@ -639,8 +638,10 @@ export default function AdminDashboard() {
                       {/* TAB 2: Combined Controls & Subjects Config v2 */}
                       {activeTab === 'controls' && <ControlsAndSubjects />}
 
-                      {/* TAB: Homepage Hero Action Buttons */}
-                      {activeTab === 'heroButtons' && <HeroButtonsManager />}
+                      {/* TAB: Homepage Hero Action Buttons (Integrated in CMS) */}
+                      {activeTab === 'heroButtons' && (
+                        <AdministrativeCms embeddedUser={user} onEmbeddedLogout={handleLogoutRequest} initialTab="hero_buttons" />
+                      )}
 
                       {/* TAB: Competitive Exam Prep & OMR Registrations Manager */}
                       {activeTab === 'gkTest' && (

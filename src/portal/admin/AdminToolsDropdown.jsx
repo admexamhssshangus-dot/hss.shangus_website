@@ -21,7 +21,6 @@ const MODULE_ICONS = {
   idCards: Contact,
   gkTest: ShieldCheck,
   controls: Settings,
-  heroButtons: Compass,
   practicals: ClipboardCheck,
   attendanceMgmt: CalendarCheck,
   rollNo: Hash,

@@ -518,3 +518,62 @@ export async function getAdminPracticalsSettings() {
   }
   return null;
 }
+
+/**
+ * Default School Evaluation Presets (Pre-Board Tests, Golden Tests, etc.)
+ */
+export const DEFAULT_SCHOOL_EVALUATIONS = [
+  {
+    id: 'eval-preboard-2026',
+    title: 'Pre-Board Examination 2026',
+    evalType: 'Pre-Board Test',
+    session: '2025-26',
+    classes: ['10th', '11th', '12th'],
+    allowedStatuses: ['approved'],
+    isOpenForTeachers: true,
+    isPublishedForStudents: true,
+    maxMarks: 100,
+    minMarks: 36,
+    description: 'Annual school-level pre-board evaluation conducted for board examinees.'
+  }
+];
+
+export function getActiveSchoolEvaluations(settings) {
+  if (Array.isArray(settings?.customEvaluations) && settings.customEvaluations.length > 0) {
+    return settings.customEvaluations;
+  }
+  return DEFAULT_SCHOOL_EVALUATIONS;
+}
+
+export function getEvaluationTypesForTeacher(settings, cls = '11th', session = '2025-26') {
+  const standardTypes = [
+    { value: 'Internal Assessment', label: 'Internal' },
+    { value: 'External Practical', label: 'External' },
+    { value: 'Term End Evaluation', label: 'Term End' }
+  ];
+
+  const customEvals = getActiveSchoolEvaluations(settings);
+  const normCls = String(cls || '').toLowerCase();
+  const normSess = String(session || '').trim().toLowerCase();
+
+  const matchingCustom = customEvals.filter(ev => {
+    if (ev.isOpenForTeachers === false) return false;
+    // Session check (empty means any session)
+    if (ev.session && normSess && !normSess.includes(ev.session.toLowerCase())) return false;
+    // Class check
+    if (Array.isArray(ev.classes) && ev.classes.length > 0) {
+      const clsMatch = ev.classes.some(c => normCls.includes(String(c).toLowerCase().replace(/class/i, '').trim()));
+      if (!clsMatch) return false;
+    }
+    return true;
+  });
+
+  const additionalTypes = matchingCustom.map(ev => ({
+    value: ev.evalType || ev.title,
+    label: ev.evalType || ev.title,
+    isCustom: true,
+    evalConfig: ev
+  }));
+
+  return [...standardTypes, ...additionalTypes];
+}

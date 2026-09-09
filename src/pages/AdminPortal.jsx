@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { LogOut, Lock, Unlock, Save, Download, Plus, Trash2, FileText, Users, AlertCircle, CheckCircle2, UserPlus, RefreshCw, FolderOpen, Edit2, Check, X, Calendar, Upload, ArrowUpCircle, Printer, FileSpreadsheet, BookOpen, Calculator, Settings, Image, ChevronDown, Loader2, XCircle, Clock, Circle, ArrowUp, ArrowDown, Eye, EyeOff, Layers, Mail, CreditCard, QrCode, RotateCcw, ExternalLink } from 'lucide-react';
+import { LogOut, Lock, Unlock, Save, Download, Plus, Trash2, FileText, Users, AlertCircle, CheckCircle2, UserPlus, RefreshCw, FolderOpen, Edit2, Check, X, Calendar, Upload, ArrowUpCircle, Printer, FileSpreadsheet, BookOpen, Calculator, Settings, Image, ChevronDown, Loader2, XCircle, Clock, Circle, ArrowUp, ArrowDown, Eye, EyeOff, Layers, Mail, CreditCard, QrCode, RotateCcw, ExternalLink, Compass } from 'lucide-react';
 import { DEFAULT_SETTINGS, DEFAULT_HERO_BUTTONS, loadSiteSettings, mergeSiteSettings } from '../utils/settingsLoader';
+import HeroButtonsManager from '../portal/admin/HeroButtonsManager';
 import { db, storage, auth } from '../firebase';
 import { collection, doc, setDoc, getDoc, getDocs, deleteDoc, writeBatch, serverTimestamp } from 'firebase/firestore';
 import { GoogleAuthProvider, signInWithRedirect, signInWithPopup, getRedirectResult, signOut as firebaseSignOut, onAuthStateChanged, getIdTokenResult, RecaptchaVerifier, signInWithPhoneNumber, sendSignInLinkToEmail, isSignInWithEmailLink, signInWithEmailLink } from 'firebase/auth';
@@ -51,8 +52,8 @@ async function getFolderHandle() {
 // Default fallback admin. `hashAlgo` is explicit so the login routine
 // can deterministically pick the proper verification method.
 const DEFAULT_ADMINS = [];
-const ALL_ADMIN_TABS = ['admissions', 'notices', 'faculty', 'slideshow', 'tax', 'export', 'admins', 'pages_cms', 'trash'];
-const CMS_OPERATOR_TABS = ['admissions', 'notices', 'faculty', 'slideshow', 'export', 'pages_cms', 'trash'];
+const ALL_ADMIN_TABS = ['admissions', 'notices', 'faculty', 'slideshow', 'hero_buttons', 'tax', 'export', 'admins', 'pages_cms', 'trash'];
+const CMS_OPERATOR_TABS = ['admissions', 'notices', 'faculty', 'slideshow', 'hero_buttons', 'export', 'pages_cms', 'trash'];
 const EMBEDDED_CMS_TABS = ALL_ADMIN_TABS.filter((tab) => tab !== 'admins');
 
 const normalizeAdmin = (admin) => {
@@ -1003,7 +1004,7 @@ const getEmployeeTaxOptions = (emp) => {
   };
 };
 
-export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = null }) {
+export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = null, initialTab = null }) {
   const embeddedRole = String(embeddedUser?.role || '').toLowerCase().replace(/\s+/g, '');
   const embeddedPerms = Array.isArray(embeddedUser?.perms) ? embeddedUser.perms : [];
   const embeddedTabs = embeddedRole === 'superadmin' || embeddedPerms.includes('*')
@@ -1084,10 +1085,26 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
   const [newAdminPassword, setNewAdminPassword] = useState('');
   const [newAdminPhone, setNewAdminPhone] = useState('');
   const [newAdminRole, setNewAdminRole] = useState('Admin');
-  const [newAdminPermissions, setNewAdminPermissions] = useState(['admissions', 'notices', 'faculty', 'slideshow', 'tax', 'export', 'pages_cms', 'trash']);
+  const [newAdminPermissions, setNewAdminPermissions] = useState(['admissions', 'notices', 'faculty', 'slideshow', 'hero_buttons', 'tax', 'export', 'pages_cms', 'trash']);
 
-  // Tab states: 'admissions' | 'notices' | 'faculty' | 'export'
-  const [activeTab, setActiveTab] = useState('admissions');
+  // Tab states: 'admissions' | 'notices' | 'faculty' | 'slideshow' | 'hero_buttons' | 'export'
+  const [activeTab, setActiveTab] = useState(() => {
+    if (initialTab && ALL_ADMIN_TABS.includes(initialTab)) return initialTab;
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      const cmsTab = urlParams.get('cmsTab');
+      if (cmsTab && ALL_ADMIN_TABS.includes(cmsTab)) return cmsTab;
+      const savedTab = sessionStorage.getItem('activeAdminTab');
+      if (savedTab && ALL_ADMIN_TABS.includes(savedTab)) return savedTab;
+    } catch (_) {}
+    return 'admissions';
+  });
+
+  useEffect(() => {
+    if (initialTab && ALL_ADMIN_TABS.includes(initialTab)) {
+      setActiveTab(initialTab);
+    }
+  }, [initialTab]);
   const allowedTabs = currentUser?.role === 'Super Admin'
     ? ALL_ADMIN_TABS
     : (currentUser?.allowedTabs || []);
@@ -5933,6 +5950,7 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
     { id: 'website', label: 'Website Content', tabs: [
       { id: 'notices', label: 'Notices & Updates', icon: RefreshCw },
       { id: 'slideshow', label: 'Hero Slideshow', icon: Image },
+      { id: 'hero_buttons', label: 'Hero Action Buttons', icon: Compass },
       { id: 'pages_cms', label: 'Page Content', icon: FolderOpen },
     ] },
     { id: 'administration', label: 'Settings & Governance', tabs: [
@@ -7037,9 +7055,19 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
             {/* TAB 2b: HOME SLIDESHOW */}
             {activeTab === 'slideshow' && allowedTabs.includes('slideshow') && (
               <div className="space-y-3 animate-in fade-in duration-200">
-                <div>
-                  <h3 className="text-sm font-bold text-slate-200">Homepage Slideshow Editor</h3>
-                  <p className="text-[11px] text-slate-400">Manage banner images, heading titles, and captions for the homepage slideshow.</p>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-200">Homepage Slideshow Editor</h3>
+                    <p className="text-[11px] text-slate-400">Manage banner images, heading titles, and captions for the homepage slideshow.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => openCmsTab('hero_buttons')}
+                    className="self-start sm:self-auto px-3 py-1.5 rounded-lg bg-teal-950/80 border border-teal-500/40 hover:bg-teal-900 text-teal-300 text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
+                  >
+                    <Compass size={14} className="text-teal-400" />
+                    <span>Manage Hero Action Buttons</span>
+                  </button>
                 </div>
 
                 {/* Add new slide form */}
@@ -7608,13 +7636,24 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
                           >
                             nurturing minds, shaping futures
                           </p>
-                          <div className="flex gap-1">
-                            <span className="px-1.5 py-0.5 rounded bg-emerald-600 text-[7px] font-bold text-white shadow">
-                              Admissions Open 2026
-                            </span>
-                            <span className="px-1.5 py-0.5 rounded bg-slate-800/80 text-[7px] font-bold text-slate-200 border border-white/20">
-                              Learn More
-                            </span>
+                          <div className="flex gap-1 flex-wrap justify-center max-w-[90%]">
+                            {(Array.isArray(settings?.heroButtons) ? settings.heroButtons : DEFAULT_HERO_BUTTONS)
+                              .filter(b => b && b.enabled !== false)
+                              .map((btn, bIdx) => (
+                                <span
+                                  key={btn.id || bIdx}
+                                  className={`px-1.5 py-0.5 rounded text-[7px] font-bold shadow ${
+                                    btn.style === 'primary' ? 'bg-teal-600 text-white' :
+                                    btn.style === 'amber' ? 'bg-amber-600 text-white' :
+                                    btn.style === 'blue' ? 'bg-blue-600 text-white' :
+                                    btn.style === 'emerald' ? 'bg-emerald-600 text-white' :
+                                    btn.style === 'purple' ? 'bg-purple-600 text-white' :
+                                    'bg-slate-800/80 text-slate-200 border border-white/20'
+                                  }`}
+                                >
+                                  {btn.label || 'Action'}
+                                </span>
+                              ))}
                           </div>
                         </div>
 
@@ -7675,6 +7714,20 @@ export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = nu
                 )}
 
                 </div>
+              </div>
+            )}
+
+            {/* TAB: HERO ACTION BUTTONS */}
+            {activeTab === 'hero_buttons' && allowedTabs.includes('hero_buttons') && (
+              <div className="space-y-4 animate-in fade-in duration-200">
+                <HeroButtonsManager
+                  settings={settings}
+                  onUpdateSettings={(newSettings) => setSettings(newSettings)}
+                  onSaveLive={async () => {
+                    await handleSaveToLocalStorage();
+                  }}
+                  embedded={true}
+                />
               </div>
             )}
 

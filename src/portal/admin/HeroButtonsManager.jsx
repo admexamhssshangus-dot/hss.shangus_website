@@ -20,6 +20,7 @@ const BUTTON_STYLES = [
 
 const COMMON_PAGE_PRESETS = [
   { label: 'Admissions Open 2026', link: '/admissions', style: 'primary', trackAdmissionStatus: true, closedLabel: 'Admissions Closed', openInNewTab: false },
+  { label: 'Pre-board Results 2026', link: '/results', style: 'amber', trackAdmissionStatus: false, closedLabel: 'Results Announced', openInNewTab: false },
   { label: 'Learn More', link: '/about', style: 'secondary', trackAdmissionStatus: false, closedLabel: 'Learn More', openInNewTab: false },
   { label: 'Notice Board', link: '/notices', style: 'amber', trackAdmissionStatus: false, closedLabel: 'Notice Board', openInNewTab: false },
   { label: 'Fee Structure', link: '/fee', style: 'blue', trackAdmissionStatus: false, closedLabel: 'Fee Structure', openInNewTab: false },

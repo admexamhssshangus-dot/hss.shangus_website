@@ -13,6 +13,8 @@ import { generateGkTestAdmitCardPdf, generateBatchGkTestAdmitCardsPdf } from '..
 import { getStudentPhotoUrl, formatPhotoDisplayUrl } from '../../utils/imageCompressor';
 import { getCachedCollectionSync, getCachedCollection, setCachedCollectionData } from '../../services/dbCache';
 import ModernLoader from '../../components/ModernLoader';
+import SchoolAssessmentsHub from './SchoolAssessmentsHub';
+import ConsolidatedGazetteView from './ConsolidatedGazetteView';
 
 const EXAM_PRESETS = [
   {
@@ -279,6 +281,15 @@ function PrintableAdmitCardModal({ registration, examConfig, onClose }) {
 
 // ─── Main Admin Component ───────────────────────────────────────────────────
 export default function AdminGkTestManager({ allStudents = [], onRefresh }) {
+  const [activeHubTab, setActiveHubTab] = useState(() => {
+    try {
+      const p = new URLSearchParams(window.location.search);
+      const sub = p.get('subtab') || p.get('gkSubtab');
+      if (sub && ['school', 'gazette', 'competitive'].includes(sub)) return sub;
+    } catch (_) {}
+    return 'school';
+  });
+
   const [registrations, setRegistrations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -612,8 +623,60 @@ export default function AdminGkTestManager({ allStudents = [], onRefresh }) {
 
   return (
     <div className="space-y-3 sm:space-y-4">
-      {/* Header Banner: Mobile-First, Minimal & Compact */}
-      <div className="bg-gradient-to-r from-teal-950 via-teal-900 to-slate-900 text-white rounded-xl sm:rounded-2xl p-3 sm:p-5 shadow-sm relative overflow-hidden border border-teal-800/40">
+      {/* Sleek Segmented Hub Navigation */}
+      <div className="flex items-center gap-1.5 p-1 bg-slate-900/90 border border-slate-800 rounded-2xl overflow-x-auto custom-scrollbar no-print">
+        {[
+          { id: 'school', label: 'School Assessments & Pre-Board Hub', icon: Award },
+          { id: 'gazette', label: 'Consolidated Gazette & Analytics', icon: FileText },
+          { id: 'competitive', label: 'Competitive Exams & OMR', icon: Sparkles }
+        ].map((tab) => {
+          const Icon = tab.icon;
+          const isActive = activeHubTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => {
+                setActiveHubTab(tab.id);
+                try {
+                  const url = new URL(window.location.href);
+                  url.searchParams.set('gkSubtab', tab.id);
+                  window.history.replaceState({}, '', url.toString());
+                } catch (_) {}
+              }}
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-black transition-all whitespace-nowrap cursor-pointer ${
+                isActive
+                  ? 'bg-teal-600 text-slate-950 shadow-sm'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-800/80'
+              }`}
+            >
+              <Icon size={14} className={isActive ? 'text-slate-950' : 'text-teal-400'} />
+              <span>{tab.label}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* TAB 1: School Assessments & Pre-Board Hub */}
+      {activeHubTab === 'school' && (
+        <SchoolAssessmentsHub
+          allStudents={directoryStudents}
+          onSwitchToGazette={() => setActiveHubTab('gazette')}
+        />
+      )}
+
+      {/* TAB 2: Consolidated Gazette & Analytics */}
+      {activeHubTab === 'gazette' && (
+        <ConsolidatedGazetteView
+          allStudents={directoryStudents}
+        />
+      )}
+
+      {/* TAB 3: Competitive Exams & OMR */}
+      {activeHubTab === 'competitive' && (
+        <>
+          {/* Header Banner: Mobile-First, Minimal & Compact */}
+          <div className="bg-gradient-to-r from-teal-950 via-teal-900 to-slate-900 text-white rounded-xl sm:rounded-2xl p-3 sm:p-5 shadow-sm relative overflow-hidden border border-teal-800/40">
         <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-3 sm:gap-4">
           <div className="space-y-1">
             <div className="inline-flex items-center gap-1.5 bg-teal-500/20 backdrop-blur-xs border border-teal-400/30 rounded-full px-2.5 py-0.5 text-[10px] sm:text-xs font-bold text-teal-200">
@@ -722,27 +785,24 @@ export default function AdminGkTestManager({ allStudents = [], onRefresh }) {
           </div>
         </div>
 
-        {/* Quick Deadline Reopen Banner if Expired */}
+        {/* Minimal Deadline Alert if Closed */}
         {!effectiveStatus && (
-          <div className="p-3 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-amber-900 dark:text-amber-200">
+          <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-slate-300">
             <div className="flex items-center gap-2">
-              <AlertTriangle size={18} className="text-amber-600 dark:text-amber-400 shrink-0" />
+              <Lock size={14} className="text-amber-400 shrink-0" />
               <span>
-                <strong>Registration is currently closed.</strong> Candidates visiting the public registration page cannot register.
+                <strong>Portal Closed.</strong> Public registration is currently locked.
               </span>
             </div>
-            <div className="flex items-center gap-2 shrink-0">
-              <button
-                onClick={() => {
-                  handleExtendDeadlineDays(30);
-                  handleSaveSettings({ ...examConfig, isOpen: true, registrationDeadline: defaultFutureDeadline });
-                }}
-                className="px-3.5 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-black text-xs shadow-sm cursor-pointer transition-all flex items-center gap-1.5"
-              >
-                <Sparkles size={13} />
-                <span>⚡ Reopen Portal (+30 Days)</span>
-              </button>
-            </div>
+            <button
+              onClick={() => {
+                handleExtendDeadlineDays(30);
+                handleSaveSettings({ ...examConfig, isOpen: true, registrationDeadline: defaultFutureDeadline });
+              }}
+              className="px-3 py-1 rounded-lg bg-teal-600 hover:bg-teal-500 text-slate-950 font-bold text-xs transition-all cursor-pointer"
+            >
+              Reopen Portal
+            </button>
           </div>
         )}
 
@@ -1333,6 +1393,8 @@ export default function AdminGkTestManager({ allStudents = [], onRefresh }) {
           examConfig={examConfig}
           onClose={() => setSelectedDocForPrint(null)}
         />
+      )}
+        </>
       )}
     </div>
   );

@@ -93,15 +93,6 @@ export const ADMIN_MODULE_CATALOG = Object.freeze([
     launcher: true,
   },
   {
-    id: 'heroButtons',
-    label: 'Hero Action Buttons',
-    description: 'Manage homepage hero buttons, links, target windows and color themes',
-    category: 'Academics & Controls',
-    maturity: 'production',
-    maturityNote: 'Live preview, cloud synchronization, link testing and dynamic admissions-closed state tracking.',
-    launcher: true,
-  },
-  {
     id: 'subjects',
     label: 'Subject Rules & Streams',
     description: 'Configure streams, subject groups and selection limits',
