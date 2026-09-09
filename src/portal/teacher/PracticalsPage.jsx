@@ -197,6 +197,8 @@ function isSubjectOrStreamMatch(st, targetSubjectCode, targetSubjectName) {
     st['Stream / Subjects'] ||
     st['Subject Combination'] ||
     st['Selected Subjects'] ||
+    st['Subjects to be taken in Class 11th'] ||
+    st['Subjects to be taken in Class 12th'] ||
     ''
   ).toUpperCase();
 
@@ -210,109 +212,147 @@ function isSubjectOrStreamMatch(st, targetSubjectCode, targetSubjectName) {
     ''
   ).toUpperCase();
 
-  const isScience = streamStr.includes('SCIENCE') || streamStr.includes('MED') || streamStr.includes('SCI') || rawSubjStr.includes('PHYSICS') || rawSubjStr.includes('CHEMISTRY') || /\b(PH|CH)\b/i.test(rawSubjStr);
-  const isNonMed = streamStr.includes('NON-MED') || streamStr.includes('NONMED') || streamStr.includes('NON MEDICAL') || (/\b(MATHEMATICS|MATHS|MATH|MA)\b/i.test(rawSubjStr) && !/\b(BIOLOGY|BOTANY|ZOOLOGY|BIO|BO|ZO|BI)\b/i.test(rawSubjStr));
-  const isCommerce = streamStr.includes('COMMERCE');
-  const isArts = streamStr.includes('ARTS') || streamStr.includes('HUMANITIES');
+  // Clean stream to avoid Political Science, Home Science, or Computer Science triggering General Science stream
+  const cleanStream = streamStr.replace(/\b(POLITICAL\s+SCIENCE|HOME\s+SCIENCE|COMPUTER\s+SCIENCE)\b/gi, '');
+  const isScienceStrict = /\b(SCIENCE|MED|MEDICAL|NON-MED|NON-MEDICAL|NONMED)\b/i.test(cleanStream);
+  const isNonMed = cleanStream.includes('NON-MED') || cleanStream.includes('NONMED') || cleanStream.includes('NON MEDICAL');
+  const isCommerce = /\b(COMMERCE)\b/i.test(streamStr);
+  const isArts = /\b(ARTS|HUMANITIES)\b/i.test(streamStr);
+
+  // Helper: check if a standalone code token exists (word boundary match so 'PH' does NOT match 'PHYSICAL EDUCATION')
+  const hasToken = (token) => {
+    if (!token) return false;
+    const regex = new RegExp('(^|[^A-Z0-9])' + token + '(?![A-Z0-9])', 'i');
+    return regex.test(rawSubjStr);
+  };
 
   // 2. Physics & Chemistry
-  if (codeUpper === 'PH' || codeUpper === 'CH') {
-    if (isScience || rawSubjStr.includes(codeUpper) || (codeUpper === 'PH' && rawSubjStr.includes('PHYSICS')) || (codeUpper === 'CH' && rawSubjStr.includes('CHEMISTRY'))) return true;
+  if (codeUpper === 'PH' || nameUpper === 'PHYSICS') {
+    if (hasToken('PH') || /\bPHYSICS\b/i.test(rawSubjStr)) return true;
+    if (!rawSubjStr && isScienceStrict) return true;
+    return false;
+  }
+  if (codeUpper === 'CH' || nameUpper === 'CHEMISTRY') {
+    if (hasToken('CH') || /\bCHEMISTRY\b/i.test(rawSubjStr)) return true;
+    if (!rawSubjStr && isScienceStrict) return true;
+    return false;
   }
 
   // 3. Botany, Zoology, Biology
-  if (['BO', 'ZO', 'BI'].includes(codeUpper)) {
-    if (rawSubjStr.includes('BI') || rawSubjStr.includes('BO') || rawSubjStr.includes('ZO') || rawSubjStr.includes('BIOLOGY') || rawSubjStr.includes('BOTANY') || rawSubjStr.includes('ZOOLOGY')) return true;
-    if (isScience && !isNonMed) return true;
+  if (['BO', 'ZO', 'BI', 'BIO'].includes(codeUpper) || nameUpper.includes('BIOLOGY') || nameUpper.includes('BOTANY') || nameUpper.includes('ZOOLOGY')) {
+    if (hasToken('BI') || hasToken('BO') || hasToken('ZO') || hasToken('BIO') || /\b(BIOLOGY|BOTANY|ZOOLOGY)\b/i.test(rawSubjStr)) return true;
+    if (!rawSubjStr && isScienceStrict && !isNonMed) return true;
+    return false;
   }
 
   // 4. Mathematics
-  if (codeUpper === 'MA') {
-    if (rawSubjStr.includes('MA') || rawSubjStr.includes('MATH') || rawSubjStr.includes('MATHEMATICS')) return true;
-    if (isScience && isNonMed) return true;
+  if (codeUpper === 'MA' || nameUpper.includes('MATH')) {
+    if (hasToken('MA') || /\b(MATH|MATHS|MATHEMATICS)\b/i.test(rawSubjStr)) return true;
+    if (!rawSubjStr && isScienceStrict && isNonMed) return true;
+    return false;
   }
 
   // 5. Environmental Science
-  if (codeUpper === 'ES') {
-    if (rawSubjStr.includes('ES') || rawSubjStr.includes('ENV') || rawSubjStr.includes('ENVIRONMENTAL')) return true;
-    if (isScience) return true;
+  if (codeUpper === 'ES' || nameUpper.includes('ENVIRONMENTAL')) {
+    if (hasToken('ES') || hasToken('EVS') || /\b(ENVIRONMENTAL\s*SCIENCE|ENV\s*SCI|ENVIRONMENTAL)\b/i.test(rawSubjStr)) return true;
+    return false;
   }
 
   // 6. Physical Education
-  if (codeUpper === 'PD') {
-    if (rawSubjStr.includes('PD') || rawSubjStr.includes('PHYSICAL EDUCATION') || rawSubjStr.includes('PHYSICAL ED') || rawSubjStr.includes('PHY ED') || rawSubjStr.includes('P.E.') || rawSubjStr.includes('P.ED')) return true;
+  if (codeUpper === 'PD' || codeUpper === 'PHE' || codeUpper === 'PE' || nameUpper.includes('PHYSICAL ED')) {
+    if (hasToken('PD') || hasToken('PHE') || hasToken('PE') || /\b(PHYSICAL\s*EDUCATION|PHYSICAL\s*ED|PHY\s*ED|P\.E\.)\b/i.test(rawSubjStr)) return true;
+    return false;
   }
 
   // 7. Vocational & Applied Practicals
-  if (codeUpper === 'ITE') {
-    if (rawSubjStr.includes('ITE') || rawSubjStr.includes('IT & ITES') || rawSubjStr.includes('IT AND ITES') || rawSubjStr.includes('INFORMATION TECHNOLOGY') || rawSubjStr.includes('IT')) return true;
+  if (codeUpper === 'ITE' || codeUpper === 'IT' || nameUpper.includes('IT & ITES') || nameUpper.includes('INFORMATION TECH')) {
+    if (hasToken('ITE') || hasToken('IT') || /\b(IT\s*AND\s*ITES|IT\s*&\s*ITES|INFORMATION\s*TECHNOLOGY)\b/i.test(rawSubjStr)) return true;
+    return false;
   }
-  if (codeUpper === 'HTC') {
-    if (rawSubjStr.includes('HTC') || rawSubjStr.includes('HEALTHCARE') || rawSubjStr.includes('HEALTH CARE')) return true;
+  if (codeUpper === 'HTC' || nameUpper.includes('HEALTHCARE') || nameUpper.includes('HEALTH CARE')) {
+    if (hasToken('HTC') || /\b(HEALTHCARE|HEALTH\s*CARE)\b/i.test(rawSubjStr)) return true;
+    return false;
   }
-  if (codeUpper === 'CS') {
-    if (rawSubjStr.includes('CS') || rawSubjStr.includes('COMPUTER SCIENCE') || rawSubjStr.includes('COMP SC')) return true;
+  if (codeUpper === 'CS' || nameUpper.includes('COMPUTER SCIENCE')) {
+    if (hasToken('CS') || /\b(COMPUTER\s*SCIENCE|COMP\s*SC)\b/i.test(rawSubjStr)) return true;
+    return false;
   }
-  if (codeUpper === 'GG') {
-    if (rawSubjStr.includes('GG') || rawSubjStr.includes('GEOGRAPHY') || rawSubjStr.includes('GEO')) return true;
+  if (codeUpper === 'GG' || nameUpper.includes('GEOGRAPHY')) {
+    if (hasToken('GG') || /\b(GEOGRAPHY|GEO)\b/i.test(rawSubjStr)) return true;
+    return false;
   }
 
   // 8. Humanities / Arts Subjects
-  if (codeUpper === 'PS') {
-    if (rawSubjStr.includes('PS') || rawSubjStr.includes('POLITICAL SCIENCE') || rawSubjStr.includes('POL SC') || rawSubjStr.includes('POL. SC')) return true;
+  if (codeUpper === 'PS' || nameUpper.includes('POLITICAL SCIENCE')) {
+    if (hasToken('PS') || /\b(POLITICAL\s*SCIENCE|POL\s*SC|POL\.\s*SC)\b/i.test(rawSubjStr)) return true;
     if (isArts && !rawSubjStr) return true;
+    return false;
   }
-  if (codeUpper === 'ED') {
-    if (/\b(ED|EDUCATION)\b/i.test(rawSubjStr) && !/\b(PHYSICAL EDUCATION|PHY ED)\b/i.test(rawSubjStr)) return true;
+  if (codeUpper === 'ED' || nameUpper === 'EDUCATION') {
+    const withoutPhysicalEd = rawSubjStr.replace(/\b(PHYSICAL\s*EDUCATION|PHYSICAL\s*ED|PHY\s*ED|P\.ED)\b/gi, '');
+    if (hasToken('ED') && !/\b(PHYSICAL\s*EDUCATION|PHY\s*ED)\b/i.test(rawSubjStr)) return true;
+    if (/\bEDUCATION\b/i.test(withoutPhysicalEd)) return true;
     if (isArts && !rawSubjStr) return true;
+    return false;
   }
-  if (codeUpper === 'HT') {
-    if (rawSubjStr.includes('HT') || rawSubjStr.includes('HISTORY') || rawSubjStr.includes('HIST')) return true;
+  if (codeUpper === 'HT' || nameUpper.includes('HISTORY')) {
+    if (hasToken('HT') || /\b(HISTORY|HIST)\b/i.test(rawSubjStr)) return true;
     if (isArts && !rawSubjStr) return true;
+    return false;
   }
-  if (codeUpper === 'SO') {
-    if (rawSubjStr.includes('SO') || rawSubjStr.includes('SOCIOLOGY') || rawSubjStr.includes('SOC')) return true;
+  if (codeUpper === 'SO' || nameUpper.includes('SOCIOLOGY')) {
+    if (hasToken('SO') || /\b(SOCIOLOGY|SOC)\b/i.test(rawSubjStr)) return true;
     if (isArts && !rawSubjStr) return true;
+    return false;
   }
-  if (codeUpper === 'PY') {
-    if (rawSubjStr.includes('PY') || rawSubjStr.includes('PSYCHOLOGY') || rawSubjStr.includes('PSYCH')) return true;
+  if (codeUpper === 'PY' || nameUpper.includes('PSYCHOLOGY')) {
+    if (hasToken('PY') || /\b(PSYCHOLOGY|PSYCH)\b/i.test(rawSubjStr)) return true;
     if (isArts && !rawSubjStr) return true;
+    return false;
   }
-  if (codeUpper === 'UR') {
-    if (rawSubjStr.includes('UR') || rawSubjStr.includes('URDU')) return true;
+  if (codeUpper === 'UR' || nameUpper.includes('URDU')) {
+    if (hasToken('UR') || /\b(URDU)\b/i.test(rawSubjStr)) return true;
     if (isArts && !rawSubjStr) return true;
+    return false;
   }
-  if (codeUpper === 'AR') {
-    if (rawSubjStr.includes('AR') || rawSubjStr.includes('ARABIC')) return true;
+  if (codeUpper === 'AR' || nameUpper.includes('ARABIC')) {
+    if (hasToken('AR') || /\b(ARABIC)\b/i.test(rawSubjStr)) return true;
+    return false;
   }
-  if (codeUpper === 'PE') {
-    if (rawSubjStr.includes('PE') || rawSubjStr.includes('PERSIAN')) return true;
+  if (codeUpper === 'PE' || nameUpper.includes('PERSIAN')) {
+    if (hasToken('PE') || /\b(PERSIAN)\b/i.test(rawSubjStr)) return true;
+    return false;
   }
-  if (codeUpper === 'KS') {
-    if (rawSubjStr.includes('KS') || rawSubjStr.includes('KASHMIRI')) return true;
+  if (codeUpper === 'KS' || nameUpper.includes('KASHMIRI')) {
+    if (hasToken('KS') || /\b(KASHMIRI)\b/i.test(rawSubjStr)) return true;
+    return false;
   }
-  if (codeUpper === 'EC') {
-    if (rawSubjStr.includes('EC') || rawSubjStr.includes('ECONOMICS') || rawSubjStr.includes('ECO')) return true;
+  if (codeUpper === 'EC' || nameUpper.includes('ECONOMICS')) {
+    if (hasToken('EC') || /\b(ECONOMICS|ECO)\b/i.test(rawSubjStr)) return true;
     if ((isArts || isCommerce) && !rawSubjStr) return true;
+    return false;
   }
 
   // 9. Commerce Subjects
-  if (codeUpper === 'AY') {
-    if (rawSubjStr.includes('AY') || rawSubjStr.includes('ACCOUNTANCY') || rawSubjStr.includes('ACCOUNTS') || rawSubjStr.includes('ACC')) return true;
+  if (codeUpper === 'AY' || nameUpper.includes('ACCOUNTANCY')) {
+    if (hasToken('AY') || /\b(ACCOUNTANCY|ACCOUNTS|ACC)\b/i.test(rawSubjStr)) return true;
     if (isCommerce) return true;
+    return false;
   }
-  if (codeUpper === 'BS') {
-    if (rawSubjStr.includes('BS') || rawSubjStr.includes('BUSINESS STUDIES') || rawSubjStr.includes('BUSINESS')) return true;
+  if (codeUpper === 'BS' || nameUpper.includes('BUSINESS')) {
+    if (hasToken('BS') || /\b(BUSINESS\s*STUDIES|BUSINESS)\b/i.test(rawSubjStr)) return true;
     if (isCommerce) return true;
+    return false;
   }
-  if (codeUpper === 'EP') {
-    if (rawSubjStr.includes('EP') || rawSubjStr.includes('ENTREPRENEURSHIP')) return true;
+  if (codeUpper === 'EP' || nameUpper.includes('ENTREPRENEURSHIP')) {
+    if (hasToken('EP') || /\b(ENTREPRENEURSHIP)\b/i.test(rawSubjStr)) return true;
     if (isCommerce) return true;
+    return false;
   }
 
-  // Explicit token match in raw string
+  // Fallback: standalone token match or full name substring match
   if (rawSubjStr) {
-    if (codeUpper && (rawSubjStr.includes(codeUpper) || rawSubjStr.split(/[\s,+/()]+/).includes(codeUpper))) return true;
+    if (codeUpper && hasToken(codeUpper)) return true;
     if (nameUpper && rawSubjStr.includes(nameUpper)) return true;
     return false;
   }
