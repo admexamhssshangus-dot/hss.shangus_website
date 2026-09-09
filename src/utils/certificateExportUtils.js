@@ -1553,7 +1553,7 @@ export function printStudentCertificate({
     }
 
     .cert-footer-dates-row {
-      margin-top: 0.5in !important;
+      margin-top: ${bodyDateGapPx}px !important;
       margin-bottom: 0px !important;
       display: flex;
       justify-content: space-between;
@@ -1601,7 +1601,7 @@ export function printStudentCertificate({
     }
 
     .footer-block {
-      margin-top: 0.77in !important;
+      margin-top: ${dateSigGapInches}in !important;
       margin-bottom: 0px !important;
       padding-top: 0px !important;
     }
@@ -1861,7 +1861,6 @@ export function printBatchStudentCertificates(studentsList = [], commonOptions =
     institutionName = 'GOVT. HIGHER SECONDARY SCHOOL SHANGUS',
     institutionAddress = 'District Anantnag, Kashmir — 192201 (J&K)',
     certificateTitle = 'Discharge/Transfer cum Character Certificate',
-    dateStr = new Date().toLocaleDateString('en-GB'),
     signatories = ['Incharge Admissions & Exam', 'Checked By', 'Principal'],
     watermark = true,
     showPhoto = false,
@@ -2432,7 +2431,7 @@ export function printBatchStudentCertificates(studentsList = [], commonOptions =
     }
 
     .cert-footer-dates-row {
-      margin-top: 0.5in !important;
+      margin-top: ${bodyDateGapPx}px !important;
       margin-bottom: 0px !important;
       display: flex;
       justify-content: space-between;
@@ -2480,7 +2479,7 @@ export function printBatchStudentCertificates(studentsList = [], commonOptions =
     }
 
     .footer-block {
-      margin-top: 0.77in !important;
+      margin-top: ${dateSigGapInches}in !important;
       margin-bottom: 0px !important;
       padding-top: 0px !important;
     }

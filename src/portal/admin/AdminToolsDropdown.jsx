@@ -3,7 +3,7 @@ import {
   BarChart2, Contact, ShieldCheck, Settings, ClipboardCheck, 
   CalendarCheck, Hash, Layers, Mail, CreditCard, Edit3, PlusCircle, 
   Wrench, Check, ChevronRight, Zap, PanelsTopLeft, FileSpreadsheet, FileText,
-  GitMerge, BookOpen, Award, X, Sparkles
+  GitMerge, BookOpen, Award, X, Sparkles, Compass
 } from 'lucide-react';
 import {
   ADMIN_MODULE_CATALOG,
@@ -21,6 +21,7 @@ const MODULE_ICONS = {
   idCards: Contact,
   gkTest: ShieldCheck,
   controls: Settings,
+  heroButtons: Compass,
   practicals: ClipboardCheck,
   attendanceMgmt: CalendarCheck,
   rollNo: Hash,

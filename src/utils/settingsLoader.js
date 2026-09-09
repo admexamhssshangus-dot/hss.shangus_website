@@ -73,6 +73,29 @@ export const DEFAULT_PAYMENT_GATEWAY_CONFIG = {
   }
 };
 
+export const DEFAULT_HERO_BUTTONS = [
+  {
+    id: 'btn-admissions',
+    label: 'Admissions Open 2026',
+    closedLabel: 'Admissions Closed',
+    link: '/admissions',
+    style: 'primary',
+    enabled: true,
+    openInNewTab: false,
+    trackAdmissionStatus: true
+  },
+  {
+    id: 'btn-learn-more',
+    label: 'Learn More',
+    closedLabel: 'Learn More',
+    link: '/about',
+    style: 'secondary',
+    enabled: true,
+    openInNewTab: false,
+    trackAdmissionStatus: false
+  }
+];
+
 export const DEFAULT_SETTINGS = {
   globalAdmissionsClosed: false,
   practicalsSubmissionOpen: true,
@@ -103,7 +126,8 @@ export const DEFAULT_SETTINGS = {
     instagram: '#'
   },
   taxConfig: DEFAULT_TAX_CONFIG,
-  paymentGatewayConfig: DEFAULT_PAYMENT_GATEWAY_CONFIG
+  paymentGatewayConfig: DEFAULT_PAYMENT_GATEWAY_CONFIG,
+  heroButtons: DEFAULT_HERO_BUTTONS
 };
 
 export function mergeSiteSettings(parsed = {}) {
@@ -185,7 +209,10 @@ export function mergeSiteSettings(parsed = {}) {
         ...DEFAULT_SETTINGS.paymentGatewayConfig.razorpay,
         ...(parsed.paymentGatewayConfig?.razorpay || {})
       }
-    }
+    },
+    heroButtons: Array.isArray(parsed.heroButtons)
+      ? parsed.heroButtons
+      : DEFAULT_HERO_BUTTONS
   };
 }
 
