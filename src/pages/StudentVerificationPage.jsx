@@ -188,18 +188,18 @@ export default function StudentVerificationPage() {
           foundInCatalog = verifiedCatalog.find(s => String(s.fNo || '').trim().toLowerCase() === cleanFNo);
         }
         // 2. Secondary: Registration Number + Class Roll combo
-        if (!foundInCatalog && cleanReg && cleanRoll) {
+        if (!foundInCatalog && cleanReg && cleanRoll && !cleanFNo) {
           foundInCatalog = verifiedCatalog.find(s => 
             String(s.boardRegNo || '').trim().toLowerCase() === cleanReg &&
             String(s.classRollNo || '').trim().toLowerCase() === cleanRoll
           );
         }
-        // 3. Fallback: Registration Number alone
-        if (!foundInCatalog && cleanReg) {
+        // 3. Fallback: Registration Number alone (only if fNo wasn't specified)
+        if (!foundInCatalog && cleanReg && !cleanFNo) {
           foundInCatalog = verifiedCatalog.find(s => String(s.boardRegNo || '').trim().toLowerCase() === cleanReg);
         }
-        // 4. Fallback: Class Roll alone
-        if (!foundInCatalog && cleanRoll) {
+        // 4. Fallback: Class Roll alone ONLY if neither fNo nor reg was provided
+        if (!foundInCatalog && cleanRoll && !cleanFNo && !cleanReg) {
           foundInCatalog = verifiedCatalog.find(s => String(s.classRollNo || '').trim().toLowerCase() === cleanRoll);
         }
 
@@ -361,80 +361,58 @@ export default function StudentVerificationPage() {
 
   return (
     <div 
-      className="min-h-screen bg-[#070b14] text-white flex flex-col items-center justify-center p-3 sm:p-4 font-sans relative select-none"
+      className="min-h-[calc(100vh-var(--site-header-height,64px))] bg-slate-50/80 text-slate-800 flex flex-col items-center justify-center p-3 sm:p-5 font-sans relative select-none"
       style={{ userSelect: 'none', WebkitUserSelect: 'none' }}
     >
       
       {/* 🛡️ Anti-Theft Floating Toast Notification */}
       {securityToast && (
-        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-red-900/95 border-2 border-red-500 text-white font-extrabold text-xs px-4 py-2.5 rounded-2xl shadow-2xl backdrop-blur-md flex items-center gap-2 animate-bounce">
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-2xl flex items-center gap-2 border border-slate-700 animate-in fade-in slide-in-from-top-2 duration-200">
           <ShieldAlert size={16} className="text-amber-400 shrink-0" />
           <span>{securityToast}</span>
         </div>
       )}
 
-      {/* 🌊 Anti-Forgery Watermark Grid */}
+      {/* Subtle Institutional Micro-Grid Background */}
       <div 
-        className="fixed inset-0 pointer-events-none opacity-[0.035] z-0"
+        className="fixed inset-0 pointer-events-none opacity-[0.03] z-0"
         style={{
-          backgroundImage: `radial-gradient(#ffffff 1px, transparent 1px), radial-gradient(#ffffff 1px, #070b14 1px)`,
-          backgroundSize: '24px 24px',
-          backgroundPosition: '0 0, 12px 12px'
+          backgroundImage: `radial-gradient(#0f172a 1px, transparent 1px)`,
+          backgroundSize: '20px 20px'
         }}
       />
 
-      {/* Ambient Glow */}
-      <div className="fixed top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none z-0" />
-
-      {/* Modern Compact Verification Terminal Card */}
+      {/* Modern Minimalist Official Verification Card */}
       <div 
-        className="w-full max-w-md rounded-2xl border overflow-hidden my-auto relative z-10 backdrop-blur-xl shadow-2xl transition-all duration-300"
-        style={{
-          backgroundColor: '#0d1527',
-          borderColor: 'rgba(16, 185, 129, 0.45)',
-          boxShadow: '0 0 50px rgba(16, 185, 129, 0.15), 0 25px 50px -12px rgba(0, 0, 0, 0.8)'
-        }}
+        className="w-full max-w-md bg-white rounded-2xl border border-slate-200/90 shadow-xl shadow-slate-200/60 overflow-hidden my-auto relative z-10 transition-all duration-300"
       >
         
-        {/* Compact Institutional Header */}
-        <div 
-          className="border-b px-3.5 py-2.5 flex items-center justify-between gap-2.5"
-          style={{
-            background: 'linear-gradient(90deg, #060c18 0%, #0f1c35 100%)',
-            borderColor: 'rgba(16, 185, 129, 0.3)'
-          }}
-        >
+        {/* Crisp Institutional Header */}
+        <div className="border-b border-slate-100 bg-slate-50/70 px-3.5 py-3 flex items-center justify-between gap-2.5">
           <div className="flex items-center gap-2.5 min-w-0">
-            <div className="w-9 h-9 rounded-full bg-slate-800 p-0.5 border-2 border-amber-400 shrink-0 flex items-center justify-center shadow-md">
+            <div className="w-10 h-10 rounded-full bg-white p-0.5 border border-slate-200 shrink-0 flex items-center justify-center shadow-xs">
               <img src="/logo192.png" alt="Govt HSS Shangus" className="w-full h-full object-contain pointer-events-none" draggable="false" />
             </div>
             <div className="min-w-0">
-              <h1 className="font-serif font-black text-xs sm:text-sm tracking-wide text-white uppercase truncate">
+              <h1 className="font-serif font-black text-xs sm:text-sm tracking-wide text-slate-900 uppercase truncate">
                 Govt. HSS Shangus
               </h1>
-              <p className="text-[10.5px] text-amber-300 font-bold flex items-center gap-1 truncate">
-                <Lock size={10} className="text-emerald-400 shrink-0" /> Official Verification Portal • J&K
+              <p className="text-[10.5px] text-slate-500 font-bold flex items-center gap-1 truncate">
+                <Lock size={11} className="text-emerald-600 shrink-0" /> Official Verification Portal • J&K
               </p>
             </div>
           </div>
           <div className="flex flex-col items-end shrink-0">
-            <span 
-              className="px-2 py-0.5 rounded-full font-mono font-black text-[10px] flex items-center gap-1.5 shadow-sm"
-              style={{
-                backgroundColor: 'rgba(16, 185, 129, 0.2)',
-                border: '1px solid #10b981',
-                color: '#34d399'
-              }}
-            >
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="px-2 py-0.5 rounded-full font-mono font-black text-[10px] flex items-center gap-1.5 bg-emerald-50 border border-emerald-300 text-emerald-800 shadow-2xs">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
               LIVE RECORD
             </span>
-            <span className="text-[9.5px] text-slate-300 font-mono font-bold mt-0.5">{session}</span>
+            <span className="text-[9.5px] text-slate-400 font-mono font-bold mt-0.5">{session}</span>
           </div>
         </div>
 
         {/* Dynamic Verification Content */}
-        <div className="p-3.5 sm:p-4 space-y-2.5">
+        <div className="p-3.5 sm:p-4 space-y-3">
           {loading ? (
             <ModernLoader
               moduleKey="certStudio"
@@ -443,97 +421,74 @@ export default function StudentVerificationPage() {
               className="py-8"
             />
           ) : isRateLimited ? (
-            <div className="p-4 text-center bg-amber-950/60 rounded-xl border border-amber-500/60 space-y-2">
-              <ShieldAlert size={32} className="mx-auto text-amber-400 animate-bounce" />
-              <h3 className="font-black text-sm text-amber-200">Automated Requests Blocked</h3>
-              <p className="text-[11px] text-slate-200 font-medium">
+            <div className="p-4 text-center bg-amber-50 rounded-xl border border-amber-200 space-y-2">
+              <ShieldAlert size={32} className="mx-auto text-amber-600 animate-bounce" />
+              <h3 className="font-black text-sm text-amber-950">Automated Requests Blocked</h3>
+              <p className="text-[11px] text-amber-900 font-medium">
                 Excessive verification lookups received. Automated scraping is strictly restricted.
               </p>
-              <div className="p-2 bg-amber-900/50 rounded-lg text-[10px] font-mono font-bold text-amber-100">
+              <div className="p-2 bg-amber-100/70 rounded-lg text-[10px] font-mono font-bold text-amber-900">
                 🛡️ Anti-Scraping Protection: Please wait 60 seconds before scanning again.
               </div>
             </div>
           ) : isTampered ? (
-            <div className="p-4 text-center bg-red-950/60 rounded-xl border border-red-500/60 space-y-2">
-              <AlertTriangle size={32} className="mx-auto text-red-400 animate-pulse" />
-              <h3 className="font-black text-sm text-red-200">Security Signature Mismatch</h3>
-              <p className="text-[11px] text-slate-200 font-medium">
+            <div className="p-4 text-center bg-rose-50 rounded-xl border border-rose-200 space-y-2">
+              <AlertTriangle size={32} className="mx-auto text-rose-600 animate-pulse" />
+              <h3 className="font-black text-sm text-rose-950">Security Signature Mismatch</h3>
+              <p className="text-[11px] text-rose-900 font-medium">
                 The parameters of this QR verification link do not match the institutional cryptographic signature.
               </p>
-              <div className="p-2 bg-red-900/50 rounded-lg text-[10px] font-mono font-bold text-red-100">
+              <div className="p-2 bg-rose-100/70 rounded-lg text-[10px] font-mono font-bold text-rose-900">
                 🔒 Tamper Prevention Active: Unauthorized document alterations are blocked.
               </div>
             </div>
           ) : notFound ? (
-            <div className="p-4 text-center bg-red-950/60 rounded-xl border border-red-500/60 space-y-2">
-              <AlertTriangle size={30} className="mx-auto text-red-400" />
-              <h3 className="font-black text-sm text-red-200">Record Not Found</h3>
-              <p className="text-[11px] text-slate-200 font-medium">
+            <div className="p-4 text-center bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+              <AlertTriangle size={30} className="mx-auto text-slate-500" />
+              <h3 className="font-black text-sm text-slate-900">Record Not Found</h3>
+              <p className="text-[11px] text-slate-600 font-medium">
                 No matching student enrollment record was found for {fNoParam ? `Form #${fNoParam}` : (regParam || rollParam || certParam || 'this document')}.
               </p>
-              <div className="text-[11px] font-semibold text-slate-300">
+              <div className="text-[11px] font-semibold text-slate-500">
                 Please contact the Office of the Principal, Govt HSS Shangus for manual records verification.
               </div>
             </div>
           ) : (
-            <div className="space-y-2.5">
+            <div className="space-y-3">
               
               {/* Authenticated Status Banner */}
-              <div 
-                className="px-3 py-1.5 rounded-xl flex items-center justify-between text-xs shadow-sm"
-                style={{
-                  background: 'linear-gradient(90deg, #064e3b 0%, #065f46 100%)',
-                  border: '1px solid #10b981',
-                  color: '#ffffff'
-                }}
-              >
+              <div className="px-3 py-2 rounded-xl flex items-center justify-between text-xs bg-emerald-50 border border-emerald-200 text-emerald-950 shadow-2xs">
                 <div className="flex items-center gap-1.5 font-black">
-                  <ShieldCheck size={16} className="text-emerald-300 shrink-0" />
-                  <span className="tracking-wider uppercase text-[11px] text-white">Officially Authenticated Record</span>
+                  <ShieldCheck size={16} className="text-emerald-600 shrink-0" />
+                  <span className="tracking-wider uppercase text-[11px] text-emerald-900">Officially Authenticated Record</span>
                 </div>
-                <span className="text-[10px] font-extrabold text-emerald-100 flex items-center gap-1">
-                  <CheckCircle2 size={11} className="text-emerald-300" /> Validated
+                <span className="text-[10px] font-extrabold text-emerald-800 flex items-center gap-1">
+                  <CheckCircle2 size={12} className="text-emerald-600" /> Validated
                 </span>
               </div>
 
               {/* Verified Certificate Card (If Certificate Scanned) */}
               {(certParam || docParam) && (
-                <div 
-                  className="px-3 py-2 rounded-xl text-xs flex items-center justify-between gap-2"
-                  style={{
-                    backgroundColor: 'rgba(245, 158, 11, 0.15)',
-                    border: '1px solid #f59e0b',
-                    color: '#fef3c7'
-                  }}
-                >
+                <div className="px-3 py-2 rounded-xl text-xs flex items-center justify-between gap-2 bg-amber-50 border border-amber-200 text-amber-950 shadow-2xs">
                   <div className="min-w-0">
-                    <div className="text-[10px] font-black uppercase tracking-wider text-amber-300 flex items-center gap-1">
-                      <Award size={12} className="text-amber-300 shrink-0" />
+                    <div className="text-[10px] font-black uppercase tracking-wider text-amber-800 flex items-center gap-1">
+                      <Award size={13} className="text-amber-700 shrink-0" />
                       <span>{docParam || 'Official Student Certificate / TC'}</span>
                     </div>
-                    <div className="text-[11px] font-bold text-white mt-0.5 truncate">
-                      Serial: <span className="font-mono text-amber-300 font-black">{certParam || '—'}</span>
+                    <div className="text-[11px] font-bold text-slate-800 mt-0.5 truncate">
+                      Serial: <span className="font-mono text-amber-900 font-black">{certParam || '—'}</span>
                     </div>
                   </div>
-                  <span className="shrink-0 px-2 py-0.5 rounded bg-amber-500/30 text-amber-200 font-black text-[9.5px] uppercase border border-amber-400">
+                  <span className="shrink-0 px-2 py-0.5 rounded-md bg-amber-100 text-amber-900 font-black text-[9.5px] uppercase border border-amber-300">
                     VALID &amp; ISSUED
                   </span>
                 </div>
               )}
 
-              {/* Compact High-Contrast Student Bio Card */}
-              <div 
-                className="p-3 rounded-xl border relative flex items-center gap-3"
-                style={{
-                  backgroundColor: '#0f1a30',
-                  borderColor: '#253554'
-                }}
-              >
+              {/* Minimalist High-Contrast Student Bio Card */}
+              <div className="p-3 rounded-xl border border-slate-200 bg-slate-50/70 flex items-center gap-3">
                 {/* Photo with Anti-Theft Protective Shield Overlay */}
-                <div 
-                  className="w-16 h-20 sm:w-18 sm:h-22 rounded-xl overflow-hidden bg-slate-900 shrink-0 relative select-none shadow-md"
-                  style={{ border: '2px solid #f59e0b' }}
-                >
+                <div className="w-16 h-20 sm:w-18 sm:h-22 rounded-xl overflow-hidden bg-white shrink-0 relative select-none shadow-xs border-2 border-amber-500/80">
                   <img 
                     src={photo} 
                     alt="Student Record" 
@@ -552,32 +507,18 @@ export default function StudentVerificationPage() {
 
                 {/* Student Bio Details with Maximum Contrast */}
                 <div className="min-w-0 flex-1 space-y-1 relative z-10">
-                  <h2 className="font-black text-base sm:text-lg text-white uppercase tracking-tight leading-snug truncate" title={sName}>
+                  <h2 className="font-black text-base sm:text-lg text-slate-900 uppercase tracking-tight leading-snug truncate" title={sName}>
                     {sName}
                   </h2>
-                  <p className="text-[12px] text-slate-200 font-bold truncate">
-                    Father: <span className="text-amber-300 font-black uppercase">{fName}</span>
+                  <p className="text-[12px] text-slate-600 font-medium truncate">
+                    Father: <span className="text-slate-900 font-black uppercase">{fName}</span>
                   </p>
                   <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-                    <span 
-                      className="px-2.5 py-0.5 rounded-lg font-black text-[11px]"
-                      style={{
-                        backgroundColor: '#1e3a8a',
-                        color: '#bfdbfe',
-                        border: '1px solid #3b82f6'
-                      }}
-                    >
+                    <span className="px-2.5 py-0.5 rounded-lg font-bold text-[11px] bg-blue-50 text-blue-800 border border-blue-200 shadow-2xs">
                       Class {cls} {stm ? `• ${stm}` : ''}
                     </span>
                     {roll && roll !== '—' && roll !== 'N/A' && (
-                      <span 
-                        className="px-2.5 py-0.5 rounded-lg font-mono font-black text-[11px]"
-                        style={{
-                          backgroundColor: '#064e3b',
-                          color: '#a7f3d0',
-                          border: '1px solid #10b981'
-                        }}
-                      >
+                      <span className="px-2.5 py-0.5 rounded-lg font-mono font-black text-[11px] bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-2xs">
                         Roll: {roll}
                       </span>
                     )}
@@ -585,37 +526,25 @@ export default function StudentVerificationPage() {
                 </div>
               </div>
 
-              {/* Compact 2x2 Credentials Grid with High-Contrast Text */}
+              {/* Minimal 2x2 Credentials Grid with High Contrast */}
               <div className="grid grid-cols-2 gap-2 text-xs">
                 {/* Form Number Tile */}
-                <div 
-                  className="p-2.5 rounded-xl border shadow-sm"
-                  style={{
-                    backgroundColor: '#15213b',
-                    borderColor: '#2a3b5c'
-                  }}
-                >
-                  <span className="text-[10px] font-black uppercase tracking-wider block mb-0.5" style={{ color: '#fde047' }}>
+                <div className="p-2.5 rounded-xl border border-slate-200 bg-white shadow-xs">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-0.5">
                     Form / Reg. ID
                   </span>
-                  <span className="font-mono font-black text-amber-300 text-sm sm:text-base">
+                  <span className="font-mono font-black text-amber-700 text-sm sm:text-base">
                     #{fNo}
                   </span>
                 </div>
 
                 {/* Board Reg No Tile */}
-                <div 
-                  className="p-2.5 rounded-xl border shadow-sm"
-                  style={{
-                    backgroundColor: '#15213b',
-                    borderColor: '#2a3b5c'
-                  }}
-                >
-                  <span className="text-[10px] font-black uppercase tracking-wider block mb-0.5" style={{ color: '#93c5fd' }}>
+                <div className="p-2.5 rounded-xl border border-slate-200 bg-white shadow-xs">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-0.5">
                     Board Reg. No
                   </span>
                   <span 
-                    className="font-mono font-black text-cyan-300 text-xs sm:text-[13px] truncate block" 
+                    className="font-mono font-bold text-slate-900 text-xs sm:text-[13px] truncate block" 
                     title={reg}
                   >
                     {reg}
@@ -623,73 +552,41 @@ export default function StudentVerificationPage() {
                 </div>
 
                 {/* Academic Session Tile */}
-                <div 
-                  className="p-2.5 rounded-xl border shadow-sm"
-                  style={{
-                    backgroundColor: '#15213b',
-                    borderColor: '#2a3b5c'
-                  }}
-                >
-                  <span className="text-[10px] font-black uppercase tracking-wider block mb-0.5" style={{ color: '#93c5fd' }}>
+                <div className="p-2.5 rounded-xl border border-slate-200 bg-white shadow-xs">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-0.5">
                     Academic Session
                   </span>
-                  <span className="font-mono font-black text-white text-xs sm:text-sm">
+                  <span className="font-mono font-bold text-slate-800 text-xs sm:text-sm">
                     {session}
                   </span>
                 </div>
 
                 {/* Admission Status Tile */}
-                <div 
-                  className="p-2.5 rounded-xl border shadow-sm"
-                  style={{
-                    backgroundColor: '#15213b',
-                    borderColor: '#2a3b5c'
-                  }}
-                >
-                  <span className="text-[10px] font-black uppercase tracking-wider block mb-0.5" style={{ color: '#93c5fd' }}>
+                <div className="p-2.5 rounded-xl border border-slate-200 bg-white shadow-xs">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-0.5">
                     Admission Status
                   </span>
-                  <span className="font-black text-emerald-400 text-xs sm:text-sm flex items-center gap-1">
-                    <CheckCircle2 size={13} className="shrink-0 text-emerald-400" /> Confirmed
+                  <span className="font-black text-emerald-700 text-xs sm:text-sm flex items-center gap-1">
+                    <CheckCircle2 size={13} className="shrink-0 text-emerald-600" /> Confirmed
                   </span>
                 </div>
               </div>
 
               {/* 🔗 Official Verification Link & Signature Strip */}
-              <div 
-                className="p-2.5 rounded-xl border space-y-1.5 text-xs"
-                style={{
-                  backgroundColor: '#101a2e',
-                  borderColor: '#253554'
-                }}
-              >
+              <div className="p-2.5 rounded-xl border border-slate-200 bg-slate-50/70 space-y-1.5 text-xs">
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-black uppercase tracking-wider text-emerald-400 flex items-center gap-1">
-                    <Lock size={11} className="text-emerald-400" />
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-600 flex items-center gap-1">
+                    <Lock size={11} className="text-emerald-600" />
                     Verification Link &amp; Signature
                   </span>
                   {sigParam && (
-                    <span 
-                      className="px-1.5 py-0.5 rounded font-mono font-black text-[9.5px]"
-                      style={{
-                        backgroundColor: 'rgba(16, 185, 129, 0.2)',
-                        border: '1px solid #10b981',
-                        color: '#6ee7b7'
-                      }}
-                    >
+                    <span className="px-1.5 py-0.5 rounded font-mono font-bold text-[9.5px] bg-emerald-50 border border-emerald-200 text-emerald-800">
                       HMAC: {sigParam.slice(0, 8)}... (Verified)
                     </span>
                   )}
                 </div>
-                <div 
-                  className="flex items-center gap-1.5 p-1.5 rounded-lg border font-mono text-[10.5px]"
-                  style={{
-                    backgroundColor: '#0a101d',
-                    borderColor: '#1e2b44',
-                    color: '#e2e8f0'
-                  }}
-                >
-                  <span className="truncate flex-1 pl-1 text-[10.5px] text-slate-300">{window.location.href}</span>
+                <div className="flex items-center gap-1.5 p-1.5 rounded-lg border border-slate-200 bg-white font-mono text-[10.5px]">
+                  <span className="truncate flex-1 pl-1 text-[10.5px] text-slate-600 select-all">{window.location.href}</span>
                   <button
                     type="button"
                     onClick={() => {
@@ -699,10 +596,7 @@ export default function StudentVerificationPage() {
                         setTimeout(() => setCopied(false), 2500);
                       } catch (_) {}
                     }}
-                    className="px-2.5 py-1 rounded-md text-white font-black text-[10px] uppercase flex items-center gap-1 shrink-0 transition-all shadow-sm cursor-pointer"
-                    style={{
-                      backgroundColor: '#059669'
-                    }}
+                    className="px-2.5 py-1 rounded-md text-white font-bold text-[10px] uppercase flex items-center gap-1 shrink-0 transition-all shadow-xs bg-slate-900 hover:bg-slate-800 cursor-pointer"
                     title="Copy official verification link"
                   >
                     {copied ? <Check size={11} /> : <Copy size={11} />}
@@ -713,20 +607,17 @@ export default function StudentVerificationPage() {
             </div>
           )}
 
-          {/* Compact Footer */}
-          <div 
-            className="pt-2 border-t flex items-center justify-between text-[10.5px] font-black text-slate-300"
-            style={{ borderColor: '#1f2e4a' }}
-          >
-            <Link to="/" className="text-amber-400 hover:text-amber-300 flex items-center gap-1 transition-colors">
+          {/* Minimal Footer */}
+          <div className="pt-2.5 border-t border-slate-100 flex items-center justify-between text-[10.5px] font-bold text-slate-500">
+            <Link to="/" className="text-slate-700 hover:text-slate-900 flex items-center gap-1 transition-colors">
               <ArrowLeft size={12} /> Portal Home
             </Link>
             <div className="flex items-center gap-1.5">
-              <span className="flex items-center gap-1 text-emerald-400">
+              <span className="flex items-center gap-1 text-emerald-700">
                 <CheckCircle2 size={11} /> 256-Bit SSL
               </span>
-              <span className="text-slate-500">•</span>
-              <span className="font-mono text-slate-300">UDISE: 01061400618</span>
+              <span className="text-slate-300">•</span>
+              <span className="font-mono text-slate-500">UDISE: 01061400618</span>
             </div>
           </div>
         </div>
