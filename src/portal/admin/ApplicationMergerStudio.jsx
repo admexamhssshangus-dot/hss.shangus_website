@@ -1011,64 +1011,81 @@ export default function ApplicationMergerStudio({ applications = [], onRefresh, 
   return (
     <div className="space-y-3 animate-fadeIn text-xs min-w-0">
       
-      {/* Top Header Card with View Mode Switcher */}
-      <div className="p-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-3">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <div className="w-9 h-9 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center border border-amber-500/20">
-            <GitMerge size={18} className="stroke-[2.5]" />
+      {/* Top Header Card with View Mode Switcher: Mobile-First, Minimal & Compact */}
+      <div className="p-2.5 sm:p-3 rounded-xl sm:rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+        <div className="flex items-center justify-between w-full sm:w-auto gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center border border-amber-500/20 flex-shrink-0">
+              <GitMerge size={15} className="stroke-[2.5]" />
+            </div>
+            <div className="min-w-0">
+              <h2 className="font-black text-xs sm:text-sm text-slate-900 dark:text-white flex items-center gap-1.5 truncate leading-tight">
+                <span>Application Merger</span>
+                <span className="px-1.5 py-0.2 rounded-md bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 font-mono text-[9.5px] whitespace-nowrap">
+                  {duplicateClusters.length} Duplicates
+                </span>
+              </h2>
+              <p className="hidden sm:block text-[11px] font-semibold text-slate-500 dark:text-slate-400 truncate">
+                Scan, preview side-by-side, and combine student records with verified bulk uploads.
+              </p>
+            </div>
           </div>
-          <div>
-            <h2 className="font-black text-sm text-slate-900 dark:text-white flex flex-wrap items-center gap-1.5 leading-tight">
-              <span>Application Merger</span>
-              <span className="px-1.5 py-0.5 rounded-md bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 font-mono text-[10px] whitespace-nowrap">
-                {duplicateClusters.length} Duplicate Group(s) Found
-              </span>
-            </h2>
-            <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
-              Scan, preview side-by-side, and combine student-submitted rich data with admin-verified bulk uploads.
-            </p>
-          </div>
+
+          {onClose && (
+            <button
+              type="button"
+              onClick={onClose}
+              className="p-1 sm:p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-900 dark:hover:text-white cursor-pointer sm:hidden flex-shrink-0"
+              title="Close Merger Studio"
+              aria-label="Close"
+            >
+              <X size={15} />
+            </button>
+          )}
         </div>
 
-        {/* View Mode Switcher (Duplicates vs All Records) */}
-        <div className="flex items-center gap-1 p-0.5 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-black overflow-x-auto max-w-full">
-          <button
-            type="button"
-            onClick={() => setViewMode('duplicates')}
-            className={`px-2.5 py-1 rounded-lg text-[11px] font-black transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
-              viewMode === 'duplicates'
-                ? 'bg-amber-600 text-white shadow-2xs'
-                : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
-            }`}
-          >
-            <Sparkles size={13} />
-            <span>Duplicate Groups ({duplicateClusters.length})</span>
-          </button>
+        {/* View Mode Switcher + Desktop Close Button */}
+        <div className="flex items-center justify-between sm:justify-end gap-1.5 w-full sm:w-auto">
+          <div className="flex items-center gap-1 p-0.5 rounded-lg sm:rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-black overflow-x-auto no-scrollbar w-full sm:w-auto">
+            <button
+              type="button"
+              onClick={() => setViewMode('duplicates')}
+              className={`flex-1 sm:flex-none px-2.5 py-1 rounded-md sm:rounded-lg text-[10.5px] sm:text-[11px] font-bold transition-all cursor-pointer flex items-center justify-center gap-1 whitespace-nowrap ${
+                viewMode === 'duplicates'
+                  ? 'bg-amber-600 text-white shadow-2xs'
+                  : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              <Sparkles size={12} />
+              <span>Duplicates ({duplicateClusters.length})</span>
+            </button>
 
-          <button
-            type="button"
-            onClick={() => setViewMode('all')}
-            className={`px-2.5 py-1 rounded-lg text-[11px] font-black transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
-              viewMode === 'all'
-                ? 'bg-blue-600 text-white shadow-2xs'
-                : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
-            }`}
-          >
-            <Layers size={13} />
-            <span>All Applications Preview ({filteredAllApps.length})</span>
-          </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('all')}
+              className={`flex-1 sm:flex-none px-2.5 py-1 rounded-md sm:rounded-lg text-[10.5px] sm:text-[11px] font-bold transition-all cursor-pointer flex items-center justify-center gap-1 whitespace-nowrap ${
+                viewMode === 'all'
+                  ? 'bg-blue-600 text-white shadow-2xs'
+                  : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              <Layers size={12} />
+              <span>All Apps ({filteredAllApps.length})</span>
+            </button>
+          </div>
+
+          {onClose && (
+            <button
+              type="button"
+              onClick={onClose}
+              className="hidden sm:flex p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-900 dark:hover:text-white cursor-pointer transition-colors"
+              title="Close Merger Studio"
+              aria-label="Close"
+            >
+              <X size={15} />
+            </button>
+          )}
         </div>
-
-        {onClose && (
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 font-black cursor-pointer transition-all justify-self-end xl:ml-0"
-            title="Close Merger Studio"
-          >
-            <X size={15} />
-          </button>
-        )}
       </div>
 
       {/* Control & Condition Filter Bar */}
