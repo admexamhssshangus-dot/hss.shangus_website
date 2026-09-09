@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   FileSpreadsheet, Plus, Trash2, Copy, Download, RefreshCw, 
-  ArrowRight, Search, Check, AlertCircle, Sparkles, Users
+  ArrowRight, Search, Check, AlertCircle, Sparkles, Users,
+  ArrowUpDown, ArrowUp, ArrowDown
 } from 'lucide-react';
 
 /**
@@ -17,6 +18,8 @@ export default function ExcelSpreadsheetGrid({
   allStudents = [],
   targetClass = 'All',
   targetSession = '2025-26',
+  targetStream = 'All',
+  targetStatus = 'All',
   showToast
 }) {
   // Generate letter labels for columns: A, B, C, D...
@@ -37,6 +40,8 @@ export default function ExcelSpreadsheetGrid({
     return Array.from({ length: 8 }, (_, i) => createBlankRow(i + 1));
   });
 
+  const [sortCol, setSortCol] = useState('classRollNo');
+  const [sortDir, setSortDir] = useState('asc');
   const [focusedCell, setFocusedCell] = useState(null); // { rowIndex, colKey }
   const gridContainerRef = useRef(null);
 
@@ -79,20 +84,77 @@ export default function ExcelSpreadsheetGrid({
     if (showToast) showToast('Cleared spreadsheet grid.', 'info');
   };
 
-  // Pre-fill grid with students from the selected cohort
+  // Interactive sorting for grid rows by column
+  const handleSortGridBy = (columnKey) => {
+    const nextDir = sortCol === columnKey && sortDir === 'asc' ? 'desc' : 'asc';
+    setSortCol(columnKey);
+    setSortDir(nextDir);
+
+    setRows(prevRows => {
+      const contentRows = prevRows.filter(r => r.regNo || Object.keys(r).some(k => k !== 'id' && k !== 'regNo' && r[k]));
+      const emptyRows = prevRows.filter(r => !contentRows.includes(r));
+
+      contentRows.sort((a, b) => {
+        const valA = a[columnKey] || '';
+        const valB = b[columnKey] || '';
+
+        if (columnKey === 'classRollNo' || columnKey === 'rollNo') {
+          const numA = parseInt(String(valA).match(/\d+/)?.[0] || '999999', 10);
+          const numB = parseInt(String(valB).match(/\d+/)?.[0] || '999999', 10);
+          if (numA !== numB) return nextDir === 'asc' ? numA - numB : numB - numA;
+        }
+
+        const comp = String(valA).localeCompare(String(valB), undefined, { numeric: true, sensitivity: 'base' });
+        return nextDir === 'asc' ? comp : -comp;
+      });
+
+      return [...contentRows, ...emptyRows];
+    });
+  };
+
+  // Pre-fill grid with students from the selected cohort (Default sorted by Class Roll No)
   const handlePreFillCohort = () => {
     const filtered = (allStudents || []).filter(st => {
-      const sCls = String(st.selectedClass || st.Class || st.class || '').toLowerCase();
-      const sSess = String(st.selectedSession || st.Session || st.session || '').toLowerCase();
+      const sCls = String(st.selectedClass || st.Class || st.class || st.className || st['Admission sought for class'] || '').toLowerCase();
+      const sSess = String(st.selectedSession || st.Session || st.session || st.academicSession || '').toLowerCase();
+      const sStrm = String(st.selectedStream || st.Stream || st.stream || st['Stream for Class 11th'] || st['Stream & Subjects for Class 12th'] || st.faculty || '').toLowerCase();
+      const sStat = String(st.status || st.Status || st.admissionStatus || '').toLowerCase();
+
       const matchCls = targetClass === 'All' || sCls.includes(targetClass.toLowerCase());
       const matchSess = targetSession === 'All' || sSess.includes(targetSession.toLowerCase());
-      return matchCls && matchSess;
+      const matchStrm = targetStream === 'All' || sStrm.includes(targetStream.toLowerCase());
+      const matchStat = targetStatus === 'All' || sStat === targetStatus.toLowerCase();
+
+      return matchCls && matchSess && matchStrm && matchStat;
     });
 
     if (filtered.length === 0) {
-      if (showToast) showToast(`No student records found matching Class ${targetClass} & Session ${targetSession}.`, 'warning');
+      if (showToast) showToast(`No student records found matching current cohort filters.`, 'warning');
       return;
     }
+
+    // Default sort by Class Roll No in natural numeric ascending order (1, 2, 3... 10... unassigned at end)
+    filtered.sort((a, b) => {
+      const getRollNum = (st) => {
+        const rollVal = String(
+          st.classRollNo || 
+          st['Class Roll No'] || 
+          st['Class Roll No.'] || 
+          st.rollNo || 
+          st['RL. NO.'] || 
+          st['Class R.No.'] || 
+          ''
+        ).trim();
+        const match = rollVal.match(/\d+/);
+        return match ? parseInt(match[0], 10) : 999999;
+      };
+
+      const diff = getRollNum(a) - getRollNum(b);
+      if (diff !== 0) return diff;
+      const nameA = String(a.studentName || a["Student's Name"] || '');
+      const nameB = String(b.studentName || b["Student's Name"] || '');
+      return nameA.localeCompare(nameB);
+    });
 
     const cohortRows = filtered.map((st, idx) => {
       const reg = st.boardRegNo || st.regNo || st['Board Registration Number'] || st['Board Reg. No.'] || '';
@@ -110,8 +172,10 @@ export default function ExcelSpreadsheetGrid({
       return r;
     });
 
+    setSortCol('classRollNo');
+    setSortDir('asc');
     setRows(cohortRows);
-    if (showToast) showToast(`✓ Pre-filled grid with ${cohortRows.length} students from Class ${targetClass} (${targetSession})!`, 'success');
+    if (showToast) showToast(`✓ Loaded & sorted ${cohortRows.length} students by Class Roll No (ascending)!`, 'success');
   };
 
   // Clipboard Paste Interceptor
@@ -225,6 +289,37 @@ export default function ExcelSpreadsheetGrid({
 
         {/* Ribbon Tools */}
         <div className="flex items-center gap-1.5 flex-wrap">
+          {/* Quick Sort Controls */}
+          <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-lg border border-slate-200 dark:border-slate-700">
+            <span className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider flex items-center gap-1">
+              <ArrowUpDown size={11} /> Sort:
+            </span>
+            <button
+              type="button"
+              onClick={() => handleSortGridBy('classRollNo')}
+              className={`px-1.5 py-0.5 rounded text-[10px] font-bold transition-colors cursor-pointer ${
+                sortCol === 'classRollNo'
+                  ? 'bg-emerald-600 text-white shadow-xs'
+                  : 'text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+              }`}
+              title="Sort natural numeric order by Class Roll No (1, 2, 3...)"
+            >
+              Roll No {sortCol === 'classRollNo' && (sortDir === 'asc' ? '↑' : '↓')}
+            </button>
+            <button
+              type="button"
+              onClick={() => handleSortGridBy('regNo')}
+              className={`px-1.5 py-0.5 rounded text-[10px] font-bold transition-colors cursor-pointer ${
+                sortCol === 'regNo'
+                  ? 'bg-emerald-600 text-white shadow-xs'
+                  : 'text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+              }`}
+              title="Sort alphanumeric by Registration No"
+            >
+              Reg No {sortCol === 'regNo' && (sortDir === 'asc' ? '↑' : '↓')}
+            </button>
+          </div>
+
           <button
             type="button"
             onClick={handleAddRow}
@@ -283,15 +378,38 @@ export default function ExcelSpreadsheetGrid({
               <th className="w-10 py-2 text-center text-slate-400 font-mono text-[10px] border-r border-slate-200 dark:border-slate-800">
                 —
               </th>
-              <th className="py-2 px-3 border-r border-slate-200 dark:border-slate-800 text-emerald-800 dark:text-emerald-400 bg-emerald-50/50 dark:bg-emerald-950/30">
-                <div className="flex items-center gap-1.5">
-                  <span>Registration No.</span>
-                  <span className="text-rose-500 font-black">*</span>
+              <th 
+                onClick={() => handleSortGridBy('regNo')}
+                className="py-2 px-3 border-r border-slate-200 dark:border-slate-800 text-emerald-800 dark:text-emerald-400 bg-emerald-50/50 dark:bg-emerald-950/30 cursor-pointer select-none hover:bg-emerald-100/60 dark:hover:bg-emerald-900/40 transition-colors"
+                title="Click to sort by Registration No"
+              >
+                <div className="flex items-center justify-between gap-1.5">
+                  <div className="flex items-center gap-1.5">
+                    <span>Registration No.</span>
+                    <span className="text-rose-500 font-black">*</span>
+                  </div>
+                  {sortCol === 'regNo' ? (
+                    sortDir === 'asc' ? <ArrowUp size={12} className="text-emerald-600" /> : <ArrowDown size={12} className="text-emerald-600" />
+                  ) : (
+                    <ArrowUpDown size={11} className="text-slate-400 opacity-40 hover:opacity-100" />
+                  )}
                 </div>
               </th>
               {activeFields.map((field) => (
-                <th key={field.key} className="py-2 px-3 border-r border-slate-200 dark:border-slate-800 truncate max-w-[180px]" title={field.label}>
-                  {field.label}
+                <th 
+                  key={field.key}
+                  onClick={() => handleSortGridBy(field.key)}
+                  className="py-2 px-3 border-r border-slate-200 dark:border-slate-800 truncate max-w-[180px] cursor-pointer select-none hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" 
+                  title={`Click to sort by ${field.label}`}
+                >
+                  <div className="flex items-center justify-between gap-1">
+                    <span className="truncate">{field.label}</span>
+                    {sortCol === field.key ? (
+                      sortDir === 'asc' ? <ArrowUp size={12} className="text-blue-600 flex-shrink-0" /> : <ArrowDown size={12} className="text-blue-600 flex-shrink-0" />
+                    ) : (
+                      <ArrowUpDown size={11} className="text-slate-400 opacity-40 hover:opacity-100 flex-shrink-0" />
+                    )}
+                  </div>
                 </th>
               ))}
               <th className="w-10 py-2 text-center text-slate-400"></th>

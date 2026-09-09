@@ -11,6 +11,7 @@ import { db } from '../../services/firebase';
 import { doc, getDoc, setDoc, collection, getDocs } from 'firebase/firestore';
 import { loadSiteSettings } from '../../utils/settingsLoader';
 import SessionArchivalModal from './SessionArchivalModal';
+import BulkFieldOverwriteModal from './BulkFieldOverwriteModal';
 import { 
   createStaffAccount, 
   updateStaffAccount, 
@@ -197,6 +198,13 @@ export default function ControlsAndSubjects() {
   // Annual Session Rollover Cutoff States (Default: 15th October)
   const [rolloverMonth, setRolloverMonth] = useState(10); // 1-12 (October)
   const [rolloverDay, setRolloverDay] = useState(15); // 1-31
+
+  // Master Student Data & Board Ingestion Hub States
+  const [showMasterHubModal, setShowMasterHubModal] = useState(false);
+  const [masterHubInitialMode, setMasterHubInitialMode] = useState('overwrite');
+  const [strict3PointMatching, setStrict3PointMatching] = useState(true);
+  const [allowExpressZeroRestrictions, setAllowExpressZeroRestrictions] = useState(true);
+  const [enable30DayRollback, setEnable30DayRollback] = useState(true);
 
   // Email Functionality Toggles
   const [emailSubmission, setEmailSubmission] = useState(true);
@@ -408,6 +416,11 @@ export default function ControlsAndSubjects() {
           if (siteSettings.email_rejection !== undefined) setEmailRejection(Boolean(siteSettings.email_rejection));
           if (siteSettings.email_reg_otp !== undefined) setEmailRegOtp(Boolean(siteSettings.email_reg_otp));
           if (siteSettings.email_reset_otp !== undefined) setEmailResetOtp(Boolean(siteSettings.email_reset_otp));
+
+          // Populate Master Student Data Hub Settings
+          if (siteSettings.strict3PointMatching !== undefined) setStrict3PointMatching(Boolean(siteSettings.strict3PointMatching));
+          if (siteSettings.allowExpressZeroRestrictions !== undefined) setAllowExpressZeroRestrictions(Boolean(siteSettings.allowExpressZeroRestrictions));
+          if (siteSettings.enable30DayRollback !== undefined) setEnable30DayRollback(Boolean(siteSettings.enable30DayRollback));
         }
       } catch (e) {}
 
@@ -548,6 +561,9 @@ export default function ControlsAndSubjects() {
         email_rejection: emailRejection,
         email_reg_otp: emailRegOtp,
         email_reset_otp: emailResetOtp,
+        strict3PointMatching,
+        allowExpressZeroRestrictions,
+        enable30DayRollback,
         annualRolloverCutoff: {
           month: Number(rolloverMonth),
           day: Number(rolloverDay),
@@ -1169,12 +1185,127 @@ export default function ControlsAndSubjects() {
             </div>
           </div>
 
+          {/* Master Student Data & Board Ingestion Control Center Card */}
+          <div className="p-3.5 rounded-2xl border border-emerald-300 dark:border-emerald-800/60 bg-gradient-to-br from-emerald-50/70 via-white to-teal-50/40 dark:from-slate-900 dark:via-slate-900 dark:to-emerald-950/20 shadow-sm space-y-2.5">
+            <div className="flex items-center justify-between border-b border-emerald-200 dark:border-emerald-800/60 pb-2 flex-wrap gap-2">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0">
+                  <Database size={15} />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h4 className="font-black text-xs text-slate-900 dark:text-white leading-tight">Master Student Data & Board Ingestion Hub</h4>
+                    <span className="text-[9px] bg-emerald-600 text-white font-black px-1.5 py-0.2 rounded-full uppercase tracking-wider">v2 Unified</span>
+                  </div>
+                  <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 leading-none mt-0.5">
+                    Central privileged console for Board Overwrite, Excel tabular paste, Express Direct Entry, and Gemini Vision OCR
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMasterHubInitialMode('overwrite');
+                    setShowMasterHubModal(true);
+                  }}
+                  className="px-2.5 py-1 rounded-xl font-black text-xs text-white bg-emerald-700 hover:bg-emerald-600 shadow-2xs flex items-center gap-1 cursor-pointer transition-all"
+                >
+                  <FileSpreadsheet size={12} />
+                  <span>Bulk Overwrite & Board Sync</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMasterHubInitialMode('express');
+                    setShowMasterHubModal(true);
+                  }}
+                  className="px-2.5 py-1 rounded-xl font-black text-xs text-white bg-blue-600 hover:bg-blue-500 shadow-2xs flex items-center gap-1 cursor-pointer transition-all"
+                >
+                  <UserPlus size={12} />
+                  <span>Express Direct Entry</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMasterHubInitialMode('gazette_ai');
+                    setShowMasterHubModal(true);
+                  }}
+                  className="px-2.5 py-1 rounded-xl font-black text-xs text-white bg-purple-600 hover:bg-purple-500 shadow-2xs flex items-center gap-1 cursor-pointer transition-all"
+                >
+                  <Sparkles size={12} />
+                  <span>Gazette AI OCR</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMasterHubInitialMode('admit_ai');
+                    setShowMasterHubModal(true);
+                  }}
+                  className="px-2.5 py-1 rounded-xl font-black text-xs text-white bg-amber-600 hover:bg-amber-500 shadow-2xs flex items-center gap-1 cursor-pointer transition-all"
+                >
+                  <FileCheck size={12} />
+                  <span>Admit Card AI</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Master Hub Governance & Settings Policy Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-0.5">
+              <label className="flex items-center justify-between p-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/90 text-xs font-bold text-slate-800 dark:text-slate-200 cursor-pointer shadow-2xs">
+                <div className="pr-2">
+                  <div className="font-black text-xs text-slate-900 dark:text-white">Strict 3-Point Matching</div>
+                  <div className="text-[10px] text-slate-400 font-normal">Require Reg No + Session + Class check</div>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={strict3PointMatching}
+                  onChange={(e) => setStrict3PointMatching(e.target.checked)}
+                  className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer shrink-0"
+                />
+              </label>
+
+              <label className="flex items-center justify-between p-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/90 text-xs font-bold text-slate-800 dark:text-slate-200 cursor-pointer shadow-2xs">
+                <div className="pr-2">
+                  <div className="font-black text-xs text-slate-900 dark:text-white">Express Admin Ingestion</div>
+                  <div className="text-[10px] text-slate-400 font-normal">Privileged single-record entry</div>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={allowExpressZeroRestrictions}
+                  onChange={(e) => setAllowExpressZeroRestrictions(e.target.checked)}
+                  className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 cursor-pointer shrink-0"
+                />
+              </label>
+
+              <label className="flex items-center justify-between p-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/90 text-xs font-bold text-slate-800 dark:text-slate-200 cursor-pointer shadow-2xs">
+                <div className="pr-2">
+                  <div className="font-black text-xs text-slate-900 dark:text-white">30-Day Rollback Protection</div>
+                  <div className="text-[10px] text-slate-400 font-normal">Versioned batch snapshot on overwrite</div>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={enable30DayRollback}
+                  onChange={(e) => setEnable30DayRollback(e.target.checked)}
+                  className="w-4 h-4 rounded text-purple-600 focus:ring-purple-500 cursor-pointer shrink-0"
+                />
+              </label>
+            </div>
+
+            <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 dark:text-slate-400 px-1 pt-0.5 flex-wrap gap-2">
+              <span>Active Cohort Session: <strong className="text-slate-800 dark:text-slate-200 font-mono">{session}</strong></span>
+              <span>Supported Classes: <strong className="text-slate-800 dark:text-slate-200">9th, 10th, 11th, 12th</strong></span>
+              <span>Database Schema Grounding: <strong className="text-emerald-700 dark:text-emerald-400">40+ Core Fields & Results</strong></span>
+            </div>
+          </div>
+
           <button
             type="submit"
             disabled={saving}
-            className="px-5 py-2.5 rounded-xl font-black text-xs text-white bg-amber-700 hover:bg-amber-600 shadow-md flex items-center gap-2 cursor-pointer disabled:opacity-50 transition-all"
+            className="px-4 py-2 rounded-xl font-black text-xs text-white bg-amber-700 hover:bg-amber-600 shadow-sm flex items-center gap-1.5 cursor-pointer disabled:opacity-50 transition-all"
           >
-            {saving ? <RefreshCw size={14} className="animate-spin" /> : <Save size={14} />}
+            {saving ? <RefreshCw size={13} className="animate-spin" /> : <Save size={13} />}
             <span>Save All System Controls</span>
           </button>
         </form>
@@ -1233,6 +1364,14 @@ export default function ControlsAndSubjects() {
                   <option value="Commerce">Commerce Stream</option>
                 </select>
               </div>
+            </div>
+
+            {/* Dynamic Sync Notice with Express Ingestion & Forms */}
+            <div className="flex items-center gap-2 p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 text-xs font-bold text-amber-900 dark:text-amber-200">
+              <Sparkles size={14} className="text-amber-600 dark:text-amber-400 flex-shrink-0" />
+              <span>
+                <strong>Live Sync Active:</strong> Compulsory, elective, and vocational subjects configured below dynamically propagate into online admission forms, <strong>Express Direct Entry</strong> quick-tags, and <strong>Board Data Overwrite</strong> curriculum validation rules.
+              </span>
             </div>
 
             {/* Compact Rules & Numeric Limits Bar */}
@@ -1503,124 +1642,124 @@ export default function ControlsAndSubjects() {
 
       {/* SUB TAB 3: FEEDER SCHOOLS & INSTITUTES DIRECTORY */}
       {activeSubTab === 'schools' && (
-        <div className="space-y-4 animate-fadeIn">
-          {/* Top Info Banner Card */}
-          <div className="p-4 sm:p-5 rounded-3xl border border-slate-200 dark:border-slate-800 bg-gradient-to-br from-white via-slate-50/50 to-indigo-50/30 dark:from-slate-900 dark:via-slate-900/90 dark:to-indigo-950/20 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div className="flex items-start gap-3.5">
-              <div className="w-11 h-11 rounded-2xl bg-indigo-600/10 dark:bg-indigo-500/20 border border-indigo-200 dark:border-indigo-800 text-indigo-600 dark:text-indigo-400 flex items-center justify-center flex-shrink-0 shadow-xs">
-                <GraduationCap size={22} />
+        <div className="space-y-2.5 animate-fadeIn">
+          {/* Top Compact Control & Stats Toolbar */}
+          <div className="p-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-8 h-8 rounded-xl bg-indigo-600/10 dark:bg-indigo-500/20 border border-indigo-200 dark:border-indigo-800 text-indigo-600 dark:text-indigo-400 flex items-center justify-center flex-shrink-0">
+                <GraduationCap size={17} />
               </div>
-              <div className="space-y-1">
+              <div className="min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <h3 className="font-black text-sm text-slate-900 dark:text-white">
+                  <h3 className="font-black text-xs sm:text-sm text-slate-900 dark:text-white tracking-tight">
                     Feeder Schools & Institutes Directory
                   </h3>
-                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+                  <span className="px-2 py-0.5 rounded-md text-[10.5px] font-black bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
                     {feederSchools.length} Master Institutions
                   </span>
                 </div>
-                <p className="text-xs font-medium text-slate-500 dark:text-slate-400 max-w-2xl">
-                  Manage the previous school choices shown in student admission forms with smart search, live abbreviation matching, and instant global synchronization.
+                <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 truncate max-w-xl">
+                  Choices available in admission forms with smart search, live abbreviation matching, and instant synchronization.
                 </p>
               </div>
             </div>
 
             {/* Quick Actions Header Buttons */}
-            <div className="flex items-center gap-2 flex-wrap flex-shrink-0">
+            <div className="flex items-center gap-1.5 flex-shrink-0 self-end sm:self-center">
               <button
                 type="button"
                 onClick={handleSortSchools}
-                className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+                className="px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-[11px] font-bold flex items-center gap-1 transition-colors cursor-pointer"
                 title="Sort A to Z"
               >
-                <ArrowUpDown size={13} className="text-indigo-600 dark:text-indigo-400" />
+                <ArrowUpDown size={12} className="text-indigo-600 dark:text-indigo-400" />
                 <span>Sort A-Z</span>
               </button>
               <button
                 type="button"
                 onClick={handleResetDefaultSchools}
-                className="px-3 py-1.5 rounded-xl border border-rose-200 dark:border-rose-900/60 bg-rose-50/50 dark:bg-rose-950/40 hover:bg-rose-100/80 dark:hover:bg-rose-900/50 text-rose-700 dark:text-rose-300 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+                className="px-2.5 py-1.5 rounded-lg border border-rose-200 dark:border-rose-900/60 bg-rose-50/60 dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-900/60 text-rose-700 dark:text-rose-300 text-[11px] font-bold flex items-center gap-1 transition-colors cursor-pointer"
                 title="Reset to 44 standard default schools"
               >
-                <RotateCcw size={13} className="text-rose-600 dark:text-rose-400" />
-                <span>Reset Defaults</span>
+                <RotateCcw size={12} className="text-rose-600 dark:text-rose-400" />
+                <span>Reset</span>
               </button>
               <button
                 type="button"
                 onClick={handleSyncSchoolsToCloud}
                 disabled={savingSchools}
-                className="px-4 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 active:scale-98 text-white text-xs font-black flex items-center gap-1.5 shadow-md shadow-indigo-600/20 transition-all cursor-pointer disabled:opacity-50"
+                className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 active:scale-98 text-white text-[11px] font-black flex items-center gap-1.5 shadow-xs transition-all cursor-pointer disabled:opacity-50"
               >
-                {savingSchools ? <RefreshCw size={13} className="animate-spin" /> : <Save size={13} />}
-                <span>Sync to Cloud</span>
+                {savingSchools ? <RefreshCw size={12} className="animate-spin" /> : <Save size={12} />}
+                <span>Sync Cloud</span>
               </button>
             </div>
           </div>
 
-          {/* Add New School & Search Filter Bar */}
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
-            {/* Add School Input Form (7 cols) */}
-            <form onSubmit={handleAddSchool} className="md:col-span-7 flex items-center gap-2 p-2.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs">
+          {/* Unified Compact Add & Search Row */}
+          <div className="grid grid-cols-1 sm:grid-cols-12 gap-2">
+            {/* Add School Form (7 cols) */}
+            <form onSubmit={handleAddSchool} className="sm:col-span-7 flex items-center gap-1.5 p-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs">
               <input
                 type="text"
                 value={newSchoolName}
                 onChange={(e) => setNewSchoolName(e.target.value)}
-                placeholder="Enter new school name (e.g. Govt High School Shangus)..."
-                className="flex-1 px-3 py-1.5 text-xs font-bold border border-slate-200 dark:border-slate-700/80 bg-slate-50/60 dark:bg-slate-950/60 text-slate-900 dark:text-white rounded-xl outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                placeholder="Add institution (e.g. Govt High School Shangus)..."
+                className="flex-1 px-2.5 py-1 text-xs font-semibold border border-slate-200 dark:border-slate-700/80 bg-slate-50/60 dark:bg-slate-950/60 text-slate-900 dark:text-white rounded-lg outline-none focus:ring-1 focus:ring-indigo-500"
               />
               <button
                 type="submit"
                 disabled={!newSchoolName.trim()}
-                className="px-4 py-2 rounded-xl text-xs font-black bg-indigo-600 hover:bg-indigo-500 active:scale-98 text-white shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-40 transition-all flex-shrink-0"
+                className="px-3 py-1 rounded-lg text-xs font-black bg-indigo-600 hover:bg-indigo-500 active:scale-98 text-white flex items-center gap-1 cursor-pointer disabled:opacity-40 transition-all flex-shrink-0"
               >
-                <Plus size={14} />
-                <span>Add School</span>
+                <Plus size={13} />
+                <span>Add</span>
               </button>
             </form>
 
             {/* Filter Search Input (5 cols) */}
-            <div className="md:col-span-5 relative flex items-center p-2.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs">
-              <Search size={14} className="text-slate-400 absolute left-5 pointer-events-none" />
+            <div className="sm:col-span-5 relative flex items-center p-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs">
+              <Search size={13} className="text-slate-400 absolute left-3.5 pointer-events-none" />
               <input
                 type="text"
                 value={schoolSearchTerm}
                 onChange={(e) => setSchoolSearchTerm(e.target.value)}
-                placeholder="Filter listed schools..."
-                className="w-full pl-8 pr-8 py-1.5 text-xs font-semibold border border-slate-200 dark:border-slate-700/80 bg-slate-50/60 dark:bg-slate-950/60 text-slate-900 dark:text-white rounded-xl outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                placeholder="Quick filter schools..."
+                className="w-full pl-7 pr-6 py-1 text-xs font-semibold border border-slate-200 dark:border-slate-700/80 bg-slate-50/60 dark:bg-slate-950/60 text-slate-900 dark:text-white rounded-lg outline-none focus:ring-1 focus:ring-indigo-500"
               />
               {schoolSearchTerm && (
                 <button
                   type="button"
                   onClick={() => setSchoolSearchTerm('')}
-                  className="absolute right-5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer p-0.5"
+                  className="absolute right-3 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer p-0.5"
                 >
-                  <X size={13} />
+                  <X size={12} />
                 </button>
               )}
             </div>
           </div>
 
-          {/* School Directory Cards Grid */}
-          <div className="p-3 sm:p-4 rounded-3xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/40 space-y-3">
-            <div className="flex items-center justify-between text-xs font-bold text-slate-500 dark:text-slate-400 px-1">
+          {/* School Directory Cards Grid - 4 Columns for High Density */}
+          <div className="p-2.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-950/40 space-y-2">
+            <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 dark:text-slate-400 px-1">
               <span>Showing {displayedSchools.length} of {feederSchools.length} schools</span>
               {schoolSearchTerm && <span>Filtered by &quot;{schoolSearchTerm}&quot;</span>}
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2.5 max-h-[60vh] overflow-y-auto pr-1 scrollbar-thin">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-2 max-h-[64vh] overflow-y-auto pr-1 scrollbar-thin">
               {displayedSchools.map(({ school, originalIndex }) => {
                 const isEditing = editingSchoolIndex === originalIndex;
                 return (
                   <div
                     key={originalIndex}
-                    className={`p-3 rounded-2xl border transition-all flex items-center justify-between gap-2 shadow-2xs ${
+                    className={`p-2 rounded-xl border transition-all flex items-center justify-between gap-1.5 shadow-2xs ${
                       isEditing
-                        ? 'bg-indigo-50/80 dark:bg-indigo-950/60 border-indigo-300 dark:border-indigo-700 ring-2 ring-indigo-500/20'
-                        : 'bg-white dark:bg-slate-900 border-slate-200/90 dark:border-slate-800/90 hover:border-slate-300 dark:hover:border-slate-700'
+                        ? 'bg-indigo-50/80 dark:bg-indigo-950/60 border-indigo-300 dark:border-indigo-700 ring-1 ring-indigo-500/30'
+                        : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-indigo-300 dark:hover:border-indigo-800'
                     }`}
                   >
                     {isEditing ? (
-                      <div className="flex items-center gap-1.5 w-full">
+                      <div className="flex items-center gap-1 w-full">
                         <input
                           type="text"
                           value={editingSchoolValue}
@@ -1630,51 +1769,51 @@ export default function ControlsAndSubjects() {
                             if (e.key === 'Escape') setEditingSchoolIndex(null);
                           }}
                           autoFocus
-                          className="flex-1 px-2.5 py-1 text-xs font-bold border border-indigo-300 dark:border-indigo-600 bg-white dark:bg-slate-950 text-slate-900 dark:text-white rounded-lg outline-none focus:ring-1 focus:ring-indigo-500"
+                          className="flex-1 px-2 py-0.5 text-xs font-bold border border-indigo-300 dark:border-indigo-600 bg-white dark:bg-slate-950 text-slate-900 dark:text-white rounded-md outline-none"
                         />
                         <button
                           type="button"
                           onClick={() => handleSaveEditSchool(originalIndex)}
-                          className="p-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer transition-colors shadow-2xs"
+                          className="p-1 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer transition-colors shadow-2xs"
                           title="Save changes"
                         >
-                          <Check size={13} />
+                          <Check size={12} />
                         </button>
                         <button
                           type="button"
                           onClick={() => setEditingSchoolIndex(null)}
-                          className="p-1.5 rounded-lg bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-300 cursor-pointer transition-colors"
+                          className="p-1 rounded-md bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-300 cursor-pointer transition-colors"
                           title="Cancel"
                         >
-                          <X size={13} />
+                          <X size={12} />
                         </button>
                       </div>
                     ) : (
                       <>
-                        <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                          <span className="w-6 h-6 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[10px] font-black flex items-center justify-center flex-shrink-0">
+                        <div className="flex items-center gap-2 min-w-0 flex-1">
+                          <span className="w-5 h-5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[10px] font-black flex items-center justify-center flex-shrink-0">
                             {originalIndex + 1}
                           </span>
                           <span className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate" title={school}>
                             {school}
                           </span>
                         </div>
-                        <div className="flex items-center gap-1 flex-shrink-0">
+                        <div className="flex items-center gap-0.5 flex-shrink-0">
                           <button
                             type="button"
                             onClick={() => handleStartEditSchool(originalIndex, school)}
-                            className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/60 cursor-pointer transition-colors"
+                            className="p-1 rounded-md text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/60 cursor-pointer transition-colors"
                             title="Edit School Name"
                           >
-                            <Pencil size={13} />
+                            <Pencil size={12} />
                           </button>
                           <button
                             type="button"
                             onClick={() => handleDeleteSchool(originalIndex, school)}
-                            className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/60 cursor-pointer transition-colors"
+                            className="p-1 rounded-md text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/60 cursor-pointer transition-colors"
                             title="Delete School"
                           >
-                            <Trash2 size={13} />
+                            <Trash2 size={12} />
                           </button>
                         </div>
                       </>
@@ -1684,7 +1823,7 @@ export default function ControlsAndSubjects() {
               })}
 
               {displayedSchools.length === 0 && (
-                <div className="col-span-full py-8 text-center text-slate-400 text-xs">
+                <div className="col-span-full py-6 text-center text-slate-400 text-xs font-medium">
                   No schools match your search filter &quot;{schoolSearchTerm}&quot;.
                 </div>
               )}

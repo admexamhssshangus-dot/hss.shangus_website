@@ -368,6 +368,27 @@ export default function AnalyticsSuiteModal({ isOpen, onClose, students = [] }) 
       return 'Business Mathematics';
     }
 
+    // IT and ITES Consolidation (One unified subject)
+    if (
+      upper === 'IT' ||
+      upper === 'ITES' ||
+      upper === 'ITE' ||
+      upper === 'IT & ITES' ||
+      upper === 'IT AND ITES' ||
+      upper === 'IT/ITES' ||
+      upper === 'IT & ITES.' ||
+      upper === 'IT AND ITES.' ||
+      upper === 'INFORMATION TECHNOLOGY' ||
+      upper === 'INFORMATION TECHNOLOGY & ITES' ||
+      upper === 'INFORMATION TECHNOLOGY AND ITES' ||
+      upper.includes('IT & ITES') ||
+      upper.includes('IT AND ITES') ||
+      upper.includes('IT/ITES') ||
+      upper.includes('IT & ITES')
+    ) {
+      return 'IT and ITES';
+    }
+
     return str;
   };
 
@@ -380,7 +401,11 @@ export default function AnalyticsSuiteModal({ isOpen, onClose, students = [] }) 
     if (Array.isArray(raw)) {
       parts = raw;
     } else if (typeof raw === 'string' && raw.trim() && raw.trim() !== '—' && raw.trim() !== '-') {
-      parts = raw.split(/[,•\n/+&]+/);
+      // Protect "IT and ITES", "IT & ITES", "IT/ITES", etc. so symbols (+, &, /) do not fragment it into two separate subjects
+      const protectedRaw = raw
+        .replace(/\bIT\s*(?:&|and|\/|\+)\s*ITe?S\b/gi, '###IT_AND_ITES###')
+        .replace(/\bITeS\b/gi, '###IT_AND_ITES###');
+      parts = protectedRaw.split(/[,•\n/+&]+/).map((p) => p.replace(/###IT_AND_ITES###/g, 'IT and ITES'));
     }
 
     const list = [];
@@ -389,7 +414,10 @@ export default function AnalyticsSuiteModal({ isOpen, onClose, students = [] }) 
       if (clean && clean !== '—' && clean !== '-' && clean.length > 1) {
         const norm = normalizeSubjectName(clean, stClass);
         if (norm && norm !== '—' && norm !== '-' && norm.length > 1) {
-          list.push(norm);
+          // Deduplicate so a student who has both IT and ITES in the raw record is counted only once for "IT and ITES"
+          if (!list.includes(norm)) {
+            list.push(norm);
+          }
         }
       }
     });

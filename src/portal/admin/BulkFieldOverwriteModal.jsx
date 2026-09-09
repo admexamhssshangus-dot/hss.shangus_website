@@ -143,6 +143,11 @@ export default function BulkFieldOverwriteModal({
   const [targetClass, setTargetClass] = useState('All');
   const [targetSession, setTargetSession] = useState(currentSession || '2025-26');
   const [targetStream, setTargetStream] = useState('All');
+  const [targetStatus, setTargetStatus] = useState('All');
+
+  // Preview Diff Table Sorting State (Default: natural numeric Class Roll No)
+  const [previewSortColumn, setPreviewSortColumn] = useState('rollNo'); // 'rollNo' | 'regNo' | 'name' | 'diffs'
+  const [previewSortDirection, setPreviewSortDirection] = useState('asc'); // 'asc' | 'desc'
 
   // Method under Overwrite tab: 'upload' (spreadsheet file) vs 'grid' (Excel tabular clipboard grid)
   const [ingestMethod, setIngestMethod] = useState('upload'); // 'upload' | 'grid'
@@ -181,6 +186,108 @@ export default function BulkFieldOverwriteModal({
 
   // Helper to normalize alphanumeric keys
   const cleanKey = (val) => String(val || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase().trim();
+
+  // Dynamic discovery of sessions, classes, streams, and statuses from active database
+  const availableClasses = useMemo(() => {
+    const classSet = new Set();
+    const studentsSource = Array.isArray(allStudents) && allStudents.length > 0 
+      ? allStudents 
+      : (getCachedCollectionSync('admissions') || []);
+
+    studentsSource.forEach(st => {
+      const cls = String(st.selectedClass || st.className || st.Class || st.class || st['Admission sought for class'] || '').trim();
+      if (cls && cls !== '—' && cls !== 'undefined' && cls !== 'null') {
+        classSet.add(cls);
+      }
+    });
+
+    if (classSet.size === 0) {
+      return ['12th', '11th', '10th', '9th'];
+    }
+
+    const classOrder = { '12th': 1, '11th': 2, '10th': 3, '9th': 4 };
+    return Array.from(classSet).sort((a, b) => {
+      const orderA = classOrder[a] || 99;
+      const orderB = classOrder[b] || 99;
+      if (orderA !== orderB) return orderA - orderB;
+      return a.localeCompare(b, undefined, { numeric: true });
+    });
+  }, [allStudents]);
+
+  const availableSessions = useMemo(() => {
+    const sessionSet = new Set();
+    const studentsSource = Array.isArray(allStudents) && allStudents.length > 0 
+      ? allStudents 
+      : (getCachedCollectionSync('admissions') || []);
+
+    studentsSource.forEach(st => {
+      const sess = String(st.selectedSession || st.Session || st.session || st.academicSession || '').trim();
+      if (sess && sess !== '—' && sess !== 'undefined' && sess !== 'null') {
+        sessionSet.add(sess);
+      }
+    });
+
+    if (sessionSet.size === 0) {
+      return ['2026 APR/BIAN', '2025-26', '2025 APR/BIAN', '2024-25', '2023-24'];
+    }
+
+    return Array.from(sessionSet).sort((a, b) => {
+      const aIsBian = /bian|bi-annual|apr/i.test(a);
+      const bIsBian = /bian|bi-annual|apr/i.test(b);
+      if (aIsBian && !bIsBian) return -1;
+      if (!aIsBian && bIsBian) return 1;
+      return b.localeCompare(a, undefined, { numeric: true });
+    });
+  }, [allStudents]);
+
+  const availableStreams = useMemo(() => {
+    const streamSet = new Set();
+    const studentsSource = Array.isArray(allStudents) && allStudents.length > 0 
+      ? allStudents 
+      : (getCachedCollectionSync('admissions') || []);
+
+    studentsSource.forEach(st => {
+      const strm = String(
+        st.selectedStream || 
+        st.Stream || 
+        st.stream || 
+        st['Stream for Class 11th'] || 
+        st['Stream opted in Class 11th'] || 
+        st['Stream & Subjects for Class 12th'] || 
+        st.faculty || 
+        ''
+      ).trim();
+      if (strm && strm !== '—' && strm !== 'undefined' && strm !== 'null') {
+        streamSet.add(strm);
+      }
+    });
+
+    if (streamSet.size === 0) {
+      return ['Science', 'Arts', 'Commerce', 'Medical', 'Non-Medical'];
+    }
+
+    return Array.from(streamSet).sort((a, b) => a.localeCompare(b));
+  }, [allStudents]);
+
+  const availableStatuses = useMemo(() => {
+    const statusSet = new Set();
+    const studentsSource = Array.isArray(allStudents) && allStudents.length > 0 
+      ? allStudents 
+      : (getCachedCollectionSync('admissions') || []);
+
+    studentsSource.forEach(st => {
+      const stat = String(st.status || st.Status || st.admissionStatus || '').trim();
+      if (stat && stat !== '—' && stat !== 'undefined' && stat !== 'null') {
+        statusSet.add(stat);
+      }
+    });
+
+    if (statusSet.size === 0) {
+      return ['Confirmed', 'Approved', 'Provisional', 'Pending'];
+    }
+
+    return Array.from(statusSet).sort((a, b) => a.localeCompare(b));
+  }, [allStudents]);
 
   // Dynamic discovery of any additional fields present in actual database records
   const dynamicDatabaseCategories = useMemo(() => {
@@ -342,18 +449,43 @@ export default function BulkFieldOverwriteModal({
 
   // ─── DOWNLOAD EXCEL TEMPLATE WITH CURRENTLY SELECTED FIELDS ───
   // First column is strictly Board Registration Number, followed by selected active fields.
-  // Pre-fills existing students from the selected cohort.
+  // Pre-fills existing students from the selected cohort, sorted natural numeric by Class Roll No.
   const handleDownloadExcelTemplate = () => {
     const cohortStudents = (allStudents || []).filter(st => {
-      const sCls = String(st.selectedClass || st.Class || st.class || '').toLowerCase();
-      const sSess = String(st.selectedSession || st.Session || st.session || '').toLowerCase();
-      const sStrm = String(st.selectedStream || st.Stream || st.stream || '').toLowerCase();
+      const sCls = String(st.selectedClass || st.className || st.Class || st.class || st['Admission sought for class'] || '').toLowerCase();
+      const sSess = String(st.selectedSession || st.Session || st.session || st.academicSession || '').toLowerCase();
+      const sStrm = String(st.selectedStream || st.Stream || st.stream || st['Stream for Class 11th'] || st['Stream & Subjects for Class 12th'] || st.faculty || '').toLowerCase();
+      const sStat = String(st.status || st.Status || st.admissionStatus || '').toLowerCase();
       
       const matchCls = targetClass === 'All' || sCls.includes(targetClass.toLowerCase());
       const matchSess = targetSession === 'All' || sSess.includes(targetSession.toLowerCase());
       const matchStrm = targetStream === 'All' || sStrm.includes(targetStream.toLowerCase());
+      const matchStat = targetStatus === 'All' || sStat === targetStatus.toLowerCase();
 
-      return matchCls && matchSess && matchStrm;
+      return matchCls && matchSess && matchStrm && matchStat;
+    });
+
+    // Default sort cohort students by Class Roll No in natural numeric ascending order
+    cohortStudents.sort((a, b) => {
+      const getRollNum = (st) => {
+        const rollVal = String(
+          st.classRollNo || 
+          st['Class Roll No'] || 
+          st['Class Roll No.'] || 
+          st.rollNo || 
+          st['RL. NO.'] || 
+          st['Class R.No.'] || 
+          ''
+        ).trim();
+        const match = rollVal.match(/\d+/);
+        return match ? parseInt(match[0], 10) : 999999;
+      };
+
+      const diff = getRollNum(a) - getRollNum(b);
+      if (diff !== 0) return diff;
+      const nameA = String(a.studentName || a["Student's Name"] || '');
+      const nameB = String(b.studentName || b["Student's Name"] || '');
+      return nameA.localeCompare(nameB);
     });
 
     const headers = ['Board Registration Number', ...activeFieldLabels];
@@ -596,15 +728,75 @@ export default function BulkFieldOverwriteModal({
     return { total: previewData.length, changed, unmatched, identical };
   }, [previewData]);
 
-  // Filtered preview data
+  // Sort toggle handler for Preview Diff Table
+  const handleTogglePreviewSort = (colKey) => {
+    if (previewSortColumn === colKey) {
+      setPreviewSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setPreviewSortColumn(colKey);
+      setPreviewSortDirection('asc');
+    }
+  };
+
+  // Filtered and Sorted preview data (Default: natural numeric Class Roll No ascending)
   const filteredPreview = useMemo(() => {
-    return previewData.filter(r => {
+    const list = previewData.filter(r => {
       if (previewFilter === 'changed') return r.hasChanges;
       if (previewFilter === 'unmatched') return r.isUnmatched;
       if (previewFilter === 'identical') return !r.hasChanges && !r.isUnmatched;
       return true;
     });
-  }, [previewData, previewFilter]);
+
+    list.sort((a, b) => {
+      if (previewSortColumn === 'rollNo') {
+        const getRollNum = (item) => {
+          if (!item.matchedStudent) return 999999;
+          const st = item.matchedStudent;
+          const rollVal = String(
+            st.classRollNo || 
+            st['Class Roll No'] || 
+            st['Class Roll No.'] || 
+            st.rollNo || 
+            st['RL. NO.'] || 
+            st['Class R.No.'] || 
+            ''
+          ).trim();
+          const match = rollVal.match(/\d+/);
+          return match ? parseInt(match[0], 10) : 999999;
+        };
+        const numA = getRollNum(a);
+        const numB = getRollNum(b);
+        if (numA !== numB) {
+          return previewSortDirection === 'asc' ? numA - numB : numB - numA;
+        }
+        const nameA = String(a.matchedStudent?.studentName || a.matchedStudent?.["Student's Name"] || '');
+        const nameB = String(b.matchedStudent?.studentName || b.matchedStudent?.["Student's Name"] || '');
+        return nameA.localeCompare(nameB);
+      }
+
+      if (previewSortColumn === 'regNo') {
+        const comp = String(a.rawReg || '').localeCompare(String(b.rawReg || ''), undefined, { numeric: true, sensitivity: 'base' });
+        return previewSortDirection === 'asc' ? comp : -comp;
+      }
+
+      if (previewSortColumn === 'name') {
+        const nameA = String(a.matchedStudent?.studentName || a.matchedStudent?.["Student's Name"] || '');
+        const nameB = String(b.matchedStudent?.studentName || b.matchedStudent?.["Student's Name"] || '');
+        const comp = nameA.localeCompare(nameB);
+        return previewSortDirection === 'asc' ? comp : -comp;
+      }
+
+      if (previewSortColumn === 'diffs') {
+        const diffA = Object.keys(a.diffs || {}).length;
+        const diffB = Object.keys(b.diffs || {}).length;
+        return previewSortDirection === 'asc' ? diffA - diffB : diffB - diffA;
+      }
+
+      return 0;
+    });
+
+    return list;
+  }, [previewData, previewFilter, previewSortColumn, previewSortDirection]);
 
   // Selection handlers
   const handleToggleRow = (rowId) => {
@@ -907,11 +1099,10 @@ export default function BulkFieldOverwriteModal({
                           onChange={(e) => setTargetClass(e.target.value)}
                           className="px-2.5 py-1.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-800 dark:text-slate-200 outline-none cursor-pointer"
                         >
-                          <option value="All">All Classes (Institution-wide)</option>
-                          <option value="12th">Class 12th Only</option>
-                          <option value="11th">Class 11th Only</option>
-                          <option value="10th">Class 10th Only</option>
-                          <option value="9th">Class 9th Only</option>
+                          <option value="All">All Classes ({availableClasses.length})</option>
+                          {availableClasses.map(cls => (
+                            <option key={cls} value={cls}>Class {cls}</option>
+                          ))}
                         </select>
                       </div>
 
@@ -924,12 +1115,10 @@ export default function BulkFieldOverwriteModal({
                           onChange={(e) => setTargetSession(e.target.value)}
                           className="px-2.5 py-1.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-800 dark:text-slate-200 outline-none cursor-pointer"
                         >
-                          <option value="2026 APR/BIAN">2026 APR/BIAN</option>
-                          <option value="2025-26">2025-26</option>
-                          <option value="2025 APR/BIAN">2025 APR/BIAN</option>
-                          <option value="2024-25">2024-25</option>
-                          <option value="2023-24">2023-24</option>
-                          <option value="All">All Sessions</option>
+                          <option value="All">All Sessions ({availableSessions.length})</option>
+                          {availableSessions.map(sess => (
+                            <option key={sess} value={sess}>{sess}</option>
+                          ))}
                         </select>
                       </div>
 
@@ -942,12 +1131,26 @@ export default function BulkFieldOverwriteModal({
                           onChange={(e) => setTargetStream(e.target.value)}
                           className="px-2.5 py-1.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-800 dark:text-slate-200 outline-none cursor-pointer"
                         >
-                          <option value="All">All Streams</option>
-                          <option value="Science">Science</option>
-                          <option value="Arts">Arts</option>
-                          <option value="Commerce">Commerce</option>
-                          <option value="Medical">Medical</option>
-                          <option value="Non-Medical">Non-Medical</option>
+                          <option value="All">All Streams ({availableStreams.length})</option>
+                          {availableStreams.map(strm => (
+                            <option key={strm} value={strm}>{strm}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1">
+                          Status Filter
+                        </label>
+                        <select
+                          value={targetStatus}
+                          onChange={(e) => setTargetStatus(e.target.value)}
+                          className="px-2.5 py-1.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-800 dark:text-slate-200 outline-none cursor-pointer"
+                        >
+                          <option value="All">All Statuses ({availableStatuses.length})</option>
+                          {availableStatuses.map(stat => (
+                            <option key={stat} value={stat}>{stat}</option>
+                          ))}
                         </select>
                       </div>
                     </div>
@@ -1180,6 +1383,8 @@ export default function BulkFieldOverwriteModal({
                         allStudents={allStudents}
                         targetClass={targetClass}
                         targetSession={targetSession}
+                        targetStream={targetStream}
+                        targetStatus={targetStatus}
                         showToast={showToast}
                       />
                     </div>
@@ -1249,9 +1454,69 @@ export default function BulkFieldOverwriteModal({
                               {selectedRowIds.size > 0 ? <CheckSquare size={13} /> : <Square size={13} />}
                             </button>
                           </th>
-                          <th className="p-2">Reg No (Col 1)</th>
-                          <th className="p-2">Database Matched Student</th>
-                          <th className="p-2">Field Modifications (Old ➔ New)</th>
+                          <th 
+                            onClick={() => handleTogglePreviewSort('regNo')}
+                            className="p-2 cursor-pointer select-none hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                            title="Click to sort by Registration No"
+                          >
+                            <div className="flex items-center gap-1">
+                              <span>Reg No (Col 1)</span>
+                              {previewSortColumn === 'regNo' ? (
+                                previewSortDirection === 'asc' ? <ChevronUp size={13} className="text-blue-600" /> : <ChevronDown size={13} className="text-blue-600" />
+                              ) : (
+                                <ChevronDown size={12} className="text-slate-400 opacity-40 hover:opacity-100" />
+                              )}
+                            </div>
+                          </th>
+                          <th 
+                            onClick={() => handleTogglePreviewSort('rollNo')}
+                            className="p-2 cursor-pointer select-none hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                            title="Click to toggle sorting by Class Roll No / Student Name"
+                          >
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-1.5">
+                                <span>Database Matched Student</span>
+                                {previewSortColumn === 'rollNo' ? (
+                                  <span className="text-[9px] font-black px-1.5 py-0.5 bg-blue-100 dark:bg-blue-950/80 text-blue-700 dark:text-blue-300 rounded-md border border-blue-200 dark:border-blue-800 flex items-center gap-0.5">
+                                    Roll No {previewSortDirection === 'asc' ? '↑' : '↓'}
+                                  </span>
+                                ) : previewSortColumn === 'name' ? (
+                                  <span className="text-[9px] font-black px-1.5 py-0.5 bg-blue-100 dark:bg-blue-950/80 text-blue-700 dark:text-blue-300 rounded-md border border-blue-200 dark:border-blue-800 flex items-center gap-0.5">
+                                    Name {previewSortDirection === 'asc' ? '↑' : '↓'}
+                                  </span>
+                                ) : (
+                                  <span className="text-[9px] text-slate-400 font-normal">
+                                    (Sorted by Roll No)
+                                  </span>
+                                )}
+                              </div>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleTogglePreviewSort('name');
+                                }}
+                                className={`text-[9px] px-1.5 py-0.5 rounded cursor-pointer transition-colors ${previewSortColumn === 'name' ? 'bg-blue-600 text-white font-bold' : 'text-slate-500 hover:bg-slate-300 dark:hover:bg-slate-600'}`}
+                                title="Sort alphabetically by Student Name"
+                              >
+                                By Name
+                              </button>
+                            </div>
+                          </th>
+                          <th 
+                            onClick={() => handleTogglePreviewSort('diffs')}
+                            className="p-2 cursor-pointer select-none hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                            title="Click to sort by number of modified fields"
+                          >
+                            <div className="flex items-center gap-1">
+                              <span>Field Modifications (Old ➔ New)</span>
+                              {previewSortColumn === 'diffs' ? (
+                                previewSortDirection === 'asc' ? <ChevronUp size={13} className="text-blue-600" /> : <ChevronDown size={13} className="text-blue-600" />
+                              ) : (
+                                <ChevronDown size={12} className="text-slate-400 opacity-40 hover:opacity-100" />
+                              )}
+                            </div>
+                          </th>
                           <th className="p-2 text-center w-16">Inspect</th>
                         </tr>
                       </thead>
