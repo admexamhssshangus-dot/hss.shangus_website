@@ -129,62 +129,105 @@ const uploadToFirebaseStorage = async (file, filename) => {
   return await getDownloadURL(storageRef);
 };
 
-const saveToFirebase = async ({ settings, noticesText, faculty, slides, recycleBin }) => {
+const saveToFirebase = async ({ settings, noticesText, faculty, slides, recycleBin }, authorized = false) => {
   if (!db) throw new Error('Firestore not configured');
 
   // Authorization: require authenticated admin
   const user = auth.currentUser;
   if (!user) throw new Error('Authentication required to save. Please sign in.');
 
-  let isAdminClaim = false;
-  try {
-    const idToken = await getIdTokenResult(user, false);
-    const claimRole = String(idToken?.claims?.role || '').toLowerCase().replace(/\s+/g, '');
+  let isAdminClaim = authorized;
+  if (!isAdminClaim) {
     const isBootstrap = isBootstrapSuperAdminEmail(user.email);
-    isAdminClaim = idToken?.claims?.admin === true || ['admin', 'superadmin'].includes(claimRole) || isBootstrap;
-  } catch (e) {
-    console.warn('Failed to retrieve admin claims:', e);
+    if (isBootstrap) {
+      isAdminClaim = true;
+    } else {
+      try {
+        const idToken = await getIdTokenResult(user, false);
+        const claimRole = String(idToken?.claims?.role || '').toLowerCase().replace(/\s+/g, '');
+        isAdminClaim = idToken?.claims?.admin === true || ['admin', 'superadmin'].includes(claimRole);
+      } catch (e) {
+        console.warn('Failed to retrieve admin claims:', e);
+      }
+    }
   }
 
   if (!isAdminClaim) {
     throw new Error('User is not authorized to perform this action.');
   }
 
-  // Write core documents
-  await setDoc(doc(db, 'site', 'settings'), sanitizePublicSettings(settings));
-  await setDoc(doc(db, 'site', 'notices'), { text: noticesText || '' });
-  const privateFaculty = (faculty || []).map(({ id, ...record }, idx) => ({ ...record, order: typeof record.order === 'number' ? record.order : idx })).slice(0, 150);
+  const cleanSettings = sanitizePublicSettings(settings);
+  const privateFaculty = (faculty || []).map(({ id, ...record }, idx) => ({
+    ...record,
+    order: typeof record.order === 'number' ? record.order : idx
+  })).slice(0, 150);
   const publicFaculty = toPublicFacultyList(privateFaculty);
-  await setDoc(doc(db, 'systemSettings', 'facultyPrivate'), {
-    items: privateFaculty,
-    updatedAt: serverTimestamp(),
-    privacyVersion: 2
-  });
-  // Keep the old document non-sensitive during migration. New public clients
-  // use facultyPublic and never read this legacy path.
-  await setDoc(doc(db, 'site', 'faculty'), {
-    items: publicFaculty,
-    updatedAt: serverTimestamp(),
-    privacyVersion: 2
-  });
-  const principal = publicFaculty.find((member) => member.designation.toLowerCase() === 'principal');
-  await setDoc(doc(db, 'site', 'facultySummary'), {
-    principalName: principal?.name || '',
-    updatedAt: serverTimestamp()
-  });
+  const cleanPrivateFaculty = JSON.parse(JSON.stringify(privateFaculty));
+  const cleanPublicFaculty = JSON.parse(JSON.stringify(publicFaculty));
+  const principal = cleanPublicFaculty.find((member) => (member.designation || '').toLowerCase() === 'principal');
 
-  const publicSnapshot = await getDocs(collection(db, 'facultyPublic'));
-  const publicBatch = writeBatch(db);
-  publicSnapshot.docs.forEach((facultyDoc) => publicBatch.delete(facultyDoc.ref));
-  publicFaculty.forEach((member, index) => {
-    publicBatch.set(doc(db, 'facultyPublic', publicFacultyDocumentId(member, index)), member);
-  });
-  await publicBatch.commit();
+  // Parallel fetch existing public faculty snapshot to remove outdated documents
+  const publicSnapshotPromise = getDocs(collection(db, 'facultyPublic'));
+
+  const allOps = [
+    { type: 'set', ref: doc(db, 'site', 'settings'), data: cleanSettings },
+    { type: 'set', ref: doc(db, 'site', 'notices'), data: { text: noticesText || '' } },
+    { type: 'set', ref: doc(db, 'systemSettings', 'facultyPrivate'), data: {
+      items: cleanPrivateFaculty,
+      updatedAt: serverTimestamp(),
+      privacyVersion: 2
+    }},
+    { type: 'set', ref: doc(db, 'site', 'faculty'), data: {
+      items: cleanPublicFaculty,
+      updatedAt: serverTimestamp(),
+      privacyVersion: 2
+    }},
+    { type: 'set', ref: doc(db, 'site', 'facultySummary'), data: {
+      principalName: principal?.name || '',
+      updatedAt: serverTimestamp()
+    }}
+  ];
+
   if (slides) {
-    await setDoc(doc(db, 'site', 'slideshow'), { items: slides });
+    allOps.push({
+      type: 'set',
+      ref: doc(db, 'site', 'slideshow'),
+      data: { items: JSON.parse(JSON.stringify(slides)) }
+    });
   }
   if (recycleBin !== undefined) {
-    await setDoc(doc(db, 'site', 'recycle_bin'), { items: recycleBin || [] });
+    allOps.push({
+      type: 'set',
+      ref: doc(db, 'site', 'recycle_bin'),
+      data: { items: JSON.parse(JSON.stringify(recycleBin || [])) }
+    });
+  }
+
+  const publicSnapshot = await publicSnapshotPromise;
+  publicSnapshot.docs.forEach((facultyDoc) => {
+    allOps.push({ type: 'delete', ref: facultyDoc.ref });
+  });
+  cleanPublicFaculty.forEach((member, index) => {
+    allOps.push({
+      type: 'set',
+      ref: doc(db, 'facultyPublic', publicFacultyDocumentId(member, index)),
+      data: member
+    });
+  });
+
+  // Execute in batches of 400 operations (Firestore limit is 500)
+  const CHUNK_SIZE = 400;
+  for (let i = 0; i < allOps.length; i += CHUNK_SIZE) {
+    const chunk = allOps.slice(i, i + CHUNK_SIZE);
+    const batch = writeBatch(db);
+    chunk.forEach(op => {
+      if (op.type === 'delete') {
+        batch.delete(op.ref);
+      } else {
+        batch.set(op.ref, op.data);
+      }
+    });
+    await batch.commit();
   }
 };
 

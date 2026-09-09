@@ -6,7 +6,7 @@
 // Right Side (Dedicated scrollable canvas): Sticky live letterhead preview & 1-click exports
 // =================================================================
 
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import {
   Printer, FileText, FileSpreadsheet, Download, Plus, Minus, Trash2,
   Sliders, CheckSquare, Square, Eye, Layers, Sparkles,
@@ -14,7 +14,7 @@ import {
   ChevronDown, ChevronUp, ArrowLeft, ArrowRight, GripVertical,
   ArrowUpDown, ArrowUp, ArrowDown, Edit3, Save, RotateCcw, Check, Bookmark, Award,
   Calculator, IndianRupee, FlaskConical, CheckCircle2, Cloud, Info, Zap,
-  Columns, ClipboardList
+  Columns, ClipboardList, Search
 } from 'lucide-react';
 import { generateCustomRosterDocx } from '../../utils/customRosterDocxGenerator';
 import {
@@ -1460,6 +1460,255 @@ function RosterStudentPhotoCell({ student, studentName, initialPhoto }) {
   );
 }
 
+// ─── Unique Stable Identifier for Roster Student Rows ───
+export function getRosterRowId(row) {
+  if (!row) return '';
+  return row.docId || 
+    (row.boardRegNo && row.boardRegNo !== '—' ? `reg_${row.boardRegNo}` : '') ||
+    (row.formNo && row.formNo !== '—' ? `form_${row.formNo}` : '') ||
+    `${row.session || ''}_${row.className || ''}_${row.studentName || ''}_${row.fatherName || ''}_${row._originalIdx || ''}`;
+}
+
+// ─── Reusable Multi-Select Checkbox Dropdown for Cohort Filters ───
+function CohortCheckboxDropdown({
+  label,
+  pluralLabel,
+  options = [],
+  selected = [],
+  onChange,
+  totalCount = 0,
+  searchable = false,
+  align = 'left'
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const dropdownRef = useRef(null);
+
+  // Close when clicking outside or pressing Escape
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleMousedown = (e) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        setIsOpen(false);
+      }
+    };
+    const handleKeydown = (e) => {
+      if (e.key === 'Escape') setIsOpen(false);
+    };
+    document.addEventListener('mousedown', handleMousedown);
+    document.addEventListener('keydown', handleKeydown);
+    return () => {
+      document.removeEventListener('mousedown', handleMousedown);
+      document.removeEventListener('keydown', handleKeydown);
+    };
+  }, [isOpen]);
+
+  // Normalize options to { value, label, count }
+  const normalizedOptions = useMemo(() => {
+    return options.map(opt => {
+      if (typeof opt === 'string') {
+        return { value: opt, label: opt, count: null };
+      }
+      return {
+        value: opt.value,
+        label: opt.label || opt.value,
+        count: opt.count !== undefined ? opt.count : null
+      };
+    });
+  }, [options]);
+
+  const isAllSelected = selected.length === 0;
+
+  // Filter options by search term
+  const filteredOptions = useMemo(() => {
+    if (!searchTerm.trim()) return normalizedOptions;
+    const term = searchTerm.toLowerCase().trim();
+    return normalizedOptions.filter(opt =>
+      opt.label.toLowerCase().includes(term) || opt.value.toLowerCase().includes(term)
+    );
+  }, [normalizedOptions, searchTerm]);
+
+  const toggleOption = (val) => {
+    let next;
+    if (selected.length === 0) {
+      next = [val];
+    } else if (selected.includes(val)) {
+      next = selected.filter(v => v !== val);
+    } else {
+      next = [...selected, val];
+      if (next.length >= normalizedOptions.length && normalizedOptions.length > 0) {
+        next = [];
+      }
+    }
+    onChange(next);
+  };
+
+  const handleSelectAll = () => {
+    onChange([]);
+    setIsOpen(false);
+  };
+
+  // Compute trigger button label
+  const displayText = useMemo(() => {
+    const pLabel = pluralLabel || `${label}s`;
+    if (isAllSelected) {
+      return `All ${pLabel} (${totalCount})`;
+    }
+    if (selected.length === 1) {
+      const match = normalizedOptions.find(o => o.value === selected[0]);
+      if (match) {
+        return match.count !== null ? `${match.label || match.value} (${match.count})` : (match.label || match.value);
+      }
+      return selected[0];
+    }
+    return `${selected.length} ${pLabel}`;
+  }, [isAllSelected, selected, normalizedOptions, totalCount, label, pluralLabel]);
+
+  const isFiltered = !isAllSelected;
+
+  return (
+    <div className="relative w-full text-left" ref={dropdownRef}>
+      <button
+        type="button"
+        onClick={() => setIsOpen(prev => !prev)}
+        className={`w-full px-1.5 py-1 rounded-lg border font-extrabold text-[10px] flex items-center justify-between gap-1 shadow-2xs transition-colors cursor-pointer text-left ${
+          isFiltered
+            ? 'bg-amber-500/10 border-amber-500 text-amber-800 dark:text-amber-300'
+            : 'bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 hover:border-slate-400'
+        }`}
+        title={selected.length > 1 ? selected.join(', ') : displayText}
+      >
+        <span className="truncate flex-1 min-w-0">{displayText}</span>
+        {selected.length > 1 && (
+          <span className="shrink-0 px-1 py-0.2 rounded-full text-[8.5px] font-black bg-amber-600 text-white leading-tight">
+            {selected.length}
+          </span>
+        )}
+        <ChevronDown size={11} className={`shrink-0 transition-transform duration-200 opacity-60 ${isOpen ? 'rotate-180' : ''}`} />
+      </button>
+
+      {isOpen && (
+        <div
+          className={`absolute ${align === 'right' ? 'right-0' : 'left-0'} mt-1 w-56 sm:w-64 max-w-[calc(100vw-32px)] rounded-xl border border-slate-300 dark:border-slate-700 shadow-2xl z-[9999] p-1.5 space-y-1 animate-fadeIn bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100`}
+        >
+          {/* Header with Title & Quick Controls */}
+          <div className="flex items-center justify-between px-1 py-0.5 border-b border-slate-200 dark:border-slate-800 text-[9px] font-black uppercase text-slate-500">
+            <span className="truncate font-extrabold">{label} Filter</span>
+            <div className="flex items-center gap-1 shrink-0">
+              <button
+                type="button"
+                onClick={handleSelectAll}
+                className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-[8.5px] cursor-pointer transition-colors"
+                title="Select all"
+              >
+                All
+              </button>
+              {selected.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => onChange([])}
+                  className="px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-950/60 hover:bg-amber-200 text-amber-800 dark:text-amber-300 font-bold text-[8.5px] cursor-pointer transition-colors"
+                  title="Reset filter to All"
+                >
+                  Reset
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Search box for long lists like subjects */}
+          {(searchable || normalizedOptions.length > 6) && (
+            <div className="relative px-0.5">
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder={`Search ${label.toLowerCase()}...`}
+                className="w-full px-2 py-1 pl-6 rounded-md border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-[10px] font-bold text-slate-900 dark:text-slate-100 focus:outline-hidden focus:border-indigo-500"
+                autoFocus
+              />
+              <Search size={10} className="absolute left-2 top-2 text-slate-400" />
+              {searchTerm && (
+                <button
+                  type="button"
+                  onClick={() => setSearchTerm('')}
+                  className="absolute right-2 top-1.5 text-slate-400 hover:text-slate-600 cursor-pointer"
+                >
+                  <X size={10} />
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Options List */}
+          <div className="max-h-52 overflow-y-auto space-y-0.5 pr-0.5">
+            {/* "All" Option at the top if no search term */}
+            {!searchTerm && (
+              <button
+                type="button"
+                onClick={handleSelectAll}
+                className={`w-full flex items-center justify-between gap-1.5 px-1.5 py-1 rounded-md text-[10px] font-bold text-left cursor-pointer transition-colors ${
+                  isAllSelected
+                    ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-900 dark:text-indigo-200'
+                    : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'
+                }`}
+              >
+                <span className="flex items-center gap-1.5 min-w-0">
+                  {isAllSelected ? (
+                    <CheckSquare size={13} className="text-indigo-600 dark:text-indigo-400 shrink-0" />
+                  ) : (
+                    <Square size={13} className="text-slate-400 shrink-0" />
+                  )}
+                  <span className="truncate font-black">All {pluralLabel || `${label}s`}</span>
+                </span>
+                <span className="text-[9px] font-mono font-bold text-slate-400 shrink-0">
+                  ({totalCount})
+                </span>
+              </button>
+            )}
+
+            {filteredOptions.length === 0 ? (
+              <div className="py-2 text-center text-slate-400 text-[9.5px]">
+                No matching options
+              </div>
+            ) : (
+              filteredOptions.map((opt) => {
+                const checked = selected.includes(opt.value);
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => toggleOption(opt.value)}
+                    className={`w-full flex items-center justify-between gap-1.5 px-1.5 py-1 rounded-md text-[10px] font-medium text-left cursor-pointer transition-colors ${
+                      checked
+                        ? 'bg-amber-50 dark:bg-amber-950/60 text-amber-950 dark:text-amber-200 font-bold'
+                        : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200'
+                    }`}
+                  >
+                    <span className="flex items-center gap-1.5 min-w-0">
+                      {checked ? (
+                        <CheckSquare size={13} className="text-amber-600 dark:text-amber-400 shrink-0" />
+                      ) : (
+                        <Square size={13} className="text-slate-400 shrink-0" />
+                      )}
+                      <span className="truncate">{opt.label}</span>
+                    </span>
+                    {opt.count !== null && (
+                      <span className="text-[9px] font-mono text-slate-400 shrink-0">
+                        ({opt.count})
+                      </span>
+                    )}
+                  </button>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function CustomRosterDocumentBuilderView({
   allStudents = [],
   onClose,
@@ -1726,24 +1975,42 @@ export default function CustomRosterDocumentBuilderView({
     return '2025-26';
   }, [globalSession, allStudents]);
 
-  // ─── Filter States (Session, Class, Stream, Gender, Status) ───
-  const [selectedSession, setSelectedSession] = useState(() => defaultCurrentSession);
+  // ─── Filter States (Multi-Select Checkbox Dropdown Arrays) ───
+  const [selectedSessions, setSelectedSessions] = useState(() => (defaultCurrentSession && defaultCurrentSession !== 'ALL' ? [defaultCurrentSession] : []));
 
   // Synchronize when globalSession or defaultCurrentSession updates
   useEffect(() => {
     if (globalSession && globalSession !== 'ALL') {
-      setSelectedSession(String(globalSession).replace(/^(active_|master_)/, ''));
+      const clean = String(globalSession).replace(/^(active_|master_)/, '');
+      setSelectedSessions([clean]);
     } else if (globalSession === 'ALL') {
-      setSelectedSession('ALL');
+      setSelectedSessions([]);
     }
   }, [globalSession]);
-  const [selectedClass, setSelectedClass] = useState('ALL');
-  const [selectedStream, setSelectedStream] = useState('ALL');
-  const [selectedSubject, setSelectedSubject] = useState('ALL');
-  const [selectedGender, setSelectedGender] = useState('ALL');
-  const [selectedStatus, setSelectedStatus] = useState('ALL');
+
+  const [selectedClasses, setSelectedClasses] = useState([]);
+  const [selectedStreams, setSelectedStreams] = useState([]);
+  const [selectedSubjects, setSelectedSubjects] = useState([]);
+  const [selectedGenders, setSelectedGenders] = useState([]);
+  const [selectedStatuses, setSelectedStatuses] = useState([]);
   const [useAbbreviatedSubjects, setUseAbbreviatedSubjects] = useState(true);
   const [showMoreFields, setShowMoreFields] = useState(false);
+
+  // ─── Row-Level Inclusion/Exclusion (Skipping Specific Rows) ───
+  const [deselectedRowKeys, setDeselectedRowKeys] = useState(() => new Set());
+  const [hideSkippedRows, setHideSkippedRows] = useState(false);
+
+  const toggleRowSelection = (rowId) => {
+    setDeselectedRowKeys(prev => {
+      const next = new Set(prev);
+      if (next.has(rowId)) {
+        next.delete(rowId);
+      } else {
+        next.add(rowId);
+      }
+      return next;
+    });
+  };
 
   // ─── Document Layout & Header States ───
   const [docTitle, setDocTitle] = useState('STUDENT RECORD & SIGNATURE SHEET');
@@ -1765,13 +2032,13 @@ export default function CustomRosterDocumentBuilderView({
   const effectiveExamDetails = useMemo(() => {
     return {
       examName: attendanceExamName,
-      examYear: attendanceExamYear || (selectedSession !== 'ALL' ? selectedSession : '2025-26'),
-      className: attendanceClass || (selectedClass !== 'ALL' ? selectedClass : ''),
+      examYear: attendanceExamYear || (selectedSessions.length === 1 ? selectedSessions[0] : (selectedSessions.length > 1 ? selectedSessions.join(', ') : '2025-26')),
+      className: attendanceClass || (selectedClasses.length === 1 ? selectedClasses[0] : (selectedClasses.length > 1 ? selectedClasses.join(', ') : '')),
       examDate: attendanceDate,
-      subjectName: attendanceSubject || (selectedSubject !== 'ALL' ? selectedSubject : ''),
+      subjectName: attendanceSubject || (selectedSubjects.length === 1 ? selectedSubjects[0] : (selectedSubjects.length > 1 ? selectedSubjects.join(', ') : '')),
       paper: attendancePaper
     };
-  }, [attendanceExamName, attendanceExamYear, selectedSession, attendanceClass, selectedClass, attendanceDate, attendanceSubject, selectedSubject, attendancePaper]);
+  }, [attendanceExamName, attendanceExamYear, selectedSessions, attendanceClass, selectedClasses, attendanceDate, attendanceSubject, selectedSubjects, attendancePaper]);
 
   const handleLayoutModeChange = (mode) => {
     setLayoutMode(mode);
@@ -1788,10 +2055,10 @@ export default function CustomRosterDocumentBuilderView({
 
   const handlePrefillExamDetails = () => {
     setAttendanceExamName('Annual Regular Examination');
-    setAttendanceExamYear(selectedSession !== 'ALL' ? selectedSession : '2025-26');
-    setAttendanceClass(selectedClass !== 'ALL' ? selectedClass : '');
+    setAttendanceExamYear(selectedSessions.length === 1 ? selectedSessions[0] : '2025-26');
+    setAttendanceClass(selectedClasses.length === 1 ? selectedClasses[0] : (selectedClasses.length > 1 ? selectedClasses.join(', ') : ''));
     setAttendanceDate(new Date().toLocaleDateString('en-GB'));
-    setAttendanceSubject(selectedSubject !== 'ALL' ? selectedSubject : '');
+    setAttendanceSubject(selectedSubjects.length === 1 ? selectedSubjects[0] : (selectedSubjects.length > 1 ? selectedSubjects.join(', ') : ''));
     setAttendancePaper('Paper I');
   };
 
@@ -2248,13 +2515,13 @@ export default function CustomRosterDocumentBuilderView({
   }, [unifiedStudentPool]);
 
   const sessionStudents = useMemo(() => {
-    if (selectedSession === 'ALL') return unifiedStudentPool;
-    const norm = selectedSession.toLowerCase().trim();
+    if (selectedSessions.length === 0) return unifiedStudentPool;
+    const normList = selectedSessions.map(s => s.toLowerCase().trim());
     return unifiedStudentPool.filter(st => {
       const s = (st.session || '').toLowerCase().trim();
-      return s === norm || s.includes(norm) || norm.includes(s);
+      return normList.some(norm => s === norm || s.includes(norm) || norm.includes(s));
     });
-  }, [unifiedStudentPool, selectedSession]);
+  }, [unifiedStudentPool, selectedSessions]);
 
   const dynamicClasses = useMemo(() => {
     const counts = {};
@@ -2269,14 +2536,17 @@ export default function CustomRosterDocumentBuilderView({
       if (ia !== -1 && ib !== -1) return ia - ib;
       return a.localeCompare(b);
     });
-    return list.map(cls => ({ value: cls, label: `Class ${cls} (${counts[cls]})` }));
+    return list.map(cls => ({ value: cls, label: `Class ${cls}`, count: counts[cls] }));
   }, [sessionStudents]);
 
   const sessionClassStudents = useMemo(() => {
-    return selectedClass === 'ALL'
-      ? sessionStudents
-      : sessionStudents.filter(st => st.className.toLowerCase().includes(selectedClass.toLowerCase()));
-  }, [sessionStudents, selectedClass]);
+    if (selectedClasses.length === 0) return sessionStudents;
+    const normList = selectedClasses.map(c => c.toLowerCase().trim());
+    return sessionStudents.filter(st => {
+      const cls = (st.className || '').toLowerCase().trim();
+      return normList.some(norm => cls.includes(norm));
+    });
+  }, [sessionStudents, selectedClasses]);
 
   const dynamicStreams = useMemo(() => {
     const counts = {};
@@ -2291,14 +2561,17 @@ export default function CustomRosterDocumentBuilderView({
       if (ia !== -1 && ib !== -1) return ia - ib;
       return a.localeCompare(b);
     });
-    return list.map(stm => ({ value: stm, label: `${stm} (${counts[stm]})` }));
+    return list.map(stm => ({ value: stm, label: stm, count: counts[stm] }));
   }, [sessionClassStudents]);
 
   const sessionClassStreamStudents = useMemo(() => {
-    return selectedStream === 'ALL'
-      ? sessionClassStudents
-      : sessionClassStudents.filter(st => st.stream.toLowerCase().includes(selectedStream.toLowerCase()));
-  }, [sessionClassStudents, selectedStream]);
+    if (selectedStreams.length === 0) return sessionClassStudents;
+    const normList = selectedStreams.map(s => s.toLowerCase().trim());
+    return sessionClassStudents.filter(st => {
+      const stm = (st.stream || '').toLowerCase().trim();
+      return normList.some(norm => stm.includes(norm));
+    });
+  }, [sessionClassStudents, selectedStreams]);
 
   const dynamicRosterSubjects = useMemo(() => {
     const subjects = new Map();
@@ -2319,13 +2592,24 @@ export default function CustomRosterDocumentBuilderView({
   }, [sessionClassStreamStudents]);
 
   useEffect(() => {
-    if (
-      selectedSubject !== 'ALL' &&
-      !dynamicRosterSubjects.some(subject => subject.value.toLowerCase() === selectedSubject.toLowerCase())
-    ) {
-      setSelectedSubject('ALL');
+    if (selectedSubjects.length > 0 && dynamicRosterSubjects.length > 0) {
+      const valid = selectedSubjects.filter(sub =>
+        dynamicRosterSubjects.some(item => item.value.toLowerCase() === sub.toLowerCase())
+      );
+      if (valid.length !== selectedSubjects.length) {
+        setSelectedSubjects(valid);
+      }
     }
-  }, [dynamicRosterSubjects, selectedSubject]);
+  }, [dynamicRosterSubjects, selectedSubjects]);
+
+  const handleSubjectsChange = (newSubjects) => {
+    setSelectedSubjects(newSubjects);
+    if (newSubjects.length === 1) {
+      setDocTitle(`SUBJECT-WISE STUDENT LIST — ${newSubjects[0].toUpperCase()}`);
+    } else if (newSubjects.length > 1) {
+      setDocTitle(`SUBJECT-WISE STUDENT LIST — ${newSubjects.map(s => s.toUpperCase()).join(', ')}`);
+    }
+  };
 
   const dynamicStatuses = useMemo(() => {
     const counts = {};
@@ -2342,9 +2626,8 @@ export default function CustomRosterDocumentBuilderView({
     });
     return list.map(stat => ({
       value: stat,
-      label: stat === 'Approved'
-        ? `Approved (${counts[stat]})`
-        : `${stat} (${counts[stat]})`
+      label: stat,
+      count: counts[stat]
     }));
   }, [sessionClassStreamStudents]);
 
@@ -2352,41 +2635,55 @@ export default function CustomRosterDocumentBuilderView({
   const filteredStudents = useMemo(() => {
     if (!Array.isArray(unifiedStudentPool)) return [];
 
-    const normSession = selectedSession !== 'ALL' ? selectedSession.toLowerCase() : null;
-    const normClass = selectedClass !== 'ALL' ? selectedClass.toLowerCase() : null;
-    const normStream = selectedStream !== 'ALL' ? selectedStream.toLowerCase() : null;
-    const normSubject = selectedSubject !== 'ALL' ? selectedSubject.toLowerCase() : null;
-    const normStatus = selectedStatus !== 'ALL' ? selectedStatus.toLowerCase() : null;
+    const normSessions = selectedSessions.length > 0 ? selectedSessions.map(s => s.toLowerCase().trim()) : null;
+    const normClasses = selectedClasses.length > 0 ? selectedClasses.map(c => c.toLowerCase().trim()) : null;
+    const normStreams = selectedStreams.length > 0 ? selectedStreams.map(s => s.toLowerCase().trim()) : null;
+    const normSubjects = selectedSubjects.length > 0 ? selectedSubjects.map(s => s.toLowerCase().trim()) : null;
+    const normSubjAbbrs = selectedSubjects.length > 0 ? selectedSubjects.map(s => abbreviateSubjectName(s).toLowerCase().trim()) : null;
+    const normStatuses = selectedStatuses.length > 0 ? selectedStatuses.map(s => s.toLowerCase().trim()) : null;
 
     return unifiedStudentPool.filter(st => {
       if (!st) return false;
-      if (normSession && !st.session.toLowerCase().includes(normSession)) return false;
-      if (normClass && !st.className.toLowerCase().includes(normClass)) return false;
-      if (normStream && !st.stream.toLowerCase().includes(normStream)) return false;
-      if (normSubject) {
-        const normSubjAbbr = abbreviateSubjectName(selectedSubject).toLowerCase();
-        const hasSubject = String(st.rawSubjects || '')
-          .split(/[,+;]/)
-          .some(subject => {
-            const trimmed = subject.trim().toLowerCase();
-            const expanded = expandSubjectName(trimmed).toLowerCase();
-            const abbr = abbreviateSubjectName(trimmed).toLowerCase();
-            return expanded === normSubject || 
-                   trimmed === normSubject || 
-                   abbr === normSubject || 
-                   (normSubjAbbr && (abbr === normSubjAbbr || trimmed === normSubjAbbr));
-          });
+      if (normSessions) {
+        const s = (st.session || '').toLowerCase().trim();
+        const match = normSessions.some(norm => s === norm || s.includes(norm) || norm.includes(s));
+        if (!match) return false;
+      }
+      if (normClasses) {
+        const c = (st.className || '').toLowerCase().trim();
+        const match = normClasses.some(norm => c.includes(norm));
+        if (!match) return false;
+      }
+      if (normStreams) {
+        const sm = (st.stream || '').toLowerCase().trim();
+        const match = normStreams.some(norm => sm.includes(norm));
+        if (!match) return false;
+      }
+      if (normSubjects) {
+        const raw = String(st.rawSubjects || '');
+        const parts = raw.split(/[,+;]/).map(p => p.trim().toLowerCase());
+        const hasSubject = parts.some(sub => {
+          const expanded = expandSubjectName(sub).toLowerCase();
+          const abbr = abbreviateSubjectName(sub).toLowerCase();
+          return normSubjects.includes(sub) ||
+                 normSubjects.includes(expanded) ||
+                 (normSubjAbbrs && (normSubjAbbrs.includes(abbr) || normSubjAbbrs.includes(sub)));
+        });
         if (!hasSubject) return false;
       }
-      if (selectedGender !== 'ALL') {
-        const g = st.gender.toLowerCase();
-        if (selectedGender === 'M' && !g.startsWith('m')) return false;
-        if (selectedGender === 'F' && !g.startsWith('f')) return false;
+      if (selectedGenders.length === 1) {
+        const g = (st.gender || '').toLowerCase().trim();
+        const target = selectedGenders[0];
+        if (target === 'M' && !g.startsWith('m')) return false;
+        if (target === 'F' && !g.startsWith('f')) return false;
       }
-      if (normStatus && st.status.toLowerCase() !== normStatus) return false;
+      if (normStatuses) {
+        const stt = (st.status || '').toLowerCase().trim();
+        if (!normStatuses.includes(stt)) return false;
+      }
       return true;
     });
-  }, [unifiedStudentPool, selectedSession, selectedClass, selectedStream, selectedSubject, selectedGender, selectedStatus]);
+  }, [unifiedStudentPool, selectedSessions, selectedClasses, selectedStreams, selectedSubjects, selectedGenders, selectedStatuses]);
 
   // Active Columns for Table
   const activeTableColumns = activeColumns;
@@ -2460,18 +2757,63 @@ export default function CustomRosterDocumentBuilderView({
     }));
   }, [filteredStudents, useAbbreviatedSubjects, activeColumns, sortConfig, hasPhotoColumn]);
 
+  // ─── Active Included Rows & S.No. Mapping (Dynamically Omits Skipped Rows) ───
+  const activeIncludedRows = useMemo(() => {
+    const included = processedRows.filter(r => !deselectedRowKeys.has(getRosterRowId(r)));
+    return included.map((r, idx) => ({
+      ...r,
+      sno: idx + 1
+    }));
+  }, [processedRows, deselectedRowKeys]);
+
+  const rowSnoMap = useMemo(() => {
+    const map = new Map();
+    let counter = 1;
+    processedRows.forEach(r => {
+      const id = getRosterRowId(r);
+      if (!deselectedRowKeys.has(id)) {
+        map.set(id, counter++);
+      }
+    });
+    return map;
+  }, [processedRows, deselectedRowKeys]);
+
+  const isAllRowsIncluded = useMemo(() => {
+    if (processedRows.length === 0) return true;
+    return processedRows.every(r => !deselectedRowKeys.has(getRosterRowId(r)));
+  }, [processedRows, deselectedRowKeys]);
+
+  const isSomeRowsSkipped = useMemo(() => {
+    if (processedRows.length === 0) return false;
+    return processedRows.some(r => deselectedRowKeys.has(getRosterRowId(r)));
+  }, [processedRows, deselectedRowKeys]);
+
+  const toggleSelectAllRows = () => {
+    if (isAllRowsIncluded) {
+      const allKeys = new Set(processedRows.map(r => getRosterRowId(r)));
+      setDeselectedRowKeys(allKeys);
+    } else {
+      setDeselectedRowKeys(new Set());
+    }
+  };
+
   // Metadata Badges for Header
   const cleanGlobalSession = String(globalSession || '').replace(/^(active_|master_)/, '');
-  const displaySession = selectedSession !== 'ALL'
-    ? `Session: ${selectedSession}`
+  const displaySession = selectedSessions.length > 0
+    ? `Session: ${selectedSessions.join(', ')}`
     : (cleanGlobalSession && globalSession !== 'ALL' ? `Session: ${cleanGlobalSession}` : 'All Sessions');
 
+  const skippedCount = processedRows.length - activeIncludedRows.length;
+
   const metaBadges = [
-    selectedClass !== 'ALL' ? `Class: ${selectedClass}` : 'All Classes',
+    selectedClasses.length > 0 ? `Class: ${selectedClasses.join(', ')}` : 'All Classes',
     displaySession,
-    selectedStream !== 'ALL' ? `Stream: ${selectedStream}` : null,
-    selectedSubject !== 'ALL' ? `Subject: ${selectedSubject}` : null,
-    `Total Students: ${filteredStudents.length}`,
+    selectedStreams.length > 0 ? `Stream: ${selectedStreams.join(', ')}` : null,
+    selectedSubjects.length > 0 ? `Subject: ${selectedSubjects.join(', ')}` : null,
+    selectedGenders.length === 1 ? `Gender: ${selectedGenders[0] === 'M' ? 'Male' : 'Female'}` : null,
+    selectedStatuses.length > 0 ? `Status: ${selectedStatuses.join(', ')}` : null,
+    `Total Students: ${activeIncludedRows.length}`,
+    skippedCount > 0 ? `(${skippedCount} skipped)` : null,
     `Date: ${new Date().toLocaleDateString('en-GB')}`
   ].filter(Boolean);
 
@@ -2498,7 +2840,7 @@ export default function CustomRosterDocumentBuilderView({
     setActiveColumns(activeColumns.filter(c => c.key !== key));
   };
 
-  // Export to Word (.docx)
+  // Export to Word (.docx) — Includes only checked rows with sequential S.No.
   const handleExportDocx = async () => {
     setIsExporting(true);
     try {
@@ -2507,7 +2849,7 @@ export default function CustomRosterDocumentBuilderView({
         subtitle: docSubtitle,
         metaBadges,
         columns: activeTableColumns,
-        rows: processedRows,
+        rows: activeIncludedRows,
         orientation,
         rowHeightDxa: ROW_HEIGHT_PRESETS[selectedRowHeightIdx].dxa,
         signatories,
@@ -2522,7 +2864,7 @@ export default function CustomRosterDocumentBuilderView({
     }
   };
 
-  // Export to Print / PDF
+  // Export to Print / PDF — Includes only checked rows with sequential S.No.
   const handlePrint = async () => {
     setIsExporting(true);
     try {
@@ -2537,12 +2879,17 @@ export default function CustomRosterDocumentBuilderView({
         };
       }));
 
+      // Filter to only include checked (non-skipped) rows with strictly sequential S.No.
+      const finalPrintableRows = printableRows
+        .filter(r => !deselectedRowKeys.has(getRosterRowId(r)))
+        .map((r, idx) => ({ ...r, sno: idx + 1 }));
+
       printCustomRosterTable({
         title: docTitle || (layoutMode === 'two_column_attendance' ? 'DAILY ATTENDANCE SHEET' : 'STUDENT ROSTER'),
         subtitle: docSubtitle,
         metaBadges,
         columns: activeTableColumns,
-        rows: printableRows,
+        rows: finalPrintableRows,
         orientation,
         rowHeightPx: ROW_HEIGHT_PRESETS[selectedRowHeightIdx].px,
         signatories,
@@ -2555,23 +2902,23 @@ export default function CustomRosterDocumentBuilderView({
     }
   };
 
-  // Export to Excel (.xlsx)
+  // Export to Excel (.xlsx) — Includes only checked rows with sequential S.No.
   const handleExportExcel = () => {
     exportCustomRosterExcel({
       title: docTitle || (layoutMode === 'two_column_attendance' ? 'Daily_Attendance_Sheet' : 'Student_Roster'),
       columns: activeTableColumns,
-      rows: processedRows,
+      rows: activeIncludedRows,
       layoutMode,
       examDetails: effectiveExamDetails
     });
   };
 
-  // Export to CSV
+  // Export to CSV — Includes only checked rows with sequential S.No.
   const handleExportCsv = () => {
     exportCustomRosterCsv({
       title: docTitle || (layoutMode === 'two_column_attendance' ? 'Daily_Attendance_Sheet' : 'Student_Roster'),
       columns: activeTableColumns,
-      rows: processedRows,
+      rows: activeIncludedRows,
       layoutMode
     });
   };
@@ -2720,7 +3067,7 @@ export default function CustomRosterDocumentBuilderView({
         {/* ════════ LEFT HALF: COMPACT UNIFIED CONTROL PALETTE ════════ */}
         <div
           style={{ width: isDesktop ? `${leftSplitPct}%` : '100%' }}
-          className="w-full lg:w-auto shrink-0 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs p-2.5 space-y-2 text-xs overflow-hidden"
+          className="w-full lg:w-auto shrink-0 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs p-2.5 space-y-2 text-xs overflow-visible"
         >
           {/* COHORT & DEMOGRAPHIC FILTERS */}
           <div className="space-y-1 pb-1.5 border-b border-slate-200 dark:border-slate-800">
@@ -2738,99 +3085,89 @@ export default function CustomRosterDocumentBuilderView({
               {/* Session */}
               <div>
                 <label className="block text-[8.5px] font-extrabold text-slate-400 uppercase tracking-tight">Session</label>
-                <select
-                  value={selectedSession}
-                  onChange={(e) => setSelectedSession(e.target.value)}
-                  className="w-full px-1.5 py-0.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-extrabold text-[10px]"
-                >
-                  <option value="ALL">All Sessions ({unifiedStudentPool.length})</option>
-                  {dynamicSessions.map((sess) => (
-                    <option key={sess.value} value={sess.value}>{sess.label}</option>
-                  ))}
-                </select>
+                <CohortCheckboxDropdown
+                  label="Session"
+                  pluralLabel="Sessions"
+                  options={dynamicSessions}
+                  selected={selectedSessions}
+                  onChange={setSelectedSessions}
+                  totalCount={unifiedStudentPool.length}
+                  align="left"
+                />
               </div>
 
               {/* Class */}
               <div>
                 <label className="block text-[8.5px] font-extrabold text-slate-400 uppercase tracking-tight">Class</label>
-                <select
-                  value={selectedClass}
-                  onChange={(e) => setSelectedClass(e.target.value)}
-                  className="w-full px-1.5 py-0.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-extrabold text-[10px]"
-                >
-                  <option value="ALL">All Classes ({sessionStudents.length})</option>
-                  {dynamicClasses.map((c) => (
-                    <option key={c.value} value={c.value}>{c.label}</option>
-                  ))}
-                </select>
+                <CohortCheckboxDropdown
+                  label="Class"
+                  pluralLabel="Classes"
+                  options={dynamicClasses}
+                  selected={selectedClasses}
+                  onChange={setSelectedClasses}
+                  totalCount={sessionStudents.length}
+                  align="left"
+                />
               </div>
 
               {/* Stream */}
               <div>
                 <label className="block text-[8.5px] font-extrabold text-slate-400 uppercase tracking-tight">Stream</label>
-                <select
-                  value={selectedStream}
-                  onChange={(e) => setSelectedStream(e.target.value)}
-                  className="w-full px-1.5 py-0.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-extrabold text-[10px]"
-                >
-                  <option value="ALL">All Streams ({sessionClassStudents.length})</option>
-                  {dynamicStreams.map((stm) => (
-                    <option key={stm.value} value={stm.value}>{stm.label}</option>
-                  ))}
-                </select>
+                <CohortCheckboxDropdown
+                  label="Stream"
+                  pluralLabel="Streams"
+                  options={dynamicStreams}
+                  selected={selectedStreams}
+                  onChange={setSelectedStreams}
+                  totalCount={sessionClassStudents.length}
+                  align="left"
+                />
               </div>
 
               {/* Subject-wise official list filter */}
               <div>
                 <label className="block text-[8.5px] font-extrabold text-slate-400 uppercase tracking-tight">Subject</label>
-                <select
-                  value={selectedSubject}
-                  onChange={(e) => {
-                    const subject = e.target.value;
-                    setSelectedSubject(subject);
-                    if (subject !== 'ALL') {
-                      setDocTitle(`SUBJECT-WISE STUDENT LIST — ${subject.toUpperCase()}`);
-                    }
-                  }}
-                  className="w-full px-1.5 py-0.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-extrabold text-[10px]"
-                  title="Create an export-ready list containing only students enrolled in one subject"
-                >
-                  <option value="ALL">All Subjects ({sessionClassStreamStudents.length})</option>
-                  {dynamicRosterSubjects.map(subject => (
-                    <option key={subject.value} value={subject.value}>
-                      {subject.value} ({subject.count})
-                    </option>
-                  ))}
-                </select>
+                <CohortCheckboxDropdown
+                  label="Subject"
+                  pluralLabel="Subjects"
+                  options={dynamicRosterSubjects}
+                  selected={selectedSubjects}
+                  onChange={handleSubjectsChange}
+                  totalCount={sessionClassStreamStudents.length}
+                  searchable={true}
+                  align="right"
+                />
               </div>
 
               {/* Gender */}
               <div>
                 <label className="block text-[8.5px] font-extrabold text-slate-400 uppercase tracking-tight">Gender</label>
-                <select
-                  value={selectedGender}
-                  onChange={(e) => setSelectedGender(e.target.value)}
-                  className="w-full px-1.5 py-0.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-extrabold text-[10px]"
-                >
-                  <option value="ALL">All ({sessionClassStreamStudents.length})</option>
-                  <option value="M">Male (M)</option>
-                  <option value="F">Female (F)</option>
-                </select>
+                <CohortCheckboxDropdown
+                  label="Gender"
+                  pluralLabel="Genders"
+                  options={[
+                    { value: 'M', label: 'Male (M)' },
+                    { value: 'F', label: 'Female (F)' }
+                  ]}
+                  selected={selectedGenders}
+                  onChange={setSelectedGenders}
+                  totalCount={sessionClassStreamStudents.length}
+                  align="right"
+                />
               </div>
 
               {/* Form Status */}
               <div>
                 <label className="block text-[8.5px] font-extrabold text-slate-400 uppercase tracking-tight">Status</label>
-                <select
-                  value={selectedStatus}
-                  onChange={(e) => setSelectedStatus(e.target.value)}
-                  className="w-full px-1.5 py-0.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-extrabold text-[10px]"
-                >
-                  <option value="ALL">All ({sessionClassStreamStudents.length})</option>
-                  {dynamicStatuses.map((st) => (
-                    <option key={st.value} value={st.value}>{st.label}</option>
-                  ))}
-                </select>
+                <CohortCheckboxDropdown
+                  label="Status"
+                  pluralLabel="Statuses"
+                  options={dynamicStatuses}
+                  selected={selectedStatuses}
+                  onChange={setSelectedStatuses}
+                  totalCount={sessionClassStreamStudents.length}
+                  align="right"
+                />
               </div>
             </div>
           </div>
@@ -3174,17 +3511,29 @@ export default function CustomRosterDocumentBuilderView({
                 </div>
 
                 {/* Two-Column Side-by-Side Tables */}
-                {processedRows.length === 0 ? (
+                {activeIncludedRows.length === 0 ? (
                   <div className="text-center py-10 text-slate-400 font-bold text-xs border border-dashed border-slate-300 rounded-lg">
-                    No student records match the selected cohort filters.
+                    No student records match the selected cohort filters or all rows were skipped.
                   </div>
                 ) : (
                   (() => {
-                    const previewRows = showAllPreviewRows ? processedRows : processedRows.slice(0, attendanceRowsPerColumn * 2);
+                    const previewRows = showAllPreviewRows ? activeIncludedRows : activeIncludedRows.slice(0, attendanceRowsPerColumn * 2);
                     const half = Math.ceil(previewRows.length / 2);
 
                     return (
                       <div>
+                        {skippedCount > 0 && (
+                          <div className="mb-2 p-1.5 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-[10px] flex items-center justify-between text-amber-900 dark:text-amber-200 font-bold">
+                            <span><strong>{activeIncludedRows.length}</strong> candidates included ({skippedCount} skipped from register)</span>
+                            <button
+                              type="button"
+                              onClick={() => setDeselectedRowKeys(new Set())}
+                              className="px-1.5 py-0.5 rounded bg-emerald-100 hover:bg-emerald-200 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 font-extrabold cursor-pointer transition-colors"
+                            >
+                              Include All
+                            </button>
+                          </div>
+                        )}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
                           {/* Left Column Table */}
                           <div className="overflow-hidden border-2 border-slate-800">
@@ -3318,10 +3667,61 @@ export default function CustomRosterDocumentBuilderView({
               </div>
             </div>
 
+            {/* Row Inclusion / Skip Selection Status Bar */}
+            <div className="flex flex-wrap items-center justify-between gap-1.5 px-2 py-1 mb-1.5 bg-slate-50 dark:bg-slate-800/80 rounded-lg border border-slate-200 dark:border-slate-700 text-xs select-none">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={toggleSelectAllRows}
+                  className="flex items-center gap-1.5 text-slate-800 dark:text-slate-200 hover:text-indigo-600 dark:hover:text-indigo-400 font-extrabold cursor-pointer transition-colors"
+                  title={isAllRowsIncluded ? "Deselect / skip all rows" : "Select / include all rows"}
+                >
+                  {isAllRowsIncluded ? (
+                    <CheckSquare size={13} className="text-emerald-600 dark:text-emerald-400" />
+                  ) : isSomeRowsSkipped ? (
+                    <Minus size={13} className="text-amber-600 dark:text-amber-400 border border-amber-600 rounded-xs" />
+                  ) : (
+                    <Square size={13} className="text-slate-400" />
+                  )}
+                  <span className="text-[10.5px]">
+                    <strong className="text-indigo-600 dark:text-indigo-400 font-black">{activeIncludedRows.length}</strong> of {processedRows.length} Students Included
+                  </span>
+                </button>
+                {skippedCount > 0 && (
+                  <span className="text-[9.5px] font-black text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-950/70 px-1.5 py-0.5 rounded-full">
+                    {skippedCount} skipped from print/exports
+                  </span>
+                )}
+              </div>
+
+              <div className="flex items-center gap-1.5 text-[9.5px] font-extrabold">
+                {skippedCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setDeselectedRowKeys(new Set())}
+                    className="px-2 py-0.5 rounded bg-emerald-100 hover:bg-emerald-200 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 cursor-pointer transition-colors shadow-2xs"
+                    title="Reset selection: Include all students in print & exports"
+                  >
+                    Include All
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setHideSkippedRows(prev => !prev)}
+                  className="px-2 py-0.5 rounded border border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 cursor-pointer transition-colors flex items-center gap-1 shadow-2xs"
+                  title={hideSkippedRows ? "Show all rows including skipped rows" : "Hide skipped rows from table preview"}
+                >
+                  {hideSkippedRows ? <Eye size={10.5} className="text-indigo-600 dark:text-indigo-400" /> : <Eye size={10.5} className="opacity-50" />}
+                  <span>{hideSkippedRows ? 'Showing Included Only' : 'Show Skipped in Preview'}</span>
+                </button>
+              </div>
+            </div>
+
             {/* Formatted Data Table with Draggable & Arrow-Reorderable Headers */}
             <div className="overflow-x-auto">
               <table className="w-full table-fixed border-collapse border border-slate-400 text-xs">
                 <colgroup>
+                  <col style={{ width: '32px' }} />
                   {activeTableColumns.map((col) => {
                     const pct = totalColPct > 0 ? ((Number(col.widthPct) || 10) / totalColPct) * 100 : (100 / activeTableColumns.length);
                     return <col key={col.key} style={{ width: `${pct.toFixed(2)}%` }} />;
@@ -3329,6 +3729,26 @@ export default function CustomRosterDocumentBuilderView({
                 </colgroup>
                 <thead>
                   <tr className="bg-slate-100 text-slate-900 select-none">
+                    {/* Master Checkbox Column */}
+                    <th
+                      style={{ width: '32px' }}
+                      className="border border-slate-400 px-1 py-1 text-center bg-slate-100 dark:bg-slate-800 select-none shrink-0"
+                      title="Select / Deselect all rows"
+                    >
+                      <button
+                        type="button"
+                        onClick={toggleSelectAllRows}
+                        className="cursor-pointer flex items-center justify-center mx-auto text-slate-700 dark:text-slate-300 hover:text-indigo-600"
+                      >
+                        {isAllRowsIncluded ? (
+                          <CheckSquare size={12} className="text-emerald-600 dark:text-emerald-400" />
+                        ) : isSomeRowsSkipped ? (
+                          <Minus size={12} className="text-amber-600 dark:text-amber-400" />
+                        ) : (
+                          <Square size={12} className="text-slate-400" />
+                        )}
+                      </button>
+                    </th>
                     {activeTableColumns.map((col, colIdx) => {
                       const pct = totalColPct > 0 ? ((Number(col.widthPct) || 10) / totalColPct) * 100 : (100 / activeTableColumns.length);
                       return (
@@ -3447,52 +3867,91 @@ export default function CustomRosterDocumentBuilderView({
                 <tbody>
                   {processedRows.length === 0 ? (
                     <tr>
-                      <td colSpan={activeTableColumns.length} className="text-center py-6 text-slate-400 font-bold text-xs">
+                      <td colSpan={activeTableColumns.length + 1} className="text-center py-6 text-slate-400 font-bold text-xs">
                         No student records match the selected filters.
                       </td>
                     </tr>
                   ) : (
-                    (showAllPreviewRows ? processedRows : processedRows.slice(0, 35)).map((row, rIdx) => (
-                      <tr
-                        key={`${selectedClass}-${row.boardRegNo || 'no-reg'}-${row.formNo || row._rawStudent?.docId || rIdx}`}
-                        className={rIdx % 2 === 1 ? 'bg-slate-50/60' : 'bg-white'}
-                      >
-                        {activeTableColumns.map((col) => (
-                          <td
-                            key={col.key}
-                            style={{
-                              textAlign: col.align || 'left',
-                              minHeight: `${currentRowHeightPx}px`
-                            }}
-                            className="border border-slate-300 px-1.5 py-1 text-[10px] font-medium leading-snug align-middle break-words whitespace-normal overflow-visible"
+                    (() => {
+                      const sourceRows = hideSkippedRows ? activeIncludedRows : processedRows;
+                      const rowsToRender = showAllPreviewRows ? sourceRows : sourceRows.slice(0, 35);
+
+                      return rowsToRender.map((row, rIdx) => {
+                        const rowId = getRosterRowId(row);
+                        const isSelected = !deselectedRowKeys.has(rowId);
+                        const displaySno = isSelected ? rowSnoMap.get(rowId) : '—';
+
+                        return (
+                          <tr
+                            key={`${selectedClasses.join('-') || 'all'}-${row.boardRegNo || 'no-reg'}-${row.formNo || row._rawStudent?.docId || rIdx}`}
+                            className={`transition-colors ${
+                              !isSelected
+                                ? 'bg-amber-50/50 dark:bg-amber-950/30 opacity-60 text-slate-400'
+                                : rIdx % 2 === 1 ? 'bg-slate-50/60' : 'bg-white'
+                            }`}
                           >
-                            {col.key === 'studentPhoto' || col.key === 'photo' ? (
-                              <RosterStudentPhotoCell
-                                key={`${selectedClass}-${row.boardRegNo || 'no-reg'}-${row.formNo || row._rawStudent?.docId || rIdx}`}
-                                student={row._rawStudent || row}
-                                studentName={row.studentName}
-                                initialPhoto={row.studentPhoto}
-                              />
-                            ) : col.key === 'subjects' ? (
-                              <span className="font-mono text-[9px] leading-tight block break-words whitespace-normal">
-                                {row[col.key]}
-                              </span>
-                            ) : col.key === 'sno' ? (
-                              <span className="font-bold text-slate-800 block text-center">{row[col.key]}</span>
-                            ) : (
-                              <span className="block break-words whitespace-normal">{row[col.key] !== undefined ? row[col.key] : '—'}</span>
-                            )}
-                          </td>
-                        ))}
-                      </tr>
-                    ))
+                            {/* Row Checkbox Column */}
+                            <td className="border border-slate-300 px-0.5 py-1 text-center align-middle select-none w-[32px]">
+                              <button
+                                type="button"
+                                onClick={() => toggleRowSelection(rowId)}
+                                className="cursor-pointer flex items-center justify-center mx-auto p-0.5 text-slate-600 hover:text-indigo-600 dark:text-slate-300"
+                                title={isSelected ? "Click to skip this student from print & exports" : "Click to include this student in print & exports"}
+                              >
+                                {isSelected ? (
+                                  <CheckSquare size={12.5} className="text-emerald-600 dark:text-emerald-400" />
+                                ) : (
+                                  <Square size={12.5} className="text-slate-400" />
+                                )}
+                              </button>
+                            </td>
+
+                            {activeTableColumns.map((col) => (
+                              <td
+                                key={col.key}
+                                style={{
+                                  textAlign: col.align || 'left',
+                                  minHeight: `${currentRowHeightPx}px`
+                                }}
+                                className="border border-slate-300 px-1.5 py-1 text-[10px] font-medium leading-snug align-middle break-words whitespace-normal overflow-visible"
+                              >
+                                {col.key === 'studentPhoto' || col.key === 'photo' ? (
+                                  <RosterStudentPhotoCell
+                                    key={`${selectedClasses.join('-') || 'all'}-${row.boardRegNo || 'no-reg'}-${row.formNo || row._rawStudent?.docId || rIdx}`}
+                                    student={row._rawStudent || row}
+                                    studentName={row.studentName}
+                                    initialPhoto={row.studentPhoto}
+                                  />
+                                ) : col.key === 'subjects' ? (
+                                  <span className="font-mono text-[9px] leading-tight block break-words whitespace-normal">
+                                    {row[col.key]}
+                                  </span>
+                                ) : col.key === 'sno' ? (
+                                  <div className="text-center font-bold">
+                                    {isSelected ? (
+                                      <span className="text-slate-800 dark:text-slate-200">{displaySno}</span>
+                                    ) : (
+                                      <span className="inline-flex items-center gap-0.5 text-[8px] uppercase tracking-wider text-amber-700 bg-amber-100 dark:bg-amber-900/60 dark:text-amber-300 px-1 py-0.5 rounded font-black">
+                                        Skipped
+                                      </span>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <span className="block break-words whitespace-normal">{row[col.key] !== undefined ? row[col.key] : '—'}</span>
+                                )}
+                              </td>
+                            ))}
+                          </tr>
+                        );
+                      });
+                    })()
                   )}
                 </tbody>
               </table>
             </div>
 
             {/* Pagination / Expand Sheet Preview Note */}
-            {processedRows.length > 35 && (
+            {(hideSkippedRows ? activeIncludedRows.length : processedRows.length) > 35 && (
               <div className="mt-2 text-center">
                 <button
                   type="button"
@@ -3502,7 +3961,7 @@ export default function CustomRosterDocumentBuilderView({
                   {showAllPreviewRows ? (
                     <span>▲ Collapse Preview to 35 Rows</span>
                   ) : (
-                    <span>▼ Show All {processedRows.length} Rows on Preview Sheet (Export & Print will always include all {processedRows.length} rows)</span>
+                    <span>▼ Show All {hideSkippedRows ? activeIncludedRows.length : processedRows.length} Rows on Preview Sheet (Export & Print will always include all {activeIncludedRows.length} active rows)</span>
                   )}
                 </button>
               </div>

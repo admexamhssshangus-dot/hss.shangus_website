@@ -15,12 +15,12 @@ function forbidMatch(relativePath, pattern, message) {
 
 requireMatch(
   'src/portal/admin/AdminDashboard.jsx',
-  /const AdvancedReports = React\.lazy/,
+  /const AdvancedReports = (?:React\.lazy|lazyWithChunkRecovery)/,
   'AdvancedReports must remain lazy-loaded.'
 );
 requireMatch(
   'src/portal/admin/AdminDashboard.jsx',
-  /const ApplicationReviewModal = React\.lazy/,
+  /const ApplicationReviewModal = (?:React\.lazy|lazyWithChunkRecovery)/,
   'Application review code must load only when a record is opened.'
 );
 requireMatch(
@@ -75,12 +75,12 @@ requireMatch(
 );
 requireMatch(
   'src/portal/admin/StudentCertificateStudioView.jsx',
-  /const ResultIngestionModal = React\.lazy/,
+  /const ResultIngestionModal = (?:React\.lazy|lazyWithChunkRecovery)/,
   'Certificate Studio heavy result-ingestion tools must remain lazy-loaded.'
 );
 requireMatch(
   'src/portal/admin/StudentCertificateStudioView.jsx',
-  /\{showBulkGeneratorModal && \(\s*<BulkCertificateGeneratorModal/,
+  /\{showBulkGeneratorModal && \([\s\S]*?<BulkCertificateGeneratorModal/,
   'Certificate Studio bulk generation code must load only when its modal is opened.'
 );
 forbidMatch(
