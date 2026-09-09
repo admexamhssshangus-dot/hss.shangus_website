@@ -8,6 +8,7 @@ import { doc, getDoc } from 'firebase/firestore';
 import Slideshow from '../components/Slideshow';
 import SEO from '../components/SEO';
 import { formatTitleWithBrackets } from '../utils/textFormatting';
+import { DEFAULT_HERO_BUTTONS } from '../utils/settingsLoader';
 
 // Modern Counter Animation Component
 const AnimatedCounter = ({ end, prefix = '', suffix = '' }) => {
@@ -424,13 +425,63 @@ export default function Home() {
           >
             nurturing minds, shaping futures
           </h1>
-          <div className="flex flex-row justify-center items-center gap-1.5 sm:gap-2">
-            <Link to="/admissions" className="px-2 py-0.5 sm:px-5 sm:py-2 font-bold rounded sm:rounded-lg transition-all shadow sm:shadow-lg inline-flex items-center text-[9px] sm:text-sm btn-hero-primary leading-tight">
-              {settings?.globalAdmissionsClosed ? 'Admissions Closed' : 'Admissions Open 2026'}
-            </Link>
-            <Link to="/about" className="px-2 py-0.5 sm:px-3.5 sm:py-2 font-bold rounded sm:rounded-md transition-all shadow inline-flex items-center text-[9px] sm:text-xs btn-hero-secondary leading-tight">
-              Learn More
-            </Link>
+          <div className="flex flex-row justify-center items-center gap-1.5 sm:gap-2 flex-wrap">
+            {(Array.isArray(settings?.heroButtons)
+              ? settings.heroButtons
+              : DEFAULT_HERO_BUTTONS
+            )
+              .filter((btn) => btn && btn.enabled !== false)
+              .map((btn, idx) => {
+                const isAdmissionsClosed = Boolean(btn.trackAdmissionStatus && settings?.globalAdmissionsClosed);
+                const displayText = isAdmissionsClosed
+                  ? (btn.closedLabel || 'Admissions Closed')
+                  : (btn.label || 'Learn More');
+                const isExternal = Boolean(
+                  btn.link && (
+                    btn.link.startsWith('http://') ||
+                    btn.link.startsWith('https://') ||
+                    btn.link.startsWith('mailto:') ||
+                    btn.link.startsWith('tel:') ||
+                    btn.openInNewTab
+                  )
+                );
+
+                const styleClassMap = {
+                  primary: 'btn-hero-primary',
+                  secondary: 'btn-hero-secondary',
+                  amber: 'btn-hero-amber',
+                  blue: 'btn-hero-blue',
+                  purple: 'btn-hero-purple',
+                  emerald: 'btn-hero-emerald',
+                  outline: 'btn-hero-outline'
+                };
+                const styleClasses = styleClassMap[btn.style] || (idx === 0 ? 'btn-hero-primary' : 'btn-hero-secondary');
+                const baseClasses = `px-2 py-0.5 sm:px-4 sm:py-2 font-bold rounded sm:rounded-lg transition-all shadow sm:shadow-lg inline-flex items-center text-[9px] sm:text-sm leading-tight ${styleClasses}`;
+
+                if (isExternal) {
+                  return (
+                    <a
+                      key={btn.id || `hero-btn-${idx}`}
+                      href={btn.link || '#'}
+                      target={btn.openInNewTab ? '_blank' : undefined}
+                      rel={btn.openInNewTab ? 'noopener noreferrer' : undefined}
+                      className={baseClasses}
+                    >
+                      {displayText}
+                    </a>
+                  );
+                }
+
+                return (
+                  <Link
+                    key={btn.id || `hero-btn-${idx}`}
+                    to={btn.link || '/'}
+                    className={baseClasses}
+                  >
+                    {displayText}
+                  </Link>
+                );
+              })}
           </div>
         </div>
 

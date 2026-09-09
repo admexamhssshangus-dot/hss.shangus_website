@@ -4,7 +4,7 @@ import {
   Trash2, Wand2, Mail, Plus, X, Database, Sparkles, Copy, Download, UserPlus, Edit3, 
   Lock, ShieldAlert, Check, ArrowRight, Layers, FileCheck, FileSpreadsheet, GitMerge, 
   PanelsTopLeft, Send, Key, UserCheck, Phone, GraduationCap, Eye, EyeOff, Search,
-  RotateCcw, ArrowUpDown, Pencil, CalendarCheck
+  RotateCcw, ArrowUpDown, Pencil, CalendarCheck, Compass
 } from 'lucide-react';
 import appsScriptApi from '../../services/appsScriptApi';
 import { db } from '../../services/firebase';
@@ -12,6 +12,7 @@ import { doc, getDoc, setDoc, collection, getDocs } from 'firebase/firestore';
 import { loadSiteSettings } from '../../utils/settingsLoader';
 import SessionArchivalModal from './SessionArchivalModal';
 import BulkFieldOverwriteModal from './BulkFieldOverwriteModal';
+import HeroButtonsManager from './HeroButtonsManager';
 import { 
   createStaffAccount, 
   updateStaffAccount, 
@@ -157,9 +158,9 @@ export default function ControlsAndSubjects() {
     try {
       const searchParams = new URLSearchParams(window.location.search);
       const urlSubTab = searchParams.get('subtab');
-      if (urlSubTab && ['controls', 'subjects', 'schools', 'permissions', 'lab'].includes(urlSubTab)) return urlSubTab;
+      if (urlSubTab && ['controls', 'subjects', 'schools', 'permissions', 'lab', 'heroButtons'].includes(urlSubTab)) return urlSubTab;
       const saved = sessionStorage.getItem('hss_admin_controls_subtab');
-      if (saved && ['controls', 'subjects', 'schools', 'permissions', 'lab'].includes(saved)) return saved;
+      if (saved && ['controls', 'subjects', 'schools', 'permissions', 'lab', 'heroButtons'].includes(saved)) return saved;
     } catch (_) {}
     return 'controls';
   };
@@ -184,6 +185,7 @@ export default function ControlsAndSubjects() {
   const [session, setSession] = useState('2025-26');
   const [printOrder, setPrintOrder] = useState('Newest');
   const [logoUrl, setLogoUrl] = useState('https://raw.githubusercontent.com/ShGulfam/hss.shangus_exam_2024-25/refs/heads/main/hss%20shangus_logo_2024_small.png');
+  const [rawSiteSettings, setRawSiteSettings] = useState(null);
   
   // Class Admission Toggles
   const [allow9th, setAllow9th] = useState(true);
@@ -383,6 +385,7 @@ export default function ControlsAndSubjects() {
         }
 
         if (siteSettings) {
+          setRawSiteSettings(siteSettings);
           if (siteSettings.session) setSession(siteSettings.session);
           if (siteSettings.practicalsSubmissionOpen !== undefined) setPracticalsSubmissionOpen(Boolean(siteSettings.practicalsSubmissionOpen));
           if (siteSettings.attendanceSubmissionOpen !== undefined) setAttendanceSubmissionOpen(Boolean(siteSettings.attendanceSubmissionOpen));
@@ -1047,6 +1050,7 @@ export default function ControlsAndSubjects() {
           { id: 'schools', label: '3. Feeder Schools', icon: GraduationCap },
           { id: 'permissions', label: '4. Permissions', icon: ShieldCheck },
           { id: 'lab', label: '5. Session Rollover', icon: Database },
+          { id: 'heroButtons', label: '6. Hero Buttons', icon: Compass },
         ].map((sub) => {
           const Icon = sub.icon;
           const isActive = activeSubTab === sub.id;
@@ -2544,6 +2548,20 @@ export default function ControlsAndSubjects() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* SUB TAB 6: HERO BUTTONS & ACTION LINKS */}
+      {activeSubTab === 'heroButtons' && (
+        <HeroButtonsManager 
+          initialSettings={rawSiteSettings}
+          onSaveSuccess={(newSettings) => {
+            setRawSiteSettings(newSettings);
+            setAlert({
+              type: 'success',
+              text: 'Hero action buttons updated successfully in Firestore settings.'
+            });
+          }}
+        />
       )}
 
       {/* SESSION ARCHIVAL & ROLLOVER MODAL */}
