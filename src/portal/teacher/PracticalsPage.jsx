@@ -15,6 +15,7 @@ import { loadSiteSettings } from '../../utils/settingsLoader';
 import {
   getSubjectMarksConfig,
   getAdminPracticalsSettings,
+  getEvaluationTypesForTeacher,
   SUBJECT_CONFIG_DEFS
 } from '../../utils/practicalsSettingsManager';
 import ModernLoader from '../../components/ModernLoader';
@@ -995,15 +996,28 @@ export default function PracticalsPage() {
     detectPastSessions();
   }, []);
 
+  const availableEvalTypes = useMemo(() => {
+    return getEvaluationTypesForTeacher(practicalsSettings, selectedClass, yearSuffix);
+  }, [practicalsSettings, selectedClass, yearSuffix]);
+
+  const activeEvalOption = availableEvalTypes.find(e => e.value === practicalType);
+  const isCustomEval = activeEvalOption?.isCustom;
   const currentSubjectObj = SUBJECT_MAP.find(s => s.name === selectedSubject) || SUBJECT_MAP[1];
   const evalTypeNorm = String(practicalType || '').toLowerCase().includes('ext') ? 'external' : 'internal';
   const currentMarksConfig = getSubjectMarksConfig(practicalsSettings, selectedClass, evalTypeNorm, currentSubjectObj.code);
-  const subjectMaxMarks = currentMarksConfig.max;
-  const minPassMarks = currentMarksConfig.min;
+  const subjectMaxMarks = isCustomEval && activeEvalOption?.evalConfig?.maxMarks
+    ? Number(activeEvalOption.evalConfig.maxMarks)
+    : currentMarksConfig.max;
+  const minPassMarks = isCustomEval && activeEvalOption?.evalConfig?.minMarks
+    ? Number(activeEvalOption.evalConfig.minMarks)
+    : currentMarksConfig.min;
 
   const getSubjectMax = useCallback((code) => {
+    if (isCustomEval && activeEvalOption?.evalConfig?.maxMarks) {
+      return Number(activeEvalOption.evalConfig.maxMarks);
+    }
     return getSubjectMarksConfig(practicalsSettings, selectedClass, evalTypeNorm, code).max;
-  }, [practicalsSettings, selectedClass, evalTypeNorm]);
+  }, [practicalsSettings, selectedClass, evalTypeNorm, isCustomEval, activeEvalOption]);
 
   // Fetch Roster strictly for confirmed students with assigned class roll numbers
   const fetchPracticalData = useCallback(async () => {
@@ -1255,9 +1269,20 @@ export default function PracticalsPage() {
         let allDiscoveredStudents = [];
 
         // Method 1: Filter candidates from masterRegisters & admissions by Class + Session + Subject + Assigned Class Roll No
+        const evalAllowedStatuses = activeEvalOption?.evalConfig?.allowedStatuses;
         allCandidates.forEach(st => {
           const stClass = extractStudentClass(st);
           const stSession = st.session || st.Session || st['Academic Session'];
+
+          // Filter by allowed student status if specified in assessment config
+          if (Array.isArray(evalAllowedStatuses) && evalAllowedStatuses.length > 0) {
+            const rawStatus = String(st.status || st.admissionStatus || st['Admission Status'] || st['Status'] || '').toLowerCase().trim();
+            const isStatusMatch = evalAllowedStatuses.some(statusFilter => {
+              const sf = String(statusFilter).toLowerCase().trim();
+              return rawStatus.includes(sf) || (sf === 'approved' && (!rawStatus || rawStatus === 'approved' || rawStatus === 'confirmed'));
+            });
+            if (!isStatusMatch) return;
+          }
 
           if (
             hasAssignedClassRoll(st) &&
@@ -1321,6 +1346,15 @@ export default function PracticalsPage() {
             }
             if (resolvedSession && !isSessionMatch(resolvedSession, yearSuffix)) {
               return; // Skip records from a different session
+            }
+
+            if (Array.isArray(evalAllowedStatuses) && evalAllowedStatuses.length > 0) {
+              const rawStatus = String(richSt.status || richSt.admissionStatus || richSt['Admission Status'] || richSt['Status'] || rec.status || '').toLowerCase().trim();
+              const isStatusMatch = evalAllowedStatuses.some(statusFilter => {
+                const sf = String(statusFilter).toLowerCase().trim();
+                return rawStatus.includes(sf) || (sf === 'approved' && (!rawStatus || rawStatus === 'approved' || rawStatus === 'confirmed'));
+              });
+              if (!isStatusMatch) return;
             }
 
             const resolvedName = getStudentName(richSt);
@@ -2121,9 +2155,11 @@ export default function PracticalsPage() {
                     onChange={(e) => setPracticalType(e.target.value)}
                     className="w-full px-2 py-1.5 rounded-lg text-xs font-bold border focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100"
                   >
-                    <option value="Internal Assessment">Internal</option>
-                    <option value="External Practical">External</option>
-                    <option value="Term End Evaluation">Term End</option>
+                    {availableEvalTypes.map(et => (
+                      <option key={et.value} value={et.value}>
+                        {et.label}
+                      </option>
+                    ))}
                   </select>
                 </div>
 

@@ -40,6 +40,7 @@ const PracticalsPage = lazyWithChunkRecovery(() => import('./portal/teacher/Prac
 const AdminDashboard = lazyWithChunkRecovery(() => import('./portal/admin/AdminDashboard'), 'admin-dashboard');
 const AdmissionRegisterSuite = lazyWithChunkRecovery(() => import('./portal/admin/AdmissionRegisterSuite'), 'adm-register-suite');
 const GkTestRegistration = lazyWithChunkRecovery(() => import('./pages/GkTestRegistration'), 'gk-test');
+const PublicResultLookup = lazyWithChunkRecovery(() => import('./pages/PublicResultLookup'), 'public-results');
 
 // A stable, responsive placeholder while route bundles are downloaded.
 const LazyFallback = () => <PublicPageSkeleton label="Loading page…" />;
@@ -180,6 +181,8 @@ function App() {
             </Route>
 
             <Route path="/gk-test" element={<GkTestRegistration />} />
+            <Route path="/results" element={<PublicResultLookup />} />
+            <Route path="/preboard-results" element={<PublicResultLookup />} />
             <Route path="/:pageId" element={<DynamicPage />} />
           </Routes>
           </Suspense>
