@@ -968,100 +968,101 @@ export default function BulkFieldOverwriteModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-2 sm:p-4 overflow-y-auto animate-fadeIn">
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-5xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[94vh]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-1 sm:p-4 overflow-y-auto animate-fadeIn">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-5xl rounded-xl sm:rounded-2xl shadow-2xl overflow-hidden flex flex-col h-[98vh] sm:h-auto max-h-[98vh] sm:max-h-[94vh]">
         
         {/* Master Modal Header */}
-        <div className="px-5 py-3 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-gradient-to-r from-emerald-50/70 via-white to-blue-50/70 dark:from-emerald-950/20 dark:via-slate-900 dark:to-blue-950/20">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-emerald-700 text-white flex items-center justify-center shadow-xs">
-              <Database size={17} />
+        <div className="px-3 py-2 sm:px-5 sm:py-3 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-gradient-to-r from-emerald-50/70 via-white to-blue-50/70 dark:from-emerald-950/20 dark:via-slate-900 dark:to-blue-950/20 flex-shrink-0">
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-emerald-700 text-white flex items-center justify-center shadow-xs flex-shrink-0">
+              <Database size={15} />
             </div>
-            <div>
-              <h2 className="text-sm font-black text-slate-900 dark:text-white flex items-center gap-2">
-                <span>⚡ Master Student Data & Board Ingestion Hub</span>
-                <span className="px-2 py-0.5 rounded-full text-[9px] font-black bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
-                  Unified Central Hub
+            <div className="min-w-0">
+              <h2 className="text-xs sm:text-sm font-black text-slate-900 dark:text-white flex items-center gap-1.5 truncate">
+                <span className="truncate">Student Data & Board Ingestion Hub</span>
+                <span className="hidden sm:inline-block px-1.5 py-0.5 rounded-full text-[9px] font-black bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
+                  Master Hub
                 </span>
               </h2>
-              <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400">
-                Single unified terminal for Board Overwrites, Express Direct Entry, and Multimodal Gazette/Admit Card AI OCR
+              <p className="hidden sm:block text-[11px] font-medium text-slate-500 dark:text-slate-400 truncate">
+                Board Overwrites, Express Direct Entry, and Gazette/Admit Card AI OCR
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-all cursor-pointer"
+            className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-all cursor-pointer flex-shrink-0"
+            aria-label="Close"
           >
             <X size={16} />
           </button>
         </div>
 
         {/* Master Mode Tabs Bar */}
-        <div className="px-5 py-2 bg-slate-50 dark:bg-slate-950/70 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between flex-wrap gap-2">
-          <div className="flex items-center gap-1.5 p-1 bg-slate-200/80 dark:bg-slate-800/80 rounded-xl overflow-x-auto">
+        <div className="px-2 py-1 sm:px-5 sm:py-2 bg-slate-50 dark:bg-slate-950/70 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between flex-wrap gap-1.5 flex-shrink-0">
+          <div className="flex items-center gap-1 p-0.5 sm:p-1 bg-slate-200/80 dark:bg-slate-800/80 rounded-xl overflow-x-auto w-full sm:w-auto no-scrollbar">
             <button
               type="button"
               onClick={() => setModalMode('overwrite')}
-              className={`px-3 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-all ${
+              className={`px-2.5 py-1 rounded-lg text-[11px] sm:text-xs font-bold flex items-center gap-1 cursor-pointer transition-all flex-shrink-0 ${
                 modalMode === 'overwrite'
                   ? 'bg-white dark:bg-slate-900 text-emerald-700 dark:text-emerald-300 shadow-xs font-black'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
-              <FileSpreadsheet size={13} />
-              <span>📊 Bulk Overwrite & Board Sync</span>
+              <FileSpreadsheet size={12} />
+              <span>Bulk Overwrite</span>
             </button>
 
             <button
               type="button"
               onClick={() => setModalMode('express')}
-              className={`px-3 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-all ${
+              className={`px-2.5 py-1 rounded-lg text-[11px] sm:text-xs font-bold flex items-center gap-1 cursor-pointer transition-all flex-shrink-0 ${
                 modalMode === 'express'
                   ? 'bg-white dark:bg-slate-900 text-blue-700 dark:text-blue-300 shadow-xs font-black'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
-              <Plus size={13} />
-              <span>➕ Express Direct Entry</span>
+              <Plus size={12} />
+              <span>Express Entry</span>
             </button>
 
             <button
               type="button"
               onClick={() => setModalMode('gazette_ai')}
-              className={`px-3 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-all ${
+              className={`px-2.5 py-1 rounded-lg text-[11px] sm:text-xs font-bold flex items-center gap-1 cursor-pointer transition-all flex-shrink-0 ${
                 modalMode === 'gazette_ai'
                   ? 'bg-white dark:bg-slate-900 text-purple-700 dark:text-purple-300 shadow-xs font-black'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
-              <Sparkles size={13} />
-              <span>📰 Gazette AI Vision OCR</span>
+              <Sparkles size={12} />
+              <span>Gazette AI</span>
             </button>
 
             <button
               type="button"
               onClick={() => setModalMode('admit_ai')}
-              className={`px-3 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-all ${
+              className={`px-2.5 py-1 rounded-lg text-[11px] sm:text-xs font-bold flex items-center gap-1 cursor-pointer transition-all flex-shrink-0 ${
                 modalMode === 'admit_ai'
                   ? 'bg-white dark:bg-slate-900 text-indigo-700 dark:text-indigo-300 shadow-xs font-black'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
-              <Award size={13} />
-              <span>🪪 Admit Card AI Extractor</span>
+              <Award size={12} />
+              <span>Admit AI</span>
             </button>
           </div>
 
           {toastMessage && (
-            <div className="text-[11px] font-black text-emerald-700 dark:text-emerald-300 bg-emerald-100/80 dark:bg-emerald-950/80 px-2.5 py-1 rounded-lg border border-emerald-300 dark:border-emerald-800 animate-fadeIn">
+            <div className="text-[10px] sm:text-[11px] font-black text-emerald-700 dark:text-emerald-300 bg-emerald-100/80 dark:bg-emerald-950/80 px-2 py-0.5 rounded-lg border border-emerald-300 dark:border-emerald-800 animate-fadeIn">
               {toastMessage.msg}
             </div>
           )}
         </div>
 
         {/* Modal Body Content */}
-        <div className="p-4 sm:p-5 overflow-y-auto flex-1 custom-scrollbar space-y-4 text-xs max-h-[calc(94vh-130px)]">
+        <div className="p-2 sm:p-4 overflow-y-auto flex-1 custom-scrollbar space-y-3 text-xs max-h-[calc(98vh-115px)] sm:max-h-[calc(94vh-130px)]">
           
           {/* ═════════ TAB 2: EXPRESS DIRECT INGESTION (SINGLE RECORD) ═════════ */}
           {modalMode === 'express' && (
