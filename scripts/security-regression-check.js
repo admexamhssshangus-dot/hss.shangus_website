@@ -1,3 +1,4 @@
+
 'use strict';
 
 const assert = require('assert');
@@ -18,6 +19,7 @@ const deleteModal = read('src/portal/admin/DeleteApplicationModal.jsx');
 const recycleService = read('src/services/recycleBinService.js');
 const mergerStudio = read('src/portal/admin/ApplicationMergerStudio.jsx');
 const appShell = read('src/App.js');
+const chunkRecovery = read('src/utils/lazyWithChunkRecovery.js');
 const photoResolver = read('src/utils/imageCompressor.js');
 const rosterBuilder = read('src/portal/admin/CustomRosterDocumentBuilderView.jsx');
 const publicFaculty = JSON.parse(read('public/slides/faculty.json'));
@@ -76,7 +78,7 @@ assert(!/const trashRegs\s*=/.test(reports), 'Recycle-bin filtering still hides 
 assert(!/Promise\.race\s*\(\s*\[\s*Promise\.all\(recordsToDelete/.test(deleteModal), 'Deletion can report success before Firestore commits');
 assert(/restoreMultipleFromRecycleBin/.test(recycleService) && /runTransaction/.test(recycleService), 'Atomic recycle-bin restore is missing');
 assert(/new Set\(\['users', 'admissions', 'masterRegisters'/.test(cache), 'Large private collections are still serialized into browser storage');
-assert(/lazyWithChunkRecovery/.test(appShell) && /ChunkLoadError\|Loading chunk/.test(appShell), 'Lazy route chunk recovery is missing');
+assert(/lazyWithChunkRecovery/.test(appShell) && (/ChunkLoadError\|Loading chunk/.test(appShell) || /ChunkLoadError\|Loading chunk/.test(chunkRecovery)), 'Lazy route chunk recovery is missing');
 assert(/recordData\._docId \|\| recordData\.docId/.test(recycleService), 'Recycle operations do not prioritize exact Firestore document IDs');
 assert(!/moveToRecycleBin\([^\n]+\.catch\(\(\) => \{\}\)/.test(mergerStudio), 'Merger still suppresses recycle-bin failures');
 assert(!/await deleteDoc\(doc\(db, 'admissions', secId\)\)/.test(mergerStudio), 'Merger still deletes secondary applications twice');
