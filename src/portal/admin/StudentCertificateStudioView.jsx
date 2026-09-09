@@ -918,13 +918,17 @@ export default function StudentCertificateStudioView({
   // Live Scannable Canvas QR Code URL & Data URI (Direct screen scan testable)
   const canvasVerifyUrl = useMemo(() => {
     return buildCertificateVerificationUrl({
-      reg: regNo || selectedStudent?.boardRegNo || selectedStudent?.regNo || '',
-      roll: rollNo || selectedStudent?.classRollNo || selectedStudent?.rollNo || getStudentRollVal(selectedStudent) || '',
-      fNo: admissionNo || extractStudentAdmissionNumber(selectedStudent) || '',
+      reg: regNo || '',
+      roll: rollNo || '',
+      fNo: admissionNo || '',
       cert: refNo || '',
-      doc: certificateTitle || ''
+      doc: certificateTitle || '',
+      name: studentName || '',
+      father: fatherName || '',
+      className: className || '',
+      session: session || ''
     });
-  }, [regNo, rollNo, selectedStudent, admissionNo, refNo, certificateTitle]);
+  }, [regNo, rollNo, admissionNo, refNo, certificateTitle, studentName, fatherName, className, session]);
 
   const canvasQrUri = useMemo(() => {
     return createQrSvgDataUri(canvasVerifyUrl, 140);

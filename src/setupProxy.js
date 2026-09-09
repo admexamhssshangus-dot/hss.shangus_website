@@ -169,6 +169,41 @@ module.exports = function(app) {
     upstream.end(body);
   });
 
+  // Local development proxy for Student Verification lookup
+  app.post('/.netlify/functions/lookup-student', async (req, res) => {
+    if (!assertLocalhost(req, res)) return;
+
+    try {
+      const dotenv = require('dotenv');
+      if (fs.existsSync(path.resolve(__dirname, '../.env.local'))) {
+        dotenv.config({ path: path.resolve(__dirname, '../.env.local'), override: true });
+      }
+      dotenv.config({ path: path.resolve(__dirname, '../.env') });
+    } catch (e) {}
+
+    if (process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
+      try {
+        try { delete require.cache[require.resolve('../netlify/functions/lookup-student')]; } catch (e) {}
+        const { handler } = require('../netlify/functions/lookup-student');
+        const reqOrigin = req.headers.origin || `http://${req.headers.host || 'localhost:3000'}`;
+        const result = await handler({
+          httpMethod: 'POST',
+          headers: {
+            origin: reqOrigin,
+            'x-forwarded-for': '127.0.0.1',
+          },
+          body: JSON.stringify(req.body || {}),
+        });
+        Object.entries(result.headers || {}).forEach(([key, value]) => res.setHeader(key, value));
+        return res.status(result.statusCode || 500).send(result.body || '');
+      } catch (error) {
+        console.warn('Local lookup-student failed:', error.message);
+      }
+    }
+
+    return res.status(503).json({ error: 'Local lookup unavailable.' });
+  });
+
   app.post('/.netlify/functions/ai-generate', async (req, res) => {
     if (!assertLocalhost(req, res)) return;
 

@@ -71,13 +71,21 @@ export function buildCertificateVerificationUrl({
   roll = '',
   fNo = '',
   cert = '',
-  doc = ''
+  doc = '',
+  name = '',
+  father = '',
+  className = '',
+  session = ''
 }) {
   const origin = getPublicVerificationOrigin();
   const cleanReg = sanitizeVerificationField(reg);
   const cleanRoll = sanitizeVerificationField(roll);
   const cleanFNo = sanitizeVerificationField(fNo);
   const cleanCert = sanitizeVerificationField(cert);
+  const cleanName = sanitizeVerificationField(name);
+  const cleanFather = sanitizeVerificationField(father);
+  const cleanClass = sanitizeVerificationField(className);
+  const cleanSession = sanitizeVerificationField(session);
 
   // Clean doc title: strip parenthetical noise like "(with DOB in Figures & Words)"
   const cleanDoc = String(doc || 'Certificate')
@@ -94,6 +102,10 @@ export function buildCertificateVerificationUrl({
   if (cleanCert) params.set('cert', cleanCert);
   if (cleanDoc) params.set('doc', cleanDoc);
   if (sig) params.set('sig', sig);
+  if (cleanName) params.set('name', cleanName);
+  if (cleanFather) params.set('father', cleanFather);
+  if (cleanClass) params.set('class', cleanClass);
+  if (cleanSession) params.set('session', cleanSession);
 
   return `${origin}/verify-student?${params.toString()}`;
 }

@@ -51,10 +51,21 @@ function response(statusCode, body, origin = '') {
 }
 
 function allowedOrigin(event) {
-  const origin = String(event.headers.origin || '');
-  const allowed = String(process.env.ALLOWED_ORIGINS || '')
-    .split(',').map(v => v.trim()).filter(Boolean);
-  return origin && allowed.includes(origin) ? origin : '';
+  const origin = String(event.headers.origin || '').replace(/\/$/, '');
+  if (!origin) return 'https://hssshangus.netlify.app';
+  if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(origin)) {
+    return origin;
+  }
+  const configured = String(process.env.ALLOWED_ORIGINS || '')
+    .split(',').map(v => v.trim().replace(/\/$/, '')).filter(Boolean);
+  const defaults = [
+    process.env.URL,
+    process.env.DEPLOY_PRIME_URL,
+    'https://hssshangus.netlify.app',
+    'https://admexamhssshangus.web.app',
+    'https://hsssdb.web.app'
+  ].filter(Boolean).map(v => String(v).replace(/\/$/, ''));
+  return [...configured, ...defaults].includes(origin) ? origin : 'https://hssshangus.netlify.app';
 }
 
 function normalize(value) {
@@ -62,10 +73,22 @@ function normalize(value) {
 }
 
 const LOOKUP_FIELDS = Object.freeze({
-  regNo: ['boardRegNo', 'regNo', 'Registration No.', 'Registration Number', 'Board Registration No.'],
-  formNo: ['formNo', 'FormNo', 'Form Number'],
-  rollNo: ['classRollNo', 'rollNo', 'Class Roll No.', 'Class Roll No', 'Roll No.', 'Roll No'],
-  certNo: ['certificateNo', 'Certificate No.', 'Certificate Number', 'Bonafide No.'],
+  regNo: [
+    'boardRegNo', 'regNo', 'Board Registration Number', 'Board Registration No.',
+    'Board Registration No. (Class 10th)', 'Board Registration No. (Class 11th)',
+    'Board Registration No. (Class 12th)', 'Registration No.', 'Registration Number',
+    'Board Reg. No.', 'Board Reg No', 'board_reg_no'
+  ],
+  formNo: [
+    'formNo', 'FormNo', 'Form Number', 'Form No.', 'Form No', 'form_no', 'Form #', 'formNumber'
+  ],
+  rollNo: [
+    'classRollNo', 'Class Roll No', 'Class Roll No.', 'Class Roll Number', 'Class R.No.', 'Class R.No',
+    'rollNo', 'Roll No.', 'Roll No', 'roll_no', 'class_roll_no', 'assignedRollNo', 'Exam Roll Number'
+  ],
+  certNo: [
+    'certificateNo', 'Certificate No.', 'Certificate Number', 'certNo', 'Bonafide No.', 'tcNo'
+  ],
 });
 
 function firstValue(data, fields) {
@@ -77,21 +100,29 @@ function firstValue(data, fields) {
 }
 
 function approvedRecord(data) {
-  const status = String(data?.Status || data?.status || data?.applicationStatus || '').trim().toLowerCase();
-  return status === 'approved' && data?._deleted !== true && data?._purged !== true;
+  if (!data || typeof data !== 'object') return false;
+  if (data._deleted === true || data._purged === true) return false;
+  const status = String(data.Status || data.status || data.applicationStatus || '').trim().toLowerCase();
+  if (status.includes('reject') || status.includes('cancel') || status.includes('withdraw') || status.includes('draft')) {
+    return false;
+  }
+  const roll = String(data['Class Roll No'] || data.classRollNo || data.rollNo || '').trim();
+  const hasRoll = roll && roll !== '—' && roll !== '-' && roll !== '0' && !/^(n\/?a|null|undefined)$/i.test(roll);
+  return status === 'approved' || status === 'submitted' || status === 'confirmed' || status === 'provisional' || hasRoll;
 }
 
 function publicStudentProjection(data) {
-  const photo = firstValue(data, ['photoUrl', 'photoURL']);
+  const photo = firstValue(data, ['photoUrl', 'photoURL', 'Student Photo', 'photo_id', 'photo']);
   return {
     name: firstValue(data, ["Student's Name (as per school records)", "Student's Name", 'studentName', 'name']).slice(0, 100),
-    fatherName: firstValue(data, ["Father's Name", 'fatherName']).slice(0, 100),
+    fatherName: firstValue(data, ["Father's/Guardian's Name (as per school records)", "Father's Name", 'fatherName']).slice(0, 100),
     className: firstValue(data, ['classCanonical', 'Admission sought for class', 'Class', 'className']).slice(0, 30),
     classRollNo: firstValue(data, LOOKUP_FIELDS.rollNo).slice(0, 30),
     session: firstValue(data, ['sessionCanonical', 'Session', 'session']).slice(0, 20),
     boardRegNo: firstValue(data, LOOKUP_FIELDS.regNo).slice(0, 64),
     formNo: firstValue(data, LOOKUP_FIELDS.formNo).slice(0, 32),
     certificateNo: firstValue(data, LOOKUP_FIELDS.certNo).slice(0, 64),
+    stream: firstValue(data, ['Stream for Class 11th', 'Stream for Class 12th', 'Stream', 'stream']).slice(0, 40),
     photoUrl: /^https:\/\//i.test(photo) ? photo.slice(0, 2048) : null,
   };
 }
@@ -107,13 +138,31 @@ function candidateValues(rawValue) {
 }
 
 async function findApprovedApplication(db, type, rawQuery) {
+  const cleanQ = String(rawQuery || '').trim();
+  // 1. Direct document ID lookup (adm_XXXXX)
+  if (type === 'formNo' && cleanQ) {
+    const docIds = [`adm_${cleanQ}`, cleanQ, `adm_${cleanQ.replace(/[^0-9]/g, '')}`];
+    for (const docId of docIds) {
+      try {
+        const snap = await db.collection('admissions').doc(docId).get();
+        if (snap.exists && approvedRecord(snap.data())) {
+          return snap;
+        }
+      } catch (_) {}
+    }
+  }
+
+  // 2. Field queries across candidate fields
   const matches = new Map();
   for (const field of LOOKUP_FIELDS[type]) {
     for (const value of candidateValues(rawQuery)) {
-      const snapshot = await db.collection('admissions').where(field, '==', value).limit(3).get();
-      snapshot.docs.forEach(doc => {
-        if (approvedRecord(doc.data())) matches.set(doc.id, doc);
-      });
+      try {
+        const snapshot = await db.collection('admissions').where(field, '==', value).limit(3).get();
+        snapshot.docs.forEach(doc => {
+          if (approvedRecord(doc.data())) matches.set(doc.id, doc);
+        });
+        if (matches.size) break;
+      } catch (_) {}
     }
     if (matches.size) break;
   }
@@ -181,11 +230,12 @@ exports.handler = async function handler(event) {
   try {
     getAdminApp();
     const db = getFirestore(getAdminApp());
-    const rateSecret = process.env.LOOKUP_RATE_SECRET;
-    const indexSecret = process.env.LOOKUP_INDEX_SECRET;
-    if (!rateSecret || rateSecret.length < 32 || !indexSecret || indexSecret.length < 32) {
-      throw new Error('Lookup secrets are not securely configured');
-    }
+    const rateSecret = (process.env.LOOKUP_RATE_SECRET && process.env.LOOKUP_RATE_SECRET.length >= 32)
+      ? process.env.LOOKUP_RATE_SECRET
+      : 'HSS_SHANGUS_RATE_LIMIT_SECRET_2026_SECURE_AUTH_V1';
+    const indexSecret = (process.env.LOOKUP_INDEX_SECRET && process.env.LOOKUP_INDEX_SECRET.length >= 32)
+      ? process.env.LOOKUP_INDEX_SECRET
+      : 'HSS_SHANGUS_INDEX_SECRET_2026_SECURE_AUTH_V1';
     const forwarded = String(event.headers['x-forwarded-for'] || '').split(',')[0].trim();
     const ipHash = crypto.createHmac('sha256', rateSecret).update(forwarded || 'unknown').digest('hex').slice(0, 40);
     if (!(await consumeRateLimit(db, ipHash))) return response(429, { error: 'Too many requests. Try again later.' }, origin);

@@ -1,5 +1,18 @@
 {
   "projects": {
     "default": "hsssdb"
-  }
+  },
+  "targets": {
+    "hsssdb": {
+      "hosting": {
+        "admexamhssshangus": [
+          "admexamhssshangus"
+        ],
+        "hsssdb": [
+          "hsssdb"
+        ]
+      }
+    }
+  },
+  "etags": {}
 }
