@@ -2078,33 +2078,33 @@ export default function PracticalsPage() {
 
           {/* Sleek Integrated Filter Control & Toolbar Bar */}
           <div className="rounded-xl border bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 p-2 space-y-2">
-            {/* Single Summary Bar + Expand Toggle + Count + Sort (all one row) */}
-            <div className="flex items-center gap-1.5">
-              {/* Filters toggle — grows to fill available space */}
+            {/* Summary Bar & Action Controls (Responsive Mobile-First) */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
+              {/* Filters toggle — full width on mobile, fills available space on desktop */}
               <button
                 type="button"
                 onClick={() => setShowFilterSettings(!showFilterSettings)}
-                className="flex-1 flex items-center justify-between gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-black bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all cursor-pointer min-w-0"
+                className="w-full sm:flex-1 flex items-center justify-between gap-2 px-3 py-2 sm:py-1.5 rounded-xl sm:rounded-lg border text-xs font-black bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all cursor-pointer min-w-0 shadow-2xs active:scale-98"
               >
-                <div className="flex items-center gap-1.5 truncate">
-                  <SlidersHorizontal size={13} className="text-indigo-600 dark:text-indigo-400 shrink-0" />
-                  <span className="truncate text-[10.5px]">
-                    {selectedClass} • {currentSubjectObj.name} ({currentSubjectObj.code}) • {practicalType.split(' ')[0]} ({subjectMaxMarks}M | Pass: {minPassMarks}M) • {yearSuffix}
+                <div className="flex items-center gap-2 truncate">
+                  <SlidersHorizontal size={14} className="text-indigo-600 dark:text-indigo-400 shrink-0" />
+                  <span className="truncate text-[11px] sm:text-[10.5px]">
+                    {selectedClass} Class • {currentSubjectObj.name} ({currentSubjectObj.code}) • {practicalType.split(' ')[0]} ({subjectMaxMarks}M) • {yearSuffix}
                   </span>
                 </div>
-                <span className="text-[9.5px] font-extrabold px-1.5 py-0.5 rounded bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20 shrink-0 flex items-center gap-0.5">
-                  Filters <ChevronDown size={11} className={`transition-transform duration-200 ${showFilterSettings ? 'rotate-180' : ''}`} />
+                <span className="text-[9.5px] font-black px-2 py-0.5 rounded-lg bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20 shrink-0 flex items-center gap-1">
+                  Filters <ChevronDown size={12} className={`transition-transform duration-200 ${showFilterSettings ? 'rotate-180' : ''}`} />
                 </span>
               </button>
 
-              {/* Student count + sort inline */}
+              {/* Student count + sort inline (Desktop) */}
               <div className="hidden sm:flex items-center gap-1 shrink-0 text-[10px] font-extrabold text-slate-600 dark:text-slate-400 whitespace-nowrap">
                 <span className="text-indigo-600 dark:text-indigo-400 font-black">{displayedStudents.length}</span>
                 <span>Stu.</span>
                 {showFailOnly && <span className="text-rose-600">(Fail)</span>}
               </div>
 
-              {/* Sort */}
+              {/* Sort (Desktop) */}
               <div className="hidden sm:flex items-center gap-0.5 shrink-0">
                 <ArrowUpDown size={10} className="text-slate-400" />
                 <select
@@ -2120,18 +2120,18 @@ export default function PracticalsPage() {
               </div>
 
               {/* Quick Fill + Fail filter + Print */}
-              <div className="flex items-center gap-1 shrink-0">
+              <div className="flex items-center justify-between sm:justify-end gap-1.5 w-full sm:w-auto shrink-0">
                 <button
                   type="button"
                   onClick={() => setShowQuickFill(prev => !prev)}
-                  className={`px-2.5 py-1.5 rounded-lg font-black text-xs border transition-all cursor-pointer flex items-center gap-1.5 ${
+                  className={`flex-1 sm:flex-initial px-3 py-2 sm:py-1.5 rounded-xl sm:rounded-lg font-black text-xs border transition-all cursor-pointer flex items-center justify-center gap-1.5 active:scale-95 shadow-2xs ${
                     showQuickFill
                       ? 'bg-amber-500 text-white border-amber-500 shadow-xs'
                       : 'bg-white dark:bg-slate-900 text-amber-700 dark:text-amber-400 border-amber-300 dark:border-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/40'
                   }`}
                   title="Quick Bulk Fill: Fill marks for all, empty, or selected students in one go"
                 >
-                  <Zap size={13} className={showQuickFill ? 'text-white' : 'text-amber-500'} />
+                  <Zap size={14} className={showQuickFill ? 'text-white' : 'text-amber-500'} />
                   <span>Quick Fill</span>
                   {selectedKeys.size > 0 && (
                     <span className="px-1.5 py-0.2 rounded-full bg-indigo-600 text-white text-[9.5px] font-black">
@@ -2143,21 +2143,21 @@ export default function PracticalsPage() {
                 <button
                   type="button"
                   onClick={() => setShowFailOnly(!showFailOnly)}
-                  className={`px-2 py-1.5 rounded-lg font-black text-xs border transition-all cursor-pointer ${
+                  className={`px-3 py-2 sm:py-1.5 rounded-xl sm:rounded-lg font-black text-xs border transition-all cursor-pointer flex items-center justify-center active:scale-95 shadow-2xs ${
                     showFailOnly
                       ? 'bg-rose-500 text-white border-rose-500'
                       : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700'
                   }`}
                 >
-                  {showFailOnly ? 'All' : '📋 Fail'}
+                  {showFailOnly ? 'Show All' : '📋 Fail'}
                 </button>
 
                 <button
                   type="button"
                   onClick={handlePrintReport}
-                  className="px-2.5 py-1.5 rounded-lg font-black text-xs bg-indigo-600 text-white hover:bg-indigo-500 border border-indigo-600 shadow-xs cursor-pointer flex items-center gap-1"
+                  className="px-3.5 py-2 sm:py-1.5 rounded-xl sm:rounded-lg font-black text-xs bg-indigo-600 text-white hover:bg-indigo-500 border border-indigo-600 shadow-xs cursor-pointer flex items-center justify-center gap-1.5 active:scale-95"
                 >
-                  <Printer size={13} /> <span className="hidden sm:inline">Print</span>
+                  <Printer size={14} /> <span>Print</span>
                 </button>
               </div>
             </div>
@@ -2493,34 +2493,35 @@ export default function PracticalsPage() {
                           : 'border-slate-200/90 dark:border-slate-800 bg-white dark:bg-slate-900'
                       }`}
                     >
-                      {/* Row 1: Checkbox, Student S.No, Class Roll, Name & Marks Input Target */}
+                      {/* Row 1: Checkbox, Student S.No, Class Roll, Name & Large Marks Input */}
                       <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                        <div className="flex items-center gap-2 min-w-0 flex-1">
                           <input
                             type="checkbox"
                             checked={isSelected}
                             onChange={() => handleToggleRow(key)}
                             className="w-4 h-4 rounded border-slate-300 dark:border-slate-700 text-indigo-600 focus:ring-indigo-500 cursor-pointer shrink-0"
                           />
-                          <span className="w-5.5 h-5.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-mono font-extrabold text-[10px] flex items-center justify-center border border-slate-200 dark:border-slate-700 shrink-0" title="Serial Number">
-                            #{idx + 1}
-                          </span>
-                          <span className="min-w-6 h-5.5 px-1.5 rounded-lg bg-indigo-600/10 text-indigo-600 dark:text-indigo-400 font-mono font-black text-[11px] flex items-center justify-center border border-indigo-500/20 shrink-0" title={`Class Roll: ${st.rollNo}`}>
+                          <span className="w-7 h-7 rounded-xl bg-indigo-600/10 text-indigo-700 dark:text-indigo-300 font-mono font-black text-xs flex items-center justify-center border border-indigo-500/20 shrink-0 shadow-2xs" title={`Class Roll: ${st.rollNo}`}>
                             {st.rollNo}
                           </span>
-                          <span className="font-extrabold text-xs text-slate-900 dark:text-white truncate">
-                            {st.name}
-                          </span>
+                          <div className="min-w-0 flex-1">
+                            <span className="font-extrabold text-xs text-slate-900 dark:text-white truncate block leading-tight">
+                              {st.name}
+                            </span>
+                            <span className="text-[10px] text-slate-400 font-mono font-bold">#{idx + 1}</span>
+                          </div>
                         </div>
 
-                        {/* Marks Input + Quick Absent Toggle */}
+                        {/* Marks Input + Quick Absent Toggle (Numeric Keypad + Ergonomic Touch) */}
                         <div className="flex items-center gap-1.5 shrink-0">
                           <input
                             type="text"
-                            placeholder={`0-${subjectMaxMarks}/A`}
+                            inputMode="decimal"
+                            placeholder={`0-${subjectMaxMarks}`}
                             value={st.practicalMarks}
                             onChange={(e) => handleMarkChange(originalIdx !== -1 ? originalIdx : idx, 'practicalMarks', e.target.value)}
-                            className={`w-20 px-2 py-1 rounded-xl border text-xs font-black h-7.5 text-center focus:outline-none focus:ring-2 focus:ring-indigo-500 uppercase tracking-wide transition-all shadow-2xs ${
+                            className={`w-20 px-2 rounded-xl border text-xs font-black h-9 text-center focus:outline-none focus:ring-2 focus:ring-indigo-500 uppercase tracking-wide transition-all shadow-2xs ${
                               isAbsent
                                 ? 'bg-amber-50 dark:bg-amber-950/50 border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300 font-black'
                                 : st.practicalMarks !== ''
@@ -2531,10 +2532,10 @@ export default function PracticalsPage() {
                           <button
                             type="button"
                             onClick={() => handleMarkChange(originalIdx !== -1 ? originalIdx : idx, 'practicalMarks', isAbsent ? '' : 'A')}
-                            className={`px-2 h-7.5 rounded-xl font-mono text-[10.5px] font-black border transition-all cursor-pointer flex items-center justify-center shrink-0 active:scale-95 ${
+                            className={`px-3 h-9 rounded-xl font-mono text-xs font-black border transition-all cursor-pointer flex items-center justify-center shrink-0 active:scale-95 ${
                               isAbsent
                                 ? 'bg-amber-500 text-white border-amber-600 shadow-xs'
-                                : 'bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-amber-600 dark:hover:text-amber-400 border-slate-200 dark:border-slate-700'
+                                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 hover:text-amber-600 dark:hover:text-amber-400 border-slate-200 dark:border-slate-700'
                             }`}
                             title="Toggle Absent"
                           >
@@ -2543,7 +2544,7 @@ export default function PracticalsPage() {
                         </div>
                       </div>
 
-                      {/* Row 2: In-Words Award Feedback (Shown when marks entered) */}
+                      {/* Row 2: In-Words Award Feedback */}
                       {inWords && (
                         <div className="flex items-center justify-end">
                           <span className="px-2 py-0.5 rounded-lg bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 border border-indigo-200/70 dark:border-indigo-800/70 text-[9.5px] font-black">
@@ -2552,8 +2553,8 @@ export default function PracticalsPage() {
                         </div>
                       )}
 
-                      {/* Row 3: Metadata Badges (Wraps naturally on any screen size) */}
-                      <div className="flex items-center gap-1.5 flex-wrap text-[9.5px] font-semibold pt-1 border-t border-slate-100 dark:border-slate-800/80">
+                      {/* Row 3: Streamlined Metadata Badges & Subjects */}
+                      <div className="flex items-center gap-1.5 flex-wrap text-[10px] font-semibold pt-1 border-t border-slate-100 dark:border-slate-800/80">
                         {st.formNo && (
                           <span className="px-1.5 py-0.5 rounded-md font-mono bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
                             Form #{st.formNo}
@@ -2567,16 +2568,10 @@ export default function PracticalsPage() {
                         <span className="px-1.5 py-0.5 rounded-md font-mono font-black bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200/80 dark:border-amber-800/80">
                           Exam Roll: {st.examRollNo || '—'}
                         </span>
-                      </div>
-
-                      {/* Row 4: Subject Combination */}
-                      <div className="text-[9.5px] font-bold text-teal-700 dark:text-teal-300 flex items-center gap-1.5 flex-wrap">
-                        <span className="font-mono font-black text-teal-800 dark:text-teal-200 bg-teal-500/15 px-1.5 py-0.5 rounded-md border border-teal-500/30">
-                          Subs:
-                        </span>
-                        <div className="flex-1 min-w-0">
+                        <span className="font-mono font-bold text-teal-700 dark:text-teal-300 flex items-center gap-1">
+                          <span className="bg-teal-500/15 text-teal-800 dark:text-teal-200 px-1 rounded text-[9px]">Subs:</span>
                           {renderSubjectsWithHighlight(allSubjs, currentSubjectObj)}
-                        </div>
+                        </span>
                       </div>
                     </div>
                   );
@@ -2747,16 +2742,19 @@ export default function PracticalsPage() {
             </div>
           )}
 
-          {/* Bottom Action Footer */}
-          <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-200 dark:border-slate-800">
-            <div className="flex items-center gap-1.5 text-xs font-bold text-slate-500">
+          {/* Bottom Action Footer (Sticky on Mobile, Clean on Desktop) */}
+          <div className="sticky bottom-2 z-20 p-2.5 sm:p-0 rounded-2xl bg-white/95 dark:bg-slate-900/95 sm:bg-transparent backdrop-blur-md sm:backdrop-blur-none border border-slate-200 dark:border-slate-800 sm:border-0 shadow-lg sm:shadow-none flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 mt-2 pt-2 border-t border-slate-200 dark:border-slate-800">
+            <div className="flex items-center justify-between sm:justify-start gap-1.5 text-xs font-bold text-slate-500 px-1 sm:px-0">
               {draftSavedAt ? (
                 <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 text-[11px] font-black">
-                  <Bookmark size={13} /> Draft auto-saved at {draftSavedAt}
+                  <Bookmark size={13} /> Auto-saved {draftSavedAt}
                 </span>
               ) : (
-                <span className="text-[11px] text-slate-400 italic">● Draft will auto-save as you edit</span>
+                <span className="text-[11px] text-slate-400 italic">● Draft auto-saves on change</span>
               )}
+              <span className="sm:hidden text-[10.5px] font-mono text-indigo-600 dark:text-indigo-400 font-extrabold">
+                {displayedStudents.length} Students
+              </span>
             </div>
 
             <div className="flex items-center gap-2">
@@ -2764,7 +2762,7 @@ export default function PracticalsPage() {
                 type="button"
                 onClick={handleSaveDraft}
                 disabled={saving || studentMarks.length === 0}
-                className="px-3.5 py-2 rounded-xl font-bold text-xs bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-700 transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                className="flex-1 sm:flex-initial px-4 py-2.5 sm:py-2 rounded-xl font-bold text-xs bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-700 transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 active:scale-95"
               >
                 <Bookmark size={14} className="text-amber-500" />
                 <span>Save Draft</span>
@@ -2774,7 +2772,7 @@ export default function PracticalsPage() {
                 type="button"
                 onClick={handleInitiateFinalSubmit}
                 disabled={saving || studentMarks.length === 0}
-                className="px-5 py-2 rounded-xl font-black text-xs text-white bg-indigo-600 hover:bg-indigo-500 shadow-md transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                className="flex-1 sm:flex-initial px-5 py-2.5 sm:py-2 rounded-xl font-black text-xs text-white bg-indigo-600 hover:bg-indigo-500 shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 active:scale-95"
               >
                 {saving ? <RefreshCw size={14} className="animate-spin" /> : <Send size={14} />}
                 <span>Final Submit</span>
