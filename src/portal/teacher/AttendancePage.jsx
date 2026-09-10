@@ -1651,28 +1651,31 @@ export default function AttendancePage() {
         <div className="rounded-2xl p-2 sm:p-3 border shadow-xs space-y-2 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800">
 
           {/* Single-Row Native Header & Quick Controls Bar */}
-          <div className="flex items-center justify-between gap-2 p-1.5 px-2.5 rounded-xl bg-slate-100/80 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 text-xs">
-            {/* Left: Title & Status Indicator */}
+          <div className="flex items-center justify-between gap-1.5 p-1 px-2 rounded-xl bg-slate-100/80 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 text-xs">
+            {/* Left: Title & Class Badge */}
             <div className="flex items-center gap-1.5 min-w-0">
-              <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shrink-0"></div>
-              <h1 className="text-xs sm:text-sm font-black text-slate-900 dark:text-white tracking-tight truncate">
-                Attendance <span className="text-[10px] sm:text-[11px] font-bold text-slate-400">({selectedClass})</span>
+              <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0"></div>
+              <h1 className="text-xs font-black text-slate-900 dark:text-white tracking-tight truncate">
+                Attendance
               </h1>
+              <span className="px-1.5 py-0.2 rounded-md bg-slate-200/80 dark:bg-slate-800 text-[10px] font-bold text-slate-600 dark:text-slate-300 shrink-0">
+                {selectedClass}
+              </span>
             </div>
 
             {/* Right: Quick Action Controls */}
-            <div className="flex items-center gap-1.5 shrink-0">
+            <div className="flex items-center gap-1 shrink-0">
               <button
                 type="button"
                 onClick={() => setShowQuickRollBox(!showQuickRollBox)}
-                className={`px-2.5 py-1.5 rounded-xl font-black text-xs transition-all cursor-pointer flex items-center gap-1.5 shadow-2xs active:scale-95 ${
+                className={`px-2 py-1 rounded-lg font-bold text-[11px] transition-all cursor-pointer flex items-center gap-1 shadow-2xs active:scale-95 ${
                   showQuickRollBox
                     ? 'bg-indigo-600 text-white shadow-xs'
                     : 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100'
                 }`}
                 title="Toggle Fast Roll Entry Box"
               >
-                <Zap size={13} className={showQuickRollBox ? 'text-white' : 'text-indigo-600 dark:text-indigo-400'} />
+                <Zap size={12} className={showQuickRollBox ? 'text-white' : 'text-indigo-600 dark:text-indigo-400'} />
                 <span>Quick Roll</span>
               </button>
 
@@ -1680,24 +1683,24 @@ export default function AttendancePage() {
               <button
                 type="button"
                 onClick={() => setShowToolsDrawer(!showToolsDrawer)}
-                className={`p-1.5 sm:p-2 rounded-xl transition-all cursor-pointer shadow-2xs flex items-center justify-center active:scale-95 ${
+                className={`p-1.5 rounded-lg transition-all cursor-pointer shadow-2xs flex items-center justify-center active:scale-95 ${
                   showToolsDrawer
                     ? 'bg-slate-800 text-white dark:bg-slate-100 dark:text-slate-900'
                     : 'bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-300 dark:hover:bg-slate-700'
                 }`}
                 title="Toggle Filters"
               >
-                <SlidersHorizontal size={16} />
+                <SlidersHorizontal size={14} />
               </button>
 
               {/* Print Button */}
               <button
                 type="button"
                 onClick={() => setShowPrintReportModal(true)}
-                className="p-1.5 sm:p-2 rounded-xl bg-slate-900 dark:bg-slate-800 text-white hover:bg-slate-800 dark:hover:bg-slate-700 transition-all cursor-pointer shadow-2xs flex items-center justify-center active:scale-95"
+                className="p-1.5 rounded-lg bg-slate-900 dark:bg-slate-800 text-white hover:bg-slate-800 dark:hover:bg-slate-700 transition-all cursor-pointer shadow-2xs flex items-center justify-center active:scale-95"
                 title="Print Register"
               >
-                <Printer size={16} />
+                <Printer size={14} />
               </button>
             </div>
           </div>
@@ -2069,10 +2072,10 @@ export default function AttendancePage() {
             </div>
           )}
 
-          {/* Sleek Stacked Date Navigation & Attendance Summary Strip (Mobile-First No-Overlap) */}
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 p-1.5 px-2 rounded-2xl sm:rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-black w-full shadow-2xs">
+          {/* Sleek Compact Date Navigation & Attendance Summary Strip */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-1.5 p-1 px-1.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs w-full shadow-2xs">
             {/* Interactive Date Control Capsule with 1-Click Stepping & Today Shortcut */}
-            <div className="flex items-center justify-between sm:justify-center gap-1.5 p-1 px-2 rounded-xl bg-teal-500/10 text-teal-800 dark:text-teal-300 border border-teal-500/30 font-bold text-xs shrink-0 shadow-2xs">
+            <div className="flex items-center justify-between sm:justify-center gap-1 p-0.5 px-1.5 rounded-lg bg-teal-500/10 text-teal-800 dark:text-teal-300 border border-teal-500/25 font-bold text-xs shrink-0 shadow-2xs h-7.5">
               <button
                 type="button"
                 onClick={() => {
@@ -2080,21 +2083,21 @@ export default function AttendancePage() {
                   current.setDate(current.getDate() - 1);
                   setSelectedDate(toLocalDateKey(current));
                 }}
-                className="p-1.5 sm:p-1 rounded-lg hover:bg-teal-500/20 text-teal-700 dark:text-teal-300 transition-colors cursor-pointer"
+                className="p-1 rounded hover:bg-teal-500/20 text-teal-700 dark:text-teal-300 transition-colors cursor-pointer"
                 title="Previous Day"
               >
-                <ChevronLeft size={14} />
+                <ChevronLeft size={13} />
               </button>
 
-              <div className="flex items-center gap-1.5 cursor-pointer">
-                <Calendar size={14} className="text-teal-600 dark:text-teal-400 shrink-0" />
+              <div className="flex items-center gap-1 cursor-pointer">
+                <Calendar size={13} className="text-teal-600 dark:text-teal-400 shrink-0" />
                 <input
                   type="date"
                   value={selectedDate}
                   onChange={e => setSelectedDate(e.target.value)}
-                  className="bg-transparent font-black text-teal-950 dark:text-white cursor-pointer outline-none text-xs"
+                  className="bg-transparent font-bold text-teal-950 dark:text-white cursor-pointer outline-none text-[11px]"
                 />
-                <span className="text-[10.5px] font-black text-teal-700 dark:text-teal-400 font-mono hidden md:inline">
+                <span className="text-[10px] font-bold text-teal-700 dark:text-teal-400 font-mono hidden md:inline">
                   • {formatReadableDate(selectedDate, true)}
                 </span>
               </div>
@@ -2106,17 +2109,17 @@ export default function AttendancePage() {
                   current.setDate(current.getDate() + 1);
                   setSelectedDate(toLocalDateKey(current));
                 }}
-                className="p-1.5 sm:p-1 rounded-lg hover:bg-teal-500/20 text-teal-700 dark:text-teal-300 transition-colors cursor-pointer"
+                className="p-1 rounded hover:bg-teal-500/20 text-teal-700 dark:text-teal-300 transition-colors cursor-pointer"
                 title="Next Day"
               >
-                <ChevronRight size={14} />
+                <ChevronRight size={13} />
               </button>
 
               {selectedDate !== toLocalDateKey() && (
                 <button
                   type="button"
                   onClick={() => setSelectedDate(toLocalDateKey())}
-                  className="px-2 py-0.5 rounded-md bg-teal-600 text-white font-black text-[10px] hover:bg-teal-500 cursor-pointer shadow-2xs transition-all"
+                  className="px-1.5 py-0.5 rounded bg-teal-600 text-white font-bold text-[9px] hover:bg-teal-500 cursor-pointer shadow-2xs transition-all"
                   title="Jump to Today"
                 >
                   Today
@@ -2124,14 +2127,14 @@ export default function AttendancePage() {
               )}
 
               {isEditingSaved && (
-                <span className="px-1.5 py-0.2 rounded bg-amber-500 text-white font-black text-[9px] uppercase tracking-wider animate-pulse" title="Saved attendance record exists for this date">
+                <span className="px-1 py-0.2 rounded bg-amber-500 text-white font-bold text-[8.5px] uppercase tracking-wider animate-pulse" title="Saved attendance record exists for this date">
                   Saved
                 </span>
               )}
             </div>
 
             {/* Attendance Tallies (4-Col Grid on Mobile, Flex on Desktop) */}
-            <div className="grid grid-cols-4 sm:flex items-center gap-1.5 w-full sm:w-auto">
+            <div className="grid grid-cols-4 sm:flex items-center gap-1 w-full sm:w-auto text-[11px] font-bold">
               <button
                 type="button"
                 onClick={() => {
@@ -2142,7 +2145,7 @@ export default function AttendancePage() {
                     list: filteredStudentsBySubject.filter(s => (s.status === 'P' || s.status === 'Present'))
                   });
                 }}
-                className="px-2 py-1.5 sm:py-0.5 rounded-xl sm:rounded-lg bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/30 transition-all cursor-pointer shadow-2xs flex items-center justify-center gap-1 font-black active:scale-95 text-xs"
+                className="py-1 px-1 rounded-lg bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/25 hover:bg-emerald-500/30 transition-all cursor-pointer shadow-2xs flex items-center justify-center gap-0.5 active:scale-95"
                 title="Click to view Present Students list"
               >
                 P: {presentCount}
@@ -2157,7 +2160,7 @@ export default function AttendancePage() {
                     list: filteredStudentsBySubject.filter(s => (s.status === 'L' || s.status === 'Leave'))
                   });
                 }}
-                className="px-2 py-1.5 sm:py-0.5 rounded-xl sm:rounded-lg bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30 hover:bg-amber-500/30 transition-all cursor-pointer shadow-2xs flex items-center justify-center gap-1 font-black active:scale-95 text-xs"
+                className="py-1 px-1 rounded-lg bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/25 hover:bg-amber-500/30 transition-all cursor-pointer shadow-2xs flex items-center justify-center gap-0.5 active:scale-95"
                 title="Click to view Students on Leave list"
               >
                 L: {leaveCount}
@@ -2172,7 +2175,7 @@ export default function AttendancePage() {
                     list: filteredStudentsBySubject.filter(s => (s.status === 'A' || s.status === 'Absent' || !s.status))
                   });
                 }}
-                className="px-2 py-1.5 sm:py-0.5 rounded-xl sm:rounded-lg bg-rose-500/15 text-rose-700 dark:text-rose-400 border border-rose-500/30 hover:bg-rose-500/30 transition-all cursor-pointer shadow-2xs flex items-center justify-center gap-1 font-black active:scale-95 text-xs"
+                className="py-1 px-1 rounded-lg bg-rose-500/15 text-rose-700 dark:text-rose-400 border border-rose-500/25 hover:bg-rose-500/30 transition-all cursor-pointer shadow-2xs flex items-center justify-center gap-0.5 active:scale-95"
                 title="Click to view Absent Students list"
               >
                 A: {absentCount}
@@ -2187,7 +2190,7 @@ export default function AttendancePage() {
                     list: filteredStudentsBySubject
                   });
                 }}
-                className="px-2 py-1.5 sm:py-0.5 rounded-xl sm:rounded-lg bg-slate-200/80 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-300/60 dark:border-slate-700 hover:bg-slate-300 transition-all cursor-pointer shadow-2xs flex items-center justify-center gap-1 font-black active:scale-95 text-xs"
+                className="py-1 px-1 rounded-lg bg-slate-200/80 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-300/50 dark:border-slate-700 hover:bg-slate-300 transition-all cursor-pointer shadow-2xs flex items-center justify-center gap-0.5 active:scale-95"
                 title="Click to view full Class Roster list"
               >
                 T: {filteredStudentsBySubject.length}
@@ -2204,7 +2207,7 @@ export default function AttendancePage() {
                   className="py-10"
                 />
               ) : sortedStudents.length > 0 ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-2 max-h-[600px] overflow-y-auto pr-1">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-1.5 max-h-[620px] overflow-y-auto pr-1">
                   {sortedStudents.map((st, idx) => {
                     const isP = st.status === 'P' || st.status === 'Present';
                     const isL = st.status === 'L' || st.status === 'Leave';
@@ -2214,37 +2217,37 @@ export default function AttendancePage() {
                     return (
                       <div
                         key={idx}
-                        className="p-2 sm:p-1.5 px-2.5 sm:px-2 rounded-2xl sm:rounded-xl border flex items-center justify-between transition-all hover:border-teal-500/80 gap-2 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-2xs"
+                        className="py-1.5 px-2 rounded-xl border flex items-center justify-between transition-colors hover:border-teal-500/70 gap-1.5 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-2xs"
                       >
                         {/* Roll Badge + Student Info */}
                         <div
                           onClick={() => setViewingStudentDetails({ student: st, index: originalIdx !== -1 ? originalIdx : idx })}
-                          className="flex items-center gap-2 min-w-0 flex-1 cursor-pointer group"
+                          className="flex items-center gap-1.5 min-w-0 flex-1 cursor-pointer group"
                         >
                           {/* Class Roll Badge */}
-                          <div className="w-8 h-8 sm:w-7 sm:h-7 rounded-xl sm:rounded-lg bg-teal-500/15 dark:bg-teal-950/60 text-teal-800 dark:text-teal-300 font-mono font-black text-xs sm:text-[11px] flex items-center justify-center border border-teal-500/25 shrink-0 group-hover:bg-teal-600 group-hover:text-white transition-all shadow-2xs" title="Tap to view full details">
+                          <div className="w-6.5 h-6.5 rounded-lg bg-teal-500/15 dark:bg-teal-950/60 text-teal-800 dark:text-teal-300 font-mono font-bold text-[11px] flex items-center justify-center border border-teal-500/25 shrink-0 group-hover:bg-teal-600 group-hover:text-white transition-all shadow-2xs" title="Tap to view full details">
                             {st.rollNo}
                           </div>
 
                           {/* Student Name & Subtitle */}
                           <div className="min-w-0 flex-1">
-                            <h4 className="text-xs sm:text-[11.5px] font-black text-slate-900 dark:text-white truncate leading-tight group-hover:text-teal-600 dark:group-hover:text-teal-400 transition-colors">
+                            <h4 className="text-xs font-bold text-slate-900 dark:text-white truncate leading-tight group-hover:text-teal-600 dark:group-hover:text-teal-400 transition-colors">
                               {formatProperCase(st.name)}
                             </h4>
-                            <p className="text-[10px] sm:text-[9px] font-bold text-slate-500 dark:text-slate-400 truncate leading-none mt-0.5">
+                            <p className="text-[9.5px] font-medium text-slate-400 dark:text-slate-500 truncate leading-none mt-0.5">
                               {st.subjectsAbbr || 'General'}
                             </p>
                           </div>
                         </div>
 
-                        {/* Segmented iOS Style P | L | A Control Capsule (Large Thumb-Friendly Buttons) */}
-                        <div className="flex items-center p-0.5 rounded-xl bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 shrink-0 gap-0.5">
+                        {/* Segmented P | L | A Control Capsule (Standard Touch Ergonomics, High Density) */}
+                        <div className="flex items-center p-0.5 rounded-lg bg-slate-100 dark:bg-slate-950 border border-slate-200/80 dark:border-slate-800 shrink-0 gap-0.5">
                           <button
                             type="button"
                             onClick={() => setStatusForStudent(originalIdx !== -1 ? originalIdx : idx, 'P')}
-                            className={`w-9 sm:w-7 h-8 sm:h-7 rounded-lg text-xs sm:text-[11px] font-black transition-all cursor-pointer flex items-center justify-center active:scale-90 ${
+                            className={`w-7 sm:w-6.5 h-6.5 rounded text-[11px] font-black transition-all cursor-pointer flex items-center justify-center active:scale-90 ${
                               isP
-                                ? 'bg-emerald-600 text-white shadow-xs scale-105'
+                                ? 'bg-emerald-600 text-white shadow-2xs'
                                 : 'text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-200/50 dark:hover:bg-slate-800'
                             }`}
                             title="Mark Present"
@@ -2254,9 +2257,9 @@ export default function AttendancePage() {
                           <button
                             type="button"
                             onClick={() => setStatusForStudent(originalIdx !== -1 ? originalIdx : idx, 'L')}
-                            className={`w-9 sm:w-7 h-8 sm:h-7 rounded-lg text-xs sm:text-[11px] font-black transition-all cursor-pointer flex items-center justify-center active:scale-90 ${
+                            className={`w-7 sm:w-6.5 h-6.5 rounded text-[11px] font-black transition-all cursor-pointer flex items-center justify-center active:scale-90 ${
                               isL
-                                ? 'bg-amber-500 text-white shadow-xs scale-105'
+                                ? 'bg-amber-500 text-white shadow-2xs'
                                 : 'text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-200/50 dark:hover:bg-slate-800'
                             }`}
                             title="Mark Leave"
@@ -2266,9 +2269,9 @@ export default function AttendancePage() {
                           <button
                             type="button"
                             onClick={() => setStatusForStudent(originalIdx !== -1 ? originalIdx : idx, 'A')}
-                            className={`w-9 sm:w-7 h-8 sm:h-7 rounded-lg text-xs sm:text-[11px] font-black transition-all cursor-pointer flex items-center justify-center active:scale-90 ${
+                            className={`w-7 sm:w-6.5 h-6.5 rounded text-[11px] font-black transition-all cursor-pointer flex items-center justify-center active:scale-90 ${
                               isA
-                                ? 'bg-rose-600 text-white shadow-xs scale-105'
+                                ? 'bg-rose-600 text-white shadow-2xs'
                                 : 'text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-200/50 dark:hover:bg-slate-800'
                             }`}
                             title="Mark Absent"
@@ -2289,22 +2292,22 @@ export default function AttendancePage() {
               )}
 
               {/* Mobile Floating / Desktop Sticky Save Bar */}
-              <div className="sticky bottom-2 z-20 p-2.5 sm:p-0 rounded-2xl bg-white/95 dark:bg-slate-900/95 sm:bg-transparent backdrop-blur-md sm:backdrop-blur-none border border-slate-200 dark:border-slate-800 sm:border-0 shadow-lg sm:shadow-none flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 mt-1">
-                <div className="sm:hidden flex items-center justify-between text-xs font-black px-1">
-                  <span className="flex items-center gap-1.5 text-slate-700 dark:text-slate-300">
-                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                    <strong className="text-emerald-600">{presentCount}</strong> Present • <strong className="text-rose-600">{absentCount}</strong> Absent
+              <div className="sticky bottom-2 z-20 p-2 sm:p-0 rounded-xl bg-white/95 dark:bg-slate-900/95 sm:bg-transparent backdrop-blur-md sm:backdrop-blur-none border border-slate-200 dark:border-slate-800 sm:border-0 shadow-md sm:shadow-none flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-1.5 mt-1">
+                <div className="sm:hidden flex items-center justify-between text-xs font-bold px-1">
+                  <span className="flex items-center gap-1 text-slate-700 dark:text-slate-300">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                    <span className="text-emerald-600 font-bold">{presentCount}</span> Present • <span className="text-rose-600 font-bold">{absentCount}</span> Absent
                   </span>
-                  <span className="text-[11px] text-slate-500">Total: {filteredStudentsBySubject.length}</span>
+                  <span className="text-[10.5px] text-slate-400">Total: {filteredStudentsBySubject.length}</span>
                 </div>
                 <button
                   type="button"
                   onClick={handleSaveAttendance}
                   disabled={savingAttendance || students.length === 0 || !isAttendanceOpen}
                   title={!isAttendanceOpen ? "Attendance Submissions are Closed by Admin" : "Save Daily Attendance"}
-                  className="w-full sm:w-auto px-6 py-2.5 rounded-xl font-black text-xs text-white bg-teal-600 hover:bg-teal-500 shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 active:scale-98"
+                  className="w-full sm:w-auto px-5 py-2 rounded-lg font-bold text-xs text-white bg-teal-600 hover:bg-teal-500 shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 active:scale-98"
                 >
-                  {savingAttendance ? <RefreshCw size={14} className="animate-spin" /> : <Save size={14} />}
+                  {savingAttendance ? <RefreshCw size={13} className="animate-spin" /> : <Save size={13} />}
                   <span>Save Attendance</span>
                 </button>
               </div>

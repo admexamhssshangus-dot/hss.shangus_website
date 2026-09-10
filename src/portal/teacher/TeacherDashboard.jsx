@@ -228,65 +228,65 @@ export default function TeacherDashboard() {
         {/* Quick Action Navigation Grid (2 Mobile-First Interactive Cards) */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 sm:gap-3">
           {/* Card 1: Student Attendance Portal */}
-          <div className="rounded-2xl p-3.5 sm:p-4 border shadow-xs space-y-3 transition-all hover:shadow-md flex flex-col justify-between" style={{ backgroundColor: 'var(--bg-card, #ffffff)', borderColor: 'var(--border-ui, #cbd5e1)' }}>
-            <div className="space-y-2">
-              <div className="flex items-start gap-2.5">
-                <div className="w-10 h-10 rounded-2xl bg-teal-500/15 text-teal-600 dark:text-teal-400 flex items-center justify-center border border-teal-500/25 shadow-2xs shrink-0 mt-0.5">
-                  <CalendarCheck size={20} />
+          <div className="rounded-xl p-3 sm:p-3.5 border shadow-2xs space-y-2.5 transition-all hover:shadow-xs flex flex-col justify-between" style={{ backgroundColor: 'var(--bg-card, #ffffff)', borderColor: 'var(--border-ui, #cbd5e1)' }}>
+            <div className="space-y-1.5">
+              <div className="flex items-start gap-2">
+                <div className="w-8 h-8 rounded-xl bg-teal-500/15 text-teal-600 dark:text-teal-400 flex items-center justify-center border border-teal-500/25 shadow-2xs shrink-0 mt-0.5">
+                  <CalendarCheck size={17} />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <h2 className="text-sm font-black text-slate-900 dark:text-white leading-snug">
+                  <h2 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white leading-snug">
                     Mark Daily Attendance
                   </h2>
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400 font-bold leading-tight mt-0.5">
+                  <p className="text-[10.5px] text-slate-500 dark:text-slate-400 font-medium leading-tight mt-0.5">
                     Class 11th & 12th Classroom Attendance, Leaves & Holiday Management
                   </p>
                 </div>
               </div>
             </div>
 
-            <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
-              <span className="text-[11px] font-black text-teal-700 dark:text-teal-400 flex items-center gap-1.5">
-                <CheckCircle2 size={13} className="text-teal-600" /> Today: {stats.todayAttendancePct} Marked
+            <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
+              <span className="text-[10.5px] font-bold text-teal-700 dark:text-teal-400 flex items-center gap-1">
+                <CheckCircle2 size={12} className="text-teal-600" /> Today: {stats.todayAttendancePct} Marked
               </span>
               <Link
                 to="/portal/teacher/attendance"
-                className="w-full sm:w-auto px-4 py-2.5 sm:py-2 rounded-xl text-xs font-black text-white bg-teal-600 hover:bg-teal-500 shadow-xs transition-all inline-flex items-center justify-center gap-1.5 cursor-pointer active:scale-98"
+                className="w-full sm:w-auto px-3.5 py-1.5 rounded-lg text-xs font-bold text-white bg-teal-600 hover:bg-teal-500 shadow-2xs transition-all inline-flex items-center justify-center gap-1 cursor-pointer active:scale-98"
               >
                 <span>Open Attendance</span>
-                <ArrowRight size={14} />
+                <ArrowRight size={13} />
               </Link>
             </div>
           </div>
 
           {/* Card 2: Practical Evaluation Portal */}
-          <div className="rounded-2xl p-3.5 sm:p-4 border shadow-xs space-y-3 transition-all hover:shadow-md flex flex-col justify-between" style={{ backgroundColor: 'var(--bg-card, #ffffff)', borderColor: 'var(--border-ui, #cbd5e1)' }}>
-            <div className="space-y-2">
-              <div className="flex items-start gap-2.5">
-                <div className="w-10 h-10 rounded-2xl bg-indigo-600/15 text-indigo-600 dark:text-indigo-400 flex items-center justify-center border border-indigo-500/25 shadow-2xs shrink-0 mt-0.5">
-                  <UserCheck size={20} />
+          <div className="rounded-xl p-3 sm:p-3.5 border shadow-2xs space-y-2.5 transition-all hover:shadow-xs flex flex-col justify-between" style={{ backgroundColor: 'var(--bg-card, #ffffff)', borderColor: 'var(--border-ui, #cbd5e1)' }}>
+            <div className="space-y-1.5">
+              <div className="flex items-start gap-2">
+                <div className="w-8 h-8 rounded-xl bg-indigo-600/15 text-indigo-600 dark:text-indigo-400 flex items-center justify-center border border-indigo-500/25 shadow-2xs shrink-0 mt-0.5">
+                  <UserCheck size={17} />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <h2 className="text-sm font-black text-slate-900 dark:text-white leading-snug">
+                  <h2 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white leading-snug">
                     Practical Evaluation Portal
                   </h2>
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400 font-bold leading-tight mt-0.5">
+                  <p className="text-[10.5px] text-slate-500 dark:text-slate-400 font-medium leading-tight mt-0.5">
                     JKBOSE Laboratory Practical Award Lists, Viva Marks & Print Rolls
                   </p>
                 </div>
               </div>
             </div>
 
-            <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
-              <span className="text-[11px] font-black text-indigo-700 dark:text-indigo-400 flex items-center gap-1.5">
-                <Award size={13} className="text-indigo-600" /> {stats.practicalsSubmitted} Submissions
+            <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
+              <span className="text-[10.5px] font-bold text-indigo-700 dark:text-indigo-400 flex items-center gap-1">
+                <Award size={12} className="text-indigo-600" /> {stats.practicalsSubmitted} Submissions
               </span>
               <Link
                 to="/portal/teacher/practicals"
-                className="w-full sm:w-auto px-4 py-2.5 sm:py-2 rounded-xl text-xs font-black text-white bg-indigo-600 hover:bg-indigo-500 shadow-xs transition-all inline-flex items-center justify-center gap-1.5 cursor-pointer active:scale-98"
+                className="w-full sm:w-auto px-3.5 py-1.5 rounded-lg text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-500 shadow-2xs transition-all inline-flex items-center justify-center gap-1 cursor-pointer active:scale-98"
               >
                 <span>Open Practicals</span>
-                <ArrowRight size={14} />
+                <ArrowRight size={13} />
               </Link>
             </div>
           </div>
