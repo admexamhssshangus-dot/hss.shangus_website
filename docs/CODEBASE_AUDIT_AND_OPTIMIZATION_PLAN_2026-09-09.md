@@ -2,6 +2,8 @@
 
 Reviewed: 9 September 2026. Current code baseline: `20e7a30f`.
 
+Follow-up: the [10 September recheck](CODEBASE_AUDIT_RECHECK_2026-09-10.md) evaluates commit `32e58056` and records the fixes and remaining issues. Consult it for current status, especially F01, F06, F16 and F17; the findings below preserve the original audit baseline.
+
 This review incorporates the manual updates after `450c4a20` and the supplied “Codebase Audit & Comprehensive Optimization Plan”. It covers the public website, student and teacher portals, the administration module catalog, the new assessments/results tools, shared data services, Netlify endpoints, Firebase functions and rules, and hosting configuration.
 
 **Recommendation: fix authorization, public disclosure, record identity, rollback and result correctness before further cosmetic optimization.** Several modules currently labelled Optimized still depend on unsafe shared authorization or mutation paths. Keep maturity labels tied to demonstrated acceptance criteria.
