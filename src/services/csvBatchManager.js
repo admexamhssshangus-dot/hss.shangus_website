@@ -1,7 +1,8 @@
+import { rollbackMutationJob } from './recordMutationService';
 import { db } from './firebase';
 import { doc, setDoc, deleteDoc, collection, getDocs } from 'firebase/firestore';
 import { invalidateCache } from './dbCache';
-import { deleteStudentDocument } from '../portal/admin/AdvancedReports';
+
 import { logAdminActivity } from './adminActivityLogger';
 
 const BATCH_STORAGE_KEY = 'hss_csv_import_batches_v1';
@@ -70,7 +71,7 @@ export async function getCsvImportBatches() {
         return rest;
       })
     }));
-    localStorage.setItem(BATCH_STORAGE_KEY, JSON.stringify(liteToStore.slice(0, 50)));
+    localStorage.removeItem(BATCH_STORAGE_KEY);
   } catch (e) {}
 
   return validBatches;
@@ -110,7 +111,7 @@ export async function saveCsvImportBatch(batchData) {
   const updated = [newBatch, ...existing.filter(b => b.batchId !== newBatch.batchId)].slice(0, 50);
 
   try {
-    localStorage.setItem(BATCH_STORAGE_KEY, JSON.stringify(updated));
+    localStorage.removeItem(BATCH_STORAGE_KEY);
   } catch (e) {
     console.warn('localStorage batch save warning:', e);
   }
@@ -136,46 +137,5 @@ export async function saveCsvImportBatch(batchData) {
  * Undo & Rollback an entire CSV Import Batch
  */
 export async function undoCsvImportBatch(batchId) {
-  const batches = await getCsvImportBatches();
-  const targetBatch = batches.find(b => b.batchId === batchId);
-  if (!targetBatch) return false;
-
-  const records = targetBatch.importedRecords || [];
-  let deletedCount = 0;
-
-  // Run deleteStudentDocument in parallel for all items in batch
-  const deletePromises = records.map(async (st) => {
-    try {
-      await deleteStudentDocument(st);
-      deletedCount++;
-    } catch (e) {}
-  });
-
-  await Promise.allSettled(deletePromises);
-
-  // Invalidate full caches
-  invalidateCache('admissions');
-  invalidateCache('masterRegisters');
-
-  // Remove batch from history
-  const remaining = batches.filter(b => b.batchId !== batchId);
-  try {
-    localStorage.setItem(BATCH_STORAGE_KEY, JSON.stringify(remaining));
-  } catch (e) {}
-
-  try {
-    await deleteDoc(doc(db, 'csvImportBatches', batchId)).catch(() => {});
-  } catch (e) {}
-
-  // Log admin activity audit
-  await logAdminActivity({
-    actionType: 'delete',
-    actionTitle: `Rollback CSV Import Batch: "${targetBatch.fileName}"`,
-    details: `Undid CSV batch "${targetBatch.fileName}" from ${new Date(targetBatch.timestamp).toLocaleString()}, purging ${deletedCount} imported student records.`,
-    reasonCategory: 'CSV Import Batch Rollback',
-    customReason: 'Admin executed batch undo for CSV import file',
-    metadata: { batchId, fileName: targetBatch.fileName, totalCount: deletedCount }
-  }).catch(() => {});
-
-  return true;
+  return rollbackMutationJob(batchId);
 }

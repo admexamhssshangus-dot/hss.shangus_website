@@ -1,3 +1,4 @@
+const { requireStaff } = require('../../functions/access');
 'use strict';
 
 const crypto = require('crypto');
@@ -54,10 +55,7 @@ async function authenticate(event) {
   const authorization = String(event.headers.authorization || '');
   if (!authorization.startsWith('Bearer ')) throw Object.assign(new Error('Authentication required.'), { status: 401 });
   const token = await getAuth(adminApp()).verifyIdToken(authorization.slice(7), true);
-  const role = String(token.role || '').toLowerCase().replace(/\s+/g, '');
-  const isClaimAdmin = token.admin === true || ['admin', 'superadmin'].includes(role) ||
-    String(token.email || '').toLowerCase() === 'adm.exam.hss.shangus@gmail.com';
-  if (!isClaimAdmin) throw Object.assign(new Error('Administrator access is required.'), { status: 403 });
+  await requireStaff(getFirestore(adminApp()), token, { adminOnly: true });
 
   if (process.env.REQUIRE_APP_CHECK !== 'false') {
     const appCheckToken = String(event.headers['x-firebase-appcheck'] || '');

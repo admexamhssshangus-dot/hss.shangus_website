@@ -374,7 +374,8 @@ export function unpackMasterRegisterDoc(docSnap) {
         Stream: item.Stream || item.stream || item['Stream'] || docStream || '',
         stream: item.stream || item.Stream || item['Stream'] || docStream || '',
         _source: 'masterRegisters',
-        _parentDocId: docSnap.id || null
+        _parentDocId: docSnap.id || null,
+        _arrayKey: ['items', 'students', 'records', 'data'].find(key => Array.isArray(data[key]))
       });
     });
     return list;

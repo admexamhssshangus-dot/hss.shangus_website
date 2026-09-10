@@ -1,3 +1,4 @@
+import { loadSessionAdmissions, archiveSessionRecords } from '../../services/sessionArchivalService';
 import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { 
@@ -48,11 +49,7 @@ export default function SessionArchivalModal({ isOpen, onClose, currentSession =
 
     async function loadAndAnalyze() {
       try {
-        const snap = await getDocs(collection(db, 'admissions'));
-        const list = [];
-        snap.forEach(d => {
-          list.push({ id: d.id, ...d.data() });
-        });
+        const list = await loadSessionAdmissions(archiveSessionTag);
         setRawAdmissions(list);
       } catch (err) {
         console.error('Failed to load admissions for archival analysis:', err);
@@ -62,7 +59,7 @@ export default function SessionArchivalModal({ isOpen, onClose, currentSession =
       }
     }
     loadAndAnalyze();
-  }, [isOpen]);
+  }, [isOpen, archiveSessionTag]);
 
   // Categorization Logic
   const analysis = useMemo(() => {
@@ -136,74 +133,13 @@ export default function SessionArchivalModal({ isOpen, onClose, currentSession =
     setProgressStage('Preparing approved student records…');
 
     try {
-      // 1. Prepare masterRegisters chunks
-      const CHUNK_SIZE = 50;
-      const approvedStudents = analysis.approved.map(st => {
-        // Tag with session
-        return {
-          ...st,
-          session: archiveSessionTag,
-          Session: archiveSessionTag,
-          _archivedAt: new Date().toISOString()
-        };
+      await archiveSessionRecords(rawAdmissions, {
+        session: archiveSessionTag, newSession: newSessionTag, purgeDrafts, purgeRejected,
+        onProgress: (done, total) => {
+          setProgressPercent(10 + Math.round(done / Math.max(total, 1) * 80));
+          setProgressStage(`Archiving records (${done}/${total})…`);
+        }
       });
-
-      const sessionSlug = archiveSessionTag.toLowerCase().replace(/[\/\s]/g, '_');
-      const chunks = [];
-      for (let i = 0; i < approvedStudents.length; i += CHUNK_SIZE) {
-        chunks.push(approvedStudents.slice(i, i + CHUNK_SIZE));
-      }
-
-      setProgressPercent(30);
-      setProgressStage(`Saving archive files (0/${chunks.length})…`);
-
-      // 2. Write Chunks to Firestore masterRegisters
-      for (let i = 0; i < chunks.length; i++) {
-        const chunkDocId = `part_${sessionSlug}_${String(i + 1).padStart(3, '0')}`;
-        await setDoc(doc(db, 'masterRegisters', chunkDocId), {
-          students: chunks[i],
-          session: archiveSessionTag,
-          chunkIndex: i + 1,
-          totalStudents: chunks[i].length,
-          archivedAt: new Date().toISOString()
-        }, { merge: true });
-        setProgressPercent(30 + Math.round(((i + 1) / chunks.length) * 35));
-        setProgressStage(`Saving archive files (${i + 1}/${chunks.length})…`);
-      }
-
-      setProgressStage('Updating active admissions…');
-      setProgressPercent(75);
-
-      // 3. Purge admissions documents that were archived or drafts
-      const docsToDelete = [];
-      analysis.approved.forEach(s => docsToDelete.push(s.id));
-      if (purgeDrafts) {
-        analysis.drafts.forEach(s => docsToDelete.push(s.id));
-      }
-      if (purgeRejected) {
-        analysis.rejected.forEach(s => docsToDelete.push(s.id));
-      }
-
-      // Batch delete from admissions in chunks of 450
-      const BATCH_LIMIT = 400;
-      for (let i = 0; i < docsToDelete.length; i += BATCH_LIMIT) {
-        const slice = docsToDelete.slice(i, i + BATCH_LIMIT);
-        const batch = writeBatch(db);
-        slice.forEach(id => {
-          batch.delete(doc(db, 'admissions', id));
-        });
-        await batch.commit();
-      }
-
-      setProgressPercent(90);
-      setProgressStage('Updating the active session…');
-
-      // 4. Update System Settings with New Session Tag
-      await setDoc(doc(db, 'site', 'settings'), {
-        session: newSessionTag,
-        lastArchivedSession: archiveSessionTag,
-        lastArchivalDate: new Date().toISOString()
-      }, { merge: true });
 
       // 5. Clear all local/session caches
       clearAllMemoryCache();

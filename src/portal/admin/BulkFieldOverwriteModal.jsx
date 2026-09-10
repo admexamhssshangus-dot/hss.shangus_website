@@ -1,3 +1,5 @@
+import { uniqueStudentMatch } from '../../utils/recordIdentity';
+import { beginMutationJob, applyRecordPatch, completeMutationJob } from '../../services/recordMutationService';
 import React, { useState, useMemo, useEffect } from 'react';
 import { 
   X, AlertTriangle, CheckSquare, Square, FileSpreadsheet, 
@@ -567,40 +569,6 @@ export default function BulkFieldOverwriteModal({
     setRawParsedRows(rows);
     setErrorMsg(null);
 
-    // Build database lookup maps from allStudents
-    const studentBy3Point = new Map();
-    const studentBySessReg = new Map();
-    const studentByClsReg = new Map();
-    const studentByReg = new Map();
-    const studentByAdm = new Map();
-    const studentByForm = new Map();
-    const studentByCohortRoll = new Map();
-
-    allStudents.forEach(st => {
-      const reg = cleanKey(st.boardRegNo || st.regNo || st['Board Registration Number'] || st['Board Reg. No.']);
-      const adm = cleanKey(st.admNo || st['Admission No.'] || st['Adm. No.']);
-      const form = cleanKey(st.formNo || st['Form Number'] || st['Form No.'] || st.id);
-      const sess = cleanKey(st.selectedSession || st.Session || st.session || st['Academic Session']);
-      const cls = cleanKey(st.selectedClass || st.Class || st.class || st['Admission sought for class']);
-      const roll = cleanKey(st.classRollNo || st['Class Roll No'] || st['Class Roll No.'] || st.rollNo || st['RL. NO.']);
-
-      if (reg && reg.length > 5 && !reg.endsWith('00000000')) {
-        studentBy3Point.set(`${reg}|${sess}|${cls}`, st);
-        studentBySessReg.set(`${reg}|${sess}`, st);
-        studentByClsReg.set(`${reg}|${cls}`, st);
-        studentByReg.set(reg, st);
-      }
-      if (adm && adm !== '—') studentByAdm.set(adm, st);
-      if (form && form !== '—') studentByForm.set(form, st);
-      if (roll && roll !== '—') {
-        if (sess && cls) studentByCohortRoll.set(`${roll}|${sess}|${cls}`, st);
-        if (cls) studentByCohortRoll.set(`${roll}|${cls}`, st);
-      }
-    });
-
-    const targetSessClean = cleanKey(targetSession);
-    const targetClsClean = cleanKey(targetClass);
-
     const correlated = [];
     const initialSelectedIds = new Set();
 
@@ -625,41 +593,14 @@ export default function BulkFieldOverwriteModal({
       const cleanForm = cleanKey(rawForm);
       const cleanRoll = cleanKey(rawRoll);
 
-      let matchedStudent = null;
-
-      // 3-Point Strict Matching: regNo + session + class
-      if (cleanReg) {
-        if (targetClass !== 'All' && targetSession !== 'All') {
-          matchedStudent = studentBy3Point.get(`${cleanReg}|${targetSessClean}|${targetClsClean}`);
-          if (!matchedStudent) matchedStudent = studentBySessReg.get(`${cleanReg}|${targetSessClean}`);
-        } else if (targetSession !== 'All') {
-          matchedStudent = studentBySessReg.get(`${cleanReg}|${targetSessClean}`);
-        } else if (targetClass !== 'All') {
-          matchedStudent = studentByClsReg.get(`${cleanReg}|${targetClsClean}`);
-        }
-        if (!matchedStudent) {
-          matchedStudent = studentByReg.get(cleanReg);
-        }
-      }
-
-      // Secondary fallbacks
-      if (!matchedStudent && cleanAdm) matchedStudent = studentByAdm.get(cleanAdm);
-      if (!matchedStudent && cleanForm) matchedStudent = studentByForm.get(cleanForm);
-      // Tertiary fallback: Scoped cohort Class Roll No
-      if (!matchedStudent && cleanRoll && targetClass !== 'All') {
-        if (targetSession !== 'All') {
-          matchedStudent = studentByCohortRoll.get(`${cleanRoll}|${targetSessClean}|${targetClsClean}`);
-        }
-        if (!matchedStudent) {
-          matchedStudent = studentByCohortRoll.get(`${cleanRoll}|${targetClsClean}`);
-        }
-      }
+      const matchedStudent = uniqueStudentMatch(allStudents,
+        { reg: rawReg, adm: rawAdm, form: rawForm, roll: rawRoll }, targetSession, targetClass);
 
       // Extract all incoming fields dynamically
       const incomingFields = {};
       allFieldDefinitions.forEach(f => {
         let extracted = '';
-        for (const ek of f.excelKeys) {
+        for (const ek of [...new Set([cleanKey(f.label), cleanKey(f.key), ...f.excelKeys])]) {
           const val = normalizedRow[ek];
           if (val !== undefined && val !== '') {
             extracted = val;
@@ -851,7 +792,7 @@ export default function BulkFieldOverwriteModal({
     setErrorMsg(null);
 
     try {
-      const updatedSnapshots = [];
+      const jobId = await beginMutationJob(`Board Data Overwrite: ${fileName || 'JKBOSE Sync'}`, rowsToExecute.length, 'Board Data Sync & Field Overwrite');
       let updatedCount = 0;
 
       for (let i = 0; i < rowsToExecute.length; i++) {
@@ -870,53 +811,11 @@ export default function BulkFieldOverwriteModal({
           });
         });
 
-        payload.updatedAt = serverTimestamp();
-        payload.lastBoardSyncAt = serverTimestamp();
+        payload.updatedAt = new Date().toISOString();
+        payload.lastBoardSyncAt = new Date().toISOString();
         payload.boardSyncSource = fileName || 'Bulk Overwrite';
 
-        const isHistorical = Boolean(st.isHistoricalMasterRegister || st.sourceRegisterYear || st.sourceSheet);
-        const docId = String(st.docId || st.id);
-
-        if (!isHistorical) {
-          const docRef = doc(db, 'admissions', docId);
-          await setDoc(docRef, payload, { merge: true });
-          updateCachedItem('admissions', docId, payload);
-        } else {
-          const parentDocId = st.parentDocId || st.docId;
-          const arrayKey = st.arrayKey || 'students';
-          if (parentDocId && arrayKey) {
-            const parentRef = doc(db, 'masterRegisters', String(parentDocId));
-            const pSnap = await getDoc(parentRef);
-            if (pSnap.exists()) {
-              const currentArray = pSnap.data()[arrayKey] || [];
-              const normalized = (val) => String(val || '').toLowerCase().trim();
-              const updatedArray = currentArray.map(r => {
-                const rForm = normalized(r.formNo || r['Form Number']);
-                const rReg = normalized(r.regNo || r['Board Registration Number']);
-                const rName = normalized(r.studentName || r["Student's Name"]);
-                const matches = (item.rawForm && rForm === normalized(item.rawForm)) ||
-                                (item.rawReg && rReg === normalized(item.rawReg)) ||
-                                (st.studentName && rName === normalized(st.studentName));
-                if (!matches) return r;
-                return { ...r, ...payload };
-              });
-              await setDoc(parentRef, { [arrayKey]: updatedArray, updatedAt: serverTimestamp() }, { merge: true });
-              updateCachedItem('masterRegisters', String(parentDocId), { [arrayKey]: updatedArray });
-            }
-          } else {
-            await setDoc(doc(db, 'masterRegisters', docId), payload, { merge: true });
-            updateCachedItem('masterRegisters', docId, payload);
-          }
-        }
-
-        updatedSnapshots.push({
-          docId,
-          collection: isHistorical ? 'masterRegisters' : 'admissions',
-          studentName: inc.studentName || st.studentName,
-          formNo: st.formNo || item.rawForm,
-          regNo: item.rawReg,
-          appliedFields: payload
-        });
+        await applyRecordPatch(st, payload, { jobId, entryId: String(i) });
 
         updatedCount++;
         const pct = 10 + Math.round(((i + 1) / rowsToExecute.length) * 80);
@@ -924,16 +823,7 @@ export default function BulkFieldOverwriteModal({
         setProgressStage(`Overwriting records (${i + 1}/${rowsToExecute.length})...`);
       }
 
-      // Save to 30-Day Batch Rollback Manager
-      if (updatedSnapshots.length > 0) {
-        setProgressStage('Saving 30-Day Rollback Snapshot...');
-        await saveCsvImportBatch({
-          fileName: `Board Data Overwrite: ${fileName || 'JKBOSE Sync'} (${updatedCount} students)`,
-          importedRecords: updatedSnapshots,
-          reasonCategory: 'Board Data Sync & Field Overwrite',
-          customReason: `Synchronized ${updatedCount} students with Board data for session ${targetSession}`
-        }).catch(e => console.warn('Rollback note:', e));
-      }
+      await completeMutationJob(jobId);
 
       // Log Admin Activity
       await logAdminActivity({

@@ -23,6 +23,7 @@ import {
 } from 'firebase/auth';
 import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
 import { 
+  requireVerifiedAdminSession,
   resolveStaffRoleAndPerms, 
   createAdminLoginHandshake,
   approveAdminLoginHandshake,
@@ -67,6 +68,7 @@ export default function LoginPage() {
 
   // Permanent flag for this tab: if opened via verification link, NEVER redirect to dashboard
   const isEmailVerificationTabRef = useRef(
+    window.location.hash.includes('staff_challenge=') ||
     isSignInWithEmailLink(auth, window.location.href) || 
     window.location.search.includes('email_link_verify') || 
     window.location.search.includes('oobCode') ||
@@ -133,19 +135,14 @@ export default function LoginPage() {
     const emailLower = String(firebaseUser?.email || overrideEmail || '').toLowerCase().trim();
     
     // Resolve role from Firestore permissions & users collection & bootstrap (use cached if available)
-    const isBootstrapAdmin = isBootstrapSuperAdminEmail(emailLower);
+    const isBootstrapAdmin = firebaseUser.emailVerified && isBootstrapSuperAdminEmail(emailLower);
     const staffProfile = cachedStaffProfile || await resolveStaffRoleAndPerms(emailLower);
 
-    const rawRole = String(
-      (isBootstrapAdmin ? 'SuperAdmin' : '') ||
-      staffProfile?.role ||
-      claims.role || 
-      (claims.admin ? 'Admin' : '') || 
-      'Student'
-    ).trim();
+    const rawRole = staffProfile?.role || 'Student';
 
     const role = rawRole.charAt(0).toUpperCase() + rawRole.slice(1);
     const normalizedRole = role.toLowerCase();
+    if (normalizedRole.includes('admin')) await requireVerifiedAdminSession(firebaseUser);
 
     const perms = isBootstrapAdmin || role === 'SuperAdmin'
       ? ['*']
@@ -247,33 +244,6 @@ export default function LoginPage() {
       }
     };
 
-    // 1. BroadcastChannel Listener (Fast sub-10ms same-device inter-tab sync)
-    let channel = null;
-    try {
-      channel = new BroadcastChannel('hss_admin_auth_sync');
-      channel.onmessage = (event) => {
-        if (event.data?.type === 'ADMIN_AUTH_APPROVED') {
-          const msgEmail = String(event.data.email || '').trim().toLowerCase();
-          if (msgEmail === cleanEmail) {
-            handleAuthApproved({ uid: event.data.uid, source: 'BroadcastChannel' });
-          }
-        }
-      };
-    } catch (_) {}
-
-    // 2. Storage Event Listener (Fallback across tabs/windows)
-    const handleStorage = (e) => {
-      if (e.key === 'hss_auth_verified_sync' && e.newValue) {
-        try {
-          const data = JSON.parse(e.newValue);
-          if (String(data.email || '').trim().toLowerCase() === cleanEmail) {
-            handleAuthApproved({ uid: data.uid, source: 'localStorage' });
-          }
-        } catch (_) {}
-      }
-    };
-    window.addEventListener('storage', handleStorage);
-
     // 3. Real-Time Firestore Handshake Listener (For Mobile Phone & Cross-Device email link clicks!)
     let unsubDoc = null;
     if (handshakeId) {
@@ -294,100 +264,35 @@ export default function LoginPage() {
     }
 
     return () => {
-      if (channel) channel.close();
-      window.removeEventListener('storage', handleStorage);
       if (unsubDoc) unsubDoc();
     };
   }, [emailLinkSentState, onLoginSuccess]);
 
-  // =========================================================================
-  // WINDOW 2 VERIFIER: Check on mount if current URL is an Email Sign-In verification link
-  // =========================================================================
+  // The proof is a URL fragment so it is not included in HTTP logs or referrers.
+  const proofStartedRef = useRef(false);
   useEffect(() => {
-    if (isSignInWithEmailLink(auth, window.location.href)) {
-      setIsLoading(true);
-      const searchParams = new URLSearchParams(window.location.search);
-      let emailForSignIn = window.localStorage.getItem('emailForSignIn');
-      if (!emailForSignIn) {
-        emailForSignIn = searchParams.get('admin_email');
-      }
-      if (!emailForSignIn) {
-        emailForSignIn = window.prompt('Please confirm your Admin email address to complete 2-Step Login:');
-      }
-
-      const handshakeId = searchParams.get('handshake');
-
-      if (emailForSignIn) {
-        const cleanEmail = emailForSignIn.trim().toLowerCase();
-        signInWithEmailLink(auth, cleanEmail, window.location.href)
-          .then(async (userCred) => {
-            const staffProfile = await resolveStaffRoleAndPerms(cleanEmail);
-            const roleName = staffProfile?.role || 'Admin';
-            if (roleName === 'Teacher' || roleName === 'Faculty') {
-              await recordTeacher2StepVerification(cleanEmail);
-            }
-
-            // 1. Approve handshake in Firestore (Unlocks Window 1 on desktop or phone immediately!)
-            if (handshakeId) {
-              await approveAdminLoginHandshake(handshakeId, cleanEmail, userCred.user);
-            }
-
-            // 2. Broadcast approval to all same-browser tabs
-            try {
-              const bc = new BroadcastChannel('hss_admin_auth_sync');
-              bc.postMessage({
-                type: 'ADMIN_AUTH_APPROVED',
-                email: cleanEmail,
-                uid: userCred.user.uid,
-                handshakeId,
-                ts: Date.now()
-              });
-              bc.close();
-            } catch (_) {}
-
-            try {
-              localStorage.setItem('hss_auth_verified_sync', JSON.stringify({
-                email: cleanEmail,
-                uid: userCred.user.uid,
-                handshakeId,
-                ts: Date.now()
-              }));
-            } catch (_) {}
-
-            window.localStorage.removeItem('emailForSignIn');
-            window.localStorage.removeItem('hss_pending_admin_login');
-            setEmailLinkSentState(null);
-
-            // 3. Set Window 2 Verified Confirmation State with rich details
-            const nowTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-            const nowDate = new Date().toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
-
-            setWindow2VerifiedState({
-              email: cleanEmail,
-              role: roleName,
-              time: `${nowTime} (${nowDate})`,
-              handshakeId,
-            });
-
-            // 4. Sign out from temporary link session so this tab stays strictly as a verification confirmation
-            await signOut(auth).catch(() => {});
-          })
-          .catch((err) => {
-            console.error('Email link sign in error:', err);
-            setAlert({
-              type: 'error',
-              text: 'The 2-step verification link is invalid, expired, or has already been used. Please sign in again.'
-            });
-          })
-          .finally(() => {
-            setIsLoading(false);
-          });
-      } else {
-        setIsLoading(false);
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const parameters = new URLSearchParams(window.location.hash.slice(1));
+    const handshakeId = parameters.get('staff_challenge');
+    const proof = parameters.get('proof');
+    if (!handshakeId || !proof || proofStartedRef.current) return;
+    proofStartedRef.current = true;
+    window.history.replaceState(null, '', window.location.pathname);
+    setIsLoading(true);
+    approveAdminLoginHandshake(handshakeId, proof).then(result => {
+      setWindow2VerifiedState({ email: result.email, role: 'Administrator', time: new Date().toLocaleString(), handshakeId });
+    }).catch(error => {
+      setAlert({ type: 'error', text: error.message || 'The verification link expired. Request another link from the login screen.' });
+    }).finally(() => setIsLoading(false));
   }, []);
+
+  const beginAdminLogin = async (firebaseUser, profile) => {
+    if (!profile?.isAdmin) return false;
+    const handshakeId = await createAdminLoginHandshake(firebaseUser.email);
+    setEmailLinkSentState({ email: firebaseUser.email, handshakeId, sentAt: Date.now(), role: profile.role });
+    setResendCooldown(60);
+    setAlert({ type: 'success', text: 'Check your inbox to confirm this administrator sign-in.' });
+    return true;
+  };
 
   const handleGoogleSignIn = async () => {
     setIsLoading(true);
@@ -415,6 +320,8 @@ export default function LoginPage() {
         console.warn('Firestore profile sync note:', fsErr);
       }
 
+      const staffProfile = await resolveStaffRoleAndPerms(fbUser);
+      if (await beginAdminLogin(fbUser, staffProfile)) return;
       const verifiedSession = await createVerifiedSession(fbUser);
       onLoginSuccess(verifiedSession, keepLoggedIn);
     } catch (err) {
@@ -489,6 +396,8 @@ export default function LoginPage() {
       const isSuper = staffProfile?.role === 'SuperAdmin' || isBootstrapSuperAdminEmail(cleanEmail);
       const isAdmin = isSuper || staffProfile?.role === 'Admin';
       const isTeacher = staffProfile?.role === 'Teacher' || staffProfile?.role === 'Faculty';
+
+      if (await beginAdminLogin(userCred.user, staffProfile)) return;
 
       // 3. STRICT TAB & ROLE ACCESS CONTROL
 

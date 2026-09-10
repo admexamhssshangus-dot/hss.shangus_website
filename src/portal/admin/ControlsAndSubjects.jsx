@@ -573,17 +573,11 @@ export default function ControlsAndSubjects() {
         },
       };
 
-      try {
-        await setDoc(doc(db, 'site', 'settings'), settings, { merge: true });
-        localStorage.setItem('site_settings', JSON.stringify(settings));
-      } catch (e) {
-        console.warn('Firestore site/settings write note:', e);
-      }
-
-      const res = await appsScriptApi.call('saveAppSettings', { settings }).catch(() => null);
+      await setDoc(doc(db, 'site', 'settings'), settings, { merge: true });
+      try { localStorage.setItem('site_settings', JSON.stringify(settings)); } catch (_) {}
       setAlert({ type: 'success', text: 'System controls & emergency settings updated successfully!' });
     } catch (err) {
-      setAlert({ type: 'success', text: 'System controls saved locally!' });
+      setAlert({ type: 'error', text: `Settings were not saved: ${err.message || 'Please retry.'}` });
     } finally {
       setSaving(false);
     }

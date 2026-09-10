@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import './index.css';
 import App from './App';
+import ModuleErrorBoundary from './components/ModuleErrorBoundary';
 
 // Handle transient Firebase/Firestore & IndexedDB stream closure or assertion events gracefully
 if (typeof window !== 'undefined') {
@@ -110,7 +111,7 @@ const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
   <React.StrictMode>
     <BrowserRouter>
-      <App />
+      <ModuleErrorBoundary><App /></ModuleErrorBoundary>
     </BrowserRouter>
   </React.StrictMode>
 );

@@ -403,7 +403,7 @@ async function consumeRateLimit(db, uid, action) {
 async function loadWorkspace(db, token) {
   const email = String(token.email || '').toLowerCase();
   const queries = [db.collection('admissions').where('ownerUid', '==', token.uid).get()];
-  if (email) {
+  if (email && token.email_verified === true) {
     queries.push(db.collection('admissions').where('emailNormalized', '==', email).get());
     queries.push(db.collection('admissions').where('Email Address', '==', email).get());
   }
@@ -412,7 +412,7 @@ async function loadWorkspace(db, token) {
   snapshots.forEach(snap => snap.docs.forEach(doc => {
     const item = doc.data();
     const itemEmail = String(item.emailNormalized || item['Email Address'] || item.email || '').toLowerCase();
-    if (item.ownerUid === token.uid || (!item.ownerUid && email && itemEmail === email)) unique.set(doc.id, { docId: doc.id, ...item });
+    if (item.ownerUid === token.uid || (!item.ownerUid && token.email_verified === true && email && itemEmail === email)) unique.set(doc.id, { docId: doc.id, ...item });
   }));
   const applications = [...unique.values()]
     .filter(item => !['Deleted', 'Withdrawn'].includes(item.Status) && item._deleted !== true)

@@ -1,3 +1,6 @@
+import { sameCohort, recordLocator, identityKey } from './recordIdentity';
+import { beginMutationJob, applyRecordPatch, completeMutationJob } from '../services/recordMutationService';
+import { runTransaction } from 'firebase/firestore';
 // =================================================================
 // HSS SHANGUS — JKBOSE Exam Result Ingestion & Template Manager
 // Supports Excel/CSV Template Export, File Parsing, Gemini AI PDF
@@ -575,317 +578,22 @@ export function generateResultImportTemplate(studentsList = [], className = '12t
  * Prevents false matches when roll numbers repeat across different sessions or classes.
  */
 export function matchStudentInDatabase(record, existingStudents = [], classScope = '', sessionScope = '') {
-  if (!existingStudents || existingStudents.length === 0) return null;
-
-  const clean = (val) => String(val || '').trim();
-  const lower = (val) => clean(val).toLowerCase();
-
-  const targetForm = lower(record.formNo || record['Form No.'] || record['Form Number'] || record.id || '');
-  const targetReg = lower(record.regNo || record['Board Reg. No.'] || record['Board Registration Number'] || record.boardRegNo || record['RR No.'] || record['R.R NO.'] || record['Registration No'] || '');
-  const targetExamRoll = lower(record.examRollNo || record['Exam R.No. (Current)'] || record['Exam Roll No'] || record['Exam R.No.'] || record['Roll No'] || record.currExamRoll || record.rollNo || '');
-  const targetName = lower(record.studentName || record["Student's Name"] || record.name || record['Name'] || record['Name of Candidate'] || '');
-  const targetFather = lower(record.fatherName || record["Father's Name"] || record.father || record['Father'] || '');
-  const targetClass = lower(record.className || record['Class'] || classScope || '');
-
-  // Helper to extract first word or initials from name
-  const firstWord = (str) => clean(str).toLowerCase().split(/[\s,._-]+/)[0] || '';
-
-  // Helper to extract student identity fields reliably from any admissions or masterRegisters document
-  const extractStudentMeta = (s) => {
-    const sForm = clean(s.formNo || s['Form No.'] || s['Form Number'] || s.raw?.['Form No.'] || s.raw?.['Form Number'] || s.id || '');
-    const sReg = clean(
-      s.regNo ||
-      s.boardRegNo ||
-      s['Board Reg. No.'] ||
-      s['Board Registration Number'] ||
-      s['RR No.'] ||
-      s['R.R NO.'] ||
-      s['Registration No'] ||
-      s.raw?.['Board Reg. No.'] ||
-      s.raw?.['Board Registration Number'] ||
-      s.raw?.boardRegNo ||
-      s.raw?.regNo ||
-      ''
-    );
-    const sRoll = clean(
-      s.examRollNo ||
-      s.currExamRoll ||
-      s.rollNo ||
-      s.roll ||
-      s.examRoll ||
-      s['Exam R.No. (Current)'] ||
-      s['Exam Roll No'] ||
-      s['Exam R.No.'] ||
-      s['Roll No'] ||
-      s.raw?.['Exam R.No. (Current)'] ||
-      s.raw?.['Exam Roll No'] ||
-      s.raw?.examRollNo ||
-      s.raw?.currExamRoll ||
-      s.raw?.rollNo ||
-      ''
-    );
-    const sName = clean(
-      s.name ||
-      s.studentName ||
-      s["Student's Name"] ||
-      s['Name'] ||
-      s['Name of Candidate'] ||
-      s.raw?.["Student's Name"] ||
-      s.raw?.studentName ||
-      s.raw?.name ||
-      ''
-    );
-    const sFather = clean(
-      s.fatherName ||
-      s.father ||
-      s["Father's Name"] ||
-      s['Father'] ||
-      s.raw?.["Father's Name"] ||
-      s.raw?.fatherName ||
-      ''
-    );
-    const sMother = clean(
-      s.motherName ||
-      s.mother ||
-      s["Mother's Name"] ||
-      s['Mother'] ||
-      s.raw?.["Mother's Name"] ||
-      s.raw?.motherName ||
-      ''
-    );
-    const sCls = clean(
-      s.className ||
-      s.selectedClass ||
-      s.class ||
-      s.cls ||
-      s['Class'] ||
-      s['Admission sought for class'] ||
-      s.raw?.['Class'] ||
-      s.raw?.className ||
-      ''
-    );
-    const sSess = clean(
-      s.session ||
-      s.selectedSession ||
-      s['Session'] ||
-      s['Academic Session'] ||
-      s.raw?.['Session'] ||
-      s.raw?.session ||
-      ''
-    );
-    const sStream = clean(
-      s.stream ||
-      s.selectedStream ||
-      s['Stream'] ||
-      s.raw?.['Stream'] ||
-      s.raw?.stream ||
-      ''
-    );
-
-    return {
-      sForm,
-      sReg,
-      sRoll,
-      sName,
-      sFather,
-      sMother,
-      sCls,
-      sSess,
-      sStream,
-      normalizedStudent: {
-        ...s,
-        id: sForm || s.id,
-        formNo: sForm || s.id,
-        name: sName,
-        studentName: sName,
-        fatherName: sFather,
-        motherName: sMother,
-        regNo: sReg,
-        boardRegNo: sReg,
-        rollNo: sRoll,
-        examRollNo: sRoll,
-        selectedClass: sCls,
-        class: sCls,
-        selectedStream: sStream,
-        stream: sStream,
-        selectedSession: sSess,
-        session: sSess
-      }
-    };
-  };
-
-  // Spreadsheet imports match many rows against the same directory. Cache the
-  // normalized directory once instead of rebuilding/spreading every student
-  // several times per uploaded row on the browser's main thread.
-  let studentMetas = studentMatchMetaCache.get(existingStudents);
-  if (!studentMetas) {
-    studentMetas = existingStudents.map(extractStudentMeta);
-    studentMatchMetaCache.set(existingStudents, studentMetas);
-  }
-
-  // Helper to evaluate class match
-  const isClassMatch = (clsStr) => {
-    if (!targetClass) return true;
-    const cleanSCls = lower(clsStr);
-    if (!cleanSCls) return true;
-    if (targetClass.includes('12') || targetClass.includes('xii')) return cleanSCls.includes('12') || cleanSCls.includes('xii');
-    if (targetClass.includes('11') || targetClass.includes('xi')) return cleanSCls.includes('11') || cleanSCls.includes('xi');
-    if (targetClass.includes('10') || targetClass.includes('x')) return cleanSCls.includes('10') || cleanSCls.includes('x');
-    if (targetClass.includes('9') || targetClass.includes('ix')) return cleanSCls.includes('9') || cleanSCls.includes('ix');
-    return cleanSCls.includes(targetClass) || targetClass.includes(cleanSCls);
-  };
-
-  // 1. Board Registration No Match (Permanent Unique Lifetime Identity)
-  if (targetReg && targetReg.length >= 4) {
-    for (const meta of studentMetas) {
-      if (meta.sReg && meta.sReg.toLowerCase() === targetReg) {
-        const classMatches = isClassMatch(meta.sCls);
-        return {
-          student: meta.normalizedStudent,
-          matchType: classMatches ? 'Board Reg No + Class Match' : 'Board Reg No Match',
-          confidence: classMatches ? 100 : 96
-        };
-      }
-    }
-  }
-
-  // 2. Exam Roll No Match (Primary Key for Result Gazette & Roll Ingestion)
-  if (targetExamRoll && targetExamRoll.length >= 4) {
-    // A. First look for Exam Roll within the same class (Class 12th)
-    const rollClassMatches = [];
-    for (const meta of studentMetas) {
-      if (meta.sRoll && meta.sRoll.toLowerCase() === targetExamRoll) {
-        if (isClassMatch(meta.sCls)) {
-          rollClassMatches.push(meta);
-        }
-      }
-    }
-
-    if (rollClassMatches.length > 0) {
-      // If name is also available, verify name match
-      if (targetName) {
-        const targetFirst = firstWord(targetName);
-        const verified = rollClassMatches.find(m => {
-          const sFirst = firstWord(m.sName);
-          return sFirst === targetFirst || lower(m.sName).includes(targetFirst) || targetName.includes(sFirst);
-        });
-        if (verified) {
-          return {
-            student: verified.normalizedStudent,
-            matchType: 'Exam Roll + Class + Name Match',
-            confidence: 99
-          };
-        }
-      }
-      return {
-        student: rollClassMatches[0].normalizedStudent,
-        matchType: 'Exam Roll & Class Match',
-        confidence: 95
-      };
-    }
-
-    // B. If no class match, check if Exam Roll matches anywhere across DB with matching candidate name
-    if (targetName) {
-      const targetFirst = firstWord(targetName);
-      for (const meta of studentMetas) {
-        if (meta.sRoll && meta.sRoll.toLowerCase() === targetExamRoll) {
-          const sFirst = firstWord(meta.sName);
-          if (sFirst === targetFirst || lower(meta.sName).includes(targetFirst)) {
-            return {
-              student: meta.normalizedStudent,
-              matchType: 'Exam Roll & Verified Name Match',
-              confidence: 92
-            };
-          }
-        }
-      }
-    }
-  }
-
-  // 3. Exact Form No Match
-  if (targetForm) {
-    for (const meta of studentMetas) {
-      if (meta.sForm && meta.sForm.toLowerCase() === targetForm) {
-        return {
-          student: meta.normalizedStudent,
-          matchType: 'Form No Match',
-          confidence: 95
-        };
-      }
-    }
-  }
-
-  // 4. Candidate Name + Father Name in Same Class
-  if (targetName && targetName.length >= 3) {
-    const targetFirst = firstWord(targetName);
-    const targetFatherFirst = targetFather ? firstWord(targetFather) : '';
-
-    for (const meta of studentMetas) {
-      if (!isClassMatch(meta.sCls)) continue;
-
-      const sNameLower = lower(meta.sName);
-      if (!sNameLower) continue;
-
-      const sFirst = firstWord(sNameLower);
-      const nameMatches = sFirst === targetFirst || sNameLower.startsWith(targetFirst) || targetName.startsWith(sFirst) || sNameLower.includes(targetFirst);
-
-      if (nameMatches) {
-        // If father name is provided, match both
-        if (targetFatherFirst && meta.sFather) {
-          const sFatherLower = lower(meta.sFather);
-          const sFatherFirst = firstWord(sFatherLower);
-          const fatherMatches = sFatherFirst === targetFatherFirst || sFatherLower.includes(targetFatherFirst) || targetFather.includes(sFatherFirst);
-          if (fatherMatches) {
-            return {
-              student: meta.normalizedStudent,
-              matchType: `Name & Father Match (${targetFirst.toUpperCase()})`,
-              confidence: 94
-            };
-          }
-        } else if (sNameLower === targetName || sNameLower.includes(targetName) || targetName.includes(sNameLower)) {
-          return {
-            student: meta.normalizedStudent,
-            matchType: `Exact Full Name & Class Match`,
-            confidence: 89
-          };
-        }
-      }
-    }
-  }
-
-  // 5. Full Candidate Name Match (handles spelling variants like AQUB/AQIB, MOHD/MOHAMMAD, spaces)
-  if (targetName && targetName.length >= 3) {
-    const cleanTargetName = targetName.replace(/^(mr\.|ms\.|miss|master)\s+/i, '').trim();
-    const targetNorm = cleanTargetName.replace(/\b(mohd|mohammad|mohammed|muhammad)\b/g, 'm').replace(/[^a-z0-9]/g, '');
-
-    for (const meta of studentMetas) {
-      if (!isClassMatch(meta.sCls)) continue;
-
-      const cleanDbName = lower(meta.sName).replace(/^(mr\.|ms\.|miss|master)\s+/i, '').trim();
-      const dbNorm = cleanDbName.replace(/\b(mohd|mohammad|mohammed|muhammad)\b/g, 'm').replace(/[^a-z0-9]/g, '');
-
-      if (cleanDbName === cleanTargetName || dbNorm === targetNorm) {
-        return {
-          student: meta.normalizedStudent,
-          matchType: 'Full Name & Class Match',
-          confidence: 90
-        };
-      }
-
-      // Check consonants for Kashmiri spelling variations (e.g. AQUB vs AQIB)
-      const targetConsonants = targetNorm.replace(/[aeiou]/g, '');
-      const dbConsonants = dbNorm.replace(/[aeiou]/g, '');
-      if (targetConsonants.length >= 4 && targetConsonants === dbConsonants) {
-        return {
-          student: meta.normalizedStudent,
-          matchType: 'Phonetic Name & Class Match',
-          confidence: 86
-        };
-      }
-    }
-  }
-
-  return null;
+  const className = classScope || record.className || record.Class;
+  const session = sessionScope || record.session || record.Session;
+  if (!className || !session) return null;
+  const reg = identityKey(record.regNo || record.boardRegNo || record['Board Registration Number'] || record['Board Reg. No.']);
+  const form = identityKey(record.formNo || record['Form No.'] || record['Form Number']);
+  const roll = identityKey(record.examRollNo || record['Exam R.No. (Current)'] || record.currExamRoll || record.rollNo);
+  if (!reg && !form && !roll) return null;
+  const matches = existingStudents.filter(student => {
+    if (!sameCohort(student, session, className)) return false;
+    const s = { ...(student.raw || {}), ...student };
+    const sReg = identityKey(s.regNo || s.boardRegNo || s['Board Registration Number'] || s['Board Reg. No.']);
+    const sForm = identityKey(s.formNo || s['Form No.'] || s['Form Number']);
+    if (reg || form) return (!reg || reg === sReg) && (!form || form === sForm);
+    return roll === identityKey(s.examRollNo || s['Exam R.No. (Current)'] || s.currExamRoll || s.rollNo);
+  });
+  return matches.length === 1 ? { student: matches[0], matchType: 'Unique identity, class and session', confidence: 100 } : null;
 }
 
 function cleanCellValue(val) {
@@ -1471,7 +1179,7 @@ export async function batchUpdateStudentResults(recordsToUpdate = [], options = 
     return { success: true, count: 0 };
   }
 
-  const batch = writeBatch(db);
+  const jobId = await beginMutationJob('Board result / admit-card update', recordsToUpdate.length);
   let updatedCount = 0;
 
   // Track max existing form number for safe auto-generation of new candidate records
@@ -1497,8 +1205,12 @@ export async function batchUpdateStudentResults(recordsToUpdate = [], options = 
       currResult: item.resultStatus || 'Awaiting Result',
       currMarksReapp: item.marksReapp || '',
       currDiv: item.divDistinc || '',
-      updatedAt: serverTimestamp()
+      updatedAt: new Date().toISOString()
     };
+
+    if (item.isAdmitCard || !item.resultStatus || /awaiting|pending/i.test(item.resultStatus)) {
+      for (const field of ['Result (Current)', 'Marks/Reapp (Current)', 'Div/Distinc (Current)', 'currResult', 'currMarksReapp', 'currDiv']) delete patch[field];
+    }
 
     // Session and exam mode are distinct. Only update the examination label
     // when the imported source explicitly supplies one.
@@ -1515,7 +1227,7 @@ export async function batchUpdateStudentResults(recordsToUpdate = [], options = 
     }
 
     // Subjects/re-appear subjects are always safe to update (result data)
-    if (item.subs) {
+    if (item.subs && (isNewStudent || item.isAdmitCard)) {
       patch['Subjects'] = item.subs;
       patch.subs = item.subs;
     }
@@ -1573,7 +1285,7 @@ export async function batchUpdateStudentResults(recordsToUpdate = [], options = 
       patch['Form No.'] = formNo;
       patch.studentType = 'Private / Bi-Annual';
       patch.status = 'Approved';
-      patch.createdAt = serverTimestamp();
+      patch.createdAt = new Date().toISOString();
     }
 
     if (item.withdrawalDate) {
@@ -1588,85 +1300,22 @@ export async function batchUpdateStudentResults(recordsToUpdate = [], options = 
       patch['Remarks'] = item.remarks;
     }
 
-    const targetCollection = item.matchedStudent?._sourceCollection || item.matchedStudent?._source || 'admissions';
-    const targetDocId = item.matchedStudent?.id || item.matchedStudent?._docId || formNo;
-
-    // Check if this student belongs to a masterRegisters chunk document
-    const parentDocId = item.matchedStudent?._parentDocId || (String(targetDocId).startsWith('#chunk_') ? targetDocId.split('_').slice(0, 2).join('_') : null);
-
-    if (parentDocId && targetCollection === 'masterRegisters') {
-      if (!chunkUpdates.has(parentDocId)) {
-        chunkUpdates.set(parentDocId, []);
-      }
-      chunkUpdates.get(parentDocId).push({ item, patch, targetDocId });
-    } else {
-      const studentRef = doc(db, targetCollection, targetDocId);
-      batch.set(studentRef, patch, { merge: true });
-    }
-
-    // Sync in-memory master register cache instantly
-    if (typeof window !== 'undefined' && window._hssMasterRegistersCache && Array.isArray(window._hssMasterRegistersCache)) {
-      window._hssMasterRegistersCache = window._hssMasterRegistersCache.map(st => {
-        const matchId = (st.id && (st.id === targetDocId || st.id === formNo)) ||
-                        (st.regNo && item.regNo && st.regNo === item.regNo) ||
-                        (st.formNo && formNo && st.formNo === formNo) ||
-                        (st.examRollNo && item.examRollNo && st.examRollNo === item.examRollNo);
-        if (matchId) {
-          return {
-            ...st,
-            ...patch,
-            raw: { ...(st.raw || {}), ...patch }
-          };
-        }
-        return st;
+    if (isNewStudent) {
+      if (!item.className || !item.session || (!item.regNo && !item.examRollNo)) throw new Error('New candidates require class, session and a unique registration or exam roll number.');
+      const studentRef = doc(db, 'admissions', formNo);
+      await runTransaction(db, async tx => {
+        const existing = await tx.get(studentRef);
+        if (existing.exists()) throw new Error('This candidate already exists. Refresh and match the existing record.');
+        tx.set(studentRef, patch);
       });
+    } else {
+      if (!sameCohort(item.matchedStudent, item.session, item.className)) throw new Error('The matched student belongs to a different class or session.');
+      recordLocator(item.matchedStudent); // require a physical source before any write
+      await applyRecordPatch(item.matchedStudent, patch, { jobId, entryId: String(updatedCount) });
     }
-
-    updateCachedItem(targetCollection, targetDocId, patch);
     updatedCount++;
   }
-
-  // 2. Commit standalone document batch
-  await batch.commit();
-
-  // 3. Commit Master Register Chunk updates
-  for (const [parentDocId, itemsToPatch] of chunkUpdates.entries()) {
-    try {
-      const chunkDocRef = doc(db, 'masterRegisters', parentDocId);
-      const chunkSnap = await getDoc(chunkDocRef);
-      if (chunkSnap.exists()) {
-        const chunkData = chunkSnap.data();
-        if (Array.isArray(chunkData.items)) {
-          const updatedItems = chunkData.items.map((rawItem, idx) => {
-            const rawId = `${parentDocId}_${idx}`;
-            const matchedPatchItem = itemsToPatch.find(p => {
-              const pId = p.targetDocId;
-              const pReg = p.item.regNo;
-              const pRoll = p.item.examRollNo;
-              const pName = p.item.studentName;
-              return (pId && pId === rawId) ||
-                     (pReg && (rawItem['Board Reg. No.'] === pReg || rawItem.regNo === pReg || rawItem.boardRegNo === pReg)) ||
-                     (pRoll && (rawItem['Exam R.No. (Current)'] === pRoll || rawItem.currExamRoll === pRoll || rawItem.rollNo === pRoll)) ||
-                     (pName && (rawItem["Student's Name"] === pName || rawItem.name === pName));
-            });
-
-            if (matchedPatchItem) {
-              const itemPatch = { ...matchedPatchItem.patch };
-              delete itemPatch.updatedAt;
-              return { ...rawItem, ...itemPatch };
-            }
-            return rawItem;
-          });
-
-          await updateDoc(chunkDocRef, { items: updatedItems, updatedAt: serverTimestamp() }).catch(() => {
-            return setDoc(chunkDocRef, { items: updatedItems }, { merge: true });
-          });
-        }
-      }
-    } catch (chunkErr) {
-      console.warn(`Could not update chunk ${parentDocId}:`, chunkErr);
-    }
-  }
+  await completeMutationJob(jobId);
 
   // 4. Invalidate caches and dispatch global event
   if (typeof window !== 'undefined') {

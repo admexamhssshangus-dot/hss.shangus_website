@@ -19,6 +19,12 @@ export default class ModuleErrorBoundary extends React.Component {
     console.warn('[ModuleErrorBoundary] Caught module error:', error, errorInfo);
   }
 
+  componentDidUpdate(previousProps) {
+    if (this.state.hasError && previousProps.resetKey !== this.props.resetKey) {
+      this.setState({ hasError: false, error: null });
+    }
+  }
+
   handleRetry = () => {
     this.setState({ hasError: false, error: null });
   };

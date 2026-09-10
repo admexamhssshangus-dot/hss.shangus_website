@@ -6224,6 +6224,8 @@ export default function AdvancedReports({
               stream: item.stream || item.Stream || item['Stream'] || parentStream || 'General',
               _source: 'masterRegisters',
               _srcCollection: 'masterRegisters',
+              _parentDocId: doc._docId || doc.id,
+              _arrayKey: ['items', 'students', 'records', 'data'].find(key => Array.isArray(doc[key])),
               _isHistorical: true,
               _isCurrentScope: false
             });
