@@ -1,3 +1,11 @@
+import {
+  commitIssuedCertificateBatch,
+  extractCertificateSerial,
+  normalizeCertificateIssueDate,
+  validateCertificateAssignments
+} from './certificateRegistryService';
+import { addDoc, collection, doc, getDoc, runTransaction } from 'firebase/firestore';
+
 jest.mock('./firebase', () => ({ db: {} }));
 jest.mock('./dbCache', () => ({ updateCachedItem: jest.fn() }));
 jest.mock('firebase/firestore', () => ({
@@ -11,14 +19,6 @@ jest.mock('firebase/firestore', () => ({
   setDoc: jest.fn(),
   writeBatch: jest.fn()
 }));
-
-import {
-  commitIssuedCertificateBatch,
-  extractCertificateSerial,
-  normalizeCertificateIssueDate,
-  validateCertificateAssignments
-} from './certificateRegistryService';
-import { addDoc, collection, doc, getDoc, runTransaction } from 'firebase/firestore';
 
 describe('TC/DC certificate registry rules', () => {
   beforeEach(() => {

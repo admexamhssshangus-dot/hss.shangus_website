@@ -248,7 +248,13 @@ function getDivisionFromPercentage(pctStr) {
 export function resolveCleanStream(studentData, cleanClass = '') {
   if (!studentData) return 'General';
 
-  // 1. Direct explicit stream candidates
+  // 1. Classes 8th, 9th, and 10th are always General in JKBOSE (no streams exist at secondary level)
+  const cls = String(cleanClass || studentData["Admission sought for class"] || studentData["Class"] || studentData["class"] || '').toLowerCase();
+  if (cls.includes('9') || cls.includes('10') || cls.includes('8')) {
+    return 'General';
+  }
+
+  // 2. Direct explicit stream candidates
   const candidates = [
     studentData["Stream for Class 12th"],
     studentData["Stream opted in Class 12th"],
@@ -284,7 +290,7 @@ export function resolveCleanStream(studentData, cleanClass = '') {
     }
   }
 
-  // 2. Infer from subject combination fields if explicit stream is missing
+  // 3. Infer from subject combination fields if explicit stream is missing
   const rawSubs = String(
     studentData["Stream & Subjects for Class 12th"] ||
     studentData["Stream & Subjects for Class 11th"] ||
@@ -311,11 +317,56 @@ export function resolveCleanStream(studentData, cleanClass = '') {
     return 'Home Science';
   }
 
-  const cls = String(cleanClass || studentData["Admission sought for class"] || studentData["Class"] || '').toLowerCase();
-  if (cls.includes('9') || cls.includes('10') || cls.includes('8')) {
-    return 'General';
-  }
   return 'General';
+}
+
+/**
+ * Universal admission number extraction across all standard database & master register keys
+ */
+export function resolveCleanAdmNo(studentData) {
+  if (!studentData) return '—';
+  const candidates = [
+    studentData["Admission Number"],
+    studentData["admNo"],
+    studentData["Adm No."],
+    studentData["Adm. No."],
+    studentData["Adm No"],
+    studentData["Adm. No"],
+    studentData["Adm.No."],
+    studentData["Adm.No"],
+    studentData["AdmNo"],
+    studentData["adm_no"],
+    studentData["Admission No."],
+    studentData["Admission No"],
+    studentData["Admission_Number"],
+    studentData["Admission_No"],
+    studentData["Adm. Number"],
+    studentData["Adm. #"],
+    studentData["Adm #"],
+    studentData["Adm_No"],
+    studentData["adm_number"]
+  ];
+
+  for (const cand of candidates) {
+    if (cand != null && typeof cand !== 'undefined') {
+      const str = String(cand).trim();
+      if (
+        str &&
+        str !== '—' &&
+        str !== 'N/A' &&
+        str !== 'null' &&
+        str !== 'undefined' &&
+        str.length <= 20 &&
+        str.split(/\s+/).length <= 2 &&
+        !/^(#N\/A|#VALUE!|#REF!|#NULL!|none|nan|yes|no|true|false)$/i.test(str) &&
+        !/^\d{1,2}(st|nd|rd|th)$/i.test(str) &&
+        !/^class\s*\d{1,2}/i.test(str)
+      ) {
+        return str;
+      }
+    }
+  }
+  return '—';
 }
 
 /**
@@ -420,9 +471,7 @@ export function buildStudentFormHtml(studentData, options = {}) {
   const subjects = formatAllSubjects(rawSubjects, classSought, stream) || 'N/A';
   const photoUrl = getStudentPhotoUrl(studentData, '/logo.png');
   const rollNo = studentData["Class Roll No"] || studentData["rollNo"] || studentData["Class R.No."] || '—';
-  const rawAdmNo = studentData["Admission Number"] || studentData["admNo"] || studentData["Adm No."] || studentData["Admission No."] || '';
-  const cleanAdmNo = (rawAdmNo && rawAdmNo !== '—' && rawAdmNo !== 'N/A' && String(rawAdmNo).trim().length <= 20 && String(rawAdmNo).trim().split(/\s+/).length <= 2) ? String(rawAdmNo).trim() : '';
-  const admNo = cleanAdmNo || '—';
+  const admNo = resolveCleanAdmNo(studentData);
   const section = studentData["Section"] || studentData['section'] || '—';
   const session = studentData["Session"] || studentData['session'] || getCurrentAcademicSession();
   const aadhaar = studentData["Aadhar No."] || studentData["Aadhaar Number"] || studentData["Aadhaar No."] || studentData['aadhar'] || studentData['aadhaar'] || 'N/A';
@@ -2009,7 +2058,6 @@ export async function downloadStudentAdmissionPdf(studentData, options = {}) {
 
     // A4 dimensions in mm
     const a4W = 210;
-    const a4H = 297;
     const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
 
     for (let i = 0; i < pages.length; i++) {

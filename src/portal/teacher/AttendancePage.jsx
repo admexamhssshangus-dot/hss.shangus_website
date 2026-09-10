@@ -382,7 +382,7 @@ function isSubjectMatch(student, targetSubjectCode) {
 
   // 4. STRICT fallback: only if student has NO subject data at all (truly unknown)
   //    Never assume a whole stream implies a specific subject when subjects ARE recorded.
-  if (!raw && !abbr.replace(/[\s,()\.]/g, '')) {
+  if (!raw && !abbr.replace(/[\s,().]/g, '')) {
     // Student has absolutely no subject info — can't determine, include them
     return true;
   }
@@ -404,7 +404,7 @@ function normalizeDateStr(dStr) {
     return `${y}-${m}-${d}`;
   }
 
-  const parts = str.split(/[\/\-\.]/);
+  const parts = str.split(/[/\-.]/);
   if (parts.length === 3) {
     let y, m, d;
     if (parts[0].length === 4) {
@@ -686,7 +686,7 @@ export default function AttendancePage() {
         if (!val) return '';
         const s = String(val).trim();
         if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
-        const parts = s.split(/[\/\-]/);
+        const parts = s.split(/[/\-]/);
         if (parts.length === 3) {
           if (parts[0].length === 4) return `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
           if (parts[2].length === 4) return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
@@ -1091,6 +1091,7 @@ export default function AttendancePage() {
     } finally {
       setLoadingStudents(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedClass, selectedSession]); // date is NOT a dep — roster doesn't change per date
 
   // ─── STEP 2: Overlay saved attendance statuses for the selected date & subject ────────

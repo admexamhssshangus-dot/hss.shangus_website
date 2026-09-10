@@ -224,61 +224,63 @@ export default function StudentVerificationPage() {
       }
 
       // ── TIER 2: Live Serverless Function Lookup (Handles Fresh Submissions & Real-Time Updates) ──
-      const lookupCandidates = [
-        { type: 'formNo', value: fNoParam },
-        { type: 'regNo', value: regParam },
-        { type: 'certNo', value: certParam },
-        { type: 'rollNo', value: rollParam },
-      ].filter(item => item.value && item.value !== '—' && String(item.value).trim().length >= 1);
+      if (!matched) {
+        const lookupCandidates = [
+          { type: 'formNo', value: fNoParam },
+          { type: 'regNo', value: regParam },
+          { type: 'certNo', value: certParam },
+          { type: 'rollNo', value: rollParam },
+        ].filter(item => item.value && item.value !== '—' && String(item.value).trim().length >= 1);
 
-      const endpoints = [
-        '/.netlify/functions/lookup-student',
-        'https://hssshangus.netlify.app/.netlify/functions/lookup-student'
-      ];
+        const endpoints = [
+          '/.netlify/functions/lookup-student',
+          'https://hssshangus.netlify.app/.netlify/functions/lookup-student'
+        ];
 
-      for (const endpoint of endpoints) {
-        let endpointMatched = false;
-        for (const candidate of lookupCandidates) {
-          try {
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 4500);
+        for (const endpoint of endpoints) {
+          let endpointMatched = false;
+          for (const candidate of lookupCandidates) {
+            try {
+              const controller = new AbortController();
+              const timeoutId = setTimeout(() => controller.abort(), 4500);
 
-            const res = await fetch(endpoint, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              cache: 'no-store',
-              body: JSON.stringify({ type: candidate.type, query: String(candidate.value).trim() }),
-              signal: controller.signal
-            }).catch(() => null);
+              const res = await fetch(endpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                cache: 'no-store',
+                body: JSON.stringify({ type: candidate.type, query: String(candidate.value).trim() }),
+                signal: controller.signal
+              }).catch(() => null);
 
-            clearTimeout(timeoutId);
+              clearTimeout(timeoutId);
 
-            if (!res || !res.ok) continue;
-            const contentType = res.headers.get('content-type') || '';
-            if (!contentType.includes('application/json')) continue;
-            const data = await res.json().catch(() => ({}));
-            if (data?.student && !isCancelled) {
-              matched = {
-                "Student's Name (as per school records)": data.student.name,
-                "Father's/Guardian's Name (as per school records)": data.student.fatherName,
-                "Admission sought for class": data.student.className,
-                "Class Roll No": data.student.classRollNo || rollParam || '—',
-                "Board Registration Number": data.student.boardRegNo || regParam,
-                "Form Number": data.student.formNo || fNoParam,
-                "Certificate No.": data.student.certificateNo || certParam,
-                "Session": data.student.session || '2025-26',
-                "Stream": data.student.stream || 'Science',
-                "Status": data.student.approvalStatus || 'Approved',
-                photo_id: data.student.photoUrl || null,
-              };
-              setStudent(matched);
-              setLoading(false);
-              endpointMatched = true;
-              break;
-            }
-          } catch (_) {}
+              if (!res || !res.ok) continue;
+              const contentType = res.headers.get('content-type') || '';
+              if (!contentType.includes('application/json')) continue;
+              const data = await res.json().catch(() => ({}));
+              if (data?.student && !isCancelled) {
+                matched = {
+                  "Student's Name (as per school records)": data.student.name,
+                  "Father's/Guardian's Name (as per school records)": data.student.fatherName,
+                  "Admission sought for class": data.student.className,
+                  "Class Roll No": data.student.classRollNo || rollParam || '—',
+                  "Board Registration Number": data.student.boardRegNo || regParam,
+                  "Form Number": data.student.formNo || fNoParam,
+                  "Certificate No.": data.student.certificateNo || certParam,
+                  "Session": data.student.session || '2025-26',
+                  "Stream": data.student.stream || 'Science',
+                  "Status": data.student.approvalStatus || 'Approved',
+                  photo_id: data.student.photoUrl || null,
+                };
+                setStudent(matched);
+                setLoading(false);
+                endpointMatched = true;
+                break;
+              }
+            } catch (_) {}
+          }
+          if (endpointMatched) break;
         }
-        if (endpointMatched) break;
       }
 
       // ── TIER 3: Master Register & Offline Seed Fallback ──
@@ -311,24 +313,6 @@ export default function StudentVerificationPage() {
             }
           }
         } catch (_) {}
-      }
-
-      // ── TIER 4: Cryptographic HMAC Validation Fallback ──
-      if (!matched && isCryptographicallyValid) {
-        matched = {
-          "Student's Name (as per school records)": nameParam || 'Officially Verified Student Record',
-          "Father's/Guardian's Name (as per school records)": fatherParam || 'Verified Institutional Archive',
-          "Admission sought for class": classParam || '11th',
-          "Class Roll No": rollParam || '—',
-          "Board Registration Number": regParam || '—',
-          "Form Number": fNoParam || '—',
-          "Certificate No.": certParam || '—',
-          "Session": sessionParam || '2025-26',
-          "Stream": 'General / Academics',
-          "Status": 'Approved',
-          photo_id: null,
-          isCryptographicVerification: true
-        };
       }
 
       if (!isCancelled) {

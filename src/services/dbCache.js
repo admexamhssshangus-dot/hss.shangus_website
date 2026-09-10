@@ -227,10 +227,10 @@ export function setCachedCollectionData(collectionName, list) {
             item.id
           ].filter(isValidPhotoKey);
 
-          validKeys.forEach(k => {
+          for (const k of validKeys) {
             existingPhotoCache[String(k).trim()] = val;
             dirty = true;
-          });
+          }
           break;
         }
       }
@@ -838,7 +838,7 @@ export function updateCachedItem(collectionName, itemId, updatedFields) {
   }
 
   const targetIdStr = String(itemId).trim();
-  const normalizedTargetId = targetIdStr.replace(/[\/\s]/g, '_').toLowerCase();
+  const normalizedTargetId = targetIdStr.replace(/[/\s]/g, '_').toLowerCase();
 
   const isMatchingItem = (item) => {
     if (!item) return false;
@@ -846,7 +846,7 @@ export function updateCachedItem(collectionName, itemId, updatedFields) {
       item.id, item.docId, item._docId, item.formNo, item['Form No.'], item['Form Number']
     ].filter(Boolean).map(v => String(v).trim());
 
-    return candidates.some(c => c === targetIdStr || c.replace(/[\/\s]/g, '_').toLowerCase() === normalizedTargetId);
+    return candidates.some(c => c === targetIdStr || c.replace(/[/\s]/g, '_').toLowerCase() === normalizedTargetId);
   };
 
   let updatedList;
@@ -1396,7 +1396,6 @@ export async function fetchStudentPhotoOnDemand(student) {
   // 1. Extract the canonical Board Registration Number first.
   const rawRegCandidate = extractUniversalRegNo(student);
   const reg = isValidPhotoKey(rawRegCandidate) ? rawRegCandidate : '';
-  const rawBoardReg = reg;
   const rawFormNo = String(student.formNo || student['Form Number'] || student['Form No.'] || student.form_no || '').replace(/^'/, '').trim();
   const fNo = isValidPhotoKey(rawFormNo) ? rawFormNo : '';
   const candidateDocId = String(student.docId || student._docId || student.id || '').trim();

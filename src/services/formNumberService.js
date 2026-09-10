@@ -287,7 +287,7 @@ export async function recycleDeletedFormNumber(formNo, deletedRecordData = {}, a
     });
 
     // 2. Remember basic details of deleted application in deletedFormsHistory collection
-    const safeDocId = cleanFormNoStr.replace(/[\/\s\\]/g, '_');
+    const safeDocId = cleanFormNoStr.replace(/[/\s\\]/g, '_');
     const docId = `del_${safeDocId}_${Date.now()}`;
     await setDoc(doc(db, DELETED_HISTORY_COLLECTION, docId), {
       formNumber: cleanFormNoStr,
