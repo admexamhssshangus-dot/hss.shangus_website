@@ -7,6 +7,8 @@ const admin = require('firebase-admin');
 const nodemailer = require('nodemailer');
 
 admin.initializeApp();
+const { requireStaff } = require('./access');
+Object.assign(exports, require('./staffSecurity')({ functions, admin, nodemailer, requireAppCheck }));
 
 const BOOTSTRAP_ADMIN_EMAIL = 'adm.exam.hss.shangus@gmail.com';
 const ALLOWED_ROLES = new Set(['Student', 'Teacher', 'Admin', 'SuperAdmin']);
@@ -35,11 +37,10 @@ function isStaffContext(context) {
     ['teacher', 'faculty'].includes(role);
 }
 
-function requireAdmin(context) {
+async function requireAdmin(context, module) {
   requireAppCheck(context);
-  if (!isAdminContext(context)) {
-    throw new functions.https.HttpsError('permission-denied', 'Verified administrator privileges are required.');
-  }
+  try { return await requireStaff(admin.firestore(), { ...context.auth?.token, uid: context.auth?.uid }, { adminOnly: true, module }); }
+  catch (error) { throw new functions.https.HttpsError('permission-denied', error.message); }
 }
 
 function cleanText(value, maxLength) {
@@ -69,40 +70,14 @@ exports.initializeUserClaims = functions.auth.user().onCreate(async (user) => {
   }, { merge: true });
 });
 
-exports.setUserAccess = functions.https.onCall(async (data, context) => {
-  requireAdmin(context);
-  const uid = cleanText(data?.uid, 128);
-  const role = cleanText(data?.role, 32);
-  const permissions = Array.isArray(data?.permissions)
-    ? [...new Set(data.permissions.map(v => cleanText(v, 64)).filter(Boolean))].slice(0, 50)
-    : [];
-  if (!uid || !ALLOWED_ROLES.has(role)) {
-    throw new functions.https.HttpsError('invalid-argument', 'A valid UID and approved role are required.');
-  }
-
-  await admin.auth().setCustomUserClaims(uid, {
-    role,
-    admin: role === 'Admin' || role === 'SuperAdmin',
-    teacher: role === 'Teacher',
-    permissions,
-  });
-  await admin.firestore().collection('securityAuditLogs').add({
-    action: 'set_user_access',
-    targetUid: uid,
-    role,
-    permissions,
-    actorUid: context.auth.uid,
-    actorEmail: context.auth.token.email || null,
-    createdAt: admin.firestore.FieldValue.serverTimestamp(),
-  });
-  return { success: true };
+exports.setUserAccess = functions.https.onCall(async () => {
+  throw new functions.https.HttpsError('failed-precondition', 'Use manageStaffAccount so roles, accounts and session revocation stay consistent.');
 });
 
 exports.sendPracticalsEmail = functions.https.onCall(async (data, context) => {
   requireAppCheck(context);
-  if (!isStaffContext(context) || context.auth.token.email_verified !== true) {
-    throw new functions.https.HttpsError('permission-denied', 'Verified staff privileges are required.');
-  }
+  try { await requireStaff(admin.firestore(), { ...context.auth?.token, uid: context.auth?.uid }, { module: 'practicals' }); }
+  catch (error) { throw new functions.https.HttpsError('permission-denied', error.message); }
 
   const recipients = (Array.isArray(data?.to) ? data.to : [data?.to])
     .map(v => cleanText(v, 254).toLowerCase()).filter(v => EMAIL_RE.test(v));
@@ -139,7 +114,7 @@ exports.sendPracticalsEmail = functions.https.onCall(async (data, context) => {
 });
 
 exports.signStudentVerification = functions.https.onCall(async (data, context) => {
-  requireAdmin(context);
+  await requireAdmin(context, 'certStudio');
   const reg = cleanText(data?.reg, 64);
   const roll = cleanText(data?.roll, 64);
   const formNo = cleanText(data?.formNo, 64);

@@ -7,7 +7,7 @@ import { onAuthStateChanged, getIdTokenResult } from 'firebase/auth';
 import { resolveStaffRoleAndPerms } from '../../services/staffAuthService';
 jest.mock('../../services/firebase', () => ({ auth: { currentUser: null } }));
 jest.mock('firebase/auth', () => ({ onAuthStateChanged: jest.fn(), getIdTokenResult: jest.fn(), signOut: jest.fn() }));
-jest.mock('../../services/staffAuthService', () => ({ resolveStaffRoleAndPerms: jest.fn(), isBootstrapSuperAdminEmail: () => false }));
+jest.mock('../../services/staffAuthService', () => ({ resolveStaffRoleAndPerms: jest.fn(), requireVerifiedAdminSession: jest.fn(), isBootstrapSuperAdminEmail: () => false }));
 jest.mock('../../components/ModernLoader', () => () => <div>Checking session</div>);
 jest.mock('react-router-dom', () => ({
   useNavigate: () => jest.fn(), useLocation: () => ({ pathname: '/portal/student' }),

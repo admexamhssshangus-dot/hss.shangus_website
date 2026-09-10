@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import { applyRecordPatch, completeMutationJob } from '../../services/recordMutationService';
+import React, { useState, useEffect } from 'react';
 import { 
   X, AlertTriangle, ShieldAlert, Save, RefreshCw, CheckCircle2, 
   User, BookOpen, Calendar, Award, Phone, Hash, ShieldCheck
@@ -15,9 +16,15 @@ export default function MasterRegisterQuickEditModal({
   student,
   onSaved
 }) {
-  const [formData, setFormData] = useState(() => {
-    if (!student) return {};
-    return {
+  const [formData, setFormData] = useState({});
+  const [hasAcknowledgedWarning, setHasAcknowledgedWarning] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [errorMsg, setErrorMsg] = useState(null);
+
+  useEffect(() => {
+    if (!isOpen || !student) return;
+    const initialize = () => {
+      return {
       studentName: student.studentName || student["Student's Name (as per school records)"] || student["Student's Name"] || '',
       fatherName: student.fatherName || student["Father's/Guardian's Name (as per school records)"] || student["Father's Name"] || '',
       motherName: student.motherName || student["Mother's Name (as per school records)"] || student["Mother's Name"] || '',
@@ -31,11 +38,11 @@ export default function MasterRegisterQuickEditModal({
       classRollNo: student.classRollNo || student.rollNo || student['Class Roll No'] || student['Class Roll No.'] || '',
       category: student.category || student['Cat._JKBOSE'] || student['Category'] || 'General'
     };
-  });
-
-  const [hasAcknowledgedWarning, setHasAcknowledgedWarning] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-  const [errorMsg, setErrorMsg] = useState(null);
+    };
+    setFormData(initialize());
+    setHasAcknowledgedWarning(false);
+    setErrorMsg(null);
+  }, [isOpen, student]);
 
   if (!isOpen || !student) return null;
 
@@ -65,10 +72,10 @@ export default function MasterRegisterQuickEditModal({
       const cleanedSubs = cleanRawSubjectTokens(formData.subjects);
 
       const patch = {
-        studentName: formData.studentName.trim(),
-        "Student's Name (as per school records)": formData.studentName.trim(),
-        "Student's Name": formData.studentName.trim(),
-        "Student Name": formData.studentName.trim(),
+        studentName: String(formData.studentName || '').trim(),
+        "Student's Name (as per school records)": String(formData.studentName || '').trim(),
+        "Student's Name": String(formData.studentName || '').trim(),
+        "Student Name": String(formData.studentName || '').trim(),
 
         fatherName: formData.fatherName.trim(),
         "Father's/Guardian's Name (as per school records)": formData.fatherName.trim(),
@@ -119,6 +126,10 @@ export default function MasterRegisterQuickEditModal({
       };
 
       // Set individual subject slots
+      for (let index = 1; index <= 6; index++) {
+        patch[`Subjects${index}`] = '';
+        patch[`subject${index}`] = '';
+      }
       cleanedSubs.forEach((subName, sIdx) => {
         if (sIdx < 6) {
           patch[`Subjects${sIdx + 1}`] = subName;
@@ -126,67 +137,8 @@ export default function MasterRegisterQuickEditModal({
         }
       });
 
-      // 1. Locate student in masterRegisters cache to find chunkDocId and arrayKey
-      const masterCache = getCachedCollectionSync('masterRegisters') || [];
-      let parentDocId = null;
-      let arrayKey = null;
-
-      for (const chunkDoc of masterCache) {
-        if (!chunkDoc) continue;
-        const candidateKeys = ['students', 'items', 'records', 'data'];
-        for (const k of candidateKeys) {
-          if (Array.isArray(chunkDoc[k])) {
-            const found = chunkDoc[k].some(r => {
-              const rForm = normalized(r.formNo || r['Form Number'] || r['Form No.'] || r.id);
-              const rReg = normalized(r.boardRegNo || r.regNo || r['Board Registration Number']);
-              const rName = normalized(r.studentName || r["Student's Name"]);
-              return (formNo && rForm === normalized(formNo)) ||
-                     (regNo && rReg === normalized(regNo)) ||
-                     (studentName && rName === normalized(studentName));
-            });
-            if (found) {
-              parentDocId = chunkDoc.id || chunkDoc._docId;
-              arrayKey = k;
-              break;
-            }
-          }
-        }
-        if (parentDocId) break;
-      }
-
-      // 2. Execute update in Firestore
-      if (parentDocId && arrayKey) {
-        const parentRef = doc(db, 'masterRegisters', String(parentDocId));
-        const parentSnap = await getDoc(parentRef);
-        if (parentSnap.exists()) {
-          const parentData = parentSnap.data() || {};
-          const currentArray = parentData[arrayKey] || [];
-          let didMatch = false;
-
-          const updatedArray = currentArray.map(r => {
-            const rForm = normalized(r.formNo || r['Form Number'] || r['Form No.'] || r.id);
-            const rReg = normalized(r.boardRegNo || r.regNo || r['Board Registration Number']);
-            const rName = normalized(r.studentName || r["Student's Name"]);
-            const matches = (formNo && rForm === normalized(formNo)) ||
-                            (regNo && rReg === normalized(regNo)) ||
-                            (studentName && rName === normalized(studentName));
-            if (!matches) return r;
-            didMatch = true;
-            return { ...r, ...patch };
-          });
-
-          if (didMatch) {
-            await setDoc(parentRef, { [arrayKey]: updatedArray, updatedAt: serverTimestamp() }, { merge: true });
-            updateCachedItem('masterRegisters', String(parentDocId), { [arrayKey]: updatedArray });
-          }
-        }
-      } else {
-        // Fallback: standalone document
-        const targetDocId = String(student._docId || student.docId || student.id || formNo);
-        const docRef = doc(db, 'masterRegisters', targetDocId);
-        await setDoc(docRef, patch, { merge: true });
-        updateCachedItem('masterRegisters', targetDocId, patch);
-      }
+      const jobId = await applyRecordPatch({ ...student, _source: 'masterRegisters' }, patch);
+      await completeMutationJob(jobId);
 
       // 3. Log Admin Activity
       await logAdminActivity({

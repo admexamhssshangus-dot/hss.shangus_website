@@ -284,6 +284,77 @@ export default function AnalyticsSuiteModal({ isOpen, onClose, students = [] }) 
     return 'Humanities';
   };
 
+  // Helper to determine accurate subject stream classification (Humanities, Science, Commerce, Science / Humanities)
+  const resolveSubjectStream = (subName, studentStream = 'Humanities') => {
+    const norm = String(subName || '').toLowerCase().trim();
+
+    // 1. Definite Humanities Subjects
+    if (
+      norm === 'ps' ||
+      norm.includes('political') ||
+      norm === 'ht' ||
+      norm.includes('history') ||
+      norm === 'ed' ||
+      norm.includes('education') ||
+      norm === 'so' ||
+      norm.includes('sociology') ||
+      norm === 'ec' ||
+      norm.includes('economics') ||
+      norm === 'ur' ||
+      norm.includes('urdu') ||
+      norm === 'ar' ||
+      norm.includes('arabic') ||
+      norm === 'pr' ||
+      norm.includes('persian') ||
+      norm === 'ks' ||
+      norm.includes('kashmiri') ||
+      norm === 'py' ||
+      norm.includes('psychology')
+    ) {
+      return 'Humanities';
+    }
+
+    // 2. Definite Science Subjects
+    if (
+      norm === 'ph' ||
+      norm.includes('physics') ||
+      norm === 'ch' ||
+      norm.includes('chemistry') ||
+      norm === 'bi' ||
+      norm.includes('biology') ||
+      norm === 'bo' ||
+      norm.includes('botany') ||
+      norm === 'zo' ||
+      norm.includes('zoology')
+    ) {
+      return 'Science';
+    }
+
+    // 3. Definite Commerce Subjects
+    if (
+      norm.includes('accountancy') ||
+      norm.includes('business studies') ||
+      norm.includes('entrepreneurship') ||
+      norm.includes('commerce')
+    ) {
+      return 'Commerce';
+    }
+
+    // 4. Common / Flexible Electives (Offered across both Science & Humanities)
+    if (
+      norm.includes('english') ||
+      norm.includes('physical education') ||
+      norm.includes('math') ||
+      /\b(it|ites|it and ites|information technology)\b/i.test(norm) ||
+      norm.includes('healthcare') ||
+      norm.includes('environmental')
+    ) {
+      return 'Science / Humanities';
+    }
+
+    return studentStream || 'Humanities';
+  };
+
   // Helper to normalize subject codes and abbreviations
   const normalizeSubjectName = (name, studentClass = '') => {
     if (!name) return '';
@@ -641,16 +712,7 @@ export default function AnalyticsSuiteModal({ isOpen, onClose, students = [] }) 
       // Subject Aggregation
       const subList = extractSubjectList(s);
       subList.forEach((subName) => {
-        const normSub = String(subName).toLowerCase();
-        const isFlexible = (
-          normSub.includes('english') ||
-          normSub.includes('physical education') ||
-          normSub.includes('math') ||
-          normSub.includes('it') ||
-          normSub.includes('healthcare') ||
-          normSub.includes('environmental')
-        );
-        const resolvedSubjStream = isFlexible ? 'Science / Humanities' : stStream;
+        const resolvedSubjStream = resolveSubjectStream(subName, stStream);
 
         if (!subjectMap[subName]) {
           subjectMap[subName] = { name: subName, total: 0, male: 0, female: 0, stream: resolvedSubjStream };

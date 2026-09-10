@@ -5,7 +5,7 @@ import ModernLoader from '../../components/ModernLoader';
 
 import { auth } from '../../services/firebase';
 import { getIdTokenResult, onAuthStateChanged, signOut } from 'firebase/auth';
-import { resolveStaffRoleAndPerms, isBootstrapSuperAdminEmail } from '../../services/staffAuthService';
+import { resolveStaffRoleAndPerms, requireVerifiedAdminSession, isBootstrapSuperAdminEmail } from '../../services/staffAuthService';
 
 // ---------------------------------------------------------------------------
 // Shared helper: resolve user profile from Firestore by email
@@ -20,16 +20,11 @@ async function resolveUserProfile(firebaseUser) {
   // Resolve role from Firestore permissions & users collection & bootstrap
   const staffProfile = await resolveStaffRoleAndPerms(emailLower);
 
-  const rawRole = String(
-    (isBootstrapAdmin ? 'SuperAdmin' : '') ||
-    staffProfile?.role ||
-    claims.role || 
-    (claims.admin ? 'Admin' : '') || 
-    'Student'
-  ).trim();
+  const rawRole = staffProfile?.role || 'Student';
 
   const role = rawRole.charAt(0).toUpperCase() + rawRole.slice(1);
   const normalizedRole = role.toLowerCase();
+  if (normalizedRole.includes('admin')) await requireVerifiedAdminSession(firebaseUser);
 
   const perms = isBootstrapAdmin || role === 'SuperAdmin'
     ? ['*']
@@ -178,7 +173,8 @@ export default function PortalLayout() {
             sessionManager.saveSession({ user: updatedSession, token: verifiedToken }, localStorage.getItem('hss_persistent_login') !== 'false');
             setSessionStateStable({ loading: false, user: updatedSession, isAuthenticated: true });
           }).catch((err) => {
-            console.warn('Silent token claims refresh note:', err);
+            sessionManager.clearSession();
+            setSessionStateStable({ loading: false, user: null, isAuthenticated: false });
           });
           return;
         }
@@ -199,7 +195,7 @@ export default function PortalLayout() {
         } catch (error) {
           sessionManager.clearSession();
           setSessionStateStable({ loading: false, user: null, isAuthenticated: false });
-          navigate('/portal/login', { replace: true, state: { message: error.message } });
+          if (window.location.pathname !== '/portal/login') navigate('/portal/login', { replace: true, state: { message: error.message } });
         }
       } else {
         sessionManager.clearSession();

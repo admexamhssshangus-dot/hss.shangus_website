@@ -608,7 +608,7 @@ export default function AdminDashboard() {
                   )}
 
                   <div className={isSwitchingTab ? 'hidden' : 'block w-full'}>
-                    <ModuleErrorBoundary key={activeTab}>
+                    <ModuleErrorBoundary resetKey={activeTab}>
                       <React.Suspense fallback={<TabLoadingOverlay moduleKey={activeTab} />}>
                       {/* TAB 1: Master Register & Database (Kept mounted to eliminate tab-switch stalls and preserve scroll/search/filter state) */}
                       {hasMountedReports && (

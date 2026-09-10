@@ -273,6 +273,7 @@ export function resolveCleanStream(studentData, cleanClass = '') {
       if (!lower || lower === '—' || lower === 'n/a' || lower === 'null' || lower === '-' || lower.includes('same as')) continue;
       
       // If candidate is a comma-separated list of subjects or sentence, reject as raw stream name
+      if (/home[ -]*science/.test(lower) && !/(physic|chem|bio)/.test(lower)) return 'Home Science';
       if (trimmed.includes(',') || trimmed.split(/\s+/).length > 3) {
         if (lower.includes('physic') || lower.includes('chem') || lower.includes('bio') || lower.includes('math') || lower.includes('sci')) return 'Science';
         if (lower.includes('hist') || lower.includes('pol') || lower.includes('soci') || lower.includes('art') || lower.includes('hum') || lower.includes('geography') || lower.includes('urdu lit')) return 'Humanities';
@@ -281,6 +282,7 @@ export function resolveCleanStream(studentData, cleanClass = '') {
         continue;
       }
 
+      if (/home[ -]*sci/.test(lower)) return 'Home Science';
       if (lower.includes('hum') || lower.includes('art')) return 'Humanities';
       if (lower.includes('com')) return 'Commerce';
       if (lower.includes('sci') || lower.includes('med') || lower.includes('non-med')) return 'Science';
@@ -304,6 +306,7 @@ export function resolveCleanStream(studentData, cleanClass = '') {
     ''
   ).toLowerCase();
 
+  if (/home[ -]*sci/.test(rawSubs) && !/(physic|chem|bio)/.test(rawSubs)) return 'Home Science';
   if (rawSubs.includes('physic') || rawSubs.includes('chem') || rawSubs.includes('bio') || rawSubs.includes('math') || rawSubs.includes('sci')) {
     return 'Science';
   }
@@ -352,10 +355,7 @@ export function resolveCleanAdmNo(studentData) {
       const str = String(cand).trim();
       if (
         str &&
-        str !== '—' &&
-        str !== 'N/A' &&
-        str !== 'null' &&
-        str !== 'undefined' &&
+        !/^([-—–]+|n\/?a|null|undefined)$/i.test(str) &&
         str.length <= 20 &&
         str.split(/\s+/).length <= 2 &&
         !/^(#N\/A|#VALUE!|#REF!|#NULL!|none|nan|yes|no|true|false)$/i.test(str) &&

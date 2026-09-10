@@ -10,8 +10,8 @@ import {
 import {
   initializeFirestore,
   getFirestore,
-  persistentLocalCache,
-  persistentMultipleTabManager,
+  memoryLocalCache,
+  clearIndexedDbPersistence,
   enableNetwork
 } from 'firebase/firestore';
 import { getFunctions } from 'firebase/functions';
@@ -48,14 +48,16 @@ try {
 let firestoreInstance;
 try {
   firestoreInstance = initializeFirestore(app, {
-    localCache: persistentLocalCache({
-      tabManager: persistentMultipleTabManager()
-    })
+    localCache: memoryLocalCache()
   });
 } catch (e) {
   firestoreInstance = getFirestore(app);
 }
 
+// Remove the previous SDK disk cache before consumers start their first read.
+clearIndexedDbPersistence(firestoreInstance).catch(error => {
+  console.warn('Close other portal tabs to finish removing the legacy offline cache:', error.code);
+});
 export const auth = authInstance;
 export const googleProvider = new GoogleAuthProvider();
 export const db = firestoreInstance;
