@@ -1,6 +1,6 @@
 import { db } from './firebase';
 import { doc, setDoc, deleteDoc, collection, getDocs } from 'firebase/firestore';
-import { updateCachedItem, invalidateCache } from './dbCache';
+import { invalidateCache } from './dbCache';
 import { deleteStudentDocument } from '../portal/admin/AdvancedReports';
 import { logAdminActivity } from './adminActivityLogger';
 

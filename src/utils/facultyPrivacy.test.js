@@ -32,6 +32,7 @@ describe('faculty privacy projection', () => {
     expect(toPublicFacultyMember({ name: 'Hidden', designation: 'Teacher', hidden: true })).toBeNull();
     // Rejects javascript schemes
     expect(toPublicFacultyMember({
+      // eslint-disable-next-line no-script-url
       name: 'Visible', designation: 'Teacher', photo: 'javascript:alert(1)',
     }).photo).toBe('');
     // Rejects non-image data URLs

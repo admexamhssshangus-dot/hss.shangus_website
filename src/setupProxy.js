@@ -20,6 +20,7 @@ if (fs.existsSync(netlifyModulesPath) && !module.paths.includes(netlifyModulesPa
 
 module.exports = function(app) {
   const cleanPublicText = (value, maxLength) => String(value || '')
+    // eslint-disable-next-line no-control-regex
     .replace(/[\u0000-\u001f\u007f]/g, ' ')
     .trim()
     .slice(0, maxLength);

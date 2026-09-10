@@ -82,14 +82,58 @@ export default function PublicResultLookup() {
     setSearchAttempted(true);
 
     try {
-      // 1. Load admissions and master registers
-      const [admissions, masterRegs, practicalsSnap] = await Promise.all([
+      // 1. Load admissions, master registers, and practical evaluation records
+      let [admissions, masterRegs, practicalsSnap] = await Promise.all([
         getCachedCollection('admissions', false, 15 * 60 * 1000).catch(() => []),
         getCachedCollection('masterRegisters', false, 15 * 60 * 1000).catch(() => []),
         getDocs(collection(db, 'practicalsData')).catch(() => ({ docs: [] }))
       ]);
 
-      const allStudents = [...(admissions || []), ...(masterRegs || [])];
+      let allStudents = [...(admissions || []), ...(masterRegs || [])];
+      let practicalDataList = practicalsSnap?.docs ? practicalsSnap.docs.map(d => d.data()) : [];
+
+      // Fallback for public visitors: if Firestore collections are inaccessible or unauthenticated,
+      // load verified catalog & clean evaluation seed data
+      if (allStudents.length === 0 || practicalDataList.length === 0) {
+        try {
+          const { default: verifiedCatalog } = await import('../data/verifiedStudentsCatalog.json');
+          if (Array.isArray(verifiedCatalog)) {
+            const catalogStudents = verifiedCatalog.map(s => ({
+              "Student's Name (as per school records)": s.name,
+              "Father's/Guardian's Name (as per school records)": s.fatherName,
+              Class: s.className,
+              classRollNo: s.classRollNo,
+              boardRegNo: s.boardRegNo,
+              formNo: s.fNo,
+              Stream: s.stream,
+              Session: s.session
+            }));
+            allStudents = [...allStudents, ...catalogStudents];
+          }
+        } catch (_) {}
+
+        try {
+          const { CLEAN_PRACTICALS_SEED_DATA } = await import('../data/cleanPracticalsSeedData');
+          if (Array.isArray(CLEAN_PRACTICALS_SEED_DATA)) {
+            practicalDataList = [...practicalDataList, ...CLEAN_PRACTICALS_SEED_DATA];
+            CLEAN_PRACTICALS_SEED_DATA.forEach(sec => {
+              (sec.records || []).forEach(r => {
+                allStudents.push({
+                  "Student's Name (as per school records)": r.name,
+                  "Father's/Guardian's Name (as per school records)": r.parentName,
+                  Class: sec.className,
+                  classRollNo: r.classRollNo,
+                  boardRegNo: r.boardRegNo,
+                  examRollNo: r.examRollNo,
+                  formNo: r.formNo,
+                  Stream: r.stream,
+                  Session: sec.sessionText
+                });
+              });
+            });
+          }
+        } catch (_) {}
+      }
 
       // Helper to clean and match query
       const cleanQ = rawQuery.replace(/[\s\-_/]/g, '').toLowerCase();
@@ -117,7 +161,7 @@ export default function PublicResultLookup() {
         return;
       }
 
-      // 2. Find student's evaluation marks across practicalsData
+      // 2. Find student's evaluation marks across practical evaluation datasets
       const stName = matchedStudent["Student's Name (as per school records)"] || matchedStudent["Student's Name"] || matchedStudent.studentName || matchedStudent.name || 'Candidate';
       const stFather = matchedStudent["Father's/Guardian's Name (as per school records)"] || matchedStudent["Father's Name"] || matchedStudent.fatherName || '';
       const stRoll = matchedStudent['Class Roll No'] || matchedStudent['Class Roll No.'] || matchedStudent.classRollNo || matchedStudent.rollNo || '—';
@@ -129,16 +173,25 @@ export default function PublicResultLookup() {
       const normSess = String(selectedSession || '').toLowerCase();
       const normEval = String(selectedEvalType || '').toLowerCase();
 
-      practicalsSnap.docs.forEach(d => {
-        const data = d.data();
+      practicalDataList.forEach(data => {
+        if (!data) return;
         const docCls = String(data.className || '').replace(/[^0-9]/g, '');
-        const docSess = String(data.yearSuffix || data.session || '').toLowerCase();
+        const docSess = String(data.yearSuffix || data.session || data.sessionText || '').toLowerCase();
         const docType = String(data.practicalType || '').toLowerCase();
 
-        // Match class, session, and evaluation type
+        // Match class
         if (normClass && docCls && normClass !== docCls) return;
-        if (normSess && docSess && !docSess.includes(normSess) && !normSess.includes(docSess)) return;
-        if (normEval && docType && !docType.includes(normEval) && !normEval.includes(docType)) return;
+        // Match session if present
+        if (normSess && docSess && !docSess.includes(normSess) && !normSess.includes(docSess.slice(0, 7))) return;
+        // Match evaluation type flexibly
+        if (normEval && docType && !docType.includes(normEval) && !normEval.includes(docType)) {
+          // If seeking pre-board but record is practical internal/external or vice versa, allow when it matches session & student
+          const isEvalMatch = (normEval.includes('pre-board') && docType.includes('pre-board')) ||
+                              (normEval.includes('internal') && docType.includes('internal')) ||
+                              (normEval.includes('external') && docType.includes('external')) ||
+                              docType === '' || normEval === '';
+          if (!isEvalMatch) return;
+        }
 
         const records = Array.isArray(data.records) ? data.records : [];
         const studentMarkRecord = records.find(r => {
@@ -165,16 +218,21 @@ export default function PublicResultLookup() {
           const minMarks = Math.ceil(0.36 * maxMarks);
           const pass = !isAb && numMark >= minMarks;
 
-          subjectMarks.push({
-            subjectCode: data.subjectCode || '—',
-            subjectName: data.subject || 'Subject',
-            marksObtained: isAb ? 'AB' : (rawMark === '' ? '—' : numMark),
-            maxMarks,
-            minMarks,
-            isAbsent: isAb,
-            isPass: pass,
-            status: isAb ? 'Absent' : (pass ? 'Pass' : 'Needs Improvement')
-          });
+          // Prevent duplicate subjects
+          const sCode = data.subjectCode || '—';
+          const existingIdx = subjectMarks.findIndex(sm => sm.subjectCode === sCode && sm.subjectName === (data.subjectName || data.subject));
+          if (existingIdx === -1) {
+            subjectMarks.push({
+              subjectCode: sCode,
+              subjectName: data.subjectName || data.subject || 'Subject',
+              marksObtained: isAb ? 'AB' : (rawMark === '' ? '—' : numMark),
+              maxMarks,
+              minMarks,
+              isAbsent: isAb,
+              isPass: pass,
+              status: isAb ? 'Absent' : (pass ? 'Pass' : 'Needs Improvement')
+            });
+          }
         }
       });
 

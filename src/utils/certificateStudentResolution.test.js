@@ -1,11 +1,11 @@
-jest.mock('../services/firebase', () => ({ db: {} }));
-
 import {
   inferStreamFromFullSubjects,
   normalizeCertificateSession,
   resolveCertificateStream,
   resolveScopedCertificateResult
 } from './certificateStudentResolution';
+
+jest.mock('../services/firebase', () => ({ db: {} }));
 
 describe('certificate student resolution', () => {
   test('normalizes equivalent bi-annual session labels', () => {
