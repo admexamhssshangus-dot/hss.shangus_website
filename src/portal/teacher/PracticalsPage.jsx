@@ -858,13 +858,13 @@ function CustomSubjectSelect({ selectedSubject, setSelectedSubject, subjectMap, 
 
   return (
     <div className="space-y-0.5 relative" ref={containerRef}>
-      <label className="text-[10px] font-black text-slate-700 dark:text-slate-300">
+      <label className="text-[9.5px] font-bold uppercase text-slate-600 dark:text-slate-400">
         Subject ({currentSubjectObj.code}) • {subjectMaxMarks}M (Pass: {minPassMarks}M)
       </label>
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full px-2 py-1.5 rounded-lg text-xs font-bold border flex items-center justify-between gap-1 bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 shadow-xs cursor-pointer focus:outline-none focus:ring-1 focus:ring-indigo-500"
+        className="w-full px-2 py-1 rounded-md text-xs font-semibold h-7.5 border flex items-center justify-between gap-1 bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 shadow-2xs cursor-pointer focus:outline-none focus:ring-1 focus:ring-indigo-500"
       >
         <span className="truncate">{selectedItem.name} ({selectedItem.code}) - {subjectMaxMarks}M</span>
         <ChevronDown size={13} className={`text-slate-400 shrink-0 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
@@ -2078,22 +2078,22 @@ export default function PracticalsPage() {
 
           {/* Sleek Integrated Filter Control & Toolbar Bar */}
           <div className="rounded-xl border bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 p-2 space-y-2">
-            {/* Summary Bar & Action Controls (Responsive Mobile-First) */}
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
+            {/* Summary Bar & Action Controls (Responsive Mobile-First, High Density) */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-1.5">
               {/* Filters toggle — full width on mobile, fills available space on desktop */}
               <button
                 type="button"
                 onClick={() => setShowFilterSettings(!showFilterSettings)}
-                className="w-full sm:flex-1 flex items-center justify-between gap-2 px-3 py-2 sm:py-1.5 rounded-xl sm:rounded-lg border text-xs font-black bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all cursor-pointer min-w-0 shadow-2xs active:scale-98"
+                className="w-full sm:flex-1 flex items-center justify-between gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-bold bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer min-w-0 shadow-2xs active:scale-98"
               >
-                <div className="flex items-center gap-2 truncate">
-                  <SlidersHorizontal size={14} className="text-indigo-600 dark:text-indigo-400 shrink-0" />
-                  <span className="truncate text-[11px] sm:text-[10.5px]">
+                <div className="flex items-center gap-1.5 truncate">
+                  <SlidersHorizontal size={13} className="text-indigo-600 dark:text-indigo-400 shrink-0" />
+                  <span className="truncate text-[11px]">
                     {selectedClass} Class • {currentSubjectObj.name} ({currentSubjectObj.code}) • {practicalType.split(' ')[0]} ({subjectMaxMarks}M) • {yearSuffix}
                   </span>
                 </div>
-                <span className="text-[9.5px] font-black px-2 py-0.5 rounded-lg bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20 shrink-0 flex items-center gap-1">
-                  Filters <ChevronDown size={12} className={`transition-transform duration-200 ${showFilterSettings ? 'rotate-180' : ''}`} />
+                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20 shrink-0 flex items-center gap-0.5">
+                  Filters <ChevronDown size={11} className={`transition-transform duration-200 ${showFilterSettings ? 'rotate-180' : ''}`} />
                 </span>
               </button>
 
@@ -2120,21 +2120,21 @@ export default function PracticalsPage() {
               </div>
 
               {/* Quick Fill + Fail filter + Print */}
-              <div className="flex items-center justify-between sm:justify-end gap-1.5 w-full sm:w-auto shrink-0">
+              <div className="flex items-center justify-between sm:justify-end gap-1 w-full sm:w-auto shrink-0">
                 <button
                   type="button"
                   onClick={() => setShowQuickFill(prev => !prev)}
-                  className={`flex-1 sm:flex-initial px-3 py-2 sm:py-1.5 rounded-xl sm:rounded-lg font-black text-xs border transition-all cursor-pointer flex items-center justify-center gap-1.5 active:scale-95 shadow-2xs ${
+                  className={`flex-1 sm:flex-initial h-7.5 px-2.5 py-1 rounded-lg font-bold text-[11px] border transition-all cursor-pointer flex items-center justify-center gap-1 active:scale-95 shadow-2xs ${
                     showQuickFill
-                      ? 'bg-amber-500 text-white border-amber-500 shadow-xs'
+                      ? 'bg-amber-500 text-white border-amber-500 shadow-2xs'
                       : 'bg-white dark:bg-slate-900 text-amber-700 dark:text-amber-400 border-amber-300 dark:border-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/40'
                   }`}
                   title="Quick Bulk Fill: Fill marks for all, empty, or selected students in one go"
                 >
-                  <Zap size={14} className={showQuickFill ? 'text-white' : 'text-amber-500'} />
+                  <Zap size={12} className={showQuickFill ? 'text-white' : 'text-amber-500'} />
                   <span>Quick Fill</span>
                   {selectedKeys.size > 0 && (
-                    <span className="px-1.5 py-0.2 rounded-full bg-indigo-600 text-white text-[9.5px] font-black">
+                    <span className="px-1 py-0.2 rounded-full bg-indigo-600 text-white text-[9px] font-bold">
                       {selectedKeys.size}
                     </span>
                   )}
@@ -2143,7 +2143,7 @@ export default function PracticalsPage() {
                 <button
                   type="button"
                   onClick={() => setShowFailOnly(!showFailOnly)}
-                  className={`px-3 py-2 sm:py-1.5 rounded-xl sm:rounded-lg font-black text-xs border transition-all cursor-pointer flex items-center justify-center active:scale-95 shadow-2xs ${
+                  className={`h-7.5 px-2.5 py-1 rounded-lg font-bold text-[11px] border transition-all cursor-pointer flex items-center justify-center active:scale-95 shadow-2xs ${
                     showFailOnly
                       ? 'bg-rose-500 text-white border-rose-500'
                       : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700'
@@ -2155,22 +2155,22 @@ export default function PracticalsPage() {
                 <button
                   type="button"
                   onClick={handlePrintReport}
-                  className="px-3.5 py-2 sm:py-1.5 rounded-xl sm:rounded-lg font-black text-xs bg-indigo-600 text-white hover:bg-indigo-500 border border-indigo-600 shadow-xs cursor-pointer flex items-center justify-center gap-1.5 active:scale-95"
+                  className="h-7.5 px-2.5 py-1 rounded-lg font-bold text-[11px] bg-indigo-600 text-white hover:bg-indigo-500 border border-indigo-600 shadow-2xs cursor-pointer flex items-center justify-center gap-1 active:scale-95"
                 >
-                  <Printer size={14} /> <span>Print</span>
+                  <Printer size={12} /> <span>Print</span>
                 </button>
               </div>
             </div>
 
             {/* Expandable Filter Inputs Panel */}
             {showFilterSettings && (
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-slate-200 dark:border-slate-800 animate-in fade-in duration-150">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 pt-1.5 border-t border-slate-200 dark:border-slate-800 animate-in fade-in duration-150">
                 <div className="space-y-0.5">
-                  <label className="text-[10px] font-black text-slate-700 dark:text-slate-300">Class</label>
+                  <label className="text-[9.5px] font-bold uppercase text-slate-600 dark:text-slate-400">Class</label>
                   <select
                     value={selectedClass}
                     onChange={(e) => setSelectedClass(e.target.value)}
-                    className="w-full px-2 py-1.5 rounded-lg text-xs font-bold border focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100"
+                    className="w-full px-2 py-1 rounded-md text-xs font-semibold h-7.5 border focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100"
                   >
                     <option value="12th">12th Class</option>
                     <option value="11th">11th Class</option>
@@ -2190,11 +2190,11 @@ export default function PracticalsPage() {
                 />
 
                 <div className="space-y-0.5">
-                  <label className="text-[10px] font-black text-slate-700 dark:text-slate-300">Eval. Type</label>
+                  <label className="text-[9.5px] font-bold uppercase text-slate-600 dark:text-slate-400">Eval. Type</label>
                   <select
                     value={practicalType}
                     onChange={(e) => setPracticalType(e.target.value)}
-                    className="w-full px-2 py-1.5 rounded-lg text-xs font-bold border focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100"
+                    className="w-full px-2 py-1 rounded-md text-xs font-semibold h-7.5 border focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100"
                   >
                     {availableEvalTypes.map(et => (
                       <option key={et.value} value={et.value}>
@@ -2205,11 +2205,11 @@ export default function PracticalsPage() {
                 </div>
 
                 <div className="space-y-0.5">
-                  <label className="text-[10px] font-black text-slate-700 dark:text-slate-300">Session</label>
+                  <label className="text-[9.5px] font-bold uppercase text-slate-600 dark:text-slate-400">Session</label>
                   <select
                     value={yearSuffix}
                     onChange={(e) => setYearSuffix(e.target.value)}
-                    className="w-full px-2 py-1.5 rounded-lg text-xs font-bold border focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100"
+                    className="w-full px-2 py-1 rounded-md text-xs font-semibold h-7.5 border focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100"
                   >
                     {availableSessions.map(yr => {
                       let label = yr;
@@ -2471,8 +2471,8 @@ export default function PracticalsPage() {
             />
           ) : displayedStudents.length > 0 ? (
             <>
-              {/* ── MOBILE CARDS (hidden on sm+) — True Mobile-First Ergonomic Layout ── */}
-              <div className="sm:hidden space-y-2">
+              {/* ── MOBILE CARDS (hidden on sm+) — High-Density Standard Roster Layout ── */}
+              <div className="sm:hidden space-y-1.5">
                 {displayedStudents.map((st, idx) => {
                   const isAbsent = st.practicalMarks === 'A' || st.practicalMarks === 'AB';
                   const valToConvert = isAbsent ? 'A' : (st.practicalMarks !== '' ? st.practicalMarks : '');
@@ -2485,56 +2485,58 @@ export default function PracticalsPage() {
                   return (
                     <div 
                       key={idx} 
-                      className={`rounded-2xl border p-3 transition-all shadow-xs space-y-2 ${
+                      className={`rounded-xl border p-2 transition-all shadow-2xs space-y-1 ${
                         isSelected
                           ? 'border-indigo-400/80 bg-indigo-50/40 dark:border-indigo-600/80 dark:bg-indigo-950/30'
                           : isAbsent 
                           ? 'border-amber-400/50 bg-amber-500/5 dark:border-amber-500/30 dark:bg-amber-950/20' 
-                          : 'border-slate-200/90 dark:border-slate-800 bg-white dark:bg-slate-900'
+                          : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900'
                       }`}
                     >
-                      {/* Row 1: Checkbox, Student S.No, Class Roll, Name & Large Marks Input */}
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2 min-w-0 flex-1">
+                      {/* Row 1: Checkbox, Roll Badge, Student Name & Compact Marks Input */}
+                      <div className="flex items-center justify-between gap-1.5">
+                        <div className="flex items-center gap-1.5 min-w-0 flex-1">
                           <input
                             type="checkbox"
                             checked={isSelected}
                             onChange={() => handleToggleRow(key)}
-                            className="w-4 h-4 rounded border-slate-300 dark:border-slate-700 text-indigo-600 focus:ring-indigo-500 cursor-pointer shrink-0"
+                            className="w-3.5 h-3.5 rounded border-slate-300 dark:border-slate-700 text-indigo-600 focus:ring-indigo-500 cursor-pointer shrink-0"
                           />
-                          <span className="w-7 h-7 rounded-xl bg-indigo-600/10 text-indigo-700 dark:text-indigo-300 font-mono font-black text-xs flex items-center justify-center border border-indigo-500/20 shrink-0 shadow-2xs" title={`Class Roll: ${st.rollNo}`}>
+                          <span className="w-6 h-6 rounded-md bg-indigo-600/10 text-indigo-700 dark:text-indigo-300 font-mono font-bold text-[11px] flex items-center justify-center border border-indigo-500/20 shrink-0" title={`Class Roll: ${st.rollNo}`}>
                             {st.rollNo}
                           </span>
                           <div className="min-w-0 flex-1">
-                            <span className="font-extrabold text-xs text-slate-900 dark:text-white truncate block leading-tight">
-                              {st.name}
-                            </span>
-                            <span className="text-[10px] text-slate-400 font-mono font-bold">#{idx + 1}</span>
+                            <div className="flex items-center gap-1 min-w-0">
+                              <span className="font-bold text-xs text-slate-900 dark:text-white truncate">
+                                {st.name}
+                              </span>
+                              <span className="text-[9.5px] text-slate-400 font-mono shrink-0">#{idx + 1}</span>
+                            </div>
                           </div>
                         </div>
 
-                        {/* Marks Input + Quick Absent Toggle (Numeric Keypad + Ergonomic Touch) */}
-                        <div className="flex items-center gap-1.5 shrink-0">
+                        {/* Marks Input + Quick Absent Toggle (Compact, Standard Layout) */}
+                        <div className="flex items-center gap-1 shrink-0">
                           <input
                             type="text"
                             inputMode="decimal"
                             placeholder={`0-${subjectMaxMarks}`}
                             value={st.practicalMarks}
                             onChange={(e) => handleMarkChange(originalIdx !== -1 ? originalIdx : idx, 'practicalMarks', e.target.value)}
-                            className={`w-20 px-2 rounded-xl border text-xs font-black h-9 text-center focus:outline-none focus:ring-2 focus:ring-indigo-500 uppercase tracking-wide transition-all shadow-2xs ${
+                            className={`w-14 h-7.5 px-1 rounded-lg border text-xs font-bold text-center focus:outline-none focus:ring-1 focus:ring-indigo-500 uppercase transition-all placeholder:text-slate-400 placeholder:text-[10.5px] placeholder:font-normal ${
                               isAbsent
-                                ? 'bg-amber-50 dark:bg-amber-950/50 border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300 font-black'
+                                ? 'bg-amber-50 dark:bg-amber-950/50 border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300 font-bold'
                                 : st.practicalMarks !== ''
-                                ? 'bg-indigo-50/50 dark:bg-indigo-950/40 border-indigo-300 dark:border-indigo-700 text-indigo-700 dark:text-indigo-300'
+                                ? 'bg-indigo-50/50 dark:bg-indigo-950/40 border-indigo-300 dark:border-indigo-700 text-indigo-700 dark:text-indigo-300 font-bold'
                                 : 'bg-slate-50 dark:bg-slate-950 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white'
                             }`}
                           />
                           <button
                             type="button"
                             onClick={() => handleMarkChange(originalIdx !== -1 ? originalIdx : idx, 'practicalMarks', isAbsent ? '' : 'A')}
-                            className={`px-3 h-9 rounded-xl font-mono text-xs font-black border transition-all cursor-pointer flex items-center justify-center shrink-0 active:scale-95 ${
+                            className={`h-7.5 px-2 rounded-lg font-mono text-[11px] font-bold border transition-all cursor-pointer flex items-center justify-center shrink-0 active:scale-95 ${
                               isAbsent
-                                ? 'bg-amber-500 text-white border-amber-600 shadow-xs'
+                                ? 'bg-amber-500 text-white border-amber-600 shadow-2xs'
                                 : 'bg-slate-100 dark:bg-slate-800 text-slate-600 hover:text-amber-600 dark:hover:text-amber-400 border-slate-200 dark:border-slate-700'
                             }`}
                             title="Toggle Absent"
@@ -2544,34 +2546,19 @@ export default function PracticalsPage() {
                         </div>
                       </div>
 
-                      {/* Row 2: In-Words Award Feedback */}
-                      {inWords && (
-                        <div className="flex items-center justify-end">
-                          <span className="px-2 py-0.5 rounded-lg bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 border border-indigo-200/70 dark:border-indigo-800/70 text-[9.5px] font-black">
-                            Award: {inWords} {(!isNaN(parseInt(valToConvert, 10)) && parseInt(valToConvert, 10) > 0) ? 'Only' : ''}
-                          </span>
+                      {/* Row 2: Streamlined Single-Line Metadata & In-Words Award Feedback */}
+                      <div className="flex items-center justify-between gap-1 text-[10px] text-slate-500 dark:text-slate-400 font-medium truncate pt-0.5 border-t border-slate-100 dark:border-slate-800/80">
+                        <div className="flex items-center gap-1 truncate font-mono">
+                          {st.formNo && <span>F#{st.formNo}</span>}
+                          {st.regNo && <span>• R:{st.regNo.slice(-6)}</span>}
+                          {st.examRollNo && <span>• E:{st.examRollNo}</span>}
+                          <span className="truncate text-teal-700 dark:text-teal-400 font-sans font-medium">• {allSubjs}</span>
                         </div>
-                      )}
-
-                      {/* Row 3: Streamlined Metadata Badges & Subjects */}
-                      <div className="flex items-center gap-1.5 flex-wrap text-[10px] font-semibold pt-1 border-t border-slate-100 dark:border-slate-800/80">
-                        {st.formNo && (
-                          <span className="px-1.5 py-0.5 rounded-md font-mono bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
-                            Form #{st.formNo}
+                        {inWords && (
+                          <span className="text-[9.5px] font-bold text-indigo-600 dark:text-indigo-400 shrink-0 italic">
+                            {inWords}
                           </span>
                         )}
-                        {st.regNo && (
-                          <span className="px-1.5 py-0.5 rounded-md font-mono bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 font-bold border border-indigo-200/60 dark:border-indigo-800/60">
-                            Reg: {st.regNo}
-                          </span>
-                        )}
-                        <span className="px-1.5 py-0.5 rounded-md font-mono font-black bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200/80 dark:border-amber-800/80">
-                          Exam Roll: {st.examRollNo || '—'}
-                        </span>
-                        <span className="font-mono font-bold text-teal-700 dark:text-teal-300 flex items-center gap-1">
-                          <span className="bg-teal-500/15 text-teal-800 dark:text-teal-200 px-1 rounded text-[9px]">Subs:</span>
-                          {renderSubjectsWithHighlight(allSubjs, currentSubjectObj)}
-                        </span>
                       </div>
                     </div>
                   );
@@ -2743,28 +2730,28 @@ export default function PracticalsPage() {
           )}
 
           {/* Bottom Action Footer (Sticky on Mobile, Clean on Desktop) */}
-          <div className="sticky bottom-2 z-20 p-2.5 sm:p-0 rounded-2xl bg-white/95 dark:bg-slate-900/95 sm:bg-transparent backdrop-blur-md sm:backdrop-blur-none border border-slate-200 dark:border-slate-800 sm:border-0 shadow-lg sm:shadow-none flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 mt-2 pt-2 border-t border-slate-200 dark:border-slate-800">
+          <div className="sticky bottom-2 z-20 p-2 sm:p-0 rounded-xl bg-white/95 dark:bg-slate-900/95 sm:bg-transparent backdrop-blur-md sm:backdrop-blur-none border border-slate-200 dark:border-slate-800 sm:border-0 shadow-md sm:shadow-none flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-1.5 mt-2 pt-1.5 border-t border-slate-200 dark:border-slate-800">
             <div className="flex items-center justify-between sm:justify-start gap-1.5 text-xs font-bold text-slate-500 px-1 sm:px-0">
               {draftSavedAt ? (
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 text-[11px] font-black">
-                  <Bookmark size={13} /> Auto-saved {draftSavedAt}
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 text-[10.5px] font-bold">
+                  <Bookmark size={12} /> Auto-saved {draftSavedAt}
                 </span>
               ) : (
-                <span className="text-[11px] text-slate-400 italic">● Draft auto-saves on change</span>
+                <span className="text-[10.5px] text-slate-400 italic">● Draft auto-saves on change</span>
               )}
               <span className="sm:hidden text-[10.5px] font-mono text-indigo-600 dark:text-indigo-400 font-extrabold">
                 {displayedStudents.length} Students
               </span>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
               <button
                 type="button"
                 onClick={handleSaveDraft}
                 disabled={saving || studentMarks.length === 0}
-                className="flex-1 sm:flex-initial px-4 py-2.5 sm:py-2 rounded-xl font-bold text-xs bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-700 transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 active:scale-95"
+                className="flex-1 sm:flex-initial px-3 py-1.5 sm:py-1 rounded-lg font-bold text-xs bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-700 transition-all flex items-center justify-center gap-1 cursor-pointer disabled:opacity-50 active:scale-95"
               >
-                <Bookmark size={14} className="text-amber-500" />
+                <Bookmark size={13} className="text-amber-500" />
                 <span>Save Draft</span>
               </button>
 
@@ -2772,9 +2759,9 @@ export default function PracticalsPage() {
                 type="button"
                 onClick={handleInitiateFinalSubmit}
                 disabled={saving || studentMarks.length === 0}
-                className="flex-1 sm:flex-initial px-5 py-2.5 sm:py-2 rounded-xl font-black text-xs text-white bg-indigo-600 hover:bg-indigo-500 shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 active:scale-95"
+                className="flex-1 sm:flex-initial px-4 py-1.5 sm:py-1 rounded-lg font-bold text-xs text-white bg-indigo-600 hover:bg-indigo-500 shadow-xs transition-all flex items-center justify-center gap-1 cursor-pointer disabled:opacity-50 active:scale-95"
               >
-                {saving ? <RefreshCw size={14} className="animate-spin" /> : <Send size={14} />}
+                {saving ? <RefreshCw size={13} className="animate-spin" /> : <Send size={13} />}
                 <span>Final Submit</span>
               </button>
             </div>
