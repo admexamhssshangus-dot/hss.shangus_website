@@ -1,7 +1,7 @@
 import { saveAcademicRecord } from '../../services/academicRecordService';
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Link, useOutletContext } from 'react-router-dom';
-import { ArrowLeft, Save, CheckCircle2, AlertCircle, AlertTriangle, RefreshCw, Plus, Trash2, Calendar, ShieldCheck, Printer, X, FileText, Zap, SlidersHorizontal, ChevronLeft, ChevronRight, Info, User, Wand2 } from 'lucide-react';
+import { ArrowLeft, Save, CheckCircle2, AlertCircle, AlertTriangle, RefreshCw, Plus, Trash2, Calendar, ShieldCheck, Printer, X, FileText, Zap, SlidersHorizontal, ChevronLeft, ChevronRight, Info, User, Wand2, History } from 'lucide-react';
 import SEO from '../../components/SEO';
 import { db, auth } from '../../services/firebase';
 import { collection, getDocs, doc, setDoc, getDoc, deleteDoc } from 'firebase/firestore';
@@ -514,12 +514,76 @@ export default function AttendancePage() {
     }
   };
 
+  const [recentQuickRolls, setRecentQuickRolls] = useState(() => {
+    try {
+      const saved = localStorage.getItem(`hss_recent_quick_rolls_${selectedClass || '11th'}`);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed.slice(0, 3);
+      }
+    } catch (e) {}
+    return [];
+  });
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(`hss_recent_quick_rolls_${selectedClass || '11th'}`);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          setRecentQuickRolls(parsed.slice(0, 3));
+          return;
+        }
+      }
+    } catch (e) {}
+    setRecentQuickRolls([]);
+  }, [selectedClass]);
+
+  const saveRecentQuickRoll = useCallback((val) => {
+    const clean = String(val || '').trim();
+    if (!clean) return;
+    const tokens = clean.split(/[\s,;\n\t]+/).map(t => t.trim()).filter(Boolean);
+    if (tokens.length === 0) return;
+    const formatted = tokens.join(', ');
+
+    setRecentQuickRolls(prev => {
+      const filtered = prev.filter(r => r !== formatted && r !== clean);
+      const nextList = [formatted, ...filtered].slice(0, 3);
+      try {
+        localStorage.setItem(`hss_recent_quick_rolls_${selectedClass || '11th'}`, JSON.stringify(nextList));
+      } catch (e) {}
+      return nextList;
+    });
+  }, [selectedClass]);
+
+  const clearRecentQuickRolls = () => {
+    setRecentQuickRolls([]);
+    try {
+      localStorage.removeItem(`hss_recent_quick_rolls_${selectedClass || '11th'}`);
+    } catch (e) {}
+  };
+
   const handleQuickRollInputChange = (val, mode = quickRollMode) => {
     setQuickRollInput(val);
-    const rollList = val.split(/[\s,;\n\t]+/).map(r => r.trim()).filter(Boolean);
-    const rollSet = new Set(rollList);
+    const rawTokens = val.split(/[\s,;\n\t]+/).map(r => r.trim()).filter(Boolean);
+    const expanded = [];
+    rawTokens.forEach(tok => {
+      const match = tok.match(/^(\d+)\s*-\s*(\d+)$/);
+      if (match) {
+        const start = parseInt(match[1], 10);
+        const end = parseInt(match[2], 10);
+        if (start <= end && end - start <= 100) {
+          for (let i = start; i <= end; i++) {
+            expanded.push(String(i));
+          }
+          return;
+        }
+      }
+      expanded.push(tok);
+    });
+    const rollSet = new Set(expanded);
 
-    if (rollList.length === 0) {
+    if (rawTokens.length === 0) {
       // Revert all to default based on active mode
       setStudents(prev => prev.map(s => ({
         ...s,
@@ -1530,6 +1594,10 @@ export default function AttendancePage() {
 
       await saveAcademicRecord('attendance', docId, payload);
 
+      if (quickRollInput && quickRollInput.trim()) {
+        saveRecentQuickRoll(quickRollInput);
+      }
+
       setIsEditingSaved(true);
       const successText = `🎉 Attendance saved successfully for ${selectedClass} on ${formatReadableDate(selectedDate, true)} (${students.length} students).`;
       setAlert({ type: 'success', text: successText });
@@ -1704,8 +1772,19 @@ export default function AttendancePage() {
                   type="text"
                   value={quickRollInput}
                   onChange={(e) => handleQuickRollInputChange(e.target.value, quickRollMode)}
-                  placeholder={quickRollMode === 'PRESENT_FIRST' ? "Enter Present Rolls (e.g. 1, 4, 8, 12-15)..." : "Enter Absent Rolls (e.g. 2, 5, 9)..."}
-                  className="flex-1 text-xs font-bold bg-transparent border-none focus:outline-none text-slate-900 dark:text-white min-w-0"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      saveRecentQuickRoll(quickRollInput);
+                    }
+                  }}
+                  onBlur={() => {
+                    if (quickRollInput.trim()) {
+                      saveRecentQuickRoll(quickRollInput);
+                    }
+                  }}
+                  placeholder={quickRollMode === 'PRESENT_FIRST' ? "Present rolls (e.g. 1, 4, 8, 12-15)..." : "Absent rolls (e.g. 2, 5, 9)..."}
+                  className="flex-1 text-xs font-bold bg-transparent border-none focus:outline-none text-slate-900 dark:text-white min-w-0 placeholder:text-[10px] sm:placeholder:text-xs placeholder:font-normal placeholder:text-slate-400 dark:placeholder:text-slate-500"
                 />
                 {quickRollInput && (
                   <button
@@ -1717,6 +1796,37 @@ export default function AttendancePage() {
                   </button>
                 )}
               </div>
+
+              {/* Recent Quick Roll History Chips */}
+              {recentQuickRolls && recentQuickRolls.length > 0 && (
+                <div className="flex items-center gap-1.5 flex-wrap pt-0.5 px-0.5">
+                  <span className="text-indigo-900/70 dark:text-indigo-300/70 font-bold text-[9.5px] uppercase tracking-wider shrink-0 flex items-center gap-1">
+                    <History size={11} /> Recent:
+                  </span>
+                  {recentQuickRolls.map((recentStr, rIdx) => (
+                    <button
+                      key={rIdx}
+                      type="button"
+                      onClick={() => {
+                        handleQuickRollInputChange(recentStr, quickRollMode);
+                        saveRecentQuickRoll(recentStr);
+                      }}
+                      className="px-2 py-0.5 rounded-lg bg-indigo-100/80 hover:bg-indigo-200/90 dark:bg-indigo-950/70 dark:hover:bg-indigo-900 text-indigo-800 dark:text-indigo-200 border border-indigo-300/60 dark:border-indigo-800/80 font-mono font-bold text-[10px] transition-all cursor-pointer truncate max-w-[130px] sm:max-w-[180px] active:scale-95 shadow-2xs"
+                      title={`Click to fill: ${recentStr}`}
+                    >
+                      {recentStr}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={clearRecentQuickRolls}
+                    className="text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 text-[9px] font-medium p-0.5 transition-colors cursor-pointer ml-auto"
+                    title="Clear recent roll history"
+                  >
+                    Clear
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
