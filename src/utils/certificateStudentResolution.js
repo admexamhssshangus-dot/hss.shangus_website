@@ -7,7 +7,36 @@ const usable = value => {
 
 const rawRecord = record => record?.raw || record || {};
 
-export const normalizeRegistrationKey = value => String(value || '').replace(/[^a-z0-9]/gi, '').toLowerCase();
+export const normalizeRegistrationKey = value => {
+  const cleaned = String(value || '').replace(/[^a-z0-9]/gi, '').toLowerCase();
+  if (!cleaned || cleaned.length < 5) return '';
+  if (/^(na|nil|null|undefined|none|0+|placeholder)$/i.test(cleaned)) return '';
+  if (/0{5,}$/.test(cleaned) || (cleaned.match(/0/g) || []).length / cleaned.length >= 0.75) {
+    return '';
+  }
+  return cleaned;
+};
+
+export const areNamesCompatible = (n1, n2) => {
+  if (!n1 || !n2) return true;
+  const clean1 = String(n1).toLowerCase().replace(/[^a-z0-9\s]/g, '').trim();
+  const clean2 = String(n2).toLowerCase().replace(/[^a-z0-9\s]/g, '').trim();
+  if (!clean1 || !clean2 || clean1 === 'student' || clean2 === 'student' || clean1 === '—' || clean2 === '—') return true;
+  if (clean1 === clean2) return true;
+
+  if (clean1.startsWith(clean2) || clean2.startsWith(clean1)) return true;
+  if (clean1.includes(clean2) || clean2.includes(clean1)) return true;
+
+  const tokens1 = clean1.split(/\s+/).filter(t => t.length > 2);
+  const tokens2 = clean2.split(/\s+/).filter(t => t.length > 2);
+  if (tokens1.length === 0 || tokens2.length === 0) return true;
+
+  const common = tokens1.filter(t => tokens2.includes(t));
+  if (common.length >= 2) return true;
+  if (common.length >= 1 && (tokens1.length === 1 || tokens2.length === 1)) return true;
+
+  return false;
+};
 
 export function normalizeCertificateClass(value) {
   const inner = typeof value === 'object' ? rawRecord(value) : null;
@@ -213,4 +242,127 @@ export function resolveCertificateStream(currentRecord, registrationHistory = []
   }
 
   return 'Humanities';
+}
+
+export function resolveCcDcVal(rec) {
+  if (!rec) return '—';
+  const raw = rec.raw || rec;
+  const candidates = [
+    raw['No. & Date of CC/DC Issued (This Institution)'],
+    raw['No. & Date of CC/DC Issued'],
+    raw['No. and Date of CC/DC Issued (This Institution)'],
+    raw['No. and Date of CC/DC Issued'],
+    raw['CC/DC No. & Date'],
+    raw['CC/DC No. and Date'],
+    raw['CC DC Number'],
+    raw['TC/DC Number'],
+    raw['TC/DC No.'],
+    raw.currCcDc,
+    raw.dischargeCertNo,
+    raw.ccDcNo,
+    raw.certificateNo,
+    raw.certNo
+  ];
+  for (const c of candidates) {
+    if (c !== undefined && c !== null) {
+      const s = String(c).trim();
+      if (s && !/^(—|-|n\/?a|null|undefined|none|0)$/i.test(s)) {
+        const issueDate = raw.dischargeIssueDate || raw.withdrawalDate || raw['Date of withdrawl'] || raw['Date of Withdrawal'] || raw.resultDate || raw.issueDate;
+        if (/^\d+$/.test(s) && issueDate && !/^(—|-|n\/?a|null|undefined)$/i.test(String(issueDate).trim())) {
+          return `${s} (${String(issueDate).trim()})`;
+        }
+        return s;
+      }
+    }
+  }
+  return '—';
+}
+
+export const normalizeSubjectCode = (rawCode) => {
+  const token = String(rawCode || '').trim();
+  if (!token) return '';
+  const upper = token.toUpperCase();
+  if (['GN', 'EN', 'GE'].includes(upper) || /general english|english/i.test(token)) return 'GE';
+  if (['UD', 'UR'].includes(upper) || /urdu/i.test(token)) return 'UR';
+  if (['CH'].includes(upper) || /chemistry/i.test(token)) return 'CH';
+  if (['PH'].includes(upper) || /physics/i.test(token)) return 'PH';
+  if (['BI', 'BIO', 'BO', 'ZO'].includes(upper) || /biology|botany|zoology/i.test(token)) return 'BI';
+  if (['MA', 'MTH'].includes(upper) || /math/i.test(token)) return 'MA';
+  if (['ES', 'EVS'].includes(upper) || /environmental/i.test(token)) return 'ES';
+  if (['PD', 'PES'].includes(upper) || /physical education/i.test(token)) return 'PD';
+  if (['ED'].includes(upper) || /education/i.test(token)) return 'ED';
+  if (['HT', 'HIS'].includes(upper) || /history/i.test(token)) return 'HT';
+  if (['PS', 'PLS'].includes(upper) || /political/i.test(token)) return 'PS';
+  if (['SO', 'SOC'].includes(upper) || /sociology/i.test(token)) return 'SO';
+  if (['EC', 'ECO'].includes(upper) || /economics/i.test(token)) return 'EC';
+  if (['AR', 'ARB'].includes(upper) || /arabic/i.test(token)) return 'AR';
+  if (['KA', 'KAS'].includes(upper) || /kashmiri/i.test(token)) return 'KA';
+  if (['HI', 'HND'].includes(upper) || /hindi/i.test(token)) return 'HI';
+  if (['HTC'].includes(upper) || /health/i.test(token)) return 'HTC';
+  if (['ITE'].includes(upper) || /it\s*&|ites/i.test(token)) return 'ITE';
+  if (['PA', 'PUB'].includes(upper) || /public admin/i.test(token)) return 'PA';
+  if (['AC', 'AY'].includes(upper) || /account/i.test(token)) return 'AY';
+  if (['BS', 'BST'].includes(upper) || /business/i.test(token)) return 'BS';
+  if (['GG', 'GEO'].includes(upper) || /geography/i.test(token)) return 'GG';
+  if (!/\s/.test(upper) && upper.length >= 2 && upper.length <= 4) return upper;
+  return '';
+};
+
+export function extractReappearCodes(student) {
+  if (!student) return new Set();
+  const raw = student.raw || student;
+  const res = String(raw.currResult || raw['Result (Current)'] || raw.result || '').toLowerCase();
+  const isPassed = /^(pass|passed|qualified|first|second|third|distinction)\b/.test(res);
+  if (isPassed) return new Set();
+
+  const rawReappSources = [
+    raw.reappSubjects,
+    raw['Reappear Subjects'],
+    raw['Subjects to Reappear (Class 11th)'],
+    raw['Subjects to Reappear (Class 10th)'],
+    raw.currMarksReapp,
+    raw['Marks/Reapp (Current)'],
+    raw['Marks/Reapp'],
+    raw.marksReapp,
+    student._rawExamineeSubs,
+    raw._rawExamineeSubs
+  ];
+
+  const reappearTokens = [];
+
+  rawReappSources.forEach(src => {
+    if (!src || src === '—' || src === '-') return;
+    const str = String(src).trim();
+    if (/^\d+(\s*\/\s*\d+)?$/.test(str)) return;
+    if (/^(pass|passed|qualified)$/i.test(str)) return;
+    reappearTokens.push(str);
+  });
+
+  if (res.includes('reap') && /[a-z]{2,}/i.test(res)) {
+    const cleanedRes = res.replace(/^(re-?appear|reap|fail|compartment)[\s:-]*/i, '');
+    if (cleanedRes.trim()) {
+      reappearTokens.push(cleanedRes.trim());
+    }
+  }
+
+  const codeSet = new Set();
+  reappearTokens.forEach(token => {
+    const commaParts = String(token).split(/[,/;+\n\r]+/).map(s => s.trim()).filter(Boolean);
+    commaParts.forEach(chunk => {
+      const wholeNorm = normalizeSubjectCode(chunk);
+      if (wholeNorm && wholeNorm.length >= 2 && !/^(AND|THE|FOR|IN|OF|TO|OR|WITH)$/i.test(wholeNorm)) {
+        codeSet.add(wholeNorm);
+        return;
+      }
+      const parts = chunk.split(/\s+/).map(s => s.trim()).filter(Boolean);
+      parts.forEach(part => {
+        const code = normalizeSubjectCode(part);
+        if (code && code.length >= 2 && !/^(AND|THE|FOR|IN|OF|TO|OR|WITH)$/i.test(code)) {
+          codeSet.add(code);
+        }
+      });
+    });
+  });
+
+  return codeSet;
 }

@@ -47,6 +47,7 @@ import {
 } from './CustomRosterDocumentBuilderView';
 import {
   normalizeRegistrationKey,
+  areNamesCompatible,
   resolveCertificateStream,
   resolveScopedCertificateResult,
   isExactCertificateScope
@@ -152,8 +153,8 @@ export default function BulkCertificateGeneratorModal({
     const normalize = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '').trim();
 
     (combinedStudentPool || []).forEach(record => {
-      const reg = String(extractBoardRegNo(record) || '').replace(/[^a-z0-9]/gi, '').toLowerCase();
-      if (reg && reg !== '—') {
+      const reg = normalizeRegistrationKey(extractBoardRegNo(record));
+      if (reg) {
         if (!byReg.has(reg)) byReg.set(reg, []);
         byReg.get(reg).push(record);
         const certificateNo = extractCertificateSerial(extractStudentCertificateNumber(record));
@@ -377,7 +378,11 @@ export default function BulkCertificateGeneratorModal({
       // Only look for an already locked certificate for this exact session and class scope,
       // never inherit an older certificate from a previous academic session or class.
       const certificateSourceRecord = [st, ...registrationLinkedRecords]
-        .find(record => isExactCertificateScope(record, session, cls) && Boolean(extractStudentCertificateNumber(record)));
+        .find(record =>
+          isExactCertificateScope(record, session, cls) &&
+          areNamesCompatible(extractStudentName(record), extractStudentName(st)) &&
+          Boolean(extractStudentCertificateNumber(record))
+        );
       const certificateRaw = extractStudentCertificateNumber(raw) ||
         extractStudentCertificateNumber(st) ||
         extractStudentCertificateNumber(certificateSourceRecord) || '';
