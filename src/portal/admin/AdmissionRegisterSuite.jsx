@@ -362,14 +362,20 @@ const BOARD_REGISTRATION_KEYS = [
 ];
 
 const BOARD_ROLL_KEYS = [
-  'exam_r_no_current', 'examRollNoCurrent', 'boardRollNo', 'board_roll_no',
-  'Board Roll No.', 'Board Roll No', 'Board Examination Roll No.', 'Exam Roll No.',
-  'Exam Roll No', 'Roll No. (Current Examination)'
+  'Exam R.No. (Current)', 'Exam R. No. (Current)', 'Exam R.No.(Current)', 'Exam R. No.(Current)',
+  'currExamRollNo', 'currExamRoll', 'exam_r_no_current', 'examRollNoCurrent',
+  'examRollNo', 'examRoll', 'boardRollNo', 'boardRoll', 'board_roll_no',
+  'Board Roll No.', 'Board Roll No', 'Board Roll Number', 'Exam Roll No.',
+  'Exam Roll No', 'Exam Roll Number', 'Roll No. (Current Examination)', 'Roll No. (Current Exam)',
+  'Board Examination Roll No.', 'Board Exam Roll No.', 'Exam R.No.', 'Exam R. No.',
+  'Exam R.No', 'Exam R. No'
 ];
 
 const CURRENT_RESULT_KEYS = [
-  'result_current', 'currentResult', 'boardResult', 'Board Result', 'Result',
-  'Current Result', 'Result (Current Examination)', 'examResult'
+  'Result (Current)', 'result_current', 'currResult', 'currentResult',
+  'boardResult', 'Board Result', 'Result', 'result', 'Result Status', 'resultStatus',
+  'Current Result', 'Result (Current Examination)', 'Result (Current Exam)',
+  'examResult', 'Exam Result'
 ];
 
 const ADMISSION_NO_KEYS = [
@@ -735,6 +741,21 @@ function matchesClassVal(selectedClasses, classVal) {
   const d1 = targetClean.match(/\d+/)?.[0];
   const d2 = cleanVal.match(/\d+/)?.[0];
   return !!(d1 && d2 && d1 === d2);
+}
+
+// Strict session equality matcher (prevents past session data leaking into current examination fields)
+function isSameAcademicSession(sessA, sessB) {
+  const sA = cleanStr(sessA).toLowerCase();
+  const sB = cleanStr(sessB).toLowerCase();
+  if (!sA || !sB) return false;
+  if (sA === sB) return true;
+  const cleanA = sA.replace(/[^a-z0-9]/g, '');
+  const cleanB = sB.replace(/[^a-z0-9]/g, '');
+  if (cleanA === cleanB) return true;
+  const yearA = sA.match(/\d{4}/)?.[0];
+  const yearB = sB.match(/\d{4}/)?.[0];
+  if (yearA && yearB && yearA !== yearB) return false;
+  return cleanA.includes(cleanB) || cleanB.includes(cleanA);
 }
 
 function formatBoardRegSplit(val) {
@@ -1138,8 +1159,9 @@ export default function AdmissionRegisterSuite({
       const rawSubs = extractStudentSubjects(item);
       const subs = abbreviateSubjects(rawSubs);
       const stream = extractStudentStream(item, rawSubs);
-      const boardRoll = firstCleanValue(item, BOARD_ROLL_KEYS) || getPreviousAcademicValue(item, cls, 'Exam Roll Number of Class', ['prevExamRollNo', 'Previous Exam Roll No', 'Exam R.No. (Prev.)', 'Roll No. (Class 10th)', 'Roll No. of 10th', '10th Roll No', 'Class 10th Roll No', 'examRoll10th', 'rollNo10th']);
-      const result = firstCleanValue(item, CURRENT_RESULT_KEYS) || firstCleanValue(item, ['prevResult', 'Previous Result', 'Marks/Reapp (Prev.)', 'Marks Obt. (Prev.)']);
+      // STRICT: Board Roll No & Result must only come from current examination keys, never from previous class academic values
+      const boardRoll = firstCleanValue(item, BOARD_ROLL_KEYS);
+      const result = firstCleanValue(item, CURRENT_RESULT_KEYS);
       const father = cleanStr(item.fatherName || item["Father's/Guardian's Name (as per school records)"] || item["Father's Name"] || item.father);
       const mother = cleanStr(item.motherName || item["Mother's Name (as per school records)"] || item["Mother's Name"] || item.mother);
       const pen = cleanStr(item.penNo || item['PEN number (given by UDISE portal)'] || item['PEN No.'] || item['PEN Number'] || item['PEN (UDISE)'] || item.pen);
@@ -1543,17 +1565,17 @@ export default function AdmissionRegisterSuite({
         }
       }
 
-      // 100% Matching Board Registration across previous sessions and classes
+      // 100% Matching Board Registration across previous sessions and classes (for biographical data like DOB, subjects, parentage)
       const sRegKey = normalizeBoardRegKey(boardReg);
       const regCandidates = sRegKey ? universalBoardRegMap.get(sRegKey) || [] : [];
       let regMatch = null;
       if (regCandidates.length > 0) {
-        // Prioritize match from a different class (e.g. 11th if current is 12th) or session that has complete data
+        // Prioritize match from a different class (e.g. 11th if current is 12th) or session that has complete biographical data
         regMatch = regCandidates.find(c => {
-          const hasData = c.dob || c.subs || c.boardRollNo || c.currentResult;
+          const hasData = c.dob || c.subs || c.father || c.mother;
           const isDifferent = (c.class && c.class !== cls) || (c.session && c.session !== sess);
           return hasData && isDifferent;
-        }) || regCandidates.find(c => c.dob || c.subs || c.boardRollNo || c.currentResult) || regCandidates[0];
+        }) || regCandidates.find(c => c.dob || c.subs || c.father || c.mother) || regCandidates[0];
       }
 
       // Track inherited fields
@@ -1582,22 +1604,30 @@ export default function AdmissionRegisterSuite({
         }
       }
 
+      // STRICT USER REQUIREMENT: Board Roll No & Result shall be taken from CURRENT SESSION ONLY!
+      // Under no circumstances should boardRollNo or currentResult be inherited from past sessions or past classes.
       let finalBoardRollNo = boardRollNo;
-      if (!finalBoardRollNo && regMatch?.boardRollNo) {
-        finalBoardRollNo = regMatch.boardRollNo;
-        inheritedFields.add('boardRoll');
-      } else if (!finalBoardRollNo && histMatch) {
-        finalBoardRollNo = firstCleanValue(histMatch, BOARD_ROLL_KEYS);
-        if (finalBoardRollNo) inheritedFields.add('boardRoll');
+      if (!finalBoardRollNo && regCandidates.length > 0) {
+        // Allow matching candidate ONLY from the exact same current session
+        const currentSessionCandidate = regCandidates.find(c =>
+          c.boardRollNo &&
+          isSameAcademicSession(c.session || selectedSession, sess)
+        );
+        if (currentSessionCandidate?.boardRollNo) {
+          finalBoardRollNo = currentSessionCandidate.boardRollNo;
+        }
       }
 
       let finalResult = currentResult;
-      if (!finalResult && regMatch?.currentResult) {
-        finalResult = regMatch.currentResult;
-        inheritedFields.add('result');
-      } else if (!finalResult && histMatch) {
-        finalResult = firstCleanValue(histMatch, CURRENT_RESULT_KEYS);
-        if (finalResult) inheritedFields.add('result');
+      if (!finalResult && regCandidates.length > 0) {
+        // Allow matching candidate ONLY from the exact same current session
+        const currentSessionCandidate = regCandidates.find(c =>
+          c.currentResult &&
+          isSameAcademicSession(c.session || selectedSession, sess)
+        );
+        if (currentSessionCandidate?.currentResult) {
+          finalResult = currentSessionCandidate.currentResult;
+        }
       }
 
       let finalFather = father;
@@ -1679,8 +1709,8 @@ export default function AdmissionRegisterSuite({
         isReadmission,
         rollNo,
         boardReg: finalBoardReg,
-        boardRollNo: finalBoardRollNo || firstCleanValue(histMatch, BOARD_ROLL_KEYS),
-        currentResult: finalResult || firstCleanValue(histMatch, CURRENT_RESULT_KEYS),
+        boardRollNo: finalBoardRollNo || '',
+        currentResult: finalResult || '',
         name: name || 'Student Record',
         father: finalFather,
         mother: finalMother,
@@ -4525,19 +4555,9 @@ export default function AdmissionRegisterSuite({
                                 </td>
                                 <td className="border border-slate-900 px-1 py-0.5 text-center font-mono font-bold text-xs ledger-mono-font">
                                   <div>{s.boardRollNo || '—'}</div>
-                                  {s.inheritedSource?.fields?.includes('boardRoll') && (
-                                    <div className="text-[6.5px] font-bold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/50 rounded px-0.5 leading-tight font-sans print:hidden">
-                                      From {s.inheritedSource.class || 'Prev'}
-                                    </div>
-                                  )}
                                 </td>
                                 <td className="border border-slate-900 px-1 py-0.5 text-center font-bold text-[8.5px]">
                                   <div>{s.currentResult || '—'}</div>
-                                  {s.inheritedSource?.fields?.includes('result') && (
-                                    <div className="text-[6.5px] font-bold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/50 rounded px-0.5 leading-tight font-sans print:hidden">
-                                      From {s.inheritedSource.class || 'Prev'}
-                                    </div>
-                                  )}
                                 </td>
                                 <td className="border border-slate-900 p-1 text-center align-bottom text-[7.5px]">
                                   <div className="border-t border-slate-900 pt-0.5">Signature</div>
