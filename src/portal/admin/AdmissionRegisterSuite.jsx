@@ -24,7 +24,7 @@ import {
   hasAssignedClassRollNumber,
   resolveStudentAdmissionStatus
 } from '../../utils/studentApprovalStatus';
-import { formatResultMarksString } from '../../utils/certificateStudentResolution';
+import { formatResultMarksString, getClassTier, areClassTiersCompatible, isSecondaryOnlySubjectList } from '../../utils/certificateStudentResolution';
 
 const SCHOOL_NAME = 'GOVT. HIGHER SECONDARY SCHOOL SHANGUS';
 const SCHOOL_SUBTITLE = 'Nurturing Minds, Shaping Futures • District Anantnag';
@@ -560,35 +560,71 @@ function formatRegisterDate(value, includeTime = false) {
 }
 
 // Robust Subject Extractor across all Firebase form variations & array types
-export function extractStudentSubjects(s) {
+export function extractStudentSubjects(s, targetClass = '') {
   if (!s) return '—';
 
-  // 1. Array or string candidates
-  const candidates = [
-    s['Subjects to be taken in Class 11th'],
-    s['Subjects to be taken in Class 12th'],
-    s['Subjects to be taken in Class 10th'],
-    s['Subjects to be taken in Class 9th'],
-    s['Subjects Studied in Class 11th'],
-    s['Subjects Studied in Class 10th'],
-    s['Subjects Studied in Class 9th'],
-    s['selectedSubjects'],
-    s['Subjects Chosen'],
-    s['Chosen Subjects'],
-    s['Subjects'],
-    s['subjects'],
-    s['Subs'],
-    s['subs'],
-    s['Stream & Subjects for Class 11th'],
-    s['Stream & Subjects for Class 12th']
-  ];
+  const cls = targetClass || s.class || s.Class || s['Admission sought for class'] || '';
+  const tier = getClassTier(cls);
+
+  // 1. Array or string candidates restricted by academic tier
+  let candidates = [];
+  if (tier === 'higher') {
+    candidates = [
+      s['Subjects to be taken in Class 12th'],
+      s['Subjects to be taken in Class 11th'],
+      s['Stream & Subjects for Class 12th'],
+      s['Stream & Subjects for Class 11th'],
+      s['Subjects Studied in Class 11th'],
+      s['selectedSubjects'],
+      s['Subjects Chosen'],
+      s['Chosen Subjects'],
+      s['Subjects'],
+      s['subjects'],
+      s['Subs'],
+      s['subs']
+    ];
+  } else if (tier === 'secondary') {
+    candidates = [
+      s['Subjects to be taken in Class 10th'],
+      s['Subjects to be taken in Class 9th'],
+      s['Subjects Studied in Class 10th'],
+      s['Subjects Studied in Class 9th'],
+      s['selectedSubjects'],
+      s['Subjects Chosen'],
+      s['Chosen Subjects'],
+      s['Subjects'],
+      s['subjects'],
+      s['Subs'],
+      s['subs']
+    ];
+  } else {
+    candidates = [
+      s['Subjects to be taken in Class 12th'],
+      s['Subjects to be taken in Class 11th'],
+      s['Subjects to be taken in Class 10th'],
+      s['Subjects to be taken in Class 9th'],
+      s['Subjects Studied in Class 11th'],
+      s['selectedSubjects'],
+      s['Subjects Chosen'],
+      s['Chosen Subjects'],
+      s['Subjects'],
+      s['subjects'],
+      s['Subs'],
+      s['subs']
+    ];
+  }
 
   for (const item of candidates) {
     if (!item) continue;
     if (Array.isArray(item) && item.length > 0) {
       const cleaned = item.filter(sub => sub && String(sub).trim() !== '—' && !String(sub).toLowerCase().includes('same as')).map(sub => String(sub).trim());
-      if (cleaned.length > 0) return cleaned.join(', ');
+      if (cleaned.length > 0) {
+        const joined = cleaned.join(', ');
+        if (tier === 'higher' && isSecondaryOnlySubjectList(joined)) continue;
+        return joined;
+      }
     } else if (typeof item === 'string' && item.trim() && item.trim() !== '—' && !item.toLowerCase().includes('same as')) {
+      if (tier === 'higher' && isSecondaryOnlySubjectList(item.trim())) continue;
       return item.trim();
     }
   }
@@ -607,7 +643,10 @@ export function extractStudentSubjects(s) {
   });
 
   if (subjList.length > 0) {
-    return subjList.join(', ');
+    const joined = subjList.join(', ');
+    if (!(tier === 'higher' && isSecondaryOnlySubjectList(joined))) {
+      return joined;
+    }
   }
 
   return '—';
@@ -1725,16 +1764,36 @@ export default function AdmissionRegisterSuite({
       }
 
       let finalSubs = subs && subs !== '-' && subs !== '—' ? subs : '';
-      if (!finalSubs && regMatch?.subs) {
-        finalSubs = regMatch.subs;
-        inheritedFields.add('subs');
-      } else if (!finalSubs && histMatch) {
-        const histRawSubs = extractStudentSubjects(histMatch);
-        const histAbbrSubs = abbreviateSubjects(histRawSubs);
-        if (histAbbrSubs && histAbbrSubs !== '-' && histAbbrSubs !== '—') {
-          finalSubs = histAbbrSubs;
+      if (!finalSubs && regCandidates.length > 0) {
+        // Enforce tier boundary: 11th/12th can only inherit from 11th/12th; 9th/10th from 9th/10th
+        const tierMatch = regCandidates.find(c =>
+          c.subs &&
+          c.subs !== '-' &&
+          c.subs !== '—' &&
+          areClassTiersCompatible(cls, c.class) &&
+          (getClassTier(cls) !== 'higher' || !isSecondaryOnlySubjectList(c.subs))
+        );
+        if (tierMatch?.subs) {
+          finalSubs = tierMatch.subs;
           inheritedFields.add('subs');
         }
+      }
+      if (!finalSubs && histMatch) {
+        if (areClassTiersCompatible(cls, histMatch.class || histMatch.Class)) {
+          const histRawSubs = extractStudentSubjects(histMatch, cls);
+          const histAbbrSubs = abbreviateSubjects(histRawSubs);
+          if (histAbbrSubs && histAbbrSubs !== '-' && histAbbrSubs !== '—') {
+            if (getClassTier(cls) !== 'higher' || !isSecondaryOnlySubjectList(histAbbrSubs)) {
+              finalSubs = histAbbrSubs;
+              inheritedFields.add('subs');
+            }
+          }
+        }
+      }
+
+      // Safety check: higher secondary must NEVER have secondary subjects!
+      if (getClassTier(cls) === 'higher' && isSecondaryOnlySubjectList(finalSubs)) {
+        finalSubs = '';
       }
 
       // STRICT USER REQUIREMENT: Board Roll No & Result shall be taken from CURRENT SESSION ONLY!

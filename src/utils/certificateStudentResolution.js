@@ -51,6 +51,45 @@ export function normalizeCertificateClass(value) {
   return text.replace(/[^a-z0-9]/g, '');
 }
 
+/**
+ * Class Academic Tier Resolution:
+ * - Secondary Tier: 9th & 10th (share identical general subjects: English, Science, SST, Math, Urdu/Hindi)
+ * - Higher Secondary Tier: 11th & 12th (share identical stream subjects: Medical, Non-Medical, Arts/Humanities, Commerce)
+ * Rule: Subjects cannot cross between 10th and 11th/12th!
+ */
+export function getClassTier(cls) {
+  if (!cls) return 'unknown';
+  const s = String(cls).trim().toLowerCase();
+  if (/\b(11|12|11th|12th|xi|xii)\b/i.test(s) || s.includes('11') || s.includes('12')) {
+    return 'higher'; // Higher Secondary: 11th & 12th
+  }
+  if (/\b(9|10|9th|10th|ix|x)\b/i.test(s) || s.includes('9') || s.includes('10')) {
+    return 'secondary'; // Secondary: 9th & 10th
+  }
+  return 'other';
+}
+
+export function areClassTiersCompatible(clsA, clsB) {
+  const tA = getClassTier(clsA);
+  const tB = getClassTier(clsB);
+  if (tA === 'unknown' || tB === 'unknown' || tA === 'other' || tB === 'other') return false;
+  return tA === tB;
+}
+
+export function isSecondaryOnlySubjectList(subjStr) {
+  if (!subjStr || subjStr === '—' || subjStr === '-') return false;
+  const s = String(subjStr).toLowerCase();
+  // 1. Social studies / SST / Social Science (Only exists in 9th & 10th, never in 11th/12th)
+  if (/\b(sst|social studies|social science)\b/i.test(s)) return true;
+  // 2. Standalone Science / SCI (General science exists in 9th/10th, whereas in 11th/12th it splits into Physics/Chemistry/Biology)
+  if (/(?<!computer\s|environmental\s|home\s|political\s)\b(sci|science)\b/i.test(s)) {
+    if (!/\b(physics|chemistry|biology|ph|ch|bi)\b/i.test(s)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 export function normalizeCertificateSession(value) {
   const inner = typeof value === 'object' ? rawRecord(value) : null;
   const raw = inner
@@ -138,15 +177,38 @@ const explicitStream = (record, classKey = '') => {
   return '';
 };
 
-const fullSubjectHistory = record => {
+const fullSubjectHistory = (record, targetClass = '') => {
   const raw = rawRecord(record);
-  const keys = [
-    'Subjects to be taken in Class 12th', 'Stream & Subjects for Class 12th',
-    'Subjects Studied in Class 11th', 'Subjects to be taken in Class 11th',
-    'selectedSubjects', 'Subjects', 'subjects', 'Subs', 'subs', 'Subjects Offered',
-    'Subjects1', 'Subjects2', 'Subjects3', 'Subjects4', 'Subjects5', 'Subjects6', 'Subject6',
-    'subject1', 'subject2', 'subject3', 'subject4', 'subject5', 'subject6'
-  ];
+  const classKey = normalizeCertificateClass(targetClass || record);
+  const tier = getClassTier(classKey);
+
+  let keys = [];
+  if (tier === 'higher') {
+    keys = [
+      'Subjects to be taken in Class 12th', 'Stream & Subjects for Class 12th',
+      'Subjects Studied in Class 11th', 'Subjects to be taken in Class 11th',
+      'selectedSubjects', 'Subjects', 'subjects', 'Subs', 'subs', 'Subjects Offered',
+      'Subjects1', 'Subjects2', 'Subjects3', 'Subjects4', 'Subjects5', 'Subjects6', 'Subject6',
+      'subject1', 'subject2', 'subject3', 'subject4', 'subject5', 'subject6'
+    ];
+  } else if (tier === 'secondary') {
+    keys = [
+      'Subjects to be taken in Class 10th', 'Subjects to be taken in Class 9th',
+      'Subjects Studied in Class 10th', 'Subjects Studied in Class 9th',
+      'selectedSubjects', 'Subjects', 'subjects', 'Subs', 'subs', 'Subjects Offered',
+      'Subjects1', 'Subjects2', 'Subjects3', 'Subjects4', 'Subjects5', 'Subjects6', 'Subject6',
+      'subject1', 'subject2', 'subject3', 'subject4', 'subject5', 'subject6'
+    ];
+  } else {
+    keys = [
+      'Subjects to be taken in Class 12th', 'Stream & Subjects for Class 12th',
+      'Subjects Studied in Class 11th', 'Subjects to be taken in Class 11th',
+      'Subjects to be taken in Class 10th', 'Subjects to be taken in Class 9th',
+      'selectedSubjects', 'Subjects', 'subjects', 'Subs', 'subs', 'Subjects Offered',
+      'Subjects1', 'Subjects2', 'Subjects3', 'Subjects4', 'Subjects5', 'Subjects6', 'Subject6'
+    ];
+  }
+
   return keys.flatMap(key => {
     const value = raw[key] ?? record?.[key];
     if (Array.isArray(value)) return value.filter(usable).map(String);
@@ -207,7 +269,7 @@ export function resolveCertificateStream(currentRecord, registrationHistory = []
   if (classKey === '9' || classKey === '10') return 'General';
 
   // 1. Check if current record has sufficient stream-identifying subjects
-  const currentSubs = fullSubjectHistory(currentRecord);
+  const currentSubs = fullSubjectHistory(currentRecord, classKey);
   const currentSubjStream = inferStreamFromFullSubjects(currentSubs);
   if (currentSubjStream) return currentSubjStream;
 
@@ -216,11 +278,19 @@ export function resolveCertificateStream(currentRecord, registrationHistory = []
   if (currentExplicit) return currentExplicit;
 
   // 3. IF CURRENT SUBJECTS NOT SUFFICIENT: Use previous record(s) for that registration number!
+  // STRICT RULE: 9th/10th records must NEVER be used for 11th/12th stream/subject inference!
   const targetGrade = Number(classKey) || 12;
-  const orderedHistory = [...(registrationHistory || [])].sort((a, b) => {
+  const isTargetHigherSec = targetGrade >= 11;
+  const filteredHistory = (registrationHistory || []).filter(rec => {
+    const grade = Number(normalizeCertificateClass(rec)) || 0;
+    if (isTargetHigherSec) return grade >= 11;
+    return grade <= 10;
+  });
+
+  const orderedHistory = [...filteredHistory].sort((a, b) => {
     // Prefer history records that actually have subjects
-    const aHasSubs = Boolean(fullSubjectHistory(a));
-    const bHasSubs = Boolean(fullSubjectHistory(b));
+    const aHasSubs = Boolean(fullSubjectHistory(a, classKey));
+    const bHasSubs = Boolean(fullSubjectHistory(b, classKey));
     if (aHasSubs !== bHasSubs) return bHasSubs ? 1 : -1;
 
     const aGrade = Number(normalizeCertificateClass(a)) || 0;
@@ -232,7 +302,7 @@ export function resolveCertificateStream(currentRecord, registrationHistory = []
 
   for (const record of orderedHistory) {
     // Check subject history first
-    const histSubs = fullSubjectHistory(record);
+    const histSubs = fullSubjectHistory(record, classKey);
     const histSubjStream = inferStreamFromFullSubjects(histSubs);
     if (histSubjStream) return histSubjStream;
 
