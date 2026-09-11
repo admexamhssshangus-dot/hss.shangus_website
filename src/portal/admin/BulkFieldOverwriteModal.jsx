@@ -6,7 +6,7 @@ import {
   normalizeStreamName, 
   normalizeRegistrationKey 
 } from '../../utils/certificateStudentResolution';
-import { parseJkboseMarks, calculateDivision } from '../../utils/jkboseResultManager';
+import { parseJkboseMarks, calculateDivision } from '../../utils/jkboseMarksParser';
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { 
   X, AlertTriangle, CheckSquare, Square, FileSpreadsheet, 

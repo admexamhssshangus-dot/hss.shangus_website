@@ -1,4 +1,4 @@
-import { parseJkboseMarks, calculateDivision } from './jkboseResultManager';
+import { parseJkboseMarks, calculateDivision } from './jkboseMarksParser';
 
 describe('JKBOSE Marks Parser & Division/Percentage Calculator', () => {
   test('calculates core percentage and distinction for candidate with additional subject (Ajvaa Ibrahim)', () => {
