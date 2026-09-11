@@ -422,6 +422,21 @@ const CURRENT_MARKS_KEYS = [
 
 export { formatResultMarksString };
 
+export const ALL_SENTUP_COLS = [
+  { key: 'st_sno', label: 'S.No. [Adm No.]' },
+  { key: 'st_rollNo', label: 'Class Roll No.' },
+  { key: 'st_photo', label: 'Photo' },
+  { key: 'st_boardReg', label: 'Board Reg. No.' },
+  { key: 'st_name', label: "Student's Name" },
+  { key: 'st_parentage', label: 'Parentage' },
+  { key: 'st_dob', label: 'Date of Birth' },
+  { key: 'st_subs', label: 'Subjects' },
+  { key: 'st_boardRoll', label: 'Board Roll No.' },
+  { key: 'st_result', label: 'Result' },
+  { key: 'st_admitReceipt', label: 'Admit Card Receipt' },
+  { key: 'st_marksReceipt', label: 'Marks Card Receipt' }
+];
+
 const ADMISSION_NO_KEYS = [
   'admNo', 'admissionNo', 'admissionNumber', 'Admission Number', 'Admission No.', 'Admission No',
   'Adm. No.', 'Adm No.', 'Adm No', 'Adm_No', 'adm_no', 'adm_number', 'admission_no',
@@ -985,8 +1000,101 @@ export default function AdmissionRegisterSuite({
   // Popover Dropdown States for Consolidated Toolbar
   const [showFiltersPopover, setShowFiltersPopover] = useState(false);
   const [showViewPopover, setShowViewPopover] = useState(false);
+  const [showSentupColsPopover, setShowSentupColsPopover] = useState(false);
   const filtersPopoverRef = useRef(null);
   const viewPopoverRef = useRef(null);
+  const sentupColsPopoverRef = useRef(null);
+
+  // Sentup Table Column Visibility State (Persisted in Local Storage)
+  const [sentupHiddenCols, setSentupHiddenCols] = useState(() => {
+    try {
+      const cached = localStorage.getItem('hss_sentup_hidden_cols');
+      if (cached) return new Set(JSON.parse(cached));
+    } catch (_) {}
+    return new Set();
+  });
+
+  const [sentupExplicitCols, setSentupExplicitCols] = useState(() => {
+    try {
+      const cached = localStorage.getItem('hss_sentup_explicit_cols');
+      if (cached) return new Set(JSON.parse(cached));
+    } catch (_) {}
+    return new Set();
+  });
+
+  const isSentupColVisible = useCallback((colKey) => {
+    if (sentupHiddenCols.has(colKey)) return false;
+    // MANDATORY USER RULE: do not show class roll no column by default in APR/BIAN sentups
+    if (colKey === 'st_rollNo' && isAprBianSession && !sentupExplicitCols.has('st_rollNo')) {
+      return false;
+    }
+    return true;
+  }, [sentupHiddenCols, isAprBianSession, sentupExplicitCols]);
+
+  const toggleSentupCol = useCallback((colKey) => {
+    const currentlyVisible = isSentupColVisible(colKey);
+    setSentupHiddenCols(prev => {
+      const next = new Set(prev);
+      if (currentlyVisible) {
+        next.add(colKey);
+      } else {
+        next.delete(colKey);
+      }
+      try {
+        localStorage.setItem('hss_sentup_hidden_cols', JSON.stringify(Array.from(next)));
+      } catch (_) {}
+      return next;
+    });
+
+    setSentupExplicitCols(prev => {
+      const next = new Set(prev);
+      if (!currentlyVisible) {
+        next.add(colKey);
+      } else {
+        next.delete(colKey);
+      }
+      try {
+        localStorage.setItem('hss_sentup_explicit_cols', JSON.stringify(Array.from(next)));
+      } catch (_) {}
+      return next;
+    });
+    setIsLayoutModified(true);
+  }, [isSentupColVisible]);
+
+  const resetSentupCols = useCallback(() => {
+    setSentupHiddenCols(new Set());
+    setSentupExplicitCols(new Set());
+    try {
+      localStorage.removeItem('hss_sentup_hidden_cols');
+      localStorage.removeItem('hss_sentup_explicit_cols');
+    } catch (_) {}
+    setIsLayoutModified(true);
+    setToast({ message: '✨ Sentup table columns reset to default layout!', type: 'success' });
+  }, []);
+
+  const handleSessionChange = useCallback((newSession) => {
+    if (newSession === selectedSession) return;
+    setIsLoadingSession(true);
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        setSelectedSession(newSession);
+        setIsLoadingSession(false);
+      }, 40);
+    });
+  }, [selectedSession]);
+
+  const handleResetFilters = useCallback(() => {
+    setIsLoadingSession(true);
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        setSelectedSession('2025-26');
+        setSelectedStatus('Approved');
+        setSelectedAdmissionType('ALL');
+        setSelectedStream('ALL');
+        setIsLoadingSession(false);
+      }, 40);
+    });
+  }, []);
 
   const LAYOUT_STORAGE_KEY = 'hss_admission_register_layout_v2';
 
@@ -1189,6 +1297,9 @@ export default function AdmissionRegisterSuite({
       if (viewPopoverRef.current && !viewPopoverRef.current.contains(e.target)) {
         setShowViewPopover(false);
       }
+      if (sentupColsPopoverRef.current && !sentupColsPopoverRef.current.contains(e.target)) {
+        setShowSentupColsPopover(false);
+      }
     };
     document.addEventListener('mousedown', handleOutsideClick);
     return () => document.removeEventListener('mousedown', handleOutsideClick);
@@ -1295,6 +1406,41 @@ export default function AdmissionRegisterSuite({
     return flat;
   }, [historyDataset]);
 
+  // Pre-indexed lookup Maps for masterRegisters to ensure O(1) instant resolution without linear scans
+  const historyLookups = useMemo(() => {
+    const byBoardReg = new Map();
+    const byAadhar = new Map();
+    const byFormNo = new Map();
+    const byAdmNo = new Map();
+    const byNameFather = new Map();
+
+    if (Array.isArray(flatHistoryRecords)) {
+      flatHistoryRecords.forEach(h => {
+        if (!h) return;
+        const bReg = getBoardRegistration(h);
+        if (bReg && !byBoardReg.has(bReg)) byBoardReg.set(bReg, h);
+
+        const aadhar = cleanStr(h.aadhar || h['Aadhar No.'] || h['Aadhaar No.']).replace(/\D/g, '');
+        if (aadhar.length >= 10 && !byAadhar.has(aadhar)) byAadhar.set(aadhar, h);
+
+        const formNo = cleanStr(h.formNo || h['Form Number'] || h['Form No.']);
+        if (formNo && !byFormNo.has(formNo)) byFormNo.set(formNo, h);
+
+        const admNo = cleanStr(h.admNo || h['Adm. No.'] || h['Admission No.'] || h['Admission Number']);
+        if (admNo && !byAdmNo.has(admNo)) byAdmNo.set(admNo, h);
+
+        const hN = cleanStr(h.studentName || h["Student's Name"]).toLowerCase().replace(/[^a-z]/g, '');
+        const hF = cleanStr(h.fatherName || h["Father's Name"]).toLowerCase().replace(/[^a-z]/g, '');
+        if (hN.length >= 3 && hF.length >= 4) {
+          const key = `${hN}_${hF}`;
+          if (!byNameFather.has(key)) byNameFather.set(key, h);
+        }
+      });
+    }
+
+    return { byBoardReg, byAadhar, byFormNo, byAdmNo, byNameFather };
+  }, [flatHistoryRecords]);
+
   // Universal admissions pool across all sessions and classes for historical enrichment
   const [allAdmissionsPool, setAllAdmissionsPool] = useState(() => {
     const cached = getCachedCollectionSync('admissions');
@@ -1312,6 +1458,46 @@ export default function AdmissionRegisterSuite({
       .catch(err => console.warn('Could not load universal admissions pool:', err));
     return () => { active = false; };
   }, []);
+
+  // Pre-indexed lookup Map for historical admissions pool (excluding current live session)
+  // Eliminates ~500,000 unindexed Levenshtein checks on the main thread and avoids false self-matching badges
+  const historicalAdmissionsByNameMap = useMemo(() => {
+    const map = new Map();
+    if (!Array.isArray(allAdmissionsPool) || allAdmissionsPool.length === 0) return map;
+
+    allAdmissionsPool.forEach(adm => {
+      if (!adm) return;
+      const aAdm = firstCleanValue(adm, ADMISSION_NO_KEYS);
+      if (!aAdm || aAdm === '—' || aAdm === 'N/A') return;
+
+      const aSess = cleanStr(adm.session || adm.Session || adm['Academic Session'] || '');
+      // Only index from past sessions or different classes, never current live session
+      if (selectedSession && aSess && isSameAcademicSession(aSess, selectedSession)) return;
+
+      const aName = cleanStr(adm.studentName || adm["Student's Name (as per school records)"] || adm["Student's Name"] || adm['Student Name'] || adm.name);
+      const aFather = cleanStr(adm.fatherName || adm["Father's/Guardian's Name (as per school records)"] || adm["Father's Name"] || adm.father);
+      if (!aName || !aFather) return;
+
+      const nKey = aName.toLowerCase().replace(/[^a-z]/g, '');
+      const fKey = aFather.toLowerCase().replace(/[^a-z]/g, '');
+      if (nKey.length < 3 || fKey.length < 3) return;
+
+      const key = `${nKey}_${fKey}`;
+      if (!map.has(key)) {
+        map.set(key, []);
+      }
+      map.get(key).push({
+        admNo: aAdm,
+        class: cleanStr(adm.class || adm.Class || adm['Admission sought for class'] || '11th'),
+        session: aSess || 'Past Session',
+        dob: cleanStr(adm.dob || adm['DoB (as per school records)'] || adm['Date of Birth'] || adm['DOB']),
+        name: aName,
+        father: aFather
+      });
+    });
+
+    return map;
+  }, [allAdmissionsPool, selectedSession]);
 
   // Universal Board Registration Index across masterRegisters AND admissions (all sessions & classes)
   const universalBoardRegMap = useMemo(() => {
@@ -1704,39 +1890,40 @@ export default function AdmissionRegisterSuite({
       // Match one historical identity before inheriting missing fields. Strong identifiers
       // deliberately precede names and roll numbers to prevent cross-student data leakage.
       let histMatch = null;
-      if (flatHistoryRecords.length > 0) {
-        const isSameHistoricalSession = (record) => {
-          const historicalSession = cleanStr(record.session || record.Session || record['Academic Session']);
-          return !historicalSession || !sess || historicalSession === sess;
-        };
+      if (historyLookups) {
         if (boardReg) {
-          histMatch = flatHistoryRecords.find(h => {
-            if (getBoardRegistration(h) !== boardReg) return false;
-            const hName = cleanStr(h.studentName || h["Student's Name"]);
-            if (name && hName && !areNamesCompatible(name, hName)) return false;
-            return true;
-          });
+          const cand = historyLookups.byBoardReg.get(boardReg);
+          if (cand) {
+            const hName = cleanStr(cand.studentName || cand["Student's Name"]);
+            if (!name || !hName || areNamesCompatible(name, hName)) {
+              histMatch = cand;
+            }
+          }
         }
         if (!histMatch && aadhar && aadhar.replace(/\D/g, '').length >= 10) {
           const normalizedAadhar = aadhar.replace(/\D/g, '');
-          histMatch = flatHistoryRecords.find(h => cleanStr(h.aadhar || h['Aadhar No.'] || h['Aadhaar No.']).replace(/\D/g, '') === normalizedAadhar);
+          histMatch = historyLookups.byAadhar.get(normalizedAadhar);
         }
         if (!histMatch && formNo) {
-          histMatch = flatHistoryRecords.find(h => isSameHistoricalSession(h) && cleanStr(h.formNo || h['Form Number'] || h['Form No.']) === formNo);
+          const cand = historyLookups.byFormNo.get(formNo);
+          if (cand) {
+            const historicalSession = cleanStr(cand.session || cand.Session || cand['Academic Session']);
+            if (!historicalSession || !sess || historicalSession === sess) {
+              histMatch = cand;
+            }
+          }
         }
         if (!histMatch && admNo) {
-          histMatch = flatHistoryRecords.find(h => cleanStr(h.admNo || h['Adm. No.'] || h['Admission No.'] || h['Admission Number']) === admNo);
+          histMatch = historyLookups.byAdmNo.get(admNo);
         }
         if (!histMatch && name && father) {
           const normName = name.toLowerCase().replace(/[^a-z]/g, '');
           const normFather = father.toLowerCase().replace(/[^a-z]/g, '');
-          histMatch = flatHistoryRecords.find(h => {
-            const hN = cleanStr(h.studentName || h["Student's Name"]).toLowerCase().replace(/[^a-z]/g, '');
-            const hF = cleanStr(h.fatherName || h["Father's Name"]).toLowerCase().replace(/[^a-z]/g, '');
-            return normName.length >= 3 && normFather.length >= 4 && hN === normName && hF === normFather;
-          });
+          if (normName.length >= 3 && normFather.length >= 4) {
+            histMatch = historyLookups.byNameFather.get(`${normName}_${normFather}`);
+          }
         }
-        if (!histMatch && prevRoll && name) {
+        if (!histMatch && prevRoll && name && Array.isArray(flatHistoryRecords)) {
           const normName = name.toLowerCase().replace(/[^a-z]/g, '');
           histMatch = flatHistoryRecords.find(h => {
             const hRoll = cleanStr(h.classRollNo || h['Class Roll No'] || h.rollNo || h.examRoll10th);
@@ -1906,39 +2093,38 @@ export default function AdmissionRegisterSuite({
         inheritedFields.add('admNo');
       }
 
-      // Priority C: Stringent fallback search across allAdmissionsPool by Name + Father + DOB
+      // Priority C: Stringent fallback search across historical admissions pool by Name + Father + DOB (O(1) indexed)
       if (!finalAdmNumber && name && father) {
-        const poolMatch = (allAdmissionsPool || []).find(adm => {
-          const aAdm = firstCleanValue(adm, ADMISSION_NO_KEYS);
-          if (!aAdm || aAdm === '—' || aAdm === 'N/A') return false;
-          const aCls = cleanStr(adm.class || adm.Class || adm['Admission sought for class'] || '');
-          if (cls && aCls && !areClassTiersCompatible(cls, aCls)) return false;
-          const aName = cleanStr(adm.studentName || adm["Student's Name (as per school records)"] || adm["Student's Name"] || adm['Student Name'] || adm.name);
-          const aFather = cleanStr(adm.fatherName || adm["Father's/Guardian's Name (as per school records)"] || adm["Father's Name"] || adm.father);
-          if (!areNamesCompatible(name, aName)) return false;
-          if (!areNamesCompatible(father, aFather)) return false;
+        const normN = name.toLowerCase().replace(/[^a-z]/g, '');
+        const normF = father.toLowerCase().replace(/[^a-z]/g, '');
+        if (normN.length >= 3 && normF.length >= 3) {
+          const key = `${normN}_${normF}`;
+          const candidates = historicalAdmissionsByNameMap.get(key) || [];
+          const poolMatch = candidates.find(adm => {
+            if (cls && adm.class && !areClassTiersCompatible(cls, adm.class)) return false;
+            if (!areNamesCompatible(name, adm.name)) return false;
+            if (!areNamesCompatible(father, adm.father)) return false;
 
-          // Extra check on DOB if both present
-          const aDob = cleanStr(adm.dob || adm['DoB (as per school records)'] || adm['Date of Birth'] || adm['DOB']);
-          if (rawDob && aDob) {
-            const cleanD1 = String(rawDob).replace(/\D/g, '');
-            const cleanD2 = String(aDob).replace(/\D/g, '');
-            if (cleanD1.length >= 6 && cleanD2.length >= 6 && cleanD1 !== cleanD2) {
-              return false;
+            if (rawDob && adm.dob) {
+              const cleanD1 = String(rawDob).replace(/\D/g, '');
+              const cleanD2 = String(adm.dob).replace(/\D/g, '');
+              if (cleanD1.length >= 6 && cleanD2.length >= 6 && cleanD1 !== cleanD2) {
+                return false;
+              }
             }
-          }
-          return true;
-        });
+            return true;
+          });
 
-        if (poolMatch) {
-          finalAdmNumber = firstCleanValue(poolMatch, ADMISSION_NO_KEYS);
-          inheritedFields.add('admNo');
-          if (!inheritedSource) {
-            inheritedSource = {
-              class: poolMatch.class || poolMatch.Class || '11th',
-              session: poolMatch.session || poolMatch.Session || 'Past Session',
-              fields: ['admNo']
-            };
+          if (poolMatch) {
+            finalAdmNumber = poolMatch.admNo;
+            inheritedFields.add('admNo');
+            if (!inheritedSource) {
+              inheritedSource = {
+                class: poolMatch.class || '11th',
+                session: poolMatch.session || 'Past Session',
+                fields: ['admNo']
+              };
+            }
           }
         }
       }
@@ -2043,7 +2229,7 @@ export default function AdmissionRegisterSuite({
       });
     });
     return list;
-  }, [dataset, selectedSession, flatHistoryRecords, universalBoardRegMap]);
+  }, [dataset, selectedSession, historyLookups, flatHistoryRecords, universalBoardRegMap, historicalAdmissionsByNameMap]);
 
   // 4. DYNAMIC CLASSES TAILORED STRICTLY TO LOADED SESSION DATA
   const availableClasses = useMemo(() => {
@@ -2977,30 +3163,26 @@ export default function AdmissionRegisterSuite({
       const filename = `HSS_Shangus_Official_Admission_Register_${selectedSession}_${selectedClass}_${selectedStatus}.xlsx`;
       XLSX.writeFile(wb, filename);
     } else {
-      const headers = [
-        'S.No.', 'Adm. No.', 'Class Roll No.', 'Status', 'Admission Type', 'Board Reg. No.', "Student's Name", "Father's Name", "Mother's Name",
-        'Date of Birth', 'Class', 'Session', 'Stream', 'Subjects', 'Board Roll No.', 'Result'
+      const colDefs = [
+        { key: 'st_sno', label: 'S.No.', get: s => s.sno },
+        { key: 'st_sno', label: 'Adm. No.', get: s => s.admNo || '' },
+        { key: 'st_rollNo', label: 'Class Roll No.', get: s => s.rollNo || '' },
+        { key: 'st_boardReg', label: 'Board Reg. No.', get: s => s.boardReg || '' },
+        { key: 'st_name', label: "Student's Name", get: s => s.name || '' },
+        { key: 'st_parentage', label: "Father's Name", get: s => s.father || '' },
+        { key: 'st_parentage', label: "Mother's Name", get: s => s.mother || '' },
+        { key: 'st_dob', label: 'Date of Birth', get: s => s.dobFigures || '' },
+        { key: 'st_subs', label: 'Subjects', get: s => s.subs || '' },
+        { key: 'st_boardRoll', label: 'Board Roll No.', get: s => s.boardRollNo || '' },
+        { key: 'st_result', label: 'Result', get: s => s.currentResult || '' },
+        { key: 'st_admitReceipt', label: 'Admit Card Receipt', get: () => '' },
+        { key: 'st_marksReceipt', label: 'Marks Card Receipt', get: () => '' }
       ];
 
+      const activeColDefs = colDefs.filter(c => isSentupColVisible(c.key));
+      const headers = activeColDefs.map(c => c.label);
       const exportList = activeTab === 'sentup' ? activeIncludedRows : filteredStudents;
-      const rows = exportList.map(s => [
-        s.sno,
-        s.admNo || '',
-        s.rollNo || '',
-        s.status || '',
-        s.isReadmission ? 'Re-admission' : 'Fresh',
-        s.boardReg || '',
-        s.name || '',
-        s.father || '',
-        s.mother || '',
-        s.dobFigures || '',
-        s.class || '',
-        s.session || '',
-        s.stream || '',
-        s.subs || '',
-        s.boardRollNo || '',
-        s.currentResult || ''
-      ]);
+      const rows = exportList.map(s => activeColDefs.map(c => c.get(s)));
 
       const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
       const wb = XLSX.utils.book_new();
@@ -3161,16 +3343,21 @@ export default function AdmissionRegisterSuite({
           .sentup-ledger-page {
             display: flex !important;
             flex-direction: column !important;
-            justify-content: space-between !important;
+            justify-content: flex-start !important;
             height: auto !important;
-            max-height: 185mm !important;
+            max-height: none !important;
             box-sizing: border-box !important;
             padding: 2mm 3mm !important;
             page-break-inside: avoid !important;
             break-inside: avoid-page !important;
             page-break-after: always !important;
             break-after: page !important;
-            overflow: hidden !important;
+            overflow: visible !important;
+          }
+
+          .sentup-ledger-page:last-child {
+            page-break-after: auto !important;
+            break-after: auto !important;
           }
 
           .sentup-table {
@@ -3204,7 +3391,8 @@ export default function AdmissionRegisterSuite({
           }
 
           .signature-footer {
-            margin-top: 1mm !important;
+            height: 14mm !important;
+            margin-top: 2mm !important;
             padding-top: 1mm !important;
             page-break-before: avoid !important;
             break-before: avoid !important;
@@ -3579,12 +3767,7 @@ export default function AdmissionRegisterSuite({
                         {activeFiltersCount > 0 && (
                           <button
                             type="button"
-                            onClick={() => {
-                              setSelectedSession('2025-26');
-                              setSelectedStatus('Approved');
-                              setSelectedAdmissionType('ALL');
-                              setSelectedStream('ALL');
-                            }}
+                            onClick={handleResetFilters}
                             className="text-[11px] font-black text-rose-600 hover:underline cursor-pointer"
                           >
                             Reset Filters
@@ -3597,7 +3780,7 @@ export default function AdmissionRegisterSuite({
                         <label className="block text-[11px] font-black text-slate-800 mb-1">Academic Session:</label>
                         <select
                           value={selectedSession}
-                          onChange={(e) => setSelectedSession(e.target.value)}
+                          onChange={(e) => handleSessionChange(e.target.value)}
                           className="w-full py-1.5 px-2.5 text-xs rounded-xl font-bold bg-white text-slate-900 border border-slate-300 shadow-2xs focus:ring-2 focus:ring-indigo-500 cursor-pointer"
                         >
                           {availableSessions.map(sess => (
@@ -3696,6 +3879,72 @@ export default function AdmissionRegisterSuite({
 
           {/* Right Cluster: Consolidated View & Layout Popover, Count Badge, Excel & Print */}
           <div className="flex items-center gap-1 xl:gap-1.5 flex-nowrap shrink-0">
+            {/* Sentup Columns Selector (Only in Sentup Module) */}
+            {activeTab === 'sentup' && (
+              <div className="relative shrink-0" ref={sentupColsPopoverRef}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowSentupColsPopover(prev => !prev);
+                    setShowViewPopover(false);
+                    setShowFiltersPopover(false);
+                  }}
+                  className={`py-0.5 px-2 rounded-lg border text-[11px] font-bold flex items-center gap-1 cursor-pointer shadow-2xs transition-all ${
+                    ALL_SENTUP_COLS.some(col => !isSentupColVisible(col.key))
+                      ? 'bg-amber-100 dark:bg-amber-950 text-amber-900 dark:text-amber-200 border-amber-300 dark:border-amber-700'
+                      : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700 hover:bg-slate-50'
+                  }`}
+                  title="Toggle Sentup Columns (Skip / Add Columns)"
+                >
+                  <Columns size={11} className={ALL_SENTUP_COLS.some(col => !isSentupColVisible(col.key)) ? 'text-amber-700' : 'text-slate-500'} />
+                  <span>Columns ({ALL_SENTUP_COLS.filter(col => isSentupColVisible(col.key)).length}/{ALL_SENTUP_COLS.length})</span>
+                  <ChevronDown size={10} className="text-slate-400" />
+                </button>
+
+                {showSentupColsPopover && (
+                  <div className="register-popover-panel absolute right-0 top-full mt-1.5 w-64 p-3 rounded-2xl shadow-2xl z-[100] whitespace-normal animate-in fade-in zoom-in-95 max-h-[85vh] overflow-y-auto">
+                    <div className="flex items-center justify-between border-b border-slate-200 pb-2 mb-2">
+                      <span className="font-black text-xs text-slate-900 flex items-center gap-1.5">
+                        <Columns size={12} className="text-indigo-600" /> Sentup Columns
+                      </span>
+                      <button
+                        type="button"
+                        onClick={resetSentupCols}
+                        className="text-[10px] font-black text-indigo-600 hover:text-indigo-800 hover:underline cursor-pointer"
+                      >
+                        Reset
+                      </button>
+                    </div>
+                    <p className="text-[10px] text-slate-500 mb-2">
+                      Uncheck to skip or check to add columns:
+                    </p>
+                    <div className="space-y-1.5">
+                      {ALL_SENTUP_COLS.map(col => {
+                        const checked = isSentupColVisible(col.key);
+                        return (
+                          <label
+                            key={col.key}
+                            className="flex items-center gap-2 p-1 rounded-md hover:bg-slate-50 cursor-pointer text-xs font-bold text-slate-800"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => toggleSentupCol(col.key)}
+                              className="rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                            />
+                            <span>{col.label}</span>
+                            {col.key === 'st_rollNo' && isAprBianSession && !sentupExplicitCols.has('st_rollNo') && (
+                              <span className="text-[9px] text-amber-600 font-bold ml-auto">(Default off for APR)</span>
+                            )}
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             {(activeTab === 'adm_register' || activeTab === 'sentup') && (
               <>
                 {/* 1. Grouped View & Layout Popover (Section, Book View, Margins, Row Height, Zoom, Firebase Presets) */}
@@ -3754,6 +4003,38 @@ export default function AdmissionRegisterSuite({
                                 <option value="summary" className="bg-white text-slate-900 font-bold">📊 Summary Statement Only</option>
                                 <option value="notes" className="bg-white text-slate-900 font-bold">📝 Notes & Annexure Only</option>
                               </select>
+                            </div>
+                          )}
+
+                          {/* Sentup Columns Selector (Inside View & Layout Popover) */}
+                          {activeTab === 'sentup' && (
+                            <div>
+                              <div className="flex items-center justify-between mb-1">
+                                <label className="block text-[11px] font-black text-slate-800">Sentup Table Columns:</label>
+                                <button
+                                  type="button"
+                                  onClick={resetSentupCols}
+                                  className="text-[10px] font-black text-indigo-600 hover:text-indigo-800 hover:underline cursor-pointer"
+                                >
+                                  Reset Default
+                                </button>
+                              </div>
+                              <div className="space-y-1 p-2 bg-slate-50 rounded-xl border border-slate-200 max-h-48 overflow-y-auto">
+                                {ALL_SENTUP_COLS.map(col => (
+                                  <label key={col.key} className="flex items-center gap-2 text-xs font-bold text-slate-800 cursor-pointer hover:bg-slate-100 p-0.5 rounded">
+                                    <input
+                                      type="checkbox"
+                                      checked={isSentupColVisible(col.key)}
+                                      onChange={() => toggleSentupCol(col.key)}
+                                      className="rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                                    />
+                                    <span>{col.label}</span>
+                                    {col.key === 'st_rollNo' && isAprBianSession && !sentupExplicitCols.has('st_rollNo') && (
+                                      <span className="text-[9px] text-amber-600 font-bold ml-auto">(Default off for APR)</span>
+                                    )}
+                                  </label>
+                                ))}
+                              </div>
                             </div>
                           )}
 
@@ -4329,7 +4610,22 @@ export default function AdmissionRegisterSuite({
       )}
 
       {/* ─── MAIN PREVIEW CONTAINER ─── */}
-      <main className="flex-1 p-2 sm:p-5 overflow-x-auto">
+      <main className="flex-1 p-2 sm:p-5 overflow-x-auto relative">
+        {isLoadingSession && (
+          <div className="absolute inset-0 z-30 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xs flex flex-col items-center justify-center min-h-[400px]">
+            <div className="flex flex-col items-center gap-3 p-6 rounded-2xl bg-white/95 dark:bg-slate-800/95 border border-slate-200 dark:border-slate-700 shadow-xl">
+              <Loader2 className="w-9 h-9 animate-spin text-amber-600 dark:text-amber-400" />
+              <div className="text-center">
+                <p className="text-sm font-bold text-slate-800 dark:text-slate-200">
+                  Loading {selectedSession} Records…
+                </p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Resolving registers, historical admissions & sentup rosters
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
         <div className="max-w-full mx-auto">
           {/* ============================================================== */}
           {/* TAB 1: ADMISSION REGISTER (PRINT-READY DUAL SPREAD)            */}
@@ -4924,7 +5220,7 @@ export default function AdmissionRegisterSuite({
                 return (
                   <div
                     key={pageNum}
-                    className="page-container register-ledger-page sentup-ledger-page bg-white rounded-xl border border-slate-300 shadow-sm print:border-none print:shadow-none max-w-[355.6mm] mx-auto page-break-after"
+                    className="page-container sentup-ledger-page bg-white rounded-xl border border-slate-300 shadow-sm print:border-none print:shadow-none max-w-[355.6mm] mx-auto page-break-after"
                     style={{ padding: `${printMargin}in` }}
                   >
                     {/* Header */}
@@ -4947,20 +5243,44 @@ export default function AdmissionRegisterSuite({
                                 {isAllRowsIncluded ? <CheckSquare size={13} className="text-white" /> : isSomeRowsSkipped ? <Minus size={13} className="text-white" /> : <Square size={13} className="text-white opacity-70" />}
                               </button>
                             </th>
-                            <ResizableTh colKey="st_sno" sortKey="sno" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.st_sno} onResize={handleColumnResize} className="border border-slate-900 px-1 py-1 text-white">S.No.<br /><span className="th-subtext text-[8px] text-sky-100 opacity-90">[Adm No.]</span></ResizableTh>
-                            <ResizableTh colKey="st_rollNo" sortKey="rollNo" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.st_rollNo} onResize={handleColumnResize} className="border border-slate-900 px-1 py-1 text-white">Class<br />Roll No.</ResizableTh>
-                            <ResizableTh colKey="st_photo" width={columnWidths.st_photo} onResize={handleColumnResize} className="border border-slate-900 px-1 py-1 text-white">Photo</ResizableTh>
-                            <ResizableTh colKey="st_boardReg" sortKey="boardReg" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.st_boardReg} onResize={handleColumnResize} className="border border-slate-900 px-1.5 py-1 text-left pl-2 text-white">Board<br />Reg. No.</ResizableTh>
-                            <ResizableTh colKey="st_name" sortKey="name" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.st_name} onResize={handleColumnResize} className="border border-slate-900 px-1 py-1 text-left pl-2 text-white">Student's Name</ResizableTh>
-                            <ResizableTh colKey="st_parentage" sortKey="father" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.st_parentage} onResize={handleColumnResize} className="border border-slate-900 px-1 py-1 text-left pl-2 text-white">Parentage<br /><span className="th-subtext text-[8px] text-sky-100 opacity-90">(Father / Mother)</span></ResizableTh>
-                            <ResizableTh colKey="st_dob" sortKey="dobFigures" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.st_dob} onResize={handleColumnResize} className="border border-slate-900 px-1 py-1 text-white">Date of Birth</ResizableTh>
-                            <ResizableTh colKey="st_subs" sortKey="subs" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.st_subs} onResize={handleColumnResize} className="border border-slate-900 px-1 py-1 text-white">Subjects</ResizableTh>
-                            <ResizableTh colKey="st_boardRoll" sortKey="boardRollNo" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.st_boardRoll} onResize={handleColumnResize} className="border border-slate-900 px-1 py-1 text-white">Board<br />Roll No.</ResizableTh>
-                            <ResizableTh colKey="st_result" sortKey="currentResult" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.st_result} onResize={handleColumnResize} className="border border-slate-900 px-1 py-1 text-white">Result</ResizableTh>
-                            <ResizableTh colKey="st_admitReceipt" width={columnWidths.st_admitReceipt} onResize={handleColumnResize} className="border border-slate-900 px-1 py-1 text-white">Admit Card<br />Receipt</ResizableTh>
-                            <ResizableTh colKey="st_marksReceipt" width={!is12th && columnWidths.st_marksReceipt === 144 ? 80 : (columnWidths.st_marksReceipt || (is12th ? 144 : 80))} onResize={handleColumnResize} className="border border-slate-900 px-1 py-1 text-white">
-                              {is12th ? 'Marks Card / Certificate Receipt' : 'Marks Card Receipt'}
-                            </ResizableTh>
+                            {isSentupColVisible('st_sno') && (
+                              <ResizableTh colKey="st_sno" sortKey="sno" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.st_sno} onResize={handleColumnResize} className="border border-slate-900 px-1 py-1 text-white">S.No.<br /><span className="th-subtext text-[8px] text-sky-100 opacity-90">[Adm No.]</span></ResizableTh>
+                            )}
+                            {isSentupColVisible('st_rollNo') && (
+                              <ResizableTh colKey="st_rollNo" sortKey="rollNo" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.st_rollNo} onResize={handleColumnResize} className="border border-slate-900 px-1 py-1 text-white">Class<br />Roll No.</ResizableTh>
+                            )}
+                            {isSentupColVisible('st_photo') && (
+                              <ResizableTh colKey="st_photo" width={columnWidths.st_photo} onResize={handleColumnResize} className="border border-slate-900 px-1 py-1 text-white">Photo</ResizableTh>
+                            )}
+                            {isSentupColVisible('st_boardReg') && (
+                              <ResizableTh colKey="st_boardReg" sortKey="boardReg" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.st_boardReg} onResize={handleColumnResize} className="border border-slate-900 px-1.5 py-1 text-left pl-2 text-white">Board<br />Reg. No.</ResizableTh>
+                            )}
+                            {isSentupColVisible('st_name') && (
+                              <ResizableTh colKey="st_name" sortKey="name" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.st_name} onResize={handleColumnResize} className="border border-slate-900 px-1 py-1 text-left pl-2 text-white">Student's Name</ResizableTh>
+                            )}
+                            {isSentupColVisible('st_parentage') && (
+                              <ResizableTh colKey="st_parentage" sortKey="father" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.st_parentage} onResize={handleColumnResize} className="border border-slate-900 px-1 py-1 text-left pl-2 text-white">Parentage<br /><span className="th-subtext text-[8px] text-sky-100 opacity-90">(Father / Mother)</span></ResizableTh>
+                            )}
+                            {isSentupColVisible('st_dob') && (
+                              <ResizableTh colKey="st_dob" sortKey="dobFigures" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.st_dob} onResize={handleColumnResize} className="border border-slate-900 px-1 py-1 text-white">Date of Birth</ResizableTh>
+                            )}
+                            {isSentupColVisible('st_subs') && (
+                              <ResizableTh colKey="st_subs" sortKey="subs" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.st_subs} onResize={handleColumnResize} className="border border-slate-900 px-1 py-1 text-white">Subjects</ResizableTh>
+                            )}
+                            {isSentupColVisible('st_boardRoll') && (
+                              <ResizableTh colKey="st_boardRoll" sortKey="boardRollNo" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.st_boardRoll} onResize={handleColumnResize} className="border border-slate-900 px-1 py-1 text-white">Board<br />Roll No.</ResizableTh>
+                            )}
+                            {isSentupColVisible('st_result') && (
+                              <ResizableTh colKey="st_result" sortKey="currentResult" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.st_result} onResize={handleColumnResize} className="border border-slate-900 px-1 py-1 text-white">Result</ResizableTh>
+                            )}
+                            {isSentupColVisible('st_admitReceipt') && (
+                              <ResizableTh colKey="st_admitReceipt" width={columnWidths.st_admitReceipt} onResize={handleColumnResize} className="border border-slate-900 px-1 py-1 text-white">Admit Card<br />Receipt</ResizableTh>
+                            )}
+                            {isSentupColVisible('st_marksReceipt') && (
+                              <ResizableTh colKey="st_marksReceipt" width={!is12th && columnWidths.st_marksReceipt === 144 ? 80 : (columnWidths.st_marksReceipt || (is12th ? 144 : 80))} onResize={handleColumnResize} className="border border-slate-900 px-1 py-1 text-white">
+                                {is12th ? 'Marks Card / Certificate Receipt' : 'Marks Card Receipt'}
+                              </ResizableTh>
+                            )}
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-900 text-slate-900">
@@ -4983,177 +5303,210 @@ export default function AdmissionRegisterSuite({
                                     )}
                                   </button>
                                 </td>
-                                <td className="border border-slate-900 px-1 py-0.5 text-center">
-                                  <div className={`font-black text-[13px] leading-tight ledger-mono-font ${isSkipped ? 'line-through text-slate-400' : ''}`}>{s.sno}</div>
-                                  <div className="text-[9px] font-mono font-bold text-slate-600 dark:text-slate-400 ledger-mono-font">[{s.admNo || '—'}]</div>
-                                </td>
-                                <td className="border border-slate-900 px-1 py-0.5 text-center font-black text-[15px] text-sky-800 ledger-mono-font">{s.rollNo}</td>
-                                <td className="sentup-photo-cell register-photo-cell border border-slate-900 p-0 text-center overflow-hidden bg-slate-50 print:bg-transparent" style={{ width: columnWidths.st_photo ? `${columnWidths.st_photo}px` : undefined, height: `${rowHeight}px` }}>
-                                  {photoSrc ? (
-                                    <img
-                                      src={photoSrc}
-                                      alt={s.name}
-                                      className="block w-full object-cover"
-                                      style={{ height: `${Math.max(34, rowHeight - 1)}px` }}
-                                      loading="eager"
-                                      onError={(e) => {
-                                        e.currentTarget.style.display = 'none';
-                                        if (e.currentTarget.nextElementSibling) {
-                                          e.currentTarget.nextElementSibling.style.display = 'flex';
-                                        }
-                                      }}
-                                    />
-                                  ) : null}
-                                  <div className={`w-full h-full items-center justify-center text-[8.5px] text-slate-400 font-bold ${photoSrc ? 'hidden' : 'flex'}`}>
-                                    Photo
-                                  </div>
-                                </td>
-                                <td className="border border-slate-900 px-1.5 py-0.5 text-left pl-2 ledger-mono-font text-[11px] font-bold">{formatBoardRegSplit(s.boardReg)}</td>
-                                <td className="border border-slate-900 px-1.5 py-0.5 text-left font-black uppercase text-[12px]">
-                                  <div className="flex flex-col items-start justify-center gap-0.5 min-w-0">
-                                    {(s.hasInheritedData || s.isReadmission) && (
-                                      <div className="flex items-center gap-1 print:hidden shrink-0 leading-none">
-                                        {s.isReadmission && (
-                                          <span className="text-[7.5px] font-black px-1 py-0.2 rounded bg-purple-100 text-purple-800 leading-tight">
-                                            Re-Adm
-                                          </span>
-                                        )}
-                                        {s.hasInheritedData && (
-                                          <span
-                                            className="inline-flex items-center gap-0.5 text-[7.5px] font-black px-1 py-0.2 rounded bg-amber-100 dark:bg-amber-950/80 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-700 shadow-2xs leading-tight whitespace-nowrap"
-                                            title={`Data inherited from ${s.inheritedSource?.class || 'Previous Class'} (${s.inheritedSource?.session || 'Past Session'}): ${(s.inheritedSource?.fields || []).join(', ')}`}
-                                          >
-                                            <Sparkles size={8} className="text-amber-600 shrink-0" />
-                                            <span>From {s.inheritedSource?.class || 'Prev'} ({s.inheritedSource?.session || 'Past'})</span>
-                                          </span>
-                                        )}
+                                {isSentupColVisible('st_sno') && (
+                                  <td className="border border-slate-900 px-1 py-0.5 text-center">
+                                    <div className={`font-black text-[13px] leading-tight ledger-mono-font ${isSkipped ? 'line-through text-slate-400' : ''}`}>{s.sno}</div>
+                                    <div className="text-[9px] font-mono font-bold text-slate-600 dark:text-slate-400 ledger-mono-font">[{s.admNo || '—'}]</div>
+                                  </td>
+                                )}
+                                {isSentupColVisible('st_rollNo') && (
+                                  <td className="border border-slate-900 px-1 py-0.5 text-center font-black text-[15px] text-sky-800 ledger-mono-font">{s.rollNo}</td>
+                                )}
+                                {isSentupColVisible('st_photo') && (
+                                  <td className="sentup-photo-cell register-photo-cell border border-slate-900 p-0 text-center overflow-hidden bg-slate-50 print:bg-transparent" style={{ width: columnWidths.st_photo ? `${columnWidths.st_photo}px` : undefined, height: `${rowHeight}px` }}>
+                                    {photoSrc ? (
+                                      <img
+                                        src={photoSrc}
+                                        alt={s.name}
+                                        className="block w-full object-cover"
+                                        style={{ height: `${Math.max(34, rowHeight - 1)}px` }}
+                                        loading="eager"
+                                        onError={(e) => {
+                                          e.currentTarget.style.display = 'none';
+                                          if (e.currentTarget.nextElementSibling) {
+                                            e.currentTarget.nextElementSibling.style.display = 'flex';
+                                          }
+                                        }}
+                                      />
+                                    ) : null}
+                                    <div className={`w-full h-full items-center justify-center text-[8.5px] text-slate-400 font-bold ${photoSrc ? 'hidden' : 'flex'}`}>
+                                      Photo
+                                    </div>
+                                  </td>
+                                )}
+                                {isSentupColVisible('st_boardReg') && (
+                                  <td className="border border-slate-900 px-1.5 py-0.5 text-left pl-2 ledger-mono-font text-[11px] font-bold">{formatBoardRegSplit(s.boardReg)}</td>
+                                )}
+                                {isSentupColVisible('st_name') && (
+                                  <td className="border border-slate-900 px-1.5 py-0.5 text-left font-black uppercase text-[12px]">
+                                    <div className="flex flex-col items-start justify-center gap-0.5 min-w-0">
+                                      {(s.hasInheritedData || s.isReadmission) && (
+                                        <div className="flex items-center gap-1 print:hidden shrink-0 leading-none">
+                                          {s.isReadmission && (
+                                            <span className="text-[7.5px] font-black px-1 py-0.2 rounded bg-purple-100 text-purple-800 leading-tight">
+                                              Re-Adm
+                                            </span>
+                                          )}
+                                          {s.hasInheritedData && (
+                                            <span
+                                              className="inline-flex items-center gap-0.5 text-[7.5px] font-black px-1 py-0.2 rounded bg-amber-100 dark:bg-amber-950/80 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-700 shadow-2xs leading-tight whitespace-nowrap"
+                                              title={`Data inherited from ${s.inheritedSource?.class || 'Previous Class'} (${s.inheritedSource?.session || 'Past Session'}): ${(s.inheritedSource?.fields || []).join(', ')}`}
+                                            >
+                                              <Sparkles size={8} className="text-amber-600 shrink-0" />
+                                              <span>From {s.inheritedSource?.class || 'Prev'} ({s.inheritedSource?.session || 'Past'})</span>
+                                            </span>
+                                          )}
+                                        </div>
+                                      )}
+                                      <span className="tracking-tight whitespace-normal break-words leading-tight">{s.name}</span>
+                                    </div>
+                                  </td>
+                                )}
+                                {isSentupColVisible('st_parentage') && (
+                                  <td className="border border-slate-900 px-2 py-0.5 text-left uppercase leading-tight">
+                                    <div className="font-extrabold text-[11px] text-slate-900 border-b border-slate-200 pb-0.5">{s.father}</div>
+                                    <div className="text-slate-600 dark:text-slate-400 text-[9.5px] font-semibold pt-0.5">{s.mother}</div>
+                                  </td>
+                                )}
+                                {isSentupColVisible('st_dob') && (
+                                  <td className="border border-slate-900 px-1 py-0.5 text-center font-mono ledger-mono-font">
+                                    <div className="font-bold text-[11px] text-slate-900">{s.dobFigures || '—'}</div>
+                                    {s.inheritedSource?.fields?.includes('dob') && (
+                                      <div className="text-[7.5px] font-bold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/50 rounded px-0.5 leading-tight print:hidden">
+                                        From {s.inheritedSource.class || 'Prev'}
                                       </div>
                                     )}
-                                    <span className="tracking-tight whitespace-normal break-words leading-tight">{s.name}</span>
-                                  </div>
-                                </td>
-                                <td className="border border-slate-900 px-2 py-0.5 text-left uppercase leading-tight">
-                                  <div className="font-extrabold text-[11px] text-slate-900 border-b border-slate-200 pb-0.5">{s.father}</div>
-                                  <div className="text-slate-600 dark:text-slate-400 text-[9.5px] font-semibold pt-0.5">{s.mother}</div>
-                                </td>
-                                <td className="border border-slate-900 px-1 py-0.5 text-center font-mono ledger-mono-font">
-                                  <div className="font-bold text-[11px] text-slate-900">{s.dobFigures || '—'}</div>
-                                  {s.inheritedSource?.fields?.includes('dob') && (
-                                    <div className="text-[7.5px] font-bold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/50 rounded px-0.5 leading-tight print:hidden">
-                                      From {s.inheritedSource.class || 'Prev'}
-                                    </div>
-                                  )}
-                                </td>
-                                <td className="border border-slate-900 px-1 py-0.5 text-center leading-tight font-black">
-                                  {s.subs ? s.subs.split(',').map((sub, i) => (
-                                    <div key={i} className="text-[10px] text-slate-900 leading-tight">
-                                      {sub.trim()}
-                                    </div>
-                                  )) : <span className="text-[10px] font-bold text-slate-400">—</span>}
-                                  {s.inheritedSource?.fields?.includes('subs') && (
-                                    <div className="text-[7.5px] font-bold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/50 rounded px-0.5 mt-0.5 leading-tight print:hidden">
-                                      From {s.inheritedSource.class || 'Prev'}
-                                    </div>
-                                  )}
-                                </td>
-                                <td className="border border-slate-900 px-1 py-0.5 text-center font-mono font-black text-[13px] text-slate-900 ledger-mono-font">
-                                  <div>{s.boardRollNo || '—'}</div>
-                                </td>
-                                <td className="border border-slate-900 px-1 py-0.5 text-center leading-tight">
-                                  {(() => {
-                                    const resRaw = String(s.currentResult || '').trim();
-                                    const isQualified = /^(pass|passed|qual|qualified)\b/i.test(resRaw) || /qualified/i.test(resRaw) || /passed/i.test(resRaw);
-                                    const isReappear = /^(reap|reappear|fail|failed)\b/i.test(resRaw) || /reappear/i.test(resRaw) || /reap\b/i.test(resRaw);
-                                    const resultColor = isQualified ? '#047857' : isReappear ? '#b91c1c' : undefined;
-                                    const resultClass = isQualified
-                                      ? 'text-emerald-700 dark:text-emerald-400 font-black'
-                                      : isReappear
-                                        ? 'text-red-700 dark:text-red-400 font-black'
-                                        : 'text-slate-900 dark:text-slate-100 font-bold';
+                                  </td>
+                                )}
+                                {isSentupColVisible('st_subs') && (
+                                  <td className="border border-slate-900 px-1 py-0.5 text-center leading-tight font-black">
+                                    {s.subs ? s.subs.split(',').map((sub, i) => (
+                                      <div key={i} className="text-[10px] text-slate-900 leading-tight">
+                                        {sub.trim()}
+                                      </div>
+                                    )) : <span className="text-[10px] font-bold text-slate-400">—</span>}
+                                    {s.inheritedSource?.fields?.includes('subs') && (
+                                      <div className="text-[7.5px] font-bold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/50 rounded px-0.5 mt-0.5 leading-tight print:hidden">
+                                        From {s.inheritedSource.class || 'Prev'}
+                                      </div>
+                                    )}
+                                  </td>
+                                )}
+                                {isSentupColVisible('st_boardRoll') && (
+                                  <td className="border border-slate-900 px-1 py-0.5 text-center font-mono font-black text-[13px] text-slate-900 ledger-mono-font">
+                                    <div>{s.boardRollNo || '—'}</div>
+                                  </td>
+                                )}
+                                {isSentupColVisible('st_result') && (
+                                  <td className="border border-slate-900 px-1 py-0.5 text-center leading-tight">
+                                    {(() => {
+                                      const resRaw = String(s.currentResult || '').trim();
+                                      const isQualified = /^(pass|passed|qual|qualified)\b/i.test(resRaw) || /qualified/i.test(resRaw) || /passed/i.test(resRaw);
+                                      const isReappear = /^(reap|reappear|fail|failed)\b/i.test(resRaw) || /reappear/i.test(resRaw) || /reap\b/i.test(resRaw);
+                                      const resultColor = isQualified ? '#047857' : isReappear ? '#b91c1c' : undefined;
+                                      const resultClass = isQualified
+                                        ? 'text-emerald-700 dark:text-emerald-400 font-black'
+                                        : isReappear
+                                          ? 'text-red-700 dark:text-red-400 font-black'
+                                          : 'text-slate-900 dark:text-slate-100 font-bold';
 
-                                    // Resolve sub-detail: either marks obtained or subjects to reappear
-                                    let subDetail = formatResultMarksString(s.currentMarks);
+                                      // Resolve sub-detail: either marks obtained or subjects to reappear
+                                      let subDetail = formatResultMarksString(s.currentMarks);
 
-                                    // For Reappear status, resolve reappear subjects if not already present or if numeric marks absent
-                                    if (isReappear) {
-                                      const hasNumericMarks = subDetail && /\d{2,3}/.test(subDetail);
-                                      if (!hasNumericMarks) {
-                                        const reapCodeSet = extractReappearCodes(s);
-                                        if (reapCodeSet && reapCodeSet.size > 0) {
-                                          subDetail = Array.from(reapCodeSet).join(', ');
-                                        } else if (s.currentMarks && typeof s.currentMarks === 'string' && s.currentMarks.trim() && s.currentMarks !== '—') {
-                                          subDetail = abbreviateSubjects(s.currentMarks);
-                                        } else if (isAprBianSession && s.subs && s.subs !== '—' && s.subs !== '-') {
-                                          subDetail = s.subs;
+                                      // For Reappear status, resolve reappear subjects if not already present or if numeric marks absent
+                                      if (isReappear) {
+                                        const hasNumericMarks = subDetail && /\d{2,3}/.test(subDetail);
+                                        if (!hasNumericMarks) {
+                                          const reapCodeSet = extractReappearCodes(s);
+                                          if (reapCodeSet && reapCodeSet.size > 0) {
+                                            subDetail = Array.from(reapCodeSet).join(', ');
+                                          } else if (s.currentMarks && typeof s.currentMarks === 'string' && s.currentMarks.trim() && s.currentMarks !== '—') {
+                                            subDetail = abbreviateSubjects(s.currentMarks);
+                                          } else if (isAprBianSession && s.subs && s.subs !== '—' && s.subs !== '-') {
+                                            subDetail = s.subs;
+                                          }
+                                        }
+
+                                        // Clean any residual REAP/REAPPEAR tokens from subDetail
+                                        if (subDetail) {
+                                          subDetail = subDetail
+                                            .replace(/\b(reap|reappear|fail|failed|result)\b/gi, '')
+                                            .replace(/^[\s,;:-]+|[\s,;:-]+$/g, '')
+                                            .replace(/,\s*,/g, ', ')
+                                            .trim();
                                         }
                                       }
-                                    }
 
-                                    const showDetail = Boolean(
-                                      subDetail &&
-                                      subDetail !== '—' &&
-                                      subDetail !== '-' &&
-                                      (!resRaw || !resRaw.toLowerCase().includes(subDetail.toLowerCase()))
-                                    );
+                                      const showDetail = Boolean(
+                                        subDetail &&
+                                        subDetail !== '—' &&
+                                        subDetail !== '-' &&
+                                        (!resRaw || !resRaw.toLowerCase().includes(subDetail.toLowerCase()))
+                                      );
 
-                                    return (
-                                      <>
-                                        <div
-                                          className={`${resultClass} text-[11.5px] uppercase tracking-wide leading-tight`}
-                                          style={resultColor ? { color: resultColor } : undefined}
-                                        >
-                                          {resRaw || '—'}
-                                        </div>
-                                        {showDetail && (
+                                      return (
+                                        <>
                                           <div
-                                            className={`text-[9.5px] font-mono font-bold mt-0.5 leading-none whitespace-nowrap ${isReappear ? 'text-red-700 dark:text-red-400' : 'text-slate-800 dark:text-slate-200'}`}
-                                            style={isReappear ? { color: '#b91c1c' } : undefined}
+                                            className={`${resultClass} text-[11.5px] uppercase tracking-wide leading-tight`}
+                                            style={resultColor ? { color: resultColor } : undefined}
                                           >
-                                            ({subDetail})
+                                            {resRaw || '—'}
                                           </div>
-                                        )}
-                                      </>
-                                    );
-                                  })()}
-                                </td>
-                                <td className="border border-slate-900 p-1 text-center align-bottom text-[9px]">
-                                  <div className="h-full flex flex-col justify-end" style={{ minHeight: `${Math.max(34, rowHeight - 8)}px` }}>
-                                    <div className="border-t border-slate-900 pt-0.5 font-bold text-[9px] text-slate-800 select-none">
-                                      Signature
+                                          {showDetail && (
+                                            <div
+                                              className={`text-[9.5px] font-mono font-bold mt-0.5 leading-none whitespace-nowrap ${isReappear ? 'text-red-700 dark:text-red-400' : 'text-slate-800 dark:text-slate-200'}`}
+                                              style={isReappear ? { color: '#b91c1c' } : undefined}
+                                            >
+                                              ({subDetail})
+                                            </div>
+                                          )}
+                                        </>
+                                      );
+                                    })()}
+                                  </td>
+                                )}
+                                {isSentupColVisible('st_admitReceipt') && (
+                                  <td className="border border-slate-900 p-1 text-center align-bottom text-[9px]">
+                                    <div className="h-full flex flex-col justify-end" style={{ minHeight: `${Math.max(34, rowHeight - 8)}px` }}>
+                                      <div className="border-t border-slate-900 pt-0.5 font-bold text-[9px] text-slate-800 select-none">
+                                        Signature
+                                      </div>
                                     </div>
-                                  </div>
-                                </td>
-                                <td className="border border-slate-900 p-1 text-[8.5px] leading-tight align-bottom">
-                                  {is12th ? (
-                                    <div className="flex justify-between gap-1 h-full" style={{ minHeight: `${Math.max(34, rowHeight - 8)}px` }}>
-                                      <div className="flex-1 border-r border-dashed border-slate-300 pr-1 flex flex-col justify-between h-full">
+                                  </td>
+                                )}
+                                {isSentupColVisible('st_marksReceipt') && (
+                                  <td className="border border-slate-900 p-1 text-[8.5px] leading-tight align-bottom">
+                                    {is12th ? (
+                                      <div className="flex justify-between gap-1 h-full" style={{ minHeight: `${Math.max(34, rowHeight - 8)}px` }}>
+                                        <div className="flex-1 border-r border-dashed border-slate-300 pr-1 flex flex-col justify-between h-full">
+                                          <div className="font-extrabold text-[8.5px] text-slate-900 text-center leading-tight">Marks Card Received</div>
+                                          <div className="mt-auto border-t border-slate-900 pt-0.5 text-center text-[8.5px] font-bold text-slate-800 select-none">
+                                            Signature
+                                          </div>
+                                        </div>
+                                        <div className="flex-1 pl-1 flex flex-col justify-between h-full">
+                                          <div className="font-extrabold text-[8.5px] text-slate-900 text-center leading-tight">Qual. Certificate</div>
+                                          {String(s.class || '').includes('11') ? (
+                                            <div className="mt-auto text-center text-[8px] text-slate-400 font-bold py-0.5 select-none">
+                                              — (11th N/A)
+                                            </div>
+                                          ) : (
+                                            <div className="mt-auto border-t border-slate-900 pt-0.5 text-center text-[8.5px] font-bold text-slate-800 select-none">
+                                              Signature
+                                            </div>
+                                          )}
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <div className="flex flex-col justify-between h-full w-full" style={{ minHeight: `${Math.max(34, rowHeight - 8)}px` }}>
                                         <div className="font-extrabold text-[8.5px] text-slate-900 text-center leading-tight">Marks Card Received</div>
                                         <div className="mt-auto border-t border-slate-900 pt-0.5 text-center text-[8.5px] font-bold text-slate-800 select-none">
                                           Signature
                                         </div>
                                       </div>
-                                      <div className="flex-1 pl-1 flex flex-col justify-between h-full">
-                                        <div className="font-extrabold text-[8.5px] text-slate-900 text-center leading-tight">Qual. Certificate</div>
-                                        {String(s.class || '').includes('11') ? (
-                                          <div className="mt-auto text-center text-[8px] text-slate-400 font-bold py-0.5 select-none">
-                                            — (11th N/A)
-                                          </div>
-                                        ) : (
-                                          <div className="mt-auto border-t border-slate-900 pt-0.5 text-center text-[8.5px] font-bold text-slate-800 select-none">
-                                            Signature
-                                          </div>
-                                        )}
-                                      </div>
-                                    </div>
-                                  ) : (
-                                    <div className="flex flex-col justify-between h-full w-full" style={{ minHeight: `${Math.max(34, rowHeight - 8)}px` }}>
-                                      <div className="font-extrabold text-[8.5px] text-slate-900 text-center leading-tight">Marks Card Received</div>
-                                      <div className="mt-auto border-t border-slate-900 pt-0.5 text-center text-[8.5px] font-bold text-slate-800 select-none">
-                                        Signature
-                                      </div>
-                                    </div>
-                                  )}
-                                </td>
+                                    )}
+                                  </td>
+                                )}
                               </ResizableDataRow>
                             );
                           })}

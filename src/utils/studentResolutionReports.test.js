@@ -131,6 +131,19 @@ describe('Student Resolution & Reports Validation', () => {
       expect(codes.has('GE')).toBe(true);
       expect(codes.has('UR')).toBe(true);
     });
+
+    test('strips REAP and REAPPEAR keyword from reappear subjects', () => {
+      const reapSt = {
+        currResult: 'Reappear',
+        currMarksReapp: 'REAP, GE, PD',
+        subs: 'General English, Physical Education, Education, History, Urdu'
+      };
+      const codes = extractReappearCodes(reapSt);
+      expect(codes.has('GE')).toBe(true);
+      expect(codes.has('PD')).toBe(true);
+      expect(codes.has('REAP')).toBe(false);
+      expect(codes.size).toBe(2);
+    });
   });
 
   describe('formatResultMarksString', () => {
