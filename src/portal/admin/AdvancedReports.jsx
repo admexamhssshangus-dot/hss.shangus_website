@@ -27,6 +27,7 @@ import { getNextAvailableFormNumber, consumeFormNumber, recycleDeletedFormNumber
 import { getStudentRegIndex, lookupStudentByRegSync } from '../../services/studentIndexService';
 import LazyStudentPhoto from '../../components/LazyStudentPhoto';
 import { expandJkboseSubjectCodes } from '../../utils/jkboseResultManager';
+import { resolveCcDcVal, extractReappearCodes } from '../../utils/certificateStudentResolution';
 
 const BULK_FORM_ROW_BATCH_SIZE = 100;
 
@@ -1117,6 +1118,8 @@ function MoreActionsDropdown({
 const SUBJECT_ABBR_MAP = {
   // Academic Subjects
   'General English': 'GE',
+  'GN': 'GE',
+  'EN': 'GE',
   'English Literature': 'EL',
   'Functional English': 'FE',
   'English': 'GE',
@@ -1129,6 +1132,7 @@ const SUBJECT_ABBR_MAP = {
   'Persian': 'PE',
   'Kashmiri': 'KA',
   'Urdu': 'UR',
+  'UD': 'UR',
   'History': 'HT',
   'Economics': 'EC',
   'Geography': 'GG',
@@ -3730,11 +3734,18 @@ function QuickSubjectStreamEditor({
   );
 }
 
+export { resolveCcDcVal, extractReappearCodes };
+
 function SubjectStreamCell({ val, student }) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [popoverCoords, setPopoverCoords] = useState(null);
   const btnRef = useRef(null);
-  const abbr = abbreviateSubjects(val);
+  const fullVal = val || student?.subs || '';
+  const abbr = abbreviateSubjects(fullVal);
+  const reappearCodes = extractReappearCodes(student);
+  const subjectParts = abbr && abbr !== '—'
+    ? abbr.split(/,\s*/).map(p => p.trim()).filter(Boolean)
+    : [];
 
   // Close popup on outside click or escape key
   useEffect(() => {
@@ -3859,7 +3870,7 @@ function SubjectStreamCell({ val, student }) {
     return { code: 'G', label: 'General', style: 'bg-teal-600 text-white border-teal-700' };
   };
 
-  const streamInfo = getStreamDetails(student, val);
+  const streamInfo = getStreamDetails(student, fullVal);
   const hasMismatch = Boolean(student?.hasStreamMismatch || student?.hasSubsMismatch || student?.hasMismatch);
 
   return (
@@ -3877,12 +3888,28 @@ function SubjectStreamCell({ val, student }) {
         </button>
       )}
 
-      {/* Subject abbreviations + Stream badge INLINE */}
+      {/* Subject abbreviations + Stream badge INLINE (reappear subjects enclosed in red brackets) */}
       <span
-        title={`Stream: ${streamInfo.label} | Full Subjects: ${val || '—'}`}
+        title={`Stream: ${streamInfo.label} | Full Subjects: ${fullVal || '—'}${reappearCodes.size > 0 ? ` | Reappear / Yet to Qualify: ${Array.from(reappearCodes).join(', ')}` : ''}`}
         className="font-black text-[11px] text-slate-800 dark:text-slate-200 tracking-tight leading-snug cursor-help"
       >
-        {abbr}
+        {subjectParts.length > 0 ? (
+          subjectParts.map((part, pIdx) => {
+            const isReapp = reappearCodes.has(part.toUpperCase());
+            return (
+              <React.Fragment key={`${part}-${pIdx}`}>
+                {pIdx > 0 && <span className="text-slate-400 dark:text-slate-500 font-normal">, </span>}
+                {isReapp ? (
+                  <span className="text-red-600 dark:text-red-400 font-black">({part})</span>
+                ) : (
+                  <span className="text-slate-800 dark:text-slate-200">{part}</span>
+                )}
+              </React.Fragment>
+            );
+          })
+        ) : (
+          <span>{abbr}</span>
+        )}
         {streamInfo.code && (
           <span className={`inline-block ml-1 px-1 py-0.2 rounded text-[9px] font-black border shadow-2xs whitespace-nowrap align-middle ${streamInfo.style}`}>
             ({streamInfo.code})
@@ -6490,6 +6517,11 @@ export default function AdvancedReports({
     const record11thByAdm = new Map();
     const record11thByName = new Map();
 
+    // ─── FULL CURRICULUM INDEX (FOR RESTORING COMPLETE 5-SUBJECT PROFILE ON BI-ANNUAL / REAPPEAR RECORDS) ───
+    const fullCurriculumByReg = new Map();
+    const fullCurriculumByAdm = new Map();
+    const fullCurriculumByName = new Map();
+
     // ─── CLASS PHOTO GROUP: 9th+10th share 'lower' bucket; 11th+12th share 'upper' bucket ───
     // This means a photo uploaded in 9th is reused for 10th, and a photo in 11th is reused for 12th.
     // Last record scanned wins — so if a student re-uploads in 12th, it replaces the 11th photo.
@@ -6631,6 +6663,25 @@ export default function AdvancedReports({
         }
         if (nameKey && !record11thByName.has(nameKey)) {
           record11thByName.set(nameKey, rec);
+        }
+      }
+
+      // Index full authentic 5-subject curriculum for bi-annual / reappear candidates
+      const rawSubsFormatted = formatStudentSubjects(rec);
+      const indivList = extractIndividualSubjectsList(rec);
+      const isFullSubjectList = indivList.length >= 5 || (rawSubsFormatted && rawSubsFormatted !== '—' && rawSubsFormatted.split(/[,;&/]+/).filter(Boolean).length >= 5);
+      if (isFullSubjectList) {
+        const regKey = extractRegNoClean(rec);
+        const admKey = cleanedAdm;
+        const nameKey = recName && recName !== 'student' && recName !== '—' ? `${recName.toLowerCase()}_${(recFather || '').toLowerCase().slice(0, 8)}` : '';
+        if (regKey && isValidRegNo(regKey) && !fullCurriculumByReg.has(regKey)) {
+          fullCurriculumByReg.set(regKey, rawSubsFormatted);
+        }
+        if (admKey && admKey !== '—' && !fullCurriculumByAdm.has(admKey)) {
+          fullCurriculumByAdm.set(admKey, rawSubsFormatted);
+        }
+        if (nameKey && !fullCurriculumByName.has(nameKey)) {
+          fullCurriculumByName.set(nameKey, rawSubsFormatted);
         }
       }
 
@@ -6864,6 +6915,13 @@ export default function AdvancedReports({
       let sStream = resolveStudentStream(a, masterMatch);
       let sSubs = formatStudentSubjects(a) !== '—' ? formatStudentSubjects(a) : formatStudentSubjects(mergedRec);
 
+      const regKey = extractRegNoClean(a) || extractRegNoClean(mergedRec);
+      const admKey = cleanAdmNoVal(finalAdmNo);
+      const nameKey = sName && sName !== 'student' && sName !== '—' ? `${sName.toLowerCase()}_${(fName || '').toLowerCase().slice(0, 8)}` : '';
+      const demo = (regKey && isValidRegNo(regKey) && masterDemographicProfileMap.get(regKey)) ||
+        (admKey && admKey !== '—' && masterDemographicProfileMap.get(admKey)) ||
+        (nameKey && masterDemographicProfileMap.get(nameKey)) || {};
+
       // ─── 11th vs 12th STREAM & SUBJECT VERIFICATION (MATCHED ON BOARD REG NO) ───
       let stream11th = null;
       let subs11th = null;
@@ -6876,10 +6934,6 @@ export default function AdvancedReports({
       let matched11thRec = null;
 
       if (targetClass === '12th') {
-        const regKey = extractRegNoClean(a) || extractRegNoClean(mergedRec);
-        const admKey = cleanAdmNoVal(finalAdmNo);
-        const nameKey = sName && sName !== 'student' && sName !== '—' ? `${sName.toLowerCase()}_${(fName || '').toLowerCase().slice(0, 8)}` : '';
-
         if (regKey && isValidRegNo(regKey)) {
           matched11thRec = record11thByReg.get(regKey);
         }
@@ -6913,6 +6967,19 @@ export default function AdvancedReports({
               sSubs = subs11th;
             }
           }
+        }
+      }
+
+      // Restore full 5-subject curriculum if this is an examinee list with 1-4 reappear subjects
+      let rawExamineeSubs = null;
+      const parsedPartsCount = (sSubs && sSubs !== '—') ? sSubs.split(/[,;&/]+/).filter(Boolean).length : 0;
+      if (parsedPartsCount > 0 && parsedPartsCount < 5) {
+        const fullFromIndex = (regKey && isValidRegNo(regKey) && fullCurriculumByReg.get(regKey)) ||
+          (admKey && admKey !== '—' && fullCurriculumByAdm.get(admKey)) ||
+          (nameKey && fullCurriculumByName.get(nameKey));
+        if (fullFromIndex && fullFromIndex !== '—' && fullFromIndex.split(/[,;&/]+/).filter(Boolean).length >= 5) {
+          rawExamineeSubs = sSubs;
+          sSubs = fullFromIndex;
         }
       }
 
@@ -6969,6 +7036,7 @@ export default function AdvancedReports({
         status: activeResolvedStatus,
         stream: sStream,
         subs: sSubs,
+        _rawExamineeSubs: rawExamineeSubs,
         hasStreamMismatch,
         hasSubsMismatch,
         hasMismatch: hasStreamMismatch || hasSubsMismatch,
@@ -7030,7 +7098,7 @@ export default function AdvancedReports({
         currResult: a['Result (Current)'] || a.result || a.currResult || '—',
         currMarksReapp: a['Marks/Reapp (Current)'] || '—',
         withdrawalDate: a['Date of withdrawl'] || '—',
-        currCcDc: a['No. & Date of CC/DC Issued (This Institution)'] || '—',
+        currCcDc: resolveCcDcVal(a) !== '—' ? resolveCcDcVal(a) : (masterMatch ? resolveCcDcVal(masterMatch) : (demo?.ccDc || '—')),
         remarks: a['Remarks'] || '—',
         pdfUrl: a['PDF_URL'] || '—',
         readmission: a['readmission'] || '—',
@@ -7106,6 +7174,7 @@ export default function AdvancedReports({
       const religion = cleanVal(rec['Religion'] || rec.religion);
       const residence = cleanVal(rec['Residence (Village, District)'] || rec.residence);
       const prevSchool = cleanVal(rec['Previous School'] || rec['Name of the Institution last attended'] || rec.prevSchool);
+      const ccDc = cleanVal(resolveCcDcVal(rec));
 
       const mergeProfile = (existing = {}) => ({
         dob: existing.dob || dob,
@@ -7124,7 +7193,8 @@ export default function AdvancedReports({
         category: existing.category || category,
         religion: existing.religion || religion,
         residence: existing.residence || residence,
-        prevSchool: existing.prevSchool || prevSchool
+        prevSchool: existing.prevSchool || prevSchool,
+        ccDc: existing.ccDc || ccDc
       });
 
       if (reg && isValidRegNo(reg)) {
@@ -7239,6 +7309,19 @@ export default function AdvancedReports({
         }
       }
 
+      // Restore full 5-subject curriculum if this is an examinee list with 1-4 reappear subjects
+      let rawExamineeSubs = null;
+      const parsedPartsCountHist = (sSubs && sSubs !== '—') ? sSubs.split(/[,;&/]+/).filter(Boolean).length : 0;
+      if (parsedPartsCountHist > 0 && parsedPartsCountHist < 5) {
+        const fullFromIndex = (regKey && isValidRegNo(regKey) && fullCurriculumByReg.get(regKey)) ||
+          (admKey && admKey !== '—' && fullCurriculumByAdm.get(admKey)) ||
+          (nameKey && fullCurriculumByName.get(nameKey));
+        if (fullFromIndex && fullFromIndex !== '—' && fullFromIndex.split(/[,;&/]+/).filter(Boolean).length >= 5) {
+          rawExamineeSubs = sSubs;
+          sSubs = fullFromIndex;
+        }
+      }
+
       let indivSubsHist = extractIndividualSubjectsList(m);
       if (indivSubsHist.length === 0 && matched11thRec) {
         indivSubsHist = extractIndividualSubjectsList(matched11thRec);
@@ -7298,6 +7381,7 @@ export default function AdvancedReports({
         status: m['Status'] || m.status || 'Approved',
         stream: sStream,
         subs: sSubs,
+        _rawExamineeSubs: rawExamineeSubs,
         hasStreamMismatch,
         hasSubsMismatch,
         hasMismatch: hasStreamMismatch || hasSubsMismatch,
@@ -7353,7 +7437,7 @@ export default function AdvancedReports({
         currResult: m['Result (Current)'] || m.result || m.currResult || '—',
         currMarksReapp: m['Marks/Reapp (Current)'] || m.marks || m.currMarksReapp || '—',
         withdrawalDate: m['Date of withdrawl'] || m.withdrawalDate || '—',
-        currCcDc: m['No. & Date of CC/DC Issued (This Institution)'] || m.currCcDc || '—',
+        currCcDc: resolveCcDcVal(m) !== '—' ? resolveCcDcVal(m) : (demo?.ccDc || '—'),
         remarks: m['Remarks'] || m.remarks || '—',
         pdfUrl: m['PDF_URL'] || m.pdfUrl || '—',
         readmission: m['readmission'] || m.readmission || '—',

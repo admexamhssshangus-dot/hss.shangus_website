@@ -59,6 +59,7 @@ import { sanitizeRichHtml } from '../../utils/sanitizeRichHtml';
 import { toLocalDateKey } from '../../utils/localDate';
 import {
   normalizeRegistrationKey,
+  areNamesCompatible,
   resolveCertificateStream,
   resolveScopedCertificateResult,
   isExactCertificateScope
@@ -1359,10 +1360,12 @@ export default function StudentCertificateStudioView({
     // Auto-update Ref No immediately if known from raw record
     const existingCertNo = extractStudentCertificateNumber(primaryRaw);
     const isTcDcTemplate = Boolean(activeTpl.isTcDc || activeTpl.id?.startsWith('tc_dc_'));
-    let immediateRef = refNo;
+    let immediateRef = '';
     if (existingCertNo && !/^(—|-|n\/?a|null|undefined)$/i.test(String(existingCertNo).trim())) {
       immediateRef = isTcDcTemplate ? (extractCertificateSerial(existingCertNo) || String(existingCertNo).trim()) : String(existingCertNo).trim();
       setRefNo(immediateRef);
+    } else {
+      setRefNo('');
     }
 
     // Force-sync WYSIWYG editor DOM synchronously with interpolated preview for immediate zero-delay display
@@ -1412,7 +1415,8 @@ export default function StudentCertificateStudioView({
     if (targetReg) {
       try {
         const identityMatches = (identityStudents || []).filter(record =>
-          normalizeRegistrationKey(extractBoardRegNo(record)) === targetReg
+          normalizeRegistrationKey(extractBoardRegNo(record)) === targetReg &&
+          areNamesCompatible(extractStudentName(record), extractStudentName(st))
         );
         registrationMatches = [...registrationMatches, ...identityMatches];
         const hasAuthoritativeIdentity = registrationMatches.some(record =>
@@ -1425,13 +1429,15 @@ export default function StudentCertificateStudioView({
             : await getCachedCollection('admissions');
           if (selectionRequestRef.current !== requestId) return;
           registrationMatches = [...registrationMatches, ...(admissions || []).filter(record =>
-            normalizeRegistrationKey(extractBoardRegNo(record)) === targetReg
+            normalizeRegistrationKey(extractBoardRegNo(record)) === targetReg &&
+            areNamesCompatible(extractStudentName(record), extractStudentName(st))
           )];
         }
         if (registrationMatches.length > 0) {
           let enrichedRaw = enrichCertificateIdentityFields(primaryRaw, registrationMatches);
           const priorCertificateRecord = registrationMatches.find(record =>
             isExactCertificateScope(record, st.session || extractSession(st), st.cls || extractClass(st)) &&
+            areNamesCompatible(extractStudentName(record), extractStudentName(st)) &&
             Boolean(extractStudentCertificateNumber(record))
           );
           const priorCertificate = extractStudentCertificateNumber(priorCertificateRecord);
@@ -1508,10 +1514,7 @@ export default function StudentCertificateStudioView({
     if (finalExistingCertNo && !/^(—|-|n\/?a|null|undefined)$/i.test(String(finalExistingCertNo).trim())) {
       setRefNo(finalIsTcDc ? (extractCertificateSerial(finalExistingCertNo) || String(finalExistingCertNo).trim()) : String(finalExistingCertNo).trim());
     } else if (isPreviewOnly) {
-      const nextNo = lastIssuedCertificateRef.current ? lastIssuedCertificateRef.current + 1 : null;
-      setRefNo(nextNo
-        ? (finalIsTcDc ? String(nextNo) : `${activeTpl.refPrefix || 'HSS/SHG'}/${nextNo}/${new Date().getFullYear()}`)
-        : 'Assigned on issue');
+      setRefNo('');
     } else {
       let lastNo = 1367;
       try {
@@ -3371,7 +3374,7 @@ export default function StudentCertificateStudioView({
       return '';
     }
 
-    let serial = extractCertificateSerial(refNo);
+    let serial = existingSerial;
     if (!serial) {
       const lastIssued = await fetchLastIssuedCertificateNumber();
       serial = String(lastIssued + 1);
