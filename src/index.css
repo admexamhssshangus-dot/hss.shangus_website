@@ -1731,13 +1731,13 @@ html, body, #root {
   background-color: rgba(15, 23, 42, 0.06) !important;
 }
 
-/* Ensure high contrast table headers in Light Theme */
-.theme-light table thead tr,
-.theme-light table thead th {
+/* Ensure high contrast table headers in Light Theme, without overriding dark/white-text headers */
+.theme-light table:not(.sentup-table):not(.admission-spread-table) thead tr:not(.text-white):not([class*="bg-sky"]):not([class*="bg-rose"]):not([class*="bg-slate-9"]):not([class*="bg-slate-8"]),
+.theme-light table:not(.sentup-table):not(.admission-spread-table) thead th:not(.text-white):not([class*="text-white"]):not([class*="text-sky"]):not([class*="text-amber"]) {
   color: var(--text-main) !important;
   font-weight: 800 !important;
 }
-.theme-light table thead {
+.theme-light table:not(.sentup-table):not(.admission-spread-table) thead:not([class*="bg-"]) {
   background-color: rgba(15, 23, 42, 0.04) !important;
 }
 

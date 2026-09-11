@@ -5,7 +5,7 @@ import {
   RefreshCw, Check, Search, ZoomIn, ZoomOut,
   Plus, Trash2, FileCheck, Sliders, Loader2, Columns, LayoutGrid,
   UserCheck, UserX, AlertCircle, X, Edit3, UserPlus, ChevronRight,
-  Filter, Eye, ChevronDown, Sparkles, SlidersHorizontal, Save, RotateCcw, Move, ArrowUpDown,
+  Filter, Eye, ChevronDown, ChevronUp, Sparkles, SlidersHorizontal, Save, RotateCcw, Move, ArrowUpDown,
   CheckSquare, Square, Minus
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
@@ -94,6 +94,9 @@ export const DEFAULT_COLUMN_WIDTHS = {
 // Draggable Table Column Header Component
 function ResizableTh({
   colKey,
+  sortKey,
+  sortConfig,
+  onSort,
   width,
   onResize,
   rowSpan,
@@ -131,16 +134,46 @@ function ResizableTh({
   };
 
   const styleObj = width ? { width: `${width}px`, minWidth: `${width}px`, maxWidth: `${width}px` } : undefined;
+  const isSorted = Boolean(sortConfig && sortKey && sortConfig.key === sortKey);
+  const isAsc = isSorted && sortConfig.direction === 'asc';
+  const isDesc = isSorted && sortConfig.direction === 'desc';
+  const isLeftAlign = className.includes('text-left');
+
+  const isDarkHeader = className.includes('text-white') || (colKey && colKey.startsWith('st_'));
+
+  const handleClick = (e) => {
+    if (sortKey && onSort) {
+      onSort(sortKey);
+    }
+    if (rest.onClick) {
+      rest.onClick(e);
+    }
+  };
 
   return (
     <th
       rowSpan={rowSpan}
       colSpan={colSpan}
       style={styleObj}
-      className={`relative group/th select-none ${className}`}
+      className={`relative group/th select-none ${sortKey && onSort ? 'cursor-pointer hover:brightness-110 active:scale-[0.99] transition-all' : ''} ${className}`}
+      onClick={handleClick}
+      title={sortKey && onSort ? `Click to sort by this column (${isSorted ? (isAsc ? 'ascending → descending' : 'descending → default') : 'ascending'})` : undefined}
       {...rest}
     >
-      {children}
+      <div className={`flex items-center ${isLeftAlign ? 'justify-between' : 'justify-center'} gap-0.5 w-full h-full`}>
+        <div className="flex-1 min-w-0">{children}</div>
+        {sortKey && onSort && (
+          <span className="sort-indicator-icon inline-flex items-center shrink-0 print:hidden select-none ml-0.5" aria-hidden="true">
+            {isAsc ? (
+              <ChevronUp size={11} className={isDarkHeader ? "text-amber-300 font-black drop-shadow-2xs" : "text-indigo-700 dark:text-indigo-400 font-black"} />
+            ) : isDesc ? (
+              <ChevronDown size={11} className={isDarkHeader ? "text-amber-300 font-black drop-shadow-2xs" : "text-indigo-700 dark:text-indigo-400 font-black"} />
+            ) : (
+              <ArrowUpDown size={8.5} className={isDarkHeader ? "text-white/60 group-hover/th:text-white transition-opacity" : "text-slate-500 group-hover/th:text-slate-900 dark:text-slate-400 transition-opacity"} />
+            )}
+          </span>
+        )}
+      </div>
       {colKey && onResize && (
         <div
           onMouseDown={onMouseDown}
@@ -825,6 +858,75 @@ export default function AdmissionRegisterSuite({
   const [zoomLevel, setZoomLevel] = useState(1.0);
   const [toast, setToast] = useState(null);
   const [isPreparingPrint, setIsPreparingPrint] = useState(false);
+
+  // Detect whether currently selected session is APR/BIAN (Bi-annual / Private cohort)
+  const isAprBianSession = useMemo(() => {
+    return /\b(apr|bian|biannual|bi-annual|private|pvt)\b/i.test(selectedSession || '');
+  }, [selectedSession]);
+
+  // Dynamic Column Sorting State: { key: null | string, direction: 'asc' | 'desc' }
+  const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
+
+  const handleSort = useCallback((key) => {
+    setSortConfig(prev => {
+      if (prev.key === key) {
+        if (prev.direction === 'asc') {
+          return { key, direction: 'desc' };
+        }
+        return { key: null, direction: 'asc' }; // Reset to default on 3rd click
+      }
+      return { key, direction: 'asc' };
+    });
+  }, []);
+
+  const handleResetSort = useCallback(() => {
+    setSortConfig({ key: null, direction: 'asc' });
+  }, []);
+
+  const getSortColumnLabel = useCallback((key) => {
+    const map = {
+      rollNo: 'Class Roll No.',
+      boardRollNo: 'Board Roll No.',
+      admNo: 'Adm. No.',
+      sno: 'S.No.',
+      name: "Student's Name",
+      father: "Parentage / Father",
+      mother: "Mother's Name",
+      class: 'Class',
+      boardReg: 'Board Reg. No.',
+      dobFigures: 'Date of Birth',
+      dobWords: 'DoB (Words)',
+      gender: 'Gender',
+      village: 'Village',
+      block: 'Block',
+      tehsil: 'Tehsil',
+      district: 'District',
+      mobile: 'Student Mobile',
+      parentMobile: 'Parent Mobile',
+      stream: 'Stream',
+      subs: 'Subjects',
+      aadhar: 'Aadhar No.',
+      category: 'Category',
+      socioEcon: 'Socio-Econ',
+      blood: 'Blood Group',
+      account: 'Bank Account',
+      prevSchool: 'Previous School',
+      prevRoll: 'Prev. Roll No.',
+      prevResult: 'Prev. Result',
+      pen: 'PEN No.',
+      prevCC: 'Admitted Vide',
+      withdrawal: 'Withdrawal / Result Date',
+      issuedCC: 'Issued CC',
+      receipt: 'Receipt',
+      remarks: 'Remarks',
+      currentResult: 'Result',
+      admitReceipt: 'Admit Card Receipt',
+      marksReceipt: 'Marks Card Receipt',
+      formNo: 'Form No.',
+      admDate: 'Admission Date'
+    };
+    return map[key] || key;
+  }, []);
 
   // Sync selected session and class to sessionStorage for seamless cohort continuity
   useEffect(() => {
@@ -1886,30 +1988,145 @@ export default function AdmissionRegisterSuite({
       return true;
     });
 
-    // STRICT REGISTER ORDERING:
-    // 1. Group by Class (9th, 10th, 11th, 12th)
-    // 2. Fresh Admissions FIRST (sorted by Class Roll No / Name)
-    // 3. Re-admissions PLACED AT THE END OF EACH CLASS REGISTER!
+    // Class priority: 11th first (1), 12th second (2), 10th third (3), 9th fourth (4), others (5)
+    const getClassPriority = (clsStr) => {
+      const c = String(clsStr || '').toLowerCase();
+      if (c.includes('11')) return 1;
+      if (c.includes('12')) return 2;
+      if (c.includes('10')) return 3;
+      if (c.includes('9')) return 4;
+      return 5;
+    };
+
     const sorted = rawFiltered.sort((a, b) => {
-      const cA = parseInt(a.class, 10) || 0;
-      const cB = parseInt(b.class, 10) || 0;
+      // ── A. CUSTOM COLUMN SORTING (Triggered when user clicks ANY column header) ──
+      if (sortConfig && sortConfig.key) {
+        const key = sortConfig.key;
+        const dir = sortConfig.direction === 'desc' ? -1 : 1;
+
+        const valA = a[key] ?? '';
+        const valB = b[key] ?? '';
+
+        if (key === 'rollNo' || key === 'prevRoll') {
+          const nA = parseInt(String(valA).replace(/\D/g, ''), 10);
+          const nB = parseInt(String(valB).replace(/\D/g, ''), 10);
+          const hasA = !isNaN(nA) && nA > 0;
+          const hasB = !isNaN(nB) && nB > 0;
+          if (hasA && hasB) {
+            if (nA !== nB) return (nA - nB) * dir;
+          } else if (hasA && !hasB) return -1 * dir;
+          else if (!hasA && hasB) return 1 * dir;
+        } else if (key === 'admNo' || key === 'sno') {
+          const nA = parseInt(String(a.admNo || a.sno || '').replace(/\D/g, ''), 10) || 0;
+          const nB = parseInt(String(b.admNo || b.sno || '').replace(/\D/g, ''), 10) || 0;
+          if (nA !== nB) return (nA - nB) * dir;
+        } else if (key === 'boardRollNo') {
+          const nA = parseInt(String(valA).replace(/\D/g, ''), 10);
+          const nB = parseInt(String(valB).replace(/\D/g, ''), 10);
+          const hasA = !isNaN(nA) && nA > 0;
+          const hasB = !isNaN(nB) && nB > 0;
+          if (hasA && hasB) {
+            if (nA !== nB) return (nA - nB) * dir;
+          } else if (hasA && !hasB) return -1 * dir;
+          else if (!hasA && hasB) return 1 * dir;
+          const strDiff = String(valA).localeCompare(String(valB), undefined, { numeric: true, sensitivity: 'base' });
+          if (strDiff !== 0) return strDiff * dir;
+        } else if (key === 'dobFigures' || key === 'admDate' || key === 'withdrawal') {
+          const parseDateVal = (dStr) => {
+            if (!dStr || dStr === '—' || dStr === '-') return 0;
+            const parts = String(dStr).split(/[-/]/);
+            if (parts.length === 3) {
+              if (parts[0].length === 4) return new Date(`${parts[0]}-${parts[1]}-${parts[2]}`).getTime() || 0;
+              return new Date(`${parts[2]}-${parts[1]}-${parts[0]}`).getTime() || 0;
+            }
+            return new Date(dStr).getTime() || 0;
+          };
+          const tA = parseDateVal(valA);
+          const tB = parseDateVal(valB);
+          if (tA !== tB) return (tA - tB) * dir;
+        } else if (key === 'class') {
+          const cA = getClassPriority(valA);
+          const cB = getClassPriority(valB);
+          if (cA !== cB) return (cA - cB) * dir;
+        } else {
+          const strA = String(valA || '').trim();
+          const strB = String(valB || '').trim();
+          const comp = strA.localeCompare(strB, undefined, { numeric: true, sensitivity: 'base' });
+          if (comp !== 0) return comp * dir;
+        }
+
+        // Secondary fallback to student name
+        return (a.name || '').localeCompare(b.name || '');
+      }
+
+      // ── B. DEFAULT ORDERING RULES (When no custom column sort is selected) ──
+      // Rule 1: For APR/BIAN Sentups, default order is by Exam Roll (boardRollNo)
+      if (activeTab === 'sentup' && isAprBianSession) {
+        const rA = String(a.boardRollNo || '').trim();
+        const rB = String(b.boardRollNo || '').trim();
+        const hasA = Boolean(rA && rA !== '—' && rA !== '-');
+        const hasB = Boolean(rB && rB !== '—' && rB !== '-');
+
+        if (hasA && hasB) {
+          const numA = parseInt(rA.replace(/\D/g, ''), 10);
+          const numB = parseInt(rB.replace(/\D/g, ''), 10);
+          if (!isNaN(numA) && !isNaN(numB) && numA !== numB) {
+            return numA - numB;
+          }
+          const strDiff = rA.localeCompare(rB, undefined, { numeric: true, sensitivity: 'base' });
+          if (strDiff !== 0) return strDiff;
+        } else if (hasA && !hasB) {
+          return -1;
+        } else if (!hasA && hasB) {
+          return 1;
+        }
+
+        // Fallback for students without board roll no
+        const rollA = parseInt(String(a.rollNo || '').replace(/\D/g, ''), 10) || Infinity;
+        const rollB = parseInt(String(b.rollNo || '').replace(/\D/g, ''), 10) || Infinity;
+        if (rollA !== rollB) return rollA - rollB;
+
+        return (a.name || '').localeCompare(b.name || '');
+      }
+
+      // Rule 2: Admission Register & Regular Sentups:
+      // Default order is Class Roll No (if both 11th and 12th, first 11th students then 12th)
+      const cA = getClassPriority(a.class);
+      const cB = getClassPriority(b.class);
       if (cA !== cB) return cA - cB;
 
-      // Fresh First (0), Re-admission at end (1)
+      // Fresh First (0), Re-admission at end of each class register (1)
       const isReA = a.isReadmission ? 1 : 0;
       const isReB = b.isReadmission ? 1 : 0;
       if (isReA !== isReB) return isReA - isReB;
 
-      const rA = parseInt(a.rollNo, 10) || 0;
-      const rB = parseInt(b.rollNo, 10) || 0;
-      if (rA !== rB && rA > 0 && rB > 0) return rA - rB;
+      // Class Roll No sorted numerically
+      const rA = parseInt(String(a.rollNo || '').replace(/\D/g, ''), 10);
+      const rB = parseInt(String(b.rollNo || '').replace(/\D/g, ''), 10);
+      const hasRollA = !isNaN(rA) && rA > 0;
+      const hasRollB = !isNaN(rB) && rB > 0;
 
-      return a.name.localeCompare(b.name);
+      if (hasRollA && hasRollB) {
+        if (rA !== rB) return rA - rB;
+      } else if (hasRollA && !hasRollB) {
+        return -1;
+      } else if (!hasRollA && hasRollB) {
+        return 1;
+      }
+
+      // Fallback: Admission No numerically
+      const admA = parseInt(String(a.admNo || '').replace(/\D/g, ''), 10);
+      const admB = parseInt(String(b.admNo || '').replace(/\D/g, ''), 10);
+      if (!isNaN(admA) && !isNaN(admB) && admA > 0 && admB > 0 && admA !== admB) {
+        return admA - admB;
+      }
+
+      return (a.name || '').localeCompare(b.name || '');
     });
 
     // Re-index continuous S.No.
     return sorted.map((st, i) => ({ ...st, sno: i + 1 }));
-  }, [normalizedStudents, selectedStatus, selectedAdmissionType, selectedClass, selectedStream, searchQuery]);
+  }, [normalizedStudents, selectedStatus, selectedAdmissionType, selectedClass, selectedStream, searchQuery, sortConfig, activeTab, selectedSession, isAprBianSession]);
 
   // ASYNC PHOTO FETCHING FOR VISIBLE FILTERED STUDENTS
   useEffect(() => {
@@ -2986,6 +3203,31 @@ export default function AdmissionRegisterSuite({
 
         .print-only { display: none; }
 
+        /* ── High-Contrast Table Headers (Screen & Print) ── */
+        .sentup-table thead tr,
+        .sentup-table thead th {
+          color: #ffffff !important;
+          font-weight: 900 !important;
+          -webkit-font-smoothing: antialiased;
+        }
+
+        .sentup-table thead th .th-subtext,
+        .sentup-table thead th span:not(.sort-indicator-icon):not(.sort-indicator-icon *) {
+          color: #e0f2fe !important;
+          opacity: 1 !important;
+        }
+
+        .sentup-table thead tr.bg-rose-900 th .th-subtext,
+        .sentup-table thead tr.bg-rose-900 th span:not(.sort-indicator-icon):not(.sort-indicator-icon *) {
+          color: #ffe4e6 !important;
+          opacity: 1 !important;
+        }
+
+        .admission-spread-table thead th {
+          color: #0f172a !important;
+          font-weight: 900 !important;
+        }
+
         .register-ledger-page {
           display: flex;
           flex-direction: column;
@@ -3258,6 +3500,28 @@ export default function AdmissionRegisterSuite({
                     className="pl-5 pr-1.5 py-0.5 text-[11px] rounded-lg border border-slate-300 bg-white text-slate-900 w-24 xl:w-28 shadow-2xs"
                   />
                 </div>
+
+                {/* 6. Active Sort Indicator & Quick Reset */}
+                {sortConfig.key ? (
+                  <button
+                    type="button"
+                    onClick={handleResetSort}
+                    className="py-0.5 px-2 rounded-lg bg-indigo-100 hover:bg-rose-100 text-indigo-900 hover:text-rose-900 dark:bg-indigo-950/80 dark:text-indigo-200 dark:hover:bg-rose-950/80 dark:hover:text-rose-200 border border-indigo-300 dark:border-indigo-700 hover:border-rose-400 font-bold text-[10.5px] flex items-center gap-1 shadow-2xs cursor-pointer transition-colors shrink-0"
+                    title="Click to reset to default register order"
+                  >
+                    <ArrowUpDown size={10} className="text-indigo-600 dark:text-indigo-400" />
+                    <span>Sorted: {getSortColumnLabel(sortConfig.key)} ({sortConfig.direction === 'asc' ? '▲ Asc' : '▼ Desc'})</span>
+                    <X size={10} className="text-slate-500 hover:text-rose-600 ml-0.5" />
+                  </button>
+                ) : (
+                  <div
+                    className="hidden xl:flex items-center gap-1 py-0.5 px-2 rounded-lg bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-[10px] font-semibold text-slate-600 dark:text-slate-300 shrink-0 select-none"
+                    title="Click any column header to sort by that column"
+                  >
+                    <ArrowUpDown size={9.5} className="text-slate-400" />
+                    <span>Order: {activeTab === 'sentup' && isAprBianSession ? 'Exam Roll (Default)' : 'Class Roll (Default)'}</span>
+                  </div>
+                )}
               </>
             )}
           </div>
@@ -3996,32 +4260,32 @@ export default function AdmissionRegisterSuite({
                             </colgroup>
                             <thead>
                               <tr className="bg-slate-200 text-slate-900 uppercase font-black text-center">
-                                <ResizableTh colKey="sno" width={columnWidths.sno} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey">S.NO.</ResizableTh>
+                                <ResizableTh colKey="sno" sortKey="sno" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.sno} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey">S.NO.</ResizableTh>
                                 <ResizableTh colKey="photo" width={columnWidths.photo} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey">PHOTO</ResizableTh>
-                                <ResizableTh colKey="rollNo" width={columnWidths.rollNo} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey">CLASS R.NO.</ResizableTh>
-                                <ResizableTh colKey="formNo" width={columnWidths.formNo || 62} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey">FORM NO. & ONLINE SUBM.</ResizableTh>
-                                <ResizableTh colKey="admDate" width={columnWidths.admDate} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey">ADM. DATE</ResizableTh>
-                                <ResizableTh colKey="admNo" width={columnWidths.admNo} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey">ADM. NO.</ResizableTh>
-                                <ResizableTh colKey="class" width={columnWidths.class} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey">CLASS ADM. TO</ResizableTh>
-                                <ResizableTh colKey="boardReg" width={columnWidths.boardReg} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey">BOARD REG. NO.</ResizableTh>
-                                <ResizableTh colKey="name" width={columnWidths.name} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 text-left pl-2 h-grey">STUDENT'S NAME</ResizableTh>
+                                <ResizableTh colKey="rollNo" sortKey="rollNo" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.rollNo} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey">CLASS R.NO.</ResizableTh>
+                                <ResizableTh colKey="formNo" sortKey="formNo" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.formNo || 62} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey">FORM NO. & ONLINE SUBM.</ResizableTh>
+                                <ResizableTh colKey="admDate" sortKey="admDate" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.admDate} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey">ADM. DATE</ResizableTh>
+                                <ResizableTh colKey="admNo" sortKey="admNo" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.admNo} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey">ADM. NO.</ResizableTh>
+                                <ResizableTh colKey="class" sortKey="class" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.class} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey">CLASS ADM. TO</ResizableTh>
+                                <ResizableTh colKey="boardReg" sortKey="boardReg" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.boardReg} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey">BOARD REG. NO.</ResizableTh>
+                                <ResizableTh colKey="name" sortKey="name" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.name} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 text-left pl-2 h-grey">STUDENT'S NAME</ResizableTh>
                                 <th colSpan="2" className="border border-slate-900 px-1 py-0.5 text-center h-grey">PARENTAGE</th>
                                 <th colSpan="2" className="border border-slate-900 px-1 py-0.5 text-center h-grey">DATE OF BIRTH</th>
-                                <ResizableTh colKey="gender" width={columnWidths.gender} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey">GENDER</ResizableTh>
+                                <ResizableTh colKey="gender" sortKey="gender" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.gender} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey">GENDER</ResizableTh>
                                 <th colSpan="4" className="border border-slate-900 px-1 py-0.5 text-center bg-yellow-200 text-slate-900 h-yellow">RESIDENCE</th>
                                 <th colSpan="2" className="border border-slate-900 px-1 py-0.5 text-center bg-yellow-200 text-slate-900 h-yellow">CONTACT</th>
                               </tr>
                               <tr className="bg-slate-100 text-slate-900 uppercase font-bold text-[7.5px]">
-                                <ResizableTh colKey="father" width={columnWidths.father} onResize={handleColumnResize} className="border border-slate-900 px-1 py-0.5 h-grey">FATHER'S NAME</ResizableTh>
-                                <ResizableTh colKey="mother" width={columnWidths.mother} onResize={handleColumnResize} className="border border-slate-900 px-1 py-0.5 h-grey">MOTHER'S NAME</ResizableTh>
-                                <ResizableTh colKey="dobFigures" width={columnWidths.dobFigures} onResize={handleColumnResize} className="border border-slate-900 px-1 py-0.5 h-grey">FIGURES</ResizableTh>
-                                <ResizableTh colKey="dobWords" width={columnWidths.dobWords} onResize={handleColumnResize} className="border border-slate-900 px-1 py-0.5 h-grey">WORDS</ResizableTh>
-                                <ResizableTh colKey="village" width={columnWidths.village} onResize={handleColumnResize} className="border border-slate-900 px-1 py-0.5 bg-yellow-100 h-yellow">VILLAGE/ TOWN</ResizableTh>
-                                <ResizableTh colKey="block" width={columnWidths.block} onResize={handleColumnResize} className="border border-slate-900 px-1 py-0.5 bg-yellow-100 h-yellow">BLOCK</ResizableTh>
-                                <ResizableTh colKey="tehsil" width={columnWidths.tehsil} onResize={handleColumnResize} className="border border-slate-900 px-1 py-0.5 bg-yellow-100 h-yellow">TEHSIL</ResizableTh>
-                                <ResizableTh colKey="district" width={columnWidths.district} onResize={handleColumnResize} className="border border-slate-900 px-1 py-0.5 bg-yellow-100 h-yellow">DISTRICT</ResizableTh>
-                                <ResizableTh colKey="mobile" width={columnWidths.mobile} onResize={handleColumnResize} className="border border-slate-900 px-1 py-0.5 bg-yellow-100 h-yellow">STUDENT'S MOBILE</ResizableTh>
-                                <ResizableTh colKey="parentMobile" width={columnWidths.parentMobile} onResize={handleColumnResize} className="border border-slate-900 px-1 py-0.5 bg-yellow-100 h-yellow">PARENT'S MOBILE</ResizableTh>
+                                <ResizableTh colKey="father" sortKey="father" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.father} onResize={handleColumnResize} className="border border-slate-900 px-1 py-0.5 h-grey">FATHER'S NAME</ResizableTh>
+                                <ResizableTh colKey="mother" sortKey="mother" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.mother} onResize={handleColumnResize} className="border border-slate-900 px-1 py-0.5 h-grey">MOTHER'S NAME</ResizableTh>
+                                <ResizableTh colKey="dobFigures" sortKey="dobFigures" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.dobFigures} onResize={handleColumnResize} className="border border-slate-900 px-1 py-0.5 h-grey">FIGURES</ResizableTh>
+                                <ResizableTh colKey="dobWords" sortKey="dobWords" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.dobWords} onResize={handleColumnResize} className="border border-slate-900 px-1 py-0.5 h-grey">WORDS</ResizableTh>
+                                <ResizableTh colKey="village" sortKey="village" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.village} onResize={handleColumnResize} className="border border-slate-900 px-1 py-0.5 bg-yellow-100 h-yellow">VILLAGE/ TOWN</ResizableTh>
+                                <ResizableTh colKey="block" sortKey="block" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.block} onResize={handleColumnResize} className="border border-slate-900 px-1 py-0.5 bg-yellow-100 h-yellow">BLOCK</ResizableTh>
+                                <ResizableTh colKey="tehsil" sortKey="tehsil" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.tehsil} onResize={handleColumnResize} className="border border-slate-900 px-1 py-0.5 bg-yellow-100 h-yellow">TEHSIL</ResizableTh>
+                                <ResizableTh colKey="district" sortKey="district" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.district} onResize={handleColumnResize} className="border border-slate-900 px-1 py-0.5 bg-yellow-100 h-yellow">DISTRICT</ResizableTh>
+                                <ResizableTh colKey="mobile" sortKey="mobile" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.mobile} onResize={handleColumnResize} className="border border-slate-900 px-1 py-0.5 bg-yellow-100 h-yellow">STUDENT'S MOBILE</ResizableTh>
+                                <ResizableTh colKey="parentMobile" sortKey="parentMobile" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.parentMobile} onResize={handleColumnResize} className="border border-slate-900 px-1 py-0.5 bg-yellow-100 h-yellow">PARENT'S MOBILE</ResizableTh>
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-900 text-slate-900">
@@ -4162,25 +4426,25 @@ export default function AdmissionRegisterSuite({
                             </colgroup>
                             <thead>
                               <tr className="bg-slate-200 text-slate-900 uppercase font-black text-center">
-                                <ResizableTh colKey="p2_stream" width={columnWidths.p2_stream} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey">STREAM</ResizableTh>
-                                <ResizableTh colKey="p2_subs" width={columnWidths.p2_subs} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey">SUBS</ResizableTh>
-                                <ResizableTh colKey="p2_aadhar" width={columnWidths.p2_aadhar} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 bg-yellow-200 text-slate-900 h-yellow">AADHAR NO.</ResizableTh>
-                                <ResizableTh colKey="p2_cat" width={columnWidths.p2_cat} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 bg-yellow-200 text-slate-900 h-yellow">SOC. CAT.</ResizableTh>
-                                <ResizableTh colKey="p2_socio" width={columnWidths.p2_socio} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 bg-yellow-200 text-slate-900 h-yellow">SOCIO-ECON CAT.</ResizableTh>
-                                <ResizableTh colKey="p2_blood" width={columnWidths.p2_blood} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 bg-yellow-200 text-slate-900 h-yellow">BLOOD GRP</ResizableTh>
-                                <ResizableTh colKey="p2_account" width={columnWidths.p2_account || 86} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 bg-yellow-200 text-slate-900 h-yellow">A/C NO. & IFSC</ResizableTh>
+                                <ResizableTh colKey="p2_stream" sortKey="stream" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.p2_stream} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey">STREAM</ResizableTh>
+                                <ResizableTh colKey="p2_subs" sortKey="subs" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.p2_subs} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey">SUBS</ResizableTh>
+                                <ResizableTh colKey="p2_aadhar" sortKey="aadhar" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.p2_aadhar} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 bg-yellow-200 text-slate-900 h-yellow">AADHAR NO.</ResizableTh>
+                                <ResizableTh colKey="p2_cat" sortKey="category" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.p2_cat} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 bg-yellow-200 text-slate-900 h-yellow">SOC. CAT.</ResizableTh>
+                                <ResizableTh colKey="p2_socio" sortKey="socioEcon" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.p2_socio} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 bg-yellow-200 text-slate-900 h-yellow">SOCIO-ECON CAT.</ResizableTh>
+                                <ResizableTh colKey="p2_blood" sortKey="blood" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.p2_blood} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 bg-yellow-200 text-slate-900 h-yellow">BLOOD GRP</ResizableTh>
+                                <ResizableTh colKey="p2_account" sortKey="account" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.p2_account || 86} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 bg-yellow-200 text-slate-900 h-yellow">A/C NO. & IFSC</ResizableTh>
                                 <th colSpan="3" className="border border-slate-900 px-1 py-0.5 text-center h-grey">PREVIOUS ACADEMIC DETAILS</th>
-                                <ResizableTh colKey="p2_pen" width={columnWidths.p2_pen} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey">PEN (UDISE)</ResizableTh>
-                                <ResizableTh colKey="p2_prevCC" width={columnWidths.p2_prevCC} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 text-emerald-900 bg-emerald-100 h-green">ADMTD. VIDE DC/CC<br />(No.; Date)</ResizableTh>
-                                <ResizableTh colKey="p2_withdrawal" width={columnWidths.p2_withdrawal} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 text-rose-900 bg-rose-100 h-red">RESULT /<br />WITHDRAWAL DT.</ResizableTh>
-                                <ResizableTh colKey="p2_issuedCC" width={columnWidths.p2_issuedCC} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 text-rose-900 bg-rose-50 h-red">ISSUED DC/CC</ResizableTh>
-                                <ResizableTh colKey="p2_receipt" width={columnWidths.p2_receipt} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 text-rose-900 bg-rose-50 h-red">RECEIPT</ResizableTh>
-                                <ResizableTh colKey="p2_remarks" width={columnWidths.p2_remarks} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey">REMARKS</ResizableTh>
+                                <ResizableTh colKey="p2_pen" sortKey="pen" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.p2_pen} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey">PEN (UDISE)</ResizableTh>
+                                <ResizableTh colKey="p2_prevCC" sortKey="prevCC" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.p2_prevCC} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 text-emerald-900 bg-emerald-100 h-green">ADMTD. VIDE DC/CC<br />(No.; Date)</ResizableTh>
+                                <ResizableTh colKey="p2_withdrawal" sortKey="withdrawal" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.p2_withdrawal} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 text-rose-900 bg-rose-100 h-red">RESULT /<br />WITHDRAWAL DT.</ResizableTh>
+                                <ResizableTh colKey="p2_issuedCC" sortKey="issuedCC" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.p2_issuedCC} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 text-rose-900 bg-rose-50 h-red">ISSUED DC/CC</ResizableTh>
+                                <ResizableTh colKey="p2_receipt" sortKey="receipt" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.p2_receipt} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 text-rose-900 bg-rose-50 h-red">RECEIPT</ResizableTh>
+                                <ResizableTh colKey="p2_remarks" sortKey="remarks" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.p2_remarks} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey">REMARKS</ResizableTh>
                               </tr>
                               <tr className="bg-slate-100 text-slate-900 uppercase font-bold text-[7.5px]">
-                                <ResizableTh colKey="p2_prevSchool" width={columnWidths.p2_prevSchool} onResize={handleColumnResize} className="border border-slate-900 px-1 py-0.5 h-grey">PREVIOUS SCHOOL</ResizableTh>
-                                <ResizableTh colKey="p2_prevRoll" width={columnWidths.p2_prevRoll} onResize={handleColumnResize} className="border border-slate-900 px-1 py-0.5 h-grey">PREV R.NO.</ResizableTh>
-                                <ResizableTh colKey="p2_prevResult" width={columnWidths.p2_prevResult} onResize={handleColumnResize} className="border border-slate-900 px-1 py-0.5 h-grey">PREV RESULT</ResizableTh>
+                                <ResizableTh colKey="p2_prevSchool" sortKey="prevSchool" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.p2_prevSchool} onResize={handleColumnResize} className="border border-slate-900 px-1 py-0.5 h-grey">PREVIOUS SCHOOL</ResizableTh>
+                                <ResizableTh colKey="p2_prevRoll" sortKey="prevRoll" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.p2_prevRoll} onResize={handleColumnResize} className="border border-slate-900 px-1 py-0.5 h-grey">PREV R.NO.</ResizableTh>
+                                <ResizableTh colKey="p2_prevResult" sortKey="prevResult" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.p2_prevResult} onResize={handleColumnResize} className="border border-slate-900 px-1 py-0.5 h-grey">PREV RESULT</ResizableTh>
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-900 text-slate-900">
@@ -4500,23 +4764,23 @@ export default function AdmissionRegisterSuite({
                       <table className="sentup-table w-full text-left text-[9px] border-collapse border border-slate-900 ledger-data-font">
                         <thead>
                           <tr className={`${themeHeaderBg} uppercase font-black text-center text-[8.5px]`}>
-                            <th className="border border-slate-900 px-1 py-1 text-center w-7 select-none shrink-0 print:hidden" title="Select / deselect all rows">
+                            <th className="border border-slate-900 px-1 py-1 text-center w-7 select-none shrink-0 print:hidden text-white" title="Select / deselect all rows">
                               <button type="button" onClick={toggleSelectAllRows} className="cursor-pointer text-white flex items-center justify-center mx-auto">
                                 {isAllRowsIncluded ? <CheckSquare size={12} className="text-white" /> : isSomeRowsSkipped ? <Minus size={12} className="text-white" /> : <Square size={12} className="text-white opacity-70" />}
                               </button>
                             </th>
-                            <ResizableTh colKey="st_sno" width={columnWidths.st_sno} onResize={handleColumnResize} className="border border-slate-900 px-1 py-1">S.No.<br /><span className="text-[7px] opacity-80">[Adm No.]</span></ResizableTh>
-                            <ResizableTh colKey="st_rollNo" width={columnWidths.st_rollNo} onResize={handleColumnResize} className="border border-slate-900 px-1 py-1">Class<br />Roll No.</ResizableTh>
-                            <ResizableTh colKey="st_photo" width={columnWidths.st_photo} onResize={handleColumnResize} className="border border-slate-900 px-1 py-1">Photo</ResizableTh>
-                            <ResizableTh colKey="st_boardReg" width={columnWidths.st_boardReg} onResize={handleColumnResize} className="border border-slate-900 px-1.5 py-1 text-left pl-2">Board<br />Reg. No.</ResizableTh>
-                            <ResizableTh colKey="st_name" width={columnWidths.st_name} onResize={handleColumnResize} className="border border-slate-900 px-1 py-1 text-left pl-2">Student's Name</ResizableTh>
-                            <ResizableTh colKey="st_parentage" width={columnWidths.st_parentage} onResize={handleColumnResize} className="border border-slate-900 px-1 py-1 text-left pl-2">Parentage<br /><span className="text-[6.5px] opacity-80">(Father / Mother)</span></ResizableTh>
-                            <ResizableTh colKey="st_dob" width={columnWidths.st_dob} onResize={handleColumnResize} className="border border-slate-900 px-1 py-1">Date of Birth</ResizableTh>
-                            <ResizableTh colKey="st_subs" width={columnWidths.st_subs} onResize={handleColumnResize} className="border border-slate-900 px-1 py-1">Subjects</ResizableTh>
-                            <ResizableTh colKey="st_boardRoll" width={columnWidths.st_boardRoll} onResize={handleColumnResize} className="border border-slate-900 px-1 py-1">Board<br />Roll No.</ResizableTh>
-                            <ResizableTh colKey="st_result" width={columnWidths.st_result} onResize={handleColumnResize} className="border border-slate-900 px-1 py-1">Result</ResizableTh>
-                            <ResizableTh colKey="st_admitReceipt" width={columnWidths.st_admitReceipt} onResize={handleColumnResize} className="border border-slate-900 px-1 py-1">Admit Card<br />Receipt</ResizableTh>
-                            <ResizableTh colKey="st_marksReceipt" width={columnWidths.st_marksReceipt} onResize={handleColumnResize} className="border border-slate-900 px-1 py-1">Marks Card / Certificate Receipt</ResizableTh>
+                            <ResizableTh colKey="st_sno" sortKey="sno" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.st_sno} onResize={handleColumnResize} className="border border-slate-900 px-1 py-1 text-white">S.No.<br /><span className="th-subtext text-[7px] text-sky-100 opacity-90">[Adm No.]</span></ResizableTh>
+                            <ResizableTh colKey="st_rollNo" sortKey="rollNo" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.st_rollNo} onResize={handleColumnResize} className="border border-slate-900 px-1 py-1 text-white">Class<br />Roll No.</ResizableTh>
+                            <ResizableTh colKey="st_photo" width={columnWidths.st_photo} onResize={handleColumnResize} className="border border-slate-900 px-1 py-1 text-white">Photo</ResizableTh>
+                            <ResizableTh colKey="st_boardReg" sortKey="boardReg" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.st_boardReg} onResize={handleColumnResize} className="border border-slate-900 px-1.5 py-1 text-left pl-2 text-white">Board<br />Reg. No.</ResizableTh>
+                            <ResizableTh colKey="st_name" sortKey="name" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.st_name} onResize={handleColumnResize} className="border border-slate-900 px-1 py-1 text-left pl-2 text-white">Student's Name</ResizableTh>
+                            <ResizableTh colKey="st_parentage" sortKey="father" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.st_parentage} onResize={handleColumnResize} className="border border-slate-900 px-1 py-1 text-left pl-2 text-white">Parentage<br /><span className="th-subtext text-[6.5px] text-sky-100 opacity-90">(Father / Mother)</span></ResizableTh>
+                            <ResizableTh colKey="st_dob" sortKey="dobFigures" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.st_dob} onResize={handleColumnResize} className="border border-slate-900 px-1 py-1 text-white">Date of Birth</ResizableTh>
+                            <ResizableTh colKey="st_subs" sortKey="subs" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.st_subs} onResize={handleColumnResize} className="border border-slate-900 px-1 py-1 text-white">Subjects</ResizableTh>
+                            <ResizableTh colKey="st_boardRoll" sortKey="boardRollNo" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.st_boardRoll} onResize={handleColumnResize} className="border border-slate-900 px-1 py-1 text-white">Board<br />Roll No.</ResizableTh>
+                            <ResizableTh colKey="st_result" sortKey="currentResult" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.st_result} onResize={handleColumnResize} className="border border-slate-900 px-1 py-1 text-white">Result</ResizableTh>
+                            <ResizableTh colKey="st_admitReceipt" width={columnWidths.st_admitReceipt} onResize={handleColumnResize} className="border border-slate-900 px-1 py-1 text-white">Admit Card<br />Receipt</ResizableTh>
+                            <ResizableTh colKey="st_marksReceipt" width={columnWidths.st_marksReceipt} onResize={handleColumnResize} className="border border-slate-900 px-1 py-1 text-white">Marks Card / Certificate Receipt</ResizableTh>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-900 text-slate-900">
