@@ -1789,8 +1789,8 @@ export default function PracticalsPage() {
     const recordsForPrint = studentMarks.map((st, i) => ({
       sno: i + 1,
       classRollNo: st.classRollNo || st.rollNo || '—',
-      rollNo: st.rollNo || st.formNo || '—',
-      examRollNo: st.rollNo || st.formNo || '—',
+      rollNo: st.examRollNo || '—',
+      examRollNo: st.examRollNo || '—',
       name: st.name || st.studentName || '—',
       practicalMarks: st.practicalMarks || '—',
       vivaMarks: st.vivaMarks || '—',
@@ -2513,7 +2513,6 @@ export default function PracticalsPage() {
                               <span className="font-bold text-xs text-slate-900 dark:text-white truncate">
                                 {st.name}
                               </span>
-                              <span className="text-[9.5px] text-slate-400 font-mono shrink-0">#{idx + 1}</span>
                             </div>
                           </div>
                         </div>
@@ -2552,7 +2551,8 @@ export default function PracticalsPage() {
                       {/* Row 2: Streamlined Single-Line Metadata & In-Words Award Feedback */}
                       <div className="flex items-center justify-between gap-1 text-[10px] text-slate-500 dark:text-slate-400 font-medium truncate pt-0.5 border-t border-slate-100 dark:border-slate-800/80">
                         <div className="flex items-center gap-1 truncate font-mono">
-                          {st.formNo && <span>F#{st.formNo}</span>}
+                          {st.rollNo && <span className="font-bold text-slate-700 dark:text-slate-200">Roll:{st.rollNo}</span>}
+                          {st.formNo && <span>{st.rollNo ? '• ' : ''}F#{st.formNo}</span>}
                           {st.regNo && <span>• R:{st.regNo.slice(-6)}</span>}
                           {st.examRollNo && <span>• E:{st.examRollNo}</span>}
                           <span className="truncate text-teal-700 dark:text-teal-400 font-sans font-medium">• {allSubjs}</span>

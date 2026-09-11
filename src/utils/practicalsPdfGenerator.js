@@ -79,9 +79,9 @@ export const PRACTICAL_SUBJECT_DEFS = [
 export function getStudentExamRoll(st) {
   if (!st) return '';
   const rollKeys = [
-    'examRollNo', 'Exam Roll No.', 'Exam Roll No', 'Exam Roll',
-    'Class Roll No', 'Class Roll No.', 'classRollNo', 'Class Roll',
-    'rollNo', 'roll_no', 'roll', 'Roll No', 'Roll No.'
+    'Exam R.No. (Current)', 'examRollNo', 'Exam Roll No.', 'Exam Roll No', 'Exam Roll',
+    'Board Roll', 'Board Roll No', 'Board Roll No.', 'boardRoll', 'boardRollNo',
+    'examRoll', 'currentExamRoll'
   ];
   for (const k of rollKeys) {
     if (st[k] !== undefined && st[k] !== null) {
@@ -414,7 +414,8 @@ export function printIndividualAwardRoll({
 
       colChunk.forEach((r, idx) => {
         const sno = startSno + idx;
-        const rollNo = r.rollNo || r.examRollNo || r['Exam Roll No.'] || r['Class Roll No'] || '—';
+        const rawExamRoll = r.examRollNo || r['Exam Roll No.'] || r['Exam Roll No'] || r['Exam Roll'] || r['Board Roll'] || '';
+        const rollNo = (rawExamRoll && !/^(N\/A|—|-|null|undefined)$/i.test(String(rawExamRoll).trim())) ? String(rawExamRoll).trim() : '—';
         const rawMark = String(r.totalMarks ?? r.practicalMarks ?? r.marks ?? '').trim();
         const isAbs = rawMark.toUpperCase() === 'AB' || rawMark.toUpperCase() === 'A' || rawMark.toUpperCase() === 'ABSENT';
 
@@ -555,11 +556,13 @@ export function printIndividualWorkSheet({
 
   records.forEach((r, idx) => {
     const isAbs = String(r.totalMarks ?? r.practicalMarks ?? '').toUpperCase() === 'AB';
+    const rawExamRoll = r.examRollNo || r['Exam Roll No.'] || r['Exam Roll No'] || r['Exam Roll'] || r['Board Roll'] || '';
+    const displayExamRoll = (rawExamRoll && !/^(N\/A|—|-|null|undefined)$/i.test(String(rawExamRoll).trim())) ? String(rawExamRoll).trim() : '—';
     html += `
       <tr>
         <td>${idx + 1}</td>
         <td>${r.classRollNo || r.rollNo || '—'}</td>
-        <td><strong>${r.examRollNo || r.rollNo || '—'}</strong></td>
+        <td><strong>${displayExamRoll}</strong></td>
         <td style="text-align: left; padding-left: 8px;"><strong>${toTitleCase(r.name || r.studentName || '—')}</strong></td>
         <td>${r.pracMarks ?? r.practicalMarks ?? '—'}</td>
         <td>${r.vivaMarks ?? '—'}</td>
@@ -1376,7 +1379,8 @@ export function printFailList({ className = '11th', session = 'Annual Regular 20
   let failRecords = [];
 
   students.forEach((st) => {
-    const rollNo = st['Class Roll No'] || st.rollNo || st.examRollNo || st['Exam Roll No.'] || '—';
+    const rawExamRoll = st['Exam R.No. (Current)'] || st.examRollNo || st['Exam Roll No'] || st['Exam Roll No.'] || st.examRoll || st['Board Roll'] || '';
+    const examRoll = (rawExamRoll && !/^(N\/A|—|-|null|undefined)$/i.test(String(rawExamRoll).trim())) ? String(rawExamRoll).trim() : '—';
     const name = st["Student's Name (as per school records)"] || st["Student's Name"] || st.studentName || st.name || '—';
 
     activeSubs.forEach(sub => {
@@ -1399,9 +1403,9 @@ export function printFailList({ className = '11th', session = 'Annual Regular 20
       if (rec) {
         const rawMark = String(rec.totalMarks ?? rec.practicalMarks ?? '').trim().toUpperCase();
         if (rawMark === 'AB' || rawMark === 'A' || rawMark === 'ABSENT') {
-          failRecords.push({ rollNo, name, subject: `${sub.name} (${sub.code})`, status: 'ABSENT' });
+          failRecords.push({ rollNo: examRoll, name, subject: `${sub.name} (${sub.code})`, status: 'ABSENT' });
         } else if (!isNaN(Number(rawMark)) && Number(rawMark) < minMarks) {
-          failRecords.push({ rollNo, name, subject: `${sub.name} (${sub.code})`, status: `FAIL (${rawMark}/${markCfg.max}M, Min: ${minMarks}M)` });
+          failRecords.push({ rollNo: examRoll, name, subject: `${sub.name} (${sub.code})`, status: `FAIL (${rawMark}/${markCfg.max}M, Min: ${minMarks}M)` });
         }
       }
     });
