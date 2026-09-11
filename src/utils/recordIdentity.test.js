@@ -18,3 +18,16 @@ test('archived matches require unique identity and cohort, never just name', () 
   expect(() => locateNestedRecord({ ...source, students: [student, student] }, locator)).toThrow(/ambiguous/);
   expect(() => locateNestedRecord({ ...source, students: [{ ...student, Session: '2024-25' }] }, locator)).toThrow(/ambiguous/);
 });
+
+test('locates nested record via direct arrayIndex or bi-annual cross-session update', () => {
+  const source = { Session: '2025-26', Class: '11th', students: [student, { ...student, formNo: '0006', boardRegNo: '220100000030010' }] };
+  
+  // 1. Direct arrayIndex match
+  const locatorWithIndex = recordLocator({ ...student, boardRegNo: '220100000030010', _parentDocId: 'chunk_123', _arrayIndex: 1 });
+  expect(locateNestedRecord(source, locatorWithIndex).index).toBe(1);
+
+  // 2. Bi-annual cross-session match (e.g. 2026 APR/BIAN update targeting 2025-26 archived record)
+  const biAnnualStudent = { ...student, boardRegNo: '220100000030010', Session: '2026 APR/BIAN', _parentDocId: 'chunk_123' };
+  const locatorBiAnnual = recordLocator(biAnnualStudent);
+  expect(locateNestedRecord(source, locatorBiAnnual).index).toBe(1);
+});

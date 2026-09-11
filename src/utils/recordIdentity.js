@@ -94,20 +94,100 @@ export function recordLocator(student = {}) {
   if (!['admissions', 'masterRegisters'].includes(collection) || !documentId || String(documentId).includes('/')) {
     throw new Error('The source document is missing. Refresh the student list before editing.');
   }
-  return { collection, documentId: String(documentId), arrayKey: parent ? (s._arrayKey || s.arrayKey || '') : '',
-    nested: Boolean(parent), identity: recordIdentity(s) };
+  return { 
+    collection, 
+    documentId: String(documentId), 
+    arrayKey: parent ? (s._arrayKey || s.arrayKey || '') : '',
+    arrayIndex: s._arrayIndex !== undefined ? s._arrayIndex : s.arrayIndex,
+    nested: Boolean(parent), 
+    identity: recordIdentity(s) 
+  };
 }
+
 export function locateNestedRecord(data, locator) {
   const arrayKey = locator.arrayKey || ['items', 'students', 'records', 'data'].find(key => Array.isArray(data[key]));
   const records = data[arrayKey];
   if (!Array.isArray(records)) throw new Error('The archived student list no longer exists.');
   const expected = locator.identity;
   if (!expected.form && !expected.reg) throw new Error('A unique form or registration number is required for an archived edit.');
-  const matches = records.map((record, index) => ({ record, index })).filter(({ record }) => {
+
+  // 1. Direct verified index lookup if arrayIndex is present
+  const directIdx = locator.arrayIndex !== undefined && locator.arrayIndex !== null ? Number(locator.arrayIndex) : -1;
+  if (directIdx >= 0 && directIdx < records.length) {
+    const candidate = records[directIdx];
+    const actual = recordIdentity({ Session: data.Session || data.session, Class: data.Class || data.class || data.className, ...candidate });
+    const matchReg = expected.reg && actual.reg === expected.reg;
+    const matchForm = expected.form && actual.form === expected.form;
+    if (matchReg || (!expected.reg && matchForm)) {
+      return { arrayKey, records, record: candidate, index: directIdx };
+    }
+  }
+
+  const isSessionConflict = (expSess, actSess) => {
+    if (!expSess || !actSess) return false;
+    if (expSess === actSess) return false;
+    // Bi-annual exam sessions (e.g. 2026-bian) update students from preceding academic cohorts
+    if (expSess.includes('bian') || actSess.includes('bian')) return false;
+    return true;
+  };
+
+  // 2. Authoritative match by Board Registration Number (board-wide & nationwide unique)
+  if (expected.reg) {
+    const regMatches = records.map((record, index) => ({ record, index })).filter(({ record }) => {
+      const actual = recordIdentity({ Session: data.Session || data.session, Class: data.Class || data.class || data.className, ...record });
+      if (actual.reg !== expected.reg) return false;
+      if (isSessionConflict(expected.session, actual.session)) return false;
+      return true;
+    });
+    if (regMatches.length === 1) {
+      return { arrayKey, records, ...regMatches[0] };
+    }
+    if (regMatches.length > 1) {
+      const refined = regMatches.filter(({ record }) => {
+        const actual = recordIdentity({ Session: data.Session || data.session, Class: data.Class || data.class || data.className, ...record });
+        return (!expected.form || actual.form === expected.form) &&
+          (!expected.session || actual.session === expected.session) &&
+          (!expected.className || actual.className === expected.className);
+      });
+      if (refined.length === 1) {
+        return { arrayKey, records, ...refined[0] };
+      }
+    }
+  }
+
+  // 3. Match by Form Number (within cohort if multiple)
+  if (expected.form) {
+    const formMatches = records.map((record, index) => ({ record, index })).filter(({ record }) => {
+      const actual = recordIdentity({ Session: data.Session || data.session, Class: data.Class || data.class || data.className, ...record });
+      if (actual.form !== expected.form) return false;
+      if (isSessionConflict(expected.session, actual.session)) return false;
+      return true;
+    });
+    if (formMatches.length === 1) {
+      return { arrayKey, records, ...formMatches[0] };
+    }
+    if (formMatches.length > 1) {
+      const refined = formMatches.filter(({ record }) => {
+        const actual = recordIdentity({ Session: data.Session || data.session, Class: data.Class || data.class || data.className, ...record });
+        return (!expected.session || actual.session === expected.session) &&
+          (!expected.className || actual.className === expected.className);
+      });
+      if (refined.length === 1) {
+        return { arrayKey, records, ...refined[0] };
+      }
+    }
+  }
+
+  // 4. Strict cohort match fallback
+  const strictMatches = records.map((record, index) => ({ record, index })).filter(({ record }) => {
     const actual = recordIdentity({ Session: data.Session || data.session, Class: data.Class || data.class || data.className, ...record });
     return (!expected.form || actual.form === expected.form) && (!expected.reg || actual.reg === expected.reg) &&
       (!expected.session || actual.session === expected.session) && (!expected.className || actual.className === expected.className);
   });
-  if (matches.length !== 1) throw new Error('Archived student identity is missing or ambiguous. No records were changed.');
-  return { arrayKey, records, ...matches[0] };
+  if (strictMatches.length === 1) {
+    return { arrayKey, records, ...strictMatches[0] };
+  }
+
+  throw new Error('Archived student identity is missing or ambiguous. No records were changed.');
 }
+
