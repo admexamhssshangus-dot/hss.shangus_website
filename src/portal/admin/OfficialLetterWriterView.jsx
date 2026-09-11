@@ -36,6 +36,7 @@ import {
   deleteCloudDocTemplate
 } from '../../services/docTemplateService';
 import { saveGeneratedDocToHistory } from '../../services/docHistoryService';
+import { logAdminActivity } from '../../services/adminActivityLogger';
 import DocumentHistoryModal from './DocumentHistoryModal';
 import ConfirmModal from '../components/ConfirmModal';
 import { sanitizeRichHtml } from '../../utils/sanitizeRichHtml';
@@ -473,6 +474,26 @@ export default function OfficialLetterWriterView({
     if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
     typingTimerRef.current = setTimeout(() => {
       pushSnapshot();
+      try {
+        if (editorRef.current) {
+          localStorage.setItem('hss_official_letter_draft_v1', JSON.stringify({
+            bodyHtml: editorRef.current.innerHTML,
+            officeTitle,
+            institutionName,
+            institutionAddress,
+            refNo,
+            dateStr,
+            signatoryName,
+            signatoryDesignation,
+            signatoryInstitution,
+            copyToText,
+            pageMargin,
+            headerLayout,
+            selectedTemplateId,
+            timestamp: Date.now()
+          }));
+        }
+      } catch (_) {}
     }, 400);
   };
 
@@ -540,7 +561,37 @@ export default function OfficialLetterWriterView({
         const allAvailable = [...(templates || []), ...BUILTIN_LETTER_TEMPLATES];
         const targetTpl = allAvailable.find(t => t.id === activeDefId) || BUILTIN_LETTER_TEMPLATES[0];
 
-        if (targetTpl && editorRef.current) {
+        let restoredDraft = false;
+        try {
+          const savedDraftRaw = localStorage.getItem('hss_official_letter_draft_v1');
+          if (savedDraftRaw) {
+            const draft = JSON.parse(savedDraftRaw);
+            if (draft && draft.bodyHtml && draft.bodyHtml.trim().length > 20 && (Date.now() - (draft.timestamp || 0) < 7 * 24 * 60 * 60 * 1000)) {
+              if (draft.officeTitle) setOfficeTitle(draft.officeTitle);
+              if (draft.institutionName) setInstitutionName(draft.institutionName);
+              if (draft.institutionAddress) setInstitutionAddress(draft.institutionAddress);
+              if (draft.refNo) setRefNo(draft.refNo);
+              if (draft.dateStr) setDateStr(draft.dateStr);
+              if (draft.signatoryName !== undefined) setSignatoryName(draft.signatoryName);
+              if (draft.signatoryDesignation !== undefined) setSignatoryDesignation(draft.signatoryDesignation);
+              if (draft.signatoryInstitution !== undefined) setSignatoryInstitution(draft.signatoryInstitution);
+              if (draft.pageMargin !== undefined) setPageMargin(draft.pageMargin);
+              if (draft.headerLayout !== undefined) setHeaderLayout(draft.headerLayout);
+              if (draft.copyToText !== undefined) setCopyToText(draft.copyToText || '');
+              if (draft.selectedTemplateId) setSelectedTemplateId(draft.selectedTemplateId);
+              if (editorRef.current) {
+                editorRef.current.innerHTML = draft.bodyHtml;
+                historyRef.current = [draft.bodyHtml];
+                historyIndexRef.current = 0;
+                updateHistoryButtons();
+              }
+              restoredDraft = true;
+              showToast('Restored in-progress letter draft from autosave.', 'info', 3500);
+            }
+          }
+        } catch (_) {}
+
+        if (!restoredDraft && targetTpl && editorRef.current) {
           setSelectedTemplateId(targetTpl.id);
           if (targetTpl.officeTitle) setOfficeTitle(targetTpl.officeTitle);
           if (targetTpl.institutionName) setInstitutionName(targetTpl.institutionName);
@@ -1286,6 +1337,13 @@ export default function OfficialLetterWriterView({
       }
     }).catch(err => console.warn('Auto-save letter history error:', err));
 
+    logAdminActivity({
+      actionType: 'export',
+      actionTitle: 'Printed Official Institutional Letter',
+      details: `Printed letter: "${refNo || 'No Ref'}" - ${officeTitle} (${signatoryDesignation})`,
+      metadata: { refNo, selectedTemplateId, signatoryName, signatoryDesignation, dateStr }
+    });
+
     showToast('🖨️ Opening print dialog / PDF preview...', 'info', 2500);
 
     printOfficialLetter({
@@ -1310,6 +1368,13 @@ export default function OfficialLetterWriterView({
     setIsExportingDocx(true);
     const bodyHtml = editorRef.current.innerHTML;
     const tplName = [...customTemplates, ...BUILTIN_LETTER_TEMPLATES].find(t => t.id === selectedTemplateId)?.name || 'Official Letter';
+
+    logAdminActivity({
+      actionType: 'export',
+      actionTitle: 'Exported Official Letter (.docx)',
+      details: `Exported Word document for letter: "${refNo || 'No Ref'}" (${tplName})`,
+      metadata: { refNo, selectedTemplateId, tplName, signatoryName, signatoryDesignation }
+    });
 
     // Auto-archive in Document History
     saveGeneratedDocToHistory({

@@ -12,6 +12,7 @@ import { collection, getDocs, doc, setDoc, deleteDoc } from 'firebase/firestore'
 import { staffCallable } from '../../services/staffCommand';
 import ModernLoader from '../../components/ModernLoader';
 import { getCachedCollection } from '../../services/dbCache';
+import { logAdminActivity } from '../../services/adminActivityLogger';
 import {
   printIndividualAwardRoll,
   printIndividualWorkSheet,
@@ -881,6 +882,12 @@ export default function AdminPracticals() {
         localStorage.setItem('hss_admin_practicals_settings', JSON.stringify(updatedSettings));
       } catch (_) {}
       setSettings(updatedSettings);
+      logAdminActivity({
+        actionType: 'update',
+        actionTitle: 'Updated Practical Settings',
+        details: `Saved practical settings: ${keyName}`,
+        metadata: { keyName }
+      });
       showAlert('success', `${keyName} saved successfully to cloud database.`);
       return true;
     } catch (e) {
@@ -908,6 +915,12 @@ export default function AdminPracticals() {
         try {
           await deleteAcademicRecord('practicalsData', subId);
           setSubmissions(prev => prev.filter(s => s.id !== subId));
+          logAdminActivity({
+            actionType: 'delete',
+            actionTitle: 'Deleted Practical Submission',
+            details: `Deleted practical award submission "${subId}"`,
+            metadata: { subId }
+          });
           showAlert('success', `Submission "${subId}" deleted successfully.`);
         } catch (e) {
           console.error(e);

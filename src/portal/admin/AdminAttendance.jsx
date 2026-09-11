@@ -5,8 +5,10 @@ import {
   ChevronRight, Eye, Sparkles, Check, X, Clock, BarChart3, Layers
 } from 'lucide-react';
 import { db } from '../../services/firebase';
-import { collection, getDocs, doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 import ModernLoader from '../../components/ModernLoader';
+import { getCachedCollection } from '../../services/dbCache';
+import { logAdminActivity } from '../../services/adminActivityLogger';
 
 const MASTER_SUBJECT_NAMES = {
   'BO': 'Botany',
@@ -108,12 +110,8 @@ export default function AdminAttendance() {
 
     if (targetTab === 'overview') {
       try {
-        const querySnapshot = await getDocs(collection(db, 'attendance'));
-        const records = [];
-        querySnapshot.forEach(d => {
-          records.push({ id: d.id, ...d.data() });
-        });
-        setAttendanceRecords(records);
+        const records = await getCachedCollection('attendance', force, 3 * 60 * 1000);
+        setAttendanceRecords(Array.isArray(records) ? records : []);
       } catch (e) {
         console.warn('[AdminAttendance] Attendance data fetch note:', e);
         setAttendanceRecords([]);
@@ -134,6 +132,12 @@ export default function AdminAttendance() {
     setAlert(null);
     try {
       await setDoc(doc(db, 'systemSettings', 'attendanceConfig'), attendanceConfig, { merge: true });
+      logAdminActivity({
+        actionType: 'update',
+        actionTitle: 'Updated Attendance Configuration',
+        details: 'Updated institutional student attendance configuration and mode settings',
+        metadata: { attendanceConfig }
+      });
       setAlert({ type: 'success', text: 'Attendance configuration saved successfully.' });
     } catch (err) {
       console.error(err);

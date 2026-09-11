@@ -25,6 +25,7 @@ import {
   saveFeederSchools 
 } from '../../utils/feederSchoolsManager';
 import { isSuperAdminEmail } from '../../utils/authRoles';
+import { logAdminActivity } from '../../services/adminActivityLogger';
 import {
   ADMIN_MODULE_CATALOG,
   getModuleMaturity,
@@ -573,6 +574,12 @@ export default function ControlsAndSubjects() {
 
       await setDoc(doc(db, 'site', 'settings'), settings, { merge: true });
       try { localStorage.setItem('site_settings', JSON.stringify(settings)); } catch (_) {}
+      logAdminActivity({
+        actionType: 'update',
+        actionTitle: 'Updated System Controls & Academic Settings',
+        details: `Updated system controls: Session=${session}, 11th Adm=${allow11th ? 'OPEN' : 'CLOSED'}, 12th Adm=${allow12th ? 'OPEN' : 'CLOSED'}`,
+        metadata: { session, allow11th, allow12th, allow9th, allow10th }
+      });
       setAlert({ type: 'success', text: 'System controls & emergency settings updated successfully!' });
     } catch (err) {
       setAlert({ type: 'error', text: `Settings were not saved: ${err.message || 'Please retry.'}` });
@@ -626,6 +633,12 @@ export default function ControlsAndSubjects() {
         updatedAt: new Date().toISOString()
       }, { merge: true });
       setSubjectConfigMap(updatedMap);
+      logAdminActivity({
+        actionType: 'update',
+        actionTitle: 'Updated Stream Subject Rules',
+        details: `Saved subject rules for ${selectedClass} ${selectedStream} (${groupA.length} Compulsory, ${groupB.length} Group 1, ${groupC.length} Group 2)`,
+        metadata: { selectedClass, selectedStream, minSubjects, maxSubjects }
+      });
       setAlert({ type: 'success', text: `Subject rules saved for ${selectedClass} ${selectedStream}.` });
     } catch (err) {
       setAlert({ type: 'error', text: `Subject rules were not saved: ${err.message}` });
@@ -677,6 +690,12 @@ export default function ControlsAndSubjects() {
           mobile: account.mobile || '', assignedClasses: account.assignedClasses || [], sendResetEmail: false });
       }
       setAlert({ type: 'success', text: '✨ Staff permissions & accounts updated successfully in School Database!' });
+      logAdminActivity({
+        actionType: 'update',
+        actionTitle: 'Updated Staff Account Permissions',
+        details: `Updated administrative permissions and module access matrix for ${listToSave.length} staff accounts`,
+        metadata: { staffCount: listToSave.length }
+      });
     } catch (err) {
       console.error('Failed to save permissions to Firestore:', err);
 

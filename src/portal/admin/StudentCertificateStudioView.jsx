@@ -90,6 +90,7 @@ import {
 } from '../../services/docTemplateService';
 import { saveGeneratedDocToHistory } from '../../services/docHistoryService';
 import { recordApplicationPrint } from '../../services/printTrackerService';
+import { logAdminActivity } from '../../services/adminActivityLogger';
 import TabLoadingOverlay from '../../components/TabLoadingOverlay';
 import ModuleErrorBoundary from '../../components/ModuleErrorBoundary';
 import { lazyWithChunkRecovery } from '../../utils/lazyWithChunkRecovery';
@@ -3450,6 +3451,13 @@ export default function StudentCertificateStudioView({
       'Printed / Saved PDF',
       { refNo: effectiveRefNo, studentName, className, fatherName }
     );
+
+    logAdminActivity({
+      actionType: 'export',
+      actionTitle: isTcDcActive ? 'Issued Discharge / Transfer Certificate' : 'Issued Student Certificate',
+      details: `Issued ${isTcDcActive ? 'TC/DC' : (certificateTitle || 'Certificate')} for ${studentName || 'Student'} (Ref: ${effectiveRefNo || 'N/A'}, Class: ${className || 'N/A'})`,
+      metadata: { refNo: effectiveRefNo, studentName, className, fatherName, isTcDc: isTcDcActive }
+    });
 
     // Auto-archive in Document History & Cloud Archive
     saveGeneratedDocToHistory({

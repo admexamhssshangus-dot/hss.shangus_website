@@ -9,6 +9,7 @@ import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { publicFacultyDocumentId, toPublicFacultyList } from '../utils/facultyPrivacy';
 import { isBootstrapSuperAdminEmail, resolveStaffRoleAndPerms, requireVerifiedAdminSession } from '../services/staffAuthService';
 import ModernLoader from '../components/ModernLoader';
+import { logAdminActivity } from '../services/adminActivityLogger';
 
 // ==========================================
 // IndexedDB Helpers for Storing Folder Handle
@@ -2689,6 +2690,13 @@ function AdminPortalContent({ embeddedUser, onEmbeddedLogout, initialTab }) {
       setPagesList(updatedList);
 
       await setDoc(doc(db, 'site', 'pages'), { list: updatedList });
+
+      logAdminActivity({
+        actionType: 'update',
+        actionTitle: 'Published CMS Website Page',
+        details: `Saved and published CMS page "${selectedPage.title || selectedPage.id}" (/page/${selectedPage.id})`,
+        metadata: { pageId: selectedPage.id, pageTitle: selectedPage.title, blockCount: pageBlocks.length }
+      });
 
       // Broadcast sync
       try {
