@@ -6,7 +6,7 @@ const functions = require('firebase-functions/v1');
 const admin = require('./firebaseAdmin');
 const nodemailer = require('nodemailer');
 
-admin.initializeApp();
+if (!admin.getApps().length) admin.initializeApp();
 const { requireStaff } = require('./access');
 exports.staffDirectory = require('./staffDirectory')({ functions, admin, requireAppCheck });
 exports.submitAcademicRecord = require('./academicRecords')({ functions, admin, requireAppCheck });

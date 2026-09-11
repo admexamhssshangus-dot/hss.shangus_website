@@ -31,7 +31,8 @@ import {
   sendAdminSignInVerificationLink,
   incrementTeacherLoginCount,
   recordTeacher2StepVerification,
-  isBootstrapSuperAdminEmail
+  isBootstrapSuperAdminEmail,
+  isSuperAdminEmail
 } from '../services/staffAuthService';
 
 export default function LoginPage() {
@@ -268,9 +269,75 @@ export default function LoginPage() {
     };
   }, [emailLinkSentState, onLoginSuccess]);
 
-  // The proof is a URL fragment so it is not included in HTTP logs or referrers.
+  // WINDOW 2 VERIFIER: Check on mount if current URL is an Email Sign-In verification link
   const proofStartedRef = useRef(false);
   useEffect(() => {
+    // 1. Standard Firebase Auth Email Sign-In Link (Free on Spark Plan)
+    if (isSignInWithEmailLink(auth, window.location.href)) {
+      setIsLoading(true);
+      const searchParams = new URLSearchParams(window.location.search);
+      let emailForSignIn = window.localStorage.getItem('emailForSignIn');
+      if (!emailForSignIn) {
+        emailForSignIn = searchParams.get('admin_email');
+      }
+      if (!emailForSignIn) {
+        emailForSignIn = window.prompt('Please confirm your Admin email address to complete 2-Step Login:');
+      }
+
+      const handshakeId = searchParams.get('handshake');
+
+      if (emailForSignIn) {
+        const cleanEmail = emailForSignIn.trim().toLowerCase();
+        signInWithEmailLink(auth, cleanEmail, window.location.href)
+          .then(async (userCred) => {
+            const staffProfile = await resolveStaffRoleAndPerms(cleanEmail);
+            const roleName = staffProfile?.role || 'Admin';
+            if (roleName === 'Teacher' || roleName === 'Faculty') {
+              await recordTeacher2StepVerification(cleanEmail);
+            }
+
+            // Approve handshake in Firestore (Unlocks Window 1 on desktop or phone immediately!)
+            if (handshakeId) {
+              await approveAdminLoginHandshake(handshakeId, cleanEmail, userCred.user);
+            }
+
+            // Broadcast approval to all same-browser tabs
+            try {
+              const bc = new BroadcastChannel('hss_admin_auth_sync');
+              bc.postMessage({
+                type: 'ADMIN_AUTH_APPROVED',
+                email: cleanEmail,
+                uid: userCred.user.uid,
+                handshakeId,
+                ts: Date.now()
+              });
+              bc.close();
+            } catch (_) {}
+
+            setWindow2VerifiedState({
+              email: cleanEmail,
+              role: roleName,
+              time: new Date().toLocaleTimeString(),
+              handshakeId,
+            });
+          })
+          .catch((err) => {
+            console.error('Window 2 Email Link sign-in error:', err);
+            setAlert({
+              type: 'error',
+              text: 'The 2-step verification link is invalid, expired, or has already been used. Please sign in again.'
+            });
+          })
+          .finally(() => {
+            setIsLoading(false);
+          });
+      } else {
+        setIsLoading(false);
+      }
+      return;
+    }
+
+    // 2. Fallback: Hash fragment challenge proof
     const parameters = new URLSearchParams(window.location.hash.slice(1));
     const handshakeId = parameters.get('staff_challenge');
     const proof = parameters.get('proof');
@@ -279,7 +346,7 @@ export default function LoginPage() {
     window.history.replaceState(null, '', window.location.pathname);
     setIsLoading(true);
     approveAdminLoginHandshake(handshakeId, proof).then(result => {
-      setWindow2VerifiedState({ email: result.email, role: 'Administrator', time: new Date().toLocaleString(), handshakeId });
+      setWindow2VerifiedState({ email: result?.email || 'Administrator', role: 'Administrator', time: new Date().toLocaleString(), handshakeId });
     }).catch(error => {
       setAlert({ type: 'error', text: error.message || 'The verification link expired. Request another link from the login screen.' });
     }).finally(() => setIsLoading(false));
@@ -287,10 +354,12 @@ export default function LoginPage() {
 
   const beginAdminLogin = async (firebaseUser, profile) => {
     if (!profile?.isAdmin) return false;
-    const handshakeId = await createAdminLoginHandshake(firebaseUser.email);
-    setEmailLinkSentState({ email: firebaseUser.email, handshakeId, sentAt: Date.now(), role: profile.role });
+    const cleanEmail = String(firebaseUser.email || '').trim().toLowerCase();
+    const handshakeId = await createAdminLoginHandshake(cleanEmail);
+    await sendAdminSignInVerificationLink(cleanEmail, handshakeId);
+    setEmailLinkSentState({ email: cleanEmail, handshakeId, sentAt: Date.now(), role: profile.role });
     setResendCooldown(60);
-    setAlert({ type: 'success', text: 'Check your inbox to confirm this administrator sign-in.' });
+    setAlert({ type: 'success', text: `🛡️ Verification link dispatched to ${cleanEmail}. Check your inbox to complete sign-in.` });
     return true;
   };
 
@@ -305,14 +374,23 @@ export default function LoginPage() {
       const cleanEmail = String(fbUser.email || '').toLowerCase().trim();
       const displayName = fbUser.displayName || cleanEmail.split('@')[0];
 
-      // Save demographic profile using UID as document ID
+      // Authoritatively resolve whether this user is an authorized Staff member
+      const staffProfile = await resolveStaffRoleAndPerms(fbUser);
+      const isStaff = !!staffProfile;
+      const assignedRole = staffProfile ? staffProfile.role : 'Student';
+      const assignedPerms = staffProfile ? (staffProfile.perms || []) : [];
+
+      // Save demographic profile using UID as document ID without erasing staff roles
       try {
         const userPayload = {
           uid: fbUser.uid,
           email: cleanEmail,
           name: displayName,
           mobile: fbUser.phoneNumber || '',
-          requestedRole: 'Student',
+          role: assignedRole,
+          perms: assignedPerms,
+          isStaff,
+          requestedRole: assignedRole,
           updatedAt: new Date().toISOString(),
         };
         await setDoc(doc(db, 'users', fbUser.uid), userPayload, { merge: true });
@@ -320,9 +398,20 @@ export default function LoginPage() {
         console.warn('Firestore profile sync note:', fsErr);
       }
 
-      const staffProfile = await resolveStaffRoleAndPerms(fbUser);
-      if (await beginAdminLogin(fbUser, staffProfile)) return;
-      const verifiedSession = await createVerifiedSession(fbUser);
+      // If SuperAdmin or Admin, direct them to verified session
+      if (staffProfile?.isAdmin) {
+        // Direct Super Admin bypass when signing in with master institutional credentials
+        if (isSuperAdminEmail(cleanEmail) || selectedRole === 'superadmin') {
+          const verifiedSession = await createVerifiedSession(fbUser, cleanEmail, staffProfile);
+          setAlert({ type: 'success', text: 'Welcome back, Super Admin! Unlocking dashboard...' });
+          onLoginSuccess(verifiedSession, keepLoggedIn);
+          return;
+        }
+
+        if (await beginAdminLogin(fbUser, staffProfile)) return;
+      }
+
+      const verifiedSession = await createVerifiedSession(fbUser, cleanEmail, staffProfile);
       onLoginSuccess(verifiedSession, keepLoggedIn);
     } catch (err) {
       console.error('Google Sign-In failed:', err);

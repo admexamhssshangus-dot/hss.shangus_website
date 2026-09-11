@@ -1,5 +1,5 @@
-import { httpsCallable } from 'firebase/functions';
-import { functions } from './firebase';
+import { staffCallable } from './staffCommand';
+
 export async function mutateFundDistribution(action, record) {
-  return (await httpsCallable(functions, 'mutateFundDistribution')({ action, id: record.id, record })).data;
+  return (await staffCallable('mutateFundDistribution')({ action, id: record.id, record })).data;
 }

@@ -1,6 +1,6 @@
-import { httpsCallable } from 'firebase/functions';
-import { functions } from './firebase';
+import { staffCallable } from './staffCommand';
+
 import { recordLocator } from '../utils/recordIdentity';
 export async function registerIssuedDocument(student, certificateNo, documentType, action = 'issue') {
-  return (await httpsCallable(functions, 'manageIssuedDocument')({ locator: recordLocator(student), certificateNo, documentType, action })).data;
+  return (await staffCallable('manageIssuedDocument')({ locator: recordLocator(student), certificateNo, documentType, action })).data;
 }

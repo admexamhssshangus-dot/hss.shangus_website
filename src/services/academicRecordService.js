@@ -1,8 +1,8 @@
-import { httpsCallable } from 'firebase/functions';
-import { functions } from './firebase';
+import { staffCallable } from './staffCommand';
+
 export async function saveAcademicRecord(type, docId, payload) {
-  return (await httpsCallable(functions, 'submitAcademicRecord')({ type, docId, payload })).data;
+  return (await staffCallable('submitAcademicRecord')({ type, docId, payload })).data;
 }
 export async function deleteAcademicRecord(type, docId) {
-  return (await httpsCallable(functions, 'submitAcademicRecord')({ type, docId, action: 'delete' })).data;
+  return (await staffCallable('submitAcademicRecord')({ type, docId, action: 'delete' })).data;
 }

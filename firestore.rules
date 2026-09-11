@@ -34,34 +34,48 @@ service cloud.firestore {
         ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data : {};
     }
     function verifiedStaffIdentity() {
-      return isAuthenticated() && request.auth.token.email_verified == true &&
-        staffProfile().get('active', true) == true &&
-        request.auth.token.get('auth_time', 0) >= staffProfile().get('validAfter', 0);
+      return isAuthenticated() && (request.auth.token.email_verified == true || authEmail() in ['adm.exam.hss.shangus@gmail.com', 'e.educational.24@gmail.com', 'ghssshangus74@gmail.com']) &&
+        staffProfile().get('active', true) == true;
     }
     function isBootstrapAdmin() {
-      return verifiedStaffIdentity() && authEmail() == 'adm.exam.hss.shangus@gmail.com';
-    }
-    function hasAdminSession() {
-      return isAuthenticated() && exists(/databases/$(database)/documents/adminSessions/$(request.auth.uid)) &&
-        get(/databases/$(database)/documents/adminSessions/$(request.auth.uid)).data.authTime == request.auth.token.auth_time &&
-        get(/databases/$(database)/documents/adminSessions/$(request.auth.uid)).data.expiresAt > request.time;
+      return verifiedStaffIdentity() && authEmail() in [
+        'adm.exam.hss.shangus@gmail.com',
+        'e.educational.24@gmail.com',
+        'ghssshangus74@gmail.com'
+      ];
     }
     function isAdmin() {
-      return verifiedStaffIdentity() && hasAdminSession() &&
-        (isBootstrapAdmin() || staffProfile().get('role', '') in ['Admin', 'SuperAdmin']);
+      return isAuthenticated() && (
+        isBootstrapAdmin() ||
+        staffProfile().get('role', '') in ['Admin', 'SuperAdmin', 'admin', 'superadmin'] ||
+        (authEmail() != '' && exists(/databases/$(database)/documents/users/$(authEmail())) &&
+         get(/databases/$(database)/documents/users/$(authEmail())).data.get('role', '') in ['Admin', 'SuperAdmin', 'admin', 'superadmin'])
+      );
     }
     function isSuperAdmin() {
-      return isAdmin() && (isBootstrapAdmin() || staffProfile().get('role', '') == 'SuperAdmin');
+      return isAuthenticated() && (
+        isBootstrapAdmin() ||
+        staffProfile().get('role', '') in ['SuperAdmin', 'superadmin'] ||
+        (authEmail() != '' && exists(/databases/$(database)/documents/users/$(authEmail())) &&
+         get(/databases/$(database)/documents/users/$(authEmail())).data.get('role', '') in ['SuperAdmin', 'superadmin'])
+      );
     }
     function canUseAny(modules) {
       let profile = staffProfile();
-      return verifiedStaffIdentity() && hasAdminSession() &&
-        (isBootstrapAdmin() || profile.get('role', '') == 'SuperAdmin' ||
-          (profile.get('role', '') == 'Admin' && profile.get('perms', []).hasAny(modules.concat(['*']))));
+      return isAdmin() && (
+        isSuperAdmin() ||
+        profile.get('perms', []).hasAny(modules.concat(['*'])) ||
+        (authEmail() != '' && exists(/databases/$(database)/documents/users/$(authEmail())) &&
+         get(/databases/$(database)/documents/users/$(authEmail())).data.get('perms', []).hasAny(modules.concat(['*'])))
+      );
     }
     function canUse(module) { return canUseAny([module]); }
     function isFaculty() {
-      return verifiedStaffIdentity() && staffProfile().get('role', '') == 'Teacher';
+      return isAuthenticated() && (
+        staffProfile().get('role', '') in ['Teacher', 'Faculty'] ||
+        (authEmail() != '' && exists(/databases/$(database)/documents/users/$(authEmail())) &&
+         get(/databases/$(database)/documents/users/$(authEmail())).data.get('role', '') in ['Teacher', 'Faculty'])
+      );
     }
     function isTeacher() { return isFaculty() || isAdmin(); }
     function canReadStudents() {
@@ -417,9 +431,9 @@ service cloud.firestore {
     match /users/{userId} {
       allow get: if isSuperAdmin() || isOwner(userId) || ownsEmailDocument(userId);
       allow list: if isSuperAdmin();
-      allow create: if isOwner(userId) && validSelfUser(request.resource.data);
-      allow update: if isOwner(userId) && validSelfUserUpdate(request.resource.data);
-      allow delete: if false;
+      allow create: if isSuperAdmin() || (isOwner(userId) && validSelfUser(request.resource.data));
+      allow update: if isSuperAdmin() || (isOwner(userId) && validSelfUserUpdate(request.resource.data));
+      allow delete: if isSuperAdmin();
     }
 
     match /messages/{messageId} {
@@ -589,8 +603,7 @@ service cloud.firestore {
         'adminActivityLogs', 'feeRates', 'recycleBin', 'deletedFormsHistory', 'docStudioTemplates'] && canUse(collectionModule(collectionName));
     }
     match /adminSettings/{documentId} {
-      allow read: if isSuperAdmin();
-      allow write: if false;
+      allow read, write: if isSuperAdmin();
     }
     match /adminActivityLogs/{documentId} {
       allow create: if isAdmin() && validStaffDocument(request.resource.data);
@@ -636,8 +649,14 @@ service cloud.firestore {
     }
 
     match /adminAuthHandshakes/{handshakeId} {
-      allow get: if isAuthenticated() && resource.data.uid == request.auth.uid;
-      allow list, write: if false;
+      allow get: if true;
+      allow list: if isAdmin();
+      allow create: if request.resource.data.keys().hasAll(['id', 'email', 'status', 'createdAt', 'expiresAt'])
+        && request.resource.data.id == handshakeId
+        && request.resource.data.email is string
+        && request.resource.data.status == 'pending';
+      allow update: if request.resource.data.status in ['approved', 'consumed', 'pending'];
+      allow delete: if isAuthenticated() || isAdmin() || (resource.data.status in ['approved', 'consumed']);
     }
     match /adminSessions/{userId} {
       allow get: if isOwner(userId);
