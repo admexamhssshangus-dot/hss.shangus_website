@@ -27,7 +27,7 @@ import { getNextAvailableFormNumber, consumeFormNumber, recycleDeletedFormNumber
 import { getStudentRegIndex, lookupStudentByRegSync } from '../../services/studentIndexService';
 import LazyStudentPhoto from '../../components/LazyStudentPhoto';
 import { expandJkboseSubjectCodes } from '../../utils/jkboseResultManager';
-import { resolveCcDcVal, extractReappearCodes } from '../../utils/certificateStudentResolution';
+import { resolveCcDcVal, extractReappearCodes, getClassTier, areClassTiersCompatible, isSecondaryOnlySubjectList } from '../../utils/certificateStudentResolution';
 
 const BULK_FORM_ROW_BATCH_SIZE = 100;
 
@@ -122,35 +122,68 @@ export function cleanRawSubjectTokens(raw) {
 }
 
 // ─── Global Helper to extract formatted subject string from any student record ───
-export function formatStudentSubjects(rec) {
+export function formatStudentSubjects(rec, targetClass = '') {
   if (!rec) return '—';
 
-  // 1. Array or String Subject fields across classes & forms
-  const rawCandidates = [
-    rec['Subjects to be taken in Class 12th'],
-    rec['Subjects to be taken in Class 11th'],
-    rec['Subjects to be taken in Class 10th'],
-    rec['Subjects to be taken in Class 9th'],
-    rec['Subjects to be taken in Class 8th'],
-    rec['Subjects Studied in Class 11th'],
-    rec['Subjects Studied in Class 9th'],
-    rec['Subjects Studied in Class 8th'],
-    rec['Subjects Studied in Class 10th'],
-    rec['selectedSubjects'],
-    rec['Subjects'],
-    rec['subjects'],
-    rec['Subs'],
-    rec['subs'],
-    rec['Subjects Offered'],
-    rec['Marks Obt. (Prev.)'],
-    rec['Stream & Subjects for Class 12th']
-  ];
+  const cls = targetClass || rec['Admission sought for class'] || rec['Class'] || rec.class || rec.className || '';
+  const tier = getClassTier(cls);
+
+  // 1. Candidate subject fields restricted strictly by academic tier:
+  // - 11th/12th (Higher Secondary): Must NEVER include 10th/9th subjects (SST, General Science, etc.)
+  // - 9th/10th (Secondary): Must NEVER include 11th/12th streams/subjects
+  let rawCandidates = [];
+  if (tier === 'higher') {
+    rawCandidates = [
+      rec['Subjects to be taken in Class 12th'],
+      rec['Subjects to be taken in Class 11th'],
+      rec['Stream & Subjects for Class 12th'],
+      rec['Stream & Subjects for Class 11th'],
+      rec['Subjects Studied in Class 11th'],
+      rec['selectedSubjects'],
+      rec['Subjects'],
+      rec['subjects'],
+      rec['Subs'],
+      rec['subs'],
+      rec['Subjects Offered']
+    ];
+  } else if (tier === 'secondary') {
+    rawCandidates = [
+      rec['Subjects to be taken in Class 10th'],
+      rec['Subjects to be taken in Class 9th'],
+      rec['Subjects Studied in Class 10th'],
+      rec['Subjects Studied in Class 9th'],
+      rec['selectedSubjects'],
+      rec['Subjects'],
+      rec['subjects'],
+      rec['Subs'],
+      rec['subs'],
+      rec['Subjects Offered']
+    ];
+  } else {
+    rawCandidates = [
+      rec['Subjects to be taken in Class 12th'],
+      rec['Subjects to be taken in Class 11th'],
+      rec['Subjects to be taken in Class 10th'],
+      rec['Subjects to be taken in Class 9th'],
+      rec['Subjects Studied in Class 11th'],
+      rec['selectedSubjects'],
+      rec['Subjects'],
+      rec['subjects'],
+      rec['Subs'],
+      rec['subs'],
+      rec['Subjects Offered'],
+      rec['Stream & Subjects for Class 12th']
+    ];
+  }
 
   for (const item of rawCandidates) {
     if (!item) continue;
     if (typeof item === 'string' && item.toLowerCase().includes('same as')) continue;
+    // Reject secondary-only subjects (e.g. SST, General Science) if student is in higher secondary (11th/12th)
+    if (tier === 'higher' && isSecondaryOnlySubjectList(item)) continue;
     const cleaned = cleanRawSubjectTokens(item);
     if (cleaned.length > 0) {
+      if (tier === 'higher' && isSecondaryOnlySubjectList(cleaned.join(', '))) continue;
       return cleaned.join(', ');
     }
   }
@@ -162,17 +195,24 @@ export function formatStudentSubjects(rec) {
   ];
 
   const rawIndividual = subjKeys.map(k => rec[k]).filter(Boolean);
-  const cleanedIndiv = cleanRawSubjectTokens(rawIndividual);
-  if (cleanedIndiv.length > 0) {
-    return cleanedIndiv.join(', ');
+  if (rawIndividual.length > 0) {
+    if (!(tier === 'higher' && isSecondaryOnlySubjectList(rawIndividual.join(', ')))) {
+      const cleanedIndiv = cleanRawSubjectTokens(rawIndividual);
+      if (cleanedIndiv.length > 0 && !(tier === 'higher' && isSecondaryOnlySubjectList(cleanedIndiv.join(', ')))) {
+        return cleanedIndiv.join(', ');
+      }
+    }
   }
 
   return '—';
 }
 
 // ─── Global Helper to extract 6 individual full subject names from any student record ───
-export function extractIndividualSubjectsList(rec) {
+export function extractIndividualSubjectsList(rec, targetClass = '') {
   if (!rec) return [];
+
+  const cls = targetClass || rec['Admission sought for class'] || rec['Class'] || rec.class || rec.className || '';
+  const tier = getClassTier(cls);
 
   // 1. Explicit individual fields
   const explicitSubs = [
@@ -185,35 +225,67 @@ export function extractIndividualSubjectsList(rec) {
   ].filter(s => s && String(s).trim() !== '—' && String(s).trim() !== '-');
 
   if (explicitSubs.length > 0) {
-    return cleanRawSubjectTokens(explicitSubs);
+    if (!(tier === 'higher' && isSecondaryOnlySubjectList(explicitSubs.join(', ')))) {
+      const cleanedExplicit = cleanRawSubjectTokens(explicitSubs);
+      if (cleanedExplicit.length > 0 && !(tier === 'higher' && isSecondaryOnlySubjectList(cleanedExplicit.join(', ')))) {
+        return cleanedExplicit;
+      }
+    }
   }
 
-  // 2. Check all composite subject fields
-  const rawCandidates = [
-    rec['Subjects to be taken in Class 12th'],
-    rec['Subjects to be taken in Class 11th'],
-    rec['Subjects to be taken in Class 10th'],
-    rec['Subjects to be taken in Class 9th'],
-    rec['Subjects to be taken in Class 8th'],
-    rec['Subjects Studied in Class 11th'],
-    rec['Subjects Studied in Class 10th'],
-    rec['Subjects Studied in Class 9th'],
-    rec['Subjects Studied in Class 8th'],
-    rec['selectedSubjects'],
-    rec['Subjects'],
-    rec['subjects'],
-    rec['Subs'],
-    rec['subs'],
-    rec['Subjects Offered'],
-    rec['Marks Obt. (Prev.)'],
-    rec['Stream & Subjects for Class 12th']
-  ];
+  // 2. Check composite subject fields restricted by tier
+  let rawCandidates = [];
+  if (tier === 'higher') {
+    rawCandidates = [
+      rec['Subjects to be taken in Class 12th'],
+      rec['Subjects to be taken in Class 11th'],
+      rec['Stream & Subjects for Class 12th'],
+      rec['Stream & Subjects for Class 11th'],
+      rec['Subjects Studied in Class 11th'],
+      rec['selectedSubjects'],
+      rec['Subjects'],
+      rec['subjects'],
+      rec['Subs'],
+      rec['subs'],
+      rec['Subjects Offered']
+    ];
+  } else if (tier === 'secondary') {
+    rawCandidates = [
+      rec['Subjects to be taken in Class 10th'],
+      rec['Subjects to be taken in Class 9th'],
+      rec['Subjects Studied in Class 10th'],
+      rec['Subjects Studied in Class 9th'],
+      rec['selectedSubjects'],
+      rec['Subjects'],
+      rec['subjects'],
+      rec['Subs'],
+      rec['subs'],
+      rec['Subjects Offered']
+    ];
+  } else {
+    rawCandidates = [
+      rec['Subjects to be taken in Class 12th'],
+      rec['Subjects to be taken in Class 11th'],
+      rec['Subjects to be taken in Class 10th'],
+      rec['Subjects to be taken in Class 9th'],
+      rec['Subjects Studied in Class 11th'],
+      rec['selectedSubjects'],
+      rec['Subjects'],
+      rec['subjects'],
+      rec['Subs'],
+      rec['subs'],
+      rec['Subjects Offered'],
+      rec['Stream & Subjects for Class 12th']
+    ];
+  }
 
   for (const item of rawCandidates) {
     if (!item) continue;
     if (typeof item === 'string' && item.toLowerCase().includes('same as')) continue;
+    if (tier === 'higher' && isSecondaryOnlySubjectList(item)) continue;
     const cleaned = cleanRawSubjectTokens(item);
     if (cleaned.length > 0) {
+      if (tier === 'higher' && isSecondaryOnlySubjectList(cleaned.join(', '))) continue;
       return cleaned;
     }
   }
@@ -530,13 +602,21 @@ export async function updateStudentDocument(student, updates) {
 
     if (subStr && subStr !== '—') {
       const parts = subStr.split(/[,;\n\r\t]+/).map(p => expandJkboseSubjectCodes(p.trim())).filter(Boolean);
-      updates['Subjects to be taken in Class 11th'] = subStr;
-      updates['Subjects to be taken in Class 12th'] = subStr;
-      updates['Subjects to be taken in Class 10th'] = subStr;
-      updates['Subjects to be taken in Class 9th'] = subStr;
-      updates['Subjects to be taken in Class 8th'] = subStr;
-      updates['Subjects Studied in Class 11th'] = subStr;
-      updates['Subjects Studied in Class 10th'] = subStr;
+      const studentCls = updates.class || updates.Class || updates['Admission sought for class'] || student?.class || student?.Class || student?.['Admission sought for class'] || '';
+      const tier = getClassTier(studentCls);
+
+      if (tier === 'higher') {
+        updates['Subjects to be taken in Class 11th'] = subStr;
+        updates['Subjects to be taken in Class 12th'] = subStr;
+        updates['Stream & Subjects for Class 12th'] = subStr;
+        updates['Stream & Subjects for Class 11th'] = subStr;
+        updates['Subjects Studied in Class 11th'] = subStr;
+      } else if (tier === 'secondary') {
+        updates['Subjects to be taken in Class 10th'] = subStr;
+        updates['Subjects to be taken in Class 9th'] = subStr;
+        updates['Subjects Studied in Class 10th'] = subStr;
+        updates['Subjects Studied in Class 9th'] = subStr;
+      }
       updates['selectedSubjects'] = parts;
       updates['Subjects'] = subStr;
       updates['subjects'] = subStr;
@@ -3238,7 +3318,7 @@ function QuickSubjectStreamEditor({
     if (raw.toLowerCase().includes('comm')) return 'Humanities';
 
     // Deduce from existing subjects
-    const subStr = String(currentValue || student?.subs || formatStudentSubjects(student) || '').toLowerCase();
+    const subStr = String(currentValue || student?.subs || formatStudentSubjects(student, initialClass) || '').toLowerCase();
     if (subStr.includes('physics') || subStr.includes('chemistry') || subStr.includes('biology') || subStr.includes('botany') || subStr.includes('zoology')) return 'Science';
     if (subStr.includes('history') || subStr.includes('political') || subStr.includes('sociology') || subStr.includes('education') || subStr.includes('urdu') || subStr.includes('arabic')) return 'Humanities';
     return (initialClass === '11th' || initialClass === '12th') ? 'Humanities' : 'General';
@@ -3250,7 +3330,10 @@ function QuickSubjectStreamEditor({
   const [selectedSubjects, setSelectedSubjects] = useState(() => {
     let raw = String(currentValue || '').trim();
     if (!raw || raw === '—') {
-      raw = String(student?.subs || student?.Subjects || student?.['Subjects to be taken in Class 11th'] || student?.['Subjects to be taken in Class 12th'] || formatStudentSubjects(student) || '').trim();
+      raw = String(student?.subs || student?.Subjects || student?.['Subjects to be taken in Class 11th'] || student?.['Subjects to be taken in Class 12th'] || formatStudentSubjects(student, initialClass) || '').trim();
+    }
+    if (getClassTier(initialClass) === 'higher' && isSecondaryOnlySubjectList(raw)) {
+      raw = '';
     }
     if (!raw || raw === '—') return [];
 
@@ -3734,13 +3817,20 @@ function QuickSubjectStreamEditor({
   );
 }
 
-export { resolveCcDcVal, extractReappearCodes };
+export { resolveCcDcVal, extractReappearCodes, getClassTier, areClassTiersCompatible, isSecondaryOnlySubjectList };
 
 function SubjectStreamCell({ val, student }) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [popoverCoords, setPopoverCoords] = useState(null);
   const btnRef = useRef(null);
-  const fullVal = val || student?.subs || '';
+
+  const studentCls = student?.class || student?.Class || student?.['Admission sought for class'] || '';
+  const isHigherSec = getClassTier(studentCls) === 'higher';
+  let fullVal = val || student?.subs || '';
+  if (isHigherSec && isSecondaryOnlySubjectList(fullVal)) {
+    fullVal = '';
+  }
+
   const abbr = abbreviateSubjects(fullVal);
   const reappearCodes = extractReappearCodes(student);
   const subjectParts = abbr && abbr !== '—'
@@ -4469,7 +4559,9 @@ function AdminStudentEditModal({ student, onClose, onSave, isSaving, restrictedC
 
   const [activeTab, setActiveTab] = useState('basic');
   const [formData, setFormData] = useState(() => {
-    const rawSubs = student?.subs || student?.['Subjects'] || student?.['Subjects to be taken in Class 11th'] || student?.['Subjects to be taken in Class 12th'] || student?.['Subjects to be taken in Class 10th'] || student?.['Subjects to be taken in Class 9th'] || '';
+    const stCls = student?.class || student?.['Class'] || '11th';
+    const formattedSubs = formatStudentSubjects(student, stCls);
+    const rawSubs = (formattedSubs && formattedSubs !== '—') ? formattedSubs : (student?.subs || student?.['Subjects'] || '');
     const initialSubsList = rawSubs ? rawSubs.split(/[,;\n\r\t]+/).map(s => expandJkboseSubjectCodes(s.trim())).filter(Boolean) : [
       student?.subjects1 || student?.['Subjects1'] || '',
       student?.subjects2 || student?.['Subjects2'] || '',
@@ -5466,14 +5558,10 @@ export default function AdvancedReports({
 
         const parts = fullSubStr.split(/[,;\n\r\t]+/).map(p => expandJkboseSubjectCodes(p.trim())).filter(Boolean);
         const resolvedSubStr = parts.join(', ');
+        const studentCls = student?.class || student?.Class || student?.['Admission sought for class'] || '';
+        const tier = getClassTier(studentCls);
+
         subjectPayload = {
-          'Subjects to be taken in Class 11th': resolvedSubStr,
-          'Subjects to be taken in Class 12th': resolvedSubStr,
-          'Subjects to be taken in Class 10th': resolvedSubStr,
-          'Subjects to be taken in Class 9th': resolvedSubStr,
-          'Subjects to be taken in Class 8th': resolvedSubStr,
-          'Subjects Studied in Class 11th': resolvedSubStr,
-          'Subjects Studied in Class 10th': resolvedSubStr,
           'selectedSubjects': parts,
           'Subjects': resolvedSubStr,
           'subjects': resolvedSubStr,
@@ -5493,6 +5581,19 @@ export default function AdvancedReports({
           'subject5': parts[4] || '',
           'subject6': parts[5] || ''
         };
+
+        if (tier === 'higher') {
+          subjectPayload['Subjects to be taken in Class 11th'] = resolvedSubStr;
+          subjectPayload['Subjects to be taken in Class 12th'] = resolvedSubStr;
+          subjectPayload['Stream & Subjects for Class 12th'] = resolvedSubStr;
+          subjectPayload['Stream & Subjects for Class 11th'] = resolvedSubStr;
+          subjectPayload['Subjects Studied in Class 11th'] = resolvedSubStr;
+        } else if (tier === 'secondary') {
+          subjectPayload['Subjects to be taken in Class 10th'] = resolvedSubStr;
+          subjectPayload['Subjects to be taken in Class 9th'] = resolvedSubStr;
+          subjectPayload['Subjects Studied in Class 10th'] = resolvedSubStr;
+          subjectPayload['Subjects Studied in Class 9th'] = resolvedSubStr;
+        }
       }
 
       const payload = {
@@ -6666,22 +6767,41 @@ export default function AdvancedReports({
         }
       }
 
-      // Index full authentic 5-subject curriculum for bi-annual / reappear candidates
-      const rawSubsFormatted = formatStudentSubjects(rec);
-      const indivList = extractIndividualSubjectsList(rec);
-      const isFullSubjectList = indivList.length >= 5 || (rawSubsFormatted && rawSubsFormatted !== '—' && rawSubsFormatted.split(/[,;&/]+/).filter(Boolean).length >= 5);
-      if (isFullSubjectList) {
-        const regKey = extractRegNoClean(rec);
-        const admKey = cleanedAdm;
-        const nameKey = recName && recName !== 'student' && recName !== '—' ? `${recName.toLowerCase()}_${(recFather || '').toLowerCase().slice(0, 8)}` : '';
-        if (regKey && isValidRegNo(regKey) && !fullCurriculumByReg.has(regKey)) {
-          fullCurriculumByReg.set(regKey, rawSubsFormatted);
-        }
-        if (admKey && admKey !== '—' && !fullCurriculumByAdm.has(admKey)) {
-          fullCurriculumByAdm.set(admKey, rawSubsFormatted);
-        }
-        if (nameKey && !fullCurriculumByName.has(nameKey)) {
-          fullCurriculumByName.set(nameKey, rawSubsFormatted);
+      // Index full authentic 5-subject curriculum for bi-annual / reappear candidates (SCOPED BY TIER)
+      const recTier = getClassTier(recCls);
+      if (recTier === 'higher' || recTier === 'secondary') {
+        const rawSubsFormatted = formatStudentSubjects(rec, recCls);
+        const indivList = extractIndividualSubjectsList(rec, recCls);
+        const isFullSubjectList = indivList.length >= 5 || (rawSubsFormatted && rawSubsFormatted !== '—' && rawSubsFormatted.split(/[,;&/]+/).filter(Boolean).length >= 5);
+        if (isFullSubjectList) {
+          const isSec = isSecondaryOnlySubjectList(rawSubsFormatted);
+          if (recTier === 'higher' && !isSec) {
+            const regKey = extractRegNoClean(rec);
+            const admKey = cleanedAdm;
+            const nameKey = recName && recName !== 'student' && recName !== '—' ? `${recName.toLowerCase()}_${(recFather || '').toLowerCase().slice(0, 8)}` : '';
+            if (regKey && isValidRegNo(regKey) && !fullCurriculumByReg.has(`higher::${regKey}`)) {
+              fullCurriculumByReg.set(`higher::${regKey}`, rawSubsFormatted);
+            }
+            if (admKey && admKey !== '—' && !fullCurriculumByAdm.has(`higher::${admKey}`)) {
+              fullCurriculumByAdm.set(`higher::${admKey}`, rawSubsFormatted);
+            }
+            if (nameKey && !fullCurriculumByName.has(`higher::${nameKey}`)) {
+              fullCurriculumByName.set(`higher::${nameKey}`, rawSubsFormatted);
+            }
+          } else if (recTier === 'secondary') {
+            const regKey = extractRegNoClean(rec);
+            const admKey = cleanedAdm;
+            const nameKey = recName && recName !== 'student' && recName !== '—' ? `${recName.toLowerCase()}_${(recFather || '').toLowerCase().slice(0, 8)}` : '';
+            if (regKey && isValidRegNo(regKey) && !fullCurriculumByReg.has(`secondary::${regKey}`)) {
+              fullCurriculumByReg.set(`secondary::${regKey}`, rawSubsFormatted);
+            }
+            if (admKey && admKey !== '—' && !fullCurriculumByAdm.has(`secondary::${admKey}`)) {
+              fullCurriculumByAdm.set(`secondary::${admKey}`, rawSubsFormatted);
+            }
+            if (nameKey && !fullCurriculumByName.has(`secondary::${nameKey}`)) {
+              fullCurriculumByName.set(`secondary::${nameKey}`, rawSubsFormatted);
+            }
+          }
         }
       }
 
@@ -6916,9 +7036,37 @@ export default function AdvancedReports({
       const aStatus = String(a['Status'] || a['status'] || '').trim().toLowerCase();
       if (aStatus === 'deleted' || a._deleted === true || aStatus === 'archived') return;
 
+      const targetClass = normalizeClassVal(a['Admission sought for class'] || a['Class'] || '11th');
+      const targetSession = normalizeSessionVal(a['Session'] || '2025-26');
+      const activeClassRoll = extractClassRoll(a);
+
       const cleanFNo = extractStudentFormNo(a);
       const masterMatch = resolveMasterMatch(a);
-      const mergedRec = masterMatch ? { ...masterMatch, ...a } : a;
+      const isTierCompatible = masterMatch ? areClassTiersCompatible(masterMatch.Class || masterMatch.class, targetClass) : false;
+
+      let mergedRec = a;
+      if (masterMatch) {
+        if (isTierCompatible) {
+          mergedRec = { ...masterMatch, ...a };
+        } else {
+          // Different tier (e.g. master is 10th and active is 11th):
+          // Copy biographical data ONLY, strictly strip academic/subject/stream fields!
+          const nonAcademicMaster = { ...masterMatch };
+          const academicKeys = [
+            'Stream', 'stream', 'Faculty', 'faculty', 'selectedStream',
+            'Stream for Class 11th', 'Stream opted in Class 11th', 'Stream & Subjects for Class 12th',
+            'Subjects', 'subjects', 'Subs', 'subs', 'selectedSubjects', 'Subjects Offered',
+            'Subjects to be taken in Class 12th', 'Subjects to be taken in Class 11th',
+            'Subjects to be taken in Class 10th', 'Subjects to be taken in Class 9th',
+            'Subjects Studied in Class 11th', 'Subjects Studied in Class 10th',
+            'Subjects1', 'Subjects2', 'Subjects3', 'Subjects4', 'Subjects5', 'Subjects6', 'Subject6',
+            'Marks Obt. (Prev.)', 'Marks Obt.'
+          ];
+          academicKeys.forEach(k => delete nonAcademicMaster[k]);
+          mergedRec = { ...nonAcademicMaster, ...a };
+        }
+      }
+
       const finalAdmNo = resolveAdmNo(a) !== '—' ? resolveAdmNo(a) : resolveAdmNo(mergedRec);
 
       const regFromMaster = masterMatch ? extractRegNo(masterMatch) : '';
@@ -6942,10 +7090,6 @@ export default function AdvancedReports({
         a.timestamp || 
         (masterMatch ? (masterMatch['Online Subm. Date'] || masterMatch.onlineSubmDate || masterMatch.submittedAt || masterMatch.createdAt) : null);
       const finalOnlineSubmDate = formatOnlineSubmDate(rawSubmDate);
-
-      const targetClass = normalizeClassVal(a['Admission sought for class'] || a['Class'] || '11th');
-      const targetSession = normalizeSessionVal(a['Session'] || '2025-26');
-      const activeClassRoll = extractClassRoll(a);
 
       const activeRawStatus = String(a['Status'] || a['status'] || a['admissionStatus'] || '').trim().toLowerCase();
       let activeResolvedStatus = 'Submitted';
@@ -6978,8 +7122,14 @@ export default function AdvancedReports({
       const sVillage = a['Name of your village'] || a['Village/Town'] || 'Shangus';
       const sGender = a['Gender'] || '—';
       const sCategory = a['Cat._JKBOSE'] || a['Category'] || a['Social Category'] || 'General';
-      let sStream = resolveStudentStream(a, masterMatch);
-      let sSubs = formatStudentSubjects(a) !== '—' ? formatStudentSubjects(a) : formatStudentSubjects(mergedRec);
+      let sStream = resolveStudentStream(a, isTierCompatible ? masterMatch : null);
+      let sSubs = formatStudentSubjects(a, targetClass) !== '—' ? formatStudentSubjects(a, targetClass) : formatStudentSubjects(mergedRec, targetClass);
+
+      // Strict Tier Subject Safety Check:
+      // If student is in Higher Secondary (11th or 12th), they can NEVER have 9th/10th secondary subjects!
+      if (getClassTier(targetClass) === 'higher' && isSecondaryOnlySubjectList(sSubs)) {
+        sSubs = '—';
+      }
 
       const regKey = extractRegNoClean(a) || extractRegNoClean(mergedRec);
       const admKey = cleanAdmNoVal(finalAdmNo);
@@ -7012,7 +7162,7 @@ export default function AdvancedReports({
 
         if (matched11thRec) {
           stream11th = resolveStudentStream(matched11thRec);
-          subs11th = formatStudentSubjects(matched11thRec);
+          subs11th = formatStudentSubjects(matched11thRec, '11th');
 
           if (stream11th && stream11th !== 'General') {
             if (sStream && sStream !== 'General' && sStream.toLowerCase() !== stream11th.toLowerCase()) {
@@ -7036,25 +7186,28 @@ export default function AdvancedReports({
         }
       }
 
-      // Restore full 5-subject curriculum if this is an examinee list with 1-4 reappear subjects
+      // Restore full 5-subject curriculum if this is an examinee list with 1-4 reappear subjects (SCOPED BY TIER)
       let rawExamineeSubs = null;
       const parsedPartsCount = (sSubs && sSubs !== '—') ? sSubs.split(/[,;&/]+/).filter(Boolean).length : 0;
       if (parsedPartsCount > 0 && parsedPartsCount < 5) {
-        const fullFromIndex = (regKey && isValidRegNo(regKey) && fullCurriculumByReg.get(regKey)) ||
-          (admKey && admKey !== '—' && fullCurriculumByAdm.get(admKey)) ||
-          (nameKey && fullCurriculumByName.get(nameKey));
+        const targetTier = getClassTier(targetClass);
+        const fullFromIndex = (regKey && isValidRegNo(regKey) && fullCurriculumByReg.get(`${targetTier}::${regKey}`)) ||
+          (admKey && admKey !== '—' && fullCurriculumByAdm.get(`${targetTier}::${admKey}`)) ||
+          (nameKey && fullCurriculumByName.get(`${targetTier}::${nameKey}`));
         if (fullFromIndex && fullFromIndex !== '—' && fullFromIndex.split(/[,;&/]+/).filter(Boolean).length >= 5) {
-          rawExamineeSubs = sSubs;
-          sSubs = fullFromIndex;
+          if (!(targetTier === 'higher' && isSecondaryOnlySubjectList(fullFromIndex))) {
+            rawExamineeSubs = sSubs;
+            sSubs = fullFromIndex;
+          }
         }
       }
 
-      let indivSubs = extractIndividualSubjectsList(a);
+      let indivSubs = extractIndividualSubjectsList(a, targetClass);
       if (indivSubs.length === 0 && mergedRec) {
-        indivSubs = extractIndividualSubjectsList(mergedRec);
+        indivSubs = extractIndividualSubjectsList(mergedRec, targetClass);
       }
-      if (indivSubs.length === 0 && matched11thRec) {
-        indivSubs = extractIndividualSubjectsList(matched11thRec);
+      if (indivSubs.length === 0 && matched11thRec && targetClass === '12th') {
+        indivSubs = extractIndividualSubjectsList(matched11thRec, '11th');
       }
       if (indivSubs.length === 0 && sSubs && sSubs !== '—') {
         const parts = String(sSubs).split(/[,;\n\r\t]+/).map(p => p.trim()).filter(p => p && p !== '—' && p !== '-');
@@ -7261,7 +7414,10 @@ export default function AdvancedReports({
       const sGender = m['Gender'] || m.gender || demo.gender || '—';
       const sCategory = m['Cat._JKBOSE'] || m['Category'] || m['Social Category'] || m.category || demo.category || 'General';
       let sStream = resolveStudentStream(m, null);
-      let sSubs = formatStudentSubjects(m);
+      let sSubs = formatStudentSubjects(m, targetClass);
+      if (getClassTier(targetClass) === 'higher' && isSecondaryOnlySubjectList(sSubs)) {
+        sSubs = '—';
+      }
 
       // ─── 11th vs 12th STREAM & SUBJECT VERIFICATION FOR HISTORICAL RECORDS ───
       let stream11th = null;
@@ -7287,7 +7443,7 @@ export default function AdvancedReports({
 
         if (matched11thRec) {
           stream11th = resolveStudentStream(matched11thRec);
-          subs11th = formatStudentSubjects(matched11thRec);
+          subs11th = formatStudentSubjects(matched11thRec, '11th');
 
           if (stream11th && stream11th !== 'General') {
             if (sStream && sStream !== 'General' && sStream.toLowerCase() !== stream11th.toLowerCase()) {
@@ -7309,22 +7465,25 @@ export default function AdvancedReports({
         }
       }
 
-      // Restore full 5-subject curriculum if this is an examinee list with 1-4 reappear subjects
+      // Restore full 5-subject curriculum if this is an examinee list with 1-4 reappear subjects (SCOPED BY TIER)
       let rawExamineeSubs = null;
       const parsedPartsCountHist = (sSubs && sSubs !== '—') ? sSubs.split(/[,;&/]+/).filter(Boolean).length : 0;
       if (parsedPartsCountHist > 0 && parsedPartsCountHist < 5) {
-        const fullFromIndex = (regKey && isValidRegNo(regKey) && fullCurriculumByReg.get(regKey)) ||
-          (admKey && admKey !== '—' && fullCurriculumByAdm.get(admKey)) ||
-          (nameKey && fullCurriculumByName.get(nameKey));
+        const targetTier = getClassTier(targetClass);
+        const fullFromIndex = (regKey && isValidRegNo(regKey) && fullCurriculumByReg.get(`${targetTier}::${regKey}`)) ||
+          (admKey && admKey !== '—' && fullCurriculumByAdm.get(`${targetTier}::${admKey}`)) ||
+          (nameKey && fullCurriculumByName.get(`${targetTier}::${nameKey}`));
         if (fullFromIndex && fullFromIndex !== '—' && fullFromIndex.split(/[,;&/]+/).filter(Boolean).length >= 5) {
-          rawExamineeSubs = sSubs;
-          sSubs = fullFromIndex;
+          if (!(targetTier === 'higher' && isSecondaryOnlySubjectList(fullFromIndex))) {
+            rawExamineeSubs = sSubs;
+            sSubs = fullFromIndex;
+          }
         }
       }
 
-      let indivSubsHist = extractIndividualSubjectsList(m);
-      if (indivSubsHist.length === 0 && matched11thRec) {
-        indivSubsHist = extractIndividualSubjectsList(matched11thRec);
+      let indivSubsHist = extractIndividualSubjectsList(m, targetClass);
+      if (indivSubsHist.length === 0 && matched11thRec && targetClass === '12th') {
+        indivSubsHist = extractIndividualSubjectsList(matched11thRec, '11th');
       }
       if (indivSubsHist.length === 0 && sSubs && sSubs !== '—') {
         const parts = String(sSubs).split(/[,;\n\r\t]+/).map(p => p.trim()).filter(p => p && p !== '—' && p !== '-');

@@ -3,10 +3,18 @@ import {
   areNamesCompatible,
   resolveCcDcVal,
   extractReappearCodes,
-  formatResultMarksString
+  formatResultMarksString,
+  getClassTier,
+  areClassTiersCompatible,
+  isSecondaryOnlySubjectList,
+  resolveCertificateStream
 } from './certificateStudentResolution';
+import { formatStudentSubjects } from '../portal/admin/AdvancedReports';
 
 jest.mock('../services/firebase', () => ({ db: {} }));
+jest.mock('jspdf', () => ({ jsPDF: jest.fn() }));
+jest.mock('./pdfGenerator', () => ({}));
+jest.mock('../portal/admin/ApplicationReviewModal', () => () => null);
 
 describe('Student Resolution & Reports Validation', () => {
   describe('normalizeRegistrationKey', () => {
@@ -152,6 +160,96 @@ describe('Student Resolution & Reports Validation', () => {
       expect(formatResultMarksString(undefined)).toBe('');
       expect(formatResultMarksString('—')).toBe('');
       expect(formatResultMarksString('-')).toBe('');
+    });
+  });
+
+  describe('Academic Tier Resolution & Compatibility', () => {
+    test('getClassTier identifies secondary (9th/10th) vs higher secondary (11th/12th)', () => {
+      expect(getClassTier('9th')).toBe('secondary');
+      expect(getClassTier('10th')).toBe('secondary');
+      expect(getClassTier('9')).toBe('secondary');
+      expect(getClassTier('10')).toBe('secondary');
+      expect(getClassTier('Class 10th')).toBe('secondary');
+      expect(getClassTier('11th')).toBe('higher');
+      expect(getClassTier('12th')).toBe('higher');
+      expect(getClassTier('11')).toBe('higher');
+      expect(getClassTier('12')).toBe('higher');
+      expect(getClassTier('Class 11th')).toBe('higher');
+    });
+
+    test('areClassTiersCompatible permits intra-tier and blocks cross-tier sharing', () => {
+      // 9th and 10th share the same general curriculum
+      expect(areClassTiersCompatible('9th', '10th')).toBe(true);
+      expect(areClassTiersCompatible('10th', '9th')).toBe(true);
+      expect(areClassTiersCompatible('10th', '10th')).toBe(true);
+
+      // 11th and 12th share the same stream curriculum
+      expect(areClassTiersCompatible('11th', '12th')).toBe(true);
+      expect(areClassTiersCompatible('12th', '11th')).toBe(true);
+      expect(areClassTiersCompatible('11th', '11th')).toBe(true);
+
+      // Cross-tier is strictly prohibited
+      expect(areClassTiersCompatible('10th', '11th')).toBe(false);
+      expect(areClassTiersCompatible('10th', '12th')).toBe(false);
+      expect(areClassTiersCompatible('9th', '11th')).toBe(false);
+      expect(areClassTiersCompatible('9th', '12th')).toBe(false);
+    });
+
+    test('isSecondaryOnlySubjectList identifies secondary-only subjects (SST, SCI)', () => {
+      expect(isSecondaryOnlySubjectList('(GE), SST, SCI, MA, UR, ITE (H)')).toBe(true);
+      expect(isSecondaryOnlySubjectList('English, Social Studies, Science, Mathematics, Urdu')).toBe(true);
+      expect(isSecondaryOnlySubjectList('SST, SCI, MA')).toBe(true);
+      expect(isSecondaryOnlySubjectList('Social Science, Mathematics')).toBe(true);
+
+      // Higher secondary subjects are NOT secondary-only
+      expect(isSecondaryOnlySubjectList('General English, Physics, Chemistry, Biology, Environmental Science')).toBe(false);
+      expect(isSecondaryOnlySubjectList('GE, PH, CH, BI, ES')).toBe(false);
+      expect(isSecondaryOnlySubjectList('General English, Education, History, Political Science, Environmental Science')).toBe(false);
+      expect(isSecondaryOnlySubjectList('GE, ED, HT, PS, ES')).toBe(false);
+      expect(isSecondaryOnlySubjectList('Computer Science, Mathematics, Physics')).toBe(false);
+      expect(isSecondaryOnlySubjectList('Environmental Science, Urdu, History')).toBe(false);
+    });
+
+    test('formatStudentSubjects strictly isolates 10th subjects from 11th/12th students', () => {
+      // An 11th grade student record that accidentally has 10th fields (e.g. from previous qualification)
+      const student11th = {
+        class: '11th',
+        'Subjects Studied in Class 10th': 'English, Social Studies, Science, Mathematics, Urdu',
+        'Subjects to be taken in Class 10th': 'English, Science, SST, Math, Urdu',
+        'Marks Obt. (Prev.)': '350 / 500'
+      };
+      // Must NOT return 10th subjects for an 11th student!
+      expect(formatStudentSubjects(student11th, '11th')).toBe('—');
+
+      // If the 11th record has authentic 11th subjects:
+      student11th['Subjects to be taken in Class 11th'] = 'General English, Education, History, Political Science, Environmental Science';
+      expect(formatStudentSubjects(student11th, '11th')).toContain('General English');
+      expect(formatStudentSubjects(student11th, '11th')).toContain('History');
+      expect(formatStudentSubjects(student11th, '11th')).not.toContain('Social Studies');
+
+      // A 10th grade student record must NOT pick up 11th subjects:
+      const student10th = {
+        class: '10th',
+        'Subjects to be taken in Class 11th': 'Physics, Chemistry, Biology',
+        'Subjects to be taken in Class 10th': 'English, Mathematics, Science, Social Studies, Urdu'
+      };
+      expect(formatStudentSubjects(student10th, '10th')).toContain('Social Studies');
+      expect(formatStudentSubjects(student10th, '10th')).not.toContain('Physics');
+    });
+
+    test('resolveCertificateStream never uses 10th records to infer 11th/12th stream', () => {
+      const student11th = { class: '11th', regNo: '210100000610015' };
+      const historyWith10th = [
+        {
+          class: '10th',
+          subs: 'English, Social Studies, Science, Mathematics, Urdu',
+          Stream: 'General'
+        }
+      ];
+      // Must not infer General stream for 11th from 10th record!
+      const stream = resolveCertificateStream(student11th, historyWith10th, '11th');
+      expect(stream).not.toBe('General');
+      expect(stream).toBe('Humanities');
     });
   });
 });
