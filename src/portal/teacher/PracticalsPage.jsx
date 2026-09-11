@@ -1740,6 +1740,7 @@ export default function PracticalsPage() {
         subject: selectedSubject,
         subjectCode: currentSubjectObj.code,
         practicalType,
+        evaluationType: practicalType,
         yearSuffix,
         records,
         status: 'submitted',
@@ -1791,6 +1792,7 @@ export default function PracticalsPage() {
       classRollNo: st.classRollNo || st.rollNo || '—',
       rollNo: st.examRollNo || '—',
       examRollNo: st.examRollNo || '—',
+      centreNo: st.centreNo || '',
       name: st.name || st.studentName || '—',
       practicalMarks: st.practicalMarks || '—',
       vivaMarks: st.vivaMarks || '—',
@@ -1798,7 +1800,10 @@ export default function PracticalsPage() {
     }));
 
     const isExternal = practicalType.toLowerCase().includes('external');
-    const sessionStr = `Annual Regular ${yearSuffix}`;
+    const isBiAnnual = /\b(oct|nov|bian|private|bi-annual|mar-apr)\b/i.test(yearSuffix);
+    const sessionStr = isBiAnnual
+      ? `Annual Private / Bi-Annual (${yearSuffix})`
+      : (yearSuffix.toLowerCase().includes('annual') ? yearSuffix : `Annual Regular ${yearSuffix}`);
 
     printIndividualAwardRoll({
       subjectCode: currentSubjectObj.code,
@@ -1807,6 +1812,9 @@ export default function PracticalsPage() {
       session: sessionStr,
       records: recordsForPrint,
       isExternal,
+      evaluationType: practicalType,
+      practicalType,
+      examTitle: activeEvalOption?.title || activeEvalOption?.label || practicalType,
       maxMarks: subjectMaxMarks,
       minMarks: minPassMarks
     });

@@ -22,7 +22,7 @@ import {
   PageOrientation,
   HeightRule
 } from 'docx';
-import { findStudentMarkRecord } from './practicalsPdfGenerator';
+import { findStudentMarkRecord, resolveAwardRollTitles } from './practicalsPdfGenerator';
 
 export const CSV_COLUMNS = [
   'Class',
@@ -323,13 +323,16 @@ export function exportConsolidatedAwardsToExcel({
   students = [],
   submissions = [],
   isExternal = false,
+  evaluationType = '',
+  practicalType = '',
   selectedSubjectCodes = null,
   printDetails = null
 }) {
   if (!students || students.length === 0) return false;
 
+  const titles = resolveAwardRollTitles(evaluationType || practicalType || printDetails?.practicalType, isExternal);
   const hseText = className === '11th' ? 'HSE-I (Class 11th)' : 'HSE-II (Class 12th)';
-  const evalTypeText = isExternal ? 'External' : 'Internal Assessment';
+  const evalTypeText = titles.shortType;
   const isClass12 = String(className).toLowerCase().includes('12');
   const clsTarget = isClass12 ? '12' : '11';
 
@@ -622,13 +625,16 @@ export async function exportConsolidatedAwardsToDocx({
   students = [],
   submissions = [],
   isExternal = false,
+  evaluationType = '',
+  practicalType = '',
   selectedSubjectCodes = null,
   printDetails = null
 }) {
   if (!students || students.length === 0) return false;
 
+  const titles = resolveAwardRollTitles(evaluationType || practicalType || printDetails?.practicalType, isExternal);
   const hseText = className === '11th' ? 'HSE-I (Class 11th)' : 'HSE-II (Class 12th)';
-  const evalTypeText = isExternal ? 'External Practical' : 'Internal Assessment';
+  const evalTypeText = titles.shortType;
   const isClass12 = String(className).toLowerCase().includes('12');
   const clsTarget = isClass12 ? '12' : '11';
 
@@ -735,7 +741,7 @@ export async function exportConsolidatedAwardsToDocx({
   const inchargeCpis = printDetails?.inchargeCpis || (className === '12th' ? 'KGLEDU00120015' : 'SHGEDU00220017');
   const inchargeMobile = printDetails?.inchargeMobile || (className === '12th' ? '9596165142' : '7006537425');
   const partText = className === '11th' ? 'Part-I (class 11th)' : 'Part-II (class 12th)';
-  const testType = isExternal ? 'Practical Examination' : 'Internal Assessment';
+  const testType = titles.examLabel;
 
   // Standard Border Definition for DOCX Tables
   const thinBorder = {
@@ -913,9 +919,26 @@ export async function exportConsolidatedAwardsToDocx({
       let markColor = isEnrolled ? '1E40AF' : '94A3B8';
       let isBold = isEnrolled;
 
+      const isSubDocMatch = (s) => {
+        const matchClass = String(s.className || s.Class || s.class || '').toLowerCase().includes(clsTarget);
+        if (!matchClass) return false;
+        const sType = String(s.practicalType || s.PracticalType || 'internal').toLowerCase();
+        if (evaluationType || practicalType) {
+          const target = String(evaluationType || practicalType).toLowerCase();
+          if (sType !== target && !sType.includes(target) && !target.includes(sType)) {
+            const targetNorm = target.includes('ext') ? 'external' : 'internal';
+            if (sType !== targetNorm && !sType.includes(targetNorm)) return false;
+          }
+        } else {
+          const targetType = isExternal ? 'external' : 'internal';
+          if (sType !== targetType && !sType.includes(targetType)) return false;
+        }
+        return true;
+      };
+
       if (sub.code === 'BI') {
-        const boDoc = submissions.find(s => String(s.className || s.class || '').toLowerCase().includes(clsTarget) && (isExternal ? s.practicalType === 'external' : s.practicalType !== 'external') && String(s.subjectCode || '').toUpperCase().includes('BO'));
-        const zoDoc = submissions.find(s => String(s.className || s.class || '').toLowerCase().includes(clsTarget) && (isExternal ? s.practicalType === 'external' : s.practicalType !== 'external') && String(s.subjectCode || '').toUpperCase().includes('ZO'));
+        const boDoc = submissions.find(s => isSubDocMatch(s) && String(s.subjectCode || s.subject || '').toUpperCase().includes('BO'));
+        const zoDoc = submissions.find(s => isSubDocMatch(s) && String(s.subjectCode || s.subject || '').toUpperCase().includes('ZO'));
         const boRec = findStudentMarkRecord(boDoc, st);
         const zoRec = findStudentMarkRecord(zoDoc, st);
         const boVal = parseInt(boRec?.totalMarks ?? boRec?.practicalMarks ?? '', 10);
@@ -929,11 +952,7 @@ export async function exportConsolidatedAwardsToDocx({
         }
       } else {
         const subDoc = submissions.find(s => {
-          const matchClass = String(s.className || s.Class || s.class || '').toLowerCase().includes(clsTarget);
-          if (!matchClass) return false;
-          const sType = String(s.practicalType || s.PracticalType || 'internal').toLowerCase();
-          const targetType = isExternal ? 'external' : 'internal';
-          if (sType !== targetType) return false;
+          if (!isSubDocMatch(s)) return false;
           const codeStr = String(s.subjectCode || s.subject || s.Subject || '').toUpperCase();
           return codeStr === sub.code || codeStr.includes(sub.code);
         });
