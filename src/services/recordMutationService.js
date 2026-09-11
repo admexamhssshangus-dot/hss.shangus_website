@@ -3,6 +3,20 @@ import { db } from './firebase';
 import { invalidateCache } from './dbCache';
 import { recordLocator, locateNestedRecord, recordIdentity } from '../utils/recordIdentity';
 
+export function cleanFirestoreObject(obj) {
+  if (obj === undefined) return null;
+  if (obj === null || typeof obj !== 'object') return obj;
+  if (Array.isArray(obj)) return obj.map(cleanFirestoreObject).filter(v => v !== undefined);
+  if (obj.constructor && obj.constructor.name !== 'Object') return obj;
+  const clean = {};
+  for (const [k, v] of Object.entries(obj)) {
+    if (v !== undefined) {
+      clean[k] = cleanFirestoreObject(v);
+    }
+  }
+  return clean;
+}
+
 const present = (object, key) => Object.prototype.hasOwnProperty.call(object, key);
 const equal = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 export function captureFields(record, patch) {
@@ -48,14 +62,14 @@ export async function applyRecordPatch(student, patch, { jobId, entryId = '0' } 
     }
     const after = { ...patch };
     const before = captureFields(current, after);
-    const updated = { ...current, ...after };
+    const updated = cleanFirestoreObject({ ...current, ...after });
     if (nested) {
       const records = [...nested.records]; records[nested.index] = updated;
       tx.update(reference, { [nested.arrayKey]: records, updatedAt: serverTimestamp() });
     } else tx.set(reference, updated);
-    tx.set(entry, { locator: { ...locator, arrayKey: nested?.arrayKey || '',
+    tx.set(entry, cleanFirestoreObject({ locator: { ...locator, arrayKey: nested?.arrayKey || '',
       identity: locator.nested ? recordIdentity({ Session: data.session || data.Session, Class: data.class || data.Class, ...updated }) : locator.identity },
-      before, after, status: 'applied', createdAt: serverTimestamp() });
+      before, after, status: 'applied', createdAt: serverTimestamp() }));
   });
   invalidateCache(locator.collection);
   return effectiveJob;
@@ -70,9 +84,9 @@ export async function createRecordWithRollback(documentId, data, { jobId, entryI
     const [existing, prior] = await Promise.all([tx.get(reference), tx.get(entry)]);
     if (prior.exists()) return;
     if (existing.exists()) throw new Error('This candidate already exists. Refresh and match the existing record.');
-    tx.set(reference, data);
-    tx.set(entry, { kind: 'created', locator: { collection: 'admissions', documentId, nested: false },
-      before: {}, after: data, status: 'applied', createdAt: serverTimestamp() });
+    tx.set(reference, cleanFirestoreObject(data));
+    tx.set(entry, cleanFirestoreObject({ kind: 'created', locator: { collection: 'admissions', documentId, nested: false },
+      before: {}, after: data, status: 'applied', createdAt: serverTimestamp() }));
   });
   invalidateCache('admissions');
 }

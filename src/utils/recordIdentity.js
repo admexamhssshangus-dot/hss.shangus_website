@@ -94,14 +94,18 @@ export function recordLocator(student = {}) {
   if (!['admissions', 'masterRegisters'].includes(collection) || !documentId || String(documentId).includes('/')) {
     throw new Error('The source document is missing. Refresh the student list before editing.');
   }
-  return { 
+  const loc = { 
     collection, 
     documentId: String(documentId), 
     arrayKey: parent ? (s._arrayKey || s.arrayKey || '') : '',
-    arrayIndex: s._arrayIndex !== undefined ? s._arrayIndex : s.arrayIndex,
     nested: Boolean(parent), 
     identity: recordIdentity(s) 
   };
+  const rawIdx = s._arrayIndex !== undefined ? s._arrayIndex : s.arrayIndex;
+  if (rawIdx !== undefined && rawIdx !== null && !isNaN(Number(rawIdx))) {
+    loc.arrayIndex = Number(rawIdx);
+  }
+  return loc;
 }
 
 export function locateNestedRecord(data, locator) {
