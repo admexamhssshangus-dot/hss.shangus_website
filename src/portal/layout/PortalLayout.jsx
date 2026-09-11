@@ -12,7 +12,8 @@ import { resolveStaffRoleAndPerms, requireVerifiedAdminSession, isBootstrapSuper
 // Always returns { role, name, perms, token } — never throws
 // ---------------------------------------------------------------------------
 async function resolveUserProfile(firebaseUser) {
-  const tokenResult = await getIdTokenResult(firebaseUser, true);
+  // Use cached token by default to eliminate slow blocking STS roundtrips over mobile networks
+  const tokenResult = await getIdTokenResult(firebaseUser, false);
   const claims = tokenResult.claims || {};
   const emailLower = String(firebaseUser.email || '').toLowerCase().trim();
   const isBootstrapAdmin = isBootstrapSuperAdminEmail(emailLower);
@@ -151,12 +152,6 @@ export default function PortalLayout() {
           return;
         }
 
-        // On public pages, stop loading so LoginPage displays immediately
-        if (isOnPublicPage) {
-          setSessionStateStable({ loading: false, user: null, isAuthenticated: false });
-          return;
-        }
-
         const cleanEmail = String(fbUser.email || '').toLowerCase().trim();
         
         // If session is already authenticated and active for this email, refresh claims silently in background without blocking UI
@@ -195,7 +190,7 @@ export default function PortalLayout() {
         } catch (error) {
           sessionManager.clearSession();
           setSessionStateStable({ loading: false, user: null, isAuthenticated: false });
-          if (window.location.pathname !== '/portal/login') navigate('/portal/login', { replace: true, state: { message: error.message } });
+          if (!isOnPublicPage) navigate('/portal/login', { replace: true, state: { message: error.message } });
         }
       } else {
         sessionManager.clearSession();

@@ -104,6 +104,18 @@ export default function LoginPage() {
     }
   }, [isAuthenticated, user, navigate, window2VerifiedState]);
 
+  // Auto-redirect to dashboard when Window 2 is verified (especially critical on mobile where tabs can't close)
+  useEffect(() => {
+    if (!window2VerifiedState) return;
+    const dest = window2VerifiedState.role === 'Teacher' || window2VerifiedState.role === 'Faculty'
+      ? '/portal/teacher'
+      : '/portal/admin';
+    const timer = setTimeout(() => {
+      navigate(dest, { replace: true });
+    }, 2200);
+    return () => clearTimeout(timer);
+  }, [window2VerifiedState, navigate]);
+
   // Pre-warm dashboard bundle chunks in background during idle time for 0ms instant dashboard mounting
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -300,6 +312,11 @@ export default function LoginPage() {
             if (handshakeId) {
               await approveAdminLoginHandshake(handshakeId, cleanEmail, userCred.user);
             }
+
+            // Clean URL immediately so page refreshes/pull-to-refresh on phones do not re-run with expired code
+            try {
+              window.history.replaceState(null, '', window.location.pathname);
+            } catch (_) {}
 
             // Broadcast approval to all same-browser tabs
             try {
@@ -936,17 +953,33 @@ export default function LoginPage() {
                   </div>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => {
-                    try {
-                      window.close();
-                    } catch (_) {}
-                  }}
-                  className="w-full py-3 rounded-xl font-black text-xs bg-gradient-to-r from-slate-800 to-slate-900 dark:from-white dark:to-slate-100 text-white dark:text-slate-900 hover:from-slate-700 hover:to-slate-800 dark:hover:from-slate-50 dark:hover:to-white cursor-pointer transition-all shadow-md hover:shadow-lg active:scale-[0.98]"
-                >
-                  Close This Window
-                </button>
+                <div className="space-y-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const dest = window2VerifiedState.role === 'Teacher' || window2VerifiedState.role === 'Faculty'
+                        ? '/portal/teacher'
+                        : '/portal/admin';
+                      navigate(dest, { replace: true });
+                    }}
+                    className="w-full py-3 rounded-xl font-black text-xs bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 hover:to-emerald-500 text-white cursor-pointer transition-all shadow-md hover:shadow-lg active:scale-[0.98] flex items-center justify-center gap-1.5"
+                  >
+                    <span>Continue to {window2VerifiedState.role === 'Teacher' || window2VerifiedState.role === 'Faculty' ? 'Teacher Portal' : 'Admin Dashboard'}</span>
+                    <ChevronRight size={15} />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      try {
+                        window.close();
+                      } catch (_) {}
+                    }}
+                    className="w-full py-2 rounded-xl font-bold text-[11px] text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 cursor-pointer transition-all"
+                  >
+                    Close This Window
+                  </button>
+                </div>
               </div>
             ) : emailLinkSentState ? (
               /* == == == == == == == == WINDOW 1: PREMIUM 2-STEP WAITING VIEW == == == == == == == == */
