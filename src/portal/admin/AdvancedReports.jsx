@@ -11831,8 +11831,8 @@ export default function AdvancedReports({
       <BulkFieldOverwriteModal
         isOpen={showBulkOverwriteModal}
         onClose={() => setShowBulkOverwriteModal(false)}
-        allStudents={allStudents.length > 0 ? allStudents : currentAdmissions}
-        currentSession="2025-26"
+        allStudents={allStudents && allStudents.length > 0 ? allStudents : [...(currentAdmissions || []), ...(masterHistoricalRecords || [])]}
+        currentSession={(selectedSessions.length === 1 && selectedSessions[0] !== '__NONE__') ? selectedSessions[0] : (sessionStorage.getItem('hss_last_selected_session') || '2025-26')}
         initialMode={bulkOverwriteMode}
         onRecordAdded={handleDirectRecordAdded}
         onComplete={() => {
