@@ -1,11 +1,12 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useNavigate, useOutletContext } from 'react-router-dom';
 import {
   BookOpen, FileSpreadsheet, CreditCard, Calendar, Printer,
   RefreshCw, Check, Search, ZoomIn, ZoomOut,
   Plus, Trash2, FileCheck, Sliders, Loader2, Columns, LayoutGrid,
   UserCheck, UserX, AlertCircle, X, Edit3, UserPlus, ChevronRight,
-  Filter, Eye, ChevronDown, Sparkles, SlidersHorizontal, Save, RotateCcw, Move, ArrowUpDown
+  Filter, Eye, ChevronDown, Sparkles, SlidersHorizontal, Save, RotateCcw, Move, ArrowUpDown,
+  CheckSquare, Square, Minus
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { db } from '../../services/firebase';
@@ -445,6 +446,14 @@ function getBoardRegistration(record, classValue) {
           ? 'DIET Registration No.'
           : '';
   return firstCleanValue(record, preferredKey ? [preferredKey, ...BOARD_REGISTRATION_KEYS] : BOARD_REGISTRATION_KEYS);
+}
+
+export function normalizeBoardRegKey(reg) {
+  if (!reg) return '';
+  const cleaned = String(reg).trim().toUpperCase().replace(/[\s\-_/]/g, '');
+  if (/^(—|-|#?N\/A|NA|NILL|NIL|NULL|UNDEFINED|NONE|0|ST|STUDENT)$/i.test(cleaned)) return '';
+  if (cleaned.length < 5) return '';
+  return cleaned;
 }
 
 function getPreviousClassLabel(classValue) {
@@ -1094,6 +1103,100 @@ export default function AdmissionRegisterSuite({
     return flat;
   }, [historyDataset]);
 
+  // Universal admissions pool across all sessions and classes for historical enrichment
+  const [allAdmissionsPool, setAllAdmissionsPool] = useState(() => {
+    const cached = getCachedCollectionSync('admissions');
+    return Array.isArray(cached) && cached.length > 0 ? cached : [];
+  });
+
+  useEffect(() => {
+    let active = true;
+    getCachedCollection('admissions')
+      .then(records => {
+        if (active && Array.isArray(records) && records.length > 0) {
+          setAllAdmissionsPool(records);
+        }
+      })
+      .catch(err => console.warn('Could not load universal admissions pool:', err));
+    return () => { active = false; };
+  }, []);
+
+  // Universal Board Registration Index across masterRegisters AND admissions (all sessions & classes)
+  const universalBoardRegMap = useMemo(() => {
+    const map = new Map();
+
+    const indexItem = (item, sourceSession = '', sourceClass = '') => {
+      if (!item || typeof item !== 'object') return;
+      const reg = getBoardRegistration(item);
+      const regKey = normalizeBoardRegKey(reg);
+      if (!regKey) return;
+
+      const cls = cleanStr(sourceClass || item.class || item.Class || item['Admission sought for class'] || '');
+      const sess = cleanStr(sourceSession || item.session || item.Session || item['Academic Session'] || '');
+      const rawDob = item.dob || item['DoB (as per school records)'] || item['DoB (figures)'] || item['Date of Birth'] || item['DOB'];
+      const dob = formatRegisterDate(rawDob);
+      const rawSubs = extractStudentSubjects(item);
+      const subs = abbreviateSubjects(rawSubs);
+      const stream = extractStudentStream(item, rawSubs);
+      const boardRoll = firstCleanValue(item, BOARD_ROLL_KEYS) || getPreviousAcademicValue(item, cls, 'Exam Roll Number of Class', ['prevExamRollNo', 'Previous Exam Roll No', 'Exam R.No. (Prev.)', 'Roll No. (Class 10th)', 'Roll No. of 10th', '10th Roll No', 'Class 10th Roll No', 'examRoll10th', 'rollNo10th']);
+      const result = firstCleanValue(item, CURRENT_RESULT_KEYS) || firstCleanValue(item, ['prevResult', 'Previous Result', 'Marks/Reapp (Prev.)', 'Marks Obt. (Prev.)']);
+      const father = cleanStr(item.fatherName || item["Father's/Guardian's Name (as per school records)"] || item["Father's Name"] || item.father);
+      const mother = cleanStr(item.motherName || item["Mother's Name (as per school records)"] || item["Mother's Name"] || item.mother);
+      const pen = cleanStr(item.penNo || item['PEN number (given by UDISE portal)'] || item['PEN No.'] || item['PEN Number'] || item['PEN (UDISE)'] || item.pen);
+      const admNo = firstCleanValue(item, ADMISSION_NO_KEYS);
+      const photo = getStudentPhotoUrl(item, '');
+
+      const candidate = {
+        raw: item,
+        boardReg: reg,
+        class: cls,
+        session: sess,
+        dob,
+        rawDob,
+        subs: subs && subs !== '-' && subs !== '—' ? subs : '',
+        rawSubs,
+        stream,
+        boardRollNo: boardRoll && boardRoll !== '—' ? boardRoll : '',
+        currentResult: result && result !== '—' ? result : '',
+        father,
+        mother,
+        pen: pen && pen !== 'NA' && pen !== '—' ? pen : '',
+        admNo: admNo && admNo !== '—' ? admNo : '',
+        photo
+      };
+
+      if (!map.has(regKey)) {
+        map.set(regKey, []);
+      }
+      map.get(regKey).push(candidate);
+    };
+
+    // 1. Index masterRegisters
+    (historyDataset || []).forEach(docItem => {
+      if (!docItem) return;
+      const chunk = docItem.items || docItem.students || docItem.records || docItem.data;
+      const pSess = cleanStr(docItem.session || docItem.Session || docItem['Academic Session'] || '');
+      const pCls = cleanStr(docItem.class || docItem.Class || '');
+      if (Array.isArray(chunk) && chunk.length > 0) {
+        chunk.forEach(item => indexItem(item, pSess, pCls));
+      } else {
+        indexItem(docItem, pSess, pCls);
+      }
+    });
+
+    // 2. Index all admissions pool (all past and current sessions / classes)
+    (allAdmissionsPool || []).forEach(adm => {
+      indexItem(adm);
+    });
+
+    // 3. Also index dataset
+    (dataset || []).forEach(s => {
+      indexItem(s);
+    });
+
+    return map;
+  }, [historyDataset, allAdmissionsPool, dataset]);
+
   // Calculate Next Available Sequential Admission Number
   const nextSequentialAdmNo = useMemo(() => {
     let max = 5000;
@@ -1254,6 +1357,7 @@ export default function AdmissionRegisterSuite({
         // 1. Check admissions collection (live & cached)
         const allAdmissions = await getCachedCollection('admissions');
         if (Array.isArray(allAdmissions) && allAdmissions.length > 0) {
+          if (!isCancelled) setAllAdmissionsPool(allAdmissions);
           const matched = allAdmissions.filter(d => {
             if (!d) return false;
             const sSess = cleanStr(d.session || d.Session || d['Academic Session'] || '');
@@ -1439,8 +1543,104 @@ export default function AdmissionRegisterSuite({
         }
       }
 
+      // 100% Matching Board Registration across previous sessions and classes
+      const sRegKey = normalizeBoardRegKey(boardReg);
+      const regCandidates = sRegKey ? universalBoardRegMap.get(sRegKey) || [] : [];
+      let regMatch = null;
+      if (regCandidates.length > 0) {
+        // Prioritize match from a different class (e.g. 11th if current is 12th) or session that has complete data
+        regMatch = regCandidates.find(c => {
+          const hasData = c.dob || c.subs || c.boardRollNo || c.currentResult;
+          const isDifferent = (c.class && c.class !== cls) || (c.session && c.session !== sess);
+          return hasData && isDifferent;
+        }) || regCandidates.find(c => c.dob || c.subs || c.boardRollNo || c.currentResult) || regCandidates[0];
+      }
+
+      // Track inherited fields
+      const inheritedFields = new Set();
+      let inheritedSource = null;
+
+      let finalDob = dob;
+      if (!finalDob && regMatch?.dob) {
+        finalDob = regMatch.dob;
+        inheritedFields.add('dob');
+      } else if (!finalDob && histMatch?.dob) {
+        finalDob = formatRegisterDate(histMatch.dob);
+        inheritedFields.add('dob');
+      }
+
+      let finalSubs = subs && subs !== '-' && subs !== '—' ? subs : '';
+      if (!finalSubs && regMatch?.subs) {
+        finalSubs = regMatch.subs;
+        inheritedFields.add('subs');
+      } else if (!finalSubs && histMatch) {
+        const histRawSubs = extractStudentSubjects(histMatch);
+        const histAbbrSubs = abbreviateSubjects(histRawSubs);
+        if (histAbbrSubs && histAbbrSubs !== '-' && histAbbrSubs !== '—') {
+          finalSubs = histAbbrSubs;
+          inheritedFields.add('subs');
+        }
+      }
+
+      let finalBoardRollNo = boardRollNo;
+      if (!finalBoardRollNo && regMatch?.boardRollNo) {
+        finalBoardRollNo = regMatch.boardRollNo;
+        inheritedFields.add('boardRoll');
+      } else if (!finalBoardRollNo && histMatch) {
+        finalBoardRollNo = firstCleanValue(histMatch, BOARD_ROLL_KEYS);
+        if (finalBoardRollNo) inheritedFields.add('boardRoll');
+      }
+
+      let finalResult = currentResult;
+      if (!finalResult && regMatch?.currentResult) {
+        finalResult = regMatch.currentResult;
+        inheritedFields.add('result');
+      } else if (!finalResult && histMatch) {
+        finalResult = firstCleanValue(histMatch, CURRENT_RESULT_KEYS);
+        if (finalResult) inheritedFields.add('result');
+      }
+
+      let finalFather = father;
+      if (!finalFather && regMatch?.father) {
+        finalFather = regMatch.father;
+        inheritedFields.add('father');
+      }
+
+      let finalMother = mother;
+      if (!finalMother && regMatch?.mother) {
+        finalMother = regMatch.mother;
+        inheritedFields.add('mother');
+      }
+
+      let finalPenValue = pen && pen !== 'NA' && pen !== '—' ? pen : '';
+      if (!finalPenValue && regMatch?.pen) {
+        finalPenValue = regMatch.pen;
+        inheritedFields.add('pen');
+      }
+
+      let finalAdmNumber = admNo;
+      if (!finalAdmNumber && regMatch?.admNo) {
+        finalAdmNumber = regMatch.admNo;
+        inheritedFields.add('admNo');
+      }
+
+      let finalPhotoUrl = directPhoto;
+      if (!finalPhotoUrl && regMatch?.photo) {
+        finalPhotoUrl = regMatch.photo;
+        inheritedFields.add('photo');
+      }
+
+      if (inheritedFields.size > 0 && (regMatch || histMatch)) {
+        const sourceObj = regMatch || histMatch;
+        inheritedSource = {
+          class: sourceObj.class || 'Previous Class',
+          session: sourceObj.session || 'Past Session',
+          fields: Array.from(inheritedFields)
+        };
+      }
+
       const fallbackAdmNo = (rollNo && !isNaN(parseInt(rollNo, 10))) ? String(5277 + parseInt(rollNo, 10)) : '';
-      const finalAdmNo = admNo || firstCleanValue(histMatch, ADMISSION_NO_KEYS) || fallbackAdmNo;
+      const finalAdmNo = finalAdmNumber || firstCleanValue(histMatch, ADMISSION_NO_KEYS) || fallbackAdmNo;
       const finalAdmDate = admDate || formatRegisterDate(firstRawValue(histMatch, ADMISSION_DATE_KEYS)) || (s.onlineSubmDate ? formatRegisterDate(s.onlineSubmDate) : '') || '02-03-2026';
       const displayAdmNo = (isReadmission && oldAdmNo && oldAdmNo !== finalAdmNo)
         ? `${finalAdmNo || '—'} (${oldAdmNo})`
@@ -1449,7 +1649,7 @@ export default function AdmissionRegisterSuite({
       const finalPrevSchool = prevSchool || getPreviousAcademicValue(histMatch, cls, 'Name of Previous School', ['prevSchool', 'Previous School', 'Name of Previous School', 'Name of the Institution last attended']);
       const finalPrevRoll = prevRoll || getPreviousAcademicValue(histMatch, cls, 'Exam Roll Number of Class', ['prevExamRollNo', 'Previous Exam Roll No', 'Exam R.No. (Prev.)', 'Roll No. (Class 10th)', 'classRollNo', 'Class Roll No', 'rollNo']);
       const finalPrevResult = prevResult || firstCleanValue(histMatch, ['prevResult', 'Previous Result', 'Marks/Reapp (Prev.)', 'Marks Obt. (Prev.)']);
-      const finalPen = pen || firstCleanValue(histMatch, ['penNo', 'PEN number (given by UDISE portal)', 'PEN No.', 'PEN Number', 'PEN (UDISE)', 'UDISE PEN']) || 'NA';
+      const finalPen = finalPenValue || firstCleanValue(histMatch, ['penNo', 'PEN number (given by UDISE portal)', 'PEN No.', 'PEN Number', 'PEN (UDISE)', 'UDISE PEN']) || 'NA';
       const finalAccount = account || (histMatch ? firstCleanValue(histMatch, BANK_ACCOUNT_KEYS) : '');
       const finalIfsc = ifsc || firstCleanValue(histMatch, IFSC_KEYS) || (finalAccount && finalAccount.length >= 10 ? 'JAKA0SHANGUS' : '—');
       const finalGender = gender || firstCleanValue(histMatch, ['gender', 'Gender']);
@@ -1479,18 +1679,18 @@ export default function AdmissionRegisterSuite({
         isReadmission,
         rollNo,
         boardReg: finalBoardReg,
-        boardRollNo: boardRollNo || firstCleanValue(histMatch, BOARD_ROLL_KEYS),
-        currentResult: currentResult || firstCleanValue(histMatch, CURRENT_RESULT_KEYS),
+        boardRollNo: finalBoardRollNo || firstCleanValue(histMatch, BOARD_ROLL_KEYS),
+        currentResult: finalResult || firstCleanValue(histMatch, CURRENT_RESULT_KEYS),
         name: name || 'Student Record',
-        father,
-        mother,
-        dobFigures: dob,
-        dobWords: formatDateToWords(dob),
+        father: finalFather,
+        mother: finalMother,
+        dobFigures: finalDob,
+        dobWords: formatDateToWords(finalDob),
         gender: finalGender,
         class: cls,
         session: sess,
         stream,
-        subs,
+        subs: finalSubs,
         aadhar: finalAadhar,
         village: finalVillage,
         block: finalBlock,
@@ -1510,18 +1710,20 @@ export default function AdmissionRegisterSuite({
         admDate: finalAdmDate,
         onlineStatus,
         status,
-        directPhoto,
+        directPhoto: finalPhotoUrl,
         // This legal register value must come from the matched database record.
         // Never infer it from the previous-school name or re-admission status.
         prevCC: finalAdmittedVide || '—',
         withdrawal: finalWithdrawal || '—',
         issuedCC: finalIssuedCC,
         receipt: finalReceipt,
-        remarks: isReadmission ? `Re-admission (Gap)${oldAdmNo ? ` • Prev Adm: ${oldAdmNo}` : ''}` : cleanStr(s.remarks || s.Remarks || s['Remarks/Feedback (if any)'] || '')
+        remarks: isReadmission ? `Re-admission (Gap)${oldAdmNo ? ` • Prev Adm: ${oldAdmNo}` : ''}` : cleanStr(s.remarks || s.Remarks || s['Remarks/Feedback (if any)'] || ''),
+        inheritedSource,
+        hasInheritedData: inheritedFields.size > 0
       });
     });
     return list;
-  }, [dataset, selectedSession, flatHistoryRecords]);
+  }, [dataset, selectedSession, flatHistoryRecords, universalBoardRegMap]);
 
   // 4. DYNAMIC CLASSES TAILORED STRICTLY TO LOADED SESSION DATA
   const availableClasses = useMemo(() => {
@@ -1904,15 +2106,58 @@ export default function AdmissionRegisterSuite({
     }
   };
 
+  // ─── Row-Level Inclusion/Exclusion (Skipping Specific Rows) ───
+  const [skippedRowIds, setSkippedRowIds] = useState(() => new Set());
+  const [showSkippedTray, setShowSkippedTray] = useState(false);
+
+  const toggleRowSkip = useCallback((rowId) => {
+    setSkippedRowIds(prev => {
+      const next = new Set(prev);
+      if (next.has(rowId)) {
+        next.delete(rowId);
+      } else {
+        next.add(rowId);
+      }
+      return next;
+    });
+  }, []);
+
+  const toggleSelectAllRows = useCallback(() => {
+    if (skippedRowIds.size === 0) {
+      const allIds = new Set(filteredStudents.map(s => s.id));
+      setSkippedRowIds(allIds);
+    } else {
+      setSkippedRowIds(new Set());
+    }
+  }, [filteredStudents, skippedRowIds.size]);
+
+  const resetSkippedRows = useCallback(() => {
+    setSkippedRowIds(new Set());
+  }, []);
+
+  // Active Included Rows (Dynamically Omits Skipped Rows & Recalculates Sequential S.No.)
+  const activeIncludedRows = useMemo(() => {
+    const included = filteredStudents.filter(s => !skippedRowIds.has(s.id));
+    return included.map((s, idx) => ({
+      ...s,
+      sno: idx + 1
+    }));
+  }, [filteredStudents, skippedRowIds]);
+
+  const skippedCount = skippedRowIds.size;
+  const isAllRowsIncluded = skippedCount === 0 && filteredStudents.length > 0;
+  const isSomeRowsSkipped = skippedCount > 0 && skippedCount < filteredStudents.length;
+
   // 10 Students Per Page Chunks for Legal Print Layout
   const STUDENTS_PER_PAGE = 10;
   const pageChunks = useMemo(() => {
+    const targetList = activeTab === 'sentup' ? activeIncludedRows : filteredStudents;
     const chunks = [];
-    for (let i = 0; i < filteredStudents.length; i += STUDENTS_PER_PAGE) {
-      chunks.push(filteredStudents.slice(i, i + STUDENTS_PER_PAGE));
+    for (let i = 0; i < targetList.length; i += STUDENTS_PER_PAGE) {
+      chunks.push(targetList.slice(i, i + STUDENTS_PER_PAGE));
     }
     return chunks;
-  }, [filteredStudents]);
+  }, [activeTab, activeIncludedRows, filteredStudents]);
 
   // Summary Target Students: strictly aggregates the paired classes (e.g. 11th & 12th or 9th & 10th)
   // so the roll statement on the Consolidated Summary page always presents both classes together!
@@ -2302,7 +2547,8 @@ export default function AdmissionRegisterSuite({
         'Date of Birth', 'Class', 'Session', 'Stream', 'Subjects', 'Board Roll No.', 'Result'
       ];
 
-      const rows = filteredStudents.map(s => [
+      const exportList = activeTab === 'sentup' ? activeIncludedRows : filteredStudents;
+      const rows = exportList.map(s => [
         s.sno,
         s.admNo || '',
         s.rollNo || '',
@@ -2464,9 +2710,44 @@ export default function AdmissionRegisterSuite({
           .register-ledger-page {
             display: flex !important;
             flex-direction: column !important;
-            height: 205mm !important;
-            min-height: 205mm !important;
-            max-height: 205mm !important;
+            justify-content: space-between !important;
+            height: 195mm !important;
+            min-height: 190mm !important;
+            max-height: 195mm !important;
+            box-sizing: border-box !important;
+            padding: 2.5mm 4mm !important;
+            page-break-inside: avoid !important;
+            break-inside: avoid-page !important;
+            overflow: hidden !important;
+          }
+
+          .sentup-table {
+            table-layout: fixed !important;
+            width: 100% !important;
+          }
+
+          .sentup-table th, .sentup-table td {
+            padding: 1px 2px !important;
+            line-height: 1.15 !important;
+          }
+
+          .sentup-table tr {
+            height: 13.5mm !important;
+            max-height: 14mm !important;
+          }
+
+          .sentup-photo-cell {
+            height: 38px !important;
+            max-height: 38px !important;
+          }
+
+          .signature-footer {
+            margin-top: 1mm !important;
+            padding-top: 1mm !important;
+            page-break-before: avoid !important;
+            break-before: avoid !important;
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
           }
 
           .admission-suite-root main .space-y-6 > .page-container:last-child {
@@ -4032,7 +4313,84 @@ export default function AdmissionRegisterSuite({
           {/* TAB 2: SENTUP EXPORT (JKBOSE THEMED CANDIDATE ROLL SHEET)       */}
           {/* ============================================================== */}
           {activeTab === 'sentup' && (
-            <div className="space-y-6" style={{ transform: `scale(${zoomLevel})`, transformOrigin: 'top center' }}>
+            <div className="space-y-4" style={{ transform: `scale(${zoomLevel})`, transformOrigin: 'top center' }}>
+              {/* Row Inclusion / Skip Selection Status Bar (Matches Roster & Registers Studio) */}
+              <div className="print:hidden max-w-[355.6mm] mx-auto px-3 py-1.5 bg-slate-50 dark:bg-slate-800/90 rounded-xl border border-slate-300 dark:border-slate-700 flex flex-wrap items-center justify-between gap-2 text-xs select-none shadow-2xs">
+                <div className="flex items-center gap-2.5">
+                  <button
+                    type="button"
+                    onClick={toggleSelectAllRows}
+                    className="flex items-center gap-1.5 text-slate-800 dark:text-slate-200 hover:text-red-800 font-extrabold cursor-pointer transition-colors"
+                    title={isAllRowsIncluded ? "Deselect / skip all rows" : "Select / include all rows"}
+                  >
+                    {isAllRowsIncluded ? (
+                      <CheckSquare size={14} className="text-emerald-600" />
+                    ) : isSomeRowsSkipped ? (
+                      <Minus size={14} className="text-amber-600" />
+                    ) : (
+                      <Square size={14} className="text-slate-400" />
+                    )}
+                    <span className="text-[11px]">
+                      <strong className="text-red-900 dark:text-red-400 font-black">{activeIncludedRows.length}</strong> of {filteredStudents.length} Students Included
+                    </span>
+                  </button>
+
+                  {skippedCount > 0 && (
+                    <span className="text-[9.5px] font-black text-amber-800 dark:text-amber-300 bg-amber-100 dark:bg-amber-950/70 px-2 py-0.5 rounded-full border border-amber-300 dark:border-amber-700">
+                      {skippedCount} skipped from print
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-2">
+                  {skippedCount > 0 && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={resetSkippedRows}
+                        className="px-2.5 py-0.5 rounded-md bg-emerald-100 hover:bg-emerald-200 text-emerald-900 font-bold text-[10px] cursor-pointer transition-colors shadow-2xs"
+                        title="Include all students in print & exports"
+                      >
+                        Include All
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setShowSkippedTray(prev => !prev)}
+                        className="px-2 py-0.5 rounded-md border border-slate-300 dark:border-slate-600 hover:bg-slate-100 text-slate-700 dark:text-slate-300 font-bold text-[10px] cursor-pointer transition-colors flex items-center gap-1 shadow-2xs"
+                      >
+                        <Eye size={11} />
+                        <span>{showSkippedTray ? 'Hide Skipped List' : `View Skipped (${skippedCount})`}</span>
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* Collapsible Skipped Students Quick Tray */}
+              {skippedCount > 0 && showSkippedTray && (
+                <div className="print:hidden max-w-[355.6mm] mx-auto p-2.5 bg-amber-50/90 dark:bg-amber-950/40 rounded-xl border border-amber-300 dark:border-amber-800 text-xs">
+                  <div className="text-[10px] font-black uppercase text-amber-900 dark:text-amber-300 mb-1.5 flex items-center gap-1">
+                    <AlertCircle size={12} />
+                    <span>Skipped Candidates (Omitted from Print Pages & Excel Export) — Click to Re-Include:</span>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {filteredStudents.filter(s => skippedRowIds.has(s.id)).map(s => (
+                      <button
+                        key={s.id}
+                        type="button"
+                        onClick={() => toggleRowSkip(s.id)}
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-white dark:bg-slate-900 border border-amber-300 dark:border-amber-700 text-[10px] font-bold text-slate-800 dark:text-slate-200 hover:bg-emerald-50 hover:border-emerald-400 hover:text-emerald-800 transition-colors cursor-pointer shadow-2xs"
+                        title="Click to re-include this student"
+                      >
+                        <Plus size={10} className="text-emerald-600" />
+                        <span>{s.name} [{s.rollNo || s.boardReg || '—'}]</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {pageChunks.map((chunk, idx) => {
                 const pageNum = idx + 1;
                 const is12th = selectedClass.includes('12');
@@ -4056,13 +4414,18 @@ export default function AdmissionRegisterSuite({
                     </div>
 
                     <div className="overflow-x-auto">
-                      <table className="w-full text-left text-[9px] border-collapse border border-slate-900 ledger-data-font">
+                      <table className="sentup-table w-full text-left text-[9px] border-collapse border border-slate-900 ledger-data-font">
                         <thead>
                           <tr className={`${themeHeaderBg} uppercase font-black text-center text-[8.5px]`}>
+                            <th className="border border-slate-900 px-1 py-1 text-center w-7 select-none shrink-0 print:hidden" title="Select / deselect all rows">
+                              <button type="button" onClick={toggleSelectAllRows} className="cursor-pointer text-white flex items-center justify-center mx-auto">
+                                {isAllRowsIncluded ? <CheckSquare size={12} className="text-white" /> : isSomeRowsSkipped ? <Minus size={12} className="text-white" /> : <Square size={12} className="text-white opacity-70" />}
+                              </button>
+                            </th>
                             <ResizableTh colKey="st_sno" width={columnWidths.st_sno} onResize={handleColumnResize} className="border border-slate-900 px-1 py-1">S.No.<br /><span className="text-[7px] opacity-80">[Adm No.]</span></ResizableTh>
                             <ResizableTh colKey="st_rollNo" width={columnWidths.st_rollNo} onResize={handleColumnResize} className="border border-slate-900 px-1 py-1">Class<br />Roll No.</ResizableTh>
                             <ResizableTh colKey="st_photo" width={columnWidths.st_photo} onResize={handleColumnResize} className="border border-slate-900 px-1 py-1">Photo</ResizableTh>
-                            <ResizableTh colKey="st_boardReg" width={columnWidths.st_boardReg} onResize={handleColumnResize} className="border border-slate-900 px-1 py-1">Board<br />Reg. No.</ResizableTh>
+                            <ResizableTh colKey="st_boardReg" width={columnWidths.st_boardReg} onResize={handleColumnResize} className="border border-slate-900 px-1.5 py-1 text-left pl-2">Board<br />Reg. No.</ResizableTh>
                             <ResizableTh colKey="st_name" width={columnWidths.st_name} onResize={handleColumnResize} className="border border-slate-900 px-1 py-1 text-left pl-2">Student's Name</ResizableTh>
                             <ResizableTh colKey="st_parentage" width={columnWidths.st_parentage} onResize={handleColumnResize} className="border border-slate-900 px-1 py-1 text-left pl-2">Parentage<br /><span className="text-[6.5px] opacity-80">(Father / Mother)</span></ResizableTh>
                             <ResizableTh colKey="st_dob" width={columnWidths.st_dob} onResize={handleColumnResize} className="border border-slate-900 px-1 py-1">Date of Birth</ResizableTh>
@@ -4076,14 +4439,29 @@ export default function AdmissionRegisterSuite({
                         <tbody className="divide-y divide-slate-900 text-slate-900">
                           {chunk.map((s) => {
                             const photoSrc = getResolvedStudentPhoto(s);
+                            const isSkipped = skippedRowIds.has(s.id);
                             return (
-                              <ResizableDataRow key={s.id} rowHeight={rowHeight} onResize={handleRowHeightChange} className="hover:bg-slate-50">
+                              <ResizableDataRow key={s.id} rowHeight={rowHeight} onResize={handleRowHeightChange} className={`hover:bg-slate-50 ${isSkipped ? 'opacity-50 bg-slate-100 dark:bg-slate-800/50' : ''}`}>
+                                <td className="border border-slate-900 px-0.5 py-0.5 text-center select-none w-7 print:hidden">
+                                  <button
+                                    type="button"
+                                    onClick={() => toggleRowSkip(s.id)}
+                                    className="p-1 cursor-pointer flex items-center justify-center mx-auto text-slate-700 hover:text-red-700 transition-colors"
+                                    title={isSkipped ? "Click to include this student in print & exports" : "Click to skip this student from print & exports"}
+                                  >
+                                    {!isSkipped ? (
+                                      <CheckSquare size={13} className="text-emerald-700" />
+                                    ) : (
+                                      <Square size={13} className="text-slate-400" />
+                                    )}
+                                  </button>
+                                </td>
                                 <td className="border border-slate-900 px-1 py-0.5 text-center">
-                                  <div className="font-black text-xs ledger-mono-font">{s.sno}</div>
+                                  <div className={`font-black text-xs ledger-mono-font ${isSkipped ? 'line-through text-slate-400' : ''}`}>{s.sno}</div>
                                   <div className="text-[7.5px] font-mono text-slate-500 ledger-mono-font">[{s.admNo || '—'}]</div>
                                 </td>
                                 <td className="border border-slate-900 px-1 py-0.5 text-center font-black text-sm text-sky-800 ledger-mono-font">{s.rollNo}</td>
-                                <td className="register-photo-cell border border-slate-900 p-0 text-center overflow-hidden bg-slate-50 print:bg-transparent" style={{ width: columnWidths.st_photo ? `${columnWidths.st_photo}px` : undefined, height: `${rowHeight}px` }}>
+                                <td className="sentup-photo-cell register-photo-cell border border-slate-900 p-0 text-center overflow-hidden bg-slate-50 print:bg-transparent" style={{ width: columnWidths.st_photo ? `${columnWidths.st_photo}px` : undefined, height: `${rowHeight}px` }}>
                                   {photoSrc ? (
                                     <img
                                       src={photoSrc}
@@ -4103,27 +4481,64 @@ export default function AdmissionRegisterSuite({
                                     Photo
                                   </div>
                                 </td>
-                                <td className="border border-slate-900 px-1 py-0.5 text-center ledger-mono-font">{formatBoardRegSplit(s.boardReg)}</td>
+                                <td className="border border-slate-900 px-1.5 py-0.5 text-left pl-2 ledger-mono-font">{formatBoardRegSplit(s.boardReg)}</td>
                                 <td className="border border-slate-900 px-2 py-0.5 text-left font-black uppercase text-[10px]">
                                   <div className="flex items-center justify-between gap-1">
                                     <span className="tracking-tight">{s.name}</span>
-                                    {s.isReadmission && (
-                                      <span className="text-[7px] font-black px-1 py-0.2 rounded bg-purple-100 text-purple-800">
-                                        Re-Adm
-                                      </span>
-                                    )}
+                                    <div className="flex items-center gap-1 print:hidden shrink-0">
+                                      {s.isReadmission && (
+                                        <span className="text-[7px] font-black px-1 py-0.2 rounded bg-purple-100 text-purple-800">
+                                          Re-Adm
+                                        </span>
+                                      )}
+                                      {s.hasInheritedData && (
+                                        <span
+                                          className="inline-flex items-center gap-0.5 text-[7px] font-black px-1 py-0.2 rounded bg-amber-100 dark:bg-amber-950/80 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-700 shadow-2xs"
+                                          title={`Data inherited from ${s.inheritedSource?.class || 'Previous Class'} (${s.inheritedSource?.session || 'Past Session'}): ${(s.inheritedSource?.fields || []).join(', ')}`}
+                                        >
+                                          <Sparkles size={7.5} className="text-amber-600" />
+                                          <span>From {s.inheritedSource?.class || 'Prev'} ({s.inheritedSource?.session || 'Past'})</span>
+                                        </span>
+                                      )}
+                                    </div>
                                   </div>
                                 </td>
                                 <td className="border border-slate-900 px-2 py-0.5 text-left uppercase text-[8.5px] leading-tight">
                                   <div className="font-bold border-b border-slate-200 pb-0.5">{s.father}</div>
                                   <div className="text-slate-500 text-[7.5px] pt-0.5">{s.mother}</div>
                                 </td>
-                                <td className="border border-slate-900 px-1 py-0.5 text-center font-mono text-[8.5px] ledger-mono-font">{s.dobFigures}</td>
+                                <td className="border border-slate-900 px-1 py-0.5 text-center font-mono text-[8.5px] ledger-mono-font">
+                                  <div>{s.dobFigures || '—'}</div>
+                                  {s.inheritedSource?.fields?.includes('dob') && (
+                                    <div className="text-[6.5px] font-bold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/50 rounded px-0.5 leading-tight print:hidden">
+                                      From {s.inheritedSource.class || 'Prev'}
+                                    </div>
+                                  )}
+                                </td>
                                 <td className="border border-slate-900 px-1 py-0.5 text-center text-[7.5px] leading-tight font-medium">
                                   {s.subs ? s.subs.split(',').map((sub, i) => <div key={i}>{sub.trim()}</div>) : '—'}
+                                  {s.inheritedSource?.fields?.includes('subs') && (
+                                    <div className="text-[6.5px] font-bold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/50 rounded px-0.5 mt-0.5 leading-tight print:hidden">
+                                      From {s.inheritedSource.class || 'Prev'}
+                                    </div>
+                                  )}
                                 </td>
-                                <td className="border border-slate-900 px-1 py-0.5 text-center font-mono font-bold text-xs ledger-mono-font">{s.boardRollNo || '—'}</td>
-                                <td className="border border-slate-900 px-1 py-0.5 text-center font-bold text-[8.5px]">{s.currentResult || '—'}</td>
+                                <td className="border border-slate-900 px-1 py-0.5 text-center font-mono font-bold text-xs ledger-mono-font">
+                                  <div>{s.boardRollNo || '—'}</div>
+                                  {s.inheritedSource?.fields?.includes('boardRoll') && (
+                                    <div className="text-[6.5px] font-bold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/50 rounded px-0.5 leading-tight font-sans print:hidden">
+                                      From {s.inheritedSource.class || 'Prev'}
+                                    </div>
+                                  )}
+                                </td>
+                                <td className="border border-slate-900 px-1 py-0.5 text-center font-bold text-[8.5px]">
+                                  <div>{s.currentResult || '—'}</div>
+                                  {s.inheritedSource?.fields?.includes('result') && (
+                                    <div className="text-[6.5px] font-bold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/50 rounded px-0.5 leading-tight font-sans print:hidden">
+                                      From {s.inheritedSource.class || 'Prev'}
+                                    </div>
+                                  )}
+                                </td>
                                 <td className="border border-slate-900 p-1 text-center align-bottom text-[7.5px]">
                                   <div className="border-t border-slate-900 pt-0.5">Signature</div>
                                 </td>
