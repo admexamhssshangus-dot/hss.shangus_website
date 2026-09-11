@@ -5,36 +5,92 @@ export const classKey = value => {
   return key.match(/\d+/)?.[0] || ({ ix: '9', x: '10', xi: '11', xii: '12' }[key] || key);
 };
 export const sessionKey = value => {
-  const text = String(value ?? '').trim();
+  const text = String(value ?? '').trim().toLowerCase();
+  if (!text) return '';
   const match = text.match(/(20\d{2})\s*[-/]\s*(\d{2,4})/);
-  return match ? `${match[1]}-${match[2].slice(-2)}` : identityKey(text);
+  if (match) return `${match[1]}-${match[2].slice(-2)}`;
+  // Handle sessions like "2026 APR/BIAN" or "2026-APR/BIAN"
+  const yearMatch = text.match(/\b(20\d{2})\b/);
+  const isBian = /bian|bi-annual|apr/i.test(text);
+  if (yearMatch && isBian) return `${yearMatch[1]}-bian`;
+  if (yearMatch) return yearMatch[1];
+  return identityKey(text);
 };
+
 export function recordIdentity(student = {}) {
   const s = { ...(student.raw || {}), ...student };
   return {
-    form: identityKey(s.formNo || s['Form Number'] || s['Form No.']),
-    reg: identityKey(s.boardRegNo || s.regNo || s['Board Registration Number'] || s['Board Reg. No.']),
-    roll: identityKey(s.classRollNo || s['Class Roll No'] || s['Class Roll No.'] || s.rollNo),
-    adm: identityKey(s.admNo || s['Admission No.'] || s['Adm. No.']),
+    form: identityKey(s.formNo || s['Form Number'] || s['Form No.'] || s['Form No']),
+    reg: identityKey(s.boardRegNo || s.regNo || s.boardReg || s['Board Registration Number'] || s['Board Registration No.'] || s['Board Registration No'] || s['Board Reg. No.'] || s['Board Reg No'] || s['Registration No. (allotted by JKBOSE)'] || s['Registration No. (allotted by JKBOSE )'] || s['Registration No.'] || s['Registration No'] || s['Reg. No.'] || s['Reg No'] || s['REG. NO.'] || s['REG NO']),
+    roll: identityKey(s.classRollNo || s['Class Roll No'] || s['Class Roll No.'] || s['RL. NO.'] || s['RL. NO'] || s['Class R.No.'] || s.rollNo),
+    adm: identityKey(s.admNo || s['Admission No.'] || s['Admission No'] || s['Admission Number'] || s['Adm. No.'] || s['Adm No'] || s.admissionNo),
     className: classKey(s.classCanonical || s.selectedClass || s.className || s.Class || s.class || s['Admission sought for class']),
     session: sessionKey(s.sessionCanonical || s.selectedSession || s.Session || s.session || s['Academic Session'])
   };
 }
+
 export function sameCohort(student, session, className) {
   const identity = recordIdentity(student);
-  return (!session || session === 'All' || identity.session === sessionKey(session)) &&
-    (!className || className === 'All' || identity.className === classKey(className));
+  const targetSessionKey = sessionKey(session);
+  const targetClassKey = classKey(className);
+
+  const matchSession = !session || session === 'All' || !targetSessionKey || identity.session === targetSessionKey;
+  const matchClass = !className || className === 'All' || !targetClassKey || identity.className === targetClassKey;
+
+  return matchSession && matchClass;
 }
+
 export function uniqueStudentMatch(students, identifiers, session, className) {
-  const provided = Object.entries(identifiers).filter(([, value]) => identityKey(value));
-  if (!provided.length) return null;
-  const matches = students.filter(student => {
-    if (!sameCohort(student, session, className)) return false;
-    const actual = recordIdentity(student);
-    // All supplied identifiers must agree; never fall through after a conflict.
-    return provided.every(([key, value]) => actual[key] === identityKey(value));
-  });
-  return matches.length === 1 ? matches[0] : null;
+  const cleanIdentifiers = Object.fromEntries(
+    Object.entries(identifiers).map(([k, v]) => [k, identityKey(v)]).filter(([, v]) => v)
+  );
+  if (!Object.keys(cleanIdentifiers).length) return null;
+
+  const cohortStudents = students.filter(student => sameCohort(student, session, className));
+
+  // 1. Primary Authority: Board Registration Number (100% unique nationwide / boardwide)
+  if (cleanIdentifiers.reg) {
+    const regMatches = cohortStudents.filter(student => {
+      const actual = recordIdentity(student);
+      return actual.reg && actual.reg === cleanIdentifiers.reg;
+    });
+    if (regMatches.length === 1) return regMatches[0];
+
+    // If cohort filter was slightly restrictive due to session alias differences, search all students
+    if (regMatches.length === 0) {
+      const globalMatches = students.filter(student => {
+        const actual = recordIdentity(student);
+        return actual.reg && actual.reg === cleanIdentifiers.reg;
+      });
+      if (globalMatches.length === 1) return globalMatches[0];
+    }
+  }
+
+  // 2. Secondary Authority: Admission Number or Form Number
+  if (cleanIdentifiers.adm || cleanIdentifiers.form) {
+    const idMatches = cohortStudents.filter(student => {
+      const actual = recordIdentity(student);
+      const matchAdm = cleanIdentifiers.adm && actual.adm === cleanIdentifiers.adm;
+      const matchForm = cleanIdentifiers.form && actual.form === cleanIdentifiers.form;
+      return matchAdm || matchForm;
+    });
+    if (idMatches.length === 1) return idMatches[0];
+  }
+
+  // 3. Fallback Authority: Class Roll Number within the confirmed cohort
+  if (cleanIdentifiers.roll) {
+    const rollMatches = cohortStudents.filter(student => {
+      const actual = recordIdentity(student);
+      if (!actual.roll) return false;
+      if (actual.roll === cleanIdentifiers.roll) return true;
+      const numActual = parseInt(actual.roll.replace(/\D/g, ''), 10);
+      const numProv = parseInt(cleanIdentifiers.roll.replace(/\D/g, ''), 10);
+      return !isNaN(numActual) && !isNaN(numProv) && numActual === numProv;
+    });
+    if (rollMatches.length === 1) return rollMatches[0];
+  }
+
+  return null;
 }
 export function recordLocator(student = {}) {
   const s = { ...(student.raw || {}), ...student };

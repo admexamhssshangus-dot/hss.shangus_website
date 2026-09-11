@@ -1,4 +1,4 @@
-import { uniqueStudentMatch } from '../../utils/recordIdentity';
+import { uniqueStudentMatch, sameCohort } from '../../utils/recordIdentity';
 import { beginMutationJob, applyRecordPatch, completeMutationJob } from '../../services/recordMutationService';
 import React, { useState, useMemo, useEffect } from 'react';
 import { 
@@ -71,8 +71,8 @@ export const STANDARD_DB_CATEGORIES = [
     color: 'amber',
     icon: Award,
     fields: [
-      { key: 'boardRollNo', label: "Exam Roll No. (Board)", defaultChecked: false, dbKeys: ['Exam R.No. (Current)', 'Board Roll Number', 'Board Roll No.', 'Board Roll No', 'boardRollNo', 'examRollNo', 'currExamRollNo', 'Roll No.', 'Roll No', 'Exam R.No.'], excelKeys: ['boardrollno', 'examrollno', 'boardrollnumber', 'boardroll', 'rollnumber', 'rollno', 'examroll'] },
-      { key: 'result', label: "Board Result Status", defaultChecked: false, dbKeys: ['Board Result', 'Result (Current)', 'Result', 'result', 'boardResult', 'currResult', 'statusResult'], excelKeys: ['boardresult', 'result', 'resultstatus', 'examresult', 'status'] },
+      { key: 'boardRollNo', label: "Exam Roll No. (Board)", defaultChecked: false, dbKeys: ['Exam R.No. (Current)', 'Exam R. No. (Current)', 'boardRollNo', 'currExamRollNo', 'examRollNo', 'currExamRoll', 'Board Roll Number', 'Board Roll No.', 'Board Roll No', 'Exam R.No.', 'Exam R. No.'], excelKeys: ['boardrollno', 'examrollno', 'boardrollnumber', 'boardroll', 'examroll'] },
+      { key: 'result', label: "Board Result Status", defaultChecked: false, dbKeys: ['Result (Current)', 'Board Result', 'Result', 'result', 'boardResult', 'currResult', 'statusResult'], excelKeys: ['boardresult', 'result', 'resultstatus', 'examresult', 'status'] },
       { key: 'marks', label: "Marks Obtained", defaultChecked: false, dbKeys: ['Marks/Reapp (Current)', 'Marks Obtained', 'Marks', 'marks', 'totalMarks', 'marksObtained', 'currMarksReapp'], excelKeys: ['marksobtained', 'marks', 'totalmarks', 'securedmarks', 'obtmarks'] },
       { key: 'maxMarks', label: "Max Marks", defaultChecked: false, dbKeys: ['Max Marks', 'Maximum Marks', 'maxMarks', 'totalMaxMarks'], excelKeys: ['maxmarks', 'maximummarks', 'totalmax', 'outof'] },
       { key: 'percentage', label: "Percentage (%)", defaultChecked: false, dbKeys: ['Percentage', 'percentage', 'percent', 'pct'], excelKeys: ['percentage', 'percent', 'pct', 'markspercentage'] },
@@ -454,17 +454,16 @@ export default function BulkFieldOverwriteModal({
   // Pre-fills existing students from the selected cohort, sorted natural numeric by Class Roll No.
   const handleDownloadExcelTemplate = () => {
     const cohortStudents = (allStudents || []).filter(st => {
-      const sCls = String(st.selectedClass || st.className || st.Class || st.class || st['Admission sought for class'] || '').toLowerCase();
-      const sSess = String(st.selectedSession || st.Session || st.session || st.academicSession || '').toLowerCase();
+      const matchCohort = sameCohort(st, targetSession, targetClass);
+      if (!matchCohort) return false;
+
       const sStrm = String(st.selectedStream || st.Stream || st.stream || st['Stream for Class 11th'] || st['Stream & Subjects for Class 12th'] || st.faculty || '').toLowerCase();
       const sStat = String(st.status || st.Status || st.admissionStatus || '').toLowerCase();
       
-      const matchCls = targetClass === 'All' || sCls.includes(targetClass.toLowerCase());
-      const matchSess = targetSession === 'All' || sSess.includes(targetSession.toLowerCase());
       const matchStrm = targetStream === 'All' || sStrm.includes(targetStream.toLowerCase());
       const matchStat = targetStatus === 'All' || sStat === targetStatus.toLowerCase();
 
-      return matchCls && matchSess && matchStrm && matchStat;
+      return matchStrm && matchStat;
     });
 
     // Default sort cohort students by Class Roll No in natural numeric ascending order
@@ -579,10 +578,21 @@ export default function BulkFieldOverwriteModal({
         normalizedRow[cleanKey(k)] = typeof v === 'string' ? v.trim() : String(v || '');
       });
 
-      // Find first column / Registration No
-      const rawReg = row['Board Registration Number'] || row['Registration No.'] || row['Registration No'] || 
+      // Find first column / Registration No with complete alias coverage
+      let rawReg = row['Board Registration Number'] || row['Registration No.'] || row['Registration No'] || 
+                     row['Board Reg. No.'] || row['Board Reg No'] || row['Board Reg. No'] ||
+                     row['Registration Number'] || row['Reg. No.'] || row['Reg No'] || row['REG. NO.'] ||
                      normalizedRow['boardregistrationnumber'] || normalizedRow['registrationno'] || 
-                     normalizedRow['regno'] || normalizedRow['boardregno'] || normalizedRow['registrationnumber'] || '';
+                     normalizedRow['regno'] || normalizedRow['boardregno'] || normalizedRow['boardregistrationno'] || 
+                     normalizedRow['registrationnumber'] || '';
+      
+      if (!rawReg) {
+        const firstColVal = String(Object.values(row)[0] || '').trim();
+        if (firstColVal && (firstColVal.length >= 10 || /^\d{16}$/i.test(firstColVal) || /\d{4,}/.test(firstColVal))) {
+          rawReg = firstColVal;
+        }
+      }
+
       const rawAdm = normalizedRow['admissionno'] || normalizedRow['admno'] || normalizedRow['admissionnumber'] || '';
       const rawForm = normalizedRow['formno'] || normalizedRow['formnumber'] || normalizedRow['fno'] || '';
       const rawRoll = row['Class Roll No.'] || row['Class Roll No'] || row['Roll No.'] || row['Roll No'] ||
@@ -614,6 +624,17 @@ export default function BulkFieldOverwriteModal({
           extracted = formatDobToDisplay(extracted);
         } else if (f.key === 'subjects' && extracted) {
           extracted = cleanRawSubjectTokens(extracted).join(', ');
+        } else if (f.key === 'boardRollNo' && extracted) {
+          extracted = String(extracted).replace(/\.0+$/, '').trim();
+        } else if (f.key === 'marks' && extracted) {
+          extracted = String(extracted).replace(/\.0+$/, '').trim();
+        } else if (f.key === 'result' && extracted) {
+          const resUpper = String(extracted).trim().toUpperCase();
+          if (resUpper === 'PASS' || resUpper === 'PASSED' || resUpper === 'QUAL' || resUpper === 'QUALIFIED') {
+            extracted = 'Qualified';
+          } else if (resUpper === 'REAP' || resUpper === 'RE-APPEAR' || resUpper === 'REAPPEAR') {
+            extracted = 'Reappear';
+          }
         }
         incomingFields[f.key] = extracted;
       });
@@ -811,6 +832,15 @@ export default function BulkFieldOverwriteModal({
           });
         });
 
+        // Auto-calculate Percentage if marks and maxMarks are available and percentage not supplied
+        const finalMarks = payload['Marks Obtained'] || payload['marks'] || st.marks || st['Marks Obtained'];
+        const finalMax = payload['Max Marks'] || payload['maxMarks'] || st.maxMarks || st['Max Marks'] || '500';
+        if (finalMarks && !payload['Percentage'] && !isNaN(Number(finalMarks)) && !isNaN(Number(finalMax)) && Number(finalMax) > 0) {
+          const calculatedPct = ((Number(finalMarks) / Number(finalMax)) * 100).toFixed(1) + '%';
+          payload['Percentage'] = calculatedPct;
+          payload['percentage'] = calculatedPct;
+        }
+
         payload.updatedAt = new Date().toISOString();
         payload.lastBoardSyncAt = new Date().toISOString();
         payload.boardSyncSource = fileName || 'Bulk Overwrite';
@@ -841,6 +871,7 @@ export default function BulkFieldOverwriteModal({
 
       window.dispatchEvent(new CustomEvent('hss-results-updated'));
       window.dispatchEvent(new CustomEvent('hss-master-register-updated'));
+      window.dispatchEvent(new CustomEvent('hss-admissions-updated'));
 
       setProgressPercent(100);
       setProgressStage('All fields successfully overwritten and synchronized!');
@@ -848,6 +879,7 @@ export default function BulkFieldOverwriteModal({
       setStep('completed');
 
       if (onComplete) onComplete({ updatedCount });
+      if (onIngestSuccess) onIngestSuccess({ updatedCount });
     } catch (err) {
       console.error('Execution error during bulk field overwrite:', err);
       setErrorMsg('Failed during overwrite execution: ' + err.message);
