@@ -277,6 +277,47 @@ const enrichCertificateIdentityFields = (primaryRaw, linkedRecords = []) => {
     enriched.gender = genderValue;
   }
 
+  // Enrich Village / Town and Address from authoritative linked records
+  const extractVillageFromRecord = rec => {
+    const raw = rec?.raw || rec || {};
+    const keys = ['Village/Town', 'Name of your village', 'Village', 'village', 'town', 'Permanent Address', 'address', 'residence', 'Residence (Village, District)'];
+    for (const k of keys) {
+      const val = raw[k] ?? rec?.[k];
+      if (val && String(val).trim() && !/^(—|-|n\/?a|null|undefined)$/i.test(String(val).trim())) {
+        return String(val).trim();
+      }
+    }
+    return '';
+  };
+  const currentVillage = extractVillageFromRecord(enriched);
+  const linkedVillage = firstLinked(extractVillageFromRecord);
+  if (linkedVillage && !currentVillage) {
+    enriched['Village/Town'] = linkedVillage;
+    enriched.village = linkedVillage;
+  }
+
+  const extractTehsilFromRecord = rec => {
+    const raw = rec?.raw || rec || {};
+    const t = raw.Tehsil || raw.tehsil || rec?.Tehsil || rec?.tehsil || '';
+    return (t && !/^(—|-|n\/?a|null|undefined)$/i.test(String(t).trim())) ? String(t).trim() : '';
+  };
+  const linkedTehsil = firstLinked(extractTehsilFromRecord);
+  if (linkedTehsil && !extractTehsilFromRecord(enriched)) {
+    enriched.Tehsil = linkedTehsil;
+    enriched.tehsil = linkedTehsil;
+  }
+
+  const extractDistrictFromRecord = rec => {
+    const raw = rec?.raw || rec || {};
+    const d = raw.District || raw.district || rec?.District || rec?.district || '';
+    return (d && !/^(—|-|n\/?a|null|undefined)$/i.test(String(d).trim())) ? String(d).trim() : '';
+  };
+  const linkedDistrict = firstLinked(extractDistrictFromRecord);
+  if (linkedDistrict && !extractDistrictFromRecord(enriched)) {
+    enriched.District = linkedDistrict;
+    enriched.district = linkedDistrict;
+  }
+
   return enriched;
 };
 
@@ -587,6 +628,19 @@ export default function StudentCertificateStudioView({
         address = rawAddress;
       } else if (hasVillage) {
         address = /shangus/i.test(rawVillage) ? `${rawVillage}, Anantnag (J&K)` : `${rawVillage}, Shangus, Anantnag (J&K)`;
+      } else if (registrationHistory.length > 0) {
+        for (const rh of registrationHistory) {
+          const rhV = extractVillage(rh);
+          if (rhV && rhV !== '—' && rhV !== '-' && !/^(null|undefined|n\/a)$/i.test(rhV)) {
+            address = /shangus/i.test(rhV) ? `${rhV}, Anantnag (J&K)` : `${rhV}, Shangus, Anantnag (J&K)`;
+            break;
+          }
+          const rhAddr = rh.address || rh.residence || rh['Permanent Address'] || rh['Residence (Village, District)'] || '';
+          if (rhAddr && rhAddr !== '—' && rhAddr !== '-' && !/^(null|undefined|n\/a)$/i.test(rhAddr)) {
+            address = rhAddr;
+            break;
+          }
+        }
       }
       const mobile = extractMobile(effectiveStudent);
       const directPhoto = effectiveStudent.photo_id || effectiveStudent.photoId || effectiveStudent.photoUrl || effectiveStudent.photo || effectiveStudent['passport_photo'] || effectiveStudent['Student Photo'] || effectiveStudent['Photo'] || null;
@@ -1264,7 +1318,24 @@ export default function StudentCertificateStudioView({
     const effDob = resolvedDob && resolvedDob !== '—' ? resolvedDob : (st.dob || '');
     setDobRaw(effDob);
     setSession(st.session || '2025-26');
-    setAddress(st.address || '');
+    let effectiveAddr = st.address || '';
+    const targetRegInit = normalizeRegistrationKey(extractBoardRegNo(primaryRaw) || st.regNo);
+    if (!effectiveAddr && targetRegInit) {
+      const synRh = registrationHistoryByReg.get(targetRegInit) || [];
+      for (const rh of synRh) {
+        const rhV = extractVillage(rh);
+        if (rhV && rhV !== '—' && rhV !== '-' && !/^(null|undefined|n\/a)$/i.test(rhV)) {
+          effectiveAddr = /shangus/i.test(rhV) ? `${rhV}, Anantnag (J&K)` : `${rhV}, Shangus, Anantnag (J&K)`;
+          break;
+        }
+        const rhA = rh.address || rh.residence || rh['Permanent Address'] || '';
+        if (rhA && rhA !== '—' && rhA !== '-' && !/^(null|undefined|n\/a)$/i.test(rhA)) {
+          effectiveAddr = rhA;
+          break;
+        }
+      }
+    }
+    setAddress(effectiveAddr);
     const rawGender = extractGender(primaryRaw);
     const effGender = String(rawGender || '').toUpperCase().startsWith('F')
       ? 'F'
@@ -1301,13 +1372,13 @@ export default function StudentCertificateStudioView({
         fatherName: st.father || '',
         motherName: st.mother || '',
         className: st.cls || '11th',
-        stream: st.stream || 'Science',
+        stream: st.stream || resolveCertificateStream(st, [], st.cls || extractClass(st)),
         rollNo: st.rollNo || '—',
         regNo: st.regNo || '—',
         dobFigures: effDob,
         dobWords: (typeof dobToWords === 'function' ? dobToWords(effDob).words : '—'),
         session: st.session || '2025-26',
-        address: st.address || '',
+        address: effectiveAddr,
         gender: effGender,
         refNo: immediateRef,
         date: dateStr,
@@ -1380,6 +1451,12 @@ export default function StudentCertificateStudioView({
           const enrichedAdmDate = extractStudentAdmissionDate(enrichedRaw);
           if (enrichedAdmNo) setAdmissionNo(enrichedAdmNo);
           if (enrichedAdmDate) setAdmissionDate(enrichedAdmDate);
+          const enrichedVill = enrichedRaw['Village/Town'] || enrichedRaw.village || extractVillage(enrichedRaw);
+          if (enrichedVill && enrichedVill !== '—' && !/^(null|undefined|n\/a)$/i.test(enrichedVill)) {
+            const enrichedAddr = /shangus/i.test(enrichedVill) ? `${enrichedVill}, Anantnag (J&K)` : `${enrichedVill}, Shangus, Anantnag (J&K)`;
+            setAddress(enrichedAddr);
+            st.address = enrichedAddr;
+          }
         }
       } catch (error) {
         console.warn('Certificate registration enrichment note:', error);

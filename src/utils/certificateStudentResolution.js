@@ -87,17 +87,21 @@ export function resolveScopedCertificateResult(records, targetSession, targetCla
   };
 }
 
-const explicitStream = record => {
+const explicitStream = (record, classKey = '') => {
   const raw = rawRecord(record);
   const candidates = [
-    raw.Stream, raw.stream, raw['Stream for Class 11th'], raw['Stream opted in Class 11th'],
-    raw['Stream / Faculty'], raw.Faculty,
-    record?.Stream, record?.stream, record?.['Stream for Class 11th'], record?.['Stream opted in Class 11th'],
-    record?.['Stream / Faculty'], record?.Faculty
+    raw.Stream, raw.stream, raw.selectedStream, raw['Stream for Class 11th'], raw['Stream opted in Class 11th'],
+    raw['Stream & Subjects for Class 12th'], raw['Stream / Faculty'], raw.Faculty, raw.faculty,
+    record?.Stream, record?.stream, record?.selectedStream, record?.['Stream for Class 11th'], record?.['Stream opted in Class 11th'],
+    record?.['Stream & Subjects for Class 12th'], record?.['Stream / Faculty'], record?.Faculty, record?.faculty
   ];
   const value = candidates.find(usable);
   if (!value) return '';
-  const text = String(value).toLowerCase();
+  const text = String(value).toLowerCase().trim();
+  // In senior secondary (11th & 12th), "General" is never an explicit stream.
+  if (text.includes('gen') && (classKey === '11' || classKey === '12')) {
+    return '';
+  }
   if (text.includes('sci') || text.includes('med')) return 'Science';
   if (text.includes('hum') || text.includes('art')) return 'Humanities';
   if (text.includes('com')) return 'Commerce';
@@ -110,7 +114,7 @@ const fullSubjectHistory = record => {
   const keys = [
     'Subjects to be taken in Class 12th', 'Stream & Subjects for Class 12th',
     'Subjects Studied in Class 11th', 'Subjects to be taken in Class 11th',
-    'selectedSubjects', 'Subjects', 'subjects', 'Subs', 'subs',
+    'selectedSubjects', 'Subjects', 'subjects', 'Subs', 'subs', 'Subjects Offered',
     'Subjects1', 'Subjects2', 'Subjects3', 'Subjects4', 'Subjects5', 'Subjects6', 'Subject6',
     'subject1', 'subject2', 'subject3', 'subject4', 'subject5', 'subject6'
   ];
@@ -125,30 +129,88 @@ export function inferStreamFromFullSubjects(value) {
   const text = String(value || '').toLowerCase();
   if (!text) return '';
   const tokens = new Set(text.toUpperCase().split(/[^A-Z0-9]+/).filter(Boolean));
-  if (/accountan|business studies|commerce|entrepreneur/.test(text) || ['AC', 'AY', 'BS', 'BST'].some(code => tokens.has(code))) return 'Commerce';
-  if (/physics|chemistry|biology|botany|zoology|mathematics|computer science|informatics|biotech/.test(text) || ['PH', 'CH', 'BI', 'BO', 'ZO', 'MA', 'CS', 'IP', 'BT'].some(code => tokens.has(code))) return 'Science';
-  if (/political|history|education|sociology|economics|urdu|kashmiri|arabic|geography|islamic|philosophy|psychology|public administration/.test(text) || ['PS', 'HT', 'ED', 'SO', 'EC', 'UR', 'KA', 'AR', 'GG', 'PA'].some(code => tokens.has(code))) return 'Humanities';
+  if (/accountan|business studies|commerce|entrepreneur/.test(text) || ['AC', 'AY', 'BS', 'BST', 'EP', 'BE', 'CO'].some(code => tokens.has(code))) return 'Commerce';
+  if (/physics|chemistry|biology|botany|zoology|mathematics|computer science|informatics|biotech|geology|electronics/.test(text) || ['PH', 'CH', 'BI', 'BO', 'ZO', 'MA', 'CS', 'IP', 'BT', 'GL', 'EL'].some(code => tokens.has(code))) return 'Science';
+  if (/political|history|education|sociology|economics|urdu|kashmiri|arabic|geography|islamic|philosophy|psychology|public administration|hindi|sanskrit/.test(text) || ['PS', 'HT', 'ED', 'SO', 'EC', 'UR', 'KA', 'AR', 'GG', 'PA', 'IS', 'PY', 'PL', 'HI', 'SN', 'FA'].some(code => tokens.has(code))) return 'Humanities';
   return '';
+}
+
+export function normalizeStreamName(streamStr) {
+  const text = String(streamStr || '').trim().toLowerCase();
+  if (text.includes('hum') || text.includes('art')) return 'Humanities';
+  if (text.includes('com')) return 'Commerce';
+  if (text.includes('non')) return 'Non-Medical';
+  if (text.includes('med')) return 'Medical';
+  if (text.includes('sci')) return 'Science';
+  if (text.includes('gen')) return 'General';
+  return streamStr || 'Humanities';
+}
+
+export function streamMatches(studentStream, targetStream) {
+  if (!targetStream || targetStream === 'All') return true;
+  const s1 = String(studentStream || '').trim().toLowerCase();
+  const s2 = String(targetStream || '').trim().toLowerCase();
+  if (s1 === s2) return true;
+
+  const isHum1 = s1.includes('hum') || s1.includes('art');
+  const isHum2 = s2.includes('hum') || s2.includes('art');
+  if (isHum1 && isHum2) return true;
+
+  const isSci1 = s1.includes('sci') || s1.includes('med');
+  const isSci2 = s2.includes('sci');
+  if (isSci1 && isSci2) return true;
+
+  const isMed2 = s2 === 'medical';
+  if (isMed2 && (s1 === 'medical' || s1.includes('medical') || s1.includes('sci'))) return true;
+
+  const isNonMed2 = s2 === 'non-medical' || s2 === 'non medical' || s2 === 'nonmed';
+  if (isNonMed2 && (s1.includes('non') || s1.includes('math') || s1.includes('sci'))) return true;
+
+  const isCom1 = s1.includes('com');
+  const isCom2 = s2.includes('com');
+  if (isCom1 && isCom2) return true;
+
+  return s1.includes(s2) || s2.includes(s1);
 }
 
 export function resolveCertificateStream(currentRecord, registrationHistory = [], targetClass = '') {
   const classKey = normalizeCertificateClass(targetClass || currentRecord);
   if (classKey === '9' || classKey === '10') return 'General';
 
-  const currentStream = explicitStream(currentRecord) || inferStreamFromFullSubjects(fullSubjectHistory(currentRecord));
-  if (currentStream) return currentStream;
+  // 1. Check if current record has sufficient stream-identifying subjects
+  const currentSubs = fullSubjectHistory(currentRecord);
+  const currentSubjStream = inferStreamFromFullSubjects(currentSubs);
+  if (currentSubjStream) return currentSubjStream;
 
+  // 2. Check explicit stream on current record (ignoring 'General' for 11th/12th)
+  const currentExplicit = explicitStream(currentRecord, classKey);
+  if (currentExplicit) return currentExplicit;
+
+  // 3. IF CURRENT SUBJECTS NOT SUFFICIENT: Use previous record(s) for that registration number!
   const targetGrade = Number(classKey) || 12;
   const orderedHistory = [...(registrationHistory || [])].sort((a, b) => {
+    // Prefer history records that actually have subjects
+    const aHasSubs = Boolean(fullSubjectHistory(a));
+    const bHasSubs = Boolean(fullSubjectHistory(b));
+    if (aHasSubs !== bHasSubs) return bHasSubs ? 1 : -1;
+
     const aGrade = Number(normalizeCertificateClass(a)) || 0;
     const bGrade = Number(normalizeCertificateClass(b)) || 0;
     const aScore = aGrade <= targetGrade ? targetGrade - aGrade : 100 + aGrade - targetGrade;
     const bScore = bGrade <= targetGrade ? targetGrade - bGrade : 100 + bGrade - targetGrade;
     return aScore - bScore;
   });
+
   for (const record of orderedHistory) {
-    const stream = explicitStream(record) || inferStreamFromFullSubjects(fullSubjectHistory(record));
-    if (stream) return stream;
+    // Check subject history first
+    const histSubs = fullSubjectHistory(record);
+    const histSubjStream = inferStreamFromFullSubjects(histSubs);
+    if (histSubjStream) return histSubjStream;
+
+    // Check explicit stream second
+    const histExplicit = explicitStream(record, classKey);
+    if (histExplicit) return histExplicit;
   }
-  return 'Unknown';
+
+  return 'Humanities';
 }

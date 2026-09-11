@@ -473,10 +473,18 @@ export function retokenizeCertificateBody(templateHtml, contextData = {}) {
 
   // Matches resident of / residing at address
   res = res.replace(
-    /((?:resident\s+of|residing\s+at)\s*<strong>?\s*)([^,<>{}\n]+?,\s*[^,<>{}\n]+?\s*\(J&K\)|Shangus,\s*Anantnag\s*[—–-]\s*192201\s*\(J&K\))(\s*<\/strong>?)/gi,
+    /((?:resident\s+of|residing\s+at)\s*<strong>?\s*)([^<>{}\r\n]+?)(\s*<\/strong>?)/gi,
     (m, p1, addr, p3) => {
-      if (addr.includes('{')) return m;
+      if (addr.includes('{') || addr.trim().length < 3) return m;
       return `${p1}{ADDRESS}${p3}`;
+    }
+  );
+  // Also match without strong tags if an unbolded address follows residing at / resident of
+  res = res.replace(
+    /((?:resident\s+of|residing\s+at)\s+)([A-Z][a-zA-Z0-9\s,./()—–-]+?(?:Shangus|Anantnag|\(J&K\)|Kashmir))(?=[\s,.;<]|\s+is\b|\s+was\b)/gi,
+    (m, p1, addr) => {
+      if (addr.includes('{') || addr.trim().length < 3) return m;
+      return `${p1}<strong>{ADDRESS}</strong>`;
     }
   );
 
@@ -518,20 +526,33 @@ export function retokenizeCertificateBody(templateHtml, contextData = {}) {
   res = res.replace(/\b(?:His|Her)\s+verified\s+Date\s+of\s+Birth\b/gi, '{PRONOUN_HIS_HER} verified Date of Birth');
   res = res.replace(/\b(?:His|Her)\s+academic\s+tenure\b/gi, '{PRONOUN_HIS_HER} academic tenure');
   res = res.replace(/\b(?:His|Her)\s+stay\b/gi, '{PRONOUN_HIS_HER} stay');
+  res = res.replace(/\b(?:His|Her)\s+stay\s+in\s+this\s+institution\b/gi, '{PRONOUN_HIS_HER} stay in this institution');
+  res = res.replace(/\bDuring\s+(?:his|her)\s+academic\b/gi, 'During {PRONOUN_HIS_HER} academic');
+  res = res.replace(/\bduring\s+(?:his|her)\s+academic\b/gi, 'during {PRONOUN_HIS_HER} academic');
+  res = res.replace(/\bDuring\s+(?:his|her)\s+stay\b/gi, 'During {PRONOUN_HIS_HER} stay');
+  res = res.replace(/\bduring\s+(?:his|her)\s+stay\b/gi, 'during {PRONOUN_HIS_HER} stay');
   res = res.replace(/\b(?:His|Her)\s+conduct\b/gi, '{PRONOUN_HIS_HER} conduct');
+  res = res.replace(/\b(?:his|her)\s+conduct\b/gi, '{PRONOUN_HIS_HER} conduct');
   res = res.replace(/\b(?:His|Her)\s+admission\b/gi, '{PRONOUN_HIS_HER} admission');
   res = res.replace(/\b(?:His|Her)\s+behaviour\b/gi, '{PRONOUN_HIS_HER} behaviour');
   res = res.replace(/\b(?:His|Her)\s+name\b/gi, '{PRONOUN_HIS_HER} name');
   res = res.replace(/\b(?:He|She)\s+bore\b/gi, '{PRONOUN_HE_SHE} bore');
+  res = res.replace(/\b(?:he|she)\s+bears\b/gi, '{PRONOUN_HE_SHE} bears');
   res = res.replace(/\b(?:He|She)\s+bears\b/gi, '{PRONOUN_HE_SHE} bears');
+  res = res.replace(/\b(?:He|She)\s+has\s+successfully\b/gi, '{PRONOUN_HE_SHE} has successfully');
+  res = res.replace(/\b(?:he|she)\s+has\s+successfully\b/gi, '{PRONOUN_HE_SHE} has successfully');
+  res = res.replace(/\b(?:He|She)\s+has\s+neither\b/gi, '{PRONOUN_HE_SHE} has neither');
+  res = res.replace(/\b(?:he|she)\s+has\s+neither\b/gi, '{PRONOUN_HE_SHE} has neither');
   res = res.replace(/\b(?:He|She)\s+has\b/gi, '{PRONOUN_HE_SHE} has');
   res = res.replace(/\b(?:He|She)\s+maintains\b/gi, '{PRONOUN_HE_SHE} maintains');
+  res = res.replace(/\b(?:he|she)\s+maintains\b/gi, '{PRONOUN_HE_SHE} maintains');
   res = res.replace(/\b(?:He|She)\s+is\b/gi, '{PRONOUN_HE_SHE} is');
   res = res.replace(/\b(?:He|She)\s+was\b/gi, '{PRONOUN_HE_SHE} was');
   res = res.replace(/\b(?:Him|Her)\s+all\s+success\b/gi, '{PRONOUN_HIM_HER} all success');
   res = res.replace(/\b(?:Him|Her)\s+bright\s+success\b/gi, '{PRONOUN_HIM_HER} bright success');
   res = res.replace(/\bagainst\s+(?:Him|Her)\b/gi, 'against {PRONOUN_HIM_HER}');
   res = res.replace(/\bto\s+(?:His|Her)\s+seeking\b/gi, 'to {PRONOUN_HIS_HER} seeking');
+  res = res.replace(/\bwish\s+(?:him|her)\b/gi, 'wish {PRONOUN_HIM_HER}');
   res = res.replace(/----------------------------------------/g, '{STUDENT_NAME}');
 
   return res;
@@ -551,11 +572,13 @@ export function interpolateCertificateTemplate(templateHtml, studentData = {}, o
 
   if (
     !activeHtml.includes('{STUDENT_NAME}') ||
+    !activeHtml.includes('{ADDRESS}') ||
     /MOHAMMAD\s+TAHIR\s+WANI/i.test(activeHtml) ||
     /GHULAM\s+NABI\s+WANI/i.test(activeHtml) ||
     /24SHG1101/i.test(activeHtml) ||
     /ZEESHAN\s+MUKHTAR/i.test(activeHtml) ||
-    /M(?:o)?hsin\s+Wakeel/i.test(activeHtml)
+    /M(?:o)?hsin\s+Wakeel/i.test(activeHtml) ||
+    /Wangam,\s*Shangus/i.test(activeHtml)
   ) {
     activeHtml = retokenizeCertificateBody(activeHtml, mergedProps);
   }

@@ -52,18 +52,11 @@ export function uniqueStudentMatch(students, identifiers, session, className) {
   if (cleanIdentifiers.reg) {
     const regMatches = cohortStudents.filter(student => {
       const actual = recordIdentity(student);
+      if (cleanIdentifiers.form && actual.form && actual.form !== cleanIdentifiers.form) return false;
+      if (cleanIdentifiers.adm && actual.adm && actual.adm !== cleanIdentifiers.adm) return false;
       return actual.reg && actual.reg === cleanIdentifiers.reg;
     });
     if (regMatches.length === 1) return regMatches[0];
-
-    // If cohort filter was slightly restrictive due to session alias differences, search all students
-    if (regMatches.length === 0) {
-      const globalMatches = students.filter(student => {
-        const actual = recordIdentity(student);
-        return actual.reg && actual.reg === cleanIdentifiers.reg;
-      });
-      if (globalMatches.length === 1) return globalMatches[0];
-    }
   }
 
   // 2. Secondary Authority: Admission Number or Form Number

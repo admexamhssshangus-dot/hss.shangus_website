@@ -1,6 +1,12 @@
 import { uniqueStudentMatch, sameCohort } from '../../utils/recordIdentity';
 import { beginMutationJob, applyRecordPatch, completeMutationJob } from '../../services/recordMutationService';
-import React, { useState, useMemo, useEffect } from 'react';
+import { 
+  resolveCertificateStream, 
+  streamMatches, 
+  normalizeStreamName, 
+  normalizeRegistrationKey 
+} from '../../utils/certificateStudentResolution';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { 
   X, AlertTriangle, CheckSquare, Square, FileSpreadsheet, 
   Upload, Copy, CheckCircle2, User, BookOpen, Award, Hash,
@@ -38,6 +44,7 @@ export function flattenMasterRegisters(rawList = []) {
           if (item.Status === 'Deleted' || item.status === 'Deleted' || item._deleted === true) return;
           const iSess = item.Session || item.session || item['Academic Session'] || parentSession;
           const iCls = item.Class || item.class || item['Class'] || parentClass;
+          const defaultStream = (String(iCls).includes('9') || String(iCls).includes('10')) ? 'General' : '';
           flat.push({
             ...item,
             id: item.id || item['Form Number'] || item['Form No.'] || item.formNo || item['Board Registration Number'] || `${docItem.id}_${itemIdx}`,
@@ -45,8 +52,8 @@ export function flattenMasterRegisters(rawList = []) {
             session: iSess,
             Class: iCls,
             class: iCls,
-            Stream: item.Stream || item.stream || item['Stream'] || parentStream || item.faculty || 'General',
-            stream: item.stream || item.Stream || item['Stream'] || parentStream || item.faculty || 'General',
+            Stream: item.Stream || item.stream || item['Stream'] || parentStream || item.faculty || defaultStream,
+            stream: item.stream || item.Stream || item['Stream'] || parentStream || item.faculty || defaultStream,
             status: item.status || item.Status || item.admissionStatus || 'Approved',
             Status: item.Status || item.status || item.admissionStatus || 'Approved',
             _source: 'masterRegisters',
@@ -62,6 +69,7 @@ export function flattenMasterRegisters(rawList = []) {
       if (docItem.Status === 'Deleted' || docItem.status === 'Deleted' || docItem._deleted === true) return;
       const docSess = docItem.Session || docItem.session || docItem['Academic Session'] || parentSession;
       const docCls = docItem.Class || docItem.class || docItem['Class'] || parentClass;
+      const defaultDocStream = (String(docCls).includes('9') || String(docCls).includes('10')) ? 'General' : '';
       flat.push({
         ...docItem,
         id: docItem.id || docItem['Form Number'] || `${docItem.id || 'doc'}_${docIdx}`,
@@ -69,8 +77,8 @@ export function flattenMasterRegisters(rawList = []) {
         session: docSess,
         Class: docCls,
         class: docCls,
-        Stream: docItem.Stream || docItem.stream || docItem['Stream'] || parentStream || docItem.faculty || 'General',
-        stream: docItem.stream || docItem.Stream || docItem['Stream'] || parentStream || docItem.faculty || 'General',
+        Stream: docItem.Stream || docItem.stream || docItem['Stream'] || parentStream || docItem.faculty || defaultDocStream,
+        stream: docItem.stream || docItem.Stream || docItem['Stream'] || parentStream || docItem.faculty || defaultDocStream,
         status: docItem.status || docItem.Status || docItem.admissionStatus || 'Approved',
         Status: docItem.Status || docItem.status || docItem.admissionStatus || 'Approved',
         _source: 'masterRegisters',
@@ -395,26 +403,61 @@ export default function BulkFieldOverwriteModal({
     });
   }, [universalStudents]);
 
-  const availableStreams = useMemo(() => {
-    const streamSet = new Set(['Science', 'Arts', 'Commerce', 'Medical', 'Non-Medical']);
+  // Index universal student pool by normalized Board Registration Number for instant historical cross-referencing
+  const studentsByRegMap = useMemo(() => {
+    const map = new Map();
     (universalStudents || []).forEach(st => {
-      const strm = String(
-        st.selectedStream || 
-        st.Stream || 
-        st.stream || 
-        st['Stream for Class 11th'] || 
-        st['Stream opted in Class 11th'] || 
-        st['Stream & Subjects for Class 12th'] || 
-        st.faculty || 
-        ''
-      ).trim();
-      if (strm && strm !== '—' && strm !== 'undefined' && strm !== 'null') {
-        streamSet.add(strm);
+      const reg = normalizeRegistrationKey(
+        st.boardRegNo || st.regNo || st.boardReg || st['Board Registration Number'] || st['Board Reg. No.'] || st['Registration No. (allotted by JKBOSE)']
+      );
+      if (reg) {
+        if (!map.has(reg)) map.set(reg, []);
+        map.get(reg).push(st);
+      }
+    });
+    return map;
+  }, [universalStudents]);
+
+  // Robust stream resolver: checks current subjects, and if not sufficient, checks prior records for that reg no
+  const getStudentProperStream = useCallback((st) => {
+    if (!st) return '';
+    const reg = normalizeRegistrationKey(
+      st.boardRegNo || st.regNo || st.boardReg || st['Board Registration Number'] || st['Board Reg. No.'] || st['Registration No. (allotted by JKBOSE)']
+    );
+    const history = reg ? (studentsByRegMap.get(reg) || []) : [];
+    const cls = st.selectedClass || st.className || st.Class || st.class || targetClass;
+    return resolveCertificateStream(st, history, cls);
+  }, [studentsByRegMap, targetClass]);
+
+  const availableStreams = useMemo(() => {
+    const isSeniorSec = /11|12/i.test(targetClass);
+    const isSec = /9|10/i.test(targetClass);
+    if (isSec) return ['General'];
+
+    const streamSet = new Set();
+    (universalStudents || []).forEach(st => {
+      if (sameCohort(st, targetSession, targetClass)) {
+        const properStrm = getStudentProperStream(st);
+        if (properStrm && properStrm !== 'Unknown' && properStrm !== 'General') {
+          streamSet.add(properStrm);
+        }
       }
     });
 
-    return Array.from(streamSet).sort((a, b) => a.localeCompare(b));
-  }, [universalStudents]);
+    if (streamSet.size === 0) {
+      return isSeniorSec ? ['Humanities', 'Science', 'Commerce'] : ['Science', 'Humanities', 'Commerce', 'General'];
+    }
+
+    const canonicalOrder = ['Humanities', 'Science', 'Commerce', 'Medical', 'Non-Medical'];
+    return Array.from(streamSet).sort((a, b) => {
+      const idxA = canonicalOrder.indexOf(a);
+      const idxB = canonicalOrder.indexOf(b);
+      if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+      if (idxA !== -1) return -1;
+      if (idxB !== -1) return 1;
+      return a.localeCompare(b);
+    });
+  }, [universalStudents, targetSession, targetClass, getStudentProperStream]);
 
   const availableStatuses = useMemo(() => {
     const statusSet = new Set(['Approved', 'Confirmed', 'Draft', 'Submitted', 'Provisional']);
@@ -434,15 +477,14 @@ export default function BulkFieldOverwriteModal({
       const matchCohort = sameCohort(st, targetSession, targetClass);
       if (!matchCohort) return false;
 
-      const sStrm = String(st.selectedStream || st.Stream || st.stream || st['Stream for Class 11th'] || st['Stream & Subjects for Class 12th'] || st.faculty || '').toLowerCase();
+      const resolvedStrm = getStudentProperStream(st);
+      const matchStrm = streamMatches(resolvedStrm, targetStream);
       const sStat = String(st.status || st.Status || st.admissionStatus || '').toLowerCase();
-      
-      const matchStrm = targetStream === 'All' || sStrm.includes(targetStream.toLowerCase());
       const matchStat = targetStatus === 'All' || sStat === targetStatus.toLowerCase();
 
       return matchStrm && matchStat;
     });
-  }, [universalStudents, targetSession, targetClass, targetStream, targetStatus]);
+  }, [universalStudents, targetSession, targetClass, targetStream, targetStatus, getStudentProperStream]);
 
   // Dynamic discovery of any additional fields present in actual database records
   const dynamicDatabaseCategories = useMemo(() => {
@@ -640,10 +682,31 @@ export default function BulkFieldOverwriteModal({
         };
         activeFieldsList.forEach(f => {
           let val = '';
-          for (const k of f.dbKeys) {
-            if (st[k] !== undefined && String(st[k]).trim() !== '') {
-              val = String(st[k]).trim();
-              break;
+          if (f.key === 'stream') {
+            val = getStudentProperStream(st);
+          } else if (f.key === 'subjects') {
+            const currentSubs = st.subjects || st.subs || st.selectedSubjects || st['Subjects'] || '';
+            if (currentSubs && currentSubs.trim() && currentSubs.trim().length > 5 && !/^(—|-|n\/?a)$/i.test(currentSubs.trim())) {
+              val = currentSubs.trim();
+            } else {
+              const reg = normalizeRegistrationKey(st.boardRegNo || st.regNo || st['Board Registration Number'] || st['Board Reg. No.']);
+              const history = reg ? (studentsByRegMap.get(reg) || []) : [];
+              let historySubs = '';
+              for (const h of history) {
+                const hSubs = h.subjects || h.subs || h.selectedSubjects || h['Subjects to be taken in Class 11th'] || h['Subjects to be taken in Class 12th'] || h['Subjects Studied in Class 11th'] || h['Subjects Offered'] || h['Subjects'] || '';
+                if (hSubs && String(hSubs).trim() && String(hSubs).trim().length > 5) {
+                  historySubs = String(hSubs).trim();
+                  break;
+                }
+              }
+              val = historySubs || currentSubs || '';
+            }
+          } else {
+            for (const k of f.dbKeys) {
+              if (st[k] !== undefined && String(st[k]).trim() !== '') {
+                val = String(st[k]).trim();
+                break;
+              }
             }
           }
           row[f.label] = val;
