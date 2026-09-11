@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { 
   FileSpreadsheet, Plus, Trash2, Copy, Download, RefreshCw, 
   ArrowRight, Search, Check, AlertCircle, Sparkles, Users,
   ArrowUpDown, ArrowUp, ArrowDown
 } from 'lucide-react';
+import { streamMatches, resolveCertificateStream, normalizeRegistrationKey } from '../../../utils/certificateStudentResolution';
 
 /**
  * ExcelSpreadsheetGrid
@@ -114,15 +115,26 @@ export default function ExcelSpreadsheetGrid({
 
   // Pre-fill grid with students from the selected cohort (Default sorted by Class Roll No)
   const handlePreFillCohort = () => {
+    const regMap = new Map();
+    (allStudents || []).forEach(st => {
+      const reg = normalizeRegistrationKey(st.boardRegNo || st.regNo || st['Board Registration Number'] || st['Board Reg. No.']);
+      if (reg) {
+        if (!regMap.has(reg)) regMap.set(reg, []);
+        regMap.get(reg).push(st);
+      }
+    });
+
     const filtered = (allStudents || []).filter(st => {
       const sCls = String(st.selectedClass || st.Class || st.class || st.className || st['Admission sought for class'] || '').toLowerCase();
       const sSess = String(st.selectedSession || st.Session || st.session || st.academicSession || '').toLowerCase();
-      const sStrm = String(st.selectedStream || st.Stream || st.stream || st['Stream for Class 11th'] || st['Stream & Subjects for Class 12th'] || st.faculty || '').toLowerCase();
+      const reg = normalizeRegistrationKey(st.boardRegNo || st.regNo || st['Board Registration Number'] || st['Board Reg. No.']);
+      const history = reg ? (regMap.get(reg) || []) : [];
+      const resolvedStrm = resolveCertificateStream(st, history, targetClass);
       const sStat = String(st.status || st.Status || st.admissionStatus || '').toLowerCase();
 
       const matchCls = targetClass === 'All' || sCls.includes(targetClass.toLowerCase());
       const matchSess = targetSession === 'All' || sSess.includes(targetSession.toLowerCase());
-      const matchStrm = targetStream === 'All' || sStrm.includes(targetStream.toLowerCase());
+      const matchStrm = streamMatches(resolvedStrm, targetStream);
       const matchStat = targetStatus === 'All' || sStat === targetStatus.toLowerCase();
 
       return matchCls && matchSess && matchStrm && matchStat;

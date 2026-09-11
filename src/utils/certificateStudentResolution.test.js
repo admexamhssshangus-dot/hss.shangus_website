@@ -61,4 +61,11 @@ describe('certificate student resolution', () => {
     const history = [{ Session: '2025-26', Class: '11th', 'Subjects Studied in Class 11th': 'GE, PH, CH, BI, ES' }];
     expect(resolveCertificateStream(current, history, '12th')).toBe('Science');
   });
+
+  test('ignores General stream on 11th/12th and resolves from past record when current subjects insufficient', () => {
+    const current = { Session: '2026 APR/BIAN', Class: '11th', Stream: 'General', 'Subs': 'GE' };
+    const history = [{ Session: '2025-26', Class: '11th', 'Subs': 'GE, ED, HT, PS, ITE' }];
+    expect(resolveCertificateStream(current, history, '11th')).toBe('Humanities');
+  });
 });
+
