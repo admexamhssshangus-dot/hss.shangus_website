@@ -6226,6 +6226,7 @@ export default function AdvancedReports({
               _srcCollection: 'masterRegisters',
               _parentDocId: doc._docId || doc.id,
               _arrayKey: ['items', 'students', 'records', 'data'].find(key => Array.isArray(doc[key])),
+              _arrayIndex: itemIdx,
               _isHistorical: true,
               _isCurrentScope: false
             });

@@ -5,6 +5,7 @@ import {
   ArrowUpDown, ArrowUp, ArrowDown
 } from 'lucide-react';
 import { streamMatches, resolveCertificateStream, normalizeRegistrationKey } from '../../../utils/certificateStudentResolution';
+import { parseJkboseMarks } from '../../../utils/jkboseResultManager';
 
 /**
  * ExcelSpreadsheetGrid
@@ -57,11 +58,28 @@ export default function ExcelSpreadsheetGrid({
     }));
   }, [activeFields]);
 
-  // Handle cell edit
+  // Handle cell edit with live percentage & division computation
   const handleCellChange = (rowIndex, key, value) => {
     setRows(prev => {
       const copy = [...prev];
-      copy[rowIndex] = { ...copy[rowIndex], [key]: value };
+      const updatedRow = { ...copy[rowIndex], [key]: value };
+
+      if (key === 'marks' || key === 'maxMarks' || key === 'result') {
+        const rawM = key === 'marks' ? value : updatedRow.marks;
+        const rawMax = key === 'maxMarks' ? value : (updatedRow.maxMarks || '500');
+        const rawRes = key === 'result' ? value : (updatedRow.result || 'Qualified');
+        if (rawM) {
+          const parsed = parseJkboseMarks(rawM, rawMax, rawRes);
+          if (updatedRow.percentage !== undefined && parsed.pctStr !== '—') {
+            updatedRow.percentage = parsed.pctStr;
+          }
+          if (updatedRow.grade !== undefined && parsed.division !== '—') {
+            updatedRow.grade = parsed.division;
+          }
+        }
+      }
+
+      copy[rowIndex] = updatedRow;
       return copy;
     });
   };
@@ -228,6 +246,17 @@ export default function ExcelSpreadsheetGrid({
             }
           });
 
+          // Auto-calculate percentage and division if marks was pasted
+          if (newRow.marks) {
+            const parsed = parseJkboseMarks(newRow.marks, newRow.maxMarks || '500', newRow.result || 'Qualified');
+            if (newRow.percentage !== undefined && (!newRow.percentage || newRow.percentage === '—') && parsed.pctStr !== '—') {
+              newRow.percentage = parsed.pctStr;
+            }
+            if (newRow.grade !== undefined && (!newRow.grade || newRow.grade === '—') && parsed.division !== '—') {
+              newRow.grade = parsed.division;
+            }
+          }
+
           if (targetIndex < nextRows.length) {
             nextRows[targetIndex] = newRow;
           } else {
@@ -267,6 +296,16 @@ export default function ExcelSpreadsheetGrid({
         rowObj[f.label] = r[f.key] !== undefined ? String(r[f.key]).trim() : '';
         rowObj[f.key] = r[f.key] !== undefined ? String(r[f.key]).trim() : '';
       });
+
+      // Auto-calculate percentage and division if not manually entered
+      if (r.marks) {
+        const parsed = parseJkboseMarks(r.marks, r.maxMarks || '500', r.result || 'Qualified');
+        if (!rowObj['percentage'] && parsed.pctStr !== '—') rowObj['percentage'] = parsed.pctStr;
+        if (!rowObj['Percentage'] && parsed.pctStr !== '—') rowObj['Percentage'] = parsed.pctStr;
+        if (!rowObj['grade'] && parsed.division !== '—') rowObj['grade'] = parsed.division;
+        if (!rowObj['Grade / Division'] && parsed.division !== '—') rowObj['Grade / Division'] = parsed.division;
+      }
+
       return rowObj;
     });
 

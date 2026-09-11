@@ -6,6 +6,7 @@ import {
   normalizeStreamName, 
   normalizeRegistrationKey 
 } from '../../utils/certificateStudentResolution';
+import { parseJkboseMarks, calculateDivision } from '../../utils/jkboseResultManager';
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { 
   X, AlertTriangle, CheckSquare, Square, FileSpreadsheet, 
@@ -144,8 +145,8 @@ export const STANDARD_DB_CATEGORIES = [
       { key: 'result', label: "Board Result Status", defaultChecked: false, dbKeys: ['Result (Current)', 'Board Result', 'Result', 'result', 'boardResult', 'currResult', 'statusResult'], excelKeys: ['boardresult', 'result', 'resultstatus', 'examresult', 'status'] },
       { key: 'marks', label: "Marks Obtained", defaultChecked: false, dbKeys: ['Marks/Reapp (Current)', 'Marks Obtained', 'Marks', 'marks', 'totalMarks', 'marksObtained', 'currMarksReapp'], excelKeys: ['marksobtained', 'marks', 'totalmarks', 'securedmarks', 'obtmarks'] },
       { key: 'maxMarks', label: "Max Marks", defaultChecked: false, dbKeys: ['Max Marks', 'Maximum Marks', 'maxMarks', 'totalMaxMarks'], excelKeys: ['maxmarks', 'maximummarks', 'totalmax', 'outof'] },
-      { key: 'percentage', label: "Percentage (%)", defaultChecked: false, dbKeys: ['Percentage', 'percentage', 'percent', 'pct'], excelKeys: ['percentage', 'percent', 'pct', 'markspercentage'] },
-      { key: 'grade', label: "Grade / Division", defaultChecked: false, dbKeys: ['Grade', 'Division', 'grade', 'division'], excelKeys: ['grade', 'division', 'gradeawarded'] },
+      { key: 'percentage', label: "Percentage (%)", defaultChecked: false, dbKeys: ['Percentage', 'percentage', 'percent', 'pct', '%age', '%age (Current)'], excelKeys: ['percentage', 'percent', 'pct', 'markspercentage', 'percentage%'] },
+      { key: 'grade', label: "Grade / Division", defaultChecked: false, dbKeys: ['Div/Distinc (Current)', 'Division', 'division', 'Grade', 'grade', 'Distinction', 'currDiv'], excelKeys: ['grade', 'division', 'divdistinc', 'distinction', 'gradeawarded'] },
     ]
   },
   {
@@ -843,6 +844,27 @@ export default function BulkFieldOverwriteModal({
         incomingFields[f.key] = extracted;
       });
 
+      // Automatic Calculation of Percentage, Division & Additional Subjects
+      const rawIncMarks = incomingFields['marks'];
+      const rawIncMax = incomingFields['maxMarks'] || '500';
+      const rawIncRes = incomingFields['result'] || '';
+
+      if (rawIncMarks) {
+        const parsedM = parseJkboseMarks(rawIncMarks, rawIncMax, rawIncRes || 'Qualified');
+        if (parsedM.formattedMarks) {
+          incomingFields['marks'] = parsedM.formattedMarks;
+        }
+        if (parsedM.max) {
+          incomingFields['maxMarks'] = parsedM.max;
+        }
+        if (!incomingFields['percentage'] && parsedM.pctStr !== '—') {
+          incomingFields['percentage'] = parsedM.pctStr;
+        }
+        if (!incomingFields['grade'] && parsedM.division !== '—') {
+          incomingFields['grade'] = parsedM.division;
+        }
+      }
+
       // Compute diff against matched student
       const diffs = {};
       let hasChanges = false;
@@ -1036,13 +1058,30 @@ export default function BulkFieldOverwriteModal({
           });
         });
 
-        // Auto-calculate Percentage if marks and maxMarks are available and percentage not supplied
-        const finalMarks = payload['Marks Obtained'] || payload['marks'] || st.marks || st['Marks Obtained'];
+        // Auto-calculate Percentage and Division if marks and maxMarks are available
+        const finalMarks = payload['Marks Obtained'] || payload['marks'] || st.marks || st['Marks Obtained'] || st['Marks/Reapp (Current)'];
         const finalMax = payload['Max Marks'] || payload['maxMarks'] || st.maxMarks || st['Max Marks'] || '500';
-        if (finalMarks && !payload['Percentage'] && !isNaN(Number(finalMarks)) && !isNaN(Number(finalMax)) && Number(finalMax) > 0) {
-          const calculatedPct = ((Number(finalMarks) / Number(finalMax)) * 100).toFixed(1) + '%';
-          payload['Percentage'] = calculatedPct;
-          payload['percentage'] = calculatedPct;
+        const finalRes = payload['Result (Current)'] || payload['result'] || st.result || st['Result (Current)'] || 'Qualified';
+        if (finalMarks) {
+          const parsed = parseJkboseMarks(finalMarks, finalMax, finalRes);
+          if (parsed.pctStr !== '—') {
+            payload['Percentage'] = parsed.pctStr;
+            payload['percentage'] = parsed.pctStr;
+            payload['%age'] = parsed.pctStr;
+            payload['%age (Current)'] = parsed.pctStr;
+          }
+          if (parsed.division !== '—') {
+            payload['Div/Distinc (Current)'] = parsed.division;
+            payload['Division'] = parsed.division;
+            payload['division'] = parsed.division;
+            payload['Grade'] = parsed.division;
+            payload['grade'] = parsed.division;
+          }
+          if (parsed.formattedMarks) {
+            if (payload['Marks/Reapp (Current)']) payload['Marks/Reapp (Current)'] = parsed.formattedMarks;
+            if (payload['Marks Obtained']) payload['Marks Obtained'] = parsed.formattedMarks;
+            if (payload['marks']) payload['marks'] = parsed.formattedMarks;
+          }
         }
 
         payload.updatedAt = new Date().toISOString();

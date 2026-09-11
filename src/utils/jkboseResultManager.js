@@ -153,21 +153,133 @@ export function expandJkboseSubjectCodes(codeStr) {
 }
 
 /**
+ * Parse JKBOSE Marks, handle additional subjects (e.g. "492 / 500; MH 81"),
+ * de-duplicate accidental repeat inputs (e.g. "492492"), and calculate percentage & division.
+ */
+export function parseJkboseMarks(rawMarks, fallbackMax = 500, resultStatus = 'Qualified') {
+  if (rawMarks === null || rawMarks === undefined || String(rawMarks).trim() === '') {
+    return {
+      obtained: '',
+      max: String(fallbackMax || 500),
+      additionalSubject: '',
+      pct: 0,
+      pctStr: '—',
+      division: '—',
+      formattedMarks: '',
+      isReap: normalizeResultStatus(resultStatus) === 'Reap'
+    };
+  }
+
+  let marksStr = String(rawMarks).trim().replace(/\.0+$/, '');
+  const normStatus = normalizeResultStatus(resultStatus);
+  const isPassed = normStatus === 'Passed';
+  const isReap = normStatus === 'Reap';
+  const isFailed = normStatus === 'Failed';
+
+  // 1. Extract additional subject part (e.g. "; MH 81", "; MH 65", or "(Addl: MH 81)")
+  let additionalSubject = '';
+  if (marksStr.includes(';')) {
+    const parts = marksStr.split(';');
+    marksStr = parts[0].trim();
+    additionalSubject = parts.slice(1).join(';').trim();
+  } else if (/\((?:addl|additional)?:?\s*([^)]+)\)/i.test(marksStr)) {
+    const match = marksStr.match(/\((?:addl|additional)?:?\s*([^)]+)\)/i);
+    if (match) {
+      additionalSubject = match[1].trim();
+      marksStr = marksStr.replace(match[0], '').trim();
+    }
+  }
+
+  // 2. Check for marks format: "obtained / max" or "obtained"
+  let obtainedStr = '';
+  let maxStr = String(fallbackMax || 500);
+
+  const slashMatch = marksStr.match(/^([^\/]+)\s*\/\s*(\d+)/);
+  if (slashMatch) {
+    obtainedStr = slashMatch[1].trim();
+    maxStr = slashMatch[2].trim();
+  } else {
+    // If no slash, check leading numeric
+    const numPrefixMatch = marksStr.match(/^(\d+)/);
+    if (numPrefixMatch) {
+      obtainedStr = numPrefixMatch[1].trim();
+      const rest = marksStr.slice(numPrefixMatch[1].length).trim();
+      if (rest && !additionalSubject && !/^(pass|passed|qual|qualified)$/i.test(rest)) {
+        additionalSubject = rest.replace(/^[;,/-]\s*/, '').trim();
+      }
+    } else {
+      obtainedStr = marksStr;
+    }
+  }
+
+  // 3. De-duplicate accidental repetition (e.g. "492492" -> "492")
+  const numDigitsOnly = obtainedStr.replace(/\D/g, '');
+  const maxNum = parseFloat(maxStr) || 500;
+  if (numDigitsOnly.length >= 4 && numDigitsOnly.length % 2 === 0) {
+    const halfLen = numDigitsOnly.length / 2;
+    const firstHalf = numDigitsOnly.slice(0, halfLen);
+    const secondHalf = numDigitsOnly.slice(halfLen);
+    if (firstHalf === secondHalf && parseFloat(numDigitsOnly) > maxNum && parseFloat(firstHalf) <= maxNum) {
+      obtainedStr = firstHalf;
+    }
+  }
+
+  const obtNum = parseFloat(obtainedStr);
+  const isValidObt = !isNaN(obtNum) && obtNum > 0;
+
+  // 4. Calculate Percentage & Division strictly out of core 500 marks
+  let pct = 0;
+  let pctStr = '—';
+  let division = '—';
+
+  if (isValidObt && maxNum > 0 && (isPassed || (!isReap && !isFailed))) {
+    pct = Math.round((obtNum / maxNum) * 1000) / 10;
+    pctStr = `${pct.toFixed(1)}%`;
+    if (pct >= 75) division = 'Distinction';
+    else if (pct >= 60) division = '1st Division';
+    else if (pct >= 45) division = '2nd Division';
+    else if (pct >= 33) division = '3rd Division';
+    else division = 'Failed';
+  } else if (isReap) {
+    division = 'Reappear';
+  }
+
+  // 5. Clean, standardized formatted marks string (e.g. "492 / 500; MH 81")
+  let formattedMarks = '';
+  if (isValidObt) {
+    formattedMarks = `${obtNum} / ${maxNum}${additionalSubject ? `; ${additionalSubject}` : ''}`;
+  } else {
+    formattedMarks = String(rawMarks).trim();
+  }
+
+  return {
+    obtained: isValidObt ? String(obtNum) : obtainedStr,
+    max: String(maxNum),
+    additionalSubject,
+    pct,
+    pctStr,
+    division,
+    formattedMarks,
+    isPassed: isPassed || (isValidObt && !isReap && !isFailed),
+    isReap,
+    isFailed
+  };
+}
+
+/**
  * Calculate percentage & division from marks obtained and max marks.
  */
 export function calculateDivision(marksObt, maxMarks = 500) {
-  const obt = parseFloat(marksObt);
-  const max = parseFloat(maxMarks) || 500;
-  if (isNaN(obt) || obt <= 0 || max <= 0) {
-    return { pct: 0, division: '—', pctStr: '—' };
-  }
-  const pct = Math.round((obt / max) * 1000) / 10;
-  let division = '3rd Division';
-  if (pct >= 75) division = 'Distinction';
-  else if (pct >= 60) division = '1st Division';
-  else if (pct >= 45) division = '2nd Division';
-
-  return { pct, division, pctStr: `${pct}%` };
+  const parsed = parseJkboseMarks(marksObt, maxMarks);
+  return {
+    pct: parsed.pct,
+    division: parsed.division,
+    pctStr: parsed.pctStr,
+    additionalSubject: parsed.additionalSubject,
+    obtained: parsed.obtained,
+    max: parsed.max,
+    formattedMarks: parsed.formattedMarks
+  };
 }
 
 /**
@@ -245,37 +357,34 @@ export function extractStudentResultMarks(st) {
   const isReap = normStatus === 'Reap';
   const isFailed = normStatus === 'Failed';
 
-  // 4. Marks Parsing
-  const marksStr = String(rawMarks || '').trim();
-  const numMatch = marksStr.match(/(\d+)(?:\s*\/\s*(\d+))?/);
-
+  // 4. Marks Parsing with Additional Subjects & De-duplication
   const rawMax = raw.maxMarks || raw['Max Marks'] || raw['Total Max Marks in Class 12th'] || st?.maxMarks || '500';
-  const maxMarks = numMatch && numMatch[2] ? numMatch[2] : String(rawMax);
-
-  let marksObtained = '';
+  const parsedMarks = parseJkboseMarks(rawMarks, rawMax, normStatus);
+  let marksObtained = parsedMarks.obtained;
+  let maxMarks = parsedMarks.max;
   let reappSubjects = '';
 
   if (hasResult) {
-    if (numMatch) {
-      marksObtained = numMatch[1];
-    } else if (/^\d+$/.test(marksStr)) {
-      marksObtained = marksStr;
-    } else if (isPassed) {
-      marksObtained = marksStr && !/^(pass|passed|promoted|—|-)$/i.test(marksStr) ? marksStr : '';
-    } else if (isReap) {
-      reappSubjects = marksStr;
+    if (isReap) {
+      reappSubjects = parsedMarks.additionalSubject || marksObtained || rawMarks || '';
+      marksObtained = '';
     }
 
     // Check if result status itself has embedded marks e.g. "Pass (488/500)" or "488/500"
-    if (!marksObtained && rawStatus) {
+    if (!marksObtained && rawStatus && !isReap) {
       const statusNumMatch = String(rawStatus).match(/(\d{2,3})(?:\s*\/\s*(\d{3}))?/);
       if (statusNumMatch) {
         marksObtained = statusNumMatch[1];
+        const secondaryParsed = parseJkboseMarks(rawStatus, maxMarks, normStatus);
+        if (secondaryParsed.obtained) {
+          marksObtained = secondaryParsed.obtained;
+          maxMarks = secondaryParsed.max;
+        }
       }
     }
 
     // Check percentage if marks still empty
-    if (!marksObtained) {
+    if (!marksObtained && !isReap) {
       const pctCandidate = raw.percentage || raw['Percentage'] || raw['Marks %'] || raw['marks_percentage'] || '';
       const pctMatch = String(pctCandidate).match(/(\d+(?:\.\d+)?)/);
       if (pctMatch) {
@@ -291,7 +400,7 @@ export function extractStudentResultMarks(st) {
   // 5. Division / Distinction
   let division = raw['Div/Distinc (Current)'] || raw.currDiv || raw.division || raw['Division'] || raw['Distinction'] ||
     findNormalizedRecordValue(raw, ['Current Division', 'Division Current', 'Division Distinction Current', 'Div Distinc Current']) || st?.division || '';
-  if (hasResult && !division && marksObtained) {
+  if (hasResult && (!division || division === '—') && marksObtained) {
     division = calculateDivision(marksObtained, maxMarks).division;
   }
 
@@ -299,12 +408,18 @@ export function extractStudentResultMarks(st) {
   const examMode = raw['Exam Mode (Current)'] || raw.currExamMode || raw.exam_mode_current || raw.examMode || raw['Exam Mode'] ||
     findNormalizedRecordValue(raw, ['Current Exam Mode', 'Exam Mode Current', 'Examination Mode']) || '';
 
+  const finalCalc = marksObtained ? calculateDivision(marksObtained, maxMarks) : { pct: 0, pctStr: '—', division: '—' };
+
   return {
     hasResult: hasResult && (isPassed || isReap || isFailed),
     marksObtained: hasResult ? marksObtained : '',
     maxMarks: maxMarks || '500',
+    additionalSubject: parsedMarks.additionalSubject || '',
+    formattedMarks: parsedMarks.formattedMarks || (marksObtained ? `${marksObtained} / ${maxMarks}` : ''),
+    percentage: finalCalc.pctStr !== '—' ? finalCalc.pctStr : (raw.percentage || raw['Percentage'] || ''),
+    pctNum: finalCalc.pct,
     reappSubjects: reappSubjects || (isReap ? (raw.reappSubjects || '') : ''),
-    division: hasResult ? (division || (isPassed && marksObtained ? calculateDivision(marksObtained, maxMarks).division : '')) : '',
+    division: hasResult ? (division || (isPassed && marksObtained ? finalCalc.division : '')) : '',
     examRoll: String(examRoll || '').trim(),
     examMode: String(examMode || '').trim(),
     resultStatus: normStatus,
