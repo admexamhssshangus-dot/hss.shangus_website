@@ -4740,7 +4740,8 @@ export default function AdmissionRegisterSuite({
 
               {pageChunks.map((chunk, idx) => {
                 const pageNum = idx + 1;
-                const is12th = selectedClass.includes('12');
+                const pageHas12th = chunk.some(s => String(s.class || '').includes('12'));
+                const is12th = selectedClass === '12th' || (selectedClass.includes('12') && !selectedClass.includes('11')) || pageHas12th;
                 const themeHeaderBg = is12th ? 'bg-rose-900 text-white' : 'bg-sky-800 text-white';
 
                 return (
@@ -4780,7 +4781,9 @@ export default function AdmissionRegisterSuite({
                             <ResizableTh colKey="st_boardRoll" sortKey="boardRollNo" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.st_boardRoll} onResize={handleColumnResize} className="border border-slate-900 px-1 py-1 text-white">Board<br />Roll No.</ResizableTh>
                             <ResizableTh colKey="st_result" sortKey="currentResult" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.st_result} onResize={handleColumnResize} className="border border-slate-900 px-1 py-1 text-white">Result</ResizableTh>
                             <ResizableTh colKey="st_admitReceipt" width={columnWidths.st_admitReceipt} onResize={handleColumnResize} className="border border-slate-900 px-1 py-1 text-white">Admit Card<br />Receipt</ResizableTh>
-                            <ResizableTh colKey="st_marksReceipt" width={columnWidths.st_marksReceipt} onResize={handleColumnResize} className="border border-slate-900 px-1 py-1 text-white">Marks Card / Certificate Receipt</ResizableTh>
+                            <ResizableTh colKey="st_marksReceipt" width={!is12th && columnWidths.st_marksReceipt === 144 ? 80 : (columnWidths.st_marksReceipt || (is12th ? 144 : 80))} onResize={handleColumnResize} className="border border-slate-900 px-1 py-1 text-white">
+                              {is12th ? 'Marks Card / Certificate Receipt' : 'Marks Card Receipt'}
+                            </ResizableTh>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-900 text-slate-900">
@@ -4890,19 +4893,42 @@ export default function AdmissionRegisterSuite({
                                   })()}
                                 </td>
                                 <td className="border border-slate-900 p-1 text-center align-bottom text-[7.5px]">
-                                  <div className="border-t border-slate-900 pt-0.5">Signature</div>
-                                </td>
-                                <td className="border border-slate-900 p-1 text-[7.5px] leading-tight">
-                                  <div className="flex justify-between gap-1 h-full">
-                                    <div className="flex-1 border-r border-dashed border-slate-300 pr-1">
-                                      <div className="font-bold text-[7px]">Marks Card Received</div>
-                                      <div className="mt-1.5 text-[7px]">Sig. __________</div>
-                                    </div>
-                                    <div className="flex-1 pl-1">
-                                      <div className="font-bold text-[7px]">Qual. Certificate</div>
-                                      <div className="mt-1.5 text-[7px]">Sig. __________</div>
+                                  <div className="h-full flex flex-col justify-end" style={{ minHeight: `${Math.max(34, rowHeight - 8)}px` }}>
+                                    <div className="border-t border-slate-900 pt-0.5 font-medium text-[7.5px] text-slate-700 select-none">
+                                      Signature
                                     </div>
                                   </div>
+                                </td>
+                                <td className="border border-slate-900 p-1 text-[7.5px] leading-tight align-bottom">
+                                  {is12th ? (
+                                    <div className="flex justify-between gap-1 h-full" style={{ minHeight: `${Math.max(34, rowHeight - 8)}px` }}>
+                                      <div className="flex-1 border-r border-dashed border-slate-300 pr-1 flex flex-col justify-between h-full">
+                                        <div className="font-bold text-[7px] text-slate-800 text-center">Marks Card Received</div>
+                                        <div className="mt-auto border-t border-slate-900 pt-0.5 text-center text-[7px] font-medium text-slate-700 select-none">
+                                          Signature
+                                        </div>
+                                      </div>
+                                      <div className="flex-1 pl-1 flex flex-col justify-between h-full">
+                                        <div className="font-bold text-[7px] text-slate-800 text-center">Qual. Certificate</div>
+                                        {String(s.class || '').includes('11') ? (
+                                          <div className="mt-auto text-center text-[6.5px] text-slate-400 font-semibold py-0.5 select-none">
+                                            — (11th N/A)
+                                          </div>
+                                        ) : (
+                                          <div className="mt-auto border-t border-slate-900 pt-0.5 text-center text-[7px] font-medium text-slate-700 select-none">
+                                            Signature
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <div className="flex flex-col justify-between h-full w-full" style={{ minHeight: `${Math.max(34, rowHeight - 8)}px` }}>
+                                      <div className="font-bold text-[7px] text-slate-800 text-center">Marks Card Received</div>
+                                      <div className="mt-auto border-t border-slate-900 pt-0.5 text-center text-[7px] font-medium text-slate-700 select-none">
+                                        Signature
+                                      </div>
+                                    </div>
+                                  )}
                                 </td>
                               </ResizableDataRow>
                             );
