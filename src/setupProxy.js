@@ -50,6 +50,7 @@ module.exports = function(app) {
     res.setHeader('X-Frame-Options', 'DENY');
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('X-XSS-Protection', '1; mode=block');
+    res.setHeader('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
     next();
   });
 
