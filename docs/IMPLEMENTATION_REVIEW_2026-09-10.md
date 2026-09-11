@@ -66,6 +66,15 @@ After configuring the Firebase function environment and verifying the project/re
 
 ## Dependency assessment
 
+### Login configuration follow-up — 11 September
+
+- Gmail SMTP authentication passed without sending an email. The custom function's mail settings are stored in ignored `functions/.env`; Firebase Authentication's SMTP console configuration is separate.
+- Enabled the previously disabled Firebase App Check API in `hsssdb`. Registered the project's existing score-based Enterprise key for the configured web app and corrected the ignored local site-key configuration. The separately supplied key was not found in this project's key list.
+- Registered a private workstation debug token and stored it only in ignored `.env.development.local`. It must not be placed in `.env.local`: existing whole-environment references can embed otherwise unused values in production bundles. Development builds can opt into this registered token; production builds do not enable debug mode. A real debug-token exchange returned HTTP 200 and issued an App Check token. Restart the development server to load these settings.
+- Deployment of only `beginAdminVerification`, `approveAdminVerification`, and `cancelAdminVerification` was attempted after SMTP validation and renewed user authorization. Google rejected the required Artifact Registry API activation because the project's billing account is not open. No login functions were deployed. The earlier approval-review rejection is no longer the current blocker.
+- The user must link an active billing account/enable the appropriate Firebase plan before retrying Cloud Functions deployment. Billing was not changed. Live Netlify environment settings and deployment also remain pending; the current Enterprise key allows `hssshangus.netlify.app`. Other live domains need explicit key configuration before rollout.
+- Successful App Check attestation is not an end-to-end login test. Administrator inbox approval and the remaining release gates still require the deployed backend and matching live client/rules.
+
 The final production-only audit reports **zero known vulnerabilities** for the frontend; compatible updates also cleared all reported advisories in both backend dependency trees. This is an advisory snapshot, not proof that dependencies contain no defects.
 
 The full frontend dependency audit still reports **30 development-tool advisories: 14 high, 7 moderate and 9 low**, largely in the old Create React App/Jest/Webpack toolchain. Do not use `npm audit fix --force`: its proposed downgrade/removal of `react-scripts` is not a safe repair. Migrate the build tooling as a separate tested change. The spreadsheet parser is a runtime dependency and was upgraded using the [official SheetJS distribution](https://docs.sheetjs.com/docs/getting-started/installation/nodejs/). The function startup change follows the [Admin SDK release notes](https://firebase.google.com/support/release-notes/admin/node).
