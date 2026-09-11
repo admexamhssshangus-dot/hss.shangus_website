@@ -7,9 +7,9 @@ import {
   Download, Upload, FileSpreadsheet, FileText, Trash2, Eye, Save, Shield, ShieldAlert,
   ChevronDown, BookOpen, SlidersHorizontal, Filter, Layers, Plus, Minus, RotateCcw, Sparkles
 } from 'lucide-react';
-import { db, functions } from '../../services/firebase';
+import { db } from '../../services/firebase';
 import { collection, getDocs, doc, setDoc, deleteDoc } from 'firebase/firestore';
-import { httpsCallable } from 'firebase/functions';
+import { staffCallable } from '../../services/staffCommand';
 import ModernLoader from '../../components/ModernLoader';
 import { getCachedCollection } from '../../services/dbCache';
 import {
@@ -1031,7 +1031,7 @@ export default function AdminPracticals() {
     const k = cls + '_' + row.subjectCode;
     setEmailSt(p => ({ ...p, [k]: 'sending' }));
     try {
-      const sendPracticalsEmail = httpsCallable(functions, 'sendPracticalsEmail');
+      const sendPracticalsEmail = staffCallable('sendPracticalsEmail');
       await sendPracticalsEmail({
         to: row.teacherEmail,
         subject: `Assessment Submission Report: ${row.subjectName} (${cls})`,

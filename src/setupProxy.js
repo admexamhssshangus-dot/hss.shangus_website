@@ -10,6 +10,7 @@ try {
     dotenv.config({ path: path.resolve(__dirname, '../.env.local') });
   }
   dotenv.config({ path: path.resolve(__dirname, '../.env') });
+  dotenv.config({ path: path.resolve(__dirname, '../functions/.env') });
 } catch (e) {}
 
 // Ensure Netlify Functions dependencies (e.g. firebase-admin) are resolvable by local proxy
@@ -82,6 +83,20 @@ module.exports = function(app) {
     }
     return true;
   }
+
+  app.post('/.netlify/functions/staff-command', async (req, res) => {
+    if (!assertLocalhost(req, res)) return;
+    try {
+      const { handler } = require('../netlify/functions/staff-command');
+      const result = await handler({ httpMethod: 'POST', headers: {
+        ...req.headers, origin: req.headers.origin || `http://${req.headers.host}`,
+      }, body: JSON.stringify(req.body || {}) });
+      Object.entries(result.headers || {}).forEach(([key, value]) => res.setHeader(key, value));
+      return res.status(result.statusCode).send(result.body);
+    } catch (_) {
+      return res.status(503).json({ error: 'The local staff backend could not start. Check server dependencies and configuration.' });
+    }
+  });
 
   // CRA does not execute Netlify Functions. In local development, invoke the
   // function locally when an unprefixed server credential is present; otherwise
