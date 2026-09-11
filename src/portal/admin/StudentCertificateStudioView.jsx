@@ -1535,6 +1535,7 @@ export default function StudentCertificateStudioView({
         raw: revocationSource,
         certificateNo: currentCertNo
       }]);
+      await registerIssuedDocument(selectedStudent, currentCertNo, certificateTitle, 'revoke').catch(() => {});
       if (res.success) {
         showToast(`TC/DC Certificate No. #${currentCertNo} revoked successfully.`, 'success');
         setRefNo('');

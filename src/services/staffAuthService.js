@@ -1,4 +1,4 @@
-import { doc, getDoc, setDoc, deleteDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, deleteDoc, collection, getDocs, query, where } from 'firebase/firestore';
 import { sendSignInLinkToEmail, sendPasswordResetEmail } from 'firebase/auth';
 import { staffCallable } from './staffCommand';
 import { auth, db } from './firebase';
@@ -319,10 +319,17 @@ export async function deleteStaffAccount(email) {
     console.warn('Delete admin from permissions note:', fsErr);
   }
 
-  // 2. Remove from users/{cleanEmail}
+  // 2. Remove from users/{cleanEmail} and purge any matching users/{uid}
   try {
     await deleteDoc(doc(db, 'users', cleanEmail));
-  } catch (_) {}
+    const userQuery = query(collection(db, 'users'), where('email', '==', cleanEmail));
+    const userSnaps = await getDocs(userQuery);
+    for (const snap of userSnaps.docs) {
+      await deleteDoc(snap.ref);
+    }
+  } catch (userErr) {
+    console.warn('Purge user documents note:', userErr);
+  }
 
   // 3. Optional background invocation to staff-command if backend is reachable
   try {

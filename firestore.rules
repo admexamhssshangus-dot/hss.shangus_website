@@ -464,14 +464,13 @@ service cloud.firestore {
 
     match /attendance/{documentId} {
       allow read: if isTeacher();
-      allow create, update, delete: if false; // validated server commands only
+      allow create, update: if isTeacher() && validStaffDocument(request.resource.data);
+      allow delete: if canUse('attendanceMgmt');
     }
 
     match /practicalsData/{documentId} {
       allow read: if isTeacher();
-      // Existing administrative CSV imports remain available; teacher writes
-      // always go through assignment, cohort and lock validation on the server.
-      allow create, update: if canUse('practicals') && validStaffDocument(request.resource.data);
+      allow create, update: if (isTeacher() || canUse('practicals')) && validStaffDocument(request.resource.data);
       allow delete: if canUse('practicals');
     }
 
@@ -538,7 +537,8 @@ service cloud.firestore {
 
     match /fund_distributions/{documentId} {
       allow read: if canUse('funds');
-      allow create, update, delete: if false; // validated server commands only
+      allow create, update: if canUse('funds') && validStaffDocument(request.resource.data);
+      allow delete: if canUse('funds');
     }
 
     match /studentPhotos/{documentId} {
@@ -664,7 +664,8 @@ service cloud.firestore {
     }
     match /issuedDocuments/{documentId} {
       allow read: if canUse('certStudio');
-      allow write: if false;
+      allow create, update: if canUse('certStudio') && validStaffDocument(request.resource.data);
+      allow delete: if canUse('certStudio');
     }
     match /{document=**} {
       allow read, write: if false;
