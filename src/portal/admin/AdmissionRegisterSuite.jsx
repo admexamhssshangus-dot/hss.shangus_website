@@ -24,7 +24,7 @@ import {
   hasAssignedClassRollNumber,
   resolveStudentAdmissionStatus
 } from '../../utils/studentApprovalStatus';
-import { formatResultMarksString, getClassTier, areClassTiersCompatible, isSecondaryOnlySubjectList, areNamesCompatible } from '../../utils/certificateStudentResolution';
+import { formatResultMarksString, getClassTier, areClassTiersCompatible, isSecondaryOnlySubjectList, areNamesCompatible, extractReappearCodes } from '../../utils/certificateStudentResolution';
 
 const SCHOOL_NAME = 'GOVT. HIGHER SECONDARY SCHOOL SHANGUS';
 const SCHOOL_SUBTITLE = 'Nurturing Minds, Shaping Futures • District Anantnag';
@@ -415,7 +415,9 @@ const CURRENT_RESULT_KEYS = [
 const CURRENT_MARKS_KEYS = [
   'Marks/Reapp (Current)', 'currMarksReapp', 'marks_reapp_current',
   'Marks Obtained (Current)', 'Marks Obtained', 'Marks Obt.', 'Total Marks Obtained',
-  'marksObt', 'currMarks', 'marks', 'Marks', 'marksReapp', 'reappSubjects', 'Reappear Subjects'
+  'marksObt', 'currMarks', 'marks', 'Marks', 'marksReapp', 'reappSubjects', 'Reappear Subjects',
+  'Subjects to Reappear (Class 11th)', 'Subjects to Reappear (Class 10th)',
+  'Marks/Reapp', 'marks_reapp', 'Marks/Reapp (Prev.)', 'Marks Obt. (Prev.)'
 ];
 
 export { formatResultMarksString };
@@ -5069,8 +5071,30 @@ export default function AdmissionRegisterSuite({
                                         ? 'text-red-700 dark:text-red-400 font-black'
                                         : 'text-slate-900 dark:text-slate-100 font-bold';
 
-                                    const marksStr = formatResultMarksString(s.currentMarks);
-                                    const showMarks = marksStr && (!resRaw || !resRaw.toLowerCase().includes(marksStr.toLowerCase()));
+                                    // Resolve sub-detail: either marks obtained or subjects to reappear
+                                    let subDetail = formatResultMarksString(s.currentMarks);
+
+                                    // For Reappear status, resolve reappear subjects if not already present or if numeric marks absent
+                                    if (isReappear) {
+                                      const hasNumericMarks = subDetail && /\d{2,3}/.test(subDetail);
+                                      if (!hasNumericMarks) {
+                                        const reapCodeSet = extractReappearCodes(s);
+                                        if (reapCodeSet && reapCodeSet.size > 0) {
+                                          subDetail = Array.from(reapCodeSet).join(', ');
+                                        } else if (s.currentMarks && typeof s.currentMarks === 'string' && s.currentMarks.trim() && s.currentMarks !== '—') {
+                                          subDetail = abbreviateSubjects(s.currentMarks);
+                                        } else if (isAprBianSession && s.subs && s.subs !== '—' && s.subs !== '-') {
+                                          subDetail = s.subs;
+                                        }
+                                      }
+                                    }
+
+                                    const showDetail = Boolean(
+                                      subDetail &&
+                                      subDetail !== '—' &&
+                                      subDetail !== '-' &&
+                                      (!resRaw || !resRaw.toLowerCase().includes(subDetail.toLowerCase()))
+                                    );
 
                                     return (
                                       <>
@@ -5080,9 +5104,12 @@ export default function AdmissionRegisterSuite({
                                         >
                                           {resRaw || '—'}
                                         </div>
-                                        {showMarks && (
-                                          <div className="text-[9.5px] font-mono text-slate-800 dark:text-slate-200 font-bold mt-0.5 leading-none whitespace-nowrap">
-                                            ({marksStr})
+                                        {showDetail && (
+                                          <div
+                                            className={`text-[9.5px] font-mono font-bold mt-0.5 leading-none whitespace-nowrap ${isReappear ? 'text-red-700 dark:text-red-400' : 'text-slate-800 dark:text-slate-200'}`}
+                                            style={isReappear ? { color: '#b91c1c' } : undefined}
+                                          >
+                                            ({subDetail})
                                           </div>
                                         )}
                                       </>
