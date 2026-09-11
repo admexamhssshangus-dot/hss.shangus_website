@@ -2,7 +2,8 @@ import {
   normalizeRegistrationKey,
   areNamesCompatible,
   resolveCcDcVal,
-  extractReappearCodes
+  extractReappearCodes,
+  formatResultMarksString
 } from './certificateStudentResolution';
 
 jest.mock('../services/firebase', () => ({ db: {} }));
@@ -121,6 +122,36 @@ describe('Student Resolution & Reports Validation', () => {
       const codes = extractReappearCodes(reapSt);
       expect(codes.has('GE')).toBe(true);
       expect(codes.has('UR')).toBe(true);
+    });
+  });
+
+  describe('formatResultMarksString', () => {
+    test('formats pure numeric marks with default / 500 denominator', () => {
+      expect(formatResultMarksString('440')).toBe('440 / 500');
+      expect(formatResultMarksString(385)).toBe('385 / 500');
+    });
+
+    test('normalizes slash spacing for marks already containing denominator', () => {
+      expect(formatResultMarksString('440/500')).toBe('440 / 500');
+      expect(formatResultMarksString('440 / 500')).toBe('440 / 500');
+    });
+
+    test('de-duplicates repeated paste entries with extra remarks', () => {
+      expect(formatResultMarksString('492492 / 500; MH 81')).toBe('492 / 500; MH 81');
+      expect(formatResultMarksString('440440 / 500')).toBe('440 / 500');
+    });
+
+    test('preserves reappear codes and custom marks strings', () => {
+      expect(formatResultMarksString('CH')).toBe('CH');
+      expect(formatResultMarksString('GE, ED')).toBe('GE, ED');
+    });
+
+    test('returns empty string for missing or placeholder inputs', () => {
+      expect(formatResultMarksString('')).toBe('');
+      expect(formatResultMarksString(null)).toBe('');
+      expect(formatResultMarksString(undefined)).toBe('');
+      expect(formatResultMarksString('—')).toBe('');
+      expect(formatResultMarksString('-')).toBe('');
     });
   });
 });
