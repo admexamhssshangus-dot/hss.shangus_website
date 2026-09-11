@@ -24,7 +24,7 @@ import {
   hasAssignedClassRollNumber,
   resolveStudentAdmissionStatus
 } from '../../utils/studentApprovalStatus';
-import { formatResultMarksString, getClassTier, areClassTiersCompatible, isSecondaryOnlySubjectList } from '../../utils/certificateStudentResolution';
+import { formatResultMarksString, getClassTier, areClassTiersCompatible, isSecondaryOnlySubjectList, areNamesCompatible } from '../../utils/certificateStudentResolution';
 
 const SCHOOL_NAME = 'GOVT. HIGHER SECONDARY SCHOOL SHANGUS';
 const SCHOOL_SUBTITLE = 'Nurturing Minds, Shaping Futures • District Anantnag';
@@ -78,17 +78,17 @@ export const DEFAULT_COLUMN_WIDTHS = {
 
   // SENTUP
   st_sno: 40,
-  st_rollNo: 40,
-  st_photo: 40,
+  st_rollNo: 44,
+  st_photo: 42,
   st_boardReg: 96,
-  st_name: 128,
-  st_parentage: 128,
-  st_dob: 64,
+  st_name: 130,
+  st_parentage: 130,
+  st_dob: 68,
   st_subs: 64,
-  st_boardRoll: 64,
-  st_result: 48,
-  st_admitReceipt: 56,
-  st_marksReceipt: 144
+  st_boardRoll: 68,
+  st_result: 68,
+  st_admitReceipt: 60,
+  st_marksReceipt: 140
 };
 
 // Draggable Table Column Header Component
@@ -850,14 +850,14 @@ function formatBoardRegSplit(val) {
   if (!s) return '—';
   if (s.length > 12) {
     return (
-      <div className="leading-tight text-left font-mono">
-        <span className="font-extrabold">{s.substring(0, 12)}</span>
+      <div className="leading-tight text-left font-mono text-[11px]">
+        <span className="font-black text-slate-900 dark:text-slate-100">{s.substring(0, 12)}</span>
         <br />
         <span className="font-bold text-slate-600 dark:text-slate-400">{s.substring(12)}</span>
       </div>
     );
   }
-  return <span className="font-bold font-mono">{s}</span>;
+  return <span className="font-black font-mono text-[11px]">{s}</span>;
 }
 
 export default function AdmissionRegisterSuite({
@@ -1332,6 +1332,7 @@ export default function AdmissionRegisterSuite({
       const boardRoll = firstCleanValue(item, BOARD_ROLL_KEYS);
       const result = firstCleanValue(item, CURRENT_RESULT_KEYS);
       const marks = firstCleanValue(item, CURRENT_MARKS_KEYS);
+      const name = cleanStr(item.studentName || item["Student's Name (as per school records)"] || item["Student's Name"] || item['Student Name'] || item.name || item['Account Name']);
       const father = cleanStr(item.fatherName || item["Father's/Guardian's Name (as per school records)"] || item["Father's Name"] || item.father);
       const mother = cleanStr(item.motherName || item["Mother's Name (as per school records)"] || item["Mother's Name"] || item.mother);
       const pen = cleanStr(item.penNo || item['PEN number (given by UDISE portal)'] || item['PEN No.'] || item['PEN Number'] || item['PEN (UDISE)'] || item.pen);
@@ -1340,6 +1341,7 @@ export default function AdmissionRegisterSuite({
 
       const candidate = {
         raw: item,
+        name,
         boardReg: reg,
         class: cls,
         session: sess,
@@ -1364,7 +1366,17 @@ export default function AdmissionRegisterSuite({
       map.get(regKey).push(candidate);
     };
 
-    // 1. Index masterRegisters
+    // 1. Index all admissions pool first (contains highest fidelity admission numbers from previous/current 11th/12th cohorts)
+    (allAdmissionsPool || []).forEach(adm => {
+      indexItem(adm);
+    });
+
+    // 2. Index dataset
+    (dataset || []).forEach(s => {
+      indexItem(s);
+    });
+
+    // 3. Index masterRegisters
     (historyDataset || []).forEach(docItem => {
       if (!docItem) return;
       const chunk = docItem.items || docItem.students || docItem.records || docItem.data;
@@ -1375,16 +1387,6 @@ export default function AdmissionRegisterSuite({
       } else {
         indexItem(docItem, pSess, pCls);
       }
-    });
-
-    // 2. Index all admissions pool (all past and current sessions / classes)
-    (allAdmissionsPool || []).forEach(adm => {
-      indexItem(adm);
-    });
-
-    // 3. Also index dataset
-    (dataset || []).forEach(s => {
-      indexItem(s);
     });
 
     return map;
@@ -1706,7 +1708,12 @@ export default function AdmissionRegisterSuite({
           return !historicalSession || !sess || historicalSession === sess;
         };
         if (boardReg) {
-          histMatch = flatHistoryRecords.find(h => getBoardRegistration(h) === boardReg);
+          histMatch = flatHistoryRecords.find(h => {
+            if (getBoardRegistration(h) !== boardReg) return false;
+            const hName = cleanStr(h.studentName || h["Student's Name"]);
+            if (name && hName && !areNamesCompatible(name, hName)) return false;
+            return true;
+          });
         }
         if (!histMatch && aadhar && aadhar.replace(/\D/g, '').length >= 10) {
           const normalizedAadhar = aadhar.replace(/\D/g, '');
@@ -1739,15 +1746,33 @@ export default function AdmissionRegisterSuite({
 
       // 100% Matching Board Registration across previous sessions and classes (for biographical data like DOB, subjects, parentage)
       const sRegKey = normalizeBoardRegKey(boardReg);
-      const regCandidates = sRegKey ? universalBoardRegMap.get(sRegKey) || [] : [];
+      const rawRegCandidates = sRegKey ? universalBoardRegMap.get(sRegKey) || [] : [];
+
+      // Stringent verification: candidate name and father must be compatible with student
+      const regCandidates = rawRegCandidates.filter(c => {
+        if (!c) return false;
+        if (name && c.name && !areNamesCompatible(name, c.name)) return false;
+        if (father && c.father && !areNamesCompatible(father, c.father)) return false;
+        return true;
+      });
+
       let regMatch = null;
       if (regCandidates.length > 0) {
-        // Prioritize match from a different class (e.g. 11th if current is 12th) or session that has complete biographical data
-        regMatch = regCandidates.find(c => {
-          const hasData = c.dob || c.subs || c.father || c.mother;
+        // High priority: candidate from the SAME academic tier (e.g. 11th if current is 11th) that has an admission number or complete data
+        const sameTierMatch = regCandidates.find(c =>
+          areClassTiersCompatible(cls, c.class) &&
+          ((c.session && c.session !== sess) || c.admNo) &&
+          (c.admNo || c.dob || c.subs || c.father)
+        );
+
+        // Second priority: candidate from another session with complete biographical data
+        const otherSessionMatch = regCandidates.find(c => {
+          const hasData = c.dob || c.subs || c.father || c.mother || c.admNo;
           const isDifferent = (c.class && c.class !== cls) || (c.session && c.session !== sess);
           return hasData && isDifferent;
-        }) || regCandidates.find(c => c.dob || c.subs || c.father || c.mother) || regCandidates[0];
+        });
+
+        regMatch = sameTierMatch || otherSessionMatch || regCandidates.find(c => c.dob || c.subs || c.father || c.mother || c.admNo) || regCandidates[0];
       }
 
       // Track inherited fields
@@ -1852,9 +1877,68 @@ export default function AdmissionRegisterSuite({
       }
 
       let finalAdmNumber = admNo;
-      if (!finalAdmNumber && regMatch?.admNo) {
+      if (!finalAdmNumber && regCandidates.length > 0) {
+        // Priority A: Candidate from same academic tier with valid admission number
+        const sameTierWithAdm = regCandidates.find(c =>
+          c.admNo &&
+          c.admNo !== '—' &&
+          c.admNo !== 'N/A' &&
+          areClassTiersCompatible(cls, c.class)
+        );
+        if (sameTierWithAdm) {
+          finalAdmNumber = sameTierWithAdm.admNo;
+          inheritedFields.add('admNo');
+          if (!inheritedSource) {
+            inheritedSource = {
+              class: sameTierWithAdm.class || 'Previous Class',
+              session: sameTierWithAdm.session || 'Past Session',
+              fields: ['admNo']
+            };
+          }
+        }
+      }
+
+      // Priority B: regMatch admNo if tier compatible
+      if (!finalAdmNumber && regMatch?.admNo && areClassTiersCompatible(cls, regMatch.class)) {
         finalAdmNumber = regMatch.admNo;
         inheritedFields.add('admNo');
+      }
+
+      // Priority C: Stringent fallback search across allAdmissionsPool by Name + Father + DOB
+      if (!finalAdmNumber && name && father) {
+        const poolMatch = (allAdmissionsPool || []).find(adm => {
+          const aAdm = firstCleanValue(adm, ADMISSION_NO_KEYS);
+          if (!aAdm || aAdm === '—' || aAdm === 'N/A') return false;
+          const aCls = cleanStr(adm.class || adm.Class || adm['Admission sought for class'] || '');
+          if (cls && aCls && !areClassTiersCompatible(cls, aCls)) return false;
+          const aName = cleanStr(adm.studentName || adm["Student's Name (as per school records)"] || adm["Student's Name"] || adm['Student Name'] || adm.name);
+          const aFather = cleanStr(adm.fatherName || adm["Father's/Guardian's Name (as per school records)"] || adm["Father's Name"] || adm.father);
+          if (!areNamesCompatible(name, aName)) return false;
+          if (!areNamesCompatible(father, aFather)) return false;
+
+          // Extra check on DOB if both present
+          const aDob = cleanStr(adm.dob || adm['DoB (as per school records)'] || adm['Date of Birth'] || adm['DOB']);
+          if (rawDob && aDob) {
+            const cleanD1 = String(rawDob).replace(/\D/g, '');
+            const cleanD2 = String(aDob).replace(/\D/g, '');
+            if (cleanD1.length >= 6 && cleanD2.length >= 6 && cleanD1 !== cleanD2) {
+              return false;
+            }
+          }
+          return true;
+        });
+
+        if (poolMatch) {
+          finalAdmNumber = firstCleanValue(poolMatch, ADMISSION_NO_KEYS);
+          inheritedFields.add('admNo');
+          if (!inheritedSource) {
+            inheritedSource = {
+              class: poolMatch.class || poolMatch.Class || '11th',
+              session: poolMatch.session || poolMatch.Session || 'Past Session',
+              fields: ['admNo']
+            };
+          }
+        }
       }
 
       let finalPhotoUrl = directPhoto;
@@ -1873,7 +1957,7 @@ export default function AdmissionRegisterSuite({
       }
 
       const fallbackAdmNo = (rollNo && !isNaN(parseInt(rollNo, 10))) ? String(5277 + parseInt(rollNo, 10)) : '';
-      const finalAdmNo = finalAdmNumber || firstCleanValue(histMatch, ADMISSION_NO_KEYS) || fallbackAdmNo;
+      const finalAdmNo = finalAdmNumber || (areClassTiersCompatible(cls, histMatch?.class) ? firstCleanValue(histMatch, ADMISSION_NO_KEYS) : '') || fallbackAdmNo;
       const finalAdmDate = admDate || formatRegisterDate(firstRawValue(histMatch, ADMISSION_DATE_KEYS)) || (s.onlineSubmDate ? formatRegisterDate(s.onlineSubmDate) : '') || '02-03-2026';
       const displayAdmNo = (isReadmission && oldAdmNo && oldAdmNo !== finalAdmNo)
         ? `${finalAdmNo || '—'} (${oldAdmNo})`
@@ -3072,25 +3156,48 @@ export default function AdmissionRegisterSuite({
             overflow: visible !important;
           }
 
+          .sentup-ledger-page {
+            display: flex !important;
+            flex-direction: column !important;
+            justify-content: space-between !important;
+            height: auto !important;
+            max-height: 185mm !important;
+            box-sizing: border-box !important;
+            padding: 2mm 3mm !important;
+            page-break-inside: avoid !important;
+            break-inside: avoid-page !important;
+            page-break-after: always !important;
+            break-after: page !important;
+            overflow: hidden !important;
+          }
+
           .sentup-table {
             table-layout: fixed !important;
             width: 100% !important;
             page-break-inside: avoid !important;
             break-inside: avoid !important;
+            font-size: 10px !important;
           }
 
-          .sentup-table th, .sentup-table td {
-            padding: 1px 2px !important;
+          .sentup-table th {
+            padding: 1.5px 2px !important;
+            font-size: 9px !important;
             line-height: 1.15 !important;
           }
 
+          .sentup-table td {
+            padding: 1px 2px !important;
+            line-height: 1.15 !important;
+            font-size: 10px !important;
+          }
+
           .sentup-table tr {
-            height: 12.5mm !important;
-            max-height: 13.5mm !important;
+            height: 11.5mm !important;
+            max-height: 12.2mm !important;
           }
 
           .sentup-photo-cell {
-            height: 34px !important;
+            height: 33px !important;
             max-height: 35px !important;
           }
 
@@ -4527,7 +4634,16 @@ export default function AdmissionRegisterSuite({
                                    </td>
                                   <td className="border border-slate-900 px-1 py-0.5 text-left text-[7.5px] leading-tight">{s.prevSchool}</td>
                                   <td className="border border-slate-900 px-1 py-0.5 text-center font-mono ledger-mono-font">{s.prevRoll}</td>
-                                  <td className="border border-slate-900 px-1 py-0.5 text-center font-bold">{s.prevResult}</td>
+                                  <td className="border border-slate-900 px-1 py-0.5 text-center font-bold">
+                                    {(() => {
+                                      const pRes = String(s.prevResult || '').trim();
+                                      const isPQual = /^(pass|passed|qual|qualified)\b/i.test(pRes) || /qualified/i.test(pRes) || /passed/i.test(pRes);
+                                      const isPReap = /^(reap|reappear|fail|failed)\b/i.test(pRes) || /reappear/i.test(pRes) || /reap\b/i.test(pRes);
+                                      const pColor = isPQual ? '#047857' : isPReap ? '#b91c1c' : undefined;
+                                      const pClass = isPQual ? 'text-emerald-700 dark:text-emerald-400 font-black' : isPReap ? 'text-red-700 dark:text-red-400 font-black' : 'font-bold';
+                                      return <span className={pClass} style={pColor ? { color: pColor } : undefined}>{pRes || '—'}</span>;
+                                    })()}
+                                  </td>
                                   <td className="border border-slate-900 px-1 py-0.5 text-center font-mono text-[7px] ledger-mono-font overflow-hidden">{renderPenCell(s.pen)}</td>
                                   <td className="border border-slate-900 px-1 py-0.5 text-center text-emerald-900 font-bold text-[7px] bg-emerald-50">
                                     {renderAdmittedVideCell(s.prevCC)}
@@ -4806,7 +4922,7 @@ export default function AdmissionRegisterSuite({
                 return (
                   <div
                     key={pageNum}
-                    className="page-container register-ledger-page bg-white rounded-xl border border-slate-300 shadow-sm print:border-none print:shadow-none max-w-[355.6mm] mx-auto page-break-after"
+                    className="page-container register-ledger-page sentup-ledger-page bg-white rounded-xl border border-slate-300 shadow-sm print:border-none print:shadow-none max-w-[355.6mm] mx-auto page-break-after"
                     style={{ padding: `${printMargin}in` }}
                   >
                     {/* Header */}
@@ -4821,20 +4937,20 @@ export default function AdmissionRegisterSuite({
                     </div>
 
                     <div className="overflow-x-auto">
-                      <table className="sentup-table w-full text-left text-[9px] border-collapse border border-slate-900 ledger-data-font">
+                      <table className="sentup-table w-full text-left text-[11px] border-collapse border border-slate-900 ledger-data-font">
                         <thead>
-                          <tr className={`${themeHeaderBg} uppercase font-black text-center text-[8.5px]`}>
+                          <tr className={`${themeHeaderBg} uppercase font-black text-center text-[10px] tracking-tight`}>
                             <th className="border border-slate-900 px-1 py-1 text-center w-7 select-none shrink-0 print:hidden text-white" title="Select / deselect all rows">
                               <button type="button" onClick={toggleSelectAllRows} className="cursor-pointer text-white flex items-center justify-center mx-auto">
-                                {isAllRowsIncluded ? <CheckSquare size={12} className="text-white" /> : isSomeRowsSkipped ? <Minus size={12} className="text-white" /> : <Square size={12} className="text-white opacity-70" />}
+                                {isAllRowsIncluded ? <CheckSquare size={13} className="text-white" /> : isSomeRowsSkipped ? <Minus size={13} className="text-white" /> : <Square size={13} className="text-white opacity-70" />}
                               </button>
                             </th>
-                            <ResizableTh colKey="st_sno" sortKey="sno" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.st_sno} onResize={handleColumnResize} className="border border-slate-900 px-1 py-1 text-white">S.No.<br /><span className="th-subtext text-[7px] text-sky-100 opacity-90">[Adm No.]</span></ResizableTh>
+                            <ResizableTh colKey="st_sno" sortKey="sno" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.st_sno} onResize={handleColumnResize} className="border border-slate-900 px-1 py-1 text-white">S.No.<br /><span className="th-subtext text-[8px] text-sky-100 opacity-90">[Adm No.]</span></ResizableTh>
                             <ResizableTh colKey="st_rollNo" sortKey="rollNo" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.st_rollNo} onResize={handleColumnResize} className="border border-slate-900 px-1 py-1 text-white">Class<br />Roll No.</ResizableTh>
                             <ResizableTh colKey="st_photo" width={columnWidths.st_photo} onResize={handleColumnResize} className="border border-slate-900 px-1 py-1 text-white">Photo</ResizableTh>
                             <ResizableTh colKey="st_boardReg" sortKey="boardReg" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.st_boardReg} onResize={handleColumnResize} className="border border-slate-900 px-1.5 py-1 text-left pl-2 text-white">Board<br />Reg. No.</ResizableTh>
                             <ResizableTh colKey="st_name" sortKey="name" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.st_name} onResize={handleColumnResize} className="border border-slate-900 px-1 py-1 text-left pl-2 text-white">Student's Name</ResizableTh>
-                            <ResizableTh colKey="st_parentage" sortKey="father" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.st_parentage} onResize={handleColumnResize} className="border border-slate-900 px-1 py-1 text-left pl-2 text-white">Parentage<br /><span className="th-subtext text-[6.5px] text-sky-100 opacity-90">(Father / Mother)</span></ResizableTh>
+                            <ResizableTh colKey="st_parentage" sortKey="father" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.st_parentage} onResize={handleColumnResize} className="border border-slate-900 px-1 py-1 text-left pl-2 text-white">Parentage<br /><span className="th-subtext text-[8px] text-sky-100 opacity-90">(Father / Mother)</span></ResizableTh>
                             <ResizableTh colKey="st_dob" sortKey="dobFigures" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.st_dob} onResize={handleColumnResize} className="border border-slate-900 px-1 py-1 text-white">Date of Birth</ResizableTh>
                             <ResizableTh colKey="st_subs" sortKey="subs" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.st_subs} onResize={handleColumnResize} className="border border-slate-900 px-1 py-1 text-white">Subjects</ResizableTh>
                             <ResizableTh colKey="st_boardRoll" sortKey="boardRollNo" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.st_boardRoll} onResize={handleColumnResize} className="border border-slate-900 px-1 py-1 text-white">Board<br />Roll No.</ResizableTh>
@@ -4866,17 +4982,17 @@ export default function AdmissionRegisterSuite({
                                   </button>
                                 </td>
                                 <td className="border border-slate-900 px-1 py-0.5 text-center">
-                                  <div className={`font-black text-xs ledger-mono-font ${isSkipped ? 'line-through text-slate-400' : ''}`}>{s.sno}</div>
-                                  <div className="text-[7.5px] font-mono text-slate-500 ledger-mono-font">[{s.admNo || '—'}]</div>
+                                  <div className={`font-black text-[13px] leading-tight ledger-mono-font ${isSkipped ? 'line-through text-slate-400' : ''}`}>{s.sno}</div>
+                                  <div className="text-[9px] font-mono font-bold text-slate-600 dark:text-slate-400 ledger-mono-font">[{s.admNo || '—'}]</div>
                                 </td>
-                                <td className="border border-slate-900 px-1 py-0.5 text-center font-black text-sm text-sky-800 ledger-mono-font">{s.rollNo}</td>
+                                <td className="border border-slate-900 px-1 py-0.5 text-center font-black text-[15px] text-sky-800 ledger-mono-font">{s.rollNo}</td>
                                 <td className="sentup-photo-cell register-photo-cell border border-slate-900 p-0 text-center overflow-hidden bg-slate-50 print:bg-transparent" style={{ width: columnWidths.st_photo ? `${columnWidths.st_photo}px` : undefined, height: `${rowHeight}px` }}>
                                   {photoSrc ? (
                                     <img
                                       src={photoSrc}
                                       alt={s.name}
                                       className="block w-full object-cover"
-                                      style={{ height: `${Math.max(30, rowHeight - 1)}px` }}
+                                      style={{ height: `${Math.max(34, rowHeight - 1)}px` }}
                                       loading="eager"
                                       onError={(e) => {
                                         e.currentTarget.style.display = 'none';
@@ -4886,26 +5002,26 @@ export default function AdmissionRegisterSuite({
                                       }}
                                     />
                                   ) : null}
-                                  <div className={`w-full h-full items-center justify-center text-[7px] text-slate-400 font-bold ${photoSrc ? 'hidden' : 'flex'}`}>
+                                  <div className={`w-full h-full items-center justify-center text-[8.5px] text-slate-400 font-bold ${photoSrc ? 'hidden' : 'flex'}`}>
                                     Photo
                                   </div>
                                 </td>
-                                <td className="border border-slate-900 px-1.5 py-0.5 text-left pl-2 ledger-mono-font">{formatBoardRegSplit(s.boardReg)}</td>
-                                <td className="border border-slate-900 px-1.5 py-0.5 text-left font-black uppercase text-[10px]">
+                                <td className="border border-slate-900 px-1.5 py-0.5 text-left pl-2 ledger-mono-font text-[11px] font-bold">{formatBoardRegSplit(s.boardReg)}</td>
+                                <td className="border border-slate-900 px-1.5 py-0.5 text-left font-black uppercase text-[12px]">
                                   <div className="flex flex-col items-start justify-center gap-0.5 min-w-0">
                                     {(s.hasInheritedData || s.isReadmission) && (
                                       <div className="flex items-center gap-1 print:hidden shrink-0 leading-none">
                                         {s.isReadmission && (
-                                          <span className="text-[6.5px] font-black px-1 py-0.2 rounded bg-purple-100 text-purple-800 leading-tight">
+                                          <span className="text-[7.5px] font-black px-1 py-0.2 rounded bg-purple-100 text-purple-800 leading-tight">
                                             Re-Adm
                                           </span>
                                         )}
                                         {s.hasInheritedData && (
                                           <span
-                                            className="inline-flex items-center gap-0.5 text-[6.5px] font-black px-1 py-0.2 rounded bg-amber-100 dark:bg-amber-950/80 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-700 shadow-2xs leading-tight whitespace-nowrap"
+                                            className="inline-flex items-center gap-0.5 text-[7.5px] font-black px-1 py-0.2 rounded bg-amber-100 dark:bg-amber-950/80 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-700 shadow-2xs leading-tight whitespace-nowrap"
                                             title={`Data inherited from ${s.inheritedSource?.class || 'Previous Class'} (${s.inheritedSource?.session || 'Past Session'}): ${(s.inheritedSource?.fields || []).join(', ')}`}
                                           >
-                                            <Sparkles size={7} className="text-amber-600 shrink-0" />
+                                            <Sparkles size={8} className="text-amber-600 shrink-0" />
                                             <span>From {s.inheritedSource?.class || 'Prev'} ({s.inheritedSource?.session || 'Past'})</span>
                                           </span>
                                         )}
@@ -4914,67 +5030,89 @@ export default function AdmissionRegisterSuite({
                                     <span className="tracking-tight whitespace-normal break-words leading-tight">{s.name}</span>
                                   </div>
                                 </td>
-                                <td className="border border-slate-900 px-2 py-0.5 text-left uppercase text-[8.5px] leading-tight">
-                                  <div className="font-bold border-b border-slate-200 pb-0.5">{s.father}</div>
-                                  <div className="text-slate-500 text-[7.5px] pt-0.5">{s.mother}</div>
+                                <td className="border border-slate-900 px-2 py-0.5 text-left uppercase leading-tight">
+                                  <div className="font-extrabold text-[11px] text-slate-900 border-b border-slate-200 pb-0.5">{s.father}</div>
+                                  <div className="text-slate-600 dark:text-slate-400 text-[9.5px] font-semibold pt-0.5">{s.mother}</div>
                                 </td>
-                                <td className="border border-slate-900 px-1 py-0.5 text-center font-mono text-[8.5px] ledger-mono-font">
-                                  <div>{s.dobFigures || '—'}</div>
+                                <td className="border border-slate-900 px-1 py-0.5 text-center font-mono ledger-mono-font">
+                                  <div className="font-bold text-[11px] text-slate-900">{s.dobFigures || '—'}</div>
                                   {s.inheritedSource?.fields?.includes('dob') && (
-                                    <div className="text-[6.5px] font-bold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/50 rounded px-0.5 leading-tight print:hidden">
+                                    <div className="text-[7.5px] font-bold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/50 rounded px-0.5 leading-tight print:hidden">
                                       From {s.inheritedSource.class || 'Prev'}
                                     </div>
                                   )}
                                 </td>
-                                <td className="border border-slate-900 px-1 py-0.5 text-center text-[7.5px] leading-tight font-medium">
-                                  {s.subs ? s.subs.split(',').map((sub, i) => <div key={i}>{sub.trim()}</div>) : '—'}
+                                <td className="border border-slate-900 px-1 py-0.5 text-center leading-tight font-black">
+                                  {s.subs ? s.subs.split(',').map((sub, i) => (
+                                    <div key={i} className="text-[10px] text-slate-900 leading-tight">
+                                      {sub.trim()}
+                                    </div>
+                                  )) : <span className="text-[10px] font-bold text-slate-400">—</span>}
                                   {s.inheritedSource?.fields?.includes('subs') && (
-                                    <div className="text-[6.5px] font-bold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/50 rounded px-0.5 mt-0.5 leading-tight print:hidden">
+                                    <div className="text-[7.5px] font-bold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/50 rounded px-0.5 mt-0.5 leading-tight print:hidden">
                                       From {s.inheritedSource.class || 'Prev'}
                                     </div>
                                   )}
                                 </td>
-                                <td className="border border-slate-900 px-1 py-0.5 text-center font-mono font-bold text-xs ledger-mono-font">
+                                <td className="border border-slate-900 px-1 py-0.5 text-center font-mono font-black text-[13px] text-slate-900 ledger-mono-font">
                                   <div>{s.boardRollNo || '—'}</div>
                                 </td>
-                                <td className="border border-slate-900 px-1 py-0.5 text-center font-bold text-[8.5px] leading-tight">
-                                  <div>{s.currentResult || '—'}</div>
+                                <td className="border border-slate-900 px-1 py-0.5 text-center leading-tight">
                                   {(() => {
+                                    const resRaw = String(s.currentResult || '').trim();
+                                    const isQualified = /^(pass|passed|qual|qualified)\b/i.test(resRaw) || /qualified/i.test(resRaw) || /passed/i.test(resRaw);
+                                    const isReappear = /^(reap|reappear|fail|failed)\b/i.test(resRaw) || /reappear/i.test(resRaw) || /reap\b/i.test(resRaw);
+                                    const resultColor = isQualified ? '#047857' : isReappear ? '#b91c1c' : undefined;
+                                    const resultClass = isQualified
+                                      ? 'text-emerald-700 dark:text-emerald-400 font-black'
+                                      : isReappear
+                                        ? 'text-red-700 dark:text-red-400 font-black'
+                                        : 'text-slate-900 dark:text-slate-100 font-bold';
+
                                     const marksStr = formatResultMarksString(s.currentMarks);
-                                    if (!marksStr || (s.currentResult && String(s.currentResult).toLowerCase().includes(marksStr.toLowerCase()))) {
-                                      return null;
-                                    }
+                                    const showMarks = marksStr && (!resRaw || !resRaw.toLowerCase().includes(marksStr.toLowerCase()));
+
                                     return (
-                                      <div className="text-[7px] font-mono text-slate-700 dark:text-slate-300 font-semibold mt-0.5 leading-none whitespace-nowrap">
-                                        ({marksStr})
-                                      </div>
+                                      <>
+                                        <div
+                                          className={`${resultClass} text-[11.5px] uppercase tracking-wide leading-tight`}
+                                          style={resultColor ? { color: resultColor } : undefined}
+                                        >
+                                          {resRaw || '—'}
+                                        </div>
+                                        {showMarks && (
+                                          <div className="text-[9.5px] font-mono text-slate-800 dark:text-slate-200 font-bold mt-0.5 leading-none whitespace-nowrap">
+                                            ({marksStr})
+                                          </div>
+                                        )}
+                                      </>
                                     );
                                   })()}
                                 </td>
-                                <td className="border border-slate-900 p-1 text-center align-bottom text-[7.5px]">
+                                <td className="border border-slate-900 p-1 text-center align-bottom text-[9px]">
                                   <div className="h-full flex flex-col justify-end" style={{ minHeight: `${Math.max(34, rowHeight - 8)}px` }}>
-                                    <div className="border-t border-slate-900 pt-0.5 font-medium text-[7.5px] text-slate-700 select-none">
+                                    <div className="border-t border-slate-900 pt-0.5 font-bold text-[9px] text-slate-800 select-none">
                                       Signature
                                     </div>
                                   </div>
                                 </td>
-                                <td className="border border-slate-900 p-1 text-[7.5px] leading-tight align-bottom">
+                                <td className="border border-slate-900 p-1 text-[8.5px] leading-tight align-bottom">
                                   {is12th ? (
                                     <div className="flex justify-between gap-1 h-full" style={{ minHeight: `${Math.max(34, rowHeight - 8)}px` }}>
                                       <div className="flex-1 border-r border-dashed border-slate-300 pr-1 flex flex-col justify-between h-full">
-                                        <div className="font-bold text-[7px] text-slate-800 text-center">Marks Card Received</div>
-                                        <div className="mt-auto border-t border-slate-900 pt-0.5 text-center text-[7px] font-medium text-slate-700 select-none">
+                                        <div className="font-extrabold text-[8.5px] text-slate-900 text-center leading-tight">Marks Card Received</div>
+                                        <div className="mt-auto border-t border-slate-900 pt-0.5 text-center text-[8.5px] font-bold text-slate-800 select-none">
                                           Signature
                                         </div>
                                       </div>
                                       <div className="flex-1 pl-1 flex flex-col justify-between h-full">
-                                        <div className="font-bold text-[7px] text-slate-800 text-center">Qual. Certificate</div>
+                                        <div className="font-extrabold text-[8.5px] text-slate-900 text-center leading-tight">Qual. Certificate</div>
                                         {String(s.class || '').includes('11') ? (
-                                          <div className="mt-auto text-center text-[6.5px] text-slate-400 font-semibold py-0.5 select-none">
+                                          <div className="mt-auto text-center text-[8px] text-slate-400 font-bold py-0.5 select-none">
                                             — (11th N/A)
                                           </div>
                                         ) : (
-                                          <div className="mt-auto border-t border-slate-900 pt-0.5 text-center text-[7px] font-medium text-slate-700 select-none">
+                                          <div className="mt-auto border-t border-slate-900 pt-0.5 text-center text-[8.5px] font-bold text-slate-800 select-none">
                                             Signature
                                           </div>
                                         )}
@@ -4982,8 +5120,8 @@ export default function AdmissionRegisterSuite({
                                     </div>
                                   ) : (
                                     <div className="flex flex-col justify-between h-full w-full" style={{ minHeight: `${Math.max(34, rowHeight - 8)}px` }}>
-                                      <div className="font-bold text-[7px] text-slate-800 text-center">Marks Card Received</div>
-                                      <div className="mt-auto border-t border-slate-900 pt-0.5 text-center text-[7px] font-medium text-slate-700 select-none">
+                                      <div className="font-extrabold text-[8.5px] text-slate-900 text-center leading-tight">Marks Card Received</div>
+                                      <div className="mt-auto border-t border-slate-900 pt-0.5 text-center text-[8.5px] font-bold text-slate-800 select-none">
                                         Signature
                                       </div>
                                     </div>
