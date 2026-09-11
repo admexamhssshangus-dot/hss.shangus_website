@@ -17,6 +17,13 @@ export function initializeFirebaseAppCheck(app) {
     window.FIREBASE_APPCHECK_DEBUG_TOKEN = process.env.REACT_APP_APPCHECK_DEBUG_TOKEN || true;
   }
 
+  // On localhost, skip active ReCaptcha attestation unless an explicit debug token is active
+  const isLocalhost = typeof window !== 'undefined' && 
+    (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+  if (isLocalhost && !window.FIREBASE_APPCHECK_DEBUG_TOKEN && process.env.NODE_ENV !== 'test') {
+    return null;
+  }
+
   appCheckInstance = initializeAppCheck(app, {
     provider: new ReCaptchaEnterpriseProvider(siteKey),
     isTokenAutoRefreshEnabled: true,
