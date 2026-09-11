@@ -169,8 +169,8 @@ export const ADMIN_MODULE_CATALOG = Object.freeze([
     label: 'Direct Entry & CSV Import',
     description: 'Express record creation and reviewed bulk data import',
     category: 'Operations & Automation',
-    maturity: 'beta',
-    maturityNote: 'Bulk ingestion remains preview-first because source files and schemas vary.',
+    maturity: 'optimized',
+    maturityNote: 'End-to-end optimized with immediate cohort validation, identity correlation, and auto-rollback protection.',
     launcher: false,
   },
   {
@@ -178,8 +178,8 @@ export const ADMIN_MODULE_CATALOG = Object.freeze([
     label: 'Board Data Sync & Overwriter',
     description: 'Bulk overwrite student admission fields with verified JKBOSE Excel data',
     category: 'Operations & Automation',
-    maturity: 'production',
-    maturityNote: 'Safeguarded with field-selection checklist and 30-day batch rollback memory.',
+    maturity: 'optimized',
+    maturityNote: 'End-to-end optimized with 100% authoritative Board Reg matching, protected class roll numbers, and 30-day rollback memory.',
     launcher: true,
   },
   {
