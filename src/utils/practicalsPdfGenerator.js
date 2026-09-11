@@ -23,6 +23,94 @@ export function numberToWordsInr(num) {
   return (words[n] || String(n)) + ' Only';
 }
 
+/**
+ * Resolves official award roll header title, examination label, and short type
+ * from evaluationType / practicalType string or fallback isExternal flag.
+ */
+export function resolveAwardRollTitles(evaluationType = '', isExternal = false) {
+  const typeStr = String(evaluationType || '').trim();
+  const typeLower = typeStr.toLowerCase();
+
+  // 1. Pre-Board Test / Examination
+  if (typeLower.includes('pre-board') || typeLower.includes('preboard')) {
+    return {
+      heading: 'PRE-BOARD TEST AWARD ROLL',
+      examLabel: 'Pre-Board Test',
+      shortType: 'Pre-Board',
+      badgeClass: 'preboard'
+    };
+  }
+
+  // 2. Term End Examination / Evaluation
+  if (typeLower.includes('term end') || typeLower.includes('term-end') || typeLower.includes('termend')) {
+    return {
+      heading: 'TERM END EXAMINATION AWARD ROLL',
+      examLabel: 'Term End Examination',
+      shortType: 'Term End',
+      badgeClass: 'termend'
+    };
+  }
+
+  // 3. Golden Test
+  if (typeLower.includes('golden')) {
+    return {
+      heading: 'GOLDEN TEST AWARD ROLL',
+      examLabel: 'Golden Test',
+      shortType: 'Golden Test',
+      badgeClass: 'golden'
+    };
+  }
+
+  // 4. Unit Test (e.g. Unit Test - 1, Unit Test 2)
+  if (typeLower.includes('unit test') || typeLower.includes('unit-test')) {
+    return {
+      heading: `${typeStr.toUpperCase()} AWARD ROLL`,
+      examLabel: typeStr,
+      shortType: typeStr,
+      badgeClass: 'unittest'
+    };
+  }
+
+  // 5. External Practical
+  if (typeLower.includes('external') || (!typeStr && isExternal)) {
+    return {
+      heading: 'EXTERNAL PRACTICAL AWARD ROLL',
+      examLabel: 'External Practical',
+      shortType: 'External',
+      badgeClass: 'external'
+    };
+  }
+
+  // 6. Internal Assessment / Practical
+  if (typeLower.includes('internal') || typeLower.includes('assessment')) {
+    return {
+      heading: 'INTERNAL PRACTICAL AWARD ROLL',
+      examLabel: 'Internal Practical',
+      shortType: 'Internal',
+      badgeClass: 'internal'
+    };
+  }
+
+  // 7. Custom / other specific examination
+  if (typeStr && !/^(all|na|n\/a|undefined|null)$/i.test(typeStr)) {
+    const cleanUpper = typeStr.toUpperCase().replace(/\s+AWARD\s+ROLL$/i, '');
+    return {
+      heading: `${cleanUpper} AWARD ROLL`,
+      examLabel: typeStr,
+      shortType: typeStr,
+      badgeClass: 'custom'
+    };
+  }
+
+  // 8. Fallback based on isExternal
+  return {
+    heading: isExternal ? 'EXTERNAL PRACTICAL AWARD ROLL' : 'INTERNAL PRACTICAL AWARD ROLL',
+    examLabel: isExternal ? 'External Practical' : 'Internal Practical',
+    shortType: isExternal ? 'External' : 'Internal',
+    badgeClass: isExternal ? 'external' : 'internal'
+  };
+}
+
 export const PRACTICAL_SUBJECT_DEFS = [
   { code: 'EN', name: 'General English', keywords: ['english', 'gen eng', 'en'] },
   { code: 'PH', name: 'Physics', keywords: ['physics', 'ph'] },
@@ -351,13 +439,13 @@ const PRINT_ENGINE_CSS = `
   }
 `;
 
-function triggerPrintWindow(htmlContent) {
+function triggerPrintWindow(htmlContent, pageTitle = 'Official Practical Award Roll — Govt HSS Shangus') {
   const pwin = window.open('', '_blank');
   pwin.document.write(`
     <!DOCTYPE html>
     <html>
       <head>
-        <title>Official Practical Award Roll — Govt HSS Shangus</title>
+        <title>${pageTitle}</title>
         <style>${PRINT_ENGINE_CSS}</style>
       </head>
       <body>
@@ -386,14 +474,19 @@ export function printIndividualAwardRoll({
   className = '11th',
   session = 'Annual Regular 2025',
   records = [],
-  isExternal = true,
+  isExternal = false,
+  evaluationType = '',
+  practicalType = '',
+  examTitle = '',
   maxMarks = 10,
   minMarks = 4,
   centreNo = ''
 }) {
   if (!records || records.length === 0) return false;
 
-  const examType = isExternal ? 'External Practical' : 'Internal Practical';
+  const titles = resolveAwardRollTitles(evaluationType || practicalType || examTitle, isExternal);
+  const heading = titles.heading;
+  const examType = titles.examLabel;
   const totalRecs = records.length;
   const pageSize = 50; // 25 left + 25 right per A4 page
   const totalPages = Math.ceil(totalRecs / pageSize);
@@ -409,10 +502,39 @@ export function printIndividualAwardRoll({
     const rightPageNo = p * 2 + 2;
 
     const renderColumn = (colChunk, startSno, pageNo) => {
+      // Dynamic footer counts: calculate if any marks have been entered in this column
+      let presentCount = 0;
+      let absentCount = 0;
+      let passCount = 0;
+      let failCount = 0;
+      let hasMarksEntered = false;
+
+      colChunk.forEach(r => {
+        const rawMark = String(r.totalMarks ?? r.practicalMarks ?? r.marks ?? '').trim();
+        if (rawMark && !/^(N\/A|—|-|null|undefined)$/i.test(rawMark)) {
+          hasMarksEntered = true;
+          const upper = rawMark.toUpperCase();
+          if (upper === 'AB' || upper === 'A' || upper === 'ABSENT') {
+            absentCount++;
+            failCount++;
+          } else {
+            const num = Number(rawMark);
+            if (!isNaN(num)) {
+              presentCount++;
+              if (num >= minMarks) {
+                passCount++;
+              } else {
+                failCount++;
+              }
+            }
+          }
+        }
+      });
+
       let colHtml = `
         <div class="award-col-box">
           <div class="award-header-block">
-            <h2>${isExternal ? 'EXTERNAL' : 'INTERNAL'} PRACTICAL AWARD ROLL</h2>
+            <h2>${heading}</h2>
             <div class="award-info-line">
               <span>Examination: <strong>${examType}</strong></span>
               <span>Page No.: <strong>${pageNo}</strong></span>
@@ -423,6 +545,7 @@ export function printIndividualAwardRoll({
             </div>
             <div class="award-info-line">
               <span>Session: <strong>${session}</strong></span>
+              <span>Class: <strong>${className?.toLowerCase().includes('class') ? className : `Class ${className}`}</strong></span>
             </div>
           </div>
 
@@ -495,22 +618,22 @@ export function printIndividualAwardRoll({
             <div class="award-footer-row">
               <div class="award-footer-field">
                 <span>No. of Candidates Present:</span>
-                <span class="fill-blank"></span>
+                ${hasMarksEntered ? `<strong style="font-size: 9.5pt; font-family: monospace;">${presentCount}</strong>` : `<span class="fill-blank"></span>`}
               </div>
               <div class="award-footer-field">
                 <span>Absent:</span>
-                <span class="fill-blank"></span>
+                ${hasMarksEntered ? `<strong style="font-size: 9.5pt; font-family: monospace; ${absentCount > 0 ? 'color: #dc2626;' : ''}">${absentCount}</strong>` : `<span class="fill-blank"></span>`}
               </div>
             </div>
 
             <div class="award-footer-row">
               <div class="award-footer-field">
                 <span>No. of Candidates Passed:</span>
-                <span class="fill-blank"></span>
+                ${hasMarksEntered ? `<strong style="font-size: 9.5pt; font-family: monospace; color: #16a34a;">${passCount}</strong>` : `<span class="fill-blank"></span>`}
               </div>
               <div class="award-footer-field">
                 <span>Failed:</span>
-                <span class="fill-blank"></span>
+                ${hasMarksEntered ? `<strong style="font-size: 9.5pt; font-family: monospace; ${failCount > 0 ? 'color: #dc2626;' : ''}">${failCount}</strong>` : `<span class="fill-blank"></span>`}
               </div>
             </div>
 
@@ -546,7 +669,7 @@ export function printIndividualAwardRoll({
     `;
   }
 
-  triggerPrintWindow(fullHtml);
+  triggerPrintWindow(fullHtml, `${heading} — ${subjectName} (${subjectCode}) — Class ${className}`);
   return true;
 }
 
@@ -558,15 +681,20 @@ export function printIndividualWorkSheet({
   subjectName = 'Botany',
   className = '11th',
   session = 'Annual Regular 2025',
-  records = []
+  records = [],
+  evaluationType = '',
+  practicalType = ''
 }) {
   if (!records || records.length === 0) return false;
 
+  const titles = resolveAwardRollTitles(evaluationType || practicalType, false);
+  const examLabel = titles.examLabel;
+
   let html = `
     <div class="award-page">
-      <div style="text-align: center; margin-bottom: 12px; border-b: 2px solid #000; padding-bottom: 8px;">
+      <div style="text-align: center; margin-bottom: 12px; border-bottom: 2px solid #000; padding-bottom: 8px;">
         <h1 style="font-size: 14pt; font-weight: bold; margin: 0;">Govt. Higher Secondary School Shangus</h1>
-        <h2 style="font-size: 11pt; font-weight: bold; margin: 4px 0;">Marks Record (Practicals/Assignments) - HSE-${className === '11th' ? 'I (Class 11th)' : 'II (Class 12th)'} - ${subjectName}</h2>
+        <h2 style="font-size: 11pt; font-weight: bold; margin: 4px 0;">Marks Record (${examLabel}) - HSE-${className === '11th' ? 'I (Class 11th)' : 'II (Class 12th)'} - ${subjectName}</h2>
         <p style="font-size: 9.5pt; font-weight: bold; margin: 2px 0;">Session & Year: <strong>${session}</strong></p>
         <div style="display: flex; justify-content: space-between; font-size: 9pt; font-weight: bold; margin-top: 8px;">
           <span>No.: ____________________</span>
@@ -617,7 +745,7 @@ export function printIndividualWorkSheet({
     </div>
   `;
 
-  triggerPrintWindow(html);
+  triggerPrintWindow(html, `Marks Record (${examLabel}) — ${subjectName} — Class ${className}`);
   return true;
 }
 
@@ -632,11 +760,14 @@ export function printConsolidatedAwardRoll({
   students = [],
   submissions = [],
   isExternal = false,
+  evaluationType = '',
+  practicalType = '',
   selectedSubjectCodes = null,
   printDetails = null
 }) {
   if (!students || students.length === 0) return false;
 
+  const titles = resolveAwardRollTitles(evaluationType || practicalType || printDetails?.practicalType, isExternal);
   const hseText = className === '11th' ? 'HSE-I (Class 11th)' : 'HSE-II (Class 12th)';
   
   // Filter subjects based on admin's subject checklist selection
@@ -756,19 +887,19 @@ export function printConsolidatedAwardRoll({
         </div>
 
         <div class="letter-subj">
-          Subject: Submission of ${isExternal ? 'External' : 'Internal'} Practical Awards of ${hseText} Session ${session}.
+          Subject: Submission of ${titles.shortType} Awards of ${hseText} Session ${session}.
         </div>
 
-        <div className="letter-body">
+        <div class="letter-body">
           Sir,
         </div>
 
         <div class="letter-body">
-          Apropos to the subject captioned above kindly find enclosed herewith the ${isExternal ? 'external' : 'internal'} practical awards (in triplicate) pertaining to <strong>${hseText} Examination, session ${session}</strong>, for the favour of further necessary action at your end please.
+          Apropos to the subject captioned above kindly find enclosed herewith the ${titles.shortType.toLowerCase()} awards (in triplicate) pertaining to <strong>${hseText} Examination, session ${session}</strong>, for the favour of further necessary action at your end please.
         </div>
 
         <div class="letter-body">
-          Furthermore, this is <strong>certified</strong> that the ${isExternal ? 'external' : 'internal'} tests/examinations for all the examinees of the institution, who are going to appear in the said examination, had been conducted by the institution and <strong>none among the on-roll candidates have been skipped</strong> during the preparation of award rolls. The summary of the examinees with subject wise gist is as follows:
+          Furthermore, this is <strong>certified</strong> that the ${titles.shortType.toLowerCase()} tests/examinations for all the examinees of the institution, who are going to appear in the said examination, had been conducted by the institution and <strong>none among the on-roll candidates have been skipped</strong> during the preparation of award rolls. The summary of the examinees with subject wise gist is as follows:
         </div>
 
         <table class="gist-table">
@@ -808,7 +939,7 @@ export function printConsolidatedAwardRoll({
     <div class="award-page">
       <div class="matrix-title-block">
         <h1>Govt. Higher Secondary School Shangus, Anantnag</h1>
-        <h2>Record of ${isExternal ? 'External' : 'Internal Assessment'} Practical Awards Roll for the ${hseText} Examination</h2>
+        <h2>Record of ${titles.examLabel} Awards Roll for the ${hseText} Examination</h2>
         <p>Session & Year: <strong>${session}</strong> &nbsp;|&nbsp; Institution Contact: <strong>9682641216</strong></p>
         <div style="display: flex; justify-content: space-between; font-size: 9pt; font-weight: bold; margin-top: 6px;">
           <span>No.: ____________________</span>
@@ -873,21 +1004,33 @@ export function printConsolidatedAwardRoll({
         });
       }
 
-      // Find mark from teacher submission strictly matching this class, subject & evaluation type (internal vs external)
+      // Helper to check submission evaluation type match
+      const isSubDocMatch = (s) => {
+        const matchClass = String(s.className || s.Class || s.class || '').toLowerCase().includes(clsTarget);
+        if (!matchClass) return false;
+        const sType = String(s.practicalType || s.PracticalType || 'internal').toLowerCase();
+        if (evaluationType || practicalType) {
+          const target = String(evaluationType || practicalType).toLowerCase();
+          if (sType !== target && !sType.includes(target) && !target.includes(sType)) {
+            const targetNorm = target.includes('ext') ? 'external' : 'internal';
+            if (sType !== targetNorm && !sType.includes(targetNorm)) return false;
+          }
+        } else {
+          const targetType = isExternal ? 'external' : 'internal';
+          if (sType !== targetType && !sType.includes(targetType)) return false;
+        }
+        return true;
+      };
+
+      // Find mark from teacher submission strictly matching this class, subject & evaluation type
       if (sub.code === 'BI') {
         const boDoc = submissions.find(s => {
-          const matchClass = String(s.className || s.Class || s.class || '').toLowerCase().includes(clsTarget);
-          if (!matchClass) return false;
-          const sType = String(s.practicalType || s.PracticalType || 'internal').toLowerCase();
-          if (sType !== (isExternal ? 'external' : 'internal')) return false;
+          if (!isSubDocMatch(s)) return false;
           const codeStr = String(s.subjectCode || s.subject || '').toUpperCase();
           return codeStr === 'BO' || codeStr.includes('BO');
         });
         const zoDoc = submissions.find(s => {
-          const matchClass = String(s.className || s.Class || s.class || '').toLowerCase().includes(clsTarget);
-          if (!matchClass) return false;
-          const sType = String(s.practicalType || s.PracticalType || 'internal').toLowerCase();
-          if (sType !== (isExternal ? 'external' : 'internal')) return false;
+          if (!isSubDocMatch(s)) return false;
           const codeStr = String(s.subjectCode || s.subject || '').toUpperCase();
           return codeStr === 'ZO' || codeStr.includes('ZO');
         });
@@ -903,13 +1046,7 @@ export function printConsolidatedAwardRoll({
       }
 
       const subDoc = submissions.find(s => {
-        const matchClass = String(s.className || s.Class || s.class || '').toLowerCase().includes(clsTarget);
-        if (!matchClass) return false;
-
-        const sType = String(s.practicalType || s.PracticalType || 'internal').toLowerCase();
-        const targetType = isExternal ? 'external' : 'internal';
-        if (sType !== targetType) return false;
-
+        if (!isSubDocMatch(s)) return false;
         const codeStr = String(s.subjectCode || s.subject || s.Subject || '').toUpperCase();
         return codeStr === sub.code || codeStr.includes(sub.code);
       });
@@ -949,7 +1086,7 @@ export function printConsolidatedAwardRoll({
   const inchargeMobile = printDetails?.inchargeMobile || (className === '12th' ? '9596165142' : '7006537425');
 
   const partText = className === '11th' ? 'Part-I (class 11th)' : 'Part-II (class 12th)';
-  const testType = isExternal ? 'Practical Examination' : 'Internal Assessment';
+  const testType = titles.examLabel;
 
   matrixHtml += `
         </tbody>
@@ -991,7 +1128,7 @@ export function printConsolidatedAwardRoll({
     </div>
   `;
 
-  triggerPrintWindow(letterHtml + matrixHtml);
+  triggerPrintWindow(letterHtml + matrixHtml, `Consolidated Awards Roll (${titles.examLabel}) — Class ${className}`);
   return true;
 }
 
@@ -1082,16 +1219,25 @@ export function getAbbreviatedSubjects(st, className = '') {
  * 4. Print Attendance Sheet for Selected Students
  * Enhanced with separate Class Roll No & Exam Roll No columns, Board Reg No, compact abbreviated subjects, and standard 50px row height for signatures.
  */
-export function printAttendanceSheet({ className = '11th', session = 'Annual Regular 2025', students = [], isExternal = false, subjectTitle = '' }) {
+export function printAttendanceSheet({
+  className = '11th',
+  session = 'Annual Regular 2025',
+  students = [],
+  isExternal = false,
+  evaluationType = '',
+  practicalType = '',
+  subjectTitle = ''
+}) {
   if (!students || students.length === 0) return false;
+  const titles = resolveAwardRollTitles(evaluationType || practicalType, isExternal);
   const hseText = className === '11th' ? 'HSE-I (Class 11th)' : 'HSE-II (Class 12th)';
-  const examType = isExternal ? 'EXTERNAL PRACTICAL' : 'INTERNAL ASSESSMENT';
+  const examAttendanceTitle = titles.heading.replace(/\s+AWARD\s+ROLL$/i, '');
 
   let html = `
     <div class="award-page">
       <div style="text-align: center; margin-bottom: 14px; border-bottom: 2px solid #0f172a; padding-bottom: 8px;">
         <h1 style="font-size: 14pt; font-weight: 800; margin: 0; text-transform: uppercase; color: #0f172a;">Govt. Higher Secondary School Shangus</h1>
-        <h2 style="font-size: 11pt; font-weight: 800; margin: 4px 0; color: #1e293b;">${examType} ATTENDANCE SHEET — ${hseText}${subjectTitle ? ` — ${subjectTitle}` : ''}</h2>
+        <h2 style="font-size: 11pt; font-weight: 800; margin: 4px 0; color: #1e293b;">${examAttendanceTitle} ATTENDANCE SHEET — ${hseText}${subjectTitle ? ` — ${subjectTitle}` : ''}</h2>
         <p style="font-size: 9.5pt; font-weight: 700; margin: 2px 0; color: #475569;">Session & Year: <strong>${session}</strong></p>
         <div style="display: flex; justify-content: space-between; font-size: 9pt; font-weight: 700; margin-top: 6px; color: #334155;">
           <span>No.: ____________________</span>
@@ -1147,7 +1293,7 @@ export function printAttendanceSheet({ className = '11th', session = 'Annual Reg
     </div>
   `;
 
-  triggerPrintWindow(html);
+  triggerPrintWindow(html, `${titles.shortType} Attendance Sheet — Class ${className}`);
   return true;
 }
 
@@ -1160,12 +1306,19 @@ export function printAllIndividualAwardRolls({
   session = 'Annual Regular 2025',
   students = [],
   submissions = [],
-  isExternal = true,
+  isExternal = false,
+  evaluationType = '',
+  practicalType = '',
+  examTitle = '',
   selectedSubjectCodes = null,
   printDetails = null,
   centreNo = ''
 }) {
   if (!students || students.length === 0) return false;
+
+  const titles = resolveAwardRollTitles(evaluationType || practicalType || examTitle || printDetails?.practicalType, isExternal);
+  const heading = titles.heading;
+  const examType = titles.examLabel;
 
   const activeSubs = PRACTICAL_SUBJECT_DEFS.filter(s => {
     if (!selectedSubjectCodes || !Array.isArray(selectedSubjectCodes) || selectedSubjectCodes.length === 0) return true;
@@ -1174,7 +1327,6 @@ export function printAllIndividualAwardRolls({
 
   const isClass12 = String(className).toLowerCase().includes('12');
   const clsTarget = isClass12 ? '12' : '11';
-  const examType = isExternal ? 'External Practical' : 'Internal Practical';
   const pageSize = 50;
 
   let combinedHtml = '';
@@ -1184,8 +1336,16 @@ export function printAllIndividualAwardRolls({
       const matchClass = String(s.className || s.Class || s.class || '').toLowerCase().includes(clsTarget);
       if (!matchClass) return false;
       const sType = String(s.practicalType || s.PracticalType || 'internal').toLowerCase();
-      const targetType = isExternal ? 'external' : 'internal';
-      if (sType !== targetType) return false;
+      if (evaluationType || practicalType) {
+        const target = String(evaluationType || practicalType).toLowerCase();
+        if (sType !== target && !sType.includes(target) && !target.includes(sType)) {
+          const targetNorm = target.includes('ext') ? 'external' : 'internal';
+          if (sType !== targetNorm && !sType.includes(targetNorm)) return false;
+        }
+      } else {
+        const targetType = isExternal ? 'external' : 'internal';
+        if (sType !== targetType && !sType.includes(targetType)) return false;
+      }
       const codeStr = String(s.subjectCode || s.subject || s.Subject || '').toUpperCase();
       return codeStr === sub.code || codeStr.includes(sub.code);
     });
@@ -1264,10 +1424,39 @@ export function printAllIndividualAwardRolls({
       const rightPageNo = p * 2 + 2;
 
       const renderColumn = (colChunk, startSno, pageNo) => {
+        // Calculate dynamic counts if any marks have been entered
+        let presentCount = 0;
+        let absentCount = 0;
+        let passCount = 0;
+        let failCount = 0;
+        let hasMarksEntered = false;
+
+        colChunk.forEach(r => {
+          const rawMark = String(r.totalMarks ?? r.practicalMarks ?? r.marks ?? '').trim();
+          if (rawMark && !/^(N\/A|—|-|null|undefined)$/i.test(rawMark)) {
+            hasMarksEntered = true;
+            const upper = rawMark.toUpperCase();
+            if (upper === 'AB' || upper === 'A' || upper === 'ABSENT') {
+              absentCount++;
+              failCount++;
+            } else {
+              const num = Number(rawMark);
+              if (!isNaN(num)) {
+                presentCount++;
+                if (num >= minMarks) {
+                  passCount++;
+                } else {
+                  failCount++;
+                }
+              }
+            }
+          }
+        });
+
         let colHtml = `
           <div class="award-col-box">
             <div class="award-header-block">
-              <h2>${isExternal ? 'EXTERNAL' : 'INTERNAL'} PRACTICAL AWARD ROLL</h2>
+              <h2>${heading}</h2>
               <div class="award-info-line">
                 <span>Examination: <strong>${examType}</strong></span>
                 <span>Page No.: <strong>${pageNo}</strong></span>
@@ -1278,6 +1467,7 @@ export function printAllIndividualAwardRolls({
               </div>
               <div class="award-info-line">
                 <span>Session: <strong>${session}</strong></span>
+                <span>Class: <strong>${className?.toLowerCase().includes('class') ? className : `Class ${className}`}</strong></span>
               </div>
             </div>
 
@@ -1347,22 +1537,22 @@ export function printAllIndividualAwardRolls({
               <div class="award-footer-row">
                 <div class="award-footer-field">
                   <span>No. of Candidates Present:</span>
-                  <span class="fill-blank"></span>
+                  ${hasMarksEntered ? `<strong style="font-size: 9.5pt; font-family: monospace;">${presentCount}</strong>` : `<span class="fill-blank"></span>`}
                 </div>
                 <div class="award-footer-field">
                   <span>Absent:</span>
-                  <span class="fill-blank"></span>
+                  ${hasMarksEntered ? `<strong style="font-size: 9.5pt; font-family: monospace; ${absentCount > 0 ? 'color: #dc2626;' : ''}">${absentCount}</strong>` : `<span class="fill-blank"></span>`}
                 </div>
               </div>
 
               <div class="award-footer-row">
                 <div class="award-footer-field">
                   <span>No. of Candidates Passed:</span>
-                  <span class="fill-blank"></span>
+                  ${hasMarksEntered ? `<strong style="font-size: 9.5pt; font-family: monospace; color: #16a34a;">${passCount}</strong>` : `<span class="fill-blank"></span>`}
                 </div>
                 <div class="award-footer-field">
                   <span>Failed:</span>
-                  <span class="fill-blank"></span>
+                  ${hasMarksEntered ? `<strong style="font-size: 9.5pt; font-family: monospace; ${failCount > 0 ? 'color: #dc2626;' : ''}">${failCount}</strong>` : `<span class="fill-blank"></span>`}
                 </div>
               </div>
 
@@ -1401,17 +1591,28 @@ export function printAllIndividualAwardRolls({
 
   if (!combinedHtml) return false;
 
-  triggerPrintWindow(combinedHtml);
+  triggerPrintWindow(combinedHtml, `${heading} (All Subjects) — Class ${className}`);
   return true;
 }
 
 /**
  * 5. Print Fail / Absent Student List
  */
-export function printFailList({ className = '11th', session = 'Annual Regular 2025', students = [], submissions = [], selectedSubjectCodes = null, isExternal = false, printDetails = null }) {
+export function printFailList({
+  className = '11th',
+  session = 'Annual Regular 2025',
+  students = [],
+  submissions = [],
+  selectedSubjectCodes = null,
+  isExternal = false,
+  evaluationType = '',
+  practicalType = '',
+  printDetails = null
+}) {
   if (!students || students.length === 0) return false;
+  const titles = resolveAwardRollTitles(evaluationType || practicalType || printDetails?.practicalType, isExternal);
   const hseText = className === '11th' ? 'HSE-I (Class 11th)' : 'HSE-II (Class 12th)';
-  const examType = isExternal ? 'External Practical' : 'Internal Assessment';
+  const examType = titles.examLabel;
 
   const activeSubs = PRACTICAL_SUBJECT_DEFS.filter(s => {
     if (!selectedSubjectCodes || !Array.isArray(selectedSubjectCodes) || selectedSubjectCodes.length === 0) return true;
@@ -1431,8 +1632,16 @@ export function printFailList({ className = '11th', session = 'Annual Regular 20
         if (!matchClass) return false;
 
         const sType = String(s.practicalType || s.PracticalType || 'internal').toLowerCase();
-        const targetType = isExternal ? 'external' : 'internal';
-        if (sType !== targetType) return false;
+        if (evaluationType || practicalType) {
+          const target = String(evaluationType || practicalType).toLowerCase();
+          if (sType !== target && !sType.includes(target) && !target.includes(sType)) {
+            const targetNorm = target.includes('ext') ? 'external' : 'internal';
+            if (sType !== targetNorm && !sType.includes(targetNorm)) return false;
+          }
+        } else {
+          const targetType = isExternal ? 'external' : 'internal';
+          if (sType !== targetType && !sType.includes(targetType)) return false;
+        }
 
         const codeStr = String(s.subjectCode || s.subject || s.Subject || '').toUpperCase();
         return codeStr === sub.code || codeStr.includes(sub.code);
@@ -1496,6 +1705,6 @@ export function printFailList({ className = '11th', session = 'Annual Regular 20
     </div>
   `;
 
-  triggerPrintWindow(html);
+  triggerPrintWindow(html, `Absentee & Fail List (${examType}) — Class ${className}`);
   return true;
 }

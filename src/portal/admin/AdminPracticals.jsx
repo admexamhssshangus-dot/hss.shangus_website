@@ -37,7 +37,8 @@ import { toTitleCase } from '../../utils/textFormatting';
 import {
   SUBJECT_CONFIG_DEFS,
   DEFAULT_PRACTICAL_MARKS_CONFIG,
-  getSubjectMarksConfig
+  getSubjectMarksConfig,
+  getActiveSchoolEvaluations
 } from '../../utils/practicalsSettingsManager';
 
 export const CODES = SUBJECT_CONFIG_DEFS.map(s => s.code);
@@ -1765,6 +1766,7 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings }) {
                         students: listToPrint,
                         submissions,
                         isExternal: localPrintOpts.practicalType === 'external',
+                        evaluationType: localPrintOpts.practicalType,
                         selectedSubjectCodes: activeSubjects,
                         printDetails: localPrintOpts
                       });
@@ -1794,6 +1796,7 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings }) {
                         students: listToPrint,
                         submissions,
                         isExternal: localPrintOpts.practicalType === 'external',
+                        evaluationType: localPrintOpts.practicalType,
                         selectedSubjectCodes: activeSubjects,
                         printDetails: { ...localPrintOpts, settings }
                       });
@@ -1825,6 +1828,7 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings }) {
                         students: listToPrint,
                         submissions,
                         isExternal: localPrintOpts.practicalType === 'external',
+                        evaluationType: localPrintOpts.practicalType,
                         selectedSubjectCodes: activeSubjects,
                         printDetails: localPrintOpts
                       });
@@ -1854,6 +1858,7 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings }) {
                         students: listToPrint,
                         submissions,
                         isExternal: localPrintOpts.practicalType === 'external',
+                        evaluationType: localPrintOpts.practicalType,
                         selectedSubjectCodes: activeSubjects,
                         printDetails: localPrintOpts
                       });
@@ -1905,7 +1910,8 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings }) {
                   className: cls,
                   session: localPrintOpts.sessionText,
                   students: listToPrint,
-                  isExternal: localPrintOpts.practicalType === 'external'
+                  isExternal: localPrintOpts.practicalType === 'external',
+                  evaluationType: localPrintOpts.practicalType
                 });
               }}
               className="px-2 py-0.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-black cursor-pointer flex items-center gap-1 shadow-2xs"
@@ -1929,6 +1935,7 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings }) {
                   submissions,
                   selectedSubjectCodes: activeSubjects,
                   isExternal: localPrintOpts.practicalType === 'external',
+                  evaluationType: localPrintOpts.practicalType,
                   printDetails: { ...localPrintOpts, settings }
                 });
               }}
@@ -2180,6 +2187,14 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings }) {
                 <select value={localPrintOpts.practicalType} onChange={e => setLocalPrintOpts({ ...localPrintOpts, practicalType: e.target.value })} className="w-full px-2 py-1.5 rounded-xl border border-slate-200 bg-slate-50 text-xs font-bold">
                   <option value="internal">Internal Assessment</option>
                   <option value="external">External Practical</option>
+                  <option value="Pre-Board Test">Pre-Board Test</option>
+                  <option value="Term End Examination">Term End Examination</option>
+                  <option value="Golden Test">Golden Test</option>
+                  {(getActiveSchoolEvaluations(settings) || []).map(ev => {
+                    const title = ev.evalType || ev.title;
+                    if (!title || ['internal', 'external', 'pre-board test', 'term end examination', 'golden test'].includes(title.toLowerCase())) return null;
+                    return <option key={title} value={title}>{title}</option>;
+                  })}
                 </select>
               </div>
               <div>
@@ -2629,9 +2644,58 @@ function SelectedSubmissionModal({ selSub, onClose, absentMarker, allStudents = 
               )}
             </div>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors cursor-pointer text-slate-400 hover:text-slate-600">
-            <X size={20} />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                const subRecords = records.map((r, i) => {
+                  const cleanReg = cleanRegistrationNumber(r.boardRegNo || r.regNo || r['Board Reg. No.'] || '');
+                  const cleanExam = String(r.examRollNo || (/^\d{8,}$/.test(String(r.rollNo)) ? r.rollNo : '') || '').trim().toUpperCase();
+                  const rName = toTitleCase(r.name || r.studentName || '').trim().toLowerCase();
+                  const rFather = toTitleCase(r.parentage || r.parentName || r.fatherName || '').trim().toLowerCase();
+                  const dbSt = (cleanReg && studentByReg.get(cleanReg)) ||
+                               (cleanExam && studentByExam.get(cleanExam)) ||
+                               (rName && rFather && studentByName.get(`${rName}_${rFather}`)) ||
+                               (rName && studentByName.get(rName));
+
+                  const classRoll = r.classRollNo || r.classRoll || (r.rollNo && !/^\d{8,}$/.test(String(r.rollNo)) ? r.rollNo : '') || (dbSt ? getRollNo(dbSt) : '') || '—';
+                  const examRoll = cleanExam || (dbSt ? (dbSt['Exam R.No. (Current)'] || dbSt.examRollNo) : '') || '—';
+
+                  return {
+                    sno: i + 1,
+                    classRollNo: classRoll,
+                    examRollNo: examRoll,
+                    rollNo: examRoll,
+                    name: r.name || r.studentName || '—',
+                    practicalMarks: r.practicalMarks ?? '—',
+                    vivaMarks: r.vivaMarks ?? '—',
+                    totalMarks: (r.practicalMarks && String(r.practicalMarks).toUpperCase() === 'AB') ? 'AB' : (r.totalMarks ?? r.practicalMarks ?? '—')
+                  };
+                });
+
+                printIndividualAwardRoll({
+                  subjectCode: selSub.subjectCode || selSub.subject,
+                  subjectName: selSub.subjectName || selSub.Subject || NAMES[selSub.subjectCode] || selSub.subjectCode,
+                  className: selSub.className || selSub.Class,
+                  session: canonicalSession,
+                  records: subRecords,
+                  isExternal: String(selSub.practicalType || '').toLowerCase().includes('ext'),
+                  evaluationType: selSub.practicalType || selSub.evaluationType || 'Internal',
+                  practicalType: selSub.practicalType || 'Internal',
+                  examTitle: selSub.practicalType || 'Internal',
+                  maxMarks: selSub.maxMarks || 50,
+                  minMarks: selSub.minMarks || 18
+                });
+              }}
+              className="px-2.5 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 dark:bg-indigo-950/60 dark:hover:bg-indigo-900/80 dark:text-indigo-300 font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer border border-indigo-200 dark:border-indigo-800"
+            >
+              <Printer size={13} />
+              <span>Print Award Roll</span>
+            </button>
+            <button onClick={onClose} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors cursor-pointer text-slate-400 hover:text-slate-600">
+              <X size={20} />
+            </button>
+          </div>
         </div>
 
         {/* Search Filter Strip */}
