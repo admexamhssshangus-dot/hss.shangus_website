@@ -1,8 +1,9 @@
+import { backendEndpoint } from './backendEndpoint';
 import { getToken as getAppCheckToken } from 'firebase/app-check';
 import { auth } from './firebase';
 import { getFirebaseAppCheck } from './firebaseAppCheck';
 
-const ENDPOINT = '/.netlify/functions/admission-workflow';
+const ENDPOINT = backendEndpoint('admission-workflow');
 const SERVICE_COOLDOWN_MS = 30 * 1000;
 let serviceUnavailableUntil = 0;
 let cachedServiceError = null;

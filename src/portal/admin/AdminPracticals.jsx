@@ -1,3 +1,5 @@
+import { getStaffDirectory, updateStaffPhone } from '../../services/staffDirectoryService';
+import { deleteAcademicRecord } from '../../services/academicRecordService';
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   Settings, ClipboardCheck, Printer, RefreshCw, CheckCircle2, AlertCircle,
@@ -514,7 +516,7 @@ export default function AdminPracticals() {
       const [ssRaw, setDocSnap, ts, admissionsData, masterRegistersData] = await Promise.all([
         getDocs(collection(db, 'practicalsData')),
         getDocs(collection(db, 'adminPracticalsSettings')),
-        getDocs(collection(db, 'users')),
+        getStaffDirectory(),
         getCachedCollection('admissions', force, 30 * 60 * 1000),
         getCachedCollection('masterRegisters', force, 30 * 60 * 1000)
       ]);
@@ -667,7 +669,7 @@ export default function AdminPracticals() {
             if (!name || name.includes('studentname') || name.includes('fathername')) return false;
             return true;
           });
-          const canonicalSession = normalizePracticalSession(data.sessionText || data.session || '2024-25 (Oct-Nov)');
+          const canonicalSession = normalizePracticalSession(data.sessionCanonical || data.yearSuffix || data.sessionText || data.session || '');
           return {
             id: d.id,
             ...data,
@@ -882,12 +884,6 @@ export default function AdminPracticals() {
       return true;
     } catch (e) {
       console.error('Save settings error:', e);
-      try {
-        localStorage.setItem('hss_admin_practicals_settings', JSON.stringify(updatedSettings));
-        setSettings(updatedSettings);
-        showAlert('success', `${keyName} cached locally.`);
-        return true;
-      } catch (_) {}
       showAlert('error', `Failed to save ${keyName}.`);
       return false;
     } finally {
@@ -909,7 +905,7 @@ export default function AdminPracticals() {
       onConfirm: async () => {
         setGeneralConfirmModal(p => ({ ...p, isOpen: false }));
         try {
-          await deleteDoc(doc(db, 'practicalsData', subId));
+          await deleteAcademicRecord('practicalsData', subId);
           setSubmissions(prev => prev.filter(s => s.id !== subId));
           showAlert('success', `Submission "${subId}" deleted successfully.`);
         } catch (e) {
@@ -974,17 +970,8 @@ export default function AdminPracticals() {
         updatedAt: new Date().toISOString()
       };
 
-      const docId = teacher.id || teacher.uid || teacher.email;
-      if (docId) {
-        await setDoc(doc(db, 'users', docId), payload, { merge: true });
-      }
-
       const tEmail = String(teacher.email || '').toLowerCase().trim();
-      if (tEmail && tEmail !== docId) {
-        try {
-          await setDoc(doc(db, 'users', tEmail), payload, { merge: true });
-        } catch (_) {}
-      }
+      await updateStaffPhone(teacher.uid || teacher.id, cleanPhone);
 
       setTeachers(prev => prev.map(t => {
         if (t.id === teacher.id || (tEmail && String(t.email || '').toLowerCase().trim() === tEmail)) {

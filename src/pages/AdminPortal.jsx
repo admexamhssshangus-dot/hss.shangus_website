@@ -7,7 +7,7 @@ import { collection, doc, setDoc, getDoc, getDocs, deleteDoc, writeBatch, server
 import { GoogleAuthProvider, signInWithRedirect, signInWithPopup, getRedirectResult, signOut as firebaseSignOut, onAuthStateChanged, getIdTokenResult, RecaptchaVerifier, signInWithPhoneNumber, sendSignInLinkToEmail, isSignInWithEmailLink, signInWithEmailLink } from 'firebase/auth';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { publicFacultyDocumentId, toPublicFacultyList } from '../utils/facultyPrivacy';
-import { isBootstrapSuperAdminEmail } from '../services/staffAuthService';
+import { isBootstrapSuperAdminEmail, resolveStaffRoleAndPerms, requireVerifiedAdminSession } from '../services/staffAuthService';
 import ModernLoader from '../components/ModernLoader';
 
 // ==========================================
@@ -1005,12 +1005,38 @@ const getEmployeeTaxOptions = (emp) => {
 };
 
 export default function AdminPortal({ embeddedUser = null, onEmbeddedLogout = null, initialTab = null }) {
+  const [access, setAccess] = useState({ loading: true, user: null, error: '' });
+  useEffect(() => {
+    let current = true;
+    let revision = 0;
+    const stop = onAuthStateChanged(auth, async user => {
+      const version = ++revision;
+      setAccess({ loading: true, user: null, error: '' });
+      try {
+        const profile = user ? await resolveStaffRoleAndPerms(user) : null;
+        if (!profile?.isAdmin || !(profile.isSuperAdmin || profile.perms.some(permission => ['*', 'controls', 'cms'].includes(permission)))) {
+          throw new Error('Sign in with an administrator account assigned to website management.');
+        }
+        await requireVerifiedAdminSession(user);
+        if (current && version === revision) setAccess({ loading: false, user: profile, error: '' });
+      } catch (error) {
+        if (current && version === revision) setAccess({ loading: false, user: null, error: error.message });
+      }
+    });
+    return () => { current = false; stop(); };
+  }, []);
+  if (access.loading) return <ModernLoader />;
+  if (!access.user) return <main className="max-w-lg mx-auto p-8 text-center"><h1 className="text-xl font-bold">Website management</h1><p className="my-4">{access.error}</p><a className="text-blue-700 underline" href="/portal/login">Open secure staff sign-in</a></main>;
+  return <AdminPortalContent embeddedUser={access.user} onEmbeddedLogout={onEmbeddedLogout} initialTab={initialTab} />;
+}
+
+function AdminPortalContent({ embeddedUser, onEmbeddedLogout, initialTab }) {
   const embeddedRole = String(embeddedUser?.role || '').toLowerCase().replace(/\s+/g, '');
   const embeddedPerms = Array.isArray(embeddedUser?.perms) ? embeddedUser.perms : [];
   const embeddedTabs = embeddedRole === 'superadmin' || embeddedPerms.includes('*')
     ? EMBEDDED_CMS_TABS.slice()
     : Array.from(new Set([
-        ...(embeddedPerms.includes('cms') ? CMS_OPERATOR_TABS : []),
+        ...(embeddedPerms.some(permission => ['cms', 'controls'].includes(permission)) ? CMS_OPERATOR_TABS : []),
         ...EMBEDDED_CMS_TABS.filter((tab) => embeddedPerms.includes(tab)),
       ]));
   const embeddedAdmin = embeddedUser ? normalizeAdmin({

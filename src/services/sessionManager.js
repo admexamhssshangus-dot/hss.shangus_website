@@ -172,7 +172,7 @@ function clearSession() {
       // Security Guardrail: Clear admin student caches on explicit logout
       // (ensures shared/public computers never retain historical or active student data)
       const privateCachePrefixes = [
-        'hss_cache_',
+        'hss_cache_', 'draft_prac_', 'hss_att_cache_', 'hss_csv_import_batches_', 'hss_auth_verified_sync',
         'hss_reports_cache_',
         'hss_student_draft_',
         'hss_attendance_',

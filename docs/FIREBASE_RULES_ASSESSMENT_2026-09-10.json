@@ -1,0 +1,36 @@
+{
+  "score": 3,
+  "summary": "The tested changes close public employee-data access, client-approved administrator sessions, unverified legacy-email ownership, self-assigned privilege changes and direct teacher/fund critical writes. The rules compile and are exercised by emulator tests. This is not a full least-privilege or production deployment certification; privileged record access and administrative legacy schemas remain broader than the final target.",
+  "findings": [
+    {
+      "check": "Authority Source",
+      "severity": "minor",
+      "issue": "Production adoption requires verified Firebase Auth users and canonical server-managed UID profiles. Legacy email-key profiles intentionally stop granting staff access.",
+      "recommendation": "Reconcile staff identities and assignment data before coordinated rollout, using protected account management and explicit role review."
+    },
+    {
+      "check": "Field-Level vs. Identity-Level Security",
+      "severity": "moderate",
+      "issue": "Verified faculty and several administrator modules retain broad student-document read access. Authorized reports/register/certificate/roll modules retain broad record-editing authority needed by existing workflows.",
+      "recommendation": "Introduce purpose-specific read projections and field-specific server mutation commands before reducing those shared collection capabilities."
+    },
+    {
+      "check": "The Update Bypass and Type Safety",
+      "severity": "moderate",
+      "issue": "Canonical user authority fields are immutable to clients, but legacy administrator academic imports and dynamic student/archive maps do not yet have complete field-level schema validation.",
+      "recommendation": "Move remaining administrative ingestion and nested archive changes to validated backend commands, retaining before-images and explicit per-module authorization."
+    },
+    {
+      "check": "Storage Abuse",
+      "severity": "minor",
+      "issue": "Uploads and public requests are bounded, but all dynamic administrative document arrays and client-created activity data are not protected by consistent application-specific quotas or retention policies.",
+      "recommendation": "Enforce per-job row/byte limits and retention in server ingestion and audit endpoints; configure expiry cleanup for ephemeral backend documents."
+    },
+    {
+      "check": "Business Logic vs. Rules",
+      "severity": "minor",
+      "issue": "Emulator checks cover 26 authorization cases and nine backend integrity cases. SMTP, live App Check, deployment headers, legacy account migration and authenticated visual journeys have not been certified in production.",
+      "recommendation": "Complete the documented coordinated release and real-account acceptance matrix. Keep admissions closed during session rollover until server-wide rollover locking is implemented."
+    }
+  ]
+}

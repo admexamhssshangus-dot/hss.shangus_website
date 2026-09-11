@@ -24,6 +24,13 @@ module.exports = function staffSecurity({ functions, admin, nodemailer, requireA
     if (url.protocol !== 'https:') throw new Error('STAFF_PORTAL_ORIGIN must use HTTPS.');
     return url.origin;
   };
+  async function sendSetup(mailer, email, verified) {
+    const settings = { url: `${portalOrigin()}/portal/login` };
+    const passwordLink = await admin.auth().generatePasswordResetLink(email, settings);
+    const verificationLink = verified ? '' : await admin.auth().generateEmailVerificationLink(email, settings);
+    await mailer.sendMail({ from: process.env.SMTP_USER, to: email, subject: 'HSS Shangus account setup',
+      text: `Set your password:\n${passwordLink}${verificationLink ? `\n\nThen verify your email before staff sign-in:\n${verificationLink}` : ''}` });
+  }
   return {
     beginAdminVerification: call(async (_, context) => {
       const token = tokenFor(context);
@@ -96,13 +103,13 @@ module.exports = function staffSecurity({ functions, admin, nodemailer, requireA
       if (user && action === 'create') throw new Error('This account already exists. Use Edit to assign its role.');
       if (action === 'reset') {
         const mailer = transport();
-        const link = await admin.auth().generatePasswordResetLink(email, { url: `${portalOrigin()}/portal/login` });
-        await mailer.sendMail({ from: process.env.SMTP_USER, to: email, subject: 'HSS Shangus password setup', text: `Set your password using this link:\n${link}` });
+        await sendSetup(mailer, email, user.emailVerified);
         return { success: true, email };
       }
       const role = data.role || 'Teacher';
       const name = String(data.name || '').trim();
       if (action !== 'deactivate' && (!['Teacher', 'Admin'].includes(role) || !name || name.length > 100)) throw new Error('Choose a name and an approved staff role.');
+      if (data.password && (typeof data.password !== 'string' || data.password.length < 8 || data.password.length > 128)) throw new Error('Use a password between 8 and 128 characters.');
       const perms = [...new Set((Array.isArray(data.perms) ? data.perms : []).filter(p => typeof p === 'string' && /^[a-zA-Z][a-zA-Z0-9]{0,63}$/.test(p)))].slice(0, 50);
       const sendEmail = action === 'create' ? data.sendSetupEmail !== false : data.sendResetEmail === true;
       const mailer = sendEmail ? transport() : null; // fail before changing an account when SMTP is unavailable
@@ -112,12 +119,13 @@ module.exports = function staffSecurity({ functions, admin, nodemailer, requireA
       // Disable first: old ID tokens cannot retain authority during a partial failure.
       await profileRef.set({ uid: user.uid, email: oldEmail, active: false, validAfter: Math.floor(Date.now() / 1000) + 1 }, { merge: true });
       await admin.auth().revokeRefreshTokens(user.uid);
-      await admin.auth().updateUser(user.uid, { disabled: action === 'deactivate', ...(action !== 'deactivate' ? { email, displayName: name, ...(email !== oldEmail ? { emailVerified: false } : {}) } : {}) });
+      await admin.auth().updateUser(user.uid, { disabled: action === 'deactivate', ...(action !== 'deactivate' ? { email, displayName: name, ...(data.password ? { password: data.password } : {}), ...(email !== oldEmail ? { emailVerified: false } : {}) } : {}) });
       await admin.auth().setCustomUserClaims(user.uid, { role: action === 'deactivate' ? 'Student' : role,
         admin: action !== 'deactivate' && role === 'Admin', teacher: action !== 'deactivate' && role === 'Teacher', permissions: perms });
       const profile = { uid: user.uid, email, name: name || user.displayName || email, role: action === 'deactivate' ? 'Student' : role,
         perms: action === 'deactivate' ? [] : perms, active: action !== 'deactivate', subject: String(data.subject || '').trim().slice(0, 100),
-        mobile: String(data.mobile || '').trim().slice(0, 20), updatedAt: timestamp() };
+        mobile: String(data.mobile || '').trim().slice(0, 20),
+        assignedClasses: [...new Set((Array.isArray(data.assignedClasses) ? data.assignedClasses : []).filter(value => ['9th', '10th', '11th', '12th'].includes(value)))], updatedAt: timestamp() };
       await db.runTransaction(async tx => {
         const permissionsRef = db.collection('adminSettings').doc('permissions');
         const prior = await tx.get(permissionsRef);
@@ -133,8 +141,7 @@ module.exports = function staffSecurity({ functions, admin, nodemailer, requireA
       let emailSent = false;
       if (mailer && action !== 'deactivate') {
         try {
-          const link = await admin.auth().generatePasswordResetLink(email, { url: `${portalOrigin()}/portal/login` });
-          await mailer.sendMail({ from: process.env.SMTP_USER, to: email, subject: 'HSS Shangus password setup', text: `Set your password using this link:\n${link}` });
+          await sendSetup(mailer, email, user.emailVerified && email === oldEmail);
           emailSent = true;
         } catch (_) { return { success: true, email, uid: user.uid, emailSent: false, message: 'Account saved. Setup email failed; use Send password reset to retry.' }; }
       }

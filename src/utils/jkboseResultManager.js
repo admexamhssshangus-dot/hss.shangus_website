@@ -1,6 +1,5 @@
 import { sameCohort, recordLocator, identityKey } from './recordIdentity';
-import { beginMutationJob, applyRecordPatch, completeMutationJob } from '../services/recordMutationService';
-import { runTransaction } from 'firebase/firestore';
+import { beginMutationJob, applyRecordPatch, createRecordWithRollback, completeMutationJob } from '../services/recordMutationService';
 // =================================================================
 // HSS SHANGUS — JKBOSE Exam Result Ingestion & Template Manager
 // Supports Excel/CSV Template Export, File Parsing, Gemini AI PDF
@@ -1190,7 +1189,7 @@ export async function batchUpdateStudentResults(recordsToUpdate = [], options = 
 
   for (const item of recordsToUpdate) {
     let formNo = String(item.formNo || (item.matchedStudent?.formNo || item.matchedStudent?.id) || '').trim();
-    const isNewStudent = !formNo || !item.matchedStudent;
+    const isNewStudent = !item.matchedStudent;
 
     if (isNewStudent) {
       // Auto-assign clean unique Form Number for new private candidate
@@ -1302,12 +1301,7 @@ export async function batchUpdateStudentResults(recordsToUpdate = [], options = 
 
     if (isNewStudent) {
       if (!item.className || !item.session || (!item.regNo && !item.examRollNo)) throw new Error('New candidates require class, session and a unique registration or exam roll number.');
-      const studentRef = doc(db, 'admissions', formNo);
-      await runTransaction(db, async tx => {
-        const existing = await tx.get(studentRef);
-        if (existing.exists()) throw new Error('This candidate already exists. Refresh and match the existing record.');
-        tx.set(studentRef, patch);
-      });
+      await createRecordWithRollback(formNo, patch, { jobId, entryId: String(updatedCount) });
     } else {
       if (!sameCohort(item.matchedStudent, item.session, item.className)) throw new Error('The matched student belongs to a different class or session.');
       recordLocator(item.matchedStudent); // require a physical source before any write

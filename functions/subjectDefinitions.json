@@ -1,0 +1,262 @@
+[
+  {
+    "code": "PH",
+    "name": "Physics"
+  },
+  {
+    "code": "CH",
+    "name": "Chemistry"
+  },
+  {
+    "code": "BI",
+    "name": "Biology (Botany & Zoology)"
+  },
+  {
+    "code": "BO",
+    "name": "Botany"
+  },
+  {
+    "code": "ZO",
+    "name": "Zoology"
+  },
+  {
+    "code": "BT",
+    "name": "Biotechnology"
+  },
+  {
+    "code": "MB",
+    "name": "Microbiology"
+  },
+  {
+    "code": "BC",
+    "name": "Biochemistry"
+  },
+  {
+    "code": "ES",
+    "name": "Environmental Science"
+  },
+  {
+    "code": "GL",
+    "name": "Geology"
+  },
+  {
+    "code": "EL",
+    "name": "Electronics"
+  },
+  {
+    "code": "CS",
+    "name": "Computer Science"
+  },
+  {
+    "code": "IP",
+    "name": "Information Practices"
+  },
+  {
+    "code": "ST",
+    "name": "Statistics"
+  },
+  {
+    "code": "FT",
+    "name": "Food Technology"
+  },
+  {
+    "code": "GG",
+    "name": "Geography"
+  },
+  {
+    "code": "PY",
+    "name": "Psychology"
+  },
+  {
+    "code": "EN",
+    "name": "General English"
+  },
+  {
+    "code": "PD",
+    "name": "Physical Education"
+  },
+  {
+    "code": "ITE",
+    "name": "IT and ITES"
+  },
+  {
+    "code": "HTC",
+    "name": "Healthcare"
+  },
+  {
+    "code": "RT",
+    "name": "Retail"
+  },
+  {
+    "code": "AT",
+    "name": "Automobile / Automotive"
+  },
+  {
+    "code": "AG",
+    "name": "Agriculture"
+  },
+  {
+    "code": "BW",
+    "name": "Beauty & Wellness"
+  },
+  {
+    "code": "AP",
+    "name": "Apparel & Made-ups"
+  },
+  {
+    "code": "ELC",
+    "name": "Electronics & Hardware"
+  },
+  {
+    "code": "PLM",
+    "name": "Plumbing"
+  },
+  {
+    "code": "SEC",
+    "name": "Security"
+  },
+  {
+    "code": "TEL",
+    "name": "Telecommunication"
+  },
+  {
+    "code": "MA",
+    "name": "Mathematics"
+  },
+  {
+    "code": "AM",
+    "name": "Applied Mathematics"
+  },
+  {
+    "code": "HT",
+    "name": "History"
+  },
+  {
+    "code": "PS",
+    "name": "Political Science"
+  },
+  {
+    "code": "EC",
+    "name": "Economics"
+  },
+  {
+    "code": "ED",
+    "name": "Education"
+  },
+  {
+    "code": "SO",
+    "name": "Sociology"
+  },
+  {
+    "code": "PA",
+    "name": "Public Administration"
+  },
+  {
+    "code": "PL",
+    "name": "Philosophy"
+  },
+  {
+    "code": "IS",
+    "name": "Islamic Studies"
+  },
+  {
+    "code": "VS",
+    "name": "Vedic Studies"
+  },
+  {
+    "code": "BST",
+    "name": "Buddhist Studies"
+  },
+  {
+    "code": "MU",
+    "name": "Music (Arts)"
+  },
+  {
+    "code": "HSC",
+    "name": "Home Science (Elective)"
+  },
+  {
+    "code": "FHC",
+    "name": "Family Health Care & Prevention"
+  },
+  {
+    "code": "UR",
+    "name": "Urdu"
+  },
+  {
+    "code": "HN",
+    "name": "Hindi"
+  },
+  {
+    "code": "KS",
+    "name": "Kashmiri"
+  },
+  {
+    "code": "AR",
+    "name": "Arabic"
+  },
+  {
+    "code": "PE",
+    "name": "Persian"
+  },
+  {
+    "code": "SK",
+    "name": "Sanskrit"
+  },
+  {
+    "code": "PB",
+    "name": "Punjabi"
+  },
+  {
+    "code": "DG",
+    "name": "Dogri"
+  },
+  {
+    "code": "BH",
+    "name": "Bhoti"
+  },
+  {
+    "code": "ELT",
+    "name": "English Literature"
+  },
+  {
+    "code": "FE",
+    "name": "Functional English"
+  },
+  {
+    "code": "AY",
+    "name": "Accountancy"
+  },
+  {
+    "code": "BS",
+    "name": "Business Studies"
+  },
+  {
+    "code": "EP",
+    "name": "Entrepreneurship"
+  },
+  {
+    "code": "BM",
+    "name": "Business Mathematics"
+  },
+  {
+    "code": "TS",
+    "name": "Typewriting & Shorthand"
+  },
+  {
+    "code": "TT",
+    "name": "Travel Tourism & Hotel Mgt"
+  },
+  {
+    "code": "SC",
+    "name": "Science (Class 10th)"
+  },
+  {
+    "code": "SS",
+    "name": "Social Science (Class 10th)"
+  },
+  {
+    "code": "AD",
+    "name": "Art and Drawing (Class 10th)"
+  }
+]

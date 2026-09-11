@@ -63,6 +63,19 @@ export async function applyRecordPatch(student, patch, { jobId, entryId = '0' } 
 export async function completeMutationJob(jobId) {
   await setDoc(doc(db, 'csvImportBatches', jobId), { status: 'completed', completedAt: serverTimestamp() }, { merge: true });
 }
+export async function createRecordWithRollback(documentId, data, { jobId, entryId }) {
+  const reference = doc(db, 'admissions', documentId);
+  const entry = doc(db, 'csvImportBatches', jobId, 'entries', String(entryId));
+  await runTransaction(db, async tx => {
+    const [existing, prior] = await Promise.all([tx.get(reference), tx.get(entry)]);
+    if (prior.exists()) return;
+    if (existing.exists()) throw new Error('This candidate already exists. Refresh and match the existing record.');
+    tx.set(reference, data);
+    tx.set(entry, { kind: 'created', locator: { collection: 'admissions', documentId, nested: false },
+      before: {}, after: data, status: 'applied', createdAt: serverTimestamp() });
+  });
+  invalidateCache('admissions');
+}
 export async function rollbackMutationJob(jobId) {
   const job = await getDoc(doc(db, 'csvImportBatches', jobId));
   if (!job.exists() || job.data().kind !== 'field-update-v2') {
@@ -79,6 +92,12 @@ export async function rollbackMutationJob(jobId) {
       const snapshot = await tx.get(reference);
       if (!snapshot.exists()) throw new Error('Rollback stopped: the target was deleted.');
       const data = snapshot.data();
+      if (change.kind === 'created') {
+        if (!equal(data, change.after)) throw new Error('Rollback stopped: this new student has since been edited. Review the later changes first.');
+        tx.delete(reference);
+        tx.update(item.ref, { status: 'restored', restoredAt: serverTimestamp() });
+        return;
+      }
       const nested = change.locator.nested ? locateNestedRecord(data, change.locator) : null;
       const restored = restoreFields(nested ? nested.record : data, change.before, change.after);
       if (nested) {

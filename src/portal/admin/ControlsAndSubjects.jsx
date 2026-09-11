@@ -203,9 +203,9 @@ export default function ControlsAndSubjects() {
   // Master Student Data & Board Ingestion Hub States
   const [showMasterHubModal, setShowMasterHubModal] = useState(false);
   const [masterHubInitialMode, setMasterHubInitialMode] = useState('overwrite');
-  const [strict3PointMatching, setStrict3PointMatching] = useState(true);
-  const [allowExpressZeroRestrictions, setAllowExpressZeroRestrictions] = useState(true);
-  const [enable30DayRollback, setEnable30DayRollback] = useState(true);
+  const strict3PointMatching = true;
+  const [allowExpressZeroRestrictions, setAllowExpressZeroRestrictions] = useState(false);
+  const enable30DayRollback = true;
 
   // Email Functionality Toggles
   const [emailSubmission, setEmailSubmission] = useState(true);
@@ -420,9 +420,7 @@ export default function ControlsAndSubjects() {
           if (siteSettings.email_reset_otp !== undefined) setEmailResetOtp(Boolean(siteSettings.email_reset_otp));
 
           // Populate Master Student Data Hub Settings
-          if (siteSettings.strict3PointMatching !== undefined) setStrict3PointMatching(Boolean(siteSettings.strict3PointMatching));
           if (siteSettings.allowExpressZeroRestrictions !== undefined) setAllowExpressZeroRestrictions(Boolean(siteSettings.allowExpressZeroRestrictions));
-          if (siteSettings.enable30DayRollback !== undefined) setEnable30DayRollback(Boolean(siteSettings.enable30DayRollback));
         }
       } catch (e) {}
 
@@ -608,11 +606,6 @@ export default function ControlsAndSubjects() {
       ...subjectConfigMap,
       [key]: newConfig
     };
-    setSubjectConfigMap(updatedMap);
-    try {
-      localStorage.setItem('hss_subject_config_map_v2', JSON.stringify(updatedMap));
-    } catch (err) {}
-
     // Save directly to Firestore collection 'subjectsConfig' for instant global sync
     try {
       await setDoc(doc(db, 'subjectsConfig', `${selectedClass}_${selectedStream}`), {
@@ -632,22 +625,11 @@ export default function ControlsAndSubjects() {
         maxSubjects: parseInt(maxSubjects, 10),
         updatedAt: new Date().toISOString()
       }, { merge: true });
+      setSubjectConfigMap(updatedMap);
+      setAlert({ type: 'success', text: `Subject rules saved for ${selectedClass} ${selectedStream}.` });
     } catch (err) {
-      console.warn('Firestore subjectsConfig direct write note:', err);
-    }
-
-    try {
-      const res = await appsScriptApi.call('saveSubjectsConfig', { config: newConfig });
-      if (res && res.success !== false) {
-        setAlert({ type: 'success', text: `Subject configuration rules saved for ${selectedClass} ${selectedStream}!` });
-      } else {
-        setAlert({ type: 'success', text: `Subject configuration rules saved locally for ${selectedClass} ${selectedStream}!` });
-      }
-    } catch (err) {
-      setAlert({ type: 'success', text: `Subject configuration rules updated for ${selectedClass} ${selectedStream}!` });
-    } finally {
-      setSaving(false);
-    }
+      setAlert({ type: 'error', text: `Subject rules were not saved: ${err.message}` });
+    } finally { setSaving(false); }
   };
 
   // Toggle Module Permission for a specific Admin
@@ -688,43 +670,17 @@ export default function ControlsAndSubjects() {
     setSaving(true);
     setAlert(null);
     try {
-      // 1. Filter out pure admins for adminSettings/permissions
-      const adminOnlyList = listToSave.filter(u => {
-        const r = String(u.role || '').toLowerCase();
-        return r.includes('admin');
-      });
-
-      // 2. Save to Cloud Firestore adminSettings/permissions
-      await setDoc(doc(db, 'adminSettings', 'permissions'), {
-        users: adminOnlyList,
-        updatedAt: new Date().toISOString()
-      }, { merge: true });
-
-      // 3. Sync to individual user documents in 'users' collection
-      for (const u of listToSave) {
-        const cleanEmail = u.email.trim().toLowerCase();
-        await setDoc(doc(db, 'users', cleanEmail), {
-          name: u.name,
-          email: cleanEmail,
-          role: u.role || 'Admin',
-          perms: u.role === 'SuperAdmin' ? ['*'] : (u.perms || []),
-          subject: u.subject || '',
-          mobile: u.mobile || '',
-          updatedAt: new Date().toISOString()
-        }, { merge: true }).catch(() => {});
+      for (const account of listToSave) {
+        if (isSuperAdminEmail(account.email) || account.role === 'SuperAdmin') continue;
+        await updateStaffAccount({ oldEmail: account.email, newEmail: account.email, name: account.name,
+          role: account.role || 'Admin', perms: account.perms || [], subject: account.subject || '',
+          mobile: account.mobile || '', assignedClasses: account.assignedClasses || [], sendResetEmail: false });
       }
-
-      // 4. Cache locally
-      localStorage.setItem('hss_admin_users_permissions_v1', JSON.stringify(adminOnlyList));
-
-      // 5. Legacy fallback
-      appsScriptApi.call('saveAdminPermissions', { users: adminOnlyList }).catch(() => {});
-
       setAlert({ type: 'success', text: '✨ Staff permissions & accounts updated successfully in School Database!' });
     } catch (err) {
       console.error('Failed to save permissions to Firestore:', err);
-      localStorage.setItem('hss_admin_users_permissions_v1', JSON.stringify(listToSave));
-      setAlert({ type: 'success', text: 'Permissions saved locally!' });
+
+      setAlert({ type: 'error', text: `Permissions were not fully saved: ${err.message}` });
     } finally {
       setSaving(false);
     }
@@ -757,6 +713,7 @@ export default function ControlsAndSubjects() {
       role: isSuperTarget ? 'SuperAdmin' : (cleanEmail === 'e.educational.24@gmail.com' ? 'Admin' : (user.role || 'Admin')), 
       perms: Array.isArray(user.perms) ? [...user.perms] : ['reports'],
       subject: user.subject || '',
+      assignedClasses: user.assignedClasses || [],
       mobile: user.mobile || '',
       password: '',
       sendSetupEmail: false
@@ -809,8 +766,10 @@ export default function ControlsAndSubjects() {
           role: resolvedRole,
           perms: adminForm.perms,
           subject: adminForm.subject,
+          assignedClasses: adminForm.assignedClasses || [],
           mobile: adminForm.mobile,
           sendResetEmail: adminForm.sendSetupEmail,
+          password: adminForm.password,
         });
 
         const updated = adminUsers.map((u) =>
@@ -822,6 +781,7 @@ export default function ControlsAndSubjects() {
                 role: resolvedRole, 
                 perms: adminForm.perms,
                 subject: adminForm.subject,
+          assignedClasses: adminForm.assignedClasses || [],
                 mobile: adminForm.mobile
               }
             : u
@@ -846,6 +806,7 @@ export default function ControlsAndSubjects() {
           role: adminForm.role,
           perms: adminForm.perms,
           subject: adminForm.subject,
+          assignedClasses: adminForm.assignedClasses || [],
           mobile: adminForm.mobile,
           password: adminForm.password,
           sendSetupEmail: adminForm.sendSetupEmail,
@@ -859,6 +820,7 @@ export default function ControlsAndSubjects() {
             role: adminForm.role, 
             perms: adminForm.perms,
             subject: adminForm.subject,
+          assignedClasses: adminForm.assignedClasses || [],
             mobile: adminForm.mobile
           }
         ];
@@ -1252,12 +1214,12 @@ export default function ControlsAndSubjects() {
               <label className="flex items-center justify-between p-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/90 text-xs font-bold text-slate-800 dark:text-slate-200 cursor-pointer shadow-2xs">
                 <div className="pr-2">
                   <div className="font-black text-xs text-slate-900 dark:text-white">Strict 3-Point Matching</div>
-                  <div className="text-[10px] text-slate-400 font-normal">Require Reg No + Session + Class check</div>
+                  <div className="text-[10px] text-slate-400 font-normal">Required: unique identity, session and class</div>
                 </div>
                 <input
                   type="checkbox"
                   checked={strict3PointMatching}
-                  onChange={(e) => setStrict3PointMatching(e.target.checked)}
+                  readOnly disabled aria-label="Required protection"
                   className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer shrink-0"
                 />
               </label>
@@ -1278,12 +1240,12 @@ export default function ControlsAndSubjects() {
               <label className="flex items-center justify-between p-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/90 text-xs font-bold text-slate-800 dark:text-slate-200 cursor-pointer shadow-2xs">
                 <div className="pr-2">
                   <div className="font-black text-xs text-slate-900 dark:text-white">30-Day Rollback Protection</div>
-                  <div className="text-[10px] text-slate-400 font-normal">Versioned batch snapshot on overwrite</div>
+                  <div className="text-[10px] text-slate-400 font-normal">Required: before-images for new field updates</div>
                 </div>
                 <input
                   type="checkbox"
                   checked={enable30DayRollback}
-                  onChange={(e) => setEnable30DayRollback(e.target.checked)}
+                  readOnly disabled aria-label="Required protection"
                   className="w-4 h-4 rounded text-purple-600 focus:ring-purple-500 cursor-pointer shrink-0"
                 />
               </label>
@@ -2205,6 +2167,14 @@ export default function ControlsAndSubjects() {
                     </p>
                   </div>
                 )}
+
+                {adminForm.role === 'Teacher' && <fieldset className="p-3 border rounded-xl space-y-2">
+                  <legend className="text-xs font-bold">Assigned classes</legend>
+                  <div className="flex flex-wrap gap-4">{['9th', '10th', '11th', '12th'].map(cls => <label key={cls} className="flex gap-2 text-sm">
+                    <input type="checkbox" checked={(adminForm.assignedClasses || []).includes(cls)} onChange={event => setAdminForm(previous => ({ ...previous,
+                      assignedClasses: event.target.checked ? [...(previous.assignedClasses || []), cls] : (previous.assignedClasses || []).filter(value => value !== cls) }))} />{cls}
+                  </label>)}</div>
+                </fieldset>}
 
                 {/* Account Credentials Card */}
                 <div className="p-3.5 rounded-2xl bg-slate-50/90 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800 space-y-2.5">

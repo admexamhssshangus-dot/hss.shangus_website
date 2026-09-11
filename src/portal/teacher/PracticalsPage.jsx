@@ -1,3 +1,4 @@
+import { saveAcademicRecord } from '../../services/academicRecordService';
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { 
@@ -1724,6 +1725,7 @@ export default function PracticalsPage() {
           rollNo: s.rollNo,
           name: s.name,
           formNo: s.formNo,
+          regNo: s.regNo || s.boardRegNo || '',
           examRollNo: s.examRollNo,
           practicalMarks: pMarks,
           vivaMarks: vMarks,
@@ -1732,7 +1734,7 @@ export default function PracticalsPage() {
         };
       });
 
-      await setDoc(doc(db, 'practicalsData', docId), {
+      await saveAcademicRecord('practicalsData', docId, {
         docId,
         className: selectedClass,
         subject: selectedSubject,
@@ -1742,8 +1744,9 @@ export default function PracticalsPage() {
         records,
         status: 'submitted',
         isDraft: false,
+        maxMarks: subjectMaxMarks, minMarks: minPassMarks,
         updatedAt: new Date().toISOString(),
-      }, { merge: true });
+      });
 
       // Clear local draft after successful final submission
       const clsNormKey = String(selectedClass).replace(/class/i, '').trim();
