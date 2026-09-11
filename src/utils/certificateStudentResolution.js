@@ -366,3 +366,24 @@ export function extractReappearCodes(student) {
 
   return codeSet;
 }
+
+export function formatResultMarksString(raw) {
+  if (!raw || raw === '—' || raw === '-') return '';
+  let str = String(raw).trim();
+  if (!str) return '';
+
+  // De-duplicate accidental repeat paste inputs (e.g. "492492 / 500" -> "492 / 500")
+  const repeatMatch = str.match(/^(\d+)\1(\s*\/\s*\d+.*)?$/);
+  if (repeatMatch) {
+    str = repeatMatch[1] + (repeatMatch[2] || '');
+  }
+
+  // If pure digits (e.g. "440"), format as "440 / 500"
+  if (/^\d{2,3}$/.test(str)) {
+    return `${str} / 500`;
+  }
+
+  // Normalize slash spacing: "440/500" -> "440 / 500"
+  str = str.replace(/(\d+)\s*\/\s*(\d+)/, '$1 / $2');
+  return str;
+}

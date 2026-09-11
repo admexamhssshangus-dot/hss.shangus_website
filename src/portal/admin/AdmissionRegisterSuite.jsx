@@ -24,6 +24,7 @@ import {
   hasAssignedClassRollNumber,
   resolveStudentAdmissionStatus
 } from '../../utils/studentApprovalStatus';
+import { formatResultMarksString } from '../../utils/certificateStudentResolution';
 
 const SCHOOL_NAME = 'GOVT. HIGHER SECONDARY SCHOOL SHANGUS';
 const SCHOOL_SUBTITLE = 'Nurturing Minds, Shaping Futures • District Anantnag';
@@ -377,6 +378,14 @@ const CURRENT_RESULT_KEYS = [
   'Current Result', 'Result (Current Examination)', 'Result (Current Exam)',
   'examResult', 'Exam Result'
 ];
+
+const CURRENT_MARKS_KEYS = [
+  'Marks/Reapp (Current)', 'currMarksReapp', 'marks_reapp_current',
+  'Marks Obtained (Current)', 'Marks Obtained', 'Marks Obt.', 'Total Marks Obtained',
+  'marksObt', 'currMarks', 'marks', 'Marks', 'marksReapp', 'reappSubjects', 'Reappear Subjects'
+];
+
+export { formatResultMarksString };
 
 const ADMISSION_NO_KEYS = [
   'admNo', 'admissionNo', 'admissionNumber', 'Admission Number', 'Admission No.', 'Admission No',
@@ -1181,6 +1190,7 @@ export default function AdmissionRegisterSuite({
       // STRICT: Board Roll No & Result must only come from current examination keys, never from previous class academic values
       const boardRoll = firstCleanValue(item, BOARD_ROLL_KEYS);
       const result = firstCleanValue(item, CURRENT_RESULT_KEYS);
+      const marks = firstCleanValue(item, CURRENT_MARKS_KEYS);
       const father = cleanStr(item.fatherName || item["Father's/Guardian's Name (as per school records)"] || item["Father's Name"] || item.father);
       const mother = cleanStr(item.motherName || item["Mother's Name (as per school records)"] || item["Mother's Name"] || item.mother);
       const pen = cleanStr(item.penNo || item['PEN number (given by UDISE portal)'] || item['PEN No.'] || item['PEN Number'] || item['PEN (UDISE)'] || item.pen);
@@ -1199,6 +1209,7 @@ export default function AdmissionRegisterSuite({
         stream,
         boardRollNo: boardRoll && boardRoll !== '—' ? boardRoll : '',
         currentResult: result && result !== '—' ? result : '',
+        currentMarks: marks && marks !== '—' ? marks : '',
         father,
         mother,
         pen: pen && pen !== 'NA' && pen !== '—' ? pen : '',
@@ -1491,6 +1502,7 @@ export default function AdmissionRegisterSuite({
       const boardReg = getBoardRegistration(s, cls);
       const boardRollNo = firstCleanValue(s, BOARD_ROLL_KEYS);
       const currentResult = firstCleanValue(s, CURRENT_RESULT_KEYS);
+      const currentMarks = firstCleanValue(s, CURRENT_MARKS_KEYS);
 
       // CRITICAL: Reject phantom/empty ghost database rows that have zero identifying student information
       if (!name && !father && !rollNo && !admNo && !formNo && !boardReg) return;
@@ -1649,6 +1661,17 @@ export default function AdmissionRegisterSuite({
         }
       }
 
+      let finalMarks = currentMarks;
+      if (!finalMarks && regCandidates.length > 0) {
+        const currentSessionCandidate = regCandidates.find(c =>
+          c.currentMarks &&
+          isSameAcademicSession(c.session || selectedSession, sess)
+        );
+        if (currentSessionCandidate?.currentMarks) {
+          finalMarks = currentSessionCandidate.currentMarks;
+        }
+      }
+
       let finalFather = father;
       if (!finalFather && regMatch?.father) {
         finalFather = regMatch.father;
@@ -1730,6 +1753,7 @@ export default function AdmissionRegisterSuite({
         boardReg: finalBoardReg,
         boardRollNo: finalBoardRollNo || '',
         currentResult: finalResult || '',
+        currentMarks: finalMarks || '',
         name: name || 'Student Record',
         father: finalFather,
         mother: finalMother,
@@ -2761,18 +2785,22 @@ export default function AdmissionRegisterSuite({
             flex-direction: column !important;
             justify-content: space-between !important;
             height: 195mm !important;
-            min-height: 190mm !important;
-            max-height: 195mm !important;
+            min-height: 0 !important;
+            max-height: 198mm !important;
             box-sizing: border-box !important;
-            padding: 2.5mm 4mm !important;
+            padding: 2mm 3mm !important;
+            page-break-after: always !important;
+            break-after: page !important;
             page-break-inside: avoid !important;
             break-inside: avoid-page !important;
-            overflow: hidden !important;
+            overflow: visible !important;
           }
 
           .sentup-table {
             table-layout: fixed !important;
             width: 100% !important;
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
           }
 
           .sentup-table th, .sentup-table td {
@@ -2781,13 +2809,13 @@ export default function AdmissionRegisterSuite({
           }
 
           .sentup-table tr {
-            height: 13.5mm !important;
-            max-height: 14mm !important;
+            height: 12.5mm !important;
+            max-height: 13.5mm !important;
           }
 
           .sentup-photo-cell {
-            height: 38px !important;
-            max-height: 38px !important;
+            height: 34px !important;
+            max-height: 35px !important;
           }
 
           .signature-footer {
@@ -2797,6 +2825,12 @@ export default function AdmissionRegisterSuite({
             break-before: avoid !important;
             page-break-inside: avoid !important;
             break-inside: avoid !important;
+          }
+
+          .admission-suite-root .page-container:last-child,
+          .admission-suite-root .register-ledger-page:last-child {
+            page-break-after: auto !important;
+            break-after: auto !important;
           }
 
           .admission-suite-root main .space-y-6 > .page-container:last-child {
@@ -4531,25 +4565,27 @@ export default function AdmissionRegisterSuite({
                                   </div>
                                 </td>
                                 <td className="border border-slate-900 px-1.5 py-0.5 text-left pl-2 ledger-mono-font">{formatBoardRegSplit(s.boardReg)}</td>
-                                <td className="border border-slate-900 px-2 py-0.5 text-left font-black uppercase text-[10px]">
-                                  <div className="flex items-center justify-between gap-1">
-                                    <span className="tracking-tight">{s.name}</span>
-                                    <div className="flex items-center gap-1 print:hidden shrink-0">
-                                      {s.isReadmission && (
-                                        <span className="text-[7px] font-black px-1 py-0.2 rounded bg-purple-100 text-purple-800">
-                                          Re-Adm
-                                        </span>
-                                      )}
-                                      {s.hasInheritedData && (
-                                        <span
-                                          className="inline-flex items-center gap-0.5 text-[7px] font-black px-1 py-0.2 rounded bg-amber-100 dark:bg-amber-950/80 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-700 shadow-2xs"
-                                          title={`Data inherited from ${s.inheritedSource?.class || 'Previous Class'} (${s.inheritedSource?.session || 'Past Session'}): ${(s.inheritedSource?.fields || []).join(', ')}`}
-                                        >
-                                          <Sparkles size={7.5} className="text-amber-600" />
-                                          <span>From {s.inheritedSource?.class || 'Prev'} ({s.inheritedSource?.session || 'Past'})</span>
-                                        </span>
-                                      )}
-                                    </div>
+                                <td className="border border-slate-900 px-1.5 py-0.5 text-left font-black uppercase text-[10px]">
+                                  <div className="flex flex-col items-start justify-center gap-0.5 min-w-0">
+                                    {(s.hasInheritedData || s.isReadmission) && (
+                                      <div className="flex items-center gap-1 print:hidden shrink-0 leading-none">
+                                        {s.isReadmission && (
+                                          <span className="text-[6.5px] font-black px-1 py-0.2 rounded bg-purple-100 text-purple-800 leading-tight">
+                                            Re-Adm
+                                          </span>
+                                        )}
+                                        {s.hasInheritedData && (
+                                          <span
+                                            className="inline-flex items-center gap-0.5 text-[6.5px] font-black px-1 py-0.2 rounded bg-amber-100 dark:bg-amber-950/80 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-700 shadow-2xs leading-tight whitespace-nowrap"
+                                            title={`Data inherited from ${s.inheritedSource?.class || 'Previous Class'} (${s.inheritedSource?.session || 'Past Session'}): ${(s.inheritedSource?.fields || []).join(', ')}`}
+                                          >
+                                            <Sparkles size={7} className="text-amber-600 shrink-0" />
+                                            <span>From {s.inheritedSource?.class || 'Prev'} ({s.inheritedSource?.session || 'Past'})</span>
+                                          </span>
+                                        )}
+                                      </div>
+                                    )}
+                                    <span className="tracking-tight whitespace-normal break-words leading-tight">{s.name}</span>
                                   </div>
                                 </td>
                                 <td className="border border-slate-900 px-2 py-0.5 text-left uppercase text-[8.5px] leading-tight">
@@ -4575,8 +4611,19 @@ export default function AdmissionRegisterSuite({
                                 <td className="border border-slate-900 px-1 py-0.5 text-center font-mono font-bold text-xs ledger-mono-font">
                                   <div>{s.boardRollNo || '—'}</div>
                                 </td>
-                                <td className="border border-slate-900 px-1 py-0.5 text-center font-bold text-[8.5px]">
+                                <td className="border border-slate-900 px-1 py-0.5 text-center font-bold text-[8.5px] leading-tight">
                                   <div>{s.currentResult || '—'}</div>
+                                  {(() => {
+                                    const marksStr = formatResultMarksString(s.currentMarks);
+                                    if (!marksStr || (s.currentResult && String(s.currentResult).toLowerCase().includes(marksStr.toLowerCase()))) {
+                                      return null;
+                                    }
+                                    return (
+                                      <div className="text-[7px] font-mono text-slate-700 dark:text-slate-300 font-semibold mt-0.5 leading-none whitespace-nowrap">
+                                        ({marksStr})
+                                      </div>
+                                    );
+                                  })()}
                                 </td>
                                 <td className="border border-slate-900 p-1 text-center align-bottom text-[7.5px]">
                                   <div className="border-t border-slate-900 pt-0.5">Signature</div>

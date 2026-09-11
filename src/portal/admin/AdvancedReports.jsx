@@ -6825,6 +6825,72 @@ export default function AdvancedReports({
       return isNaN(num) ? Infinity : num;
     };
 
+    // Build comprehensive master demographic profile map for cross-session autofill (e.g. Bi-annual / Repeater / Exam records)
+    const masterDemographicProfileMap = new Map();
+    const registerDemographicProfile = (rec) => {
+      if (!rec) return;
+      const reg = extractRegNoClean(rec);
+      const adm = cleanAdmNoVal(rec.admNo || rec['Adm. No.'] || rec['Admission No.']);
+      const sName = String(rec["Student's Name (as per school records)"] || rec["Student's Name"] || rec['Student Name'] || rec.studentName || '').toLowerCase().trim();
+      const fName = String(rec["Father's/Guardian's Name (as per school records)"] || rec["Father's Name"] || rec['Father Name'] || rec.fatherName || '').toLowerCase().trim();
+      const nameKey = sName && sName !== 'student' && sName !== '—' ? `${sName}_${fName.slice(0, 8)}` : '';
+
+      const cleanVal = (v) => (v && v !== '—' && v !== '-' && v !== '#N/A' && v !== 'N/A' && String(v).trim() !== '' ? v : null);
+
+      const dob = cleanVal(rec['DoB (figures)'] || rec['DoB (as per school records)'] || rec.dob || rec.DoB);
+      const dobWords = cleanVal(rec['DoB (words)'] || rec.dobWords);
+      const mob = cleanVal(rec['Mobile No. (with working WhatsApp)'] || rec["Student's Contact"] || rec['Mobile No.'] || rec.mobile);
+      const parentContact = cleanVal(rec["Parent's Contact"] || rec["Parent's Mobile No. (must be working)"] || rec["Parent's Mobile No."] || rec["Father's Mobile No."] || rec.parentContact);
+      const aadhar = cleanVal(rec['Aadhar No.'] || rec.aadhar);
+      const fatherAadhar = cleanVal(rec["Father's Aadhar No."] || rec["Father's Aadhaar No."] || rec.fatherAadhar);
+      const village = cleanVal(rec['Village/Town'] || rec['Name of your village'] || rec['Permanent Address'] || rec.village);
+      const bank = cleanVal(rec['Bank Account No.'] || rec['Bank Account Number'] || rec.bankAccount);
+      const bankName = cleanVal(rec['Name of Bank'] || rec['Bank Name'] || rec.bankName);
+      const ifsc = cleanVal(rec['IFSC code'] || rec['IFSC Code'] || rec.ifsc);
+      const pen = cleanVal(rec['PEN No.'] || rec.penNo);
+      const apaar = cleanVal(rec['APAAR ID'] || rec.apaarId);
+      const gender = cleanVal(rec['Gender'] || rec.gender);
+      const category = cleanVal(rec['Cat._JKBOSE'] || rec['Category'] || rec['Social category'] || rec.category);
+      const religion = cleanVal(rec['Religion'] || rec.religion);
+      const residence = cleanVal(rec['Residence (Village, District)'] || rec.residence);
+      const prevSchool = cleanVal(rec['Previous School'] || rec['Name of the Institution last attended'] || rec.prevSchool);
+      const ccDc = cleanVal(resolveCcDcVal(rec));
+
+      const mergeProfile = (existing = {}) => ({
+        dob: existing.dob || dob,
+        dobWords: existing.dobWords || dobWords,
+        mob: existing.mob || mob,
+        parentContact: existing.parentContact || parentContact,
+        aadhar: existing.aadhar || aadhar,
+        fatherAadhar: existing.fatherAadhar || fatherAadhar,
+        village: (existing.village && existing.village !== 'Shangus') ? existing.village : (village || existing.village || 'Shangus'),
+        bank: existing.bank || bank,
+        bankName: existing.bankName || bankName,
+        ifsc: existing.ifsc || ifsc,
+        pen: existing.pen || pen,
+        apaar: existing.apaar || apaar,
+        gender: existing.gender || gender,
+        category: existing.category || category,
+        religion: existing.religion || religion,
+        residence: existing.residence || residence,
+        prevSchool: existing.prevSchool || prevSchool,
+        ccDc: existing.ccDc || ccDc
+      });
+
+      if (reg && isValidRegNo(reg)) {
+        masterDemographicProfileMap.set(reg, mergeProfile(masterDemographicProfileMap.get(reg)));
+      }
+      if (adm && adm !== '—') {
+        masterDemographicProfileMap.set(adm, mergeProfile(masterDemographicProfileMap.get(adm)));
+      }
+      if (nameKey) {
+        masterDemographicProfileMap.set(nameKey, mergeProfile(masterDemographicProfileMap.get(nameKey)));
+      }
+    };
+
+    currentAdmissions.forEach(registerDemographicProfile);
+    masterHistoricalRecords.forEach(registerDemographicProfile);
+
     // Process active admissions (with full identity inheritance & duplicate form pruning)
     const sortedActive = [...currentAdmissions].sort((a1, a2) => {
       const hasRoll1 = !!extractClassRoll(a1);
@@ -7144,72 +7210,6 @@ export default function AdvancedReports({
         seenActiveNames.add(`${cls}_${sName}_${fName.slice(0, 8)}`);
       }
     });
-
-    // Build comprehensive master demographic profile map for cross-session autofill (e.g. Bi-annual / Repeater / Exam records)
-    const masterDemographicProfileMap = new Map();
-    const registerDemographicProfile = (rec) => {
-      if (!rec) return;
-      const reg = extractRegNoClean(rec);
-      const adm = cleanAdmNoVal(rec.admNo || rec['Adm. No.'] || rec['Admission No.']);
-      const sName = String(rec["Student's Name (as per school records)"] || rec["Student's Name"] || rec['Student Name'] || rec.studentName || '').toLowerCase().trim();
-      const fName = String(rec["Father's/Guardian's Name (as per school records)"] || rec["Father's Name"] || rec['Father Name'] || rec.fatherName || '').toLowerCase().trim();
-      const nameKey = sName && sName !== 'student' && sName !== '—' ? `${sName}_${fName.slice(0, 8)}` : '';
-
-      const cleanVal = (v) => (v && v !== '—' && v !== '-' && v !== '#N/A' && v !== 'N/A' && String(v).trim() !== '' ? v : null);
-
-      const dob = cleanVal(rec['DoB (figures)'] || rec['DoB (as per school records)'] || rec.dob || rec.DoB);
-      const dobWords = cleanVal(rec['DoB (words)'] || rec.dobWords);
-      const mob = cleanVal(rec['Mobile No. (with working WhatsApp)'] || rec["Student's Contact"] || rec['Mobile No.'] || rec.mobile);
-      const parentContact = cleanVal(rec["Parent's Contact"] || rec["Parent's Mobile No. (must be working)"] || rec["Parent's Mobile No."] || rec["Father's Mobile No."] || rec.parentContact);
-      const aadhar = cleanVal(rec['Aadhar No.'] || rec.aadhar);
-      const fatherAadhar = cleanVal(rec["Father's Aadhar No."] || rec["Father's Aadhaar No."] || rec.fatherAadhar);
-      const village = cleanVal(rec['Village/Town'] || rec['Name of your village'] || rec['Permanent Address'] || rec.village);
-      const bank = cleanVal(rec['Bank Account No.'] || rec['Bank Account Number'] || rec.bankAccount);
-      const bankName = cleanVal(rec['Name of Bank'] || rec['Bank Name'] || rec.bankName);
-      const ifsc = cleanVal(rec['IFSC code'] || rec['IFSC Code'] || rec.ifsc);
-      const pen = cleanVal(rec['PEN No.'] || rec.penNo);
-      const apaar = cleanVal(rec['APAAR ID'] || rec.apaarId);
-      const gender = cleanVal(rec['Gender'] || rec.gender);
-      const category = cleanVal(rec['Cat._JKBOSE'] || rec['Category'] || rec['Social category'] || rec.category);
-      const religion = cleanVal(rec['Religion'] || rec.religion);
-      const residence = cleanVal(rec['Residence (Village, District)'] || rec.residence);
-      const prevSchool = cleanVal(rec['Previous School'] || rec['Name of the Institution last attended'] || rec.prevSchool);
-      const ccDc = cleanVal(resolveCcDcVal(rec));
-
-      const mergeProfile = (existing = {}) => ({
-        dob: existing.dob || dob,
-        dobWords: existing.dobWords || dobWords,
-        mob: existing.mob || mob,
-        parentContact: existing.parentContact || parentContact,
-        aadhar: existing.aadhar || aadhar,
-        fatherAadhar: existing.fatherAadhar || fatherAadhar,
-        village: (existing.village && existing.village !== 'Shangus') ? existing.village : (village || existing.village || 'Shangus'),
-        bank: existing.bank || bank,
-        bankName: existing.bankName || bankName,
-        ifsc: existing.ifsc || ifsc,
-        pen: existing.pen || pen,
-        apaar: existing.apaar || apaar,
-        gender: existing.gender || gender,
-        category: existing.category || category,
-        religion: existing.religion || religion,
-        residence: existing.residence || residence,
-        prevSchool: existing.prevSchool || prevSchool,
-        ccDc: existing.ccDc || ccDc
-      });
-
-      if (reg && isValidRegNo(reg)) {
-        masterDemographicProfileMap.set(reg, mergeProfile(masterDemographicProfileMap.get(reg)));
-      }
-      if (adm && adm !== '—') {
-        masterDemographicProfileMap.set(adm, mergeProfile(masterDemographicProfileMap.get(adm)));
-      }
-      if (nameKey) {
-        masterDemographicProfileMap.set(nameKey, mergeProfile(masterDemographicProfileMap.get(nameKey)));
-      }
-    };
-
-    currentAdmissions.forEach(registerDemographicProfile);
-    masterHistoricalRecords.forEach(registerDemographicProfile);
 
     // Process Historical Master Registers records (for global search, historical archives & earlier sessions)
     masterHistoricalRecords.forEach((m, idx) => {
