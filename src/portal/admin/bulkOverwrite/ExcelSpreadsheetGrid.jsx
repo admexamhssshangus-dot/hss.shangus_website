@@ -5,7 +5,7 @@ import {
   ArrowUpDown, ArrowUp, ArrowDown
 } from 'lucide-react';
 import { streamMatches, resolveCertificateStream, normalizeRegistrationKey } from '../../../utils/certificateStudentResolution';
-import { parseJkboseMarks } from '../../../utils/jkboseResultManager';
+import { parseJkboseMarks } from '../../../utils/jkboseMarksParser';
 
 /**
  * ExcelSpreadsheetGrid
