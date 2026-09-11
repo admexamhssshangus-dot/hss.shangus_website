@@ -1,3 +1,4 @@
+import { registerIssuedDocument } from '../../services/issuedDocumentService';
 // =================================================================
 // HSS SHANGUS — Student Bonafides & Official Certificates Studio
 // Dynamic Student Auto-Complete, DOB-to-Words Engine, Template Builder & Multi-Format Exports
@@ -920,7 +921,7 @@ export default function StudentCertificateStudioView({
     return buildCertificateVerificationUrl({
       reg: regNo || '',
       roll: rollNo || '',
-      fNo: admissionNo || '',
+      fNo: selectedStudent ? extractFormNo(selectedStudent.raw || selectedStudent) : '',
       cert: refNo || '',
       doc: certificateTitle || '',
       name: studentName || '',
@@ -928,7 +929,7 @@ export default function StudentCertificateStudioView({
       className: className || '',
       session: session || ''
     });
-  }, [regNo, rollNo, admissionNo, refNo, certificateTitle, studentName, fatherName, className, session]);
+  }, [regNo, rollNo, selectedStudent, refNo, certificateTitle, studentName, fatherName, className, session]);
 
   const canvasQrUri = useMemo(() => {
     return createQrSvgDataUri(canvasVerifyUrl, 140);
@@ -3045,6 +3046,7 @@ export default function StudentCertificateStudioView({
     const effectivePhoto = studentPhotoUrl || (selectedStudent ? resolveStudentPhoto(selectedStudent.raw || selectedStudent) : null);
     const raw = selectedStudent?.raw || selectedStudent || {};
     const metaDetails = {
+      formNo: extractFormNo(raw),
       certificateNo: refNo || extractStudentCertificateNumber(raw) || '—',
       admissionDate: admissionDate || extractStudentAdmissionDate(raw) || '—',
       admissionNo: admissionNo || extractStudentAdmissionNumber(raw) || '—',
@@ -3342,8 +3344,17 @@ export default function StudentCertificateStudioView({
       if (!effectiveRefNo) return;
     }
 
+    if (!isTcDcActive) {
+      try { await registerIssuedDocument(selectedStudent, effectiveRefNo, certificateTitle); }
+      catch (error) {
+        showToast(error.message || 'Certificate registration failed.', 'error');
+        setIsExportingDocx(false);
+        return;
+      }
+    }
     const raw = selectedStudent?.raw || selectedStudent || {};
     const metaDetails = {
+      formNo: extractFormNo(raw),
       certificateNo: effectiveRefNo || extractStudentCertificateNumber(raw) || '—',
       admissionDate: admissionDate || extractStudentAdmissionDate(raw) || '—',
       admissionNo: admissionNo || extractStudentAdmissionNumber(raw) || '—',
@@ -3456,8 +3467,17 @@ export default function StudentCertificateStudioView({
       }
     }
 
+    if (!isTcDcActive) {
+      try { await registerIssuedDocument(selectedStudent, effectiveRefNo, certificateTitle); }
+      catch (error) {
+        showToast(error.message || 'Certificate registration failed.', 'error');
+        setIsExportingDocx(false);
+        return;
+      }
+    }
     const raw = selectedStudent?.raw || selectedStudent || {};
     const metaDetails = {
+      formNo: extractFormNo(raw),
       certificateNo: effectiveRefNo || extractStudentCertificateNumber(raw) || '—',
       admissionDate: admissionDate || extractStudentAdmissionDate(raw) || '—',
       admissionNo: admissionNo || extractStudentAdmissionNumber(raw) || '—',

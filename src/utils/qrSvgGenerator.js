@@ -29,7 +29,7 @@ export function sanitizeVerificationField(val) {
 }
 
 /**
- * Deterministic cryptographic verification signature for official QR verification URLs.
+ * Legacy URL checksum for print compatibility. It provides no authenticity or authorization.
  */
 export function generateVerificationSignature(reg = '', roll = '', fNo = '', cert = '') {
   const cleanReg = sanitizeVerificationField(reg);
@@ -62,7 +62,7 @@ export function getPublicVerificationOrigin() {
 }
 
 /**
- * Builds a compact, cryptographically signed verification URL.
+ * Builds a registry lookup URL. Only a live server registry check proves issuance.
  * Keeps the URL length minimal (~120-140 chars) to produce an ultra-low-density,
  * large-module QR matrix (Version 5/6) that scans instantly on all smartphone cameras.
  */

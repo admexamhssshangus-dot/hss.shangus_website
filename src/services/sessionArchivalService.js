@@ -41,6 +41,8 @@ export async function archiveSessionRecords(records, { session, newSession, purg
         throw new Error(`Admission ${sourceId} disappeared before archival. Refresh the preview.`);
       }
       const current = source.data();
+      if (current._archivedTo === archiveRef.path && archive.exists()) return;
+      if (current._archivedTo === trashRef.path && trash.exists()) return;
       if (recordIdentity(current).session !== sessionKey(session)) throw new Error('A record moved to a different session. Refresh the preview.');
       const status = resolveStudentAdmissionStatus(current);
       if (status !== resolveStudentAdmissionStatus(record)) throw new Error('An admission status changed after the preview. Refresh first.');
@@ -49,7 +51,10 @@ export async function archiveSessionRecords(records, { session, newSession, purg
       if (archive.exists() || trash.exists()) throw new Error('This source ID already has an archive. Review it before moving a recreated admission.');
       tx.set(approved ? archiveRef : trashRef, { ...current, sourceApplicationId: sourceId,
         archivalJobId: session, archivedAt: serverTimestamp() });
-      tx.delete(sourceRef); // backup and delete either both commit or neither does
+      // Preserve issued-document locators without retaining a second copy of
+      // student data or leaving this record in active-session queries.
+      tx.set(sourceRef, { _archivedTo: (approved ? archiveRef : trashRef).path,
+        _deleted: true, Status: 'Archived', archivalJobId: session });
       tx.set(jobRef, { session, newSession, status: 'running', updatedAt: serverTimestamp() }, { merge: true });
     });
     onProgress?.(index + 1, records.length);

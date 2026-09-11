@@ -3,11 +3,15 @@
 const crypto = require('crypto');
 // This backend intentionally uses the stable 1st-gen function signatures.
 const functions = require('firebase-functions/v1');
-const admin = require('firebase-admin');
+const admin = require('./firebaseAdmin');
 const nodemailer = require('nodemailer');
 
 admin.initializeApp();
 const { requireStaff } = require('./access');
+exports.staffDirectory = require('./staffDirectory')({ functions, admin, requireAppCheck });
+exports.submitAcademicRecord = require('./academicRecords')({ functions, admin, requireAppCheck });
+exports.mutateFundDistribution = require('./fundLedger')({ functions, admin, requireAppCheck });
+exports.manageIssuedDocument = require('./issuedDocuments')({ functions, admin, requireAppCheck });
 Object.assign(exports, require('./staffSecurity')({ functions, admin, nodemailer, requireAppCheck }));
 
 const BOOTSTRAP_ADMIN_EMAIL = 'adm.exam.hss.shangus@gmail.com';
@@ -18,23 +22,6 @@ function requireAppCheck(context) {
   if (process.env.REQUIRE_APP_CHECK !== 'false' && !context.app) {
     throw new functions.https.HttpsError('failed-precondition', 'A valid App Check token is required.');
   }
-}
-
-function isAdminContext(context) {
-  if (!context.auth) return false;
-  const token = context.auth.token || {};
-  if (token.email_verified !== true) return false;
-  const role = String(token.role || '').toLowerCase();
-  return token.admin === true || ['admin', 'superadmin', 'super admin'].includes(role) ||
-    token.email === BOOTSTRAP_ADMIN_EMAIL;
-}
-
-function isStaffContext(context) {
-  if (!context.auth) return false;
-  if (context.auth.token?.email_verified !== true) return false;
-  const role = String(context.auth.token?.role || '').toLowerCase();
-  return isAdminContext(context) || context.auth.token?.teacher === true ||
-    ['teacher', 'faculty'].includes(role);
 }
 
 async function requireAdmin(context, module) {
@@ -57,17 +44,15 @@ function sanitizeEmailHtml(value) {
 }
 
 exports.initializeUserClaims = functions.auth.user().onCreate(async (user) => {
-  const isBootstrap = user.emailVerified && user.email === BOOTSTRAP_ADMIN_EMAIL;
-  const claims = isBootstrap
-    ? { role: 'SuperAdmin', admin: true, permissions: ['*'] }
-    : { role: 'Student', admin: false, teacher: false, permissions: [] };
-  await admin.auth().setCustomUserClaims(user.uid, claims);
-  await admin.firestore().collection('users').doc(user.uid).set({
-    uid: user.uid,
-    email: String(user.email || '').toLowerCase(),
-    name: user.displayName || '',
-    createdAt: admin.firestore.FieldValue.serverTimestamp(),
-  }, { merge: true });
+  // A delayed Auth trigger must never overwrite a staff role assigned during
+  // account provisioning. Canonical profiles are the authority source.
+  const reference = admin.firestore().collection('users').doc(user.uid);
+  await admin.firestore().runTransaction(async tx => {
+    if ((await tx.get(reference)).exists) return;
+    tx.create(reference, { uid: user.uid, email: String(user.email || '').toLowerCase(),
+      name: user.displayName || '', role: 'Student', perms: [],
+      createdAt: admin.firestore.FieldValue.serverTimestamp() });
+  });
 });
 
 exports.setUserAccess = functions.https.onCall(async () => {

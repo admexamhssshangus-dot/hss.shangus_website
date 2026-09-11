@@ -44,6 +44,9 @@ public/slides/*private*.json
 
 # Local audit and generated interpreter caches
 .codex-audit/
+firestore-debug.log
+firebase-debug.log
+ui-debug.log
 **/__pycache__/
 *.pyc
 

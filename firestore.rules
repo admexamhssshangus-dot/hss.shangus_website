@@ -3,7 +3,8 @@ rules_version = '2';
 // ===============================================================
 // Assumed data model and security boundary
 // ===============================================================
-// Authority is derived only from Firebase Authentication custom claims.
+// Authority comes from verified Firebase Auth and server-managed UID profiles.
+// Admin sessions require a server-verified email proof bound to auth_time.
 // Public CMS documents contain no credentials or private student information.
 // Private user/admission documents are bound to ownerUid and/or verified email.
 // Legacy staff-managed academic documents have dynamic schemas, but client
@@ -28,46 +29,62 @@ service cloud.firestore {
         : '';
     }
 
+    function staffProfile() {
+      return isAuthenticated() && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data : {};
+    }
+    function verifiedStaffIdentity() {
+      return isAuthenticated() && request.auth.token.email_verified == true &&
+        staffProfile().get('active', true) == true &&
+        request.auth.token.get('auth_time', 0) >= staffProfile().get('validAfter', 0);
+    }
     function isBootstrapAdmin() {
-      return isAuthenticated() && request.auth.token.email_verified == true && (
-        authEmail() in [
-          'adm.exam.hss.shangus@gmail.com',
-          'ghssshangus74@gmail.com',
-          'e.educational.24@gmail.com',
-          'socialshiftz@gmail.com'
-        ] ||
-        (request.auth.token.email is string &&
-         request.auth.token.email.lower() in [
-          'adm.exam.hss.shangus@gmail.com',
-          'ghssshangus74@gmail.com',
-          'e.educational.24@gmail.com',
-          'socialshiftz@gmail.com'
-        ])
-      );
+      return verifiedStaffIdentity() && authEmail() == 'adm.exam.hss.shangus@gmail.com';
     }
-
+    function hasAdminSession() {
+      return isAuthenticated() && exists(/databases/$(database)/documents/adminSessions/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/adminSessions/$(request.auth.uid)).data.authTime == request.auth.token.auth_time &&
+        get(/databases/$(database)/documents/adminSessions/$(request.auth.uid)).data.expiresAt > request.time;
+    }
     function isAdmin() {
-      return isAuthenticated() && (
-        request.auth.token.admin == true ||
-        normalizedRole() in ['admin', 'superadmin', 'super admin'] ||
-        isBootstrapAdmin() ||
-        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['Admin', 'SuperAdmin', 'admin', 'superadmin', 'Super Admin']) ||
-        (authEmail() != '' && exists(/databases/$(database)/documents/users/$(authEmail())) &&
-         get(/databases/$(database)/documents/users/$(authEmail())).data.role in ['Admin', 'SuperAdmin', 'admin', 'superadmin', 'Super Admin'])
-      );
+      return verifiedStaffIdentity() && hasAdminSession() &&
+        (isBootstrapAdmin() || staffProfile().get('role', '') in ['Admin', 'SuperAdmin']);
     }
-
-    function isTeacher() {
-      return isAuthenticated() && (
-        request.auth.token.teacher == true ||
-        normalizedRole() in ['teacher', 'faculty', 'staff'] ||
-        isAdmin() ||
-        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['Teacher', 'Faculty', 'Staff', 'teacher', 'faculty', 'staff']) ||
-        (authEmail() != '' && exists(/databases/$(database)/documents/users/$(authEmail())) &&
-         get(/databases/$(database)/documents/users/$(authEmail())).data.role in ['Teacher', 'Faculty', 'Staff', 'teacher', 'faculty', 'staff'])
-      );
+    function isSuperAdmin() {
+      return isAdmin() && (isBootstrapAdmin() || staffProfile().get('role', '') == 'SuperAdmin');
+    }
+    function canUseAny(modules) {
+      let profile = staffProfile();
+      return verifiedStaffIdentity() && hasAdminSession() &&
+        (isBootstrapAdmin() || profile.get('role', '') == 'SuperAdmin' ||
+          (profile.get('role', '') == 'Admin' && profile.get('perms', []).hasAny(modules.concat(['*']))));
+    }
+    function canUse(module) { return canUseAny([module]); }
+    function isFaculty() {
+      return verifiedStaffIdentity() && staffProfile().get('role', '') == 'Teacher';
+    }
+    function isTeacher() { return isFaculty() || isAdmin(); }
+    function canReadStudents() {
+      return isFaculty() || (isAdmin() && (isSuperAdmin() || staffProfile().get('perms', []).hasAny([
+        '*', 'reports', 'admRegisterSuite', 'customRoster', 'certStudio', 'idCards', 'rollNo', 'practicals', 'attendanceMgmt', 'funds', 'controls', 'gkTest'
+      ])));
+    }
+    function canEditStudents() {
+      return canUseAny(['reports', 'admRegisterSuite', 'controls', 'rollNo', 'certStudio']);
+    }
+    function settingsModule(documentId) {
+      return documentId == 'certificateRegistry' ? 'certStudio' :
+        documentId == 'attendanceConfig' ? 'attendanceMgmt' :
+        documentId == 'admission_register_layout' ? 'admRegisterSuite' :
+        documentId == 'rosterFeeRules' ? 'customRoster' :
+        documentId == 'idCardConfig' ? 'idCards' : 'controls';
+    }
+    function collectionModule(collectionName) {
+      return collectionName in ['registerdata', 'recycleBin', 'deletedFormsHistory', 'csvImportBatches'] ? 'reports' :
+        collectionName in ['examConfig', 'attendanceConfig'] ? 'attendanceMgmt' :
+        collectionName in ['feeRates', 'fundDistributions'] ? 'funds' :
+        collectionName in ['emailLogs'] ? 'automations' :
+        collectionName in ['docStudioTemplates'] ? 'officialLetter' : 'controls';
     }
 
     function isStudent() {
@@ -82,13 +99,13 @@ service cloud.firestore {
     }
 
     function ownsEmailDocument(documentId) {
-      return isAuthenticated() && documentId.lower() == authEmail();
+      return isAuthenticated() && request.auth.token.email_verified == true && documentId.lower() == authEmail();
     }
 
     function ownsAdmission(data) {
       return isAuthenticated() && (
         (('ownerUid' in data) && data.ownerUid == request.auth.uid) ||
-        ((!('ownerUid' in data) || data.ownerUid == '') && (
+        ((!('ownerUid' in data) || data.ownerUid == '') && request.auth.token.email_verified == true && (
           (('emailNormalized' in data) && data.emailNormalized is string && data.emailNormalized.lower() == authEmail()) ||
           (('Email Address' in data) && data['Email Address'] is string && data['Email Address'].lower() == authEmail()) ||
           (('email' in data) && data.email is string && data.email.lower() == authEmail())
@@ -108,7 +125,7 @@ service cloud.firestore {
     function userAuthorityNotModified() {
       return !request.resource.data.diff(resource.data).affectedKeys().hasAny([
         'role', 'perms', 'admin', 'isAdmin', 'roles', 'permissions',
-        'allowedTabs', 'active'
+        'allowedTabs', 'active', 'validAfter', 'subject', 'teachingSubject', 'assignedClass', 'assignedClasses'
       ]);
     }
 
@@ -118,7 +135,7 @@ service cloud.firestore {
         'requestedRole', 'assignedClass', 'teachingSubject', 'subject', 'designation',
         'academicSession', 'createdAt', 'updatedAt', 'active', 'studentName',
         'classRollNo', 'admNo', 'boardRegNo', 'teacherLoginCount', 'last2StepVerificationDate',
-        'lastLoginAt', 'authProvider', 'authProviders'
+        'lastLoginAt', 'authProvider', 'authProviders', 'validAfter', 'assignedClasses'
       ]);
     }
 
@@ -372,75 +389,76 @@ service cloud.firestore {
 
     // Public, non-sensitive website content.
     match /site/{documentId} {
-      allow get: if documentId in ['settings', 'notices', 'facultySummary', 'slideshow', 'pages', 'recycle_bin'] ||
+      allow get: if documentId in ['settings', 'notices', 'facultySummary', 'slideshow', 'pages'] ||
         documentId.matches('^page_[a-zA-Z0-9_-]{1,64}$');
-      allow get: if documentId == 'faculty' && isAdmin();
-      allow list: if isAdmin();
-      allow create, update: if isAdmin() && (
+      allow get: if documentId in ['faculty', 'recycle_bin'] && canUseAny(['controls', 'cms']);
+      allow list: if canUseAny(['controls', 'cms']);
+      allow create, update: if canUseAny(['controls', 'cms']) && (
         (documentId == 'facultySummary' && validFacultySummary(request.resource.data)) ||
         (documentId != 'facultySummary' && validPublicSiteDocument(documentId, request.resource.data))
       );
-      allow delete: if isAdmin();
+      allow delete: if canUseAny(['controls', 'cms']);
     }
 
     match /siteSettings/{documentId} {
       allow read: if true;
-      allow create, update: if isAdmin() && hasNoCredentialFields(request.resource.data) &&
+      allow create, update: if canUseAny(['controls', 'cms']) && hasNoCredentialFields(request.resource.data) &&
         hasNoAiSecretFields(request.resource.data) && hasNoNestedPaymentSecrets(request.resource.data);
-      allow delete: if isAdmin();
+      allow delete: if canUseAny(['controls', 'cms']);
     }
 
     // Explicitly published, data-minimised faculty directory.
     match /facultyPublic/{documentId} {
       allow get, list: if true;
-      allow create, update: if isAdmin() && validPublicFaculty(request.resource.data);
-      allow delete: if isAdmin();
+      allow create, update: if canUseAny(['controls', 'cms']) && validPublicFaculty(request.resource.data);
+      allow delete: if canUseAny(['controls', 'cms']);
     }
 
     match /users/{userId} {
-      allow get: if isAdmin() || isOwner(userId) || ownsEmailDocument(userId);
-      allow list: if isAdmin();
-      allow create: if (isAdmin() && validAdminUser(request.resource.data)) ||
-        ((isOwner(userId) || ownsEmailDocument(userId)) && validSelfUser(request.resource.data));
-      allow update: if (isAdmin() && validAdminUser(request.resource.data)) ||
-        ((isOwner(userId) || ownsEmailDocument(userId)) &&
-          validSelfUserUpdate(request.resource.data));
-      allow delete: if isAdmin();
+      allow get: if isSuperAdmin() || isOwner(userId) || ownsEmailDocument(userId);
+      allow list: if isSuperAdmin();
+      allow create: if isOwner(userId) && validSelfUser(request.resource.data);
+      allow update: if isOwner(userId) && validSelfUserUpdate(request.resource.data);
+      allow delete: if false;
     }
 
     match /messages/{messageId} {
       allow create: if validContactMessage(request.resource.data);
-      allow read, delete: if isAdmin();
+      allow read, delete: if canUse('controls');
       allow update: if false;
     }
 
     match /admissions/{documentId} {
-      allow get, list: if isTeacher() || (isStudent() && ownsAdmission(resource.data));
+      allow get, list: if canReadStudents() || (isStudent() && ownsAdmission(resource.data));
       // Student writes go through the authenticated admission-workflow server.
       // This prevents browser clients from assigning form numbers, changing
       // review status, bypassing admission windows, or forging timestamps.
-      allow create, update: if isAdmin() && validStaffDocument(request.resource.data);
-      allow delete: if isAdmin();
+      allow create: if canEditStudents() && validStaffDocument(request.resource.data) &&
+        (request.resource.data.get('ingestionType', '') != 'admin_express_direct' ||
+          get(/databases/$(database)/documents/site/settings).data.get('allowExpressZeroRestrictions', false) == true);
+      allow update: if canEditStudents() && validStaffDocument(request.resource.data);
+      allow delete: if canUse('reports') || canUse('controls');
     }
 
     match /admissionApplications/{documentId} {
       // Deprecated legacy path. New applications use /admissions through the
       // server workflow; retain administrator-only access for migration.
-      allow read: if isAdmin();
-      allow create, update: if isAdmin() && validStaffDocument(request.resource.data);
-      allow delete: if isAdmin();
+      allow read: if canUse('reports');
+      allow create, update: if canUse('reports') && validStaffDocument(request.resource.data);
+      allow delete: if canUse('reports');
     }
 
     match /attendance/{documentId} {
       allow read: if isTeacher();
-      allow create, update: if isTeacher() && validStaffDocument(request.resource.data);
-      allow delete: if isAdmin();
+      allow create, update, delete: if false; // validated server commands only
     }
 
     match /practicalsData/{documentId} {
       allow read: if isTeacher();
-      allow create, update: if isTeacher() && validStaffDocument(request.resource.data);
-      allow delete: if isAdmin();
+      // Existing administrative CSV imports remain available; teacher writes
+      // always go through assignment, cohort and lock validation on the server.
+      allow create, update: if canUse('practicals') && validStaffDocument(request.resource.data);
+      allow delete: if canUse('practicals');
     }
 
     match /activityLogs/{documentId} {
@@ -450,147 +468,151 @@ service cloud.firestore {
     }
 
     match /omr_registrations/{documentId} {
-      allow get: if isAdmin() ||
+      allow get: if canUse('gkTest') ||
         (isAuthenticated() && resource.data.ownerUid == request.auth.uid);
-      allow list: if isAdmin();
+      allow list: if canUse('gkTest');
       allow create: if isAuthenticated() && validOmrRegistration(request.resource.data) &&
         documentId == request.resource.data.examNumber;
-      allow update: if isAdmin() && validStaffDocument(request.resource.data);
-      allow delete: if isAdmin();
+      allow update: if canUse('gkTest') && validStaffDocument(request.resource.data);
+      allow delete: if canUse('gkTest');
     }
 
     match /gktest_settings/{documentId} {
       allow get: if documentId == 'config';
       allow list: if false;
-      allow create, update: if isAdmin() && validStaffDocument(request.resource.data);
-      allow delete: if isAdmin();
+      allow create, update: if canUse('gkTest') && validStaffDocument(request.resource.data);
+      allow delete: if canUse('gkTest');
     }
 
     match /systemSettings/{documentId} {
-      allow read: if isAdmin() && documentId != 'geminiApiConfig';
-      allow create, update: if isAdmin() && documentId != 'geminiApiConfig' &&
+      allow read: if canUseAny(['controls', settingsModule(documentId)]) && documentId != 'geminiApiConfig';
+      allow create, update: if canUseAny(['controls', settingsModule(documentId)]) && documentId != 'geminiApiConfig' &&
         hasNoCredentialFields(request.resource.data) && hasNoAiSecretFields(request.resource.data) &&
         hasNoNestedPaymentSecrets(request.resource.data);
-      allow delete: if isAdmin();
+      allow delete: if canUse('controls');
     }
 
     match /formStructure/{documentId} {
       allow read: if true;
-      allow create, update: if isAdmin() && validStaffDocument(request.resource.data);
-      allow delete: if isAdmin();
+      allow create, update: if canUse('controls') && validStaffDocument(request.resource.data);
+      allow delete: if canUse('controls');
     }
 
     match /subjectsConfig/{documentId} {
       allow read: if true;
-      allow create, update: if isAdmin() && validStaffDocument(request.resource.data);
-      allow delete: if isAdmin();
+      allow create, update: if canUse('subjects') && validStaffDocument(request.resource.data);
+      allow delete: if canUse('subjects');
     }
 
     match /holidays/{documentId} {
       allow read: if isAuthenticated();
       allow create, update: if isTeacher() && validStaffDocument(request.resource.data);
-      allow delete: if isAdmin();
+      allow delete: if canUse('attendanceMgmt');
     }
 
     match /fund_rates/{documentId} {
-      allow read: if isTeacher();
-      allow create, update: if isAdmin() && validFundRates(request.resource.data);
-      allow delete: if isAdmin();
+      allow read: if canUse('funds');
+      allow create, update: if canUse('funds') && validFundRates(request.resource.data);
+      allow delete: if canUse('funds');
     }
 
     match /fund_config/{documentId} {
-      allow read: if isTeacher();
-      allow create, update: if isAdmin() && validFundConfig(documentId, request.resource.data);
-      allow delete: if isAdmin();
+      allow read: if canUse('funds');
+      allow create, update: if canUse('funds') && validFundConfig(documentId, request.resource.data);
+      allow delete: if canUse('funds');
     }
 
     match /fund_distributions/{documentId} {
-      allow read: if isTeacher();
-      allow create, update: if isAdmin() && documentId == request.resource.data.id &&
-        validFundDistribution(request.resource.data);
-      allow delete: if isAdmin();
+      allow read: if canUse('funds');
+      allow create, update, delete: if false; // validated server commands only
     }
 
     match /studentPhotos/{documentId} {
       // Central photos contain private student data. Students receive only their
       // own hydrated photo through the authenticated admission backend.
-      allow read: if isTeacher();
-      allow create, update: if isAdmin() && validStaffDocument(request.resource.data);
-      allow delete: if isAdmin();
+      allow read: if canReadStudents();
+      allow create, update: if canUse('reports') && validStaffDocument(request.resource.data);
+      allow delete: if canUse('reports');
     }
 
     match /admissionHistory/{documentId} {
-      allow read: if isAdmin();
-      allow create, update: if isAdmin() && validStaffDocument(request.resource.data);
-      allow delete: if isAdmin();
+      allow read: if canUse('reports');
+      allow create, update: if canUse('reports') && validStaffDocument(request.resource.data);
+      allow delete: if canUse('reports');
     }
 
     match /adminPracticalsSettings/{documentId} {
       allow read: if isTeacher();
-      allow create, update: if isAdmin() && hasNoCredentialFields(request.resource.data);
-      allow delete: if isAdmin();
+      allow create, update: if canUse('practicals') && hasNoCredentialFields(request.resource.data);
+      allow delete: if canUse('practicals');
     }
 
     match /masterRegisters/{documentId} {
-      allow read: if isTeacher();
-      allow create, update: if isAdmin() && validStaffDocument(request.resource.data);
-      allow delete: if isAdmin();
+      allow read: if canReadStudents();
+      allow create, update: if canEditStudents() && validStaffDocument(request.resource.data);
+      allow delete: if canUse('reports');
     }
 
     match /generatedDocumentHistory/{documentId} {
       allow read: if isTeacher();
       allow create, update: if isTeacher() && validStaffDocument(request.resource.data);
-      allow delete: if isAdmin();
+      allow delete: if canUse('officialLetter');
     }
 
     match /documentHistory/{documentId} {
       allow read: if isTeacher();
       allow create, update: if isTeacher() && validStaffDocument(request.resource.data);
-      allow delete: if isAdmin();
+      allow delete: if canUse('certStudio');
     }
 
     // Permanent uniqueness ledger: a TC/CC number is owned by exactly one
     // registration number. Revocation retires the number; deletion is denied.
     match /certificateNumberLocks/{certificateNo} {
-      allow get, list: if isAdmin();
-      allow create: if isAdmin() && validCertificateNumberLock(certificateNo, request.resource.data);
-      allow update: if isAdmin() && validCertificateNumberLock(certificateNo, request.resource.data) &&
+      allow get, list: if canUse('certStudio');
+      allow create: if canUse('certStudio') && validCertificateNumberLock(certificateNo, request.resource.data);
+      allow update: if canUse('certStudio') && validCertificateNumberLock(certificateNo, request.resource.data) &&
         !request.resource.data.diff(resource.data).affectedKeys()
           .hasAny(['certificateNo', 'regNo', 'regKey', 'createdAt']) &&
         (resource.data.status != 'Revoked' || request.resource.data.status == 'Revoked');
       allow delete: if false;
     }
 
-    // Administrative and institution-wide records.
     match /{collectionName}/{documentId} {
-      allow read: if isAdmin() &&
-        !(collectionName == 'systemSettings' && documentId == 'geminiApiConfig') &&
-        collectionName in [
-        'registerdata', 'examConfig',
-        'systemSettings', 'system_settings', 'attendanceConfig', 'adminActivityLogs', 'emailLogs',
-        'feeRates', 'fundDistributions', 'fund_rates', 'fund_distributions', 'recycleBin', 'deletedFormsHistory',
-        'admissionHistory', 'csvImportBatches', 'adminSettings', 'docStudioTemplates',
-        'generatedDocumentHistory', 'documentHistory'
-      ];
-      allow create, update: if isAdmin() &&
-        !(collectionName == 'systemSettings' && documentId == 'geminiApiConfig') &&
-        collectionName in [
-        'registerdata', 'examConfig',
-        'systemSettings', 'system_settings', 'attendanceConfig', 'adminActivityLogs', 'emailLogs',
-        'feeRates', 'fundDistributions', 'fund_rates', 'fund_distributions', 'recycleBin', 'deletedFormsHistory',
-        'admissionHistory', 'csvImportBatches', 'adminSettings', 'docStudioTemplates',
-        'generatedDocumentHistory', 'documentHistory'
-      ] && validStaffDocument(request.resource.data);
-      allow delete: if isAdmin() &&
-        !(collectionName == 'systemSettings' && documentId == 'geminiApiConfig') &&
-        collectionName in [
-        'registerdata', 'examConfig',
-        'systemSettings', 'system_settings', 'attendanceConfig', 'adminActivityLogs', 'emailLogs',
-        'feeRates', 'fundDistributions', 'fund_rates', 'fund_distributions', 'recycleBin', 'deletedFormsHistory',
-        'admissionHistory', 'csvImportBatches', 'adminSettings', 'docStudioTemplates',
-        'generatedDocumentHistory', 'documentHistory'
-      ];
+      allow read: if collectionName in ['registerdata', 'examConfig', 'system_settings', 'attendanceConfig',
+        'adminActivityLogs', 'emailLogs', 'feeRates', 'fundDistributions', 'recycleBin', 'deletedFormsHistory',
+        'csvImportBatches', 'docStudioTemplates'] &&
+        (canUse(collectionModule(collectionName)) || (collectionName == 'csvImportBatches' && canEditStudents()));
+      allow create, update: if collectionName in ['registerdata', 'examConfig', 'system_settings', 'attendanceConfig',
+        'adminActivityLogs', 'feeRates', 'recycleBin', 'deletedFormsHistory', 'csvImportBatches', 'docStudioTemplates'] &&
+        (canUse(collectionModule(collectionName)) || (collectionName == 'csvImportBatches' && canEditStudents())) && validStaffDocument(request.resource.data);
+      allow delete: if collectionName in ['registerdata', 'examConfig', 'system_settings', 'attendanceConfig',
+        'adminActivityLogs', 'feeRates', 'recycleBin', 'deletedFormsHistory', 'docStudioTemplates'] && canUse(collectionModule(collectionName));
     }
+    match /adminSettings/{documentId} {
+      allow read: if isSuperAdmin();
+      allow write: if false;
+    }
+    match /adminActivityLogs/{documentId} {
+      allow create: if isAdmin() && validStaffDocument(request.resource.data);
+    }
+    match /csvImportBatches/{jobId}/entries/{entryId} {
+      allow read: if canEditStudents();
+      allow create, update: if canEditStudents() && request.resource.data.keys().hasOnly(['kind', 'locator', 'before', 'after', 'status', 'createdAt', 'restoredAt']) &&
+        request.resource.data.locator is map && request.resource.data.before is map && request.resource.data.after is map &&
+        request.resource.data.status in ['applied', 'restored'];
+      allow delete: if false;
+    }
+    match /archivalJobs/{jobId} {
+      allow read: if canUse('controls');
+      allow create, update: if canUse('controls') && validStaffDocument(request.resource.data);
+      allow delete: if false;
+    }
+    match /archivalTrash/{documentId} {
+      allow read: if canUse('controls');
+      allow create: if canUse('controls') && validStaffDocument(request.resource.data);
+      allow update, delete: if false;
+    }
+    match /securityAuditLogs/{documentId} { allow read: if isSuperAdmin(); allow write: if false; }
 
     // Server-only verification/rate-limit indexes and every unknown path.
     match /studentVerificationIndex/{document=**} {
@@ -613,31 +635,17 @@ service cloud.firestore {
       allow write: if false;
     }
 
-    // ── 2-Step Login Handshake Tokens ──
-    // Allows unauthenticated clients to initiate a handshake (create) and listen to their specific handshake by ID (get)
-    // Querying the collection (list) is strictly restricted to Admins.
-    // Approving the handshake (update to 'approved') is allowed once verified.
-    // Deletion is permitted for cleanup.
     match /adminAuthHandshakes/{handshakeId} {
-      allow get: if true;
-      allow list: if isAdmin();
-
-      allow create: if request.resource.data.keys().hasAll(['id', 'email', 'status', 'createdAt', 'expiresAt'])
-        && request.resource.data.id == handshakeId
-        && request.resource.data.email is string
-        && request.resource.data.email.size() >= 5
-        && request.resource.data.status == 'pending'
-        && (request.resource.data.createdAt is string || request.resource.data.createdAt is timestamp)
-        && request.resource.data.expiresAt is number;
-
-      allow update: if request.resource.data.status in ['approved', 'consumed', 'pending']
-        && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['id', 'createdAt']))
-        && (
-          !('email' in request.resource.data) ||
-          request.resource.data.email == resource.data.email
-        );
-
-      allow delete: if isAuthenticated() || isAdmin() || (resource.data.status in ['approved', 'consumed']);
+      allow get: if isAuthenticated() && resource.data.uid == request.auth.uid;
+      allow list, write: if false;
+    }
+    match /adminSessions/{userId} {
+      allow get: if isOwner(userId);
+      allow list, write: if false;
+    }
+    match /issuedDocuments/{documentId} {
+      allow read: if canUse('certStudio');
+      allow write: if false;
     }
     match /{document=**} {
       allow read, write: if false;

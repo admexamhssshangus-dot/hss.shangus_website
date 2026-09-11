@@ -1,3 +1,5 @@
+import { gradeAssessment, expectedSubjectCodes } from '../../shared/assessment';
+import { sameCohort, recordIdentity, identityKey, sessionKey, classKey } from '../../utils/recordIdentity';
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
   FileText, Printer, Download, Search, RefreshCw, Filter, Award,
@@ -76,246 +78,51 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
 
   // Aggregate student and subject marks matrix
   const { gazetteRows, subjectsList, stats } = useMemo(() => {
-    const normClass = String(selectedClass).toLowerCase().replace(/class/i, '').trim();
-    const normSession = String(selectedSession).toLowerCase().trim();
-    const normEval = String(selectedEvalType).toLowerCase().trim();
-
-    // 1. Filter matching practicals documents for the chosen Class, Session, and Evaluation Type
-    const matchingDocs = practicalsDocs.filter(docData => {
-      const dClass = String(docData.className || docData.class || docData.id || '').toLowerCase();
-      const matchClass = dClass.includes(normClass);
-      if (!matchClass) return false;
-
-      const dSession = String(docData.yearSuffix || docData.session || docData.Session || docData.id.split('_').pop() || '').toLowerCase();
-      const matchSession = dSession.includes(normSession) || (normSession === '2025-26' && (dSession === '2026' || dSession.includes('2025-26')));
-      if (!matchSession) return false;
-
-      const dEval = String(docData.practicalType || docData.evaluationType || docData.evalType || '').toLowerCase();
-      const matchEval = dEval.includes(normEval) || (normEval.includes('pre-board') && dEval.includes('pre-board'));
-      return matchEval;
-    });
-
-    // 2. Discover all subjects evaluated in matching documents
-    const subjectsMap = new Map();
-    matchingDocs.forEach(d => {
-      const sCode = d.subjectCode || String(d.subject || 'SUB').slice(0, 4).toUpperCase();
-      const sName = d.subject || d.subjectName || sCode;
-      if (!subjectsMap.has(sCode)) {
-        subjectsMap.set(sCode, {
-          code: sCode,
-          name: sName,
-          maxMarks: Number(d.maxMarks) || 100
+    const evaluation = availableEvaluations.find(item => (item.evalType || item.title) === selectedEvalType && item.session === selectedSession);
+    const matchingDocs = practicalsDocs.filter(section => section.isDraft !== true && section.status === 'submitted' &&
+      classKey(section.className) === classKey(selectedClass) &&
+      sessionKey(section.sessionCanonical || section.yearSuffix || section.session || section.sessionText) === selectedSession &&
+      identityKey(section.practicalType) === identityKey(selectedEvalType));
+    const subjectMap = new Map();
+    matchingDocs.forEach(section => subjectMap.set(section.subjectCode, { code: section.subjectCode,
+      name: section.subjectName || section.subject || section.subjectCode, maxMarks: section.maxMarks ?? evaluation?.maxMarks }));
+    const cohort = allStudents.filter(student => sameCohort(student, selectedSession, selectedClass) && !student._deleted);
+    const compiledRows = cohort.map((student, index) => {
+      const identity = recordIdentity(student);
+      const subjects = [];
+      matchingDocs.forEach(section => {
+        const matches = (section.records || []).filter(row => {
+          const record = recordIdentity(row);
+          return record.form ? record.form === identity.form && (!record.reg || record.reg === identity.reg) : record.reg && record.reg === identity.reg;
         });
-      }
-    });
-
-    const discoveredSubjects = Array.from(subjectsMap.values());
-
-    // 3. Build student map
-    const studentRecordsMap = new Map();
-
-    (allStudents || []).forEach(st => {
-      const stClass = String(st.class || st.Class || st['Admission sought for class'] || '').toLowerCase();
-      const stSession = String(st.session || st.Session || st['Academic Session'] || '').toLowerCase();
-
-      const isClsMatch = stClass.includes(normClass);
-      const isSessMatch = stSession.includes(normSession) || (normSession === '2025-26' && (stSession === '2026' || stSession.includes('2025-26')));
-
-      if (isClsMatch && isSessMatch) {
-        const rollNo = String(st.classRollNo || st.rollNo || st['Class Roll No'] || '').trim();
-        const regNo = String(st.boardRegNo || st.regNo || st['Registration Number'] || st['Reg No'] || '').trim();
-        const formNo = String(st.formNo || st['Form No.'] || '').trim();
-        const name = String(st.name || st.studentName || st['Student Name'] || '').trim();
-        const fatherName = String(st.fatherName || st.parentName || st["Father's Name"] || '').trim();
-        const stream = String(st.stream || st.Stream || st['Stream / Subjects'] || 'General').trim();
-        const status = String(st.status || st.admissionStatus || st['Admission Status'] || 'approved').toLowerCase();
-
-        const studentKey = rollNo || regNo || formNo || name.toLowerCase();
-        if (studentKey && !studentRecordsMap.has(studentKey)) {
-          studentRecordsMap.set(studentKey, {
-            key: studentKey,
-            rollNo: rollNo || '—',
-            regNo: regNo || '—',
-            formNo: formNo || '—',
-            name: name || 'Student',
-            fatherName: fatherName || '—',
-            stream: stream,
-            status: status,
-            subjectMarks: {},
-            enrolled: true
-          });
-        }
-      }
-    });
-
-    // Overlay marks
-    matchingDocs.forEach(d => {
-      const sCode = d.subjectCode || String(d.subject || 'SUB').slice(0, 4).toUpperCase();
-      const dMax = Number(d.maxMarks) || 100;
-
-      if (Array.isArray(d.records)) {
-        d.records.forEach(r => {
-          const rRoll = String(r.rollNo || r.classRollNo || '').trim();
-          const rReg = String(r.regNo || r.boardRegNo || '').trim();
-          const rBoard = String(r.boardRoll || r.boardRollNo || '').trim();
-          const rForm = String(r.formNo || '').trim();
-          const rName = String(r.name || r.studentName || '').trim();
-          const rFather = String(r.parentName || r.fatherName || '').trim();
-
-          let existing = null;
-          if (rRoll && studentRecordsMap.has(rRoll)) existing = studentRecordsMap.get(rRoll);
-          else if (rReg && studentRecordsMap.has(rReg)) existing = studentRecordsMap.get(rReg);
-          else if (rForm && studentRecordsMap.has(rForm)) existing = studentRecordsMap.get(rForm);
-          else if (rName) {
-            for (const [, val] of studentRecordsMap.entries()) {
-              if (val.name.toLowerCase() === rName.toLowerCase()) {
-                existing = val;
-                break;
-              }
-            }
-          }
-
-          const rawMarks = r.totalMarks ?? r.practicalMarks ?? '';
-          const numMarks = rawMarks !== '' && !isNaN(Number(rawMarks)) ? Number(rawMarks) : null;
-          const isAbsent = String(rawMarks).toUpperCase() === 'AB' || String(rawMarks).toUpperCase() === 'ABSENT';
-
-          const markEntry = {
-            obtained: isAbsent ? 'AB' : numMarks,
-            maxMarks: dMax,
-            isAbsent
-          };
-
-          if (existing) {
-            existing.subjectMarks[sCode] = markEntry;
-            if (rReg && existing.regNo === '—') existing.regNo = rReg;
-            if (rRoll && existing.rollNo === '—') existing.rollNo = rRoll;
-            if (rFather && existing.fatherName === '—') existing.fatherName = rFather;
-          } else {
-            const newKey = rRoll || rReg || rBoard || rName.toLowerCase() || `rec_${Math.random()}`;
-            studentRecordsMap.set(newKey, {
-              key: newKey,
-              rollNo: rRoll || rBoard || '—',
-              regNo: rReg || '—',
-              formNo: rForm || '—',
-              name: rName || 'Student',
-              fatherName: rFather || '—',
-              stream: 'General',
-              status: 'approved',
-              subjectMarks: {
-                [sCode]: markEntry
-              },
-              enrolled: true
-            });
-          }
-        });
-      }
-    });
-
-    const minPassPct = 0.36;
-    const compiledRows = [];
-
-    let totalEnrolled = 0;
-    let appearedCount = 0;
-    let passedCount = 0;
-    let totalPctSum = 0;
-    let evaluatedStudentsCount = 0;
-
-    studentRecordsMap.forEach(student => {
-      totalEnrolled++;
-
-      let totalObtained = 0;
-      let totalMax = 0;
-      let subjectsEvaluatedCount = 0;
-      let failedSubjects = [];
-      let isAbsentAll = true;
-
-      discoveredSubjects.forEach(s => {
-        const markObj = student.subjectMarks[s.code];
-        if (markObj) {
-          if (!markObj.isAbsent && markObj.obtained !== null) {
-            isAbsentAll = false;
-            totalObtained += markObj.obtained;
-            totalMax += markObj.maxMarks;
-            subjectsEvaluatedCount++;
-
-            const passMark = Math.ceil(markObj.maxMarks * minPassPct);
-            if (markObj.obtained < passMark) {
-              failedSubjects.push(s.code);
-            }
-          } else if (markObj.isAbsent) {
-            totalMax += markObj.maxMarks;
-            subjectsEvaluatedCount++;
-            failedSubjects.push(s.code);
-          }
-        }
+        // Keep duplicates in the grading input so they produce a pending result.
+        matches.forEach(row => subjects.push({ subjectCode: section.subjectCode, subjectName: section.subjectName || section.subject,
+          marksObtained: row.totalMarks ?? row.practicalMarks, maxMarks: section.maxMarks ?? evaluation?.maxMarks,
+          minMarks: section.minMarks ?? evaluation?.minMarks }));
       });
-
-      const hasAppeared = subjectsEvaluatedCount > 0 && !isAbsentAll;
-      if (hasAppeared) appearedCount++;
-
-      let percentage = null;
-      let resultStatus = 'PENDING';
-      let division = '—';
-
-      if (subjectsEvaluatedCount > 0) {
-        if (isAbsentAll) {
-          resultStatus = 'ABSENT';
-        } else {
-          percentage = totalMax > 0 ? ((totalObtained / totalMax) * 100).toFixed(1) : 0;
-          totalPctSum += Number(percentage);
-          evaluatedStudentsCount++;
-
-          if (failedSubjects.length === 0) {
-            resultStatus = 'PASS';
-            passedCount++;
-
-            const numPct = Number(percentage);
-            if (numPct >= 75) division = 'Distinction';
-            else if (numPct >= 60) division = '1st Div';
-            else if (numPct >= 45) division = '2nd Div';
-            else if (numPct >= 33) division = '3rd Div';
-            else division = 'Pass';
-          } else {
-            resultStatus = `RE-APPEAR (${failedSubjects.join(', ')})`;
-            division = 'Fail';
-          }
-        }
-      }
-
-      compiledRows.push({
-        ...student,
-        totalObtained,
-        totalMax,
-        percentage: percentage !== null ? `${percentage}%` : '—',
-        numericPercentage: percentage !== null ? Number(percentage) : -1,
-        resultStatus,
-        division,
-        hasAppeared
-      });
+      const result = gradeAssessment(subjects, expectedSubjectCodes(student));
+      const subjectMarks = Object.fromEntries(result.subjects.map(subject => [subject.subjectCode, {
+        obtained: subject.marksObtained === '—' ? null : subject.marksObtained, maxMarks: subject.maxMarks,
+        minMarks: subject.minMarks, isAbsent: subject.isAbsent, isPass: subject.isPass
+      }]));
+      return { key: `${identity.form || identity.reg}_${index}`, rollNo: String(student.classRollNo || student['Class Roll No'] || student.rollNo || '—'),
+        regNo: student.boardRegNo || student.regNo || student['Board Registration Number'] || '—', formNo: student.formNo || student['Form Number'] || '—',
+        name: student.studentName || student.name || student["Student's Name (as per school records)"] || student["Student's Name"] || 'Student',
+        fatherName: student.fatherName || student["Father's/Guardian's Name (as per school records)"] || student["Father's Name"] || '—',
+        stream: student.stream || student.Stream || 'General', subjectMarks, ...result,
+        percentage: result.percentage === null ? '—' : `${result.percentage}%`, numericPercentage: result.percentage === null ? -1 : Number(result.percentage),
+        hasAppeared: result.appeared, enrolled: true };
     });
-
-    compiledRows.sort((a, b) => {
-      const numA = parseInt(a.rollNo, 10);
-      const numB = parseInt(b.rollNo, 10);
-      if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
-      return a.rollNo.localeCompare(b.rollNo);
-    });
-
-    const overallPassPct = appearedCount > 0 ? Math.round((passedCount / appearedCount) * 100) : 0;
-    const avgScorePct = evaluatedStudentsCount > 0 ? (totalPctSum / evaluatedStudentsCount).toFixed(1) : 0;
-
-    return {
-      gazetteRows: compiledRows,
-      subjectsList: discoveredSubjects,
-      stats: {
-        totalEnrolled,
-        appearedCount,
-        passedCount,
-        overallPassPct,
-        avgScorePct
-      }
-    };
-  }, [practicalsDocs, allStudents, selectedClass, selectedSession, selectedEvalType]);
+    compiledRows.sort((a, b) => a.rollNo.localeCompare(b.rollNo, undefined, { numeric: true }));
+    const appearedCount = compiledRows.filter(row => row.hasAppeared).length;
+    const passedCount = compiledRows.filter(row => row.resultStatus === 'PASS').length;
+    const complete = compiledRows.filter(row => row.numericPercentage >= 0);
+    return { gazetteRows: compiledRows, subjectsList: [...subjectMap.values()], stats: {
+      totalEnrolled: compiledRows.length, appearedCount, passedCount,
+      overallPassPct: appearedCount ? Math.round(passedCount / appearedCount * 100) : 0,
+      avgScorePct: complete.length ? (complete.reduce((total, row) => total + row.numericPercentage, 0) / complete.length).toFixed(1) : 0
+    } };
+  }, [practicalsDocs, allStudents, selectedClass, selectedSession, selectedEvalType, availableEvaluations]);
 
   // Filtered rows for Search and Stream
   const filteredRows = useMemo(() => {

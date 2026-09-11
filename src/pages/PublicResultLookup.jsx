@@ -1,18 +1,11 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { publicLookup } from '../services/backendEndpoint';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import {
   Search, Printer, Download, Award, CheckCircle2, AlertCircle,
   HelpCircle, ArrowLeft, RefreshCw, School, UserCheck, Calendar, BookOpen,
   FileText, ShieldCheck, Sparkles, X, ChevronDown, Check
 } from 'lucide-react';
-import { db } from '../services/firebase';
-import { collection, getDocs, doc, getDoc, query, where, limit } from 'firebase/firestore';
-import { getCachedCollection } from '../services/dbCache';
-import {
-  getAdminPracticalsSettings,
-  getActiveSchoolEvaluations,
-  SUBJECT_CONFIG_DEFS
-} from '../utils/practicalsSettingsManager';
 import SEO from '../components/SEO';
 import ModernLoader from '../components/ModernLoader';
 
@@ -40,25 +33,17 @@ export default function PublicResultLookup() {
     let isMounted = true;
     async function loadConfig() {
       try {
-        const settings = await getAdminPracticalsSettings();
+        const { evaluations } = await publicLookup('public-result', { action: 'config' });
         if (!isMounted) return;
-        const activeEvals = getActiveSchoolEvaluations(settings);
-        const publishedEvals = activeEvals.filter(e => e.isPublishedForStudents !== false);
-        
-        if (publishedEvals.length > 0) {
-          setEvalOptions(publishedEvals);
-          setSelectedEvalType(publishedEvals[0].evalType || publishedEvals[0].title);
-          if (publishedEvals[0].session) setSelectedSession(publishedEvals[0].session);
-        } else {
-          setEvalOptions([{
-            id: 'preboard-default',
-            title: 'Pre-Board Examination 2026',
-            evalType: 'Pre-Board Test',
-            session: '2025-26'
-          }]);
-        }
+        setEvalOptions(evaluations);
+        setAvailableSessions([...new Set(evaluations.map(item => item.session))]);
+        if (evaluations.length) {
+          setSelectedEvalType(evaluations[0].evalType || evaluations[0].title);
+          setSelectedSession(evaluations[0].session);
+        } else setErrorMsg('No assessment results are currently published.');
       } catch (e) {
         console.warn('Failed to load assessment settings:', e);
+        if (isMounted) setErrorMsg(e.message || 'Assessment settings are temporarily unavailable. Please reload and try again.');
       } finally {
         if (isMounted) setLoadingConfig(false);
       }
@@ -82,213 +67,24 @@ export default function PublicResultLookup() {
     setSearchAttempted(true);
 
     try {
-      // 1. Load admissions, master registers, and practical evaluation records
-      let [admissions, masterRegs, practicalsSnap] = await Promise.all([
-        getCachedCollection('admissions', false, 15 * 60 * 1000).catch(() => []),
-        getCachedCollection('masterRegisters', false, 15 * 60 * 1000).catch(() => []),
-        getDocs(collection(db, 'practicalsData')).catch(() => ({ docs: [] }))
-      ]);
-
-      let allStudents = [...(admissions || []), ...(masterRegs || [])];
-      let practicalDataList = practicalsSnap?.docs ? practicalsSnap.docs.map(d => d.data()) : [];
-
-      // Fallback for public visitors: if Firestore collections are inaccessible or unauthenticated,
-      // load verified catalog & clean evaluation seed data
-      if (allStudents.length === 0 || practicalDataList.length === 0) {
-        try {
-          const { default: verifiedCatalog } = await import('../data/verifiedStudentsCatalog.json');
-          if (Array.isArray(verifiedCatalog)) {
-            const catalogStudents = verifiedCatalog.map(s => ({
-              "Student's Name (as per school records)": s.name,
-              "Father's/Guardian's Name (as per school records)": s.fatherName,
-              Class: s.className,
-              classRollNo: s.classRollNo,
-              boardRegNo: s.boardRegNo,
-              formNo: s.fNo,
-              Stream: s.stream,
-              Session: s.session
-            }));
-            allStudents = [...allStudents, ...catalogStudents];
-          }
-        } catch (_) {}
-
-        try {
-          const { CLEAN_PRACTICALS_SEED_DATA } = await import('../data/cleanPracticalsSeedData');
-          if (Array.isArray(CLEAN_PRACTICALS_SEED_DATA)) {
-            practicalDataList = [...practicalDataList, ...CLEAN_PRACTICALS_SEED_DATA];
-            CLEAN_PRACTICALS_SEED_DATA.forEach(sec => {
-              (sec.records || []).forEach(r => {
-                allStudents.push({
-                  "Student's Name (as per school records)": r.name,
-                  "Father's/Guardian's Name (as per school records)": r.parentName,
-                  Class: sec.className,
-                  classRollNo: r.classRollNo,
-                  boardRegNo: r.boardRegNo,
-                  examRollNo: r.examRollNo,
-                  formNo: r.formNo,
-                  Stream: r.stream,
-                  Session: sec.sessionText
-                });
-              });
-            });
-          }
-        } catch (_) {}
-      }
-
-      // Helper to clean and match query
-      const cleanQ = rawQuery.replace(/[\s\-_/]/g, '').toLowerCase();
-      const normClass = selectedClass.replace(/[^0-9]/g, '');
-
-      // Find matching student
-      const matchedStudent = allStudents.find(st => {
-        const c = String(st.Class || st.class || st.className || st.admittedClass || '').replace(/[^0-9]/g, '');
-        if (normClass && c && normClass !== c) return false;
-
-        const reg = String(st['Board Registration Number'] || st.boardRegNo || st.regNo || '').replace(/[\s\-_/]/g, '').toLowerCase();
-        const roll = String(st['Class Roll No'] || st['Class Roll No.'] || st.classRollNo || st.rollNo || '').trim().toLowerCase();
-        const exam = String(st['Exam R.No. (Current)'] || st.examRollNo || '').trim().toLowerCase();
-        const form = String(st['Form No.'] || st.formNo || '').trim().toLowerCase();
-
-        return (reg && reg === cleanQ) ||
-               (roll && roll === cleanQ) ||
-               (exam && exam === cleanQ) ||
-               (form && form === cleanQ);
-      });
-
-      if (!matchedStudent) {
-        setErrorMsg(`No record found matching "${rawQuery}" for Class ${selectedClass}. Please verify your details.`);
-        setSearching(false);
-        return;
-      }
-
-      // 2. Find student's evaluation marks across practical evaluation datasets
-      const stName = matchedStudent["Student's Name (as per school records)"] || matchedStudent["Student's Name"] || matchedStudent.studentName || matchedStudent.name || 'Candidate';
-      const stFather = matchedStudent["Father's/Guardian's Name (as per school records)"] || matchedStudent["Father's Name"] || matchedStudent.fatherName || '';
-      const stRoll = matchedStudent['Class Roll No'] || matchedStudent['Class Roll No.'] || matchedStudent.classRollNo || matchedStudent.rollNo || '—';
-      const stReg = matchedStudent['Board Registration Number'] || matchedStudent.boardRegNo || matchedStudent.regNo || '—';
-      const stStream = matchedStudent.Stream || matchedStudent.stream || 'General';
-      const stClass = selectedClass;
-
-      const subjectMarks = [];
-      const normSess = String(selectedSession || '').toLowerCase();
-      const normEval = String(selectedEvalType || '').toLowerCase();
-
-      practicalDataList.forEach(data => {
-        if (!data) return;
-        const docCls = String(data.className || '').replace(/[^0-9]/g, '');
-        const docSess = String(data.yearSuffix || data.session || data.sessionText || '').toLowerCase();
-        const docType = String(data.practicalType || '').toLowerCase();
-
-        // Match class
-        if (normClass && docCls && normClass !== docCls) return;
-        // Match session if present
-        if (normSess && docSess && !docSess.includes(normSess) && !normSess.includes(docSess.slice(0, 7))) return;
-        // Match evaluation type flexibly
-        if (normEval && docType && !docType.includes(normEval) && !normEval.includes(docType)) {
-          // If seeking pre-board but record is practical internal/external or vice versa, allow when it matches session & student
-          const isEvalMatch = (normEval.includes('pre-board') && docType.includes('pre-board')) ||
-                              (normEval.includes('internal') && docType.includes('internal')) ||
-                              (normEval.includes('external') && docType.includes('external')) ||
-                              docType === '' || normEval === '';
-          if (!isEvalMatch) return;
-        }
-
-        const records = Array.isArray(data.records) ? data.records : [];
-        const studentMarkRecord = records.find(r => {
-          const rReg = String(r.boardRegNo || r.regNo || '').replace(/[\s\-_/]/g, '').toLowerCase();
-          const rRoll = String(r.rollNo || r.classRollNo || '').trim().toLowerCase();
-          const rExam = String(r.examRollNo || '').trim().toLowerCase();
-          const rForm = String(r.formNo || '').trim().toLowerCase();
-          const rName = String(r.name || '').trim().toLowerCase();
-
-          return (rReg && cleanQ && rReg === cleanQ) ||
-                 (rRoll && cleanQ && rRoll === cleanQ) ||
-                 (rExam && cleanQ && rExam === cleanQ) ||
-                 (rForm && cleanQ && rForm === cleanQ) ||
-                 (stRoll !== '—' && rRoll === stRoll.toLowerCase()) ||
-                 (stReg !== '—' && rReg === stReg.replace(/[\s\-_/]/g, '').toLowerCase()) ||
-                 (rName && rName === stName.toLowerCase());
-        });
-
-        if (studentMarkRecord) {
-          const rawMark = studentMarkRecord.totalMarks ?? studentMarkRecord.practicalMarks ?? '';
-          const isAb = String(rawMark).toUpperCase() === 'AB' || String(rawMark).toUpperCase() === 'A';
-          const numMark = isAb ? 0 : (parseFloat(rawMark) || 0);
-          const maxMarks = parseInt(data.maxMarks || 100, 10);
-          const minMarks = Math.ceil(0.36 * maxMarks);
-          const pass = !isAb && numMark >= minMarks;
-
-          // Prevent duplicate subjects
-          const sCode = data.subjectCode || '—';
-          const existingIdx = subjectMarks.findIndex(sm => sm.subjectCode === sCode && sm.subjectName === (data.subjectName || data.subject));
-          if (existingIdx === -1) {
-            subjectMarks.push({
-              subjectCode: sCode,
-              subjectName: data.subjectName || data.subject || 'Subject',
-              marksObtained: isAb ? 'AB' : (rawMark === '' ? '—' : numMark),
-              maxMarks,
-              minMarks,
-              isAbsent: isAb,
-              isPass: pass,
-              status: isAb ? 'Absent' : (pass ? 'Pass' : 'Needs Improvement')
-            });
-          }
-        }
-      });
-
-      // Calculate totals
-      let totalObtained = 0;
-      let totalMax = 0;
-      let hasAnyMarks = false;
-      let hasFail = false;
-
-      subjectMarks.forEach(s => {
-        if (!s.isAbsent && typeof s.marksObtained === 'number') {
-          totalObtained += s.marksObtained;
-          hasAnyMarks = true;
-        }
-        totalMax += s.maxMarks;
-        if (!s.isPass) hasFail = true;
-      });
-
-      const percentage = totalMax > 0 && hasAnyMarks ? ((totalObtained / totalMax) * 100).toFixed(1) : 0;
-      let division = 'Pass';
-      if (percentage >= 75) division = 'Distinction (Grade A)';
-      else if (percentage >= 60) division = 'First Division';
-      else if (percentage >= 45) division = 'Second Division';
-      else if (percentage >= 36) division = 'Third Division';
-      else division = hasFail ? 'Reappear / Needs Work' : 'Pass';
-
-      setStudentResult({
-        name: stName,
-        fatherName: stFather,
-        classRollNo: stRoll,
-        boardRegNo: stReg,
-        className: stClass,
-        stream: stStream,
-        session: selectedSession,
-        evalTitle: selectedEvalType,
-        subjects: subjectMarks,
-        totalObtained,
-        totalMax,
-        percentage,
-        division,
-        hasMarks: subjectMarks.length > 0
-      });
+      const response = await publicLookup('public-result', { query: rawQuery, className: selectedClass,
+        session: selectedSession, evaluation: selectedEvalType });
+      setStudentResult(response.result);
     } catch (err) {
       console.error('Error during student result lookup:', err);
-      setErrorMsg('A temporary network error occurred while retrieving marks. Please try again.');
+      setErrorMsg(err.message || 'The results service is temporarily unavailable.');
     } finally {
       setSearching(false);
     }
   }, [queryInput, selectedClass, selectedSession, selectedEvalType]);
 
-  // Trigger search if reg passed in URL
+  const automaticLookupStarted = useRef(false);
   useEffect(() => {
-    if (initialReg && !loadingConfig) {
+    if (initialReg && !loadingConfig && !automaticLookupStarted.current && evalOptions.length) {
+      automaticLookupStarted.current = true;
       handleLookup();
     }
-  }, [initialReg, loadingConfig, handleLookup]);
+  }, [initialReg, loadingConfig, handleLookup, evalOptions.length]);
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 py-8 px-3 sm:px-6">
@@ -397,6 +193,7 @@ export default function PublicResultLookup() {
                   onChange={(e) => setSelectedEvalType(e.target.value)}
                   className="w-full px-2.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs sm:text-sm font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500 transition-all truncate"
                 >
+                  {!evalOptions.length && <option value="">No assessment available</option>}
                   {evalOptions.map(ev => (
                     <option key={ev.id || ev.evalType} value={ev.evalType || ev.title}>
                       {ev.evalType || ev.title}
@@ -412,7 +209,7 @@ export default function PublicResultLookup() {
               </span>
               <button
                 type="submit"
-                disabled={searching}
+                disabled={searching || loadingConfig || !evalOptions.length || !selectedEvalType}
                 className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-teal-800 hover:bg-teal-700 active:bg-teal-900 text-white font-extrabold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-sm transition-all disabled:opacity-50 cursor-pointer"
               >
                 {searching ? (

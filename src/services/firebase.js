@@ -43,8 +43,8 @@ try {
   authInstance = getAuth(app);
 }
 
-// Export Firestore with resilient persistent multi-tab cache (IndexedDB)
-// Eliminates redundant network reads across page reloads and tab restarts
+// Keep Firestore document data in memory so shared browsers retain no new
+// offline copy of student or staff records after the application closes.
 let firestoreInstance;
 try {
   firestoreInstance = initializeFirestore(app, {

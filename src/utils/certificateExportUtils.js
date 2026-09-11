@@ -1008,7 +1008,7 @@ export function printStudentCertificate({
   const verifyUrl = buildCertificateVerificationUrl({
     reg: regId,
     roll: rollId,
-    fNo: admId,
+    fNo: metaDetails.formNo || '',
     cert: certId,
     doc: certificateTitle,
     name: metaDetails.name || metaDetails.studentName || '',
@@ -1898,7 +1898,7 @@ export function printBatchStudentCertificates(studentsList = [], commonOptions =
     const verifyUrl = buildCertificateVerificationUrl({
       reg: regId,
       roll: rollId,
-      fNo: admId,
+      fNo: metaDetails.formNo || '',
       cert: certId,
       doc: certificateTitle,
       name: metaDetails.name || metaDetails.studentName || student?.name || student?.studentName || '',

@@ -5,7 +5,7 @@ import {
   ShieldCheck, ArrowRight
 } from 'lucide-react';
 import { db } from '../../../services/firebase';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { updateCachedItem } from '../../../services/dbCache';
 import { logAdminActivity } from '../../../services/adminActivityLogger';
 import { compressImageFile } from '../../../utils/imageCompressor';
@@ -203,6 +203,8 @@ export default function ExpressDirectIngestionTab({
 
     setIsSaving(true);
     try {
+      const settings = await getDoc(doc(db, 'site', 'settings'));
+      if (settings.data()?.allowExpressZeroRestrictions !== true) throw new Error('Express entry is disabled in school settings.');
       const docId = `admin_express_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
       const cleanFormNo = formData.formNo.trim() || `EXP-${Date.now().toString().slice(-6)}`;
 

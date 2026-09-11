@@ -1,3 +1,4 @@
+import { saveAcademicRecord } from '../../services/academicRecordService';
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Link, useOutletContext } from 'react-router-dom';
 import { ArrowLeft, Save, CheckCircle2, AlertCircle, AlertTriangle, RefreshCw, Plus, Trash2, Calendar, ShieldCheck, Printer, X, FileText, Zap, SlidersHorizontal, ChevronLeft, ChevronRight, Info, User, Wand2 } from 'lucide-react';
@@ -847,19 +848,8 @@ export default function AttendancePage() {
           updatedBy: teacherEmail
         };
 
-        try {
-          await setDoc(doc(db, 'attendance', docId), payload, { merge: true });
-          savedCount++;
-        } catch (fsErr) {
-          console.warn('Firestore setDoc note, saving to local cache:', fsErr);
-          try {
-            const cacheKey = `hss_att_cache_${docId}`;
-            localStorage.setItem(cacheKey, JSON.stringify(payload));
-            savedCount++;
-          } catch (lsErr) {
-            console.error('LocalStorage cache fallback error:', lsErr);
-          }
-        }
+        await saveAcademicRecord('attendance', docId, payload);
+        savedCount++;
       }
 
       if (savedCount > 0) {
@@ -1538,24 +1528,7 @@ export default function AttendancePage() {
         updatedAt: new Date().toISOString()
       };
 
-      // 1. Save to LocalStorage cache immediately so attendance data is never lost
-      const cKey = `hss_att_cache_${clsNorm}_${selectedDate}_${selectedSubject || 'general'}`;
-      try {
-        localStorage.setItem(cKey, JSON.stringify(payload));
-      } catch (e) {}
-
-      // 2. Attempt Firestore cloud write with permission retry
-      try {
-        await setDoc(doc(db, 'attendance', docId), payload, { merge: true });
-      } catch (fErr) {
-        if (fErr?.code === 'permission-denied' || (fErr?.message && fErr.message.includes('permission'))) {
-          console.warn('Firestore permission retry: re-authenticating session...');
-          if (!auth.currentUser) throw new Error('Authenticated teacher session required.');
-          await setDoc(doc(db, 'attendance', docId), payload, { merge: true });
-        } else {
-          throw fErr;
-        }
-      }
+      await saveAcademicRecord('attendance', docId, payload);
 
       setIsEditingSaved(true);
       const successText = `🎉 Attendance saved successfully for ${selectedClass} on ${formatReadableDate(selectedDate, true)} (${students.length} students).`;
@@ -1567,26 +1540,9 @@ export default function AttendancePage() {
       });
     } catch (err) {
       console.error('Save attendance error:', err);
-      const clsNorm = String(selectedClass).replace(/class/i, '').trim();
-      const cKey = `hss_att_cache_${clsNorm}_${selectedDate}_${selectedSubject || 'general'}`;
-      if (localStorage.getItem(cKey)) {
-        setIsEditingSaved(true);
-        const cacheText = `🎉 Attendance saved to device cache for ${selectedClass} on ${formatReadableDate(selectedDate, true)} (${students.length} students).`;
-        setAlert({ type: 'success', text: cacheText });
-        setStatusModal({
-          type: 'success',
-          title: 'Saved to Device Cache',
-          message: cacheText
-        });
-      } else {
-        const errText = err.message || 'Failed to save attendance.';
-        setAlert({ type: 'error', text: errText });
-        setStatusModal({
-          type: 'error',
-          title: 'Save Failed',
-          message: errText
-        });
-      }
+      const errText = err.message || 'Attendance was not saved. Please retry.';
+      setAlert({ type: 'error', text: errText });
+      setStatusModal({ type: 'error', title: 'Save Failed', message: errText });
     } finally {
       setSavingAttendance(false);
     }

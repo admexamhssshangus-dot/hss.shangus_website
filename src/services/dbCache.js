@@ -15,11 +15,11 @@ export { ensureFirestoreConnected };
 
 const CACHE_PREFIX = 'hss_cache_v8_';
 const DEFAULT_TTL_MS = 4 * 60 * 60 * 1000; // 4 hours cache TTL (was 60 mins — prevents unnecessary re-fetches)
-const DB_CACHE_VERSION = 'v8_excel_sync_live_preview_20260904';
+const DB_CACHE_VERSION = 'v9_private_memory_cache_20260910';
 
 // Separate lightweight photo URL cache (avoids stripping logic issues for photo fields)
 const PHOTO_CACHE_KEY = 'hss_photo_url_cache_v1';
-const MEMORY_ONLY_COLLECTIONS = new Set(['users', 'admissions', 'masterRegisters', 'legacyStudents', 'studentPhotos', 'omr_registrations']);
+const MEMORY_ONLY_COLLECTIONS = new Set(['users', 'admissions', 'masterRegisters', 'legacyStudents', 'studentPhotos', 'omr_registrations', 'attendance', 'practicalsData', 'csvImportBatches', 'generatedDocumentHistory', 'documentHistory', 'fund_distributions', 'recycleBin']);
 
 /**
  * Validates whether a photo lookup/cache key is genuine and non-placeholder.
@@ -37,6 +37,7 @@ export function isValidPhotoKey(k) {
 // In-memory cache for instant zero-latency cross-tab access
 const memoryCache = new Map();
 const memoryTs = new Map();
+const privatePhotoCache = new Map();
 
 /**
  * Clear all in-memory collection caches.
@@ -44,8 +45,10 @@ const memoryTs = new Map();
 export function clearAllMemoryCache() {
   memoryCache.clear();
   memoryTs.clear();
+  privatePhotoCache.clear();
   if (typeof window !== 'undefined') {
     delete window._hssMasterRegistersCache;
+    delete window._hss_central_photo_map;
   }
   try {
     sessionStorage.removeItem(`${CACHE_PREFIX}masterRegisters`);
@@ -61,6 +64,7 @@ export function clearAllMemoryCache() {
     sessionStorage.removeItem(`${CACHE_PREFIX}admissions`);
     localStorage.removeItem(`${CACHE_PREFIX}admissions`);
     localStorage.removeItem(PHOTO_CACHE_KEY);
+    localStorage.removeItem('hss_student_photo_cache_v1');
   } catch (_) {}
 }
 
@@ -92,23 +96,8 @@ if (typeof window !== 'undefined') {
       clearAllMemoryCache();
       localStorage.setItem('hss_db_cache_version', DB_CACHE_VERSION);
     }
-    // Cleanse any poisoned placeholder keys ('—', '-', 'N/A', etc.) from photo caches
-    [PHOTO_CACHE_KEY, 'hss_student_photo_cache_v1'].forEach(cacheName => {
-      try {
-        const raw = localStorage.getItem(cacheName);
-        if (raw) {
-          const parsed = JSON.parse(raw);
-          let changed = false;
-          for (const key of Object.keys(parsed)) {
-            if (!isValidPhotoKey(key)) {
-              delete parsed[key];
-              changed = true;
-            }
-          }
-          if (changed) localStorage.setItem(cacheName, JSON.stringify(parsed));
-        }
-      } catch (_) {}
-    });
+    // Remove the previous persistent student photo lookup table.
+    [PHOTO_CACHE_KEY, 'hss_student_photo_cache_v1'].forEach(key => localStorage.removeItem(key));
   } catch (_) {}
 }
 
@@ -144,7 +133,7 @@ export function getCachedCollectionSync(collectionName) {
       const parsed = JSON.parse(cachedData);
       if (Array.isArray(parsed) && parsed.length > 0) {
         try {
-          const photoCache = JSON.parse(localStorage.getItem(PHOTO_CACHE_KEY) || '{}');
+          const photoCache = Object.fromEntries(privatePhotoCache);
           parsed.forEach(item => {
             if (!item || typeof item !== 'object') return;
             const hasPhoto = item.photo_id || item['Student Photo'] || item.photoUrl || item.photoId;
@@ -208,7 +197,7 @@ export function setCachedCollectionData(collectionName, list) {
     'Photo', 'photoUrl', 'photo', 'passport_photo'
   ];
   try {
-    const existingPhotoCache = JSON.parse(localStorage.getItem(PHOTO_CACHE_KEY) || '{}');
+    const existingPhotoCache = Object.fromEntries(privatePhotoCache);
     let dirty = false;
     list.forEach(item => {
       if (!item || typeof item !== 'object') return;
@@ -238,7 +227,7 @@ export function setCachedCollectionData(collectionName, list) {
     if (dirty) {
       const photoStr = JSON.stringify(existingPhotoCache);
       if (photoStr.length < 4500000) {
-        localStorage.setItem(PHOTO_CACHE_KEY, photoStr);
+        Object.entries(existingPhotoCache).forEach(([key, value]) => privatePhotoCache.set(key, value));
       }
     }
   } catch (_) {}
@@ -887,12 +876,8 @@ export function savePhotoUrlToCache(docId, photoUrl) {
   if (photoUrl === '/logo.png') return;
   if (photoUrl.startsWith('data:') && photoUrl.length > 250000) return; // Skip uncompressed huge multi-megabyte base64
   try {
-    const existing = JSON.parse(localStorage.getItem(PHOTO_CACHE_KEY) || '{}');
-    existing[String(docId)] = photoUrl;
-    const str = JSON.stringify(existing);
-    if (str.length < 4500000) {
-      localStorage.setItem(PHOTO_CACHE_KEY, str);
-    }
+    privatePhotoCache.set(String(docId), photoUrl);
+    localStorage.removeItem(PHOTO_CACHE_KEY);
   } catch (_) {}
 }
 
@@ -904,8 +889,7 @@ export function savePhotoUrlToCache(docId, photoUrl) {
 export function getPhotoUrlFromCache(docId) {
   if (!docId) return null;
   try {
-    const cache = JSON.parse(localStorage.getItem(PHOTO_CACHE_KEY) || '{}');
-    return cache[String(docId)] || null;
+    return privatePhotoCache.get(String(docId)) || null;
   } catch (_) {
     return null;
   }
@@ -1224,7 +1208,7 @@ export function resolveStudentPhoto(student, fallback = null) {
 
   // 3. Check localStorage photo cache
   try {
-    const localCache = JSON.parse(localStorage.getItem(PHOTO_CACHE_KEY) || '{}');
+    const localCache = Object.fromEntries(privatePhotoCache);
     for (const c of candidates) {
       if (localCache[c] && typeof localCache[c] === 'string' && localCache[c].length > 15 && localCache[c] !== '/logo.png') {
         if (typeof window !== 'undefined') {

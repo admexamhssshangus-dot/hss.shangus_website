@@ -1,8 +1,9 @@
 'use strict';
 const crypto = require('crypto');
 const { initializeApp, getApp, getApps, cert } = require('firebase-admin/app');
-const { getFirestore, Timestamp } = require('firebase-admin/firestore');
+const { getFirestore, Timestamp, FieldPath } = require('firebase-admin/firestore');
 const { parseServiceAccount } = require('./serviceAccount');
+const { isStudentAdmissionApproved } = require('../../../functions/admissionStatus');
 const normalize = value => String(value ?? '').trim().toLowerCase().replace(/\s+/g, '');
 const classKey = value => String(value || '').match(/\d+/)?.[0] || '';
 const sessionKey = value => {
@@ -28,7 +29,7 @@ function studentProjection(data) {
   };
 }
 function approved(data) {
-  return data && !data._deleted && !data._purged && !data.archivedAt && /^(approved|confirmed)$/i.test(String(data.Status || data.status || data.applicationStatus));
+  return data && !data._deleted && !data._purged && !data.archivedAt && isStudentAdmissionApproved(data);
 }
 async function findStudent(db, body) {
   const matches = new Map();
@@ -37,7 +38,7 @@ async function findStudent(db, body) {
     for (const field of FIELDS[type] || []) {
       const values = [...new Set([String(body.query).trim(), normalize(body.query), String(body.query).trim().toUpperCase()])];
       for (const value of values) {
-        let query = db.collection('admissions').where(field, '==', value);
+        let query = db.collection('admissions').where(new FieldPath(field), '==', value);
         const page = await query.limit(20).get();
         if (page.size === 20) throw Object.assign(new Error('Use a unique form or registration number.'), { status: 409 });
         for (const snap of page.docs) {
@@ -56,12 +57,22 @@ function documentType(value) {
   return /discharge|transfer|tc\s*\/\s*dc|character.*discharg/.test(text) ? 'tc-dc' : text;
 }
 function issueKey(certNo, type, reg) { return crypto.createHash('sha256').update(`${normalize(certNo)}::${documentType(type)}::${normalize(reg)}`).digest('hex'); }
-async function loadSource(db, sourceDocument, identity) {
+async function loadSource(db, sourceDocument, identity, followedArchive = false) {
   if (!/^(admissions|masterRegisters)\/[^/]{1,256}$/.test(sourceDocument || '')) return null;
   const snap = await db.doc(sourceDocument).get(); if (!snap.exists) return null;
   const data = snap.data();
+  if (data._archivedTo) {
+    if (followedArchive || !sourceDocument.startsWith('admissions/') ||
+      !/^masterRegisters\/archive_[^/]+$/.test(data._archivedTo)) return null;
+    return loadSource(db, data._archivedTo, identity, true);
+  }
   const records = ['items', 'students', 'records', 'data'].map(key => data[key]).find(Array.isArray);
-  if (!records) return data;
+  if (!records) {
+    const student = studentProjection(data);
+    if ((identity.session && sessionKey(student.session) !== sessionKey(identity.session)) ||
+        (identity.className && classKey(student.className) !== classKey(identity.className))) return null;
+    return data;
+  }
   const matches = records.filter(record => normalize(first(record, FIELDS.regNo)) === normalize(identity.regNo) &&
     (!identity.session || sessionKey(studentProjection({ ...data, ...record }).session) === sessionKey(identity.session)) &&
     (!identity.className || classKey(studentProjection({ ...data, ...record }).className) === classKey(identity.className)));

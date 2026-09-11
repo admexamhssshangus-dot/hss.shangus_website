@@ -1,266 +1,38 @@
 'use strict';
-
-const crypto = require('crypto');
-const { initializeApp, getApp, getApps, cert } = require('firebase-admin/app');
-const { getFirestore, Timestamp } = require('firebase-admin/firestore');
-
-function parseServiceAccount(raw) {
-  if (!raw) throw new Error('FIREBASE_SERVICE_ACCOUNT_JSON is not configured');
-  let str = String(raw).trim();
-  if ((str.startsWith('"') && str.endsWith('"')) || (str.startsWith("'") && str.endsWith("'"))) {
-    try { str = JSON.parse(str); } catch (e) {}
-  }
-  if (!str.startsWith('{')) {
-    try {
-      const decoded = Buffer.from(str, 'base64').toString('utf8').trim();
-      if (decoded.startsWith('{')) str = decoded;
-    } catch (e) {}
-  }
-  const sa = typeof str === 'string' ? JSON.parse(str) : str;
-  if (sa && typeof sa.private_key === 'string') {
-    let pk = sa.private_key.trim();
-    if ((pk.startsWith('"') && pk.endsWith('"')) || (pk.startsWith("'") && pk.endsWith("'"))) {
-      pk = pk.slice(1, -1);
+const { createHandler, findStudent, studentProjection, documentType, issueKey, loadSource, normalize, first, FIELDS } = require('./lib/publicRecords');
+async function verifyStudent(db, body) {
+  const certNo = String(body.certificateNo || '').trim();
+  const reg = String(body.regNo || '').trim();
+  if (certNo || body.documentType) {
+    if (!certNo || certNo.length > 100 || !reg || reg.length > 64 || !body.documentType || body.documentType.length > 100) {
+      throw Object.assign(new Error('The certificate number, document type and registration number are required.'), { status: 400 });
     }
-    pk = pk.replace(/\\n/g, '\n').replace(/\\r/g, '');
-    sa.private_key = pk;
-  }
-  return sa;
-}
-
-function getAdminApp() {
-  if (getApps().length) return getApp();
-  const credential = parseServiceAccount(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
-  return initializeApp({ credential: cert(credential) });
-}
-
-function response(statusCode, body, origin = '') {
-  const headers = {
-    'Content-Type': 'application/json; charset=utf-8',
-    'Cache-Control': 'no-store, max-age=0',
-    'Content-Security-Policy': "default-src 'none'; frame-ancestors 'none'",
-    'Referrer-Policy': 'no-referrer',
-    'X-Content-Type-Options': 'nosniff',
-    'X-Frame-Options': 'DENY',
-  };
-  if (origin) {
-    headers['Access-Control-Allow-Origin'] = origin;
-    headers.Vary = 'Origin';
-  }
-  return { statusCode, headers, body: JSON.stringify(body) };
-}
-
-function allowedOrigin(event) {
-  const origin = String(event.headers.origin || '').replace(/\/$/, '');
-  if (!origin) return 'https://hssshangus.netlify.app';
-  if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(origin)) {
-    return origin;
-  }
-  const configured = String(process.env.ALLOWED_ORIGINS || '')
-    .split(',').map(v => v.trim().replace(/\/$/, '')).filter(Boolean);
-  const defaults = [
-    process.env.URL,
-    process.env.DEPLOY_PRIME_URL,
-    'https://hssshangus.netlify.app',
-    'https://admexamhssshangus.web.app',
-    'https://hsssdb.web.app'
-  ].filter(Boolean).map(v => String(v).replace(/\/$/, ''));
-  return [...configured, ...defaults].includes(origin) ? origin : 'https://hssshangus.netlify.app';
-}
-
-function normalize(value) {
-  return String(value || '').trim().toLowerCase().replace(/\s+/g, '');
-}
-
-const LOOKUP_FIELDS = Object.freeze({
-  regNo: [
-    'boardRegNo', 'regNo', 'Board Registration Number', 'Board Registration No.',
-    'Board Registration No. (Class 10th)', 'Board Registration No. (Class 11th)',
-    'Board Registration No. (Class 12th)', 'Registration No.', 'Registration Number',
-    'Board Reg. No.', 'Board Reg No', 'board_reg_no'
-  ],
-  formNo: [
-    'formNo', 'FormNo', 'Form Number', 'Form No.', 'Form No', 'form_no', 'Form #', 'formNumber'
-  ],
-  rollNo: [
-    'classRollNo', 'Class Roll No', 'Class Roll No.', 'Class Roll Number', 'Class R.No.', 'Class R.No',
-    'rollNo', 'Roll No.', 'Roll No', 'roll_no', 'class_roll_no', 'assignedRollNo', 'Exam Roll Number'
-  ],
-  certNo: [
-    'certificateNo', 'Certificate No.', 'Certificate Number', 'certNo', 'Bonafide No.', 'tcNo'
-  ],
-});
-
-function firstValue(data, fields) {
-  for (const field of fields) {
-    const value = data?.[field];
-    if (value !== undefined && value !== null && String(value).trim()) return String(value).trim();
-  }
-  return '';
-}
-
-function approvedRecord(data) {
-  if (!data || typeof data !== 'object') return false;
-  if (data._deleted === true || data._purged === true) return false;
-  const status = String(data.Status || data.status || data.applicationStatus || '').trim().toLowerCase();
-  if (status.includes('reject') || status.includes('cancel') || status.includes('withdraw') || status.includes('draft')) {
-    return false;
-  }
-  const roll = String(data['Class Roll No'] || data.classRollNo || data.rollNo || '').trim();
-  const hasRoll = roll && roll !== '—' && roll !== '-' && roll !== '0' && !/^(n\/?a|null|undefined)$/i.test(roll);
-  return status === 'approved' || status === 'submitted' || status === 'confirmed' || status === 'provisional' || hasRoll;
-}
-
-function publicStudentProjection(data) {
-  const photo = firstValue(data, ['photoUrl', 'photoURL', 'Student Photo', 'photo_id', 'photo']);
-  return {
-    name: firstValue(data, ["Student's Name (as per school records)", "Student's Name", 'studentName', 'name']).slice(0, 100),
-    fatherName: firstValue(data, ["Father's/Guardian's Name (as per school records)", "Father's Name", 'fatherName']).slice(0, 100),
-    className: firstValue(data, ['classCanonical', 'Admission sought for class', 'Class', 'className']).slice(0, 30),
-    classRollNo: firstValue(data, LOOKUP_FIELDS.rollNo).slice(0, 30),
-    session: firstValue(data, ['sessionCanonical', 'Session', 'session']).slice(0, 20),
-    boardRegNo: firstValue(data, LOOKUP_FIELDS.regNo).slice(0, 64),
-    formNo: firstValue(data, LOOKUP_FIELDS.formNo).slice(0, 32),
-    certificateNo: firstValue(data, LOOKUP_FIELDS.certNo).slice(0, 64),
-    stream: firstValue(data, ['Stream for Class 11th', 'Stream for Class 12th', 'Stream', 'stream']).slice(0, 40),
-    photoUrl: /^https:\/\//i.test(photo) ? photo.slice(0, 2048) : null,
-  };
-}
-
-function candidateValues(rawValue) {
-  const raw = String(rawValue || '').trim();
-  const values = new Set([raw, normalize(raw)]);
-  if (/^\d+$/.test(raw)) {
-    const numeric = Number(raw);
-    if (Number.isSafeInteger(numeric)) values.add(numeric);
-  }
-  return Array.from(values).filter(value => value !== '');
-}
-
-async function findApprovedApplication(db, type, rawQuery) {
-  const cleanQ = String(rawQuery || '').trim();
-  // 1. Direct document ID lookup (adm_XXXXX)
-  if (type === 'formNo' && cleanQ) {
-    const docIds = [`adm_${cleanQ}`, cleanQ, `adm_${cleanQ.replace(/[^0-9]/g, '')}`];
-    for (const docId of docIds) {
-      try {
-        const snap = await db.collection('admissions').doc(docId).get();
-        if (snap.exists && approvedRecord(snap.data())) {
-          return snap;
-        }
-      } catch (_) {}
+    const type = documentType(body.documentType);
+    let issue;
+    if (type === 'tc-dc' && /^\d{1,6}$/.test(certNo)) {
+      const lock = await db.collection('certificateNumberLocks').doc(certNo).get();
+      issue = lock.exists ? lock.data() : null;
+    } else {
+      const entry = await db.collection('issuedDocuments').doc(issueKey(certNo, type, reg)).get();
+      issue = entry.exists ? entry.data() : null;
     }
-  }
-
-  // 2. Field queries across candidate fields
-  const matches = new Map();
-  for (const field of LOOKUP_FIELDS[type]) {
-    for (const value of candidateValues(rawQuery)) {
-      try {
-        const snapshot = await db.collection('admissions').where(field, '==', value).limit(3).get();
-        snapshot.docs.forEach(doc => {
-          if (approvedRecord(doc.data())) matches.set(doc.id, doc);
-        });
-        if (matches.size) break;
-      } catch (_) {}
+    if (!issue || issue.status !== 'Active' || normalize(issue.regNo) !== normalize(reg) ||
+        (issue.documentType && documentType(issue.documentType) !== type)) {
+      throw Object.assign(new Error('This certificate is not issued, has been revoked, or does not match the student.'), { status: 404 });
     }
-    if (matches.size) break;
-  }
-  return matches.values().next().value || null;
-}
-
-async function writeVerificationIndexes(db, indexSecret, student, sourceApplicationId) {
-  const identifiers = {
-    regNo: student.boardRegNo,
-    formNo: student.formNo,
-    certNo: student.certificateNo,
-  };
-  const batch = db.batch();
-  let writes = 0;
-  Object.entries(identifiers).forEach(([type, value]) => {
-    const normalized = normalize(value);
-    if (!normalized) return;
-    const indexId = crypto.createHmac('sha256', indexSecret).update(`${type}:${normalized}`).digest('hex');
-    batch.set(db.collection('studentVerificationIndex').doc(indexId), {
-      ...student,
-      sourceApplicationId,
-      refreshedAt: Timestamp.now(),
-    }, { merge: true });
-    writes += 1;
-  });
-  if (writes) await batch.commit();
-}
-
-async function consumeRateLimit(db, ipHash) {
-  const ref = db.collection('securityRateLimits').doc(`student_lookup_${ipHash}`);
-  const now = Date.now();
-  const windowMs = Math.max(10000, Number(process.env.LOOKUP_RATE_WINDOW_MS || 60000));
-  const max = Math.min(20, Math.max(1, Number(process.env.LOOKUP_RATE_MAX || 8)));
-  return db.runTransaction(async tx => {
-    const snap = await tx.get(ref);
-    const prior = snap.exists ? snap.data() : {};
-    const resetAt = Number(prior.resetAt || 0);
-    const count = resetAt > now ? Number(prior.count || 0) + 1 : 1;
-    const nextReset = resetAt > now ? resetAt : now + windowMs;
-    tx.set(ref, { count, resetAt: nextReset, expiresAt: Timestamp.fromMillis(nextReset + 86400000) });
-    return count <= max;
-  });
-}
-
-exports.handler = async function handler(event) {
-  const origin = allowedOrigin(event);
-  if (!origin) return response(403, { error: 'Request origin is not allowed.' });
-  if (event.httpMethod === 'OPTIONS') {
-    return { statusCode: 204, headers: { 'Access-Control-Allow-Origin': origin, 'Access-Control-Allow-Methods': 'POST', 'Access-Control-Allow-Headers': 'Content-Type', Vary: 'Origin' }, body: '' };
-  }
-  if (event.httpMethod !== 'POST') return response(405, { error: 'Method not allowed.' }, origin);
-  if (Buffer.byteLength(event.body || '', 'utf8') > 2048) return response(413, { error: 'Request too large.' }, origin);
-
-  let body;
-  try { body = JSON.parse(event.body || '{}'); }
-  catch (_) { return response(400, { error: 'Invalid request.' }, origin); }
-
-  const type = body.type;
-  const rawQuery = String(body.query || '').trim();
-  const value = normalize(rawQuery);
-  if (!['regNo', 'formNo', 'certNo'].includes(type) || value.length < 4 || value.length > 64 || !/^[a-z0-9/_.-]+$/.test(value)) {
-    return response(400, { error: 'Invalid lookup value.' }, origin);
-  }
-
-  try {
-    getAdminApp();
-    const db = getFirestore(getAdminApp());
-    const rateSecret = (process.env.LOOKUP_RATE_SECRET && process.env.LOOKUP_RATE_SECRET.length >= 32)
-      ? process.env.LOOKUP_RATE_SECRET
-      : 'HSS_SHANGUS_RATE_LIMIT_SECRET_2026_SECURE_AUTH_V1';
-    const indexSecret = (process.env.LOOKUP_INDEX_SECRET && process.env.LOOKUP_INDEX_SECRET.length >= 32)
-      ? process.env.LOOKUP_INDEX_SECRET
-      : 'HSS_SHANGUS_INDEX_SECRET_2026_SECURE_AUTH_V1';
-    const forwarded = String(event.headers['x-forwarded-for'] || '').split(',')[0].trim();
-    const ipHash = crypto.createHmac('sha256', rateSecret).update(forwarded || 'unknown').digest('hex').slice(0, 40);
-    if (!(await consumeRateLimit(db, ipHash))) return response(429, { error: 'Too many requests. Try again later.' }, origin);
-
-    const indexId = crypto.createHmac('sha256', indexSecret).update(`${type}:${value}`).digest('hex');
-    const indexRef = db.collection('studentVerificationIndex').doc(indexId);
-    const snap = await indexRef.get();
-    const indexData = snap.exists ? (snap.data() || {}) : null;
-    const refreshedAt = indexData?.refreshedAt?.toMillis?.() || 0;
-    const indexIsFresh = refreshedAt > Date.now() - 24 * 60 * 60 * 1000;
-    let student = indexIsFresh ? publicStudentProjection(indexData) : null;
-
-    if (!student?.name) {
-      const approvedApplication = await findApprovedApplication(db, type, rawQuery);
-      if (!approvedApplication) {
-        if (snap.exists) await indexRef.delete();
-        return response(404, { error: 'No matching approved record was found.' }, origin);
-      }
-      student = publicStudentProjection(approvedApplication.data());
-      await writeVerificationIndexes(db, indexSecret, student, approvedApplication.id);
+    const source = await loadSource(db, issue.sourceDocument, issue);
+    if (!source || source._deleted || source._purged || normalize(first(source, FIELDS.regNo)) !== normalize(reg)) {
+      throw Object.assign(new Error('The issuing student record is unavailable or has been withdrawn.'), { status: 404 });
     }
-    return response(200, { student }, origin);
-  } catch (error) {
-    console.error('Student lookup failed:', error.message);
-    if (error.status === 409) return response(409, { error: error.message }, origin);
-    return response(503, { error: 'Lookup service is temporarily unavailable.' }, origin);
+    // Identity and labels are returned from trusted records, never from URL text.
+    return { student: studentProjection(source), verification: { kind: 'certificate', certificateNo: issue.certificateNo,
+      documentType: issue.documentType || 'Discharge / Transfer Certificate', issuedAt: issue.issueDate || '', status: 'Active' } };
   }
-};
+  const formNo = String(body.formNo || '').trim();
+  if (!formNo || !reg || formNo.length > 64 || reg.length > 64) throw Object.assign(new Error('The form and registration numbers are required.'), { status: 400 });
+  const { student } = await findStudent(db, { type: 'formNo', query: formNo, className: body.className, session: body.session });
+  if (normalize(student.boardRegNo) !== normalize(reg)) throw Object.assign(new Error('The student identifiers do not match.'), { status: 404 });
+  return { student, verification: { kind: 'enrollment', status: 'Approved' } };
+}
+exports.handler = createHandler(verifyStudent);
+exports.verifyStudent = verifyStudent;

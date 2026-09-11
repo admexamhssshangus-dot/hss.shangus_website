@@ -6,36 +6,30 @@ service firebase.storage {
       return request.auth != null;
     }
 
-    function role() {
-      return signedIn() && request.auth.token.role is string
-        ? request.auth.token.role.lower()
-        : '';
-    }
-
     function verifiedEmail() {
       return signedIn() && request.auth.token.email_verified == true;
     }
 
-    function admin() {
-      return signedIn() && (
-        request.auth.token.admin == true ||
-        role() in ['admin', 'superadmin', 'super admin'] ||
-        (request.auth.token.email is string &&
-         request.auth.token.email.lower() in [
-           'adm.exam.hss.shangus@gmail.com',
-           'ghssshangus74@gmail.com',
-           'e.educational.24@gmail.com',
-           'socialshiftz@gmail.com'
-         ])
-      );
+    function profile() {
+      return firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data;
     }
-
-    function teacher() {
-      return signedIn() && (
-        request.auth.token.teacher == true ||
-        role() in ['teacher', 'faculty', 'staff'] ||
-        admin()
-      );
+    function activeStaff() {
+      return verifiedEmail() && firestore.exists(/databases/(default)/documents/users/$(request.auth.uid)) &&
+        profile().get('active', true) == true && request.auth.token.auth_time >= profile().get('validAfter', 0);
+    }
+    function admin() {
+      return verifiedEmail() &&
+        ((request.auth.token.email == 'adm.exam.hss.shangus@gmail.com' &&
+          (!firestore.exists(/databases/(default)/documents/users/$(request.auth.uid)) || activeStaff())) ||
+          (activeStaff() && profile().role in ['Admin', 'SuperAdmin'])) &&
+        firestore.exists(/databases/(default)/documents/adminSessions/$(request.auth.uid)) &&
+        firestore.get(/databases/(default)/documents/adminSessions/$(request.auth.uid)).data.authTime == request.auth.token.auth_time &&
+        firestore.get(/databases/(default)/documents/adminSessions/$(request.auth.uid)).data.expiresAt > request.time;
+    }
+    function teacher() { return admin() || (activeStaff() && profile().role == 'Teacher'); }
+    function cms() {
+      return admin() && (request.auth.token.email == 'adm.exam.hss.shangus@gmail.com' ||
+        profile().role == 'SuperAdmin' || profile().get('perms', []).hasAny(['*', 'controls', 'cms']));
     }
 
     function validImage(maxBytes) {
@@ -53,8 +47,8 @@ service firebase.storage {
     // Public website media is readable, but only admins may mutate it.
     match /slides/{allPaths=**} {
       allow read: if true;
-      allow create, update: if admin() && validImage(5 * 1024 * 1024);
-      allow delete: if admin();
+      allow create, update: if cms() && validImage(5 * 1024 * 1024);
+      allow delete: if cms();
     }
 
     // A user can manage only their own profile/application images.

@@ -1,3 +1,4 @@
+import { backendEndpoint } from './backendEndpoint';
 import { getToken as getAppCheckToken } from 'firebase/app-check';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { auth, db } from './firebase';
@@ -15,7 +16,7 @@ const LEGACY_SECRET_STORAGE_KEYS = [
   'GEMINI_API_KEY',
   'gemini_key',
 ];
-const ENDPOINT = '/.netlify/functions/ai-generate';
+const ENDPOINT = backendEndpoint('ai-generate');
 const GEMINI_CONFIG_PATH = ['systemSettings', 'geminiConfig'];
 const GEMINI_CONFIG_TTL_MS = 5 * 60 * 1000;
 let geminiConfigRefreshPromise = null;

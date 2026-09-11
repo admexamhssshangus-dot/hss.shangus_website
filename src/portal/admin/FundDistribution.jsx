@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { mutateFundDistribution } from '../../services/fundLedgerService';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { flushSync } from 'react-dom';
 import {
   FileText,
@@ -348,6 +349,7 @@ function formatCurrency(val) {
 }
 
 export default function FundDistribution() {
+  const pendingDistribution = useRef(null);
   const [activeTab, setActiveTab] = useState('entry'); // 'entry' | 'history' | 'analytics'
   const [rates, setRates] = useState(DEFAULT_RATES);
   const [distributions, setDistributions] = useState([]);
@@ -882,7 +884,11 @@ export default function FundDistribution() {
       const yearStr = `${calYear} (${sessionVal})`;
 
       const breakdown = calculateBreakdown(formClass, pCount, sCount, accounts);
-      const docId = `dist_${formClass}_${monthName}_${Date.now()}`;
+      const requestKey = JSON.stringify([formClass, sessionVal, formDate, pCount, sCount]);
+      if (pendingDistribution.current?.key !== requestKey) pendingDistribution.current = {
+        key: requestKey, id: `dist_${formClass}_${monthName}_${Date.now()}`
+      };
+      const docId = pendingDistribution.current.id;
 
       const newRecord = {
         id: docId,
@@ -901,9 +907,11 @@ export default function FundDistribution() {
         timestamp: new Date().toISOString()
       };
 
-      await setDoc(doc(db, 'fund_distributions', docId), newRecord);
+      const saved = await mutateFundDistribution('create', newRecord);
+      Object.assign(newRecord, saved.record);
+      pendingDistribution.current = null;
 
-      showNotification(`Successfully generated ${formClass} report for ${monthName} ${calYear} [Session: ${sessionVal}] (${formatCurrency(breakdown.totalAmount)})!`, 'success');
+      showNotification(`Successfully generated ${formClass} report for ${monthName} ${calYear} [Session: ${sessionVal}] (${formatCurrency(newRecord.totalAmount)})!`, 'success');
       setFormPaidCount('');
       setFormScienceCount('');
       setPreviewReport(newRecord);
@@ -958,7 +966,8 @@ export default function FundDistribution() {
         updatedAt: new Date().toISOString()
       };
 
-      await setDoc(doc(db, 'fund_distributions', editReport.id), updated);
+      const saved = await mutateFundDistribution('update', updated);
+      Object.assign(updated, saved.record);
       showNotification(`Report updated successfully! New Total: ${formatCurrency(breakdown.totalAmount)}`, 'success');
       if (previewReport?.id === editReport.id) {
         setPreviewReport(updated);
@@ -977,7 +986,7 @@ export default function FundDistribution() {
     if (!deleteTargetReport) return;
     setIsDeleting(true);
     try {
-      await deleteDoc(doc(db, 'fund_distributions', deleteTargetReport.id));
+      await mutateFundDistribution('delete', { id: deleteTargetReport.id });
       showNotification(`Statement for ${deleteTargetReport.class} (${deleteTargetReport.month}) deleted permanently.`, 'success');
       if (previewReport?.id === deleteTargetReport.id) {
         setPreviewReport(null);
