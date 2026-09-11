@@ -352,6 +352,7 @@ export const normalizeSubjectCode = (rawCode) => {
   const token = String(rawCode || '').trim();
   if (!token) return '';
   const upper = token.toUpperCase();
+  if (/^(REAP|REAPPEAR|FAIL|FAILED|COMP|COMPARTMENT|PASS|PASSED|QUALIFIED|RESULT|MARKS|NONE|NA|NIL)$/i.test(upper)) return '';
   if (['GN', 'EN', 'GE'].includes(upper) || /general english|english/i.test(token)) return 'GE';
   if (['UD', 'UR'].includes(upper) || /urdu/i.test(token)) return 'UR';
   if (['CH'].includes(upper) || /chemistry/i.test(token)) return 'CH';
@@ -374,7 +375,7 @@ export const normalizeSubjectCode = (rawCode) => {
   if (['AC', 'AY'].includes(upper) || /account/i.test(token)) return 'AY';
   if (['BS', 'BST'].includes(upper) || /business/i.test(token)) return 'BS';
   if (['GG', 'GEO'].includes(upper) || /geography/i.test(token)) return 'GG';
-  if (!/\s/.test(upper) && upper.length >= 2 && upper.length <= 4) return upper;
+  if (!/\s/.test(upper) && upper.length >= 2 && upper.length <= 4 && !/^(AND|THE|FOR|IN|OF|TO|OR|WITH|REAP)$/i.test(upper)) return upper;
   return '';
 };
 
@@ -419,15 +420,17 @@ export function extractReappearCodes(student) {
   reappearTokens.forEach(token => {
     const commaParts = String(token).split(/[,/;+\n\r]+/).map(s => s.trim()).filter(Boolean);
     commaParts.forEach(chunk => {
+      if (/^(re-?appear|reap|fail|compartment|pass|qualified)$/i.test(chunk)) return;
       const wholeNorm = normalizeSubjectCode(chunk);
-      if (wholeNorm && wholeNorm.length >= 2 && !/^(AND|THE|FOR|IN|OF|TO|OR|WITH)$/i.test(wholeNorm)) {
+      if (wholeNorm && wholeNorm.length >= 2 && !/^(AND|THE|FOR|IN|OF|TO|OR|WITH|REAP)$/i.test(wholeNorm)) {
         codeSet.add(wholeNorm);
         return;
       }
       const parts = chunk.split(/\s+/).map(s => s.trim()).filter(Boolean);
       parts.forEach(part => {
+        if (/^(re-?appear|reap|fail|compartment|pass|qualified)$/i.test(part)) return;
         const code = normalizeSubjectCode(part);
-        if (code && code.length >= 2 && !/^(AND|THE|FOR|IN|OF|TO|OR|WITH)$/i.test(code)) {
+        if (code && code.length >= 2 && !/^(AND|THE|FOR|IN|OF|TO|OR|WITH|REAP)$/i.test(code)) {
           codeSet.add(code);
         }
       });

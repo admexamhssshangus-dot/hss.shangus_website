@@ -143,20 +143,9 @@ export default function AdminDashboard() {
       } catch (_) {}
     };
 
-    // If target tab is already mounted and preserved in DOM, switch is 0ms instant!
-    const isTargetAlreadyMounted =
-      (isTargetReports && hasMountedReports) ||
-      (isTargetRoster && hasMountedRoster);
-
-    if (isTargetAlreadyMounted) {
-      setActiveTabState(tab);
-      syncUrl(tab);
-      return;
-    }
-
-    // Otherwise, target tab is being loaded/mounted for the first time.
-    // Display TabLoadingOverlay immediately to give instant visual feedback
-    // and eliminate any perceived browser stalls while React mounts the tree.
+    // Always display TabLoadingOverlay immediately so transitions between
+    // heavy modules (e.g. ID Cards -> Student Records & Reports, Admission Register, etc.)
+    // never appear frozen or stalled while React recalculates and repaints large DOM trees!
     setIsSwitchingTab(true);
     setTargetSwitchTab(tab);
     syncUrl(tab);
@@ -166,11 +155,15 @@ export default function AdminDashboard() {
         if (isTargetReports) setHasMountedReports(true);
         if (isTargetRoster) setHasMountedRoster(true);
         setActiveTabState(tab);
-        setIsSwitchingTab(false);
-        setTargetSwitchTab(null);
+        requestAnimationFrame(() => {
+          setTimeout(() => {
+            setIsSwitchingTab(false);
+            setTargetSwitchTab(null);
+          }, 80);
+        });
       }, 50);
     });
-  }, [activeTab, isSwitchingTab, hasMountedReports, hasMountedRoster]);
+  }, [activeTab, isSwitchingTab]);
 
   // Handle browser Back/Forward navigation
   useEffect(() => {
