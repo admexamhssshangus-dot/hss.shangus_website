@@ -9,6 +9,7 @@ import {
 import appsScriptApi from '../../services/appsScriptApi';
 import { getCachedCollectionSync } from '../../services/dbCache';
 import { sanitizeRichHtml } from '../../utils/sanitizeRichHtml';
+import { logAdminActivity } from '../../services/adminActivityLogger';
 
 const DEFAULT_FOOTER = 'Best regards, Admission & Examination Cell, Govt. Higher Secondary School Shangus';
 
@@ -369,6 +370,21 @@ export default function AutomationsPage({ applications: propApps = [], user = nu
           subject: cleanSubject,
           testMode,
           status: 'Dispatched Successfully'
+        });
+
+        logAdminActivity({
+          actionType: 'export',
+          actionTitle: testMode ? 'Dispatched Test Flight Email' : 'Dispatched Bulk Group Email',
+          details: testMode 
+            ? `Test email "${cleanSubject}" dispatched to admin (${adminEmail})`
+            : `Bulk email "${cleanSubject}" dispatched to ${finalRecipients.length} recipients (${targetClass}, ${targetSession})`,
+          metadata: {
+            subject: cleanSubject,
+            recipientCount: finalRecipients.length,
+            targetClass,
+            targetSession,
+            testMode
+          }
         });
 
         // Reset composer if not in test mode

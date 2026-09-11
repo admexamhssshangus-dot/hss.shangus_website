@@ -13,6 +13,7 @@ import { generateGkTestAdmitCardPdf, generateBatchGkTestAdmitCardsPdf } from '..
 import { getStudentPhotoUrl, formatPhotoDisplayUrl } from '../../utils/imageCompressor';
 import { getCachedCollectionSync, getCachedCollection, setCachedCollectionData } from '../../services/dbCache';
 import ModernLoader from '../../components/ModernLoader';
+import { logAdminActivity } from '../../services/adminActivityLogger';
 import SchoolAssessmentsHub from './SchoolAssessmentsHub';
 import ConsolidatedGazetteView from './ConsolidatedGazetteView';
 
@@ -452,6 +453,12 @@ export default function AdminGkTestManager({ allStudents = [], onRefresh }) {
 
       await setDoc(doc(db, 'gktest_settings', 'config'), payload, { merge: true });
       setExamConfig(payload);
+      logAdminActivity({
+        actionType: 'update',
+        actionTitle: 'Updated Competitive Exam Settings',
+        details: `Updated exam configuration for "${payload.examTitle || 'Competitive Exam'}" (${payload.examDate || 'TBD'})`,
+        metadata: { examTitle: payload.examTitle, examDate: payload.examDate, isOpen: payload.isOpen }
+      });
       setSettingsMsg('Competitive exam configuration saved and published successfully!');
       setTimeout(() => setSettingsMsg(''), 4000);
     } catch (err) {
@@ -514,6 +521,12 @@ export default function AdminGkTestManager({ allStudents = [], onRefresh }) {
       setRevokeSuccessInfo({
         name: revokingDoc.name || 'Student',
         examNumber: revokingDoc.examNumber || revokingDoc.id
+      });
+      logAdminActivity({
+        actionType: 'delete',
+        actionTitle: 'Revoked Competitive Exam Candidate',
+        details: `Revoked exam registration for ${revokingDoc.name || 'Student'} (Exam Roll: ${revokingDoc.examNumber || revokingDoc.id}, Class: ${revokingDoc.className || 'N/A'})`,
+        metadata: { id: revokingDoc.id, examNumber: revokingDoc.examNumber, name: revokingDoc.name, className: revokingDoc.className }
       });
       setRevokingDoc(null);
     } catch (err) {
