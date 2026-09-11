@@ -154,8 +154,8 @@ export default function BulkFieldOverwriteModal({
   // Method under Overwrite tab: 'upload' (spreadsheet file) vs 'grid' (Excel tabular clipboard grid)
   const [ingestMethod, setIngestMethod] = useState('upload'); // 'upload' | 'grid'
 
-  // Hide / Unhide field selection matrix
-  const [showFieldMatrix, setShowFieldMatrix] = useState(true);
+  // Hide / Unhide field selection matrix (collapsed by default for clean minimal view)
+  const [showFieldMatrix, setShowFieldMatrix] = useState(false);
 
   // Custom fields added dynamically by user
   const [customFields, setCustomFields] = useState([]);
@@ -890,45 +890,42 @@ export default function BulkFieldOverwriteModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-1 sm:p-4 overflow-y-auto animate-fadeIn">
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-5xl rounded-xl sm:rounded-2xl shadow-2xl overflow-hidden flex flex-col h-[98vh] sm:h-auto max-h-[98vh] sm:max-h-[94vh]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-1 sm:p-3 overflow-y-auto animate-fadeIn">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-4xl rounded-xl shadow-2xl overflow-hidden flex flex-col h-[96vh] sm:h-auto max-h-[96vh] sm:max-h-[92vh]">
         
-        {/* Master Modal Header */}
-        <div className="px-3 py-2 sm:px-5 sm:py-3 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-gradient-to-r from-emerald-50/70 via-white to-blue-50/70 dark:from-emerald-950/20 dark:via-slate-900 dark:to-blue-950/20 flex-shrink-0">
+        {/* Master Modal Header - Minimal & Slim */}
+        <div className="px-3.5 py-2 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50/80 dark:bg-slate-950/80 flex-shrink-0">
           <div className="flex items-center gap-2">
-            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-emerald-700 text-white flex items-center justify-center shadow-xs flex-shrink-0">
-              <Database size={15} />
+            <div className="w-6 h-6 rounded-md bg-emerald-700 text-white flex items-center justify-center shadow-2xs flex-shrink-0">
+              <Database size={13} />
             </div>
-            <div className="min-w-0">
-              <h2 className="text-xs sm:text-sm font-black text-slate-900 dark:text-white flex items-center gap-1.5 truncate">
-                <span className="truncate">Student Data & Board Ingestion Hub</span>
-                <span className="hidden sm:inline-block px-1.5 py-0.5 rounded-full text-[9px] font-black bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
+            <div className="flex items-center gap-2">
+              <h2 className="text-xs font-black text-slate-900 dark:text-white flex items-center gap-1.5">
+                <span>Student Data & Board Ingestion Hub</span>
+                <span className="px-1.5 py-0.2 rounded text-[9px] font-black bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300">
                   Master Hub
                 </span>
               </h2>
-              <p className="hidden sm:block text-[11px] font-medium text-slate-500 dark:text-slate-400 truncate">
-                Board Overwrites, Express Direct Entry, and Gazette/Admit Card AI OCR
-              </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-all cursor-pointer flex-shrink-0"
+            className="p-1 rounded-md text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-slate-800 transition-colors cursor-pointer flex-shrink-0"
             aria-label="Close"
           >
-            <X size={16} />
+            <X size={15} />
           </button>
         </div>
 
-        {/* Master Mode Tabs Bar */}
-        <div className="px-2 py-1 sm:px-5 sm:py-2 bg-slate-50 dark:bg-slate-950/70 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between flex-wrap gap-1.5 flex-shrink-0">
-          <div className="flex items-center gap-1 p-0.5 sm:p-1 bg-slate-200/80 dark:bg-slate-800/80 rounded-xl overflow-x-auto w-full sm:w-auto no-scrollbar">
+        {/* Master Mode Tabs Bar - Sleek Compact Pills */}
+        <div className="px-3 py-1.5 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between flex-wrap gap-1.5 flex-shrink-0">
+          <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg text-[11px]">
             <button
               type="button"
               onClick={() => setModalMode('overwrite')}
-              className={`px-2.5 py-1 rounded-lg text-[11px] sm:text-xs font-bold flex items-center gap-1 cursor-pointer transition-all flex-shrink-0 ${
+              className={`px-2.5 py-1 rounded-md font-bold flex items-center gap-1 cursor-pointer transition-all ${
                 modalMode === 'overwrite'
-                  ? 'bg-white dark:bg-slate-900 text-emerald-700 dark:text-emerald-300 shadow-xs font-black'
+                  ? 'bg-white dark:bg-slate-900 text-emerald-700 dark:text-emerald-300 shadow-2xs font-black'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
@@ -939,9 +936,9 @@ export default function BulkFieldOverwriteModal({
             <button
               type="button"
               onClick={() => setModalMode('express')}
-              className={`px-2.5 py-1 rounded-lg text-[11px] sm:text-xs font-bold flex items-center gap-1 cursor-pointer transition-all flex-shrink-0 ${
+              className={`px-2.5 py-1 rounded-md font-bold flex items-center gap-1 cursor-pointer transition-all ${
                 modalMode === 'express'
-                  ? 'bg-white dark:bg-slate-900 text-blue-700 dark:text-blue-300 shadow-xs font-black'
+                  ? 'bg-white dark:bg-slate-900 text-blue-700 dark:text-blue-300 shadow-2xs font-black'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
@@ -952,9 +949,9 @@ export default function BulkFieldOverwriteModal({
             <button
               type="button"
               onClick={() => setModalMode('gazette_ai')}
-              className={`px-2.5 py-1 rounded-lg text-[11px] sm:text-xs font-bold flex items-center gap-1 cursor-pointer transition-all flex-shrink-0 ${
+              className={`px-2.5 py-1 rounded-md font-bold flex items-center gap-1 cursor-pointer transition-all ${
                 modalMode === 'gazette_ai'
-                  ? 'bg-white dark:bg-slate-900 text-purple-700 dark:text-purple-300 shadow-xs font-black'
+                  ? 'bg-white dark:bg-slate-900 text-purple-700 dark:text-purple-300 shadow-2xs font-black'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
@@ -965,9 +962,9 @@ export default function BulkFieldOverwriteModal({
             <button
               type="button"
               onClick={() => setModalMode('admit_ai')}
-              className={`px-2.5 py-1 rounded-lg text-[11px] sm:text-xs font-bold flex items-center gap-1 cursor-pointer transition-all flex-shrink-0 ${
+              className={`px-2.5 py-1 rounded-md font-bold flex items-center gap-1 cursor-pointer transition-all ${
                 modalMode === 'admit_ai'
-                  ? 'bg-white dark:bg-slate-900 text-indigo-700 dark:text-indigo-300 shadow-xs font-black'
+                  ? 'bg-white dark:bg-slate-900 text-indigo-700 dark:text-indigo-300 shadow-2xs font-black'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
@@ -977,7 +974,7 @@ export default function BulkFieldOverwriteModal({
           </div>
 
           {toastMessage && (
-            <div className="text-[10px] sm:text-[11px] font-black text-emerald-700 dark:text-emerald-300 bg-emerald-100/80 dark:bg-emerald-950/80 px-2 py-0.5 rounded-lg border border-emerald-300 dark:border-emerald-800 animate-fadeIn">
+            <div className="text-[10px] font-black text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/80 px-2 py-0.5 rounded border border-emerald-300 dark:border-emerald-800 animate-fadeIn">
               {toastMessage.msg}
             </div>
           )}
@@ -1027,116 +1024,97 @@ export default function BulkFieldOverwriteModal({
 
               {/* STEP 1: UPLOAD & FIELD SELECTION */}
               {step === 'upload' && (
-                <div className="space-y-4">
-                  {/* Cohort Filters Bar */}
-                  <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 flex items-center justify-between flex-wrap gap-3">
-                    <div className="flex items-center gap-3 flex-wrap">
-                      <div>
-                        <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1">
-                          Target Class Scope
-                        </label>
-                        <select
-                          value={targetClass}
-                          onChange={(e) => setTargetClass(e.target.value)}
-                          className="px-2.5 py-1.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-800 dark:text-slate-200 outline-none cursor-pointer"
-                        >
-                          <option value="All">All Classes ({availableClasses.length})</option>
-                          {availableClasses.map(cls => (
-                            <option key={cls} value={cls}>Class {cls}</option>
-                          ))}
-                        </select>
-                      </div>
+                <div className="space-y-3">
+                  {/* Compact Cohort Filters Toolbar */}
+                  <div className="p-2 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 flex items-center justify-between flex-wrap gap-2 text-xs">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500 mr-0.5">Cohort:</span>
+                      <select
+                        value={targetClass}
+                        onChange={(e) => setTargetClass(e.target.value)}
+                        className="px-2 py-1 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-[11px] font-bold text-slate-800 dark:text-slate-200 outline-none cursor-pointer"
+                      >
+                        <option value="All">All Classes ({availableClasses.length})</option>
+                        {availableClasses.map(cls => (
+                          <option key={cls} value={cls}>Class {cls}</option>
+                        ))}
+                      </select>
 
-                      <div>
-                        <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1">
-                          Target Session
-                        </label>
-                        <select
-                          value={targetSession}
-                          onChange={(e) => setTargetSession(e.target.value)}
-                          className="px-2.5 py-1.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-800 dark:text-slate-200 outline-none cursor-pointer"
-                        >
-                          <option value="All">All Sessions ({availableSessions.length})</option>
-                          {availableSessions.map(sess => (
-                            <option key={sess} value={sess}>{sess}</option>
-                          ))}
-                        </select>
-                      </div>
+                      <select
+                        value={targetSession}
+                        onChange={(e) => setTargetSession(e.target.value)}
+                        className="px-2 py-1 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-[11px] font-bold text-slate-800 dark:text-slate-200 outline-none cursor-pointer"
+                      >
+                        <option value="All">All Sessions ({availableSessions.length})</option>
+                        {availableSessions.map(sess => (
+                          <option key={sess} value={sess}>{sess}</option>
+                        ))}
+                      </select>
 
-                      <div>
-                        <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1">
-                          Stream Filter
-                        </label>
-                        <select
-                          value={targetStream}
-                          onChange={(e) => setTargetStream(e.target.value)}
-                          className="px-2.5 py-1.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-800 dark:text-slate-200 outline-none cursor-pointer"
-                        >
-                          <option value="All">All Streams ({availableStreams.length})</option>
-                          {availableStreams.map(strm => (
-                            <option key={strm} value={strm}>{strm}</option>
-                          ))}
-                        </select>
-                      </div>
+                      <select
+                        value={targetStream}
+                        onChange={(e) => setTargetStream(e.target.value)}
+                        className="px-2 py-1 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-[11px] font-bold text-slate-800 dark:text-slate-200 outline-none cursor-pointer"
+                      >
+                        <option value="All">All Streams ({availableStreams.length})</option>
+                        {availableStreams.map(strm => (
+                          <option key={strm} value={strm}>{strm}</option>
+                        ))}
+                      </select>
 
-                      <div>
-                        <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1">
-                          Status Filter
-                        </label>
-                        <select
-                          value={targetStatus}
-                          onChange={(e) => setTargetStatus(e.target.value)}
-                          className="px-2.5 py-1.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-800 dark:text-slate-200 outline-none cursor-pointer"
-                        >
-                          <option value="All">All Statuses ({availableStatuses.length})</option>
-                          {availableStatuses.map(stat => (
-                            <option key={stat} value={stat}>{stat}</option>
-                          ))}
-                        </select>
-                      </div>
+                      <select
+                        value={targetStatus}
+                        onChange={(e) => setTargetStatus(e.target.value)}
+                        className="px-2 py-1 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-[11px] font-bold text-slate-800 dark:text-slate-200 outline-none cursor-pointer"
+                      >
+                        <option value="All">All Statuses ({availableStatuses.length})</option>
+                        {availableStatuses.map(stat => (
+                          <option key={stat} value={stat}>{stat}</option>
+                        ))}
+                      </select>
                     </div>
 
-                    {/* Download Excel Template Button */}
                     <button
                       type="button"
                       onClick={handleDownloadExcelTemplate}
-                      className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-emerald-800 to-teal-800 hover:from-emerald-700 hover:to-teal-700 text-white font-black text-xs shadow-sm flex items-center gap-2 cursor-pointer transition-all"
-                      title="Download Excel spreadsheet pre-filled with currently selected fields and cohort student records"
+                      className="px-2.5 py-1 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white font-bold text-[11px] shadow-2xs flex items-center gap-1.5 cursor-pointer transition-colors shrink-0"
+                      title="Download pre-filled Excel spreadsheet for this cohort"
                     >
-                      <Download size={14} />
-                      <span>Download Excel Template with Current Fields</span>
+                      <Download size={12} />
+                      <span>Download Template (.xlsx)</span>
                     </button>
                   </div>
 
-                  {/* Field Selection Matrix Header & Hide/Unhide Toggle */}
-                  <div className="p-3.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-3">
+                  {/* Minimal Field Selection & Presets Bar */}
+                  <div className="p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-2">
                     <div className="flex items-center justify-between flex-wrap gap-2">
-                      <div className="flex items-center gap-2">
-                        <Sliders size={16} className="text-emerald-600" />
-                        <span className="font-black text-xs text-slate-900 dark:text-white">
-                          Select Fields to Overwrite From Spreadsheet
+                      <div className="flex items-center gap-1.5">
+                        <Sliders size={13} className="text-emerald-600" />
+                        <span className="font-extrabold text-[11px] text-slate-900 dark:text-white">
+                          Fields to Overwrite
                         </span>
-                        <span className="text-[10px] px-2 py-0.5 rounded-full font-black bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
-                          {activeFieldsList.length} Active
+                        <span className="text-[9px] px-1.5 py-0.2 rounded-full font-black bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
+                          {activeFieldsList.length} active
                         </span>
                       </div>
 
-                      <div className="flex items-center gap-2 flex-wrap">
+                      <div className="flex items-center gap-1.5 flex-wrap">
                         {/* Quick Presets */}
-                        <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg text-[10px] font-bold">
+                        <div className="flex items-center gap-0.5 bg-slate-100 dark:bg-slate-800 p-0.5 rounded-md text-[10px] font-bold">
+                          <button
+                            type="button"
+                            onClick={() => handleSelectPreset('exam_results')}
+                            className="px-2 py-0.5 rounded hover:bg-white dark:hover:bg-slate-700 text-amber-700 dark:text-amber-300 cursor-pointer font-black"
+                            title="Select Board Roll No, Result Status, Marks, and Division"
+                          >
+                            Exam Results
+                          </button>
                           <button
                             type="button"
                             onClick={() => handleSelectPreset('board_bio')}
                             className="px-2 py-0.5 rounded hover:bg-white dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 cursor-pointer"
                           >
                             Board Bio
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleSelectPreset('exam_results')}
-                            className="px-2 py-0.5 rounded hover:bg-white dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 cursor-pointer"
-                          >
-                            Exam Results
                           </button>
                           <button
                             type="button"
@@ -1148,85 +1126,82 @@ export default function BulkFieldOverwriteModal({
                           <button
                             type="button"
                             onClick={() => handleSelectPreset('all')}
-                            className="px-2 py-0.5 rounded hover:bg-white dark:hover:bg-slate-700 text-emerald-700 dark:text-emerald-300 cursor-pointer font-black"
+                            className="px-1.5 py-0.5 rounded hover:bg-white dark:hover:bg-slate-700 text-emerald-700 dark:text-emerald-300 cursor-pointer font-bold"
                           >
                             All
                           </button>
                           <button
                             type="button"
                             onClick={() => handleSelectPreset('none')}
-                            className="px-2 py-0.5 rounded hover:bg-white dark:hover:bg-slate-700 text-rose-600 dark:text-rose-400 cursor-pointer"
+                            className="px-1.5 py-0.5 rounded hover:bg-white dark:hover:bg-slate-700 text-rose-600 dark:text-rose-400 cursor-pointer"
                           >
-                            None
+                            Clear
                           </button>
                         </div>
 
-                        {/* Hide / Unhide Toggle */}
+                        {/* Toggle Detailed Matrix */}
                         <button
                           type="button"
                           onClick={() => setShowFieldMatrix(!showFieldMatrix)}
-                          className="px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-[11px] font-bold flex items-center gap-1.5 cursor-pointer transition-colors"
+                          className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-[10px] font-bold flex items-center gap-1 cursor-pointer transition-colors"
                         >
-                          {showFieldMatrix ? <EyeOff size={13} /> : <Eye size={13} />}
-                          <span>{showFieldMatrix ? 'Hide Fields' : 'Unhide Fields'}</span>
+                          {showFieldMatrix ? <EyeOff size={11} /> : <Eye size={11} />}
+                          <span>{showFieldMatrix ? 'Hide Checkboxes' : 'Customize Checkboxes'}</span>
                         </button>
                       </div>
                     </div>
 
-                    {/* Compact Selected Summary Strip */}
-                    <div className="p-2 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 flex items-center gap-1.5 flex-wrap text-[10px]">
-                      <span className="font-black text-slate-500 uppercase tracking-wider shrink-0">
-                        Mapped Overwrites ({activeFieldsList.length}):
-                      </span>
+                    {/* Compact Selected Summary Tags */}
+                    <div className="flex items-center gap-1 flex-wrap text-[10px]">
                       {activeFieldsList.length > 0 ? (
                         activeFieldsList.map(f => (
                           <span 
                             key={f.key} 
-                            className="px-2 py-0.5 rounded-md font-bold bg-emerald-100/70 dark:bg-emerald-950/70 text-emerald-800 dark:text-emerald-300 border border-emerald-300/60 dark:border-emerald-800"
+                            className="px-1.5 py-0.2 rounded font-bold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 text-[9.5px]"
                           >
                             {f.label}
                           </span>
                         ))
                       ) : (
-                        <span className="text-amber-600 dark:text-amber-400 font-bold">
-                          ⚠️ No fields selected. Check at least one field below.
+                        <span className="text-amber-600 dark:text-amber-400 font-bold text-[10px]">
+                          ⚠️ No fields selected. Click a preset above (e.g. Exam Results).
                         </span>
                       )}
                     </div>
 
-                    {/* Expandable Field Matrix */}
+                    {/* Expandable Field Matrix (Compact) */}
                     {showFieldMatrix && (
-                      <div className="space-y-3 pt-1 animate-fadeIn">
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+                      <div className="space-y-2 pt-1.5 border-t border-slate-100 dark:border-slate-800 animate-fadeIn">
+                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
                           {dynamicDatabaseCategories.map(cat => (
                             <div 
                               key={cat.id} 
-                              className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 space-y-2 flex flex-col"
+                              className="p-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 flex flex-col"
                             >
-                              <div className="flex items-center justify-between pb-1 border-b border-slate-200 dark:border-slate-800">
-                                <span className="font-black text-[11px] text-slate-800 dark:text-slate-200">
+                              <div className="flex items-center justify-between pb-1 mb-1 border-b border-slate-200 dark:border-slate-800">
+                                <span className="font-bold text-[10px] text-slate-800 dark:text-slate-200 truncate">
                                   {cat.title}
                                 </span>
-                                <span className={`text-[8px] font-black px-1.5 py-0.2 rounded-full border ${cat.badgeClass}`}>
+                                <span className={`text-[7.5px] font-black px-1 py-0.2 rounded border ${cat.badgeClass}`}>
                                   {cat.badge}
                                 </span>
                               </div>
 
-                              <div className="space-y-1 overflow-y-auto max-h-48 custom-scrollbar">
+                              <div className="space-y-0.5 overflow-y-auto max-h-32 custom-scrollbar">
                                 {cat.fields.map(field => {
                                   const isChecked = Boolean(selectedFields[field.key]);
                                   return (
                                     <label
                                       key={field.key}
-                                      className="flex items-center gap-2 p-1 rounded hover:bg-white dark:hover:bg-slate-800 cursor-pointer text-[11px] text-slate-700 dark:text-slate-300"
+                                      className="flex items-center gap-1.5 py-0.5 px-1 rounded hover:bg-white dark:hover:bg-slate-800 cursor-pointer text-[10px] text-slate-700 dark:text-slate-300"
                                     >
                                       <input
                                         type="checkbox"
                                         checked={isChecked}
                                         onChange={() => handleToggleField(field.key)}
-                                        className="rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                                        className="rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer scale-90"
                                       />
-                                      <span className={isChecked ? 'font-bold text-slate-900 dark:text-white' : 'font-medium'}>
+                                      <span className={isChecked ? 'font-bold text-slate-900 dark:text-white' : 'font-normal text-slate-600'}>
                                         {field.label}
                                       </span>
                                     </label>
@@ -1238,98 +1213,100 @@ export default function BulkFieldOverwriteModal({
                         </div>
 
                         {/* Add Custom Field Tool */}
-                        <div className="flex items-center gap-2 pt-2 border-t border-slate-200 dark:border-slate-800">
+                        <div className="flex items-center gap-1.5 pt-1">
                           <input
                             type="text"
                             value={customFieldInput}
                             onChange={(e) => setCustomFieldInput(e.target.value)}
                             onKeyDown={(e) => { if (e.key === 'Enter') handleAddCustomField(); }}
-                            placeholder="Add custom database schema field name..."
-                            className="px-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-900 dark:text-white outline-none flex-1 max-w-sm"
+                            placeholder="Add custom database field name..."
+                            className="px-2 py-1 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-[10px] font-bold text-slate-900 dark:text-white outline-none flex-1 max-w-xs"
                           />
                           <button
                             type="button"
                             onClick={handleAddCustomField}
-                            className="px-3 py-1.5 rounded-xl bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold text-xs flex items-center gap-1 cursor-pointer"
+                            className="px-2 py-1 rounded-lg bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold text-[10px] flex items-center gap-1 cursor-pointer"
                           >
-                            <Plus size={13} />
-                            <span>Add Field</span>
+                            <Plus size={11} />
+                            <span>Add</span>
                           </button>
                         </div>
                       </div>
                     )}
                   </div>
 
-                  {/* INGESTION METHOD SELECTOR */}
-                  <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-2">
-                    <button
-                      type="button"
-                      onClick={() => setIngestMethod('upload')}
-                      className={`px-4 py-1.5 rounded-xl text-xs font-bold flex items-center gap-2 cursor-pointer transition-all ${
-                        ingestMethod === 'upload'
-                          ? 'bg-emerald-700 text-white font-black shadow-xs'
-                          : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200'
-                      }`}
-                    >
-                      <Upload size={14} />
-                      <span>📂 Upload Spreadsheet (.xlsx / .csv)</span>
-                    </button>
+                  {/* INGESTION METHOD SELECTOR & DROPZONE */}
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setIngestMethod('upload')}
+                        className={`px-3 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1.5 cursor-pointer transition-all ${
+                          ingestMethod === 'upload'
+                            ? 'bg-emerald-700 text-white font-black shadow-2xs'
+                            : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200'
+                        }`}
+                      >
+                        <Upload size={12} />
+                        <span>Upload Spreadsheet (.xlsx / .csv)</span>
+                      </button>
 
-                    <button
-                      type="button"
-                      onClick={() => setIngestMethod('grid')}
-                      className={`px-4 py-1.5 rounded-xl text-xs font-bold flex items-center gap-2 cursor-pointer transition-all ${
-                        ingestMethod === 'grid'
-                          ? 'bg-emerald-700 text-white font-black shadow-xs'
-                          : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200'
-                      }`}
-                    >
-                      <Copy size={14} />
-                      <span>📋 Direct Copy-Paste (Excel Tabular Grid)</span>
-                    </button>
-                  </div>
+                      <button
+                        type="button"
+                        onClick={() => setIngestMethod('grid')}
+                        className={`px-3 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1.5 cursor-pointer transition-all ${
+                          ingestMethod === 'grid'
+                            ? 'bg-emerald-700 text-white font-black shadow-2xs'
+                            : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200'
+                        }`}
+                      >
+                        <Copy size={12} />
+                        <span>Direct Copy-Paste Grid</span>
+                      </button>
+                    </div>
 
-                  {/* METHOD A: SPREADSHEET FILE UPLOAD */}
-                  {ingestMethod === 'upload' && (
-                    <div className="p-6 rounded-2xl border-2 border-dashed border-slate-300 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/40 text-center space-y-3 animate-fadeIn">
-                      <div className="w-12 h-12 rounded-2xl bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 flex items-center justify-center mx-auto shadow-xs">
-                        <Upload size={24} />
+                    {/* METHOD A: SPREADSHEET FILE UPLOAD */}
+                    {ingestMethod === 'upload' && (
+                      <div className="p-4 rounded-xl border border-dashed border-emerald-400/80 dark:border-emerald-700/80 bg-emerald-50/40 dark:bg-emerald-950/20 text-center space-y-2 animate-fadeIn">
+                        <div className="w-8 h-8 rounded-xl bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 flex items-center justify-center mx-auto shadow-2xs">
+                          <Upload size={16} />
+                        </div>
+                        <div>
+                          <h4 className="font-black text-xs text-slate-900 dark:text-white">
+                            Drop Updated Board Spreadsheet Here (.xlsx / .csv)
+                          </h4>
+                          <p className="text-[10px] text-slate-500 font-medium">
+                            Column 1 must be <strong>Board Registration Number</strong> for 100% authoritative matching.
+                          </p>
+                        </div>
+                        <label className="inline-block px-4 py-1.5 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white font-bold text-xs shadow-2xs cursor-pointer transition-all active:scale-98">
+                          <span>Browse Spreadsheet File</span>
+                          <input
+                            type="file"
+                            accept=".xlsx,.xls,.csv"
+                            onChange={handleFileUpload}
+                            className="hidden"
+                          />
+                        </label>
                       </div>
-                      <div>
-                        <h4 className="font-black text-xs text-slate-900 dark:text-white">
-                          Select or Drop Official Board Excel Spreadsheet
-                        </h4>
-                        <p className="text-[11px] text-slate-500 font-medium">
-                          Column 1 must be <strong>Board Registration Number</strong>. Our 3-point matching engine correlates each student with their exact cohort.
-                        </p>
-                      </div>
-                      <label className="inline-block px-5 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white font-black text-xs shadow-md cursor-pointer transition-all active:scale-98">
-                        <span>Browse Excel / CSV File</span>
-                        <input
-                          type="file"
-                          accept=".xlsx,.xls,.csv"
-                          onChange={handleFileUpload}
-                          className="hidden"
+                    )}
+
+                    {/* METHOD B: EXCEL TABULAR SPREADSHEET GRID */}
+                    {ingestMethod === 'grid' && (
+                      <div className="animate-fadeIn">
+                        <ExcelSpreadsheetGrid
+                          activeFields={activeFieldsList}
+                          onParseData={processIncomingRows}
+                          allStudents={allStudents}
+                          targetClass={targetClass}
+                          targetSession={targetSession}
+                          targetStream={targetStream}
+                          targetStatus={targetStatus}
+                          showToast={showToast}
                         />
-                      </label>
-                    </div>
-                  )}
-
-                  {/* METHOD B: EXCEL TABULAR SPREADSHEET GRID */}
-                  {ingestMethod === 'grid' && (
-                    <div className="animate-fadeIn">
-                      <ExcelSpreadsheetGrid
-                        activeFields={activeFieldsList}
-                        onParseData={processIncomingRows}
-                        allStudents={allStudents}
-                        targetClass={targetClass}
-                        targetSession={targetSession}
-                        targetStream={targetStream}
-                        targetStatus={targetStatus}
-                        showToast={showToast}
-                      />
-                    </div>
-                  )}
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
 
@@ -1607,16 +1584,16 @@ export default function BulkFieldOverwriteModal({
 
         </div>
 
-        {/* Modal Footer for Overwrite Mode */}
+        {/* Modal Footer for Overwrite Mode - Slim & Minimal */}
         {modalMode === 'overwrite' && step === 'upload' && (
-          <div className="px-5 py-2.5 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-950/50">
-            <div className="text-[11px] text-slate-500 font-bold">
-              Target: <strong>{targetClass}</strong> • Session <strong>{targetSession}</strong>
+          <div className="px-3.5 py-1.5 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50/70 dark:bg-slate-950/50 text-[11px] flex-shrink-0">
+            <div className="text-slate-500 font-medium">
+              Target: <strong className="text-slate-800 dark:text-slate-200">{targetClass}</strong> • Session <strong className="text-slate-800 dark:text-slate-200">{targetSession}</strong>
             </div>
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 font-bold text-xs cursor-pointer"
+              className="px-3 py-1 rounded-lg border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 font-bold text-[11px] cursor-pointer transition-colors"
             >
               Cancel
             </button>
