@@ -859,16 +859,19 @@ function CustomSubjectSelect({ selectedSubject, setSelectedSubject, subjectMap, 
 
   return (
     <div className="space-y-0.5 relative" ref={containerRef}>
-      <label className="text-[9.5px] font-bold uppercase text-slate-600 dark:text-slate-400">
-        Subject ({currentSubjectObj.code}) • {subjectMaxMarks}M (Pass: {minPassMarks}M)
-      </label>
+      <div className="flex items-center justify-between gap-1 text-[9.5px] font-bold uppercase text-slate-500 dark:text-slate-400">
+        <span className="truncate">Subject</span>
+        <span className="font-mono text-[9px] text-indigo-600 dark:text-indigo-400 font-bold shrink-0">
+          {subjectMaxMarks}M (P:{minPassMarks})
+        </span>
+      </div>
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full px-2 py-1 rounded-md text-xs font-semibold h-7.5 border flex items-center justify-between gap-1 bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 shadow-2xs cursor-pointer focus:outline-none focus:ring-1 focus:ring-indigo-500"
+        className="practicals-control w-full px-2 py-1 rounded-lg text-xs font-semibold h-8.5 border flex items-center justify-between gap-1 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 shadow-2xs cursor-pointer focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-colors"
       >
-        <span className="truncate">{selectedItem.name} ({selectedItem.code}) - {subjectMaxMarks}M</span>
-        <ChevronDown size={13} className={`text-slate-400 shrink-0 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+        <span className="truncate">{selectedItem.name} ({selectedItem.code})</span>
+        <ChevronDown size={12} className={`text-slate-400 shrink-0 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 
       {isOpen && (
@@ -2088,14 +2091,14 @@ export default function PracticalsPage() {
           )}
 
           {/* Sleek Integrated Filter Control & Toolbar Bar */}
-          <div className="rounded-xl border bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 p-2 space-y-2">
+          <div className="rounded-2xl border bg-slate-50/80 dark:bg-slate-950/80 border-slate-200/90 dark:border-slate-800/90 p-2 sm:p-2.5 space-y-2 shadow-2xs">
             {/* Summary Bar & Action Controls (Responsive Mobile-First, High Density) */}
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-1.5">
               {/* Filters toggle — full width on mobile, fills available space on desktop */}
               <button
                 type="button"
                 onClick={() => setShowFilterSettings(!showFilterSettings)}
-                className="w-full sm:flex-1 flex items-center justify-between gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-bold bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer min-w-0 shadow-2xs active:scale-98"
+                className="w-full sm:flex-1 flex items-center justify-between gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-bold bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer min-w-0 shadow-2xs active:scale-98"
               >
                 <div className="flex items-center gap-1.5 truncate">
                   <SlidersHorizontal size={13} className="text-indigo-600 dark:text-indigo-400 shrink-0" />
@@ -2116,12 +2119,12 @@ export default function PracticalsPage() {
               </div>
 
               {/* Sort (Desktop) */}
-              <div className="hidden sm:flex items-center gap-0.5 shrink-0">
-                <ArrowUpDown size={10} className="text-slate-400" />
+              <div className="hidden sm:flex items-center gap-1 shrink-0">
+                <ArrowUpDown size={11} className="text-slate-400" />
                 <select
                   value={sortBy}
                   onChange={(e) => setSortBy(e.target.value)}
-                  className="px-1.5 py-1 rounded-md border text-[10px] font-bold bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100"
+                  className="practicals-select practicals-control px-2 py-0.5 rounded-lg border text-xs font-semibold bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 shadow-2xs cursor-pointer"
                 >
                   <option value="rollAsc">Roll ↑</option>
                   <option value="rollDesc">Roll ↓</option>
@@ -2131,21 +2134,21 @@ export default function PracticalsPage() {
               </div>
 
               {/* Quick Fill + Fail filter + Print */}
-              <div className="flex items-center justify-between sm:justify-end gap-1 w-full sm:w-auto shrink-0">
+              <div className="flex items-center justify-between sm:justify-end gap-1.5 w-full sm:w-auto shrink-0">
                 <button
                   type="button"
                   onClick={() => setShowQuickFill(prev => !prev)}
-                  className={`flex-1 sm:flex-initial h-7.5 px-2.5 py-1 rounded-lg font-bold text-[11px] border transition-all cursor-pointer flex items-center justify-center gap-1 active:scale-95 shadow-2xs ${
+                  className={`practicals-control flex-1 sm:flex-initial h-8 px-2.5 py-1 rounded-lg font-bold text-xs border transition-all cursor-pointer flex items-center justify-center gap-1 active:scale-95 shadow-2xs ${
                     showQuickFill
                       ? 'bg-amber-500 text-white border-amber-500 shadow-2xs'
-                      : 'bg-white dark:bg-slate-900 text-amber-700 dark:text-amber-400 border-amber-300 dark:border-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/40'
+                      : 'bg-white dark:bg-slate-900 text-amber-700 dark:text-amber-400 border-amber-300/80 dark:border-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/40'
                   }`}
                   title="Quick Bulk Fill: Fill marks for all, empty, or selected students in one go"
                 >
-                  <Zap size={12} className={showQuickFill ? 'text-white' : 'text-amber-500'} />
+                  <Zap size={13} className={showQuickFill ? 'text-white' : 'text-amber-500'} />
                   <span>Quick Fill</span>
                   {selectedKeys.size > 0 && (
-                    <span className="px-1 py-0.2 rounded-full bg-indigo-600 text-white text-[9px] font-bold">
+                    <span className="px-1.5 py-0.2 rounded-full bg-indigo-600 text-white text-[9px] font-bold">
                       {selectedKeys.size}
                     </span>
                   )}
@@ -2154,10 +2157,10 @@ export default function PracticalsPage() {
                 <button
                   type="button"
                   onClick={() => setShowFailOnly(!showFailOnly)}
-                  className={`h-7.5 px-2.5 py-1 rounded-lg font-bold text-[11px] border transition-all cursor-pointer flex items-center justify-center active:scale-95 shadow-2xs ${
+                  className={`practicals-control h-8 px-2.5 py-1 rounded-lg font-bold text-xs border transition-all cursor-pointer flex items-center justify-center active:scale-95 shadow-2xs ${
                     showFailOnly
                       ? 'bg-rose-500 text-white border-rose-500'
-                      : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700'
+                      : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800'
                   }`}
                 >
                   {showFailOnly ? 'Show All' : '📋 Fail'}
@@ -2166,27 +2169,27 @@ export default function PracticalsPage() {
                 <button
                   type="button"
                   onClick={handlePrintReport}
-                  className="h-7.5 px-2.5 py-1 rounded-lg font-bold text-[11px] bg-indigo-600 text-white hover:bg-indigo-500 border border-indigo-600 shadow-2xs cursor-pointer flex items-center justify-center gap-1 active:scale-95"
+                  className="practicals-control h-8 px-3 py-1 rounded-lg font-bold text-xs bg-indigo-600 text-white hover:bg-indigo-500 border border-indigo-600 shadow-2xs cursor-pointer flex items-center justify-center gap-1 active:scale-95"
                 >
-                  <Printer size={12} /> <span>Print</span>
+                  <Printer size={13} /> <span>Print</span>
                 </button>
               </div>
             </div>
 
             {/* Expandable Filter Inputs Panel */}
             {showFilterSettings && (
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 pt-1.5 border-t border-slate-200 dark:border-slate-800 animate-in fade-in duration-150">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-slate-200 dark:border-slate-800 animate-in fade-in duration-150">
                 <div className="space-y-0.5">
-                  <label className="text-[9.5px] font-bold uppercase text-slate-600 dark:text-slate-400">Class</label>
+                  <label className="text-[9.5px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block truncate">Class</label>
                   <select
                     value={selectedClass}
                     onChange={(e) => setSelectedClass(e.target.value)}
-                    className="w-full px-2 py-1 rounded-md text-xs font-semibold h-7.5 border focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100"
+                    className="practicals-select practicals-control w-full px-2 py-1 rounded-lg text-xs font-semibold h-8.5 border focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 shadow-2xs cursor-pointer transition-colors"
                   >
-                    <option value="12th">12th Class</option>
-                    <option value="11th">11th Class</option>
-                    <option value="10th">10th Class</option>
-                    <option value="9th">9th Class</option>
+                    <option value="12th">Class 12th</option>
+                    <option value="11th">Class 11th</option>
+                    <option value="10th">Class 10th</option>
+                    <option value="9th">Class 9th</option>
                   </select>
                 </div>
 
@@ -2201,43 +2204,41 @@ export default function PracticalsPage() {
                 />
 
                 <div className="space-y-0.5">
-                  <label className="text-[9.5px] font-bold uppercase text-slate-600 dark:text-slate-400">Eval. Type</label>
+                  <label className="text-[9.5px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block truncate">Eval. Type</label>
                   <select
                     value={practicalType}
                     onChange={(e) => setPracticalType(e.target.value)}
-                    className="w-full px-2 py-1 rounded-md text-xs font-semibold h-7.5 border focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100"
+                    className="practicals-select practicals-control w-full px-2 py-1 rounded-lg text-xs font-semibold h-8.5 border focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 shadow-2xs cursor-pointer transition-colors"
                   >
                     {availableEvalTypes.map(et => (
                       <option key={et.value} value={et.value}>
-                        {et.label}
+                        {et.label || et.value}
                       </option>
                     ))}
                   </select>
                 </div>
 
                 <div className="space-y-0.5">
-                  <label className="text-[9.5px] font-bold uppercase text-slate-600 dark:text-slate-400">Session</label>
+                  <label className="text-[9.5px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block truncate">Session</label>
                   <select
                     value={yearSuffix}
                     onChange={(e) => setYearSuffix(e.target.value)}
-                    className="w-full px-2 py-1 rounded-md text-xs font-semibold h-7.5 border focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100"
+                    className="practicals-select practicals-control w-full px-2 py-1 rounded-lg text-xs font-semibold h-8.5 border focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 shadow-2xs cursor-pointer transition-colors"
                   >
                     {availableSessions.map(yr => {
                       let label = yr;
-                      if (yr === '2025-26' || yr === '2026') label = '2025-26 (Reg. 2026)';
-                      else if (yr === '2025 APR/BIAN') label = '2025 (Annual Private/Biannual)';
-                      else if (yr === '2026 APR/BIAN') label = '2026 (Annual Private/Biannual)';
-                      else if (yr === '2024-25 (Mar-Apr)') label = '2024-25 (Mar-Apr)';
-                      else if (yr === '2024-25 (Oct-Nov)') label = '2024-25 (Oct-Nov)';
-                      else if (yr === '2024-25 (revised)') label = '2024-25 (Oct-Nov)';
-                      else if (yr === '2024-25') label = '2024-25 (Mar-Apr)';
-                      else if (yr === '2025') label = '2024-25 (Mar-Apr)';
-                      else if (yr === '2024') label = '2023-24 (Reg. 2024)';
-                      else if (yr.match(/\d{4}-\d{2}\s*\(Mar-Apr\)/i)) label = yr;
-                      else if (yr.match(/\d{4}-\d{2}\s*\(Oct-Nov\)/i)) label = yr;
+                      if (yr === '2025-26' || yr === '2026') label = '2025–26 (Reg)';
+                      else if (yr === '2025 APR/BIAN') label = '2025 (Pvt/Bi-Ann)';
+                      else if (yr === '2026 APR/BIAN') label = '2026 (Pvt/Bi-Ann)';
+                      else if (yr === '2024-25 (Mar-Apr)') label = '2024–25 (Mar-Apr)';
+                      else if (yr === '2024-25 (Oct-Nov)') label = '2024–25 (Oct-Nov)';
+                      else if (yr === '2024-25 (revised)') label = '2024–25 (Oct-Nov)';
+                      else if (yr === '2024-25') label = '2024–25 (Mar-Apr)';
+                      else if (yr === '2025') label = '2024–25 (Mar-Apr)';
+                      else if (yr === '2024') label = '2023–24 (Reg)';
                       else if (yr.match(/^20\d\d$/)) {
                         const yNum = parseInt(yr, 10);
-                        label = `${yNum - 1}-${yr.slice(2)} (Reg. ${yr})`;
+                        label = `${yNum - 1}–${yr.slice(2)} (Reg)`;
                       }
                       return <option key={yr} value={yr}>{label}</option>;
                     })}
@@ -2442,7 +2443,7 @@ export default function PracticalsPage() {
           </div>
 
           {/* Mobile-only student count + sort (shown below filter bar on small screens) */}
-          <div className="sm:hidden flex items-center justify-between gap-1.5 px-1 py-0.5 text-[10px] text-slate-600 dark:text-slate-400">
+          <div className="sm:hidden flex items-center justify-between gap-1.5 px-1 py-1 text-[11px] text-slate-600 dark:text-slate-400">
             <div className="font-extrabold flex items-center gap-1.5">
               <input
                 type="checkbox"
@@ -2457,12 +2458,12 @@ export default function PracticalsPage() {
                 {showFailOnly && <span className="ml-1 text-rose-600">(Fail)</span>}
               </div>
             </div>
-            <div className="flex items-center gap-0.5 font-bold">
-              <ArrowUpDown size={10} />
+            <div className="flex items-center gap-1 font-semibold">
+              <ArrowUpDown size={11} className="text-slate-400" />
               <select
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value)}
-                className="px-1.5 py-0.5 rounded-md border text-[10px] font-bold bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100"
+                className="practicals-select practicals-control px-2 py-0.5 rounded-lg border text-[11px] font-semibold bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 shadow-2xs cursor-pointer"
               >
                 <option value="rollAsc">Roll ↑</option>
                 <option value="rollDesc">Roll ↓</option>
