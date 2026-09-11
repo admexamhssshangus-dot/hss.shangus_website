@@ -10,8 +10,8 @@ import {
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { db } from '../../services/firebase';
-import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { updateCachedItem, getCachedCollectionSync } from '../../services/dbCache';
+import { doc, getDoc, setDoc, serverTimestamp, getDocs, collection } from 'firebase/firestore';
+import { updateCachedItem, getCachedCollectionSync, getCachedCollection } from '../../services/dbCache';
 import { logAdminActivity } from '../../services/adminActivityLogger';
 import { saveCsvImportBatch } from '../../services/csvBatchManager';
 import { toTitleCase } from '../../utils/textFormatting';
@@ -20,6 +20,67 @@ import { cleanRawSubjectTokens, formatDobToDisplay } from './AdvancedReports';
 import ExcelSpreadsheetGrid from './bulkOverwrite/ExcelSpreadsheetGrid';
 import ExpressDirectIngestionTab from './bulkOverwrite/ExpressDirectIngestionTab';
 import GazetteAndAdmitAiTab from './bulkOverwrite/GazetteAndAdmitAiTab';
+
+// Helper to unpack chunked or flat masterRegisters documents into standard candidate records
+export function flattenMasterRegisters(rawList = []) {
+  if (!Array.isArray(rawList)) return [];
+  const flat = [];
+  rawList.forEach((docItem, docIdx) => {
+    if (!docItem || typeof docItem !== 'object') return;
+    const chunk = docItem.items || docItem.students || docItem.records || docItem.data;
+    const parentSession = docItem.Session || docItem.session || docItem['Academic Session'] || docItem.groupKey?.split('_')[0] || docItem.id?.split('_')[0] || '';
+    const parentClass = docItem.class || docItem.Class || docItem.className || docItem['Class'] || docItem.groupKey?.split('_')[1] || '';
+    const parentStream = docItem.stream || docItem.Stream || docItem['Stream'] || docItem.groupKey?.split('_')[2] || '';
+
+    if (Array.isArray(chunk) && chunk.length > 0) {
+      chunk.forEach((item, itemIdx) => {
+        if (item && typeof item === 'object') {
+          if (item.Status === 'Deleted' || item.status === 'Deleted' || item._deleted === true) return;
+          const iSess = item.Session || item.session || item['Academic Session'] || parentSession;
+          const iCls = item.Class || item.class || item['Class'] || parentClass;
+          flat.push({
+            ...item,
+            id: item.id || item['Form Number'] || item['Form No.'] || item.formNo || item['Board Registration Number'] || `${docItem.id}_${itemIdx}`,
+            Session: iSess,
+            session: iSess,
+            Class: iCls,
+            class: iCls,
+            Stream: item.Stream || item.stream || item['Stream'] || parentStream || item.faculty || 'General',
+            stream: item.stream || item.Stream || item['Stream'] || parentStream || item.faculty || 'General',
+            status: item.status || item.Status || item.admissionStatus || 'Approved',
+            Status: item.Status || item.status || item.admissionStatus || 'Approved',
+            _source: 'masterRegisters',
+            _srcCollection: 'masterRegisters',
+            _parentDocId: docItem._docId || docItem.id,
+            _arrayKey: ['items', 'students', 'records', 'data'].find(key => Array.isArray(docItem[key])) || 'items',
+            _arrayIndex: itemIdx,
+            _isHistorical: true
+          });
+        }
+      });
+    } else {
+      if (docItem.Status === 'Deleted' || docItem.status === 'Deleted' || docItem._deleted === true) return;
+      const docSess = docItem.Session || docItem.session || docItem['Academic Session'] || parentSession;
+      const docCls = docItem.Class || docItem.class || docItem['Class'] || parentClass;
+      flat.push({
+        ...docItem,
+        id: docItem.id || docItem['Form Number'] || `${docItem.id || 'doc'}_${docIdx}`,
+        Session: docSess,
+        session: docSess,
+        Class: docCls,
+        class: docCls,
+        Stream: docItem.Stream || docItem.stream || docItem['Stream'] || parentStream || docItem.faculty || 'General',
+        stream: docItem.stream || docItem.Stream || docItem['Stream'] || parentStream || docItem.faculty || 'General',
+        status: docItem.status || docItem.Status || docItem.admissionStatus || 'Approved',
+        Status: docItem.Status || docItem.status || docItem.admissionStatus || 'Approved',
+        _source: 'masterRegisters',
+        _srcCollection: 'masterRegisters',
+        _isHistorical: true
+      });
+    }
+  });
+  return flat;
+}
 
 // ─── Standard Database Fields Grouped by Functional Categories ───
 export const STANDARD_DB_CATEGORIES = [
@@ -142,8 +203,25 @@ export default function BulkFieldOverwriteModal({
 
   // ─── Bulk Overwrite Sub-State ───
   const [step, setStep] = useState('upload'); // 'upload' | 'preview' | 'executing' | 'completed'
-  const [targetClass, setTargetClass] = useState('All');
-  const [targetSession, setTargetSession] = useState(currentSession || '2025-26');
+
+  // Read recently viewed session & class from browser storage if available
+  const [targetClass, setTargetClass] = useState(() => {
+    try {
+      const saved = sessionStorage.getItem('hss_last_selected_class');
+      if (saved && saved !== 'ALL') return saved;
+    } catch (_) {}
+    return '11th';
+  });
+
+  const [targetSession, setTargetSession] = useState(() => {
+    if (currentSession && currentSession !== '2025-26') return currentSession;
+    try {
+      const saved = sessionStorage.getItem('hss_last_selected_session');
+      if (saved && saved !== 'ALL') return saved;
+    } catch (_) {}
+    return currentSession || '2026 APR/BIAN';
+  });
+
   const [targetStream, setTargetStream] = useState('All');
   const [targetStatus, setTargetStatus] = useState('All');
 
@@ -189,23 +267,106 @@ export default function BulkFieldOverwriteModal({
   // Helper to normalize alphanumeric keys
   const cleanKey = (val) => String(val || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase().trim();
 
+  // ─── UNIVERSAL DATABASE POOL (ADMISSIONS + MASTER REGISTERS) ───
+  // Unifies active admissions with full historical / masterRegisters so all 33 candidates for 2026 APR/BIAN are accessible
+  const [universalStudents, setUniversalStudents] = useState(() => {
+    const list = [];
+    const seen = new Set();
+    const add = (s) => {
+      if (!s || typeof s !== 'object') return;
+      const id = s.id || s.formNo || s['Form Number'] || s['Board Registration Number'];
+      if (id && seen.has(id)) return;
+      if (id) seen.add(id);
+      list.push(s);
+    };
+
+    if (Array.isArray(allStudents)) allStudents.forEach(add);
+    const cachedAdm = getCachedCollectionSync('admissions') || [];
+    cachedAdm.forEach(add);
+    const cachedMaster = getCachedCollectionSync('masterRegisters') || [];
+    flattenMasterRegisters(cachedMaster).forEach(add);
+
+    return list;
+  });
+
+  // Asynchronous background hydration of full database collections
+  useEffect(() => {
+    if (!isOpen) return;
+    let isCancelled = false;
+
+    const hydrateUniversalPool = async () => {
+      try {
+        const [admissionsList, masterList] = await Promise.all([
+          getCachedCollection('admissions').catch(() => []),
+          getCachedCollection('masterRegisters').catch(() => [])
+        ]);
+
+        if (isCancelled) return;
+
+        const flatMaster = flattenMasterRegisters(masterList || []);
+        const validAdmissions = Array.isArray(admissionsList) ? admissionsList : [];
+
+        // Direct Firestore fallback for masterRegisters if empty
+        let directMaster = [];
+        if (flatMaster.length === 0) {
+          try {
+            const masterSnap = await getDocs(collection(db, 'masterRegisters'));
+            if (!masterSnap.empty) {
+              const rawDocs = masterSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+              directMaster = flattenMasterRegisters(rawDocs);
+            }
+          } catch (_) {}
+        }
+
+        // Direct Firestore fallback for admissions if empty
+        let directAdmissions = [];
+        if (validAdmissions.length === 0) {
+          try {
+            const admSnap = await getDocs(collection(db, 'admissions'));
+            if (!admSnap.empty) {
+              directAdmissions = admSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+            }
+          } catch (_) {}
+        }
+
+        const combined = [];
+        const seen = new Set();
+        const add = (s) => {
+          if (!s || typeof s !== 'object') return;
+          const id = s.id || s.formNo || s['Form Number'] || s['Board Registration Number'];
+          if (id && seen.has(id)) return;
+          if (id) seen.add(id);
+          combined.push(s);
+        };
+
+        if (Array.isArray(allStudents)) allStudents.forEach(add);
+        validAdmissions.forEach(add);
+        directAdmissions.forEach(add);
+        flatMaster.forEach(add);
+        directMaster.forEach(add);
+
+        if (!isCancelled && combined.length > 0) {
+          setUniversalStudents(combined);
+        }
+      } catch (err) {
+        console.warn('Error loading universal students in BulkFieldOverwriteModal:', err);
+      }
+    };
+
+    hydrateUniversalPool();
+    return () => { isCancelled = true; };
+  }, [isOpen, allStudents]);
+
   // Dynamic discovery of sessions, classes, streams, and statuses from active database
   const availableClasses = useMemo(() => {
-    const classSet = new Set();
-    const studentsSource = Array.isArray(allStudents) && allStudents.length > 0 
-      ? allStudents 
-      : (getCachedCollectionSync('admissions') || []);
-
-    studentsSource.forEach(st => {
+    const classSet = new Set(['12th', '11th', '10th', '9th']);
+    (universalStudents || []).forEach(st => {
       const cls = String(st.selectedClass || st.className || st.Class || st.class || st['Admission sought for class'] || '').trim();
       if (cls && cls !== '—' && cls !== 'undefined' && cls !== 'null') {
-        classSet.add(cls);
+        const normalized = cls.match(/\d+/)?.[0] ? `${cls.match(/\d+/)[0]}th` : cls;
+        classSet.add(normalized);
       }
     });
-
-    if (classSet.size === 0) {
-      return ['12th', '11th', '10th', '9th'];
-    }
 
     const classOrder = { '12th': 1, '11th': 2, '10th': 3, '9th': 4 };
     return Array.from(classSet).sort((a, b) => {
@@ -214,24 +375,16 @@ export default function BulkFieldOverwriteModal({
       if (orderA !== orderB) return orderA - orderB;
       return a.localeCompare(b, undefined, { numeric: true });
     });
-  }, [allStudents]);
+  }, [universalStudents]);
 
   const availableSessions = useMemo(() => {
-    const sessionSet = new Set();
-    const studentsSource = Array.isArray(allStudents) && allStudents.length > 0 
-      ? allStudents 
-      : (getCachedCollectionSync('admissions') || []);
-
-    studentsSource.forEach(st => {
+    const sessionSet = new Set(['2026 APR/BIAN', '2025-26', '2025 APR/BIAN', '2024-25', '2023-24']);
+    (universalStudents || []).forEach(st => {
       const sess = String(st.selectedSession || st.Session || st.session || st.academicSession || '').trim();
       if (sess && sess !== '—' && sess !== 'undefined' && sess !== 'null') {
         sessionSet.add(sess);
       }
     });
-
-    if (sessionSet.size === 0) {
-      return ['2026 APR/BIAN', '2025-26', '2025 APR/BIAN', '2024-25', '2023-24'];
-    }
 
     return Array.from(sessionSet).sort((a, b) => {
       const aIsBian = /bian|bi-annual|apr/i.test(a);
@@ -240,15 +393,11 @@ export default function BulkFieldOverwriteModal({
       if (!aIsBian && bIsBian) return 1;
       return b.localeCompare(a, undefined, { numeric: true });
     });
-  }, [allStudents]);
+  }, [universalStudents]);
 
   const availableStreams = useMemo(() => {
-    const streamSet = new Set();
-    const studentsSource = Array.isArray(allStudents) && allStudents.length > 0 
-      ? allStudents 
-      : (getCachedCollectionSync('admissions') || []);
-
-    studentsSource.forEach(st => {
+    const streamSet = new Set(['Science', 'Arts', 'Commerce', 'Medical', 'Non-Medical']);
+    (universalStudents || []).forEach(st => {
       const strm = String(
         st.selectedStream || 
         st.Stream || 
@@ -264,32 +413,36 @@ export default function BulkFieldOverwriteModal({
       }
     });
 
-    if (streamSet.size === 0) {
-      return ['Science', 'Arts', 'Commerce', 'Medical', 'Non-Medical'];
-    }
-
     return Array.from(streamSet).sort((a, b) => a.localeCompare(b));
-  }, [allStudents]);
+  }, [universalStudents]);
 
   const availableStatuses = useMemo(() => {
-    const statusSet = new Set();
-    const studentsSource = Array.isArray(allStudents) && allStudents.length > 0 
-      ? allStudents 
-      : (getCachedCollectionSync('admissions') || []);
-
-    studentsSource.forEach(st => {
+    const statusSet = new Set(['Approved', 'Confirmed', 'Draft', 'Submitted', 'Provisional']);
+    (universalStudents || []).forEach(st => {
       const stat = String(st.status || st.Status || st.admissionStatus || '').trim();
       if (stat && stat !== '—' && stat !== 'undefined' && stat !== 'null') {
         statusSet.add(stat);
       }
     });
 
-    if (statusSet.size === 0) {
-      return ['Confirmed', 'Approved', 'Provisional', 'Pending'];
-    }
-
     return Array.from(statusSet).sort((a, b) => a.localeCompare(b));
-  }, [allStudents]);
+  }, [universalStudents]);
+
+  // Candidates currently matching the selected cohort scope
+  const matchingCohortStudents = useMemo(() => {
+    return (universalStudents || []).filter(st => {
+      const matchCohort = sameCohort(st, targetSession, targetClass);
+      if (!matchCohort) return false;
+
+      const sStrm = String(st.selectedStream || st.Stream || st.stream || st['Stream for Class 11th'] || st['Stream & Subjects for Class 12th'] || st.faculty || '').toLowerCase();
+      const sStat = String(st.status || st.Status || st.admissionStatus || '').toLowerCase();
+      
+      const matchStrm = targetStream === 'All' || sStrm.includes(targetStream.toLowerCase());
+      const matchStat = targetStatus === 'All' || sStat === targetStatus.toLowerCase();
+
+      return matchStrm && matchStat;
+    });
+  }, [universalStudents, targetSession, targetClass, targetStream, targetStatus]);
 
   // Dynamic discovery of any additional fields present in actual database records
   const dynamicDatabaseCategories = useMemo(() => {
@@ -304,8 +457,7 @@ export default function BulkFieldOverwriteModal({
 
     const discoveredFields = [];
     const discoveredKeysSeen = new Set();
-
-    const sampleStudents = Array.isArray(allStudents) ? allStudents : [];
+    const sampleStudents = Array.isArray(universalStudents) ? universalStudents : [];
     sampleStudents.forEach(st => {
       if (!st || typeof st !== 'object') return;
       Object.keys(st).forEach(rawK => {
@@ -319,10 +471,10 @@ export default function BulkFieldOverwriteModal({
           rawK === 'ownerUid' || 
           rawK === 'photo_id' || 
           rawK === 'photoUrl' ||
-          rawK === 'photoId' ||
+          rawK === 'photoId' || 
           rawK === 'Student Photo' || 
           rawK === 'studentPhoto' ||
-          rawK === 'pdfUrl' ||
+          rawK === 'pdfUrl' || 
           rawK === 'PDF_URL' ||
           rawK === 'sno' ||
           rawK === 'hasMismatch' ||
@@ -367,7 +519,7 @@ export default function BulkFieldOverwriteModal({
         fields: discoveredFields
       }
     ];
-  }, [allStudents]);
+  }, [universalStudents]);
 
   // All active field definitions (standard + discovered + custom)
   const allFieldDefinitions = useMemo(() => {
@@ -453,18 +605,7 @@ export default function BulkFieldOverwriteModal({
   // First column is strictly Board Registration Number, followed by selected active fields.
   // Pre-fills existing students from the selected cohort, sorted natural numeric by Class Roll No.
   const handleDownloadExcelTemplate = () => {
-    const cohortStudents = (allStudents || []).filter(st => {
-      const matchCohort = sameCohort(st, targetSession, targetClass);
-      if (!matchCohort) return false;
-
-      const sStrm = String(st.selectedStream || st.Stream || st.stream || st['Stream for Class 11th'] || st['Stream & Subjects for Class 12th'] || st.faculty || '').toLowerCase();
-      const sStat = String(st.status || st.Status || st.admissionStatus || '').toLowerCase();
-      
-      const matchStrm = targetStream === 'All' || sStrm.includes(targetStream.toLowerCase());
-      const matchStat = targetStatus === 'All' || sStat === targetStatus.toLowerCase();
-
-      return matchStrm && matchStat;
-    });
+    const cohortStudents = [...matchingCohortStudents];
 
     // Default sort cohort students by Class Roll No in natural numeric ascending order
     cohortStudents.sort((a, b) => {
@@ -603,7 +744,7 @@ export default function BulkFieldOverwriteModal({
       const cleanForm = cleanKey(rawForm);
       const cleanRoll = cleanKey(rawRoll);
 
-      const matchedStudent = uniqueStudentMatch(allStudents,
+      const matchedStudent = uniqueStudentMatch(universalStudents,
         { reg: rawReg, adm: rawAdm, form: rawForm, roll: rawRoll }, targetSession, targetClass);
 
       // Extract all incoming fields dynamically
@@ -991,7 +1132,7 @@ export default function BulkFieldOverwriteModal({
                 if (onComplete) onComplete(record);
               }}
               onClose={onClose}
-              allStudents={allStudents}
+              allStudents={universalStudents}
               currentSession={currentSession}
               showToast={showToast}
             />
@@ -1001,7 +1142,7 @@ export default function BulkFieldOverwriteModal({
           {(modalMode === 'gazette_ai' || modalMode === 'admit_ai') && (
             <GazetteAndAdmitAiTab
               mode={modalMode}
-              allStudents={allStudents}
+              allStudents={universalStudents}
               targetClass={targetClass !== 'All' ? targetClass : '12th'}
               targetSession={targetSession}
               onIngestSuccess={(res) => {
@@ -1031,7 +1172,11 @@ export default function BulkFieldOverwriteModal({
                       <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500 mr-0.5">Cohort:</span>
                       <select
                         value={targetClass}
-                        onChange={(e) => setTargetClass(e.target.value)}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setTargetClass(val);
+                          try { sessionStorage.setItem('hss_last_selected_class', val); } catch (_) {}
+                        }}
                         className="px-2 py-1 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-[11px] font-bold text-slate-800 dark:text-slate-200 outline-none cursor-pointer"
                       >
                         <option value="All">All Classes ({availableClasses.length})</option>
@@ -1042,7 +1187,11 @@ export default function BulkFieldOverwriteModal({
 
                       <select
                         value={targetSession}
-                        onChange={(e) => setTargetSession(e.target.value)}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setTargetSession(val);
+                          try { sessionStorage.setItem('hss_last_selected_session', val); } catch (_) {}
+                        }}
                         className="px-2 py-1 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-[11px] font-bold text-slate-800 dark:text-slate-200 outline-none cursor-pointer"
                       >
                         <option value="All">All Sessions ({availableSessions.length})</option>
@@ -1072,6 +1221,11 @@ export default function BulkFieldOverwriteModal({
                           <option key={stat} value={stat}>{stat}</option>
                         ))}
                       </select>
+
+                      {/* Live Cohort Candidates Counter Badge */}
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
+                        {matchingCohortStudents.length} Students
+                      </span>
                     </div>
 
                     <button
@@ -1081,7 +1235,7 @@ export default function BulkFieldOverwriteModal({
                       title="Download pre-filled Excel spreadsheet for this cohort"
                     >
                       <Download size={12} />
-                      <span>Download Template (.xlsx)</span>
+                      <span>Download Template ({matchingCohortStudents.length > 0 ? matchingCohortStudents.length : '.xlsx'})</span>
                     </button>
                   </div>
 
@@ -1297,7 +1451,7 @@ export default function BulkFieldOverwriteModal({
                         <ExcelSpreadsheetGrid
                           activeFields={activeFieldsList}
                           onParseData={processIncomingRows}
-                          allStudents={allStudents}
+                          allStudents={universalStudents}
                           targetClass={targetClass}
                           targetSession={targetSession}
                           targetStream={targetStream}
@@ -1588,7 +1742,7 @@ export default function BulkFieldOverwriteModal({
         {modalMode === 'overwrite' && step === 'upload' && (
           <div className="px-3.5 py-1.5 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50/70 dark:bg-slate-950/50 text-[11px] flex-shrink-0">
             <div className="text-slate-500 font-medium">
-              Target: <strong className="text-slate-800 dark:text-slate-200">{targetClass}</strong> • Session <strong className="text-slate-800 dark:text-slate-200">{targetSession}</strong>
+              Target: <strong className="text-slate-800 dark:text-slate-200">{targetClass}</strong> • Session <strong className="text-slate-800 dark:text-slate-200">{targetSession}</strong> • <strong className="text-emerald-600 dark:text-emerald-400">{matchingCohortStudents.length} candidate(s) loaded</strong>
             </div>
             <button
               type="button"

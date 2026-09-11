@@ -811,6 +811,19 @@ export default function AdmissionRegisterSuite({
   const [toast, setToast] = useState(null);
   const [isPreparingPrint, setIsPreparingPrint] = useState(false);
 
+  // Sync selected session and class to sessionStorage for seamless cohort continuity
+  useEffect(() => {
+    if (selectedSession && selectedSession !== 'ALL') {
+      try { sessionStorage.setItem('hss_last_selected_session', selectedSession); } catch (_) {}
+    }
+  }, [selectedSession]);
+
+  useEffect(() => {
+    if (selectedClass && selectedClass !== 'ALL') {
+      try { sessionStorage.setItem('hss_last_selected_class', selectedClass); } catch (_) {}
+    }
+  }, [selectedClass]);
+
   // Popover Dropdown States for Consolidated Toolbar
   const [showFiltersPopover, setShowFiltersPopover] = useState(false);
   const [showViewPopover, setShowViewPopover] = useState(false);
