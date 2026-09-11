@@ -108,6 +108,34 @@ export function getStudentRegNo(st) {
   return '';
 }
 
+export function getStudentCentreNo(st, fallbackCentre = '') {
+  if (!st) return fallbackCentre;
+
+  // 1. Direct explicit centre number if set on student record
+  const explicit = st.centreNo || st['Centre No.'] || st['Centre No'] || st['Centre'] || '';
+  if (explicit && !/^(N\/A|—|-|null|undefined)$/i.test(String(explicit).trim())) {
+    return String(explicit).trim();
+  }
+
+  // 2. Derive from Exam Roll No: In JKBOSE, the first 6 digits represent the Centre Code
+  const rawExam = String(
+    st.examRollNo ||
+    st['Exam R.No. (Current)'] ||
+    st['Exam Roll No'] ||
+    st['Exam Roll No.'] ||
+    st['Board Roll'] ||
+    st.examRoll ||
+    ''
+  ).trim();
+
+  const digits = rawExam.replace(/\D/g, '');
+  if (digits.length >= 6) {
+    return digits.slice(0, 6);
+  }
+
+  return fallbackCentre;
+}
+
 export function findStudentMarkRecord(subDoc, student) {
   if (!subDoc || !subDoc.records || !Array.isArray(subDoc.records) || !student) return null;
 
@@ -361,7 +389,7 @@ export function printIndividualAwardRoll({
   isExternal = true,
   maxMarks = 10,
   minMarks = 4,
-  centreNo = '201006'
+  centreNo = ''
 }) {
   if (!records || records.length === 0) return false;
 
@@ -419,13 +447,20 @@ export function printIndividualAwardRoll({
         const rawMark = String(r.totalMarks ?? r.practicalMarks ?? r.marks ?? '').trim();
         const isAbs = rawMark.toUpperCase() === 'AB' || rawMark.toUpperCase() === 'A' || rawMark.toUpperCase() === 'ABSENT';
 
-        // Check centre number change
-        const rCentre = r.centreNo || r['Centre No.'] || r['Centre'] || centreNo;
+        // Derive centre number from exam roll (first 6 digits in JKBOSE) or explicit field
+        const rCentre = getStudentCentreNo(r, centreNo);
         if (rCentre && rCentre !== currentCentre) {
           currentCentre = rCentre;
           colHtml += `
             <tr>
               <td colspan="4" class="centre-num-row">centre no. ${currentCentre}</td>
+            </tr>
+          `;
+        } else if (!rCentre && !currentCentre && idx === 0) {
+          currentCentre = '—';
+          colHtml += `
+            <tr>
+              <td colspan="4" class="centre-num-row">centre no. &nbsp;____________________</td>
             </tr>
           `;
         }
@@ -1128,7 +1163,7 @@ export function printAllIndividualAwardRolls({
   isExternal = true,
   selectedSubjectCodes = null,
   printDetails = null,
-  centreNo = '201006'
+  centreNo = ''
 }) {
   if (!students || students.length === 0) return false;
 
@@ -1204,7 +1239,7 @@ export function printAllIndividualAwardRolls({
         const rawMark = markRec ? String(markRec.totalMarks ?? markRec.practicalMarks ?? '').trim() : '';
         const rawExamRoll = String(st['Exam R.No. (Current)'] || st.examRollNo || st['Exam Roll No'] || st['Exam Roll No.'] || st.examRoll || '').trim();
         const displayExamRoll = (rawExamRoll && rawExamRoll !== '—' && rawExamRoll !== 'N/A' && rawExamRoll !== 'NA') ? rawExamRoll : '—';
-        const cNo = st.centreNo || st['Centre No.'] || centreNo;
+        const cNo = getStudentCentreNo(st, centreNo);
 
         subjectStudents.push({
           sno: subjectStudents.length + 1,
@@ -1266,12 +1301,19 @@ export function printAllIndividualAwardRolls({
           const rawMark = String(r.totalMarks ?? r.practicalMarks ?? r.marks ?? '').trim();
           const isAbs = rawMark.toUpperCase() === 'AB' || rawMark.toUpperCase() === 'A' || rawMark.toUpperCase() === 'ABSENT';
 
-          const rCentre = r.centreNo || centreNo;
+          const rCentre = r.centreNo || getStudentCentreNo(r, centreNo);
           if (rCentre && rCentre !== currentCentre) {
             currentCentre = rCentre;
             colHtml += `
               <tr>
                 <td colspan="4" class="centre-num-row">centre no. ${currentCentre}</td>
+              </tr>
+            `;
+          } else if (!rCentre && !currentCentre && idx === 0) {
+            currentCentre = '—';
+            colHtml += `
+              <tr>
+                <td colspan="4" class="centre-num-row">centre no. &nbsp;____________________</td>
               </tr>
             `;
           }
