@@ -394,7 +394,7 @@ export default function AdminToolsDropdown({
                       <div>
                         <div className="flex items-center gap-1.5">
                           <div className="font-black text-xs text-slate-900 dark:text-white">Express Direct Record Entry</div>
-                          <span className={`rounded-md border px-1.5 py-0.2 text-[8px] font-black leading-none tracking-wide ${getModuleMaturity('beta').badgeClass}`}>Beta</span>
+                          <span className={`rounded-md border px-1.5 py-0.2 text-[8px] font-black leading-none tracking-wide ${getModuleMaturity('optimized').badgeClass}`}>Optimized</span>
                         </div>
                         <div className="text-[10px] text-slate-400 font-normal">Add a single student application directly into active intake</div>
                       </div>
@@ -439,7 +439,7 @@ export default function AdminToolsDropdown({
                       <div>
                         <div className="flex items-center gap-1.5">
                           <div className="font-black text-xs text-slate-900 dark:text-white">Board Data Sync (JKBOSE)</div>
-                          <span className={`rounded-md border px-1.5 py-0.2 text-[8px] font-black leading-none tracking-wide ${getModuleMaturity('beta').badgeClass}`}>Beta</span>
+                          <span className={`rounded-md border px-1.5 py-0.2 text-[8px] font-black leading-none tracking-wide ${getModuleMaturity('optimized').badgeClass}`}>Optimized</span>
                         </div>
                         <div className="text-[10px] text-slate-400 font-normal">Bulk overwrite student fields with verified board data</div>
                       </div>
