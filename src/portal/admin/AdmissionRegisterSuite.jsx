@@ -3652,11 +3652,11 @@ export default function AdmissionRegisterSuite({
             display: flex !important;
             flex-direction: column !important;
             justify-content: space-between !important;
-            height: 195mm !important;
-            min-height: 195mm !important;
-            max-height: 198mm !important;
+            height: auto !important;
+            min-height: 0 !important;
+            max-height: 188mm !important;
             box-sizing: border-box !important;
-            padding: 2.5mm 3mm !important;
+            padding: 2mm 3mm !important;
             page-break-after: always !important;
             break-after: page !important;
             page-break-inside: avoid !important;
@@ -3711,25 +3711,63 @@ export default function AdmissionRegisterSuite({
             margin-top: 0.5mm !important;
           }
 
-          .sentup-ledger-page,
-          .sentup-cover-page,
-          .sentup-plan-page {
+          /* ─── SENTUP ROLL SHEET PAGES & PAGINATION (ZERO OVERFLOW, RELIABLE BLINK RENDERING) ─── */
+          .sentup-cover-page {
             display: flex !important;
             flex-direction: column !important;
             justify-content: space-between !important;
-            height: 195mm !important;
-            min-height: 195mm !important;
-            max-height: 198mm !important;
+            height: auto !important;
+            min-height: 0 !important;
+            max-height: 182mm !important;
             width: 100% !important;
             max-width: 100% !important;
             box-sizing: border-box !important;
-            padding: 3mm 4mm !important;
+            padding: 3mm 6mm !important;
             margin: 0 !important;
             page-break-inside: avoid !important;
             break-inside: avoid-page !important;
             page-break-after: always !important;
             break-after: page !important;
             overflow: hidden !important;
+            background: #ffffff !important;
+          }
+
+          .sentup-plan-page {
+            display: flex !important;
+            flex-direction: column !important;
+            justify-content: space-between !important;
+            height: auto !important;
+            min-height: 0 !important;
+            max-height: 182mm !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            box-sizing: border-box !important;
+            padding: 2mm 3.5mm !important;
+            margin: 0 !important;
+            page-break-inside: avoid !important;
+            break-inside: avoid-page !important;
+            page-break-after: always !important;
+            break-after: page !important;
+            overflow: hidden !important;
+            background: #ffffff !important;
+          }
+
+          .sentup-ledger-page {
+            display: block !important;
+            position: relative !important;
+            height: auto !important;
+            min-height: 0 !important;
+            max-height: 188mm !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            box-sizing: border-box !important;
+            padding: 1.5mm 3mm !important;
+            margin: 0 !important;
+            page-break-inside: avoid !important;
+            break-inside: avoid-page !important;
+            page-break-after: always !important;
+            break-after: page !important;
+            overflow: visible !important;
             background: #ffffff !important;
           }
 
@@ -3743,13 +3781,13 @@ export default function AdmissionRegisterSuite({
           .sentup-cover-page .cover-title-box {
             border: 3px double #991b1b !important;
             background: #fffafa !important;
-            padding: 4mm 6mm !important;
-            border-radius: 4mm !important;
+            padding: 3mm 5mm !important;
+            border-radius: 3mm !important;
             text-align: center !important;
           }
 
           .sentup-cover-page .cover-school-title {
-            font-size: 22pt !important;
+            font-size: 20pt !important;
             font-weight: 900 !important;
             line-height: 1.15 !important;
             letter-spacing: 0.03em !important;
@@ -3757,7 +3795,7 @@ export default function AdmissionRegisterSuite({
           }
 
           .sentup-cover-page .cover-doc-title {
-            font-size: 20pt !important;
+            font-size: 18pt !important;
             font-weight: 900 !important;
             line-height: 1.15 !important;
             letter-spacing: 0.02em !important;
@@ -3767,7 +3805,7 @@ export default function AdmissionRegisterSuite({
           .sentup-plan-page .subject-key-table {
             width: 100% !important;
             border-collapse: collapse !important;
-            font-size: 7.5px !important;
+            font-size: 7px !important;
             line-height: 1.1 !important;
           }
 
@@ -3775,27 +3813,29 @@ export default function AdmissionRegisterSuite({
             background-color: #0f172a !important;
             color: #ffffff !important;
             font-weight: 900 !important;
-            padding: 1.5px 3px !important;
-            font-size: 7.5px !important;
+            padding: 1px 2.5px !important;
+            font-size: 7px !important;
           }
 
           .sentup-plan-page .subject-key-table td {
             border: 1px solid #cbd5e1 !important;
-            padding: 1px 2.5px !important;
+            padding: 0.8px 2px !important;
+            font-size: 7px !important;
           }
 
           .sentup-ledger-page .sentup-header {
-            flex-shrink: 0 !important;
-            margin-bottom: 1.5mm !important;
-            padding-bottom: 1mm !important;
+            display: block !important;
+            position: relative !important;
+            margin-bottom: 1.2mm !important;
+            padding-bottom: 0.8mm !important;
             border-bottom: 1.5px solid #0f172a !important;
           }
 
           .manual-sno-circle {
-            width: 24px !important;
-            height: 24px !important;
-            min-width: 24px !important;
-            min-height: 24px !important;
+            width: 22px !important;
+            height: 22px !important;
+            min-width: 22px !important;
+            min-height: 22px !important;
             border-radius: 50% !important;
             border: 1.5px solid #0f172a !important;
             display: inline-flex !important;
@@ -3806,7 +3846,7 @@ export default function AdmissionRegisterSuite({
           }
 
           .sentup-ledger-page .sentup-header h1 {
-            font-size: 16.5px !important;
+            font-size: 15.5px !important;
             font-weight: 900 !important;
             line-height: 1.15 !important;
             margin: 0 !important;
@@ -3816,32 +3856,42 @@ export default function AdmissionRegisterSuite({
           }
 
           .sentup-ledger-page .sentup-header .sentup-subtitle {
-            font-size: 9.5px !important;
+            font-size: 9px !important;
             font-weight: 800 !important;
             line-height: 1.15 !important;
-            margin-top: 1.5px !important;
+            margin-top: 1px !important;
           }
 
           .sentup-ledger-page .overflow-x-auto {
             overflow: visible !important;
             display: block !important;
             width: 100% !important;
-            flex: 1 1 auto !important;
             margin: 0 !important;
             padding: 0 !important;
+            flex: none !important;
           }
 
-          .sentup-table {
+          .sentup-table,
+          .sentup-ledger-page .sentup-table {
+            display: table !important;
             table-layout: fixed !important;
             width: 100% !important;
             border-collapse: collapse !important;
-            font-size: 9px !important;
+            font-size: 8.5px !important;
             line-height: 1.15 !important;
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+            height: auto !important;
+            flex: none !important;
+          }
+
+          .sentup-table thead {
+            display: table-header-group !important;
           }
 
           .sentup-table thead tr {
-            height: 7mm !important;
-            max-height: 7.5mm !important;
+            height: 6mm !important;
+            max-height: 6.5mm !important;
           }
 
           .sentup-table th {
@@ -3851,24 +3901,36 @@ export default function AdmissionRegisterSuite({
             font-weight: 800 !important;
           }
 
+          .sentup-table tbody {
+            display: table-row-group !important;
+            height: auto !important;
+          }
+
           .sentup-table tbody tr {
-            height: 13.5mm !important;
-            max-height: 14mm !important;
+            display: table-row !important;
+            height: 9.8mm !important;
+            max-height: 10mm !important;
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
           }
 
           .sentup-table td {
-            padding: 1px 2px !important;
+            height: 9.8mm !important;
+            max-height: 10mm !important;
+            padding: 0.5px 2px !important;
             line-height: 1.15 !important;
-            font-size: 9px !important;
+            font-size: 8.5px !important;
             vertical-align: middle !important;
+            box-sizing: border-box !important;
+            overflow: hidden !important;
           }
 
           .sentup-table .sentup-photo-cell,
           .sentup-table td.sentup-photo-cell {
-            height: 13.5mm !important;
-            max-height: 13.8mm !important;
-            width: 11mm !important;
-            max-width: 12mm !important;
+            height: 9.8mm !important;
+            max-height: 10mm !important;
+            width: 10mm !important;
+            max-width: 11mm !important;
             padding: 0.5px !important;
             text-align: center !important;
             vertical-align: middle !important;
@@ -3877,7 +3939,7 @@ export default function AdmissionRegisterSuite({
 
           .sentup-table .sentup-photo-cell img,
           .sentup-table td.sentup-photo-cell img {
-            max-height: 12.8mm !important;
+            max-height: 9mm !important;
             max-width: 100% !important;
             width: auto !important;
             height: auto !important;
@@ -3911,14 +3973,14 @@ export default function AdmissionRegisterSuite({
 
           .sentup-table td.st-boardroll-cell,
           .sentup-table .st-boardroll-cell {
-            font-size: 11.5px !important;
+            font-size: 11px !important;
             font-weight: 900 !important;
             line-height: 1.1 !important;
             letter-spacing: -0.01em !important;
           }
 
           .sentup-table .st-boardroll-cell div {
-            font-size: 11.5px !important;
+            font-size: 11px !important;
             font-weight: 900 !important;
           }
 
@@ -3937,14 +3999,14 @@ export default function AdmissionRegisterSuite({
           .sentup-table .st-boardreg-cell {
             width: 24mm !important;
             max-width: 26mm !important;
-            font-size: 11px !important;
+            font-size: 10.5px !important;
             font-weight: 900 !important;
             line-height: 1.15 !important;
           }
 
           .sentup-table .st-boardreg-cell div,
           .sentup-table .st-boardreg-cell span {
-            font-size: 11px !important;
+            font-size: 10.5px !important;
             font-weight: 900 !important;
             line-height: 1.15 !important;
             letter-spacing: -0.01em !important;
@@ -3955,7 +4017,7 @@ export default function AdmissionRegisterSuite({
           .sentup-table th.th-col-st_name {
             width: 62mm !important;
             min-width: 58mm !important;
-            font-size: 10.5px !important;
+            font-size: 10px !important;
             font-weight: 900 !important;
             line-height: 1.1 !important;
             letter-spacing: 0.02em !important;
@@ -3965,13 +4027,13 @@ export default function AdmissionRegisterSuite({
           .sentup-table .st-name-cell {
             width: 62mm !important;
             min-width: 58mm !important;
-            font-size: 14px !important;
+            font-size: 13.5px !important;
             font-weight: 900 !important;
             line-height: 1.15 !important;
           }
 
           .sentup-table .st-name-cell span {
-            font-size: 14px !important;
+            font-size: 13.5px !important;
             font-weight: 900 !important;
             line-height: 1.15 !important;
             letter-spacing: 0.01em !important;
@@ -3979,25 +4041,27 @@ export default function AdmissionRegisterSuite({
 
           .sentup-table td.st-rollno-cell,
           .sentup-table .st-rollno-cell {
-            font-size: 12px !important;
+            font-size: 11.5px !important;
             font-weight: 900 !important;
             line-height: 1.1 !important;
             letter-spacing: 0.02em !important;
           }
 
           .sentup-table .st-rollno-cell div {
-            font-size: 12px !important;
+            font-size: 11.5px !important;
             font-weight: 900 !important;
           }
 
           .sentup-table td.st-receipt-cell {
-            padding: 1px !important;
+            padding: 0.5px !important;
             vertical-align: bottom !important;
           }
 
           .sentup-table .st-receipt-inner {
             min-height: 0 !important;
-            height: 100% !important;
+            height: 9mm !important;
+            max-height: 9mm !important;
+            overflow: hidden !important;
           }
 
           .sentup-table .st-receipt-inner .border-t {
@@ -4009,17 +4073,16 @@ export default function AdmissionRegisterSuite({
             display: flex !important;
             justify-content: space-between !important;
             align-items: flex-end !important;
-            margin-top: auto !important;
-            height: 12mm !important;
-            min-height: 12mm !important;
-            max-height: 13mm !important;
-            padding: 1mm 0 0 !important;
+            margin-top: 1.5mm !important;
+            height: 8.5mm !important;
+            min-height: 8.5mm !important;
+            max-height: 9mm !important;
+            padding: 0 !important;
             box-sizing: border-box !important;
             page-break-before: avoid !important;
             break-before: avoid !important;
             page-break-inside: avoid !important;
             break-inside: avoid !important;
-            flex-shrink: 0 !important;
           }
 
           .sentup-ledger-page .signature-footer > .signature-block {
@@ -4030,7 +4093,7 @@ export default function AdmissionRegisterSuite({
             font-weight: 900 !important;
             color: #991b1b !important;
             border-top: 1.5px solid #991b1b !important;
-            padding-top: 1mm !important;
+            padding-top: 0.8mm !important;
             box-sizing: border-box !important;
           }
 
@@ -4055,9 +4118,9 @@ export default function AdmissionRegisterSuite({
             box-sizing: border-box !important;
             width: 100% !important;
             max-width: 100% !important;
-            min-height: 195mm !important;
-            max-height: 195mm !important;
-            padding: 10mm 12mm !important;
+            min-height: 0 !important;
+            max-height: 185mm !important;
+            padding: 8mm 10mm !important;
             page-break-after: always !important;
             break-after: page !important;
           }
@@ -4070,6 +4133,12 @@ export default function AdmissionRegisterSuite({
             border-collapse: collapse !important;
             border: 1px solid #000000 !important;
             table-layout: fixed !important;
+          }
+
+          .sentup-ledger-page table,
+          .sentup-table {
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
           }
 
           th, td {

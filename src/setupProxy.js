@@ -218,6 +218,45 @@ module.exports = function(app) {
       }
     }
 
+    // Local Development Fallback: Catalog lookup
+    try {
+      const catalog = require('./data/verifiedStudentsCatalog.json');
+      const body = req.body || {};
+      const fNo = String(body.formNo || '').trim().toLowerCase();
+      const reg = String(body.regNo || '').trim().toLowerCase();
+      const roll = String(body.rollNo || '').trim().toLowerCase();
+      let match = null;
+      if (fNo) match = catalog.find(s => String(s.fNo || '').trim().toLowerCase() === fNo);
+      if (!match && reg && roll) match = catalog.find(s => String(s.boardRegNo || '').trim().toLowerCase() === reg && String(s.classRollNo || '').trim().toLowerCase() === roll);
+      if (!match && reg) match = catalog.find(s => String(s.boardRegNo || '').trim().toLowerCase() === reg);
+      if (!match && roll) match = catalog.find(s => String(s.classRollNo || '').trim().toLowerCase() === roll);
+      if (match) {
+        return res.status(200).json({
+          student: {
+            name: match.name,
+            fatherName: match.fatherName,
+            formNo: match.fNo,
+            boardRegNo: match.boardRegNo || reg || '—',
+            classRollNo: match.classRollNo || roll || '—',
+            className: match.className || body.className || '11th',
+            session: match.session || body.session || '2025-26',
+            stream: match.stream || 'General / Academics',
+            photoUrl: match.photoUrl || null,
+          },
+          verification: {
+            kind: body.certificateNo ? 'certificate' : 'enrollment',
+            certificateNo: body.certificateNo || '',
+            documentType: body.documentType || (body.certificateNo ? 'Official School Certificate' : 'Admission Form'),
+            status: 'Active',
+            issuedAt: body.certificateNo ? 'Verified Record' : ''
+          }
+        });
+      }
+      if (fNo || reg || roll) {
+        return res.status(404).json({ error: 'Student record could not be found in the registry.' });
+      }
+    } catch (_) {}
+
     return res.status(503).json({ error: 'Local lookup unavailable.' });
   });
 
