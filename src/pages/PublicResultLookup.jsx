@@ -945,8 +945,9 @@ export default function PublicResultLookup() {
             </div>
 
             {/* Candidate Identity Profile Box */}
-            <div className="relative z-10 flex items-center gap-3 p-2 rounded-lg bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/80 dark:border-slate-800 print:border-slate-300 print:bg-transparent print:p-1.5">
-              <div className="w-11 h-13 rounded-md bg-slate-200 dark:bg-slate-700 flex-shrink-0 overflow-hidden border border-slate-200 dark:border-slate-600 flex items-center justify-center print:border-slate-300 print:bg-transparent">
+            <div className="relative z-10 flex items-stretch gap-3 sm:gap-4 p-2.5 sm:p-3 rounded-xl bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 print:border-slate-300 print:bg-transparent print:p-2">
+              {/* Photo Box */}
+              <div className="w-14 sm:w-16 h-18 sm:h-20 rounded-lg bg-slate-200 dark:bg-slate-700 flex-shrink-0 overflow-hidden border border-slate-200 dark:border-slate-600 flex items-center justify-center print:border-slate-400 print:bg-transparent shadow-2xs">
                 {studentResult.photoUrl && !studentResult.photoUrl.includes('drive.google.com') && !studentResult.photoUrl.includes('googleusercontent.com') ? (
                   <img
                     src={studentResult.photoUrl}
@@ -955,49 +956,85 @@ export default function PublicResultLookup() {
                     onError={(e) => { e.currentTarget.style.display = 'none'; }}
                   />
                 ) : (
-                  <User size={18} className="text-slate-400 print:text-slate-600" />
+                  <div className="flex flex-col items-center justify-center text-slate-400 print:text-slate-500">
+                    <User size={22} />
+                    <span className="text-[8px] uppercase tracking-wider font-semibold mt-1">Photo</span>
+                  </div>
                 )}
               </div>
 
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center justify-between gap-2 flex-wrap">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-black text-slate-900 dark:text-white print:text-black leading-tight">
-                      {studentResult.name}
+              {/* Candidate Info Grid */}
+              <div className="min-w-0 flex-1 flex flex-col justify-between space-y-2">
+                {/* Top Row: Candidate Name & Father's Name */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pb-1.5 border-b border-slate-200/80 dark:border-slate-800 print:border-slate-300">
+                  <div className="min-w-0">
+                    <span className="text-[9px] font-bold text-slate-400 print:text-slate-500 uppercase tracking-wider block">
+                      Candidate Name
                     </span>
-                    <span className="text-[9px] font-black px-1.5 py-0.5 rounded bg-teal-50 dark:bg-teal-950/80 text-teal-800 dark:text-teal-300 uppercase border border-teal-200/60 dark:border-teal-800/60 print:border-slate-400 print:text-slate-800 print:bg-transparent">
-                      {studentResult.stream || 'General'}
-                    </span>
+                    <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+                      <span className="text-sm sm:text-base font-black text-slate-900 dark:text-white print:text-black leading-tight">
+                        {studentResult.name}
+                      </span>
+                      <span className="text-[9px] font-black px-1.5 py-0.5 rounded bg-teal-50 dark:bg-teal-950/80 text-teal-800 dark:text-teal-300 uppercase border border-teal-200/80 dark:border-teal-800/80 print:border-slate-400 print:text-slate-800 print:bg-transparent">
+                        {studentResult.stream || 'General'}
+                      </span>
+                    </div>
                   </div>
-                  <div className="text-[10.5px] text-slate-500 dark:text-slate-400 print:text-slate-700">
-                    Father: <strong className="text-slate-800 dark:text-slate-200 print:text-black font-bold">{studentResult.fatherName || '—'}</strong>
+
+                  <div className="min-w-0 sm:text-right">
+                    <span className="text-[9px] font-bold text-slate-400 print:text-slate-500 uppercase tracking-wider block">
+                      Father's Name
+                    </span>
+                    <p className="text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-200 print:text-black leading-tight mt-0.5">
+                      {studentResult.fatherName || '—'}
+                    </p>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 pt-1 text-[10.5px] font-mono">
-                  <div>
-                    <span className="text-slate-400 print:text-slate-500 block text-[9px] font-sans">Class:</span>
-                    <strong className="text-slate-800 dark:text-slate-200 print:text-black font-bold">{studentResult.className}</strong>
+                {/* Bottom Row: 4 Key Registration & Roll Attributes */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs font-mono">
+                  <div className="bg-white/70 dark:bg-slate-900/50 print:bg-transparent p-1.5 rounded-lg border border-slate-100 dark:border-slate-800 print:border-0 print:p-0">
+                    <span className="text-slate-400 print:text-slate-500 block text-[9px] font-sans font-bold uppercase tracking-wider">
+                      Class
+                    </span>
+                    <strong className="text-slate-800 dark:text-slate-200 print:text-black font-bold">
+                      {studentResult.className}
+                    </strong>
                   </div>
-                  <div>
-                    <span className="text-slate-400 print:text-slate-500 block text-[9px] font-sans">Class Roll No:</span>
-                    <strong className="text-teal-700 dark:text-teal-300 print:text-black font-bold">{studentResult.classRollNo || '—'}</strong>
+
+                  <div className="bg-white/70 dark:bg-slate-900/50 print:bg-transparent p-1.5 rounded-lg border border-slate-100 dark:border-slate-800 print:border-0 print:p-0">
+                    <span className="text-slate-400 print:text-slate-500 block text-[9px] font-sans font-bold uppercase tracking-wider">
+                      Class Roll No
+                    </span>
+                    <strong className="text-teal-700 dark:text-teal-300 print:text-black font-bold">
+                      {studentResult.classRollNo || '—'}
+                    </strong>
                   </div>
-                  <div>
-                    <span className="text-slate-400 print:text-slate-500 block text-[9px] font-sans">Board Reg No:</span>
-                    <strong className="text-slate-800 dark:text-slate-200 print:text-black font-bold">{studentResult.boardRegNo || '—'}</strong>
+
+                  <div className="bg-white/70 dark:bg-slate-900/50 print:bg-transparent p-1.5 rounded-lg border border-slate-100 dark:border-slate-800 print:border-0 print:p-0">
+                    <span className="text-slate-400 print:text-slate-500 block text-[9px] font-sans font-bold uppercase tracking-wider">
+                      Board Reg No
+                    </span>
+                    <strong className="text-slate-800 dark:text-slate-200 print:text-black font-bold text-[11px] sm:text-xs">
+                      {studentResult.boardRegNo || '—'}
+                    </strong>
                   </div>
-                  <div>
-                    <span className="text-slate-400 print:text-slate-500 block text-[9px] font-sans">Form No:</span>
-                    <strong className="text-slate-800 dark:text-slate-200 print:text-black font-bold">{studentResult.formNo || '—'}</strong>
+
+                  <div className="bg-white/70 dark:bg-slate-900/50 print:bg-transparent p-1.5 rounded-lg border border-slate-100 dark:border-slate-800 print:border-0 print:p-0 sm:text-right">
+                    <span className="text-slate-400 print:text-slate-500 block text-[9px] font-sans font-bold uppercase tracking-wider">
+                      Form No
+                    </span>
+                    <strong className="text-slate-800 dark:text-slate-200 print:text-black font-bold">
+                      {studentResult.formNo || '—'}
+                    </strong>
                   </div>
                 </div>
               </div>
             </div>
 
             {/* Subject-Wise Performance Table */}
-            <div className="relative z-10 space-y-1">
-              <div className="flex items-center justify-between text-[10px] font-bold text-slate-500 dark:text-slate-400 print:text-slate-600 uppercase tracking-wider">
+            <div className="relative z-10 space-y-1.5 pt-1">
+              <div className="flex items-center justify-between text-[10px] font-bold text-slate-500 dark:text-slate-400 print:text-slate-600 uppercase tracking-wider pb-0.5">
                 <span>Academic Performance Record</span>
                 <span className="font-mono">
                   Tabulated: {studentResult.evaluatedCount || 0} / {studentResult.totalCount || 0} Subjects
