@@ -150,10 +150,24 @@ export default function StudentVerificationPage() {
       const expectedSigs = [
         generateVerificationSignature(cleanReg, cleanRoll, cleanFNo, cleanCert),
         generateVerificationSignature(cleanReg, cleanRoll, cleanFNo, ''),
-        generateVerificationSignature(cleanReg, cleanRoll, cleanFNo),
+        generateVerificationSignature(cleanReg, cleanRoll, '', cleanCert),
+        generateVerificationSignature(cleanReg, '', cleanFNo, cleanCert),
+        generateVerificationSignature('', cleanRoll, cleanFNo, cleanCert),
+        generateVerificationSignature(cleanReg, '', '', cleanCert),
+        generateVerificationSignature('', cleanRoll, '', cleanCert),
+        generateVerificationSignature('', '', cleanFNo, cleanCert),
+        generateVerificationSignature('', '', '', cleanCert),
+        generateVerificationSignature(cleanReg, cleanRoll, '', ''),
+        generateVerificationSignature(cleanReg, '', cleanFNo, ''),
+        generateVerificationSignature('', cleanRoll, cleanFNo, ''),
         generateVerificationSignature(rawReg, rawRoll, rawFNo, rawCert),
         generateVerificationSignature(rawReg, rawRoll, rawFNo, ''),
-        generateVerificationSignature(rawReg, rawRoll, rawFNo),
+        generateVerificationSignature(rawReg, rawRoll, '', rawCert),
+        generateVerificationSignature(rawReg, '', rawFNo, rawCert),
+        generateVerificationSignature(rawReg, '', '', rawCert),
+        generateVerificationSignature('', rawRoll, '', rawCert),
+        generateVerificationSignature('', '', rawFNo, rawCert),
+        generateVerificationSignature('', '', '', rawCert),
         generateVerificationSignature(cleanReg || '—', cleanRoll || '—', cleanFNo || '—', cleanCert || ''),
         generateVerificationSignature(cleanReg || '—', cleanRoll || '—', cleanFNo || '—', ''),
         generateVerificationSignature(cleanReg || '—', cleanRoll || '—', cleanFNo || '—'),
@@ -323,26 +337,26 @@ export default function StudentVerificationPage() {
       }
 
       // ── TIER 5: Archival Transcript Fallback ──
-      // For legacy QR codes printed without cryptographic signatures
-      if (rawName && (cleanFNo || cleanReg) && !isSignatureMismatch) {
+      // For legacy QR codes or certificates printed without cryptographic signatures
+      if ((rawName || cleanCert) && (cleanFNo || cleanReg || cleanRoll || cleanCert || rawName) && !isSignatureMismatch) {
         setState({
           loading: false,
           student: {
-            name: rawName,
+            name: rawName || 'Student Credential',
             fatherName: rawFather || '—',
             className: rawClass || '11th',
             classRollNo: cleanRoll || '—',
             boardRegNo: cleanReg || '—',
             formNo: cleanFNo || '—',
             session: rawSession || '2025-26',
-            stream: 'Academics',
+            stream: 'General / Academics',
             photoUrl: null
           },
           verification: {
             kind: cleanCert ? 'certificate' : 'enrollment',
             certificateNo: cleanCert || '—',
-            documentType: rawDoc || (cleanCert ? 'Official School Certificate' : 'Admission Credential'),
-            issuedAt: cleanCert ? 'Archival Issue' : '',
+            documentType: rawDoc || (cleanCert ? 'Official Bonafide / School Certificate' : 'Admission Credential'),
+            issuedAt: cleanCert ? 'Official Issued Record' : '',
             status: 'Active',
             source: 'Institutional Document Transcript'
           }
