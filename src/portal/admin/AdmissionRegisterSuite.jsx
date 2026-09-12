@@ -91,38 +91,30 @@ export const DEFAULT_COLUMN_WIDTHS = {
   st_marksReceipt: 140
 };
 
-// Default Official JKBOSE & School Portal Subject Abbreviation Directory for Page 2 Examination Plan
+// Official Govt Higher Secondary School Shangus Subject Abbreviation Directory for Examination & Sent-up Roll Sheets
 const DEFAULT_SENTUP_SUBJECT_DIRECTORY = [
   { id: 'en', code: 'EN / GE', name: 'General English' },
   { id: 'ph', code: 'PH', name: 'Physics' },
   { id: 'ch', code: 'CH', name: 'Chemistry' },
   { id: 'bi', code: 'BI / BIO', name: 'Biology (Botany & Zoology)' },
-  { id: 'bo', code: 'BO', name: 'Botany' },
-  { id: 'zo', code: 'ZO', name: 'Zoology' },
   { id: 'ma', code: 'MA / MTH', name: 'Mathematics' },
-  { id: 'am', code: 'AM', name: 'Applied Mathematics' },
   { id: 'es', code: 'ES / EVS', name: 'Environmental Science' },
-  { id: 'ps', code: 'PS / POL', name: 'Political Science' },
+  { id: 'pd', code: 'PD / PE', name: 'Physical Education' },
   { id: 'ed', code: 'ED / EDU', name: 'Education' },
-  { id: 'so', code: 'SO / SOC', name: 'Sociology' },
+  { id: 'ps', code: 'PS / POL', name: 'Political Science' },
   { id: 'ec', code: 'EC / ECO', name: 'Economics' },
-  { id: 'hi', code: 'HI / HIST', name: 'History' },
-  { id: 'ur', code: 'UR', name: 'Urdu' },
+  { id: 'hy', code: 'HY / HIST', name: 'History' },
+  { id: 'ur', code: 'UR / UD', name: 'Urdu' },
   { id: 'ar', code: 'AR', name: 'Arabic' },
   { id: 'ka', code: 'KA / KS', name: 'Kashmiri' },
   { id: 'hn', code: 'HN / HND', name: 'Hindi' },
-  { id: 'pe', code: 'PE / PER', name: 'Persian' },
-  { id: 'ip', code: 'IP / ITE', name: 'Information Practices / IT' },
-  { id: 'cs', code: 'CS', name: 'Computer Science' },
   { id: 'htc', code: 'HTC', name: 'Health Care' },
-  { id: 'pd', code: 'PD / PE', name: 'Physical Education' },
-  { id: 'geo', code: 'GG / GEO', name: 'Geography' },
+  { id: 'ite', code: 'ITE / IT', name: 'IT and ITES' },
   { id: 'ay', code: 'AY / ACC', name: 'Accountancy' },
   { id: 'bs', code: 'BS / BST', name: 'Business Studies' },
   { id: 'ep', code: 'EP', name: 'Entrepreneurship' },
-  { id: 'pa', code: 'PA', name: 'Public Administration' },
-  { id: 'is', code: 'IS', name: 'Islamic Studies' },
-  { id: 'hsc', code: 'HSC', name: 'Home Science' }
+  { id: 'sci', code: 'SCI', name: 'General Science (Secondary)' },
+  { id: 'sst', code: 'S.ST', name: 'Social Science (Secondary)' }
 ];
 
 // Draggable Table Column Header Component
@@ -1177,13 +1169,21 @@ export default function AdmissionRegisterSuite({
   const [isLayoutModified, setIsLayoutModified] = useState(false);
   const [savingLayout, setSavingLayout] = useState(false);
 
+  // Helper to detect outdated generic lists with non-school subjects
+  const isOldGenericSubjectList = (list) => {
+    if (!Array.isArray(list) || list.length === 0) return false;
+    return list.some(item => ['pe', 'hsc', 'is', 'pa', 'cs', 'geo', 'so', 'bo', 'zo', 'am'].includes(item?.id) || item?.name === 'Persian' || item?.name === 'Home Science' || item?.name === 'Sociology');
+  };
+
   // Sentup Subject Abbreviations Directory (Configurable in View & Layout, Persisted to Cloud and LocalStorage)
   const [sentupSubjectAbbreviations, setSentupSubjectAbbreviations] = useState(() => {
     try {
       const saved = localStorage.getItem('hss_sentup_subject_abbreviations');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0 && !isOldGenericSubjectList(parsed)) {
+          return parsed;
+        }
       }
     } catch (e) {
       console.error('Failed to load custom subject abbreviations', e);
@@ -1215,9 +1215,12 @@ export default function AdmissionRegisterSuite({
             setPrintMargin(data.printMargin);
           }
           if (Array.isArray(data.sentupSubjectAbbreviations) && data.sentupSubjectAbbreviations.length > 0) {
-            setSentupSubjectAbbreviations(data.sentupSubjectAbbreviations);
+            const cleanList = isOldGenericSubjectList(data.sentupSubjectAbbreviations)
+              ? DEFAULT_SENTUP_SUBJECT_DIRECTORY
+              : data.sentupSubjectAbbreviations;
+            setSentupSubjectAbbreviations(cleanList);
             try {
-              localStorage.setItem('hss_sentup_subject_abbreviations', JSON.stringify(data.sentupSubjectAbbreviations));
+              localStorage.setItem('hss_sentup_subject_abbreviations', JSON.stringify(cleanList));
             } catch (_) {}
           }
           try {
@@ -2987,15 +2990,44 @@ export default function AdmissionRegisterSuite({
     saveSubjectAbbreviationsToCloud(updated);
   }, [saveSubjectAbbreviationsToCloud]);
 
+  // Scope filter for Page 2 Subject Key: 'school' (All School Subjects) vs 'cohort' (Only Subjects in this Roll Sheet)
+  const [subjectKeyScope, setSubjectKeyScope] = useState('school');
+
+  // Dynamically extract all unique subject codes present in the currently included students
+  const activeCohortSubjectCodes = useMemo(() => {
+    const codes = new Set();
+    activeIncludedRows.forEach(s => {
+      const subsStr = s.subs || '';
+      if (!subsStr || subsStr === '—' || subsStr === '-') return;
+      const parts = subsStr.split(',').map(p => p.trim()).filter(Boolean);
+      parts.forEach(p => {
+        codes.add(p.toUpperCase());
+      });
+    });
+    return codes;
+  }, [activeIncludedRows]);
+
+  // Active Subject List for Page 2
+  const displayedSubjectDirectory = useMemo(() => {
+    if (subjectKeyScope === 'cohort' && activeCohortSubjectCodes.size > 0) {
+      const filtered = sentupSubjectAbbreviations.filter(sub => {
+        const subCodes = String(sub.code || '').split(/[/,]+/).map(c => c.trim().toUpperCase());
+        return subCodes.some(c => activeCohortSubjectCodes.has(c));
+      });
+      if (filtered.length > 0) return filtered;
+    }
+    return sentupSubjectAbbreviations;
+  }, [subjectKeyScope, activeCohortSubjectCodes, sentupSubjectAbbreviations]);
+
   // Split subject abbreviations into two balanced columns for compact 2-column display on Page 2
   const { leftSubjects, rightSubjects } = useMemo(() => {
-    const list = sentupSubjectAbbreviations || [];
+    const list = displayedSubjectDirectory || [];
     const mid = Math.ceil(list.length / 2);
     return {
       leftSubjects: list.slice(0, mid),
       rightSubjects: list.slice(mid)
     };
-  }, [sentupSubjectAbbreviations]);
+  }, [displayedSubjectDirectory]);
 
   // Sentup Candidate Census Statistics (Rendered on Cover & Plan Pages)
   const sentupCensus = useMemo(() => {
@@ -4754,7 +4786,7 @@ export default function AdmissionRegisterSuite({
                             <div className="flex items-center gap-2">
                               <span className="font-black text-xs text-slate-900 flex items-center gap-1.5">
                                 <BookOpen size={13} className="text-indigo-600" />
-                                <span>Page 2 Subject Key ({sentupSubjectAbbreviations.length})</span>
+                                <span>Page 2 Subject Key ({sentupSubjectAbbreviations.length} · HSS Shangus)</span>
                               </span>
                               {savingSubjectsCloud ? (
                                 <span className="text-[10px] font-bold text-indigo-600 flex items-center gap-1">
@@ -4780,9 +4812,9 @@ export default function AdmissionRegisterSuite({
                                 type="button"
                                 onClick={handleResetSubjectAbbreviations}
                                 className="text-[10px] font-black text-slate-500 hover:text-rose-600 hover:underline cursor-pointer"
-                                title="Reset to default JKBOSE & School Portal abbreviations"
+                                title="Reset to official Govt HSS Shangus subjects directory"
                               >
-                                Reset Defaults
+                                Reset to School Subjects
                               </button>
                             </div>
                           </div>
@@ -6085,7 +6117,7 @@ export default function AdmissionRegisterSuite({
                         </div>
                         {/* Circle for manual hand-stamped S.No on top right */}
                         <div
-                          className="w-6 h-6 rounded-full border-2 border-slate-900 flex items-center justify-center text-[8px] font-mono text-transparent select-none shrink-0"
+                          className="w-8 h-8 rounded-full border border-slate-400 flex items-center justify-center text-[9px] font-mono text-transparent select-none shrink-0 print:border-slate-400"
                           title="Manual Serial Number / Stamp Area"
                         >
                         </div>
@@ -6158,10 +6190,12 @@ export default function AdmissionRegisterSuite({
                         <div className="text-[10px] font-black uppercase text-red-900 border-b border-red-200 pb-1 mb-1.5 flex items-center justify-between">
                           <div className="flex items-center gap-2">
                             <span>Subject Key</span>
-                            <span className="text-[8.5px] font-bold text-slate-500">({sentupSubjectAbbreviations.length} Subjects)</span>
+                            <span className="text-[8.5px] font-bold text-slate-500">
+                              ({displayedSubjectDirectory.length} Subjects · HSS Shangus)
+                            </span>
                             {savingSubjectsCloud ? (
                               <span className="text-[8px] font-bold text-indigo-600 flex items-center gap-1 print:hidden">
-                                <Loader2 size={9} className="animate-spin" /> Saving to Cloud...
+                                <Loader2 size={9} className="animate-spin" /> Saving...
                               </span>
                             ) : (
                               <span className="text-[8px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-1 py-0.2 rounded flex items-center gap-0.5 print:hidden">
@@ -6169,15 +6203,36 @@ export default function AdmissionRegisterSuite({
                               </span>
                             )}
                           </div>
-                          <button
-                            type="button"
-                            onClick={() => setShowViewPopover(true)}
-                            className="print:hidden text-[9px] font-bold text-indigo-600 hover:text-indigo-800 hover:underline flex items-center gap-1 cursor-pointer bg-indigo-50 border border-indigo-200 px-1.5 py-0.5 rounded shadow-2xs"
-                            title="Add, edit, or remove subject abbreviations in View & Layout popover"
-                          >
-                            <Edit3 size={10} />
-                            <span>Edit in View & Layout</span>
-                          </button>
+                          <div className="flex items-center gap-1.5 print:hidden">
+                            {/* Scope Selector Toggle */}
+                            <div className="flex items-center rounded bg-slate-100 border border-slate-300 p-0.5 text-[8.5px] font-bold">
+                              <button
+                                type="button"
+                                onClick={() => setSubjectKeyScope('school')}
+                                className={`px-1.5 py-0.5 rounded cursor-pointer transition-all ${subjectKeyScope === 'school' ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-700 hover:text-slate-900'}`}
+                                title="Show all official subjects offered at HSS Shangus"
+                              >
+                                All School Subjects ({sentupSubjectAbbreviations.length})
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setSubjectKeyScope('cohort')}
+                                className={`px-1.5 py-0.5 rounded cursor-pointer transition-all ${subjectKeyScope === 'cohort' ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-700 hover:text-slate-900'}`}
+                                title="Show only subjects taken by candidates in this roll sheet"
+                              >
+                                Roll Sheet Subjects ({activeCohortSubjectCodes.size})
+                              </button>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setShowViewPopover(true)}
+                              className="text-[9px] font-bold text-indigo-600 hover:text-indigo-800 hover:underline flex items-center gap-1 cursor-pointer bg-indigo-50 border border-indigo-200 px-1.5 py-0.5 rounded shadow-2xs"
+                              title="Add, edit, or remove subject abbreviations in View & Layout popover"
+                            >
+                              <Edit3 size={10} />
+                              <span>Edit</span>
+                            </button>
+                          </div>
                         </div>
 
                         {/* 2-Column Split Tables for Clean Single-Page Density */}
@@ -6260,13 +6315,13 @@ export default function AdmissionRegisterSuite({
                       <div className="sentup-subtitle text-[10px] sm:text-[11px] font-extrabold text-slate-800 mt-0.5">
                         JKBOSE Sentup Roll Sheet • Class {selectedClass} • Session {selectedSession} • {selectedStatus} Candidates
                       </div>
-                      <div className="absolute right-0 top-0 flex items-center gap-2.5">
+                      <div className="absolute right-0 top-0 flex items-center gap-3">
                         <div className="text-[10px] font-black text-red-900 uppercase tracking-wider">
                           Page {overallPageNum} of {sentupTotalPages} <span className="font-bold text-slate-500 text-[8.5px] print:inline">(Sheet {idx + 1})</span>
                         </div>
                         {/* Circle for manual hand-stamped S.No on top right */}
                         <div
-                          className="w-6 h-6 rounded-full border-2 border-slate-900 flex items-center justify-center text-[8px] font-mono text-transparent select-none shrink-0"
+                          className="w-8 h-8 rounded-full border border-slate-400 flex items-center justify-center text-[9px] font-mono text-transparent select-none shrink-0 print:border-slate-400"
                           title="Manual Serial Number / Stamp Area"
                         >
                         </div>
