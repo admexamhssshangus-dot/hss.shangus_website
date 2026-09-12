@@ -922,12 +922,22 @@ const CURRENT_SESSION = '2025-26';
 
 export default function PracticalsPage() {
   const location = useLocation();
-  // Filter States
-  const [selectedClass, setSelectedClass] = useState('11th');
-  const [practicalType, setPracticalType] = useState('Internal Assessment');
-  const [selectedSubject, setSelectedSubject] = useState('Physics');
-  const [yearSuffix, setYearSuffix] = useState(CURRENT_SESSION);
+  // Filter States (initialized from location.state if navigated from history modal)
+  const [selectedClass, setSelectedClass] = useState(location.state?.selectedClass || '11th');
+  const [practicalType, setPracticalType] = useState(location.state?.practicalType || 'Internal Assessment');
+  const [selectedSubject, setSelectedSubject] = useState(location.state?.selectedSubject || 'Physics');
+  const [yearSuffix, setYearSuffix] = useState(location.state?.yearSuffix || CURRENT_SESSION);
   const [availableSessions, setAvailableSessions] = useState([CURRENT_SESSION]);
+
+  // Synchronize filter states if user navigates with state (e.g. from Dashboard Submission History)
+  useEffect(() => {
+    if (location.state) {
+      if (location.state.selectedClass) setSelectedClass(location.state.selectedClass);
+      if (location.state.selectedSubject) setSelectedSubject(location.state.selectedSubject);
+      if (location.state.practicalType) setPracticalType(location.state.practicalType);
+      if (location.state.yearSuffix) setYearSuffix(location.state.yearSuffix);
+    }
+  }, [location.state]);
   const [sortBy, setSortBy] = useState('rollAsc'); // 'rollAsc' | 'rollDesc' | 'nameAsc' | 'formAsc'
   const [showFilterSettings, setShowFilterSettings] = useState(false);
   const [isSubmissionOpen, setIsSubmissionOpen] = useState(true);
@@ -2082,10 +2092,10 @@ export default function PracticalsPage() {
             </div>
           )}
 
-          {/* Master Control Row: Select-All, Student Count, Sort, Filters, Quick Fill, and Print in ONE Single Row (Consistent 32px Height) */}
+          {/* Master Control Row: Select-All, Student Count, Sort, Filters, Quick Fill, and Print in ONE Single Row (Guaranteed Print Visible on Mobile) */}
           <div className="flex items-center justify-between gap-1 sm:gap-1.5 pt-0.5">
             {/* Left: Select All Checkbox Pill (Uniform 32px Height) */}
-            <label className="practicals-toolbar-item h-8 min-h-[32px] max-h-[32px] px-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 flex items-center gap-1.5 shrink-0 cursor-pointer shadow-2xs select-none hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" title={isAllSelected ? "Deselect all" : "Select all"}>
+            <label className="practicals-toolbar-item h-8 min-h-[32px] max-h-[32px] px-1.5 sm:px-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 flex items-center gap-1 shrink-0 cursor-pointer shadow-2xs select-none hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" title={isAllSelected ? "Deselect all" : "Select all"}>
               <input
                 type="checkbox"
                 checked={isAllSelected}
@@ -2093,47 +2103,47 @@ export default function PracticalsPage() {
                 onChange={handleToggleSelectAll}
                 className="w-3.5 h-3.5 rounded border-slate-300 dark:border-slate-700 text-indigo-600 focus:ring-indigo-500 cursor-pointer shrink-0"
               />
-              <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300">All</span>
+              <span className="text-[10.5px] sm:text-[11px] font-bold text-slate-700 dark:text-slate-300">All</span>
             </label>
 
-            {/* Middle: Sort Dropdown (Uniform 32px Height) */}
+            {/* Middle: Sort Dropdown (Ultra-Compact on Mobile) */}
             <div className="flex items-center gap-0.5 shrink-0">
               <select
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value)}
-                className="practicals-select practicals-toolbar-item h-8 min-h-[32px] max-h-[32px] w-[68px] sm:w-[72px] px-1 sm:px-1.5 rounded-lg border text-[10.5px] font-bold bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 shadow-2xs cursor-pointer"
+                className="practicals-select practicals-toolbar-item h-8 min-h-[32px] max-h-[32px] w-[58px] sm:w-[70px] px-1 rounded-lg border text-[10px] sm:text-[10.5px] font-bold bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 shadow-2xs cursor-pointer"
                 title="Sort students"
               >
                 <option value="rollAsc">Roll ↑</option>
                 <option value="rollDesc">Roll ↓</option>
-                <option value="nameAsc">Name A-Z</option>
-                <option value="formAsc">Form No.</option>
+                <option value="nameAsc">A-Z</option>
+                <option value="formAsc">Form #</option>
               </select>
             </div>
 
-            {/* Right: Actions Group (Filters, Quick Fill, Print - All Guaranteed Uniform 32px Height) */}
+            {/* Right: Actions Group (Filters, Quick Fill, Print - All Visible & Guaranteed 32px Height) */}
             <div className="flex items-center gap-1 shrink-0">
               {/* Filters Button with Compact Student Count */}
               <button
                 type="button"
                 onClick={() => setShowFilterSettings(!showFilterSettings)}
-                className={`practicals-toolbar-item h-8 min-h-[32px] max-h-[32px] px-2 sm:px-2.5 rounded-lg border text-[11px] font-bold flex items-center justify-center gap-1 transition-all cursor-pointer shadow-2xs active:scale-95 shrink-0 ${
+                className={`practicals-toolbar-item h-8 min-h-[32px] max-h-[32px] px-1.5 sm:px-2.5 rounded-lg border text-[11px] font-bold flex items-center justify-center gap-1 transition-all cursor-pointer shadow-2xs active:scale-95 shrink-0 ${
                   showFilterSettings
                     ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
                     : 'bg-white hover:bg-slate-50 dark:bg-slate-900 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700'
                 }`}
                 title={`Open evaluation filters (${displayedStudents.length} students)`}
               >
-                <SlidersHorizontal size={12} className={showFilterSettings ? 'text-white' : 'text-indigo-600 dark:text-indigo-400'} />
-                <span>Filters</span>
-                <span className={`px-1 py-0.2 rounded font-mono text-[9.5px] font-black leading-none ${
+                <SlidersHorizontal size={13} className={showFilterSettings ? 'text-white' : 'text-indigo-600 dark:text-indigo-400'} />
+                <span className="hidden sm:inline">Filters</span>
+                <span className={`px-1 py-0.2 rounded font-mono text-[9px] sm:text-[9.5px] font-black leading-none ${
                   showFilterSettings
                     ? 'bg-white/25 text-white'
                     : 'bg-indigo-100 dark:bg-indigo-950/80 text-indigo-700 dark:text-indigo-300'
                 }`}>
                   {displayedStudents.length}{showFailOnly ? 'F' : ''}
                 </span>
-                <ChevronDown size={11} className={`transition-transform duration-200 ${showFilterSettings ? 'rotate-180' : ''}`} />
+                <ChevronDown size={11} className={`hidden sm:inline transition-transform duration-200 ${showFilterSettings ? 'rotate-180' : ''}`} />
               </button>
 
               {/* Quick Fill Button */}
@@ -2147,25 +2157,24 @@ export default function PracticalsPage() {
                 }`}
                 title="Quick Bulk Fill: Fill marks for all, empty, or selected students in one go"
               >
-                <Zap size={12} className={showQuickFill ? 'text-white' : 'text-amber-500'} />
-                <span className="hidden xs:inline sm:inline">Quick Fill</span>
-                <span className="xs:hidden sm:hidden">Fill</span>
+                <Zap size={13} className={showQuickFill ? 'text-white' : 'text-amber-500'} />
+                <span className="hidden sm:inline">Fill</span>
                 {selectedKeys.size > 0 && (
-                  <span className="px-1 py-0.2 rounded-full bg-indigo-600 text-white text-[8.5px] font-bold">
+                  <span className="px-1 py-0.2 rounded-full bg-indigo-600 text-white text-[8px] font-bold">
                     {selectedKeys.size}
                   </span>
                 )}
               </button>
 
-              {/* Print Button */}
+              {/* Print Button (Always Visible & Prominent) */}
               <button
                 type="button"
                 onClick={handlePrintReport}
-                className="practicals-toolbar-item h-8 min-h-[32px] max-h-[32px] px-2.5 sm:px-3 rounded-lg font-bold text-[11px] bg-indigo-600 text-white hover:bg-indigo-500 border border-indigo-600 shadow-2xs cursor-pointer flex items-center justify-center gap-1 active:scale-95 shrink-0"
+                className="practicals-toolbar-item h-8 min-h-[32px] max-h-[32px] w-8 sm:w-auto px-1.5 sm:px-2.5 rounded-lg font-bold text-[11px] bg-indigo-600 text-white hover:bg-indigo-500 border border-indigo-600 shadow-2xs cursor-pointer flex items-center justify-center gap-1 active:scale-95 shrink-0"
                 title="Print Evaluation Roster"
               >
-                <Printer size={12} />
-                <span className="hidden xs:inline sm:inline">Print</span>
+                <Printer size={13} />
+                <span className="hidden sm:inline">Print</span>
               </button>
             </div>
           </div>
@@ -2805,7 +2814,7 @@ export default function PracticalsPage() {
                           </span>
                         </div>
 
-                        {/* Marks Input + Quick Absent Toggle (Strictly Sized & 30% Reduced Height: 22px / h-5.5) */}
+                        {/* Marks Input + Quick Absent Toggle (Strictly Matching Dimensions: 44px x 24px) */}
                         <div className="flex items-center gap-1 shrink-0">
                           <input
                             type="text"
@@ -2813,7 +2822,7 @@ export default function PracticalsPage() {
                             placeholder={`0-${subjectMaxMarks}`}
                             value={st.practicalMarks}
                             onChange={(e) => handleMarkChange(originalIdx !== -1 ? originalIdx : idx, 'practicalMarks', e.target.value)}
-                            className={`practicals-marks-input w-12 h-5.5 px-1 rounded-md border text-[11px] font-bold text-center leading-none focus:outline-none focus:ring-1 focus:ring-indigo-500 uppercase transition-all placeholder:text-slate-400 placeholder:text-[9.5px] placeholder:font-normal shrink-0 ${
+                            className={`practicals-marks-input rounded-md border text-[11px] font-bold text-center leading-none focus:outline-none focus:ring-1 focus:ring-indigo-500 uppercase transition-all placeholder:text-slate-400 placeholder:text-[9.5px] placeholder:font-normal shrink-0 ${
                               isAbsent
                                 ? 'bg-amber-50 dark:bg-amber-950/50 border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300 font-bold'
                                 : st.practicalMarks !== ''
@@ -2824,7 +2833,7 @@ export default function PracticalsPage() {
                           <button
                             type="button"
                             onClick={() => handleMarkChange(originalIdx !== -1 ? originalIdx : idx, 'practicalMarks', isAbsent ? '' : 'A')}
-                            className={`h-5.5 px-2 rounded-md font-mono text-[10px] font-bold border transition-all cursor-pointer flex items-center justify-center shrink-0 active:scale-95 leading-none ${
+                            className={`practicals-ab-btn rounded-md font-mono text-[10.5px] font-black border transition-all cursor-pointer flex items-center justify-center shrink-0 active:scale-95 leading-none ${
                               isAbsent
                                 ? 'bg-amber-500 text-white border-amber-600 shadow-2xs'
                                 : 'bg-slate-100 dark:bg-slate-800 text-slate-600 hover:text-amber-600 dark:hover:text-amber-400 border-slate-200 dark:border-slate-700'
@@ -3168,16 +3177,18 @@ export default function PracticalsPage() {
       {showHistoryModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
           <div className="w-full max-w-xl bg-white dark:bg-slate-900 rounded-2xl p-4 border shadow-xl space-y-3 border-slate-200 dark:border-slate-800">
-            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2">
-              <div className="flex items-center gap-2">
-                <History className="text-indigo-600 dark:text-indigo-400" size={18} />
-                <h3 className="font-black text-sm text-slate-900 dark:text-white">Practicals Submission History Log</h3>
+            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2 gap-2">
+              <div className="flex items-center gap-2 min-w-0 flex-1">
+                <History className="text-indigo-600 dark:text-indigo-400 shrink-0" size={18} />
+                <h3 className="font-black text-xs sm:text-sm text-slate-900 dark:text-white truncate">Practicals Submission History Log</h3>
               </div>
               <button
+                type="button"
                 onClick={() => setShowHistoryModal(false)}
-                className="px-2.5 py-1 text-xs font-bold rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 cursor-pointer"
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer shrink-0 transition-colors"
+                title="Close"
               >
-                Close
+                <X size={18} />
               </button>
             </div>
 

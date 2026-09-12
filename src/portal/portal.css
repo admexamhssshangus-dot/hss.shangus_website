@@ -221,17 +221,83 @@ select.practicals-toolbar-item {
   font-size: 10.5px !important;
 }
 
-/* Practical Marks Input — Strictly 48px Wide & 22px High to Guarantee Room for Student Name */
+/* Practical Marks Input & Absent Toggle Button — Strictly Matching Dimensions & Proportions */
+input.practicals-marks-input,
+button.practicals-ab-btn {
+  width: 44px !important;
+  min-width: 44px !important;
+  max-width: 44px !important;
+  height: 24px !important;
+  min-height: 24px !important;
+  max-height: 24px !important;
+  border-radius: 6px !important;
+  box-sizing: border-box !important;
+  line-height: 1 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
 input.practicals-marks-input {
   font-size: 11px !important;
-  width: 48px !important;
-  min-width: 48px !important;
-  max-width: 48px !important;
-  height: 22px !important;
-  min-height: 22px !important;
-  max-height: 22px !important;
+  text-align: center !important;
+  padding: 0 2px !important;
+}
+
+button.practicals-ab-btn {
+  font-size: 10.5px !important;
+  font-weight: 800 !important;
+  cursor: pointer !important;
+  padding: 0 !important;
+}
+
+/* Attendance Mobile Roster Cards — Ultra-compact 32px height (40% height reduction) */
+.attendance-student-card {
+  height: 32px !important;
+  min-height: 32px !important;
+  max-height: 32px !important;
+  padding: 2px 8px !important;
+  box-sizing: border-box !important;
+}
+
+.attendance-pla-capsule {
+  height: 24px !important;
+  min-height: 24px !important;
+  max-height: 24px !important;
+  box-sizing: border-box !important;
+  padding: 2px !important;
+}
+
+.attendance-pla-btn {
+  width: 22px !important;
+  height: 20px !important;
+  min-width: 22px !important;
+  min-height: 20px !important;
+  max-width: 22px !important;
+  max-height: 20px !important;
+  box-sizing: border-box !important;
+  padding: 0 !important;
+  line-height: 1 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-size: 9.5px !important;
+  font-weight: 900 !important;
+}
+
+/* Attendance Summary Tallies — 50% height reduction (strictly 20px) */
+.attendance-tally-btn {
+  height: 20px !important;
+  min-height: 20px !important;
+  max-height: 20px !important;
   padding: 0 4px !important;
   line-height: 1 !important;
   box-sizing: border-box !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-size: 10px !important;
+  font-weight: 800 !important;
+  border-radius: 6px !important;
 }
 

@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useOutletContext, Link } from 'react-router-dom';
+import { useOutletContext, Link, useNavigate } from 'react-router-dom';
 import { 
   History, CalendarCheck, LogOut,
-  ArrowRight, ShieldCheck, CheckCircle2, Users, BookOpen
+  ArrowRight, ShieldCheck, CheckCircle2, Users, BookOpen,
+  Award, X, Clock, RefreshCw
 } from 'lucide-react';
 import SEO from '../../components/SEO';
 import LogoutConfirmModal from '../components/LogoutConfirmModal';
@@ -14,9 +15,39 @@ import { toLocalDateKey } from '../../utils/localDate';
 
 export default function TeacherDashboard() {
   const { user, onLogout } = useOutletContext();
+  const navigate = useNavigate();
 
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const handleLogoutRequest = () => setShowLogoutConfirm(true);
+
+  // Submission History Modal State
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [submissionHistory, setSubmissionHistory] = useState([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+
+  const fetchSubmissionHistory = useCallback(async () => {
+    setLoadingHistory(true);
+    try {
+      const snap = await getDocs(collection(db, 'practicalsData'));
+      if (!snap.empty) {
+        const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        list.sort((a, b) => new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0));
+        setSubmissionHistory(list);
+      } else {
+        setSubmissionHistory([]);
+      }
+    } catch (e) {
+      console.error('Failed to load practicals history:', e);
+    } finally {
+      setLoadingHistory(false);
+    }
+  }, []);
+
+  const handleOpenHistoryModal = () => {
+    setShowHistoryModal(true);
+    fetchSubmissionHistory();
+  };
+
   const [stats, setStats] = useState(() => {
     try {
       const cached = localStorage.getItem('hss_teacher_dash_stats_cache');
@@ -264,7 +295,7 @@ export default function TeacherDashboard() {
             <div className="space-y-1.5">
               <div className="flex items-start gap-2">
                 <div className="w-8 h-8 rounded-xl bg-indigo-600/15 text-indigo-600 dark:text-indigo-400 flex items-center justify-center border border-indigo-500/25 shadow-2xs shrink-0 mt-0.5">
-                  <History size={17} />
+                  <Award size={17} />
                 </div>
                 <div className="min-w-0 flex-1">
                   <h2 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white leading-snug">
@@ -278,15 +309,15 @@ export default function TeacherDashboard() {
             </div>
 
             <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
-              <Link
-                to="/portal/teacher/practicals?view=history"
-                state={{ openHistory: true }}
-                className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 flex items-center gap-1.5 transition-colors cursor-pointer group underline decoration-indigo-300 dark:decoration-indigo-700 underline-offset-2"
+              <button
+                type="button"
+                onClick={handleOpenHistoryModal}
+                className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 flex items-center gap-1.5 transition-colors cursor-pointer group underline decoration-indigo-300 dark:decoration-indigo-700 underline-offset-2 bg-transparent border-none p-0 text-left"
                 title="Click to view all practical award submission history & records"
               >
                 <History size={13} className="text-indigo-600 dark:text-indigo-400 group-hover:rotate-[-20deg] transition-transform" />
                 <span className="font-extrabold">{stats.practicalsSubmitted} Submissions</span>
-              </Link>
+              </button>
               <Link
                 to="/portal/teacher/practicals"
                 className="w-full sm:w-auto px-3.5 py-1.5 rounded-lg text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-500 shadow-2xs transition-all inline-flex items-center justify-center gap-1 cursor-pointer active:scale-98"
@@ -298,6 +329,74 @@ export default function TeacherDashboard() {
           </div>
         </div>
       </div>
+
+      {/* Submission History Drawer/Modal */}
+      {showHistoryModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
+          <div className="w-full max-w-xl bg-white dark:bg-slate-900 rounded-2xl p-4 border shadow-xl space-y-3 border-slate-200 dark:border-slate-800">
+            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2 gap-2">
+              <div className="flex items-center gap-2 min-w-0 flex-1">
+                <History className="text-indigo-600 dark:text-indigo-400 shrink-0" size={18} />
+                <h3 className="font-black text-xs sm:text-sm text-slate-900 dark:text-white truncate">Practicals Submission History Log</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowHistoryModal(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer shrink-0 transition-colors"
+                title="Close"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {loadingHistory ? (
+              <div className="p-8 text-center text-xs font-bold text-slate-400 space-y-2">
+                <RefreshCw size={18} className="animate-spin mx-auto text-indigo-600" />
+                <div>Fetching historical submissions…</div>
+              </div>
+            ) : submissionHistory.length > 0 ? (
+              <div className="max-h-80 overflow-y-auto space-y-1.5 pr-1">
+                {submissionHistory.map((item, i) => (
+                  <div key={i} className="p-2.5 rounded-xl border bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2 text-xs">
+                    <div className="min-w-0 flex-1">
+                      <div className="font-extrabold text-xs text-slate-900 dark:text-slate-100 truncate">
+                        {item.className} • {item.subject} ({item.practicalType || 'Internal'})
+                      </div>
+                      <div className="text-[9.5px] text-slate-400 flex items-center gap-1.5 mt-0.5 flex-wrap">
+                        <Clock size={10} className="shrink-0" />
+                        <span>{item.updatedAt ? new Date(item.updatedAt).toLocaleString() : 'N/A'}</span>
+                        <span className="text-indigo-600 dark:text-indigo-400 font-bold shrink-0">• {item.records?.length || 0} Students</span>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowHistoryModal(false);
+                        navigate('/portal/teacher/practicals', {
+                          state: {
+                            selectedClass: item.className || '12th',
+                            selectedSubject: item.subject || 'Physics',
+                            practicalType: item.practicalType,
+                            yearSuffix: item.yearSuffix
+                          }
+                        });
+                      }}
+                      className="px-2.5 py-1.5 rounded-lg text-[10px] font-black bg-indigo-600 hover:bg-indigo-500 text-white shadow-2xs transition-all cursor-pointer shrink-0 active:scale-95"
+                    >
+                      Load Record
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="p-8 text-center text-xs font-bold text-slate-400">
+                No past practical submission records found.
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Logout Confirmation Modal */}
       <LogoutConfirmModal
