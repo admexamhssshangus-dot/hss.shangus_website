@@ -2004,12 +2004,12 @@ export default function AttendancePage() {
                   <select
                     value={selectedClass}
                     onChange={(e) => setSelectedClass(e.target.value)}
-                    className="w-full px-2 py-1.5 rounded-lg text-xs font-bold border bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700"
+                    className="portal-compact-select w-full border bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700"
                   >
-                    <option value="12th">12th Class</option>
-                    <option value="11th">11th Class</option>
-                    <option value="10th">10th Class</option>
-                    <option value="9th">9th Class</option>
+                    <option value="12th">Class 12th</option>
+                    <option value="11th">Class 11th</option>
+                    <option value="10th">Class 10th</option>
+                    <option value="9th">Class 9th</option>
                   </select>
                 </div>
 
@@ -2019,7 +2019,7 @@ export default function AttendancePage() {
                     value={selectedSession}
                     onChange={(e) => setSelectedSession(e.target.value)}
                     onFocus={loadAvailableSessions}
-                    className="w-full px-2 py-1.5 rounded-lg text-xs font-bold border bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700"
+                    className="portal-compact-select w-full border bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700"
                   >
                     {availableSessions.map(yr => (
                       <option key={yr} value={yr}>{yr}</option>
@@ -2033,7 +2033,7 @@ export default function AttendancePage() {
                     type="date"
                     value={selectedDate}
                     onChange={(e) => setSelectedDate(e.target.value)}
-                    className="w-full px-2 py-1.5 rounded-lg text-xs font-bold border bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700"
+                    className="portal-compact-input w-full border bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700"
                   />
                 </div>
 
@@ -2042,7 +2042,7 @@ export default function AttendancePage() {
                   <select
                     value={selectedSubject}
                     onChange={(e) => setSelectedSubject(e.target.value)}
-                    className="w-full px-2 py-1.5 rounded-lg text-xs font-bold border bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 truncate"
+                    className="portal-compact-select w-full border bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 truncate"
                   >
                     <option value="">All Subjects</option>
                     {MASTER_SUBJECTS.map(s => (
@@ -2053,14 +2053,14 @@ export default function AttendancePage() {
 
                 {/* Quick Fill Mode Preference Setting */}
                 <div>
-                  <label className="text-[9.5px] font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400 block">Quick Fill Mode</label>
+                  <label className="text-[9.5px] font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400 block">Quick Roll Mode</label>
                   <select
                     value={quickRollMode}
                     onChange={(e) => handleQuickRollModeChange(e.target.value)}
-                    className="w-full px-2 py-1.5 rounded-lg text-xs font-bold border bg-indigo-50 dark:bg-indigo-950/60 border-indigo-300 dark:border-indigo-700 text-indigo-900 dark:text-indigo-200"
+                    className="portal-compact-select w-full border bg-indigo-50 dark:bg-indigo-950/60 border-indigo-300 dark:border-indigo-700 text-indigo-900 dark:text-indigo-200"
                   >
-                    <option value="PRESENT_FIRST">Present (Rest Absent)</option>
-                    <option value="ABSENT_FIRST">Absent (Rest Present)</option>
+                    <option value="PRESENT_FIRST">Present First (Rest Absent)</option>
+                    <option value="ABSENT_FIRST">Absent First (Rest Present)</option>
                   </select>
                 </div>
 
@@ -2201,51 +2201,54 @@ export default function AttendancePage() {
               {/* Mobile Bottom-Sheet Modal for Filters & Tools */}
               <div className="sm:hidden fixed inset-0 z-[9990] bg-slate-950/60 backdrop-blur-xs flex items-end justify-center p-0 animate-fadeIn">
                 <div className="fixed inset-0" onClick={() => setShowToolsDrawer(false)} />
-                <div className="relative bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 rounded-t-3xl p-4 shadow-2xl max-w-lg w-full space-y-3.5 z-10 animate-in slide-in-from-bottom duration-200">
-                  <div className="flex items-center justify-between pb-2.5 border-b border-slate-100 dark:border-slate-800">
+                <div className="relative bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 rounded-t-2xl p-3 sm:p-4 shadow-2xl max-w-lg w-full space-y-2.5 z-10 animate-in slide-in-from-bottom duration-200">
+                  {/* Native Mobile Pull Handle */}
+                  <div className="w-9 h-1 bg-slate-300 dark:bg-slate-700 rounded-full mx-auto" />
+
+                  <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
                     <div className="flex items-center gap-2">
-                      <div className="w-7 h-7 rounded-xl bg-teal-500/15 text-teal-600 dark:text-teal-400 flex items-center justify-center">
-                        <SlidersHorizontal size={14} />
+                      <div className="w-6 h-6 rounded-lg bg-teal-500/15 text-teal-600 dark:text-teal-400 flex items-center justify-center">
+                        <SlidersHorizontal size={13} />
                       </div>
                       <div>
-                        <h3 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider">
-                          Attendance Settings & Tools
+                        <h3 className="text-xs font-bold text-slate-900 dark:text-white">
+                          Attendance Settings
                         </h3>
-                        <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">Configure session, class, filters & holidays</p>
+                        <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">Configure class, date & filters</p>
                       </div>
                     </div>
                     <button
                       type="button"
                       onClick={() => setShowToolsDrawer(false)}
-                      className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                      className="p-1 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
                     >
-                      <X size={16} />
+                      <X size={15} />
                     </button>
                   </div>
 
-                  <div className="space-y-3 max-h-[70vh] overflow-y-auto pr-1">
+                  <div className="space-y-2 max-h-[70vh] overflow-y-auto pr-0.5">
                     <div className="grid grid-cols-2 gap-2">
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 block">Class</label>
+                      <div>
+                        <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 block mb-0.5">Class</label>
                         <select
                           value={selectedClass}
                           onChange={(e) => setSelectedClass(e.target.value)}
-                          className="w-full px-2.5 py-1.5 rounded-xl text-xs font-bold border bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 shadow-2xs"
+                          className="portal-compact-select w-full border bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 shadow-2xs"
                         >
-                          <option value="12th">12th Class</option>
-                          <option value="11th">11th Class</option>
-                          <option value="10th">10th Class</option>
-                          <option value="9th">9th Class</option>
+                          <option value="12th">Class 12th</option>
+                          <option value="11th">Class 11th</option>
+                          <option value="10th">Class 10th</option>
+                          <option value="9th">Class 9th</option>
                         </select>
                       </div>
 
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 block">Session</label>
+                      <div>
+                        <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 block mb-0.5">Session</label>
                         <select
                           value={selectedSession}
                           onChange={(e) => setSelectedSession(e.target.value)}
                           onFocus={loadAvailableSessions}
-                          className="w-full px-2.5 py-1.5 rounded-xl text-xs font-bold border bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 shadow-2xs"
+                          className="portal-compact-select w-full border bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 shadow-2xs"
                         >
                           {availableSessions.map(yr => (
                             <option key={yr} value={yr}>{yr}</option>
@@ -2255,22 +2258,22 @@ export default function AttendancePage() {
                     </div>
 
                     <div className="grid grid-cols-2 gap-2">
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 block">Date</label>
+                      <div>
+                        <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 block mb-0.5">Date</label>
                         <input
                           type="date"
                           value={selectedDate}
                           onChange={(e) => setSelectedDate(e.target.value)}
-                          className="w-full px-2.5 py-1.5 rounded-xl text-xs font-bold border bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 shadow-2xs"
+                          className="portal-compact-input w-full border bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 shadow-2xs"
                         />
                       </div>
 
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 block">Subject</label>
+                      <div>
+                        <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 block mb-0.5">Subject</label>
                         <select
                           value={selectedSubject}
                           onChange={(e) => setSelectedSubject(e.target.value)}
-                          className="w-full px-2.5 py-1.5 rounded-xl text-xs font-bold border bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 shadow-2xs truncate"
+                          className="portal-compact-select w-full border bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 shadow-2xs truncate"
                         >
                           <option value="">All Subjects</option>
                           {MASTER_SUBJECTS.map(s => (
@@ -2280,25 +2283,25 @@ export default function AttendancePage() {
                       </div>
                     </div>
 
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400 block">Quick Roll Entry Mode</label>
+                    <div>
+                      <label className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 block mb-0.5">Quick Roll Mode</label>
                       <select
                         value={quickRollMode}
                         onChange={(e) => handleQuickRollModeChange(e.target.value)}
-                        className="w-full px-2.5 py-2 rounded-xl text-xs font-bold border bg-indigo-50 dark:bg-indigo-950/60 border-indigo-300 dark:border-indigo-700 text-indigo-900 dark:text-indigo-200 shadow-2xs"
+                        className="portal-compact-select w-full border bg-indigo-50 dark:bg-indigo-950/60 border-indigo-300 dark:border-indigo-700 text-indigo-900 dark:text-indigo-200 shadow-2xs"
                       >
-                        <option value="PRESENT_FIRST">Present-First (Rest Absent)</option>
-                        <option value="ABSENT_FIRST">Absent-First (Rest Present)</option>
+                        <option value="PRESENT_FIRST">Present First (Rest Absent)</option>
+                        <option value="ABSENT_FIRST">Absent First (Rest Present)</option>
                       </select>
-                      <p className="text-[9.5px] text-slate-500 dark:text-slate-400 font-medium">
+                      <p className="text-[9.5px] text-slate-500 dark:text-slate-400 font-medium mt-0.5">
                         {quickRollMode === 'PRESENT_FIRST'
-                          ? 'Entered rolls marked Present; unlisted rolls default to Absent.'
-                          : 'Entered rolls marked Absent; unlisted rolls default to Present.'}
+                          ? 'Marked: Present; unlisted: Absent.'
+                          : 'Marked: Absent; unlisted: Present.'}
                       </p>
                     </div>
 
                     {/* Holiday Shortcut Button */}
-                    <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-2">
+                    <div className="pt-1.5 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-2">
                       <button
                         type="button"
                         onClick={() => {
@@ -2310,21 +2313,21 @@ export default function AttendancePage() {
                           setHolidayPurpose('');
                           setShowHolidayManageModal(true);
                         }}
-                        className="flex-1 py-2 px-3 rounded-xl text-xs font-bold text-amber-800 dark:text-amber-200 bg-amber-500/10 border border-amber-500/20 hover:bg-amber-500/20 transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                        className="flex-1 py-1.5 px-3 rounded-lg text-xs font-semibold text-amber-800 dark:text-amber-200 bg-amber-500/10 border border-amber-500/20 hover:bg-amber-500/20 transition-all cursor-pointer flex items-center justify-center gap-1.5"
                       >
                         <Calendar size={13} className="text-amber-600" />
-                        <span>Holidays Manager ({holidaysList.length})</span>
+                        <span>Manage Holidays ({holidaysList.length})</span>
                       </button>
                     </div>
                   </div>
 
-                  <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
+                  <div className="pt-1.5 border-t border-slate-100 dark:border-slate-800">
                     <button
                       type="button"
                       onClick={() => setShowToolsDrawer(false)}
-                      className="w-full py-2.5 rounded-xl text-xs font-black text-white bg-teal-600 hover:bg-teal-500 transition-all cursor-pointer shadow-md active:scale-98"
+                      className="w-full py-2 rounded-lg text-xs font-bold text-white bg-teal-600 hover:bg-teal-500 transition-all cursor-pointer shadow-xs active:scale-98"
                     >
-                      Apply & Close
+                      Apply Settings
                     </button>
                   </div>
                 </div>
@@ -2774,71 +2777,71 @@ export default function AttendancePage() {
 
       {/* Quick Holiday Modal Dialog */}
       {showQuickHolidayModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-fadeIn">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl max-w-md w-full p-5 space-y-4 text-xs font-bold text-slate-900 dark:text-slate-100">
-            <div className="flex items-center justify-between border-b pb-3 dark:border-slate-800">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/60 backdrop-blur-xs animate-fadeIn">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl max-w-md w-full p-3.5 sm:p-4 space-y-3 text-xs font-semibold text-slate-900 dark:text-slate-100">
+            <div className="flex items-center justify-between border-b pb-2 dark:border-slate-800">
               <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400">
-                <Calendar size={18} />
-                <h3 className="text-sm font-black text-slate-900 dark:text-slate-100">Declare / Edit School Holiday</h3>
+                <Calendar size={16} />
+                <h3 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-slate-100">Declare School Holiday</h3>
               </div>
               <button
                 type="button"
                 onClick={() => setShowQuickHolidayModal(false)}
                 className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
               >
-                ✕
+                <X size={15} />
               </button>
             </div>
 
             <form onSubmit={async (e) => {
               await handleSaveHoliday(e);
               setShowQuickHolidayModal(false);
-            }} className="space-y-3">
+            }} className="space-y-2.5">
               <div>
-                <label className="block text-[11px] font-extrabold uppercase text-slate-400 mb-1">Holiday Date</label>
+                <label className="block text-[10px] font-bold text-slate-500 uppercase mb-0.5">Holiday Date</label>
                 <input
                   type="date"
                   required
                   value={holidayDate}
                   onChange={(e) => setHolidayDate(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-bold"
+                  className="portal-compact-input w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 font-semibold"
                 />
               </div>
 
               <div>
-                <label className="block text-[11px] font-extrabold uppercase text-slate-400 mb-1">Holiday Name / Occasion</label>
+                <label className="block text-[10px] font-bold text-slate-500 uppercase mb-0.5">Holiday Name</label>
                 <input
                   type="text"
                   required
-                  placeholder="e.g. Republic Day / Summer Break"
+                  placeholder="e.g. Republic Day / Eid"
                   value={holidayLabel}
                   onChange={(e) => setHolidayLabel(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-bold"
+                  className="portal-compact-input w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 font-semibold"
                 />
               </div>
 
               <div>
-                <label className="block text-[11px] font-extrabold uppercase text-slate-400 mb-1">Reason / Instructions (Optional)</label>
+                <label className="block text-[10px] font-bold text-slate-500 uppercase mb-0.5">Notes (Optional)</label>
                 <textarea
                   rows={2}
-                  placeholder="e.g. School closed by Order of District Magistrate / Gazetted Holiday"
+                  placeholder="e.g. School closed by Govt. Order"
                   value={holidayPurpose}
                   onChange={(e) => setHolidayPurpose(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-bold resize-none"
+                  className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 font-semibold text-xs resize-none"
                 />
               </div>
 
-              <div className="flex items-center justify-end gap-2 pt-2 border-t dark:border-slate-800">
+              <div className="flex items-center justify-end gap-2 pt-1.5 border-t dark:border-slate-800">
                 <button
                   type="button"
                   onClick={() => setShowQuickHolidayModal(false)}
-                  className="px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-700 font-extrabold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                  className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 font-bold text-xs text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 rounded-xl font-extrabold text-white bg-amber-600 hover:bg-amber-500 shadow-md cursor-pointer"
+                  className="px-3 py-1.5 rounded-lg font-black text-xs text-white bg-amber-600 hover:bg-amber-500 shadow-xs cursor-pointer"
                 >
                   Save Holiday
                 </button>
@@ -3009,15 +3012,15 @@ export default function AttendancePage() {
             {/* Modal Header */}
             <div className="flex items-start justify-between border-b border-slate-200 dark:border-slate-800 pb-2 flex-shrink-0">
               <div className="flex items-center gap-2">
-                <div className="w-7 h-7 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center font-black flex-shrink-0">
-                  <Calendar size={15} />
+                <div className="w-6 h-6 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center font-black flex-shrink-0">
+                  <Calendar size={14} />
                 </div>
                 <div>
-                  <h3 className="text-xs sm:text-sm font-black leading-tight text-slate-900 dark:text-white">
-                    {editingHoliday ? '✏️ Edit Declared Holiday / Vacation' : 'Declare Holiday or Vacation Range'}
+                  <h3 className="text-xs sm:text-sm font-bold leading-tight text-slate-900 dark:text-white">
+                    {editingHoliday ? '✏️ Edit Holiday' : 'Holiday & Vacation Manager'}
                   </h3>
-                  <p className="text-[10px] font-medium text-slate-500 leading-tight">
-                    Declare or edit single-day holidays and multi-day vacation ranges (e.g. Summer Vacation)
+                  <p className="text-[10px] text-slate-500 leading-tight">
+                    Declare single holidays or vacation ranges
                   </p>
                 </div>
               </div>
@@ -3029,14 +3032,14 @@ export default function AttendancePage() {
                 }}
                 className="p-1 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
               >
-                <X size={16} />
+                <X size={15} />
               </button>
             </div>
 
             {/* Editing Active Indicator Banner */}
             {editingHoliday && (
               <div className="p-1.5 px-2.5 rounded-lg bg-indigo-50 dark:bg-indigo-950/50 border border-indigo-200 dark:border-indigo-800 flex items-center justify-between text-[11px] font-bold text-indigo-900 dark:text-indigo-200 flex-shrink-0">
-                <span className="truncate mr-2">✏️ Currently Editing: <strong>{editingHoliday.label}</strong></span>
+                <span className="truncate mr-2">✏️ Editing: <strong>{editingHoliday.label}</strong></span>
                 <button
                   type="button"
                   onClick={() => {
@@ -3048,7 +3051,7 @@ export default function AttendancePage() {
                   }}
                   className="px-2 py-0.5 rounded text-[10px] font-black bg-indigo-200 dark:bg-indigo-900 hover:bg-indigo-300 text-indigo-900 dark:text-indigo-100 cursor-pointer flex-shrink-0"
                 >
-                  Cancel Edit
+                  Cancel
                 </button>
               </div>
             )}
@@ -3058,58 +3061,58 @@ export default function AttendancePage() {
               {/* Form */}
               <form onSubmit={handleSaveHoliday} className="p-2 sm:p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 space-y-1.5">
                 <div>
-                  <label className="text-[9px] font-black text-slate-500 uppercase block mb-0.5">Holiday / Vacation Title</label>
+                  <label className="text-[9px] font-bold text-slate-500 uppercase block mb-0.5">Holiday Name</label>
                   <input
                     type="text"
                     required
-                    placeholder="e.g. Summer Vacation / Eid-ul-Adha / Independence Day"
+                    placeholder="e.g. Eid-ul-Adha / Summer Vacation"
                     value={holidayLabel}
                     onChange={e => setHolidayLabel(e.target.value)}
-                    className="w-full px-2.5 py-1 rounded-lg border bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 font-bold text-xs"
+                    className="portal-compact-input w-full border bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 font-semibold text-xs"
                   />
                 </div>
 
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="text-[9px] font-black text-slate-500 uppercase block mb-0.5">Start Date</label>
+                    <label className="text-[9px] font-bold text-slate-500 uppercase block mb-0.5">Start Date</label>
                     <input
                       type="date"
                       required
                       value={holidayDate}
                       onChange={e => setHolidayDate(e.target.value)}
-                      className="w-full px-2 py-1 rounded-lg border bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 font-bold text-xs"
+                      className="portal-compact-input w-full border bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 font-semibold text-xs"
                     />
                   </div>
 
                   <div>
-                    <label className="text-[9px] font-black text-slate-500 uppercase block mb-0.5 truncate">
-                      End Date <span className="text-slate-400 font-normal">(Optional)</span>
+                    <label className="text-[9px] font-bold text-slate-500 uppercase block mb-0.5 truncate">
+                      End Date (Optional)
                     </label>
                     <input
                       type="date"
                       value={holidayEndDate}
                       onChange={e => setHolidayEndDate(e.target.value)}
-                      placeholder="Leave blank for single day"
-                      className="w-full px-2 py-1 rounded-lg border bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 font-bold text-xs"
+                      placeholder="Optional"
+                      className="portal-compact-input w-full border bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 font-semibold text-xs"
                     />
                   </div>
                 </div>
 
                 {holidayDate && holidayEndDate && holidayEndDate > holidayDate && (
                   <div className="p-1.5 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-[10px] font-semibold text-amber-800 dark:text-amber-300 leading-tight">
-                    🗓️ Vacation Range: <strong>{formatReadableDate(holidayDate, true)}</strong> to <strong>{formatReadableDate(holidayEndDate, true)}</strong> (all days marked as <strong>H</strong>).
+                    🗓️ Range: <strong>{formatReadableDate(holidayDate, true)}</strong> to <strong>{formatReadableDate(holidayEndDate, true)}</strong> (marked as <strong>H</strong>).
                   </div>
                 )}
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 items-end">
                   <div className="sm:col-span-2">
-                    <label className="text-[9px] font-black text-slate-500 uppercase block mb-0.5">Purpose / Notes (Optional)</label>
+                    <label className="text-[9px] font-bold text-slate-500 uppercase block mb-0.5">Notes (Optional)</label>
                     <input
                       type="text"
-                      placeholder="e.g. Govt. Order No. 42-DSEK of 2026"
+                      placeholder="e.g. Govt. Order No. 42"
                       value={holidayPurpose}
                       onChange={e => setHolidayPurpose(e.target.value)}
-                      className="w-full px-2.5 py-1 rounded-lg border bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 font-bold text-xs"
+                      className="portal-compact-input w-full border bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 font-semibold text-xs"
                     />
                   </div>
 
@@ -3128,14 +3131,14 @@ export default function AttendancePage() {
 
               {/* All Declared Holidays List & Edit Table */}
               <div className="space-y-1.5">
-                <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-wider flex items-center justify-between">
-                  <span>Declared Holidays & Vacations List ({holidaysList.length})</span>
+                <h4 className="text-[10px] font-bold uppercase text-slate-400 tracking-wider flex items-center justify-between">
+                  <span>Declared Holidays & Vacations ({holidaysList.length})</span>
                   {loadingHolidays && <RefreshCw size={11} className="animate-spin text-amber-500" />}
                 </h4>
 
                 {holidaysList.length === 0 ? (
                   <p className="text-xs font-semibold text-slate-400 p-3 text-center border border-dashed rounded-xl">
-                    No custom holidays declared yet. Use the form above to add holidays or multi-day vacation ranges.
+                    No custom holidays declared yet. Use the form above to add holidays or vacation ranges.
                   </p>
                 ) : (
                   <div className="space-y-1">
@@ -3218,7 +3221,7 @@ export default function AttendancePage() {
                 }}
                 className="w-full py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 font-bold text-xs text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer transition-colors active:scale-98"
               >
-                Close Manager
+                Close
               </button>
             </div>
           </div>
