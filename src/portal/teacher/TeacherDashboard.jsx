@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useOutletContext, Link } from 'react-router-dom';
 import { 
   History, CalendarCheck, LogOut,
-  ArrowRight, ShieldCheck, CheckCircle2, Award, Users, BookOpen
+  ArrowRight, ShieldCheck, CheckCircle2, Users, BookOpen
 } from 'lucide-react';
 import SEO from '../../components/SEO';
 import LogoutConfirmModal from '../components/LogoutConfirmModal';
@@ -278,9 +278,15 @@ export default function TeacherDashboard() {
             </div>
 
             <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
-              <span className="text-[10.5px] font-bold text-indigo-700 dark:text-indigo-400 flex items-center gap-1">
-                <Award size={12} className="text-indigo-600" /> {stats.practicalsSubmitted} Submissions
-              </span>
+              <Link
+                to="/portal/teacher/practicals?view=history"
+                state={{ openHistory: true }}
+                className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 flex items-center gap-1.5 transition-colors cursor-pointer group underline decoration-indigo-300 dark:decoration-indigo-700 underline-offset-2"
+                title="Click to view all practical award submission history & records"
+              >
+                <History size={13} className="text-indigo-600 dark:text-indigo-400 group-hover:rotate-[-20deg] transition-transform" />
+                <span className="font-extrabold">{stats.practicalsSubmitted} Submissions</span>
+              </Link>
               <Link
                 to="/portal/teacher/practicals"
                 className="w-full sm:w-auto px-3.5 py-1.5 rounded-lg text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-500 shadow-2xs transition-all inline-flex items-center justify-center gap-1 cursor-pointer active:scale-98"

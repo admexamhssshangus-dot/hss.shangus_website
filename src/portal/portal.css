@@ -79,7 +79,7 @@
     min-width: 0;
   }
 
-  .portal-page :where(input:not(.admin-search-input):not(.practicals-control):not(table input), select:not(table select):not(.practicals-select):not(.practicals-control), textarea) {
+  .portal-page :where(input:not(.admin-search-input):not(.practicals-control):not(.practicals-marks-input):not(table input), select:not(table select):not(.practicals-select):not(.practicals-control), textarea) {
     /* Prevent iOS from zooming the page when a form control receives focus. */
     font-size: max(1rem, 16px);
   }
@@ -185,9 +185,7 @@ select.practicals-select {
 
 @media screen and (max-width: 47.99rem) {
   .portal-page select.practicals-select,
-  .portal-shell select.practicals-select,
-  .portal-page .practicals-control,
-  .portal-shell .practicals-control {
+  .portal-shell select.practicals-select {
     font-size: 11.5px !important;
     min-height: 32px !important;
     height: 32px !important;
@@ -196,4 +194,44 @@ select.practicals-select {
     padding-left: 8px !important;
     padding-right: 20px !important;
   }
+
+  .portal-page .practicals-control,
+  .portal-shell .practicals-control {
+    font-size: 11.5px !important;
+    min-height: 32px !important;
+    height: 32px !important;
+  }
 }
+
+/* Practicals Master Toolbar Items (All, Sort, Filters, Quick Fill, Print) — Guaranteed Uniform 32px Height */
+.practicals-toolbar-item {
+  height: 32px !important;
+  min-height: 32px !important;
+  max-height: 32px !important;
+  box-sizing: border-box !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  font-size: 11px !important;
+  line-height: 1 !important;
+  border-radius: 8px !important;
+}
+
+select.practicals-toolbar-item {
+  display: inline-block !important;
+  font-size: 10.5px !important;
+}
+
+/* Practical Marks Input — Strictly 48px Wide & 22px High to Guarantee Room for Student Name */
+input.practicals-marks-input {
+  font-size: 11px !important;
+  width: 48px !important;
+  min-width: 48px !important;
+  max-width: 48px !important;
+  height: 22px !important;
+  min-height: 22px !important;
+  max-height: 22px !important;
+  padding: 0 4px !important;
+  line-height: 1 !important;
+  box-sizing: border-box !important;
+}
+
