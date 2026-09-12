@@ -391,12 +391,15 @@ export default function StudentDashboard() {
     appData?.upgradedAt
   );
 
-  const editableUntil = appData?.editableUntil;
+  const editableUntil = appData?.editableUntil || appData?.editUnlockedUntil;
   const editableUntilMillis = typeof editableUntil === 'object'
     ? Number(editableUntil?._seconds || editableUntil?.seconds || 0) * 1000
-    : Date.parse(editableUntil || '') || 0;
+    : Date.parse(editableUntil || '') || Number(editableUntil || 0) || 0;
+  const isUnlockedByAdmin = (appData?.editUnlocked === true || appData?.isEditable === true) && (
+    editableUntilMillis > Date.now() || !editableUntil
+  );
   const isWithin3DaysRejection = status === 'Rejected' && (editableUntilMillis > Date.now() || !editableUntil || appData?.isEditable === true);
-  const isRejectionExpired = status === 'Rejected' && !isWithin3DaysRejection;
+  const isRejectionExpired = status === 'Rejected' && !isWithin3DaysRejection && !isUnlockedByAdmin;
 
   // Payment Status & Online Payment Toggle
   const paymentMode = gatewayConfig.gatewayMode || 'off';
@@ -404,7 +407,7 @@ export default function StudentDashboard() {
   const isPaid = appData?.['Payment Status'] === 'PAID & VERIFIED' || appData?.isPaid === true;
 
   // Editability Check
-  const isFormEditable = status === 'Draft' || isWithin3DaysRejection;
+  const isFormEditable = status === 'Draft' || isWithin3DaysRejection || isUnlockedByAdmin;
 
   const applicationRoute = (mode = '') => {
     const key = appData?.docId || appData?.applicationId || appData?.['Form Number'] || appData?.FormNo || appData?.formNo || '';
