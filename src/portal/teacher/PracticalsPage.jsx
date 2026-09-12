@@ -2098,13 +2098,13 @@ export default function PracticalsPage() {
               <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300">All</span>
             </label>
 
-            {/* Middle: Sort Dropdown */}
+            {/* Middle: Sort Dropdown (20% Reduced Width) */}
             <div className="flex items-center gap-0.5 shrink-0">
               <ArrowUpDown size={11} className="text-slate-400 hidden sm:inline" />
               <select
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value)}
-                className="practicals-select h-7.5 px-1.5 sm:px-2 rounded-lg border text-[11px] font-bold bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 shadow-2xs cursor-pointer"
+                className="practicals-select h-7.5 w-[66px] sm:w-[72px] px-1 sm:px-1.5 rounded-lg border text-[10.5px] font-bold bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 shadow-2xs cursor-pointer"
                 title="Sort students"
               >
                 <option value="rollAsc">Roll ↑</option>
