@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useOutletContext, Link } from 'react-router-dom';
 import { 
-  UserCheck, CalendarCheck, LogOut,
+  History, CalendarCheck, LogOut,
   ArrowRight, ShieldCheck, CheckCircle2, Award, Users, BookOpen
 } from 'lucide-react';
 import SEO from '../../components/SEO';
@@ -264,7 +264,7 @@ export default function TeacherDashboard() {
             <div className="space-y-1.5">
               <div className="flex items-start gap-2">
                 <div className="w-8 h-8 rounded-xl bg-indigo-600/15 text-indigo-600 dark:text-indigo-400 flex items-center justify-center border border-indigo-500/25 shadow-2xs shrink-0 mt-0.5">
-                  <UserCheck size={17} />
+                  <History size={17} />
                 </div>
                 <div className="min-w-0 flex-1">
                   <h2 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white leading-snug">

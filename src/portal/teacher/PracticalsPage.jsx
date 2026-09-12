@@ -2,7 +2,7 @@ import { saveAcademicRecord } from '../../services/academicRecordService';
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { 
-  ArrowLeft, UserCheck, RefreshCw, AlertCircle, 
+  ArrowLeft, RefreshCw, AlertCircle, 
   CheckCircle2, Printer, ShieldCheck, History, Clock, ArrowUpDown,
   Bookmark, Send, ChevronDown, Check, SlidersHorizontal, Zap, X, Info
 } from 'lucide-react';
@@ -2000,8 +2000,8 @@ export default function PracticalsPage() {
         {/* Main Ultra-Compact Card */}
         <div className="rounded-2xl p-2.5 sm:p-4 border shadow-md space-y-2.5 bg-white dark:bg-slate-900" style={{ borderColor: 'var(--border-ui, #cbd5e1)' }}>
           {/* Integrated Header Navigation Bar */}
-          <div className="flex items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800/80 pb-2">
-            <div className="flex items-center gap-2 min-w-0">
+          <div className="flex items-center justify-between gap-1.5 border-b border-slate-100 dark:border-slate-800/80 pb-2">
+            <div className="flex items-center gap-1.5 min-w-0">
               <Link
                 to="/portal/teacher"
                 className="inline-flex items-center gap-1 text-xs font-black text-teal-700 hover:text-teal-800 dark:text-teal-400 p-1 px-1.5 rounded-lg bg-teal-500/10 hover:bg-teal-500/20 border border-teal-500/20 transition-all shrink-0 active:scale-95"
@@ -2010,12 +2010,14 @@ export default function PracticalsPage() {
                 <ArrowLeft size={13} />
                 <span>Back</span>
               </Link>
-              <div className="w-6 h-6 rounded-lg bg-indigo-600/15 border border-indigo-600/30 flex items-center justify-center text-indigo-600 dark:text-indigo-400 shrink-0">
-                <UserCheck size={14} />
+              <div className="flex items-center gap-1.5 min-w-0 truncate">
+                <h1 className="text-xs sm:text-sm font-black text-slate-900 dark:text-white leading-tight truncate">
+                  Practical Evaluation
+                </h1>
+                <span className="px-1.5 py-0.5 rounded-md bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border border-indigo-500/20 text-[10px] font-black shrink-0 truncate max-w-[130px] sm:max-w-none">
+                  {selectedClass} • {currentSubjectObj.name} ({currentSubjectObj.code})
+                </span>
               </div>
-              <h1 className="text-xs sm:text-sm font-black text-slate-900 dark:text-white leading-tight truncate">
-                Practical Evaluation Portal
-              </h1>
             </div>
 
             <div className="flex items-center gap-1.5 shrink-0">
@@ -2082,82 +2084,96 @@ export default function PracticalsPage() {
             </div>
           )}
 
-          {/* Sleek Integrated Filter Control & Toolbar Bar */}
-          <div className="rounded-2xl border bg-slate-50/80 dark:bg-slate-950/80 border-slate-200/90 dark:border-slate-800/90 p-2 sm:p-2.5 space-y-2 shadow-2xs">
-            {/* Summary Bar & Action Controls (Responsive Mobile-First, High Density) */}
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-1.5">
-              {/* Filters toggle — full width on mobile, fills available space on desktop */}
-              <button
-                type="button"
-                onClick={() => setShowFilterSettings(!showFilterSettings)}
-                className="w-full sm:flex-1 flex items-center justify-between gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-bold bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer min-w-0 shadow-2xs active:scale-98"
-              >
-                <div className="flex items-center gap-1.5 truncate">
-                  <SlidersHorizontal size={13} className="text-indigo-600 dark:text-indigo-400 shrink-0" />
-                  <span className="truncate text-[11px]">
-                    {selectedClass} Class • {currentSubjectObj.name} ({currentSubjectObj.code}) • {practicalType.split(' ')[0]} ({subjectMaxMarks}M) • {yearSuffix}
-                  </span>
-                </div>
-                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20 shrink-0 flex items-center gap-0.5">
-                  Filters <ChevronDown size={11} className={`transition-transform duration-200 ${showFilterSettings ? 'rotate-180' : ''}`} />
-                </span>
-              </button>
-
-              {/* Student count + sort inline (Desktop) */}
-              <div className="hidden sm:flex items-center gap-1 shrink-0 text-[10px] font-extrabold text-slate-600 dark:text-slate-400 whitespace-nowrap">
+          {/* Master Control Row: Select-All, Student Count, Sort, Filters, Quick Fill, and Print in ONE Single Row */}
+          <div className="flex items-center justify-between gap-1 sm:gap-1.5 pt-0.5">
+            {/* Left: Select All Checkbox + Student Count */}
+            <div className="flex items-center gap-1.5 shrink-0">
+              <input
+                type="checkbox"
+                checked={isAllSelected}
+                ref={el => { if (el) el.indeterminate = isSomeSelected; }}
+                onChange={handleToggleSelectAll}
+                className="w-3.5 h-3.5 rounded border-slate-300 dark:border-slate-700 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                title={isAllSelected ? "Deselect all" : "Select all"}
+              />
+              <div className="text-[11px] font-black text-slate-800 dark:text-slate-200 flex items-center gap-0.5 whitespace-nowrap">
                 <span className="text-indigo-600 dark:text-indigo-400 font-black">{displayedStudents.length}</span>
-                <span>Stu.</span>
-                {showFailOnly && <span className="text-rose-600">(Fail)</span>}
-              </div>
-
-              {/* Sort (Desktop) */}
-              <div className="hidden sm:flex items-center gap-1 shrink-0">
-                <ArrowUpDown size={11} className="text-slate-400" />
-                <select
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value)}
-                  className="practicals-select practicals-control px-2 py-0.5 rounded-lg border text-xs font-semibold bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 shadow-2xs cursor-pointer"
-                >
-                  <option value="rollAsc">Roll ↑</option>
-                  <option value="rollDesc">Roll ↓</option>
-                  <option value="nameAsc">Name A-Z</option>
-                  <option value="formAsc">Form No.</option>
-                </select>
-              </div>
-
-              {/* Quick Fill + Print (Fail button cleanly moved to filters drawer) */}
-              <div className="flex items-center justify-end gap-1.5 w-full sm:w-auto shrink-0">
-                <button
-                  type="button"
-                  onClick={() => setShowQuickFill(prev => !prev)}
-                  className={`practicals-control flex-1 sm:flex-initial h-8 px-2.5 py-1 rounded-lg font-bold text-xs border transition-all cursor-pointer flex items-center justify-center gap-1 active:scale-95 shadow-2xs ${
-                    showQuickFill
-                      ? 'bg-amber-500 text-white border-amber-500 shadow-2xs'
-                      : 'bg-white dark:bg-slate-900 text-amber-700 dark:text-amber-400 border-amber-300/80 dark:border-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/40'
-                  }`}
-                  title="Quick Bulk Fill: Fill marks for all, empty, or selected students in one go"
-                >
-                  <Zap size={13} className={showQuickFill ? 'text-white' : 'text-amber-500'} />
-                  <span>Quick Fill</span>
-                  {selectedKeys.size > 0 && (
-                    <span className="px-1.5 py-0.2 rounded-full bg-indigo-600 text-white text-[9px] font-bold">
-                      {selectedKeys.size}
-                    </span>
-                  )}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handlePrintReport}
-                  className="practicals-control h-8 px-3 py-1 rounded-lg font-bold text-xs bg-indigo-600 text-white hover:bg-indigo-500 border border-indigo-600 shadow-2xs cursor-pointer flex items-center justify-center gap-1 active:scale-95"
-                >
-                  <Printer size={13} /> <span>Print</span>
-                </button>
+                <span className="text-[10px] text-slate-500 dark:text-slate-400 font-bold hidden xs:inline sm:inline">Students</span>
+                <span className="text-[10px] text-slate-500 dark:text-slate-400 font-bold xs:hidden sm:hidden">Stu</span>
+                {showFailOnly && <span className="ml-0.5 text-[9.5px] text-rose-600 font-black">(Fail)</span>}
               </div>
             </div>
 
-            {/* Desktop-only Expandable Filter Inputs Panel */}
-            {showFilterSettings && (
+            {/* Middle: Sort Dropdown */}
+            <div className="flex items-center gap-0.5 shrink-0">
+              <ArrowUpDown size={11} className="text-slate-400 hidden sm:inline" />
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+                className="practicals-select h-7.5 px-1.5 sm:px-2 rounded-lg border text-[11px] font-bold bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 shadow-2xs cursor-pointer"
+                title="Sort students"
+              >
+                <option value="rollAsc">Roll ↑</option>
+                <option value="rollDesc">Roll ↓</option>
+                <option value="nameAsc">Name A-Z</option>
+                <option value="formAsc">Form No.</option>
+              </select>
+            </div>
+
+            {/* Right: Actions Group (Filters, Quick Fill, Print) */}
+            <div className="flex items-center gap-1 shrink-0">
+              {/* Filters Button */}
+              <button
+                type="button"
+                onClick={() => setShowFilterSettings(!showFilterSettings)}
+                className={`h-7.5 px-2 sm:px-2.5 rounded-lg border text-[11px] font-bold flex items-center justify-center gap-1 transition-all cursor-pointer shadow-2xs active:scale-95 ${
+                  showFilterSettings
+                    ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                    : 'bg-slate-50 hover:bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700'
+                }`}
+                title="Open evaluation filters"
+              >
+                <SlidersHorizontal size={12} className={showFilterSettings ? 'text-white' : 'text-indigo-600 dark:text-indigo-400'} />
+                <span>Filters</span>
+                <ChevronDown size={11} className={`transition-transform duration-200 ${showFilterSettings ? 'rotate-180' : ''}`} />
+              </button>
+
+              {/* Quick Fill Button */}
+              <button
+                type="button"
+                onClick={() => setShowQuickFill(prev => !prev)}
+                className={`h-7.5 px-2 sm:px-2.5 rounded-lg font-bold text-[11px] border transition-all cursor-pointer flex items-center justify-center gap-1 active:scale-95 shadow-2xs ${
+                  showQuickFill
+                    ? 'bg-amber-500 text-white border-amber-500 shadow-xs'
+                    : 'bg-white dark:bg-slate-900 text-amber-700 dark:text-amber-400 border-amber-300 dark:border-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/40'
+                }`}
+                title="Quick Bulk Fill: Fill marks for all, empty, or selected students in one go"
+              >
+                <Zap size={12} className={showQuickFill ? 'text-white' : 'text-amber-500'} />
+                <span className="hidden xs:inline sm:inline">Quick Fill</span>
+                <span className="xs:hidden sm:hidden">Fill</span>
+                {selectedKeys.size > 0 && (
+                  <span className="px-1 py-0.2 rounded-full bg-indigo-600 text-white text-[8.5px] font-bold">
+                    {selectedKeys.size}
+                  </span>
+                )}
+              </button>
+
+              {/* Print Button */}
+              <button
+                type="button"
+                onClick={handlePrintReport}
+                className="h-7.5 px-2 sm:px-3 rounded-lg font-bold text-[11px] bg-indigo-600 text-white hover:bg-indigo-500 border border-indigo-600 shadow-2xs cursor-pointer flex items-center justify-center gap-1 active:scale-95"
+                title="Print Evaluation Roster"
+              >
+                <Printer size={12} />
+                <span className="hidden xs:inline sm:inline">Print</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Desktop-only Expandable Filter Inputs Panel */}
+          {showFilterSettings && (
               <div className="hidden sm:grid grid-cols-4 gap-2 pt-2 border-t border-slate-200 dark:border-slate-800 animate-in fade-in duration-150">
                 <div className="space-y-0.5">
                   <label className="text-[9.5px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block truncate">Class</label>
@@ -2333,9 +2349,9 @@ export default function PracticalsPage() {
               </div>
             )}
 
-            {/* Quick Bulk Fill Deck Panel */}
+            {/* Desktop-only Quick Bulk Fill Deck Panel */}
             {showQuickFill && (
-              <div className="p-2.5 sm:p-3 rounded-xl border border-amber-300/80 dark:border-amber-700/80 bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-indigo-500/10 dark:from-amber-950/40 dark:to-indigo-950/30 space-y-2.5 animate-in fade-in duration-150">
+              <div className="hidden sm:block p-2.5 sm:p-3 rounded-xl border border-amber-300/80 dark:border-amber-700/80 bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-indigo-500/10 dark:from-amber-950/40 dark:to-indigo-950/30 space-y-2.5 animate-in fade-in duration-150">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-2.5">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-xs font-black text-amber-800 dark:text-amber-300 flex items-center gap-1">
@@ -2390,7 +2406,7 @@ export default function PracticalsPage() {
 
                   {/* Execution Buttons */}
                   <div className="flex items-center gap-1.5 flex-wrap">
-                    {/* Fill Empty Cells (Instant answer to user's 90 students question!) */}
+                    {/* Fill Empty Cells */}
                     <button
                       type="button"
                       onClick={() => handleApplyQuickFill('empty')}
@@ -2526,38 +2542,214 @@ export default function PracticalsPage() {
                 </div>
               </div>
             )}
-          </div>
 
-          {/* Mobile-only student count + sort (shown below filter bar on small screens) */}
-          <div className="sm:hidden flex items-center justify-between gap-1.5 px-1 py-1 text-[11px] text-slate-600 dark:text-slate-400">
-            <div className="font-extrabold flex items-center gap-1.5">
-              <input
-                type="checkbox"
-                checked={isAllSelected}
-                ref={el => { if (el) el.indeterminate = isSomeSelected; }}
-                onChange={handleToggleSelectAll}
-                className="w-3.5 h-3.5 rounded border-slate-300 dark:border-slate-700 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
-                title={isAllSelected ? "Deselect all" : "Select all"}
-              />
-              <div>
-                <span className="text-indigo-600 dark:text-indigo-400 font-black">{displayedStudents.length}</span> Students
-                {showFailOnly && <span className="ml-1 text-rose-600">(Fail)</span>}
+            {/* Mobile Quick Fill Modal / Bottom Sheet Popup */}
+            {showQuickFill && (
+              <div className="sm:hidden fixed inset-0 z-[9990] bg-slate-950/60 backdrop-blur-xs flex items-end justify-center p-0 animate-fadeIn">
+                <div className="fixed inset-0" onClick={() => setShowQuickFill(false)} />
+                <div className="relative bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 rounded-t-3xl p-4 shadow-2xl max-w-lg w-full space-y-3.5 z-10 animate-in slide-in-from-bottom duration-200 max-h-[85vh] overflow-y-auto">
+                  {/* Modal Header */}
+                  <div className="flex items-center justify-between pb-2.5 border-b border-slate-100 dark:border-slate-800">
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 rounded-xl bg-amber-500/15 text-amber-600 dark:text-amber-400 flex items-center justify-center">
+                        <Zap size={15} />
+                      </div>
+                      <div>
+                        <h3 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider">
+                          Quick Bulk Fill
+                        </h3>
+                        <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">
+                          {emptyCount} empty cells remaining • {displayedStudents.length} total
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowQuickFill(false)}
+                      className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                      title="Close"
+                    >
+                      <X size={16} />
+                    </button>
+                  </div>
+
+                  {/* Marks Input & Presets */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                        Mark to Assign (Max: {subjectMaxMarks})
+                      </label>
+                      {quickFillMark && (
+                        <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400">
+                          Active: {quickFillMark === 'A' ? 'Absent (A)' : `${quickFillMark} / ${subjectMaxMarks}`}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={quickFillMark}
+                        onChange={(e) => setQuickFillMark(e.target.value.toUpperCase())}
+                        placeholder={`0-${subjectMaxMarks} / A`}
+                        className="w-24 px-3 py-2 rounded-xl border text-sm font-black text-center uppercase bg-slate-50 dark:bg-slate-950 border-amber-300 dark:border-amber-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-2xs"
+                        maxLength={4}
+                      />
+                      {/* Presets */}
+                      <div className="flex-1 grid grid-cols-4 gap-1.5">
+                        {[
+                          String(subjectMaxMarks),
+                          String(Math.max(0, subjectMaxMarks - 1)),
+                          String(Math.max(0, subjectMaxMarks - 2)),
+                          'A'
+                        ].filter((v, i, a) => a.indexOf(v) === i).map(chipVal => (
+                          <button
+                            key={chipVal}
+                            type="button"
+                            onClick={() => setQuickFillMark(chipVal)}
+                            className={`py-2 rounded-xl text-xs font-black border transition-all cursor-pointer text-center active:scale-95 ${
+                              quickFillMark === chipVal
+                                ? 'bg-amber-500 text-white border-amber-500 shadow-xs'
+                                : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-200'
+                            }`}
+                          >
+                            {chipVal === 'A' ? 'Abs' : chipVal}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Fast Selection Shortcuts */}
+                  <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/60 space-y-1.5">
+                    <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                      <span>Selection Targets:</span>
+                      {selectedKeys.size > 0 ? (
+                        <span className="text-indigo-600 dark:text-indigo-400 font-black">{selectedKeys.size} selected</span>
+                      ) : (
+                        <span>None selected</span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <button
+                        type="button"
+                        onClick={handleToggleSelectAll}
+                        className="px-2.5 py-1 rounded-lg text-xs font-bold bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 shadow-2xs active:scale-95 cursor-pointer"
+                      >
+                        {isAllSelected ? 'Deselect All' : `Select All (${displayedStudents.length})`}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleSelectEmptyOnly}
+                        className="px-2.5 py-1 rounded-lg text-xs font-bold bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 shadow-2xs active:scale-95 cursor-pointer"
+                      >
+                        Select Empty Only ({emptyCount})
+                      </button>
+                      {selectedKeys.size > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setSelectedKeys(new Set())}
+                          className="px-2 py-1 rounded-lg text-xs font-bold text-rose-600 dark:text-rose-400 hover:underline cursor-pointer"
+                        >
+                          Clear Selection
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Action Buttons Grid */}
+                  <div className="grid grid-cols-2 gap-2 pt-1">
+                    {/* Fill Empty */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleApplyQuickFill('empty');
+                        setShowQuickFill(false);
+                      }}
+                      disabled={emptyCount === 0 || !quickFillMark.trim()}
+                      className={`py-2.5 px-3 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition-all shadow-xs active:scale-98 ${
+                        emptyCount > 0 && quickFillMark.trim()
+                          ? 'bg-emerald-600 hover:bg-emerald-500 text-white cursor-pointer'
+                          : 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-600 cursor-not-allowed border border-slate-200 dark:border-slate-700'
+                      }`}
+                    >
+                      <Zap size={14} />
+                      <span>Fill Empty ({emptyCount})</span>
+                    </button>
+
+                    {/* Fill Selected */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleApplyQuickFill('selected');
+                        setShowQuickFill(false);
+                      }}
+                      disabled={selectedKeys.size === 0 || !quickFillMark.trim()}
+                      className={`py-2.5 px-3 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition-all shadow-xs active:scale-98 ${
+                        selectedKeys.size > 0 && quickFillMark.trim()
+                          ? 'bg-indigo-600 hover:bg-indigo-500 text-white cursor-pointer'
+                          : 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-600 cursor-not-allowed border border-slate-200 dark:border-slate-700'
+                      }`}
+                    >
+                      <Check size={14} />
+                      <span>Fill Selected ({selectedKeys.size})</span>
+                    </button>
+
+                    {/* Fill All */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowQuickFill(false);
+                        triggerConfirm({
+                          title: 'Fill All Students',
+                          message: `Are you sure you want to assign mark "${quickFillMark}" to ALL ${displayedStudents.length} students in this evaluation roster?`,
+                          confirmText: `Fill All (${displayedStudents.length})`,
+                          cancelText: 'Cancel',
+                          type: 'warning',
+                          onConfirm: () => {
+                            handleApplyQuickFill('all');
+                            setConfirmModal(prev => ({ ...prev, isOpen: false }));
+                          }
+                        });
+                      }}
+                      disabled={displayedStudents.length === 0 || !quickFillMark.trim()}
+                      className={`py-2.5 px-3 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition-all shadow-xs active:scale-98 ${
+                        displayedStudents.length > 0 && quickFillMark.trim()
+                          ? 'bg-amber-600 hover:bg-amber-500 text-white cursor-pointer'
+                          : 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-600 cursor-not-allowed border border-slate-200 dark:border-slate-700'
+                      }`}
+                    >
+                      <Zap size={14} />
+                      <span>Fill All ({displayedStudents.length})</span>
+                    </button>
+
+                    {/* Clear All / Clear Selected */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowQuickFill(false);
+                        const targetLabel = selectedKeys.size > 0 ? `${selectedKeys.size} selected` : `all ${displayedStudents.length}`;
+                        triggerConfirm({
+                          title: 'Clear Practical Marks',
+                          message: `Are you sure you want to clear practical marks for ${targetLabel} students? Any existing entered marks will be emptied.`,
+                          confirmText: 'Yes, Clear Marks',
+                          cancelText: 'Keep Marks',
+                          type: 'danger',
+                          onConfirm: () => {
+                            handleApplyQuickFill('clear');
+                            setConfirmModal(prev => ({ ...prev, isOpen: false }));
+                          }
+                        });
+                      }}
+                      className="py-2.5 px-3 rounded-xl text-xs font-bold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-900/60 border border-rose-200 dark:border-rose-800 flex items-center justify-center gap-1 active:scale-98 cursor-pointer"
+                    >
+                      <X size={14} />
+                      <span>Clear {selectedKeys.size > 0 ? `(${selectedKeys.size})` : 'All'}</span>
+                    </button>
+                  </div>
+                </div>
               </div>
-            </div>
-            <div className="flex items-center gap-1 font-semibold">
-              <ArrowUpDown size={11} className="text-slate-400" />
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value)}
-                className="practicals-select practicals-control px-2 py-0.5 rounded-lg border text-[11px] font-semibold bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 shadow-2xs cursor-pointer"
-              >
-                <option value="rollAsc">Roll ↑</option>
-                <option value="rollDesc">Roll ↓</option>
-                <option value="nameAsc">Name A-Z</option>
-                <option value="formAsc">Form No.</option>
-              </select>
-            </div>
-          </div>
+            )}
+
 
           {/* Student Roster Marks Entry Table - Ultra Compact */}
           {loading ? (
