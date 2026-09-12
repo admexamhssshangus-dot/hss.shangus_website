@@ -4,7 +4,15 @@ function expectedSubjectCodes(student) {
   const raw = student.expectedSubjectCodes || student.selectedSubjects || student.subjects || student.subs || student.Subjects || student.Subs ||
     Array.from({ length: 6 }, (_, index) => student[`Subjects${index + 1}`] || student[`subject${index + 1}`]).filter(Boolean);
   const subjects = Array.isArray(raw) ? raw : String(raw || '').split(/[,;|+]/);
-  const aliases = { english: 'EN', generalenglish: 'EN', botany: 'BT', zoology: 'ZY', physicaleducation: 'PD', homescience: 'HSC', computerscience: 'CS' };
+  const aliases = {
+    english: 'EN', generalenglish: 'EN',
+    botany: 'BO', zoology: 'ZO', biology: 'BI',
+    biotechnology: 'BT',
+    physics: 'PH', chemistry: 'CH',
+    math: 'MA', maths: 'MA', mathematics: 'MA',
+    environmentalscience: 'ES', evs: 'ES',
+    physicaleducation: 'PD', homescience: 'HSC', computerscience: 'CS'
+  };
   const codes = subjects.map(value => {
     const normalized = key(typeof value === 'object' ? (value.code || value.name) : value);
     if (!normalized) return '';

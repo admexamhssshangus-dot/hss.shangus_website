@@ -15,7 +15,13 @@ const sessionKey = value => {
 const first = (data, keys) => keys.map(key => data?.[key]).find(value => value !== undefined && value !== null && !/^(\s*|[-—]+|n\/?a|null|undefined)$/i.test(String(value))) || '';
 const FIELDS = {
   formNo: ['formNo', 'Form Number', 'Form No.', 'FormNo'],
-  regNo: ['boardRegNo', 'regNo', 'Board Registration Number', 'Board Reg. No.'],
+  regNo: [
+    'boardRegNo', 'regNo', 'Board Registration Number', 'Board Reg. No.',
+    'Board Registration No. (Class 11th)', 'Board Registration No. (Class 10th)',
+    'Board Registration No. (Class 9th)', 'DIET Registration No.',
+    'Registration No. (allotted by JKBOSE)', 'Registration No. (allotted by JKBOSE )',
+    'Registration No.', 'Reg. No.'
+  ],
   rollNo: ['classRollNo', 'Class Roll No', 'Class Roll No.', 'rollNo', 'examRollNo']
 };
 function studentProjection(data) {
