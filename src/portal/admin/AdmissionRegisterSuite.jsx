@@ -91,29 +91,38 @@ export const DEFAULT_COLUMN_WIDTHS = {
   st_marksReceipt: 140
 };
 
-// Official JKBOSE Subject Abbreviation Directory for Page 2 Examination Plan
-const SENTUP_SUBJECT_DIRECTORY = [
-  { code: 'EN / GE', name: 'General English', stream: 'All Streams (Compulsory)', type: 'Theory & Internal' },
-  { code: 'PH', name: 'Physics', stream: 'Science (Medical / Non-Med)', type: 'Theory + Practical' },
-  { code: 'CH', name: 'Chemistry', stream: 'Science (Medical / Non-Med)', type: 'Theory + Practical' },
-  { code: 'BI / BIO', name: 'Biology (Botany & Zoology)', stream: 'Science (Medical)', type: 'Theory + Practical' },
-  { code: 'MA / MTH', name: 'Mathematics', stream: 'Non-Medical / Humanities', type: 'Theory + Internal' },
-  { code: 'PS / POL', name: 'Political Science', stream: 'Humanities / Arts', type: 'Theory + Project' },
-  { code: 'ED / EDU', name: 'Education', stream: 'Humanities / Arts', type: 'Theory + Internal' },
-  { code: 'SO / SOC', name: 'Sociology', stream: 'Humanities / Arts', type: 'Theory + Project' },
-  { code: 'EC / ECO', name: 'Economics', stream: 'Humanities / Commerce', type: 'Theory + Project' },
-  { code: 'HI / HIST', name: 'History', stream: 'Humanities / Arts', type: 'Theory + Project' },
-  { code: 'UR', name: 'Urdu', stream: 'Humanities / Languages', type: 'Theory + Internal' },
-  { code: 'AR', name: 'Arabic', stream: 'Humanities / Languages', type: 'Theory + Internal' },
-  { code: 'KA / KAS', name: 'Kashmiri', stream: 'Humanities / Languages', type: 'Theory + Internal' },
-  { code: 'HI / HND', name: 'Hindi', stream: 'Humanities / Languages', type: 'Theory + Internal' },
-  { code: 'ES / EVS', name: 'Environmental Science', stream: 'All Streams (Compulsory)', type: 'Grading / Project' },
-  { code: 'IP / ITE', name: 'Information Tech / Informatics', stream: 'Elective / Vocational', type: 'Theory + Practical' },
-  { code: 'HTC', name: 'Health Care', stream: 'Elective / Vocational', type: 'Theory + Practical' },
-  { code: 'PD / PE', name: 'Physical Education', stream: 'Elective / Activity', type: 'Theory + Practical' },
-  { code: 'GEO', name: 'Geography', stream: 'Humanities / Arts', type: 'Theory + Practical' },
-  { code: 'ACC', name: 'Accountancy', stream: 'Commerce', type: 'Theory + Project' },
-  { code: 'BST', name: 'Business Studies', stream: 'Commerce', type: 'Theory + Project' }
+// Default Official JKBOSE & School Portal Subject Abbreviation Directory for Page 2 Examination Plan
+const DEFAULT_SENTUP_SUBJECT_DIRECTORY = [
+  { id: 'en', code: 'EN / GE', name: 'General English' },
+  { id: 'ph', code: 'PH', name: 'Physics' },
+  { id: 'ch', code: 'CH', name: 'Chemistry' },
+  { id: 'bi', code: 'BI / BIO', name: 'Biology (Botany & Zoology)' },
+  { id: 'bo', code: 'BO', name: 'Botany' },
+  { id: 'zo', code: 'ZO', name: 'Zoology' },
+  { id: 'ma', code: 'MA / MTH', name: 'Mathematics' },
+  { id: 'am', code: 'AM', name: 'Applied Mathematics' },
+  { id: 'es', code: 'ES / EVS', name: 'Environmental Science' },
+  { id: 'ps', code: 'PS / POL', name: 'Political Science' },
+  { id: 'ed', code: 'ED / EDU', name: 'Education' },
+  { id: 'so', code: 'SO / SOC', name: 'Sociology' },
+  { id: 'ec', code: 'EC / ECO', name: 'Economics' },
+  { id: 'hi', code: 'HI / HIST', name: 'History' },
+  { id: 'ur', code: 'UR', name: 'Urdu' },
+  { id: 'ar', code: 'AR', name: 'Arabic' },
+  { id: 'ka', code: 'KA / KS', name: 'Kashmiri' },
+  { id: 'hn', code: 'HN / HND', name: 'Hindi' },
+  { id: 'pe', code: 'PE / PER', name: 'Persian' },
+  { id: 'ip', code: 'IP / ITE', name: 'Information Practices / IT' },
+  { id: 'cs', code: 'CS', name: 'Computer Science' },
+  { id: 'htc', code: 'HTC', name: 'Health Care' },
+  { id: 'pd', code: 'PD / PE', name: 'Physical Education' },
+  { id: 'geo', code: 'GG / GEO', name: 'Geography' },
+  { id: 'ay', code: 'AY / ACC', name: 'Accountancy' },
+  { id: 'bs', code: 'BS / BST', name: 'Business Studies' },
+  { id: 'ep', code: 'EP', name: 'Entrepreneurship' },
+  { id: 'pa', code: 'PA', name: 'Public Administration' },
+  { id: 'is', code: 'IS', name: 'Islamic Studies' },
+  { id: 'hsc', code: 'HSC', name: 'Home Science' }
 ];
 
 // Draggable Table Column Header Component
@@ -2818,6 +2827,68 @@ export default function AdmissionRegisterSuite({
   const [includeCoverPage, setIncludeCoverPage] = useState(true);
   const [includePlanPage, setIncludePlanPage] = useState(true);
 
+  // Sentup Subject Abbreviations Directory (Configurable in View & Layout, Persisted to LocalStorage)
+  const [sentupSubjectAbbreviations, setSentupSubjectAbbreviations] = useState(() => {
+    try {
+      const saved = localStorage.getItem('hss_sentup_subject_abbreviations');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {
+      console.error('Failed to load custom subject abbreviations', e);
+    }
+    return DEFAULT_SENTUP_SUBJECT_DIRECTORY;
+  });
+
+  const [newSubCode, setNewSubCode] = useState('');
+  const [newSubName, setNewSubName] = useState('');
+
+  const handleAddSubjectAbbreviation = useCallback(() => {
+    if (!newSubCode.trim() || !newSubName.trim()) return;
+    const newEntry = {
+      id: `sub_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+      code: newSubCode.trim().toUpperCase(),
+      name: newSubName.trim()
+    };
+    setSentupSubjectAbbreviations(prev => {
+      const updated = [...prev, newEntry];
+      try {
+        localStorage.setItem('hss_sentup_subject_abbreviations', JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
+    setNewSubCode('');
+    setNewSubName('');
+  }, [newSubCode, newSubName]);
+
+  const handleDeleteSubjectAbbreviation = useCallback((targetIdOrIdx) => {
+    setSentupSubjectAbbreviations(prev => {
+      const updated = prev.filter((item, idx) => (item.id ? item.id !== targetIdOrIdx : idx !== targetIdOrIdx));
+      try {
+        localStorage.setItem('hss_sentup_subject_abbreviations', JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
+  }, []);
+
+  const handleResetSubjectAbbreviations = useCallback(() => {
+    setSentupSubjectAbbreviations(DEFAULT_SENTUP_SUBJECT_DIRECTORY);
+    try {
+      localStorage.removeItem('hss_sentup_subject_abbreviations');
+    } catch (e) {}
+  }, []);
+
+  // Split subject abbreviations into two balanced columns for compact 2-column display on Page 2
+  const { leftSubjects, rightSubjects } = useMemo(() => {
+    const list = sentupSubjectAbbreviations || [];
+    const mid = Math.ceil(list.length / 2);
+    return {
+      leftSubjects: list.slice(0, mid),
+      rightSubjects: list.slice(mid)
+    };
+  }, [sentupSubjectAbbreviations]);
+
   // Sentup Candidate Census Statistics (Rendered on Cover & Plan Pages)
   const sentupCensus = useMemo(() => {
     const total = activeIncludedRows.length;
@@ -4554,6 +4625,90 @@ export default function AdmissionRegisterSuite({
                         </div>
                       </div>
 
+                      {/* Sentup Subject Abbreviations Management Section (Configurable in View & Layout) */}
+                      {activeTab === 'sentup' && (
+                        <div className="border-t border-slate-200 pt-3 mt-3 text-left">
+                          <div className="flex items-center justify-between mb-1.5">
+                            <span className="font-black text-xs text-slate-900 flex items-center gap-1.5">
+                              <BookOpen size={13} className="text-indigo-600" />
+                              <span>Page 2 Subject Abbreviations ({sentupSubjectAbbreviations.length})</span>
+                            </span>
+                            <button
+                              type="button"
+                              onClick={handleResetSubjectAbbreviations}
+                              className="text-[10px] font-black text-indigo-600 hover:text-indigo-800 hover:underline cursor-pointer"
+                              title="Reset to default JKBOSE & School Portal abbreviations"
+                            >
+                              Reset to Defaults
+                            </button>
+                          </div>
+                          <div className="text-[10px] text-slate-500 mb-2 leading-tight">
+                            Manage abbreviations displayed on Page 2 of the Sent-up Roll Sheet as per JKBOSE guidelines and website usage:
+                          </div>
+
+                          {/* Add Form */}
+                          <div className="flex items-center gap-1.5 p-2 bg-slate-50 rounded-xl border border-slate-200 mb-2">
+                            <input
+                              type="text"
+                              placeholder="Code (e.g. BIO)"
+                              value={newSubCode}
+                              onChange={(e) => setNewSubCode(e.target.value)}
+                              className="w-28 px-2 py-1 text-xs rounded-lg border border-slate-300 bg-white font-mono font-bold uppercase focus:ring-1 focus:ring-indigo-500 focus:outline-hidden"
+                            />
+                            <input
+                              type="text"
+                              placeholder="Subject Title (e.g. Biology)"
+                              value={newSubName}
+                              onChange={(e) => setNewSubName(e.target.value)}
+                              className="flex-1 px-2 py-1 text-xs rounded-lg border border-slate-300 bg-white font-medium focus:ring-1 focus:ring-indigo-500 focus:outline-hidden"
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault();
+                                  handleAddSubjectAbbreviation();
+                                }
+                              }}
+                            />
+                            <button
+                              type="button"
+                              onClick={handleAddSubjectAbbreviation}
+                              disabled={!newSubCode.trim() || !newSubName.trim()}
+                              className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-black cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed transition-all flex items-center gap-1 shrink-0 shadow-2xs"
+                              title="Add subject abbreviation to Page 2 Key"
+                            >
+                              <Plus size={12} />
+                              <span>Add</span>
+                            </button>
+                          </div>
+
+                          {/* List of current abbreviations with Delete button */}
+                          <div className="max-h-44 overflow-y-auto space-y-1 p-1.5 bg-slate-50/80 rounded-xl border border-slate-200">
+                            {sentupSubjectAbbreviations.map((sub, sIdx) => (
+                              <div
+                                key={sub.id || `${sub.code}_${sIdx}`}
+                                className="flex items-center justify-between px-2 py-1 bg-white hover:bg-slate-50 rounded-lg border border-slate-200/70 text-xs shadow-2xs group transition-colors"
+                              >
+                                <div className="flex items-center gap-2 min-w-0 pr-2">
+                                  <span className="px-1.5 py-0.5 rounded bg-indigo-50 border border-indigo-200 text-indigo-900 font-mono font-black text-[10px] shrink-0">
+                                    {sub.code}
+                                  </span>
+                                  <span className="font-semibold text-slate-800 text-[11px] truncate">
+                                    {sub.name}
+                                  </span>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteSubjectAbbreviation(sub.id || sIdx)}
+                                  className="p-1 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded cursor-pointer transition-colors shrink-0"
+                                  title={`Delete ${sub.name} (${sub.code})`}
+                                >
+                                  <Trash2 size={12} />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
                       {/* Footer Actions */}
                       <div className="border-t border-slate-200 pt-3 mt-3 space-y-2">
                         {isLayoutModified && (
@@ -5724,10 +5879,10 @@ export default function AdmissionRegisterSuite({
                     </div>
                   </div>
 
-                  {/* Main Grid: Left = Census & Administration Directives, Right = Full Subject Key */}
+                  {/* Main Grid: Left = Census & Audit Declaration, Right = Full Subject Key */}
                   <div className="grid grid-cols-12 gap-2.5 my-auto flex-1">
-                    {/* Left Column: Candidate Census & Directives (5 cols) */}
-                    <div className="col-span-5 flex flex-col justify-between gap-2">
+                    {/* Left Column: Candidate Census & Audit Declaration (4 cols) */}
+                    <div className="col-span-4 flex flex-col justify-between gap-2">
                       {/* Census Table */}
                       <div className="border border-slate-300 rounded-lg p-2 bg-slate-50/60">
                         <div className="text-[10px] font-black uppercase text-red-900 border-b border-red-200 pb-0.5 mb-1 flex items-center justify-between">
@@ -5778,64 +5933,82 @@ export default function AdmissionRegisterSuite({
                         </table>
                       </div>
 
-                      {/* Examination Administration Directives */}
-                      <div className="border border-slate-300 rounded-lg p-2 bg-slate-50/60 text-[9.5px] leading-snug text-slate-800">
-                        <div className="text-[10px] font-black uppercase text-red-900 border-b border-red-200 pb-0.5 mb-1">
-                          Administration Directives & Seating Protocol
+                      {/* Institutional Audit Certification */}
+                      <div className="border border-slate-300 rounded-lg p-2.5 bg-slate-50/60 text-[9px] leading-relaxed text-slate-700">
+                        <div className="text-[9.5px] font-black uppercase text-red-900 border-b border-red-200 pb-0.5 mb-1.5">
+                          Institutional Audit Certification
                         </div>
-                        <ul className="space-y-1 text-[9px]">
-                          <li className="flex items-start gap-1">
-                            <span className="text-red-800 font-bold">•</span>
-                            <span><strong>Seating Arrangement:</strong> Strict single-candidate seating per desk with roll numbers conspicuously affixed. Minimum 1-metre lateral distance.</span>
-                          </li>
-                          <li className="flex items-start gap-1">
-                            <span className="text-red-800 font-bold">•</span>
-                            <span><strong>Verification Protocol:</strong> Cross-check Candidate Board Reg. No. and Class Roll No. with original Admit Cards prior to entry.</span>
-                          </li>
-                          <li className="flex items-start gap-1">
-                            <span className="text-red-800 font-bold">•</span>
-                            <span><strong>Subject Code Compliance:</strong> Examinees are strictly authorized to appear in subjects as allocated in the official Sent-up Roll Sheet (Pages 3 to {sentupTotalPages}).</span>
-                          </li>
-                          <li className="flex items-start gap-1">
-                            <span className="text-red-800 font-bold">•</span>
-                            <span><strong>Attendance & Absentees:</strong> Daily attendance sheets and absentee statements must be countersigned by the Superintendent and retained in institutional records.</span>
-                          </li>
-                        </ul>
+                        <p className="mb-1.5">
+                          Certified that candidate particulars, stream allocations, and subject combinations tabulated in this Sent-up Gazette have been verified against the official Master Admission Register of HSS Shangus and JKBOSE enrollment records for Class {selectedClass} ({selectedSession}).
+                        </p>
+                        <p className="font-semibold text-slate-800">
+                          Examinees are authorized to appear strictly in the subjects documented in the ensuing Roll Sheet (Pages 3 to {sentupTotalPages}).
+                        </p>
                       </div>
                     </div>
 
-                    {/* Right Column: Comprehensive Subject Abbreviation Directory ("keep subejct abbreviations on 2nd page only") */}
-                    <div className="col-span-7 flex flex-col justify-between border border-slate-300 rounded-lg p-2 bg-white">
+                    {/* Right Column: Comprehensive Subject Abbreviation Directory (8 cols) */}
+                    <div className="col-span-8 flex flex-col justify-between border border-slate-300 rounded-lg p-2 bg-white">
                       <div>
-                        <div className="text-[10px] font-black uppercase text-red-900 border-b border-red-200 pb-0.5 mb-1 flex items-center justify-between">
-                          <span>Subject Abbreviations Directory & Reference Key</span>
-                          <span className="text-[8.5px] font-bold text-slate-500">JKBOSE Official Nomenclature</span>
+                        <div className="text-[10px] font-black uppercase text-red-900 border-b border-red-200 pb-1 mb-1.5 flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <span>Subject Abbreviations Directory & Reference Key</span>
+                            <span className="text-[8.5px] font-bold text-slate-500">({sentupSubjectAbbreviations.length} Subjects)</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[8px] font-bold text-slate-500 uppercase tracking-wider">JKBOSE Guidelines & Portal Directory</span>
+                            <button
+                              type="button"
+                              onClick={() => setShowViewPopover(true)}
+                              className="print:hidden text-[9px] font-bold text-indigo-600 hover:text-indigo-800 hover:underline flex items-center gap-1 cursor-pointer bg-indigo-50 border border-indigo-200 px-1.5 py-0.5 rounded shadow-2xs"
+                              title="Add or remove subject abbreviations in View & Layout popover"
+                            >
+                              <Edit3 size={10} />
+                              <span>Edit in View & Layout</span>
+                            </button>
+                          </div>
                         </div>
 
-                        <div className="overflow-x-auto">
+                        {/* 2-Column Split Tables for Clean Single-Page Density */}
+                        <div className="grid grid-cols-2 gap-2">
+                          {/* Column 1 Table */}
                           <table className="subject-key-table w-full text-left text-[8.5px] border-collapse border border-slate-300">
                             <thead>
                               <tr className="bg-slate-900 text-white uppercase text-[8px] font-black">
-                                <th className="border border-slate-300 px-1 py-0.5 w-16 text-center">Code</th>
-                                <th className="border border-slate-300 px-1.5 py-0.5">Subject Full Title</th>
-                                <th className="border border-slate-300 px-1.5 py-0.5">Stream / Category</th>
-                                <th className="border border-slate-300 px-1 py-0.5 text-center">Assessment Mode</th>
+                                <th className="border border-slate-300 px-1.5 py-0.5 w-20 text-center">Code</th>
+                                <th className="border border-slate-300 px-2 py-0.5">Subject Full Title</th>
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-200 text-slate-800">
-                              {SENTUP_SUBJECT_DIRECTORY.map((sub, sIdx) => (
-                                <tr key={sIdx} className={sIdx % 2 === 0 ? 'bg-white' : 'bg-slate-50/70'}>
-                                  <td className="border border-slate-200 px-1 py-0.5 text-center font-mono font-black text-indigo-900 bg-indigo-50/50">
+                              {leftSubjects.map((sub, sIdx) => (
+                                <tr key={sub.id || sIdx} className={sIdx % 2 === 0 ? 'bg-white' : 'bg-slate-50/70'}>
+                                  <td className="border border-slate-200 px-1.5 py-0.5 text-center font-mono font-black text-indigo-900 bg-indigo-50/50">
                                     {sub.code}
                                   </td>
-                                  <td className="border border-slate-200 px-1.5 py-0.5 font-bold text-slate-900">
+                                  <td className="border border-slate-200 px-2 py-0.5 font-bold text-slate-900">
                                     {sub.name}
                                   </td>
-                                  <td className="border border-slate-200 px-1.5 py-0.5 text-slate-600 font-medium text-[8px]">
-                                    {sub.stream}
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+
+                          {/* Column 2 Table */}
+                          <table className="subject-key-table w-full text-left text-[8.5px] border-collapse border border-slate-300">
+                            <thead>
+                              <tr className="bg-slate-900 text-white uppercase text-[8px] font-black">
+                                <th className="border border-slate-300 px-1.5 py-0.5 w-20 text-center">Code</th>
+                                <th className="border border-slate-300 px-2 py-0.5">Subject Full Title</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-200 text-slate-800">
+                              {rightSubjects.map((sub, sIdx) => (
+                                <tr key={sub.id || sIdx} className={sIdx % 2 === 0 ? 'bg-white' : 'bg-slate-50/70'}>
+                                  <td className="border border-slate-200 px-1.5 py-0.5 text-center font-mono font-black text-indigo-900 bg-indigo-50/50">
+                                    {sub.code}
                                   </td>
-                                  <td className="border border-slate-200 px-1.5 py-0.5 text-center text-slate-600 font-semibold text-[7.5px]">
-                                    {sub.type}
+                                  <td className="border border-slate-200 px-2 py-0.5 font-bold text-slate-900">
+                                    {sub.name}
                                   </td>
                                 </tr>
                               ))}
@@ -5844,9 +6017,9 @@ export default function AdmissionRegisterSuite({
                         </div>
                       </div>
 
-                      {/* Guidance Line on 2nd page only as requested */}
-                      <div className="mt-1.5 p-1.5 rounded bg-amber-50 border border-amber-200 text-[9px] text-amber-950 leading-tight">
-                        <strong>📌 Official Guidance Note on Subject Abbreviations:</strong> All subject combinations recorded in the Candidate Sent-up Roll Sheet (commencing from Page 3 through Page {sentupTotalPages}) conform strictly to the standard JKBOSE codes tabulated above. Each candidate must appear in 5 main subjects plus compulsory Environmental / Internal assessments.
+                      {/* Official Guidance Note on 2nd page */}
+                      <div className="mt-2 p-2 rounded bg-amber-50 border border-amber-200 text-[9px] sm:text-[9.5px] text-amber-950 leading-snug">
+                        <strong>📌 Official Guidance Note on Subject Nomenclature & Codes:</strong> All subject abbreviations tabulated above strictly adhere to the official guidelines and syllabus prescribed by the Jammu & Kashmir Board of School Education (JKBOSE) and match the institutional subject nomenclature utilized throughout the official school website portal. Each candidate's subject combination in the ensuing Roll Sheet (commencing from Page 3 through Page {sentupTotalPages}) conforms strictly to these codes. Authorized administrators can customize, add, or delete subject abbreviations via the 'View & Layout' settings menu.
                       </div>
                     </div>
                   </div>
