@@ -1,9 +1,9 @@
 import { saveAcademicRecord } from '../../services/academicRecordService';
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { 
   ArrowLeft, RefreshCw, AlertCircle, 
-  CheckCircle2, Printer, ShieldCheck, History, Clock, ArrowUpDown,
+  CheckCircle2, Printer, ShieldCheck, History, Clock,
   Bookmark, Send, ChevronDown, Check, SlidersHorizontal, Zap, X, Info
 } from 'lucide-react';
 import ConfirmModal from '../components/ConfirmModal';
@@ -921,6 +921,7 @@ function CustomSubjectSelect({ selectedSubject, setSelectedSubject, subjectMap, 
 const CURRENT_SESSION = '2025-26';
 
 export default function PracticalsPage() {
+  const location = useLocation();
   // Filter States
   const [selectedClass, setSelectedClass] = useState('11th');
   const [practicalType, setPracticalType] = useState('Internal Assessment');
@@ -1599,6 +1600,15 @@ export default function PracticalsPage() {
     }
   }, []);
 
+  // Auto-open Submissions History if navigated from Dashboard link (?view=history or state.openHistory)
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (params.get('view') === 'history' || params.get('history') === 'true' || location.state?.openHistory) {
+      setShowHistoryModal(true);
+      fetchSubmissionHistory();
+    }
+  }, [location, fetchSubmissionHistory]);
+
 
 
   // Handle Mark Change — full range 0 to subjectMaxMarks allowed
@@ -2024,18 +2034,6 @@ export default function PracticalsPage() {
               <div className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">
                 <ShieldCheck size={10} /> LAB EVALUATION
               </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowHistoryModal(true);
-                  fetchSubmissionHistory();
-                }}
-                className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700 transition-all cursor-pointer shadow-2xs active:scale-95"
-                title="View Submission Log & History"
-              >
-                <History size={13} className="text-indigo-600 dark:text-indigo-400" />
-                <span className="hidden sm:inline">Submission Log</span>
-              </button>
             </div>
           </div>
 
@@ -2084,27 +2082,26 @@ export default function PracticalsPage() {
             </div>
           )}
 
-          {/* Master Control Row: Select-All, Student Count, Sort, Filters, Quick Fill, and Print in ONE Single Row */}
+          {/* Master Control Row: Select-All, Student Count, Sort, Filters, Quick Fill, and Print in ONE Single Row (Consistent 32px Height) */}
           <div className="flex items-center justify-between gap-1 sm:gap-1.5 pt-0.5">
-            {/* Left: Select All Checkbox */}
-            <label className="flex items-center gap-1 shrink-0 cursor-pointer select-none" title={isAllSelected ? "Deselect all" : "Select all"}>
+            {/* Left: Select All Checkbox Pill (Uniform 32px Height) */}
+            <label className="practicals-toolbar-item h-8 min-h-[32px] max-h-[32px] px-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 flex items-center gap-1.5 shrink-0 cursor-pointer shadow-2xs select-none hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" title={isAllSelected ? "Deselect all" : "Select all"}>
               <input
                 type="checkbox"
                 checked={isAllSelected}
                 ref={el => { if (el) el.indeterminate = isSomeSelected; }}
                 onChange={handleToggleSelectAll}
-                className="w-3.5 h-3.5 rounded border-slate-300 dark:border-slate-700 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                className="w-3.5 h-3.5 rounded border-slate-300 dark:border-slate-700 text-indigo-600 focus:ring-indigo-500 cursor-pointer shrink-0"
               />
               <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300">All</span>
             </label>
 
-            {/* Middle: Sort Dropdown (20% Reduced Width) */}
+            {/* Middle: Sort Dropdown (Uniform 32px Height) */}
             <div className="flex items-center gap-0.5 shrink-0">
-              <ArrowUpDown size={11} className="text-slate-400 hidden sm:inline" />
               <select
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value)}
-                className="practicals-select h-7.5 w-[66px] sm:w-[72px] px-1 sm:px-1.5 rounded-lg border text-[10.5px] font-bold bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 shadow-2xs cursor-pointer"
+                className="practicals-select practicals-toolbar-item h-8 min-h-[32px] max-h-[32px] w-[68px] sm:w-[72px] px-1 sm:px-1.5 rounded-lg border text-[10.5px] font-bold bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 shadow-2xs cursor-pointer"
                 title="Sort students"
               >
                 <option value="rollAsc">Roll ↑</option>
@@ -2114,16 +2111,16 @@ export default function PracticalsPage() {
               </select>
             </div>
 
-            {/* Right: Actions Group (Filters, Quick Fill, Print) */}
+            {/* Right: Actions Group (Filters, Quick Fill, Print - All Guaranteed Uniform 32px Height) */}
             <div className="flex items-center gap-1 shrink-0">
               {/* Filters Button with Compact Student Count */}
               <button
                 type="button"
                 onClick={() => setShowFilterSettings(!showFilterSettings)}
-                className={`h-7.5 px-2 sm:px-2.5 rounded-lg border text-[11px] font-bold flex items-center justify-center gap-1 transition-all cursor-pointer shadow-2xs active:scale-95 ${
+                className={`practicals-toolbar-item h-8 min-h-[32px] max-h-[32px] px-2 sm:px-2.5 rounded-lg border text-[11px] font-bold flex items-center justify-center gap-1 transition-all cursor-pointer shadow-2xs active:scale-95 shrink-0 ${
                   showFilterSettings
                     ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
-                    : 'bg-slate-50 hover:bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700'
+                    : 'bg-white hover:bg-slate-50 dark:bg-slate-900 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700'
                 }`}
                 title={`Open evaluation filters (${displayedStudents.length} students)`}
               >
@@ -2143,7 +2140,7 @@ export default function PracticalsPage() {
               <button
                 type="button"
                 onClick={() => setShowQuickFill(prev => !prev)}
-                className={`h-7.5 px-2 sm:px-2.5 rounded-lg font-bold text-[11px] border transition-all cursor-pointer flex items-center justify-center gap-1 active:scale-95 shadow-2xs ${
+                className={`practicals-toolbar-item h-8 min-h-[32px] max-h-[32px] px-2 sm:px-2.5 rounded-lg font-bold text-[11px] border transition-all cursor-pointer flex items-center justify-center gap-1 active:scale-95 shadow-2xs shrink-0 ${
                   showQuickFill
                     ? 'bg-amber-500 text-white border-amber-500 shadow-xs'
                     : 'bg-white dark:bg-slate-900 text-amber-700 dark:text-amber-400 border-amber-300 dark:border-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/40'
@@ -2164,7 +2161,7 @@ export default function PracticalsPage() {
               <button
                 type="button"
                 onClick={handlePrintReport}
-                className="h-7.5 px-2 sm:px-3 rounded-lg font-bold text-[11px] bg-indigo-600 text-white hover:bg-indigo-500 border border-indigo-600 shadow-2xs cursor-pointer flex items-center justify-center gap-1 active:scale-95"
+                className="practicals-toolbar-item h-8 min-h-[32px] max-h-[32px] px-2.5 sm:px-3 rounded-lg font-bold text-[11px] bg-indigo-600 text-white hover:bg-indigo-500 border border-indigo-600 shadow-2xs cursor-pointer flex items-center justify-center gap-1 active:scale-95 shrink-0"
                 title="Print Evaluation Roster"
               >
                 <Printer size={12} />
@@ -2787,7 +2784,7 @@ export default function PracticalsPage() {
                           : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900'
                       }`}
                     >
-                      {/* Row 1: Checkbox, Roll Badge, Student Name & Compact Marks Input (30% Reduced Height) */}
+                      {/* Row 1: Checkbox, Roll Badge, Student Name & Compact Marks Input */}
                       <div className="flex items-center justify-between gap-1.5">
                         <div className="flex items-center gap-1.5 min-w-0 flex-1">
                           <input
@@ -2799,16 +2796,12 @@ export default function PracticalsPage() {
                           <span className="w-5.5 h-5.5 rounded-md bg-indigo-600/10 text-indigo-700 dark:text-indigo-300 font-mono font-bold text-[10px] flex items-center justify-center border border-indigo-500/20 shrink-0" title={`Class Roll: ${st.rollNo}`}>
                             {st.rollNo}
                           </span>
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-1 min-w-0">
-                              <span className="font-bold text-xs text-slate-900 dark:text-white truncate">
-                                {st.name}
-                              </span>
-                            </div>
-                          </div>
+                          <span className="font-bold text-xs text-slate-900 dark:text-white truncate min-w-0 flex-1">
+                            {st.name || st.studentName || 'Student'}
+                          </span>
                         </div>
 
-                        {/* Marks Input + Quick Absent Toggle (30% Reduced Height: h-5) */}
+                        {/* Marks Input + Quick Absent Toggle (Strictly Sized & 30% Reduced Height: 22px / h-5.5) */}
                         <div className="flex items-center gap-1 shrink-0">
                           <input
                             type="text"
@@ -2816,7 +2809,7 @@ export default function PracticalsPage() {
                             placeholder={`0-${subjectMaxMarks}`}
                             value={st.practicalMarks}
                             onChange={(e) => handleMarkChange(originalIdx !== -1 ? originalIdx : idx, 'practicalMarks', e.target.value)}
-                            className={`w-11.5 h-5 px-1 rounded-md border text-[11px] font-bold text-center leading-none focus:outline-none focus:ring-1 focus:ring-indigo-500 uppercase transition-all placeholder:text-slate-400 placeholder:text-[9.5px] placeholder:font-normal ${
+                            className={`practicals-marks-input w-12 h-5.5 px-1 rounded-md border text-[11px] font-bold text-center leading-none focus:outline-none focus:ring-1 focus:ring-indigo-500 uppercase transition-all placeholder:text-slate-400 placeholder:text-[9.5px] placeholder:font-normal shrink-0 ${
                               isAbsent
                                 ? 'bg-amber-50 dark:bg-amber-950/50 border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300 font-bold'
                                 : st.practicalMarks !== ''
@@ -2827,7 +2820,7 @@ export default function PracticalsPage() {
                           <button
                             type="button"
                             onClick={() => handleMarkChange(originalIdx !== -1 ? originalIdx : idx, 'practicalMarks', isAbsent ? '' : 'A')}
-                            className={`h-5 px-1.5 rounded-md font-mono text-[10px] font-bold border transition-all cursor-pointer flex items-center justify-center shrink-0 active:scale-95 leading-none ${
+                            className={`h-5.5 px-2 rounded-md font-mono text-[10px] font-bold border transition-all cursor-pointer flex items-center justify-center shrink-0 active:scale-95 leading-none ${
                               isAbsent
                                 ? 'bg-amber-500 text-white border-amber-600 shadow-2xs'
                                 : 'bg-slate-100 dark:bg-slate-800 text-slate-600 hover:text-amber-600 dark:hover:text-amber-400 border-slate-200 dark:border-slate-700'
