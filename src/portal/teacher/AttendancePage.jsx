@@ -3969,20 +3969,20 @@ function PrintReportModal({ isOpen, onClose, defaultClass, defaultSession, defau
         {/* Controls / Filter Section (Hidden during Print) */}
         <div className="p-2 bg-slate-100 dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800 grid grid-cols-2 sm:grid-cols-4 gap-1.5 text-xs print-hide">
           <div>
-            <label className="text-[9px] font-bold text-slate-500 uppercase block mb-0.5">Month</label>
+            <label className="text-[9.5px] font-extrabold text-slate-700 dark:text-slate-300 uppercase block mb-0.5">Month</label>
             <input
               type="month"
               value={reportYearMonth}
               onChange={e => setReportYearMonth(e.target.value)}
-              className="portal-compact-input w-full border bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 font-semibold text-xs"
+              className="portal-compact-input w-full border bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 font-bold text-xs"
             />
           </div>
           <div>
-            <label className="text-[9px] font-bold text-slate-500 uppercase block mb-0.5">Class</label>
+            <label className="text-[9.5px] font-extrabold text-slate-700 dark:text-slate-300 uppercase block mb-0.5">Class</label>
             <select
               value={reportClass}
               onChange={e => setReportClass(e.target.value)}
-              className="portal-compact-select w-full border bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 text-xs font-semibold"
+              className="portal-compact-select w-full border bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 text-xs font-bold"
             >
               <option value="12th">Class 12th</option>
               <option value="11th">Class 11th</option>
@@ -3991,11 +3991,11 @@ function PrintReportModal({ isOpen, onClose, defaultClass, defaultSession, defau
             </select>
           </div>
           <div>
-            <label className="text-[9px] font-bold text-slate-500 uppercase block mb-0.5">Session</label>
+            <label className="text-[9.5px] font-extrabold text-slate-700 dark:text-slate-300 uppercase block mb-0.5">Session</label>
             <select
               value={reportSession}
               onChange={e => setReportSession(e.target.value)}
-              className="portal-compact-select w-full border bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 text-xs font-semibold"
+              className="portal-compact-select w-full border bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 text-xs font-bold"
             >
               {(availableSessions && availableSessions.length > 0 ? availableSessions : ['2026', '2025-26']).map(s => (
                 <option key={s} value={s}>{s}</option>
@@ -4003,11 +4003,11 @@ function PrintReportModal({ isOpen, onClose, defaultClass, defaultSession, defau
             </select>
           </div>
           <div>
-            <label className="text-[9px] font-bold text-slate-500 uppercase block mb-0.5">Subject</label>
+            <label className="text-[9.5px] font-extrabold text-slate-700 dark:text-slate-300 uppercase block mb-0.5">Subject</label>
             <select
               value={reportSubject}
               onChange={e => setReportSubject(e.target.value)}
-              className="portal-compact-select w-full border bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 text-xs font-semibold truncate"
+              className="portal-compact-select w-full border bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 text-xs font-bold truncate"
             >
               <option value="General">All Subjects</option>
               {MASTER_SUBJECTS.map(s => (
