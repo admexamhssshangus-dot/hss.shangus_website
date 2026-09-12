@@ -1858,7 +1858,10 @@ async function updateExactAdmissionDocument(student, updates) {
 function StatusActionDropdown({ student, onViewEdit, onRefresh, onDeleteRecord, onTriggerDelete }) {
   const [isOpen, setIsOpen] = useState(false);
   const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0, openUp: false });
-  const [actionLoading, setActionLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [localStatus, setLocalStatus] = useState(null);
+  const [localRoll, setLocalRoll] = useState(null);
+  const [localFormNo, setLocalFormNo] = useState(null);
   const [dialogConfig, setDialogConfig] = useState(null);
   const [promptInput, setPromptInput] = useState('');
   const [customReasons, setCustomReasons] = useState(() => {
@@ -1871,6 +1874,21 @@ function StatusActionDropdown({ student, onViewEdit, onRefresh, onDeleteRecord, 
   });
   const [newReasonInput, setNewReasonInput] = useState('');
   const [showAddReasonForm, setShowAddReasonForm] = useState(false);
+
+  // Synchronize optimistic states if student prop changes from background Firestore query
+  useEffect(() => {
+    setLocalStatus(null);
+    setLocalRoll(null);
+    setLocalFormNo(null);
+  }, [
+    student?.status,
+    student?.Status,
+    student?.onlineStatus,
+    student?.classRollNo,
+    student?.rollNo,
+    student?.formNo,
+    student?.['Form Number']
+  ]);
 
   const saveReasonsList = (updatedList) => {
     setCustomReasons(updatedList);
@@ -1914,14 +1932,24 @@ function StatusActionDropdown({ student, onViewEdit, onRefresh, onDeleteRecord, 
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isOpen]);
 
-  const roll = String(student?.classRollNo || student?.['Class Roll No'] || student?.['Class Roll No.'] || student?.['RL. NO.'] || student?.['RL. NO'] || student?.['Class R.No.'] || student?.['Class R.No'] || student?.rollNo || student?.['Roll No.'] || student?.['Roll No'] || student?.roll || '').trim();
+  const roll = String(
+    localRoll !== null
+      ? localRoll
+      : (student?.classRollNo || student?.['Class Roll No'] || student?.['Class Roll No.'] || student?.['RL. NO.'] || student?.['RL. NO'] || student?.['Class R.No.'] || student?.['Class R.No'] || student?.rollNo || student?.['Roll No.'] || student?.['Roll No'] || student?.roll || '')
+  ).trim();
   const hasRoll = roll && roll !== '—' && roll !== 'N/A' && roll !== 'null' && roll !== 'undefined';
-  const val = String(student?.status || student?.Status || student?.onlineStatus || 'Submitted').trim();
+
+  const val = String(
+    localStatus !== null
+      ? localStatus
+      : (student?.status || student?.Status || student?.onlineStatus || 'Submitted')
+  ).trim();
+
   const isWithdrawn = val === 'Withdrawn' || val === 'WITHDRAWN' || val === 'withdrawn' || val === 'Adm Withdrawn' || val === 'ADM WITHDRAWN' || val.toLowerCase().includes('withdraw');
   const isApp = hasRoll && !isWithdrawn;
   const isDft = !hasRoll && !isWithdrawn && (val === 'Draft' || val === 'DRAFT' || val === 'dft');
-  const isProv = !hasRoll && !isWithdrawn && (val === 'Provisional' || val === 'PROV');
-  const isRejt = !hasRoll && !isWithdrawn && (val === 'Rejected' || val === 'REJT');
+  const isProv = !hasRoll && !isWithdrawn && (val === 'Provisional' || val === 'PROV' || val.toLowerCase().includes('prov'));
+  const isRejt = !hasRoll && !isWithdrawn && (val === 'Rejected' || val === 'REJT' || val.toLowerCase().includes('reje'));
   const isSub = !hasRoll && !isDft && !isProv && !isRejt && !isWithdrawn;
 
   const bg = isWithdrawn ? 'bg-rose-600 hover:bg-rose-700 font-extrabold text-white shadow-sm' : isApp ? 'bg-green-600 hover:bg-green-700 text-white' : isSub ? 'bg-blue-600 hover:bg-blue-700 text-white' : isProv ? 'bg-indigo-600 hover:bg-indigo-700 text-white' : isDft ? 'bg-yellow-500 hover:bg-yellow-600 !text-slate-900 font-bold' : 'bg-red-600 hover:bg-red-700 text-white';
@@ -1938,9 +1966,10 @@ function StatusActionDropdown({ student, onViewEdit, onRefresh, onDeleteRecord, 
       iconColor: 'text-teal-600 dark:text-teal-400',
       btnColor: 'bg-teal-700 hover:bg-teal-600 text-white',
       confirmText: 'Assign Form No',
+      submittingText: 'Assigning Form No...',
       onConfirm: async () => {
         try {
-          setActionLoading(true);
+          setIsSubmitting(true);
           const nextNo = await getNextAvailableFormNumber();
           if (nextNo) {
             await consumeFormNumber(nextNo);
@@ -1949,20 +1978,36 @@ function StatusActionDropdown({ student, onViewEdit, onRefresh, onDeleteRecord, 
               'FormNo': nextNo,
               formNo: nextNo
             });
+            setLocalFormNo(nextNo);
+            if (student) {
+              student.formNo = nextNo;
+              student['Form Number'] = nextNo;
+              student['FormNo'] = nextNo;
+            }
             if (onRefresh) onRefresh();
             setDialogConfig({
               type: 'alert',
               title: 'Form Number Assigned',
-              message: `Form #${nextNo} successfully assigned to ${student?.studentName}.`,
+              message: `Form #${nextNo} successfully assigned to ${student?.studentName || 'student'}.`,
               icon: CheckCircle2,
               iconColor: 'text-emerald-600 dark:text-emerald-400',
               btnColor: 'bg-emerald-700 hover:bg-emerald-600 text-white'
             });
+          } else {
+            throw new Error('Unable to determine next available form number.');
           }
         } catch (err) {
           console.error('Assign form no error:', err);
+          setDialogConfig({
+            type: 'alert',
+            title: 'Failed to Assign Form Number',
+            message: err?.message || 'Could not assign form number. Please try again.',
+            icon: AlertOctagon,
+            iconColor: 'text-rose-600 dark:text-rose-400',
+            btnColor: 'bg-rose-700 hover:bg-rose-600 text-white'
+          });
         } finally {
-          setActionLoading(false);
+          setIsSubmitting(false);
         }
       }
     });
@@ -1979,9 +2024,10 @@ function StatusActionDropdown({ student, onViewEdit, onRefresh, onDeleteRecord, 
       iconColor: 'text-rose-600 dark:text-rose-400',
       btnColor: 'bg-rose-700 hover:bg-rose-600 text-white',
       confirmText: 'Wipe Sensitive Data',
+      submittingText: 'Wiping Sensitive Data...',
       onConfirm: async () => {
         try {
-          setActionLoading(true);
+          setIsSubmitting(true);
           const formNo = student?.formNo || student?.['Form Number'] || student?.['FormNo'];
           const rawId = student?.docId || student?._docId || student?.id || formNo;
 
@@ -2008,20 +2054,33 @@ function StatusActionDropdown({ student, onViewEdit, onRefresh, onDeleteRecord, 
             }, { merge: false }).catch(() => {});
           }
 
+          setLocalStatus('Purged');
+          if (student) {
+            student.status = 'Purged';
+            student.Status = 'Purged';
+          }
           if (onRefresh) onRefresh();
 
           setDialogConfig({
             type: 'alert',
             title: 'Sensitive Data Wiped',
-            message: `Sensitive data for ${student?.studentName} has been wiped. Form #${formNo || '—'} is now recycled for the next applicant.`,
+            message: `Sensitive data for ${student?.studentName || 'student'} has been wiped. Form #${formNo || '—'} is now recycled for the next applicant.`,
             icon: CheckCircle2,
             iconColor: 'text-emerald-600 dark:text-emerald-400',
             btnColor: 'bg-emerald-700 hover:bg-emerald-600 text-white'
           });
         } catch (err) {
           console.error('Purge error:', err);
+          setDialogConfig({
+            type: 'alert',
+            title: 'Erasure Failed',
+            message: err?.message || 'Could not complete data erasure. Please try again.',
+            icon: AlertOctagon,
+            iconColor: 'text-rose-600 dark:text-rose-400',
+            btnColor: 'bg-rose-700 hover:bg-rose-600 text-white'
+          });
         } finally {
-          setActionLoading(false);
+          setIsSubmitting(false);
         }
       }
     });
@@ -2040,14 +2099,29 @@ function StatusActionDropdown({ student, onViewEdit, onRefresh, onDeleteRecord, 
       iconColor: 'text-amber-600 dark:text-amber-400',
       btnColor: 'bg-amber-700 hover:bg-amber-600 text-white',
       confirmText: 'Unlock Application',
+      submittingText: 'Unlocking Application...',
       onConfirm: async (inputVal) => {
         const hrs = parseInt(inputVal, 10);
-        if (isNaN(hrs) || hrs <= 0) return;
+        if (isNaN(hrs) || hrs <= 0) {
+          setDialogConfig({
+            type: 'alert',
+            title: 'Invalid Duration',
+            message: 'Please enter a valid positive number of hours (e.g. 24).',
+            icon: AlertOctagon,
+            iconColor: 'text-amber-600 dark:text-amber-400',
+            btnColor: 'bg-amber-700 hover:bg-amber-600 text-white'
+          });
+          return;
+        }
         try {
-          setActionLoading(true);
+          setIsSubmitting(true);
           const formNo = student?.formNo || student?.['Form Number'] || student?.id;
           await appsScriptApi.call('unlockApplication', { formNo, hours: hrs }).catch(() => {});
           await updateStudentDocument(student, { editUnlocked: true, editUnlockedUntil: Date.now() + hrs * 3600000 });
+          if (student) {
+            student.editUnlocked = true;
+            student.editUnlockedUntil = Date.now() + hrs * 3600000;
+          }
           if (onRefresh) onRefresh();
           setDialogConfig({
             type: 'alert',
@@ -2058,9 +2132,17 @@ function StatusActionDropdown({ student, onViewEdit, onRefresh, onDeleteRecord, 
             btnColor: 'bg-emerald-700 hover:bg-emerald-600 text-white'
           });
         } catch (err) {
-          console.warn(err);
+          console.error('Unlock error:', err);
+          setDialogConfig({
+            type: 'alert',
+            title: 'Unlock Failed',
+            message: err?.message || 'Could not unlock application. Please try again.',
+            icon: AlertOctagon,
+            iconColor: 'text-rose-600 dark:text-rose-400',
+            btnColor: 'bg-rose-700 hover:bg-rose-600 text-white'
+          });
         } finally {
-          setActionLoading(false);
+          setIsSubmitting(false);
         }
       }
     });
@@ -2070,12 +2152,20 @@ function StatusActionDropdown({ student, onViewEdit, onRefresh, onDeleteRecord, 
     e.stopPropagation();
     setIsOpen(false);
     try {
-      setActionLoading(true);
+      setIsSubmitting(true);
       await generateStudentAdmissionPdf(student);
     } catch (err) {
       console.error('PDF error:', err);
+      setDialogConfig({
+        type: 'alert',
+        title: 'PDF Generation Error',
+        message: err?.message || 'Could not generate student admission PDF.',
+        icon: AlertOctagon,
+        iconColor: 'text-rose-600 dark:text-rose-400',
+        btnColor: 'bg-rose-700 hover:bg-rose-600 text-white'
+      });
     } finally {
-      setActionLoading(false);
+      setIsSubmitting(false);
     }
   };
 
@@ -2083,7 +2173,7 @@ function StatusActionDropdown({ student, onViewEdit, onRefresh, onDeleteRecord, 
     e.stopPropagation();
     setIsOpen(false);
     try {
-      setActionLoading(true);
+      setIsSubmitting(true);
       await downloadStudentAdmissionPdf(student);
     } catch (err) {
       console.error('PDF error:', err);
@@ -2096,7 +2186,7 @@ function StatusActionDropdown({ student, onViewEdit, onRefresh, onDeleteRecord, 
         btnColor: 'bg-rose-700 hover:bg-rose-600 text-white'
       });
     } finally {
-      setActionLoading(false);
+      setIsSubmitting(false);
     }
   };
 
@@ -2106,7 +2196,7 @@ function StatusActionDropdown({ student, onViewEdit, onRefresh, onDeleteRecord, 
     setDialogConfig({
       type: 'alert',
       title: `Activity History: ${student?.studentName || 'Student'}`,
-      message: `Form #${student?.formNo || student?.id}\n• Current Status: ${student?.status || 'Submitted'}\n• Online Submission Date: ${student?.onlineSubmDate || '—'}\n• Admission Date: ${student?.admDate || '—'}`,
+      message: `Form #${student?.formNo || student?.id}\n• Current Status: ${localStatus || student?.status || 'Submitted'}\n• Online Submission Date: ${student?.onlineSubmDate || '—'}\n• Admission Date: ${student?.admDate || '—'}`,
       icon: History,
       iconColor: 'text-purple-600 dark:text-purple-400',
       btnColor: 'bg-purple-700 hover:bg-purple-600 text-white'
@@ -2148,11 +2238,11 @@ function StatusActionDropdown({ student, onViewEdit, onRefresh, onDeleteRecord, 
     const sForm = student?.formNo || student?.['Form Number'] || '—';
     const sClass = student?.class || student?.['Class'] || student?.['Admission sought for class'] || '11th';
     const sStream = student?.stream || student?.['Stream'] || '';
-    const sRoll = student?.classRollNo || student?.['Class Roll No'] || student?.['Class R.No.'] || student?.rollNo || '';
+    const sRoll = localRoll || student?.classRollNo || student?.['Class Roll No'] || student?.['Class R.No.'] || student?.rollNo || '';
     const sAdm = student?.admNo || student?.['Adm. No.'] || '';
     const sSubs = student?.subs || student?.['Subjects'] || '';
     const sReason = student?.rejectionReason || student?.['Reason for Rejection'] || '';
-    const statusVal = String(student?.status || student?.Status || 'Submitted').trim().toLowerCase();
+    const statusVal = String(localStatus || student?.status || student?.Status || 'Submitted').trim().toLowerCase();
 
     let msgText = '';
 
@@ -2188,21 +2278,22 @@ function StatusActionDropdown({ student, onViewEdit, onRefresh, onDeleteRecord, 
   const handleAssignRollNo = (e) => {
     e.stopPropagation();
     setIsOpen(false);
-    const currRoll = (student?.classRollNo && student?.classRollNo !== 'N/A' && student?.classRollNo !== '—') ? student?.classRollNo : (student?.['Class Roll No'] || student?.['Class Roll No.'] || student?.['RL. NO.'] || student?.['RL. NO'] || student?.rollNo || '');
+    const currRoll = (localRoll !== null ? localRoll : (student?.classRollNo && student?.classRollNo !== 'N/A' && student?.classRollNo !== '—') ? student?.classRollNo : (student?.['Class Roll No'] || student?.['Class Roll No.'] || student?.['RL. NO.'] || student?.['RL. NO'] || student?.rollNo || ''));
     setPromptInput(currRoll);
     setDialogConfig({
       type: 'prompt',
       title: 'Assign Class Roll Number',
-      message: `Assign or update class roll number for ${student?.studentName}:`,
+      message: `Assign or update class roll number for ${student?.studentName || 'student'}:`,
       placeholder: 'Enter Class Roll No (e.g. 15)...',
       icon: Hash,
       iconColor: 'text-teal-600 dark:text-teal-400',
       btnColor: 'bg-teal-700 hover:bg-teal-600 text-white',
       confirmText: 'Save Roll No',
+      submittingText: 'Saving Roll No & Syncing...',
       onConfirm: async (inputVal) => {
         const newRoll = (inputVal || '').trim();
         try {
-          setActionLoading(true);
+          setIsSubmitting(true);
           const hasAssignedRoll = Boolean(newRoll && newRoll !== '—' && newRoll !== 'N/A' && newRoll !== '0');
           const statusVal = hasAssignedRoll ? 'Approved' : 'Submitted';
           await updateStudentDocument(student, {
@@ -2218,21 +2309,39 @@ function StatusActionDropdown({ student, onViewEdit, onRefresh, onDeleteRecord, 
             'Rejection Reason': '',
             isEditable: false
           });
+          setLocalRoll(newRoll);
+          setLocalStatus(statusVal);
+          if (student) {
+            student.classRollNo = newRoll;
+            student.rollNo = newRoll;
+            student['Class Roll No'] = newRoll;
+            student.status = statusVal;
+            student.Status = statusVal;
+            student.isApproved = hasAssignedRoll;
+          }
           if (onRefresh) onRefresh();
           setDialogConfig({
             type: 'alert',
             title: hasAssignedRoll ? 'Admission Approved' : 'Roll Number Cleared',
             message: hasAssignedRoll
-              ? `Class Roll No #${newRoll} assigned to ${student?.studentName}. Admission is now marked as Approved!`
-              : `Class Roll No cleared for ${student?.studentName}. Application reverted to Submitted.`,
+              ? `Class Roll No #${newRoll} assigned to ${student?.studentName || 'student'}. Admission is now marked as Approved!`
+              : `Class Roll No cleared for ${student?.studentName || 'student'}. Application reverted to Submitted.`,
             icon: CheckCircle2,
             iconColor: 'text-teal-600 dark:text-teal-400',
             btnColor: 'bg-teal-700 hover:bg-teal-600 text-white'
           });
         } catch (err) {
-          console.warn(err);
+          console.error('Assign roll error:', err);
+          setDialogConfig({
+            type: 'alert',
+            title: 'Failed to Save Roll Number',
+            message: err?.message || 'Could not update class roll number. Please try again.',
+            icon: AlertOctagon,
+            iconColor: 'text-rose-600 dark:text-rose-400',
+            btnColor: 'bg-rose-700 hover:bg-rose-600 text-white'
+          });
         } finally {
-          setActionLoading(false);
+          setIsSubmitting(false);
         }
       }
     });
@@ -2246,17 +2355,28 @@ function StatusActionDropdown({ student, onViewEdit, onRefresh, onDeleteRecord, 
       type: 'prompt',
       isReject: true,
       title: 'Reject Application',
-      message: `Enter rejection reason for ${student?.studentName}:`,
+      message: `Enter rejection reason for ${student?.studentName || 'student'}:`,
       placeholder: 'Select a predefined reason below or type a custom reason...',
       icon: AlertOctagon,
       iconColor: 'text-rose-600 dark:text-rose-400',
       btnColor: 'bg-rose-700 hover:bg-rose-600 text-white',
       confirmText: 'Confirm Rejection',
+      submittingText: 'Rejecting Application...',
       onConfirm: async (inputVal) => {
         const reason = (inputVal || '').trim();
-        if (!reason) return;
+        if (!reason) {
+          setDialogConfig({
+            type: 'alert',
+            title: 'Rejection Reason Required',
+            message: 'Please provide a valid reason for returning / rejecting this application.',
+            icon: AlertOctagon,
+            iconColor: 'text-rose-600 dark:text-rose-400',
+            btnColor: 'bg-rose-700 hover:bg-rose-600 text-white'
+          });
+          return;
+        }
         try {
-          setActionLoading(true);
+          setIsSubmitting(true);
           const editableUntil = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
           await updateStudentDocument(student, {
             'Status': 'Rejected',
@@ -2273,25 +2393,197 @@ function StatusActionDropdown({ student, onViewEdit, onRefresh, onDeleteRecord, 
             isApproved: false,
             approvedAt: null
           });
+          setLocalStatus('Rejected');
+          setLocalRoll('');
+          if (student) {
+            student.status = 'Rejected';
+            student.Status = 'Rejected';
+            student.classRollNo = '';
+            student.rollNo = '';
+            student.rejectionReason = reason;
+          }
           if (onRefresh) onRefresh();
           setDialogConfig({
             type: 'alert',
             title: 'Application Rejected',
-            message: `Application for ${student?.studentName} marked as Rejected.\n\nReason: "${reason}"\n\nStudent has been granted access to edit and correct their application.`,
+            message: `Application for ${student?.studentName || 'student'} marked as Rejected.\n\nReason: "${reason}"\n\nStudent has been granted access to edit and correct their application.`,
             icon: AlertOctagon,
             iconColor: 'text-rose-600 dark:text-rose-400',
             btnColor: 'bg-rose-700 hover:bg-rose-600 text-white'
           });
         } catch (err) {
-          console.warn(err);
+          console.error('Reject error:', err);
+          setDialogConfig({
+            type: 'alert',
+            title: 'Rejection Failed',
+            message: err?.message || 'Could not reject application. Please check network/permissions and try again.',
+            icon: AlertOctagon,
+            iconColor: 'text-rose-600 dark:text-rose-400',
+            btnColor: 'bg-rose-700 hover:bg-rose-600 text-white'
+          });
         } finally {
-          setActionLoading(false);
+          setIsSubmitting(false);
         }
       }
     });
   };
 
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const handleMarkProvisional = (e) => {
+    e.stopPropagation();
+    setIsOpen(false);
+    setDialogConfig({
+      type: 'confirm',
+      title: 'Mark as Provisional Admission',
+      message: `Mark admission application for ${student?.studentName || 'student'} (Form #${student?.formNo || '—'}) as Provisional?\n\nThis marks the candidate as provisionally accepted pending submission of physical documents or verification.`,
+      icon: CheckCircle,
+      iconColor: 'text-indigo-600 dark:text-indigo-400',
+      btnColor: 'bg-indigo-700 hover:bg-indigo-600 text-white',
+      confirmText: 'Confirm Provisional',
+      submittingText: 'Updating to Provisional...',
+      onConfirm: async () => {
+        try {
+          setIsSubmitting(true);
+          await updateStudentDocument(student, {
+            'Status': 'Provisional',
+            'status': 'Provisional',
+            'provisionalAt': new Date().toISOString(),
+            'provisionalBy': 'Admin'
+          });
+          setLocalStatus('Provisional');
+          if (student) {
+            student.status = 'Provisional';
+            student.Status = 'Provisional';
+          }
+          if (onRefresh) onRefresh();
+          setDialogConfig({
+            type: 'alert',
+            title: 'Marked as Provisional',
+            message: `Application for ${student?.studentName || 'student'} is now marked as Provisional Admission.`,
+            icon: CheckCircle2,
+            iconColor: 'text-indigo-600 dark:text-indigo-400',
+            btnColor: 'bg-indigo-700 hover:bg-indigo-600 text-white'
+          });
+        } catch (err) {
+          console.error('Mark provisional error:', err);
+          setDialogConfig({
+            type: 'alert',
+            title: 'Update Failed',
+            message: err?.message || 'Could not update student status to Provisional.',
+            icon: AlertOctagon,
+            iconColor: 'text-rose-600 dark:text-rose-400',
+            btnColor: 'bg-rose-700 hover:bg-rose-600 text-white'
+          });
+        } finally {
+          setIsSubmitting(false);
+        }
+      }
+    });
+  };
+
+  const handleReactivate = (e) => {
+    e.stopPropagation();
+    setIsOpen(false);
+    setDialogConfig({
+      type: 'confirm',
+      title: 'Reactivate & Restore Application',
+      message: `Restore and reactivate admission application for ${student?.studentName || 'student'} (Form #${student?.formNo || '—'}) as Submitted?`,
+      icon: CheckCircle2,
+      iconColor: 'text-emerald-600 dark:text-emerald-400',
+      btnColor: 'bg-emerald-700 hover:bg-emerald-600 text-white',
+      confirmText: 'Reactivate & Restore',
+      submittingText: 'Restoring Application...',
+      onConfirm: async () => {
+        try {
+          setIsSubmitting(true);
+          await updateStudentDocument(student, {
+            'Status': 'Submitted',
+            'status': 'Submitted',
+            'withdrawnAt': null,
+            'withdrawnBy': null,
+            'reopenedAt': new Date().toISOString()
+          });
+          setLocalStatus('Submitted');
+          if (student) {
+            student.status = 'Submitted';
+            student.Status = 'Submitted';
+          }
+          if (onRefresh) onRefresh();
+          setDialogConfig({
+            type: 'alert',
+            title: 'Application Reactivated',
+            message: `Application for ${student?.studentName || 'student'} has been restored and marked as Submitted.`,
+            icon: CheckCircle2,
+            iconColor: 'text-emerald-600 dark:text-emerald-400',
+            btnColor: 'bg-emerald-700 hover:bg-emerald-600 text-white'
+          });
+        } catch (err) {
+          console.error('Reactivation error:', err);
+          setDialogConfig({
+            type: 'alert',
+            title: 'Reactivation Failed',
+            message: err?.message || 'Could not reactivate application. Please try again.',
+            icon: AlertOctagon,
+            iconColor: 'text-rose-600 dark:text-rose-400',
+            btnColor: 'bg-rose-700 hover:bg-rose-600 text-white'
+          });
+        } finally {
+          setIsSubmitting(false);
+        }
+      }
+    });
+  };
+
+  const handleMarkWithdrawn = (e) => {
+    e.stopPropagation();
+    setIsOpen(false);
+    setDialogConfig({
+      type: 'confirm',
+      title: 'Mark as Withdrawn',
+      message: `Mark admission application for ${student?.studentName || 'student'} (Form #${student?.formNo || '—'}) as Withdrawn?`,
+      icon: AlertOctagon,
+      iconColor: 'text-rose-600 dark:text-rose-400',
+      btnColor: 'bg-rose-700 hover:bg-rose-600 text-white',
+      confirmText: 'Confirm Withdrawal',
+      submittingText: 'Withdrawing Application...',
+      onConfirm: async () => {
+        try {
+          setIsSubmitting(true);
+          await updateStudentDocument(student, {
+            'Status': 'Withdrawn',
+            'status': 'Withdrawn',
+            'withdrawnAt': new Date().toISOString(),
+            'withdrawnBy': 'Admin'
+          });
+          setLocalStatus('Withdrawn');
+          if (student) {
+            student.status = 'Withdrawn';
+            student.Status = 'Withdrawn';
+          }
+          if (onRefresh) onRefresh();
+          setDialogConfig({
+            type: 'alert',
+            title: 'Application Withdrawn',
+            message: `Application for ${student?.studentName || 'student'} is now marked as Withdrawn.`,
+            icon: CheckCircle2,
+            iconColor: 'text-rose-600 dark:text-rose-400',
+            btnColor: 'bg-rose-700 hover:bg-rose-600 text-white'
+          });
+        } catch (err) {
+          console.error('Withdraw error:', err);
+          setDialogConfig({
+            type: 'alert',
+            title: 'Withdrawal Failed',
+            message: err?.message || 'Could not mark application as Withdrawn. Please check your network or permissions.',
+            icon: AlertOctagon,
+            iconColor: 'text-rose-600 dark:text-rose-400',
+            btnColor: 'bg-rose-700 hover:bg-rose-600 text-white'
+          });
+        } finally {
+          setIsSubmitting(false);
+        }
+      }
+    });
+  };
 
   const handleDelete = (e) => {
     e.stopPropagation();
@@ -2308,12 +2600,39 @@ function StatusActionDropdown({ student, onViewEdit, onRefresh, onDeleteRecord, 
       iconColor: 'text-red-600 dark:text-red-400',
       btnColor: 'bg-red-700 hover:bg-red-600 text-white',
       confirmText: 'Delete Record',
+      submittingText: 'Deleting Record...',
       onConfirm: async () => {
         try {
           setIsSubmitting(true);
           if (onDeleteRecord) onDeleteRecord(student);
           await deleteStudentDocument(student);
-        } catch (_) {} finally { setIsSubmitting(false); }
+          setLocalStatus('Deleted');
+          if (student) {
+            student.status = 'Deleted';
+            student.Status = 'Deleted';
+          }
+          if (onRefresh) onRefresh();
+          setDialogConfig({
+            type: 'alert',
+            title: 'Record Deleted',
+            message: `Student record for ${student?.studentName || 'student'} was deleted successfully.`,
+            icon: CheckCircle2,
+            iconColor: 'text-red-600 dark:text-red-400',
+            btnColor: 'bg-red-700 hover:bg-red-600 text-white'
+          });
+        } catch (err) {
+          console.error('Delete error:', err);
+          setDialogConfig({
+            type: 'alert',
+            title: 'Delete Failed',
+            message: err?.message || 'Could not delete student record.',
+            icon: AlertOctagon,
+            iconColor: 'text-rose-600 dark:text-rose-400',
+            btnColor: 'bg-rose-700 hover:bg-rose-600 text-white'
+          });
+        } finally {
+          setIsSubmitting(false);
+        }
       }
     });
   };
@@ -2323,6 +2642,7 @@ function StatusActionDropdown({ student, onViewEdit, onRefresh, onDeleteRecord, 
       <button
         ref={btnRef}
         type="button"
+        disabled={isSubmitting}
         onClick={(e) => {
           e.stopPropagation();
           if (!isOpen && btnRef.current) {
@@ -2339,10 +2659,17 @@ function StatusActionDropdown({ student, onViewEdit, onRefresh, onDeleteRecord, 
           setIsOpen(!isOpen);
         }}
         title="Click to view & execute form actions"
-        className={`status-badge-btn inline-flex items-center justify-center gap-0.5 px-1.5 py-0.5 rounded text-[8.5px] sm:text-[9px] font-black text-white ${bg} tracking-tight uppercase cursor-pointer shadow-2xs transition-all hover:scale-105 active:scale-95 leading-none !min-h-0 !h-auto`}
+        className={`status-badge-btn inline-flex items-center justify-center gap-0.5 px-1.5 py-0.5 rounded text-[8.5px] sm:text-[9px] font-black text-white ${bg} tracking-tight uppercase cursor-pointer shadow-2xs transition-all hover:scale-105 active:scale-95 leading-none !min-h-0 !h-auto disabled:opacity-75 disabled:cursor-wait`}
         style={{ minHeight: 'unset', height: '20px' }}
       >
-        <span>{actionLoading ? '...' : abbr}</span>
+        {isSubmitting ? (
+          <span className="inline-flex items-center gap-0.5 animate-pulse">
+            <RefreshCw size={8} className="animate-spin" />
+            <span>SYNC</span>
+          </span>
+        ) : (
+          <span>{abbr}</span>
+        )}
         <ChevronDown size={8} className={`transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 
@@ -2362,11 +2689,11 @@ function StatusActionDropdown({ student, onViewEdit, onRefresh, onDeleteRecord, 
         >
           <div className="px-2 py-1 border-b border-slate-100 dark:border-slate-800 text-[10px] font-black text-slate-500 uppercase tracking-wider flex items-center justify-between">
             <span>Form Controls</span>
-            <span className="font-mono text-amber-600 dark:text-amber-400">#{student?.formNo || student?.sno}</span>
+            <span className="font-mono text-amber-600 dark:text-amber-400">#{localFormNo || student?.formNo || student?.sno}</span>
           </div>
 
           <div className="space-y-0.5 pt-1">
-            {(!student?.formNo || student?.formNo === '—' || student?.formNo === 'N/A') && (
+            {(!localFormNo && (!student?.formNo || student?.formNo === '—' || student?.formNo === 'N/A')) && (
               <button
                 type="button"
                 onClick={handleAssignFormNo}
@@ -2393,44 +2720,7 @@ function StatusActionDropdown({ student, onViewEdit, onRefresh, onDeleteRecord, 
             {isWithdrawn && (
               <button
                 type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setIsOpen(false);
-                  setDialogConfig({
-                    type: 'confirm',
-                    title: 'Reactivate & Restore Application',
-                    message: `Restore and reactivate admission application for ${student?.studentName || 'student'} (Form #${student?.formNo || '—'}) as Submitted?`,
-                    icon: CheckCircle2,
-                    iconColor: 'text-emerald-600 dark:text-emerald-400',
-                    btnColor: 'bg-emerald-700 hover:bg-emerald-600 text-white',
-                    confirmText: 'Reactivate & Restore',
-                    onConfirm: async () => {
-                      try {
-                        setActionLoading(true);
-                        await updateStudentDocument(student, {
-                          'Status': 'Submitted',
-                          'status': 'Submitted',
-                          'withdrawnAt': null,
-                          'withdrawnBy': null,
-                          'reopenedAt': new Date().toISOString()
-                        });
-                        if (onRefresh) onRefresh();
-                        setDialogConfig({
-                          type: 'alert',
-                          title: 'Application Reactivated',
-                          message: `Application for ${student?.studentName} has been restored and marked as Submitted.`,
-                          icon: CheckCircle2,
-                          iconColor: 'text-emerald-600 dark:text-emerald-400',
-                          btnColor: 'bg-emerald-700 hover:bg-emerald-600 text-white'
-                        });
-                      } catch (err) {
-                        console.warn(err);
-                      } finally {
-                        setActionLoading(false);
-                      }
-                    }
-                  });
-                }}
+                onClick={handleReactivate}
                 className="w-full text-left px-2.5 py-1.5 rounded-xl flex items-center gap-2.5 hover:bg-emerald-500/20 dark:hover:bg-emerald-500/30 border border-transparent hover:border-emerald-500/30 text-emerald-700 dark:text-emerald-400 cursor-pointer font-extrabold transition-all hover:scale-[1.01]"
               >
                 <CheckCircle2 size={13} className="text-emerald-600 dark:text-emerald-400" />
@@ -2512,46 +2802,21 @@ function StatusActionDropdown({ student, onViewEdit, onRefresh, onDeleteRecord, 
               <span>Reject Application</span>
             </button>
 
+            {!isProv && !isWithdrawn && !isApp && (
+              <button
+                type="button"
+                onClick={handleMarkProvisional}
+                className="w-full text-left px-2.5 py-1.5 rounded-xl flex items-center gap-2.5 hover:bg-indigo-500/15 dark:hover:bg-indigo-500/25 border border-transparent hover:border-indigo-500/30 text-indigo-700 dark:text-indigo-400 cursor-pointer font-extrabold transition-all hover:scale-[1.01]"
+              >
+                <CheckCircle size={13} className="text-indigo-600 dark:text-indigo-400" />
+                <span>Mark as Provisional</span>
+              </button>
+            )}
+
             {!isWithdrawn && (
               <button
                 type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setIsOpen(false);
-                  setDialogConfig({
-                    type: 'confirm',
-                    title: 'Mark as Withdrawn',
-                    message: `Mark admission application for ${student?.studentName || 'student'} (Form #${student?.formNo || '—'}) as Withdrawn?`,
-                    icon: AlertOctagon,
-                    iconColor: 'text-rose-600 dark:text-rose-400',
-                    btnColor: 'bg-rose-700 hover:bg-rose-600 text-white',
-                    confirmText: 'Confirm Withdrawal',
-                    onConfirm: async () => {
-                      try {
-                        setActionLoading(true);
-                        await updateStudentDocument(student, {
-                          'Status': 'Withdrawn',
-                          'status': 'Withdrawn',
-                          'withdrawnAt': new Date().toISOString(),
-                          'withdrawnBy': 'Admin'
-                        });
-                        if (onRefresh) onRefresh();
-                        setDialogConfig({
-                          type: 'alert',
-                          title: 'Application Withdrawn',
-                          message: `Application for ${student?.studentName} is now marked as Withdrawn.`,
-                          icon: CheckCircle2,
-                          iconColor: 'text-rose-600 dark:text-rose-400',
-                          btnColor: 'bg-rose-700 hover:bg-rose-600 text-white'
-                        });
-                      } catch (err) {
-                        console.warn(err);
-                      } finally {
-                        setActionLoading(false);
-                      }
-                    }
-                  });
-                }}
+                onClick={handleMarkWithdrawn}
                 className="w-full text-left px-2.5 py-1.5 rounded-xl flex items-center gap-2.5 hover:bg-rose-500/15 dark:hover:bg-rose-500/25 border border-transparent hover:border-rose-500/30 text-rose-700 dark:text-rose-400 cursor-pointer font-extrabold transition-all hover:scale-[1.01]"
               >
                 <AlertOctagon size={13} className="text-rose-600 dark:text-rose-400" />
@@ -2625,8 +2890,9 @@ function StatusActionDropdown({ student, onViewEdit, onRefresh, onDeleteRecord, 
                         </span>
                         <button
                           type="button"
+                          disabled={isSubmitting}
                           onClick={() => setShowAddReasonForm(!showAddReasonForm)}
-                          className="text-[10px] font-extrabold text-teal-600 hover:text-teal-700 dark:text-teal-400 cursor-pointer flex items-center gap-0.5"
+                          className="text-[10px] font-extrabold text-teal-600 hover:text-teal-700 dark:text-teal-400 cursor-pointer flex items-center gap-0.5 disabled:opacity-40"
                         >
                           {showAddReasonForm ? 'Cancel' : '+ Add New Preset'}
                         </button>
@@ -2637,12 +2903,13 @@ function StatusActionDropdown({ student, onViewEdit, onRefresh, onDeleteRecord, 
                         <div className="flex items-center gap-1.5 p-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 animate-fadeIn">
                           <input
                             type="text"
+                            disabled={isSubmitting}
                             value={newReasonInput}
                             onChange={(e) => setNewReasonInput(e.target.value)}
                             placeholder="Enter new rejection reason preset..."
                             className="flex-1 px-2.5 py-1 text-xs rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-white font-medium focus:outline-none focus:ring-1 focus:ring-teal-500"
                             onKeyDown={(e) => {
-                              if (e.key === 'Enter') {
+                              if (e.key === 'Enter' && !isSubmitting) {
                                 e.preventDefault();
                                 handleAddNewReason();
                               }
@@ -2650,8 +2917,9 @@ function StatusActionDropdown({ student, onViewEdit, onRefresh, onDeleteRecord, 
                           />
                           <button
                             type="button"
+                            disabled={isSubmitting}
                             onClick={handleAddNewReason}
-                            className="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-teal-600 text-white hover:bg-teal-500 cursor-pointer whitespace-nowrap"
+                            className="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-teal-600 text-white hover:bg-teal-500 cursor-pointer whitespace-nowrap disabled:opacity-40"
                           >
                             Save Preset
                           </button>
@@ -2665,7 +2933,7 @@ function StatusActionDropdown({ student, onViewEdit, onRefresh, onDeleteRecord, 
                           return (
                             <div
                               key={idx}
-                              onClick={() => setPromptInput(r)}
+                              onClick={() => { if (!isSubmitting) setPromptInput(r); }}
                               className={`group inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold cursor-pointer transition-all border ${
                                 isSelected
                                   ? 'bg-rose-600 text-white border-rose-600 shadow-xs'
@@ -2676,6 +2944,7 @@ function StatusActionDropdown({ student, onViewEdit, onRefresh, onDeleteRecord, 
                               <button
                                 type="button"
                                 title="Remove preset"
+                                disabled={isSubmitting}
                                 onClick={(e) => handleDeleteCustomReason(r, e)}
                                 className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-rose-500 ml-0.5"
                               >
@@ -2696,7 +2965,7 @@ function StatusActionDropdown({ student, onViewEdit, onRefresh, onDeleteRecord, 
                     onChange={(e) => setPromptInput(e.target.value)}
                     placeholder={dialogConfig.placeholder || 'Enter value...'}
                     onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
+                      if (e.key === 'Enter' && !isSubmitting) {
                         if (dialogConfig.onConfirm) dialogConfig.onConfirm(promptInput);
                       }
                     }}
