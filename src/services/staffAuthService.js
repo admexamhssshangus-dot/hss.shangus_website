@@ -241,6 +241,15 @@ export async function approveAdminLoginHandshake(handshakeId, email, firebaseUse
   } catch (err) {
     console.warn('Error approving admin auth handshake:', err);
   }
+
+  if (firebaseUser?.uid) {
+    try {
+      await setDoc(doc(db, 'users', firebaseUser.uid), {
+        last2StepVerificationDate: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      }, { merge: true });
+    } catch (_) {}
+  }
 }
 
 /**
