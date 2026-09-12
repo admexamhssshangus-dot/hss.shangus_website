@@ -393,7 +393,7 @@ export default function AdmissionForm() {
         const valid = apps.filter(item => !isInactive(item));
         if (valid.length === 0) return {};
         return valid.find(item => String(item.docId || item.applicationId || item['Form Number'] || item.FormNo || item.formNo || '') === String(requestedApplicationKey)) ||
-               valid.find(item => ['Submitted', 'Approved', 'Under Review', 'Draft'].includes(item.Status || item.status)) ||
+               valid.find(item => ['Submitted', 'Approved', 'Provisional', 'Under Review', 'Draft'].includes(item.Status || item.status)) ||
                valid.find(item => ['Withdrawn', 'Rejected'].includes(item.Status || item.status)) ||
                valid[0];
       };
