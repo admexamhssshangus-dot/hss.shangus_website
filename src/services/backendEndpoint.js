@@ -6,7 +6,8 @@ export function backendEndpoint(name) {
     return `${origin.origin}/.netlify/functions/${name}`;
   }
   const hostname = typeof window !== 'undefined' ? window.location.hostname : '';
-  const base = /\.(web\.app|firebaseapp\.com)$/.test(hostname) ? 'https://hssshangus.netlify.app' : '';
+  const isLocal = hostname === 'localhost' || hostname === '127.0.0.1';
+  const base = (/\.(web\.app|firebaseapp\.com)$/.test(hostname) || isLocal) ? 'https://hssshangus.netlify.app' : '';
   return `${base}/.netlify/functions/${name}`;
 }
 export async function publicLookup(name, payload, signal) {
