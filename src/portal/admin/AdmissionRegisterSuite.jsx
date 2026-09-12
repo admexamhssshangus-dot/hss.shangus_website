@@ -5754,17 +5754,17 @@ export default function AdmissionRegisterSuite({
                       {SCHOOL_NAME}
                     </h1>
                     <div className="text-xs sm:text-sm font-extrabold text-slate-800 tracking-wide mt-0.5">
-                      Zone: Achabal • District: Anantnag • UT of Jammu & Kashmir (192201)
+                      Zone: Shangus • District: Anantnag • UT of Jammu & Kashmir (192201)
                     </div>
                     <div className="text-[10.5px] font-bold text-slate-600 tracking-wider mt-0.5">
-                      UDISE CODE: 01050800701 • SCHOOL CODE: 2011 • AFFILIATED WITH JKBOSE
+                      UDISE CODE: 01061400618 • SCHOOL / BOARD CODE: 010061 • AFFILIATED WITH JKBOSE
                     </div>
                   </div>
 
                   {/* Center Document Label Card (BIGGER FONT AS REQUESTED) */}
-                  <div className="my-auto py-3">
-                    <div className="cover-title-box border-4 border-double border-red-900 bg-linear-to-b from-red-50/50 via-white to-amber-50/30 p-5 rounded-2xl text-center shadow-xs mx-auto max-w-4xl">
-                      <div className="inline-block bg-red-900 text-white text-[10.5px] font-black uppercase tracking-widest px-4 py-1 rounded-full mb-2.5 shadow-xs">
+                  <div className="my-auto py-4">
+                    <div className="cover-title-box border-4 border-double border-red-900 bg-linear-to-b from-red-50/50 via-white to-amber-50/30 p-6 rounded-2xl text-center shadow-xs mx-auto max-w-4xl">
+                      <div className="inline-block bg-red-900 text-white text-[10.5px] font-black uppercase tracking-widest px-4 py-1 rounded-full mb-3 shadow-xs">
                         Official Institutional Record & Examination Gazette
                       </div>
 
@@ -5775,23 +5775,23 @@ export default function AdmissionRegisterSuite({
                         & Examination Roll Gazette
                       </div>
 
-                      <div className="mt-2.5 text-xs sm:text-sm font-bold text-slate-700">
+                      <div className="mt-3 text-xs sm:text-sm font-bold text-slate-700">
                         Annual Regular Examination • Academic Session {selectedSession}
                       </div>
 
                       {/* 4 Metadata Cards */}
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mt-4 pt-3 border-t border-red-200 text-left">
-                        <div className="p-2.5 bg-white rounded-lg border border-slate-200 shadow-2xs">
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-5 pt-4 border-t border-red-200 text-left">
+                        <div className="p-3 bg-white rounded-xl border border-slate-200 shadow-2xs">
                           <div className="text-[9.5px] font-black uppercase text-slate-500">Academic Class</div>
                           <div className="text-sm sm:text-base font-black text-red-900 mt-0.5">Class {selectedClass}</div>
                           <div className="text-[9px] text-slate-500 font-semibold">Senior Secondary</div>
                         </div>
-                        <div className="p-2.5 bg-white rounded-lg border border-slate-200 shadow-2xs">
+                        <div className="p-3 bg-white rounded-xl border border-slate-200 shadow-2xs">
                           <div className="text-[9.5px] font-black uppercase text-slate-500">Academic Session</div>
                           <div className="text-sm sm:text-base font-black text-slate-900 mt-0.5">{selectedSession}</div>
                           <div className="text-[9px] text-slate-500 font-semibold">JKBOSE Annual Regular</div>
                         </div>
-                        <div className="p-2.5 bg-white rounded-lg border border-slate-200 shadow-2xs">
+                        <div className="p-3 bg-white rounded-xl border border-slate-200 shadow-2xs">
                           <div className="text-[9.5px] font-black uppercase text-slate-500">Sent-up Candidates</div>
                           <div className="text-sm sm:text-base font-black text-emerald-800 mt-0.5">
                             {sentupCensus.total} <span className="text-xs font-bold text-slate-600">Students</span>
@@ -5800,7 +5800,7 @@ export default function AdmissionRegisterSuite({
                             {sentupCensus.boys} Boys • {sentupCensus.girls} Girls
                           </div>
                         </div>
-                        <div className="p-2.5 bg-white rounded-lg border border-slate-200 shadow-2xs">
+                        <div className="p-3 bg-white rounded-xl border border-slate-200 shadow-2xs">
                           <div className="text-[9.5px] font-black uppercase text-slate-500">Roll Number Span</div>
                           <div className="text-xs sm:text-sm font-black text-indigo-900 mt-0.5 font-mono">
                             {sentupCensus.rollRange}
@@ -5810,37 +5810,12 @@ export default function AdmissionRegisterSuite({
                           </div>
                         </div>
                       </div>
-
-                      {/* Institutional Verification Declaration */}
-                      <div className="mt-3.5 p-3 bg-white/95 rounded-lg border border-red-100 text-left text-[10px] sm:text-[10.5px] leading-relaxed text-slate-800 font-medium">
-                        <strong className="text-red-900 font-black uppercase">Institutional Certification: </strong>
-                        Certified that the candidates enrolled in Class {selectedClass} for the Academic Session {selectedSession} as documented in the ensuing Roll Sheet (commencing from Page 3) have fulfilled all regulatory attendance norms, coursework requirements, and institutional qualifying standards as stipulated by the Jammu & Kashmir Board of School Education (JKBOSE). All candidate particulars—including Board Registration Numbers, Class Roll Numbers, Parentage, and Subject Combinations—have been thoroughly audited and cross-checked against the Institutional Master Admission Register.
-                      </div>
                     </div>
                   </div>
 
-                  {/* Signatures & Seal Block on Page 1 */}
-                  <div className="border-t-2 border-red-900 pt-2.5 text-[11px] font-black text-red-900">
-                    <div className="grid grid-cols-3 gap-6 text-center">
-                      <div className="flex flex-col items-center justify-end">
-                        <div className="w-44 border-t-2 border-slate-900 pt-1">
-                          <div className="font-black text-[10.5px] text-slate-900 uppercase">Incharge Examination</div>
-                          <div className="text-[8.5px] text-slate-500 font-semibold">HSS Shangus</div>
-                        </div>
-                      </div>
-                      <div className="flex flex-col items-center justify-end">
-                        <div className="w-44 border-t-2 border-slate-900 pt-1">
-                          <div className="font-black text-[10.5px] text-slate-900 uppercase">Checked & Verified By</div>
-                          <div className="text-[8.5px] text-slate-500 font-semibold">Academic Verification Cell</div>
-                        </div>
-                      </div>
-                      <div className="flex flex-col items-center justify-end">
-                        <div className="w-48 border-t-2 border-red-900 pt-1">
-                          <div className="font-black text-[10.5px] text-red-900 uppercase">Principal / Head of Inst.</div>
-                          <div className="text-[8.5px] text-slate-500 font-semibold">(Official Seal & Signature)</div>
-                        </div>
-                      </div>
-                    </div>
+                  {/* Institutional Bottom Bar */}
+                  <div className="border-t border-red-900/30 pt-2 text-center text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                    Government Higher Secondary School Shangus • Official Sent-up Examination Roll Gazette
                   </div>
                 </div>
               )}
