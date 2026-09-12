@@ -80,7 +80,7 @@ export const DEFAULT_COLUMN_WIDTHS = {
   st_sno: 38,
   st_rollNo: 46,
   st_photo: 44,
-  st_boardReg: 135,
+  st_boardReg: 88,
   st_name: 195,
   st_parentage: 140,
   st_dob: 70,
@@ -1132,10 +1132,12 @@ export default function AdmissionRegisterSuite({
       if (cached) {
         const parsed = JSON.parse(cached);
         if (parsed.columnWidths && typeof parsed.columnWidths === 'object') {
+          const cachedReg = parsed.columnWidths.st_boardReg;
+          const regWidth = (!cachedReg || cachedReg >= 130) ? DEFAULT_COLUMN_WIDTHS.st_boardReg : cachedReg;
           return {
             ...DEFAULT_COLUMN_WIDTHS,
             ...parsed.columnWidths,
-            st_boardReg: Math.max(DEFAULT_COLUMN_WIDTHS.st_boardReg, parsed.columnWidths.st_boardReg || 0),
+            st_boardReg: regWidth,
             st_name: Math.max(DEFAULT_COLUMN_WIDTHS.st_name, parsed.columnWidths.st_name || 0),
             st_subs: Math.min(DEFAULT_COLUMN_WIDTHS.st_subs, parsed.columnWidths.st_subs || DEFAULT_COLUMN_WIDTHS.st_subs),
             st_boardRoll: Math.min(DEFAULT_COLUMN_WIDTHS.st_boardRoll, parsed.columnWidths.st_boardRoll || DEFAULT_COLUMN_WIDTHS.st_boardRoll),
@@ -1206,7 +1208,11 @@ export default function AdmissionRegisterSuite({
         if (snap.exists()) {
           const data = snap.data();
           if (data.columnWidths && typeof data.columnWidths === 'object') {
-            setColumnWidths(prev => ({ ...prev, ...data.columnWidths }));
+            const cleanColWidths = { ...data.columnWidths };
+            if (!cleanColWidths.st_boardReg || cleanColWidths.st_boardReg >= 130) {
+              cleanColWidths.st_boardReg = DEFAULT_COLUMN_WIDTHS.st_boardReg;
+            }
+            setColumnWidths(prev => ({ ...prev, ...cleanColWidths }));
           }
           if (data.rowHeight && typeof data.rowHeight === 'number') {
             setRowHeight(Math.min(MAX_REGISTER_ROW_HEIGHT, Math.max(MIN_REGISTER_ROW_HEIGHT, data.rowHeight)));
@@ -3850,29 +3856,29 @@ export default function AdmissionRegisterSuite({
             font-weight: 900 !important;
           }
 
-          /* Generous width and larger print font for BOARD REG. NO. */
+          /* Snug proportional width and crisp print font for BOARD REG. NO. */
           .sentup-table th[data-col="st_boardReg"],
           .sentup-table th.th-col-st_boardReg {
-            width: 38mm !important;
-            min-width: 36mm !important;
-            font-size: 10px !important;
+            width: 24mm !important;
+            max-width: 26mm !important;
+            font-size: 9px !important;
             font-weight: 900 !important;
             line-height: 1.1 !important;
-            letter-spacing: 0.02em !important;
+            letter-spacing: 0.01em !important;
           }
 
           .sentup-table td.st-boardreg-cell,
           .sentup-table .st-boardreg-cell {
-            width: 38mm !important;
-            min-width: 36mm !important;
-            font-size: 12.5px !important;
+            width: 24mm !important;
+            max-width: 26mm !important;
+            font-size: 11px !important;
             font-weight: 900 !important;
             line-height: 1.15 !important;
           }
 
           .sentup-table .st-boardreg-cell div,
           .sentup-table .st-boardreg-cell span {
-            font-size: 12.5px !important;
+            font-size: 11px !important;
             font-weight: 900 !important;
             line-height: 1.15 !important;
             letter-spacing: -0.01em !important;
@@ -3881,8 +3887,8 @@ export default function AdmissionRegisterSuite({
           /* Generous width and larger print font for STUDENT'S NAME */
           .sentup-table th[data-col="st_name"],
           .sentup-table th.th-col-st_name {
-            width: 58mm !important;
-            min-width: 54mm !important;
+            width: 62mm !important;
+            min-width: 58mm !important;
             font-size: 10.5px !important;
             font-weight: 900 !important;
             line-height: 1.1 !important;
@@ -3891,8 +3897,8 @@ export default function AdmissionRegisterSuite({
 
           .sentup-table td.st-name-cell,
           .sentup-table .st-name-cell {
-            width: 58mm !important;
-            min-width: 54mm !important;
+            width: 62mm !important;
+            min-width: 58mm !important;
             font-size: 14px !important;
             font-weight: 900 !important;
             line-height: 1.15 !important;
