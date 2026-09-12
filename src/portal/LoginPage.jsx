@@ -134,17 +134,7 @@ export default function LoginPage() {
     }
   }, [isAuthenticated, user, navigate, window2VerifiedState, emailLinkSentState]);
 
-  // Auto-redirect to dashboard when Window 2 is verified (especially critical on mobile where tabs can't close)
-  useEffect(() => {
-    if (!window2VerifiedState) return;
-    const dest = window2VerifiedState.role === 'Teacher' || window2VerifiedState.role === 'Faculty'
-      ? '/portal/teacher'
-      : '/portal/admin';
-    const timer = setTimeout(() => {
-      navigate(dest, { replace: true });
-    }, 2200);
-    return () => clearTimeout(timer);
-  }, [window2VerifiedState, navigate]);
+  // When Window 2 is opened via verification link, it stays on confirmation screen so the waiting device logs in.
 
   // Pre-warm dashboard bundle chunks in background during idle time for 0ms instant dashboard mounting
   useEffect(() => {
@@ -449,14 +439,8 @@ export default function LoginPage() {
               bc.close();
             } catch (_) {}
 
-            // CRITICAL: Call createVerifiedSession and onLoginSuccess in Window 2
-            // so Window 2 has a valid, authenticated session in sessionManager and PortalLayout!
-            try {
-              const verifiedSession = await createVerifiedSession(userCred.user, cleanEmail, staffProfile);
-              onLoginSuccess(verifiedSession, true);
-            } catch (sessErr) {
-              console.warn('Window 2 session initialization note:', sessErr);
-            }
+            // Verification complete: Window 2 only verifies the handshake and notifies the waiting device.
+            // Do NOT call onLoginSuccess here so this device does not open the dashboard.
 
             setWindow2VerifiedState({
               email: cleanEmail,
@@ -1098,20 +1082,9 @@ export default function LoginPage() {
                 </div>
 
                 <div className="space-y-2 pt-1">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const dest = window2VerifiedState.role === 'Teacher' || window2VerifiedState.role === 'Faculty'
-                        ? '/portal/teacher'
-                        : '/portal/admin';
-                      navigate(dest, { replace: true });
-                    }}
-                    className="w-full py-3 rounded-xl font-black text-xs bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 hover:to-emerald-500 text-white cursor-pointer transition-all shadow-md hover:shadow-lg active:scale-[0.98] flex items-center justify-center gap-1.5"
-                  >
-                    <span>Continue to {window2VerifiedState.role === 'Teacher' || window2VerifiedState.role === 'Faculty' ? 'Teacher Portal' : 'Admin Dashboard'}</span>
-                    <ChevronRight size={15} />
-                  </button>
-
+                  <div className="p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-800 dark:text-emerald-300 text-xs font-bold text-center">
+                    ✓ Login request verified and approved. Your dashboard is now loading on your login device.
+                  </div>
                   <button
                     type="button"
                     onClick={() => {
@@ -1119,7 +1092,7 @@ export default function LoginPage() {
                         window.close();
                       } catch (_) {}
                     }}
-                    className="w-full py-2 rounded-xl font-bold text-[11px] text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 cursor-pointer transition-all"
+                    className="w-full py-2.5 rounded-xl font-bold text-xs bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100 cursor-pointer transition-all shadow-xs"
                   >
                     Close This Window
                   </button>

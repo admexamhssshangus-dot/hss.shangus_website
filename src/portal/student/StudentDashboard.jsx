@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useOutletContext, useNavigate } from 'react-router-dom';
 import { FileText, Edit3, RefreshCw, LogOut, ShieldCheck, CheckCircle2, Clock, AlertCircle, Sparkles, ArrowRight, X, Trash2, Printer, CreditCard, Mail, Plus, UserCog } from 'lucide-react';
@@ -32,13 +32,30 @@ export default function StudentDashboard() {
   const { user, onLogout, refreshSession } = useOutletContext();
   const navigate = useNavigate();
 
+  // Instant SWR Cache Initialization
+  const [cachedData] = useState(() => {
+    try {
+      const uid = auth.currentUser?.uid || user?.uid;
+      if (uid) {
+        const raw = localStorage.getItem(`hss_student_app_${uid}`);
+        if (raw) return JSON.parse(raw);
+      }
+    } catch (_) {}
+    return null;
+  });
+
   // Dashboard Data State
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => !cachedData?.currentApp);
   const [loadError, setLoadError] = useState(null);
-  const [appData, setAppData] = useState(null);
-  const [allApplications, setAllApplications] = useState([]);
-  const [sessionInfo, setSessionInfo] = useState(() => getCurrentAcademicSession());
+  const [appData, setAppData] = useState(() => cachedData?.currentApp || null);
+  const [allApplications, setAllApplications] = useState(() => cachedData?.applications || []);
+  const [sessionInfo, setSessionInfo] = useState(() => cachedData?.activeSession || getCurrentAcademicSession());
   const [alert, setAlert] = useState(null);
+
+  const appDataRef = useRef(appData);
+  useEffect(() => {
+    appDataRef.current = appData;
+  }, [appData]);
 
   // Email Verification State (On-demand with Cooldown)
   const [isEmailVerified, setIsEmailVerified] = useState(() => Boolean(auth.currentUser?.emailVerified));
@@ -129,49 +146,103 @@ export default function StudentDashboard() {
     }
   };
 
-  // Fetch student application & initial data (Fast SWR Firestore Workflow)
+  // Fetch student application & initial data (Ultra-fast Concurrent SWR Firestore Workflow)
   const loadDashboardData = useCallback(async () => {
     setAlert(null);
-    setLoading(true);
     setLoadError(null);
     if (!user) {
       setLoading(false);
       return;
     }
 
-    // Owner-scoped server load; never scan or cache every student's record.
-    try {
-      let activeSession = getCurrentAcademicSession();
+    // Only display full-screen loading spinner if we don't already have cached appData
+    if (!appDataRef.current) {
+      setLoading(true);
+    }
+
+    let activeSession = getCurrentAcademicSession();
+
+    // Helper 1: Ultra-fast direct Firestore query for student's own records (~100ms)
+    const fetchDirectFirestoreApps = async () => {
       try {
-        const applicationResult = await loadAdmissionWorkspace();
-        const applications = applicationResult?.data?.applications || applicationResult?.applications || [];
-        activeSession = applicationResult?.data?.activeSession || applicationResult?.activeSession || activeSession;
+        const email = String(user?.email || '').toLowerCase().trim();
+        const queries = [
+          getDocs(query(collection(db, 'admissions'), where('ownerUid', '==', user.uid)))
+        ];
+        if (email) {
+          queries.push(getDocs(query(collection(db, 'admissions'), where('emailNormalized', '==', email))));
+          queries.push(getDocs(query(collection(db, 'admissions'), where('Email Address', '==', email))));
+        }
+        const snaps = await Promise.all(queries);
+        const directApps = [];
+        const seenIds = new Set();
+        snaps.forEach(snap => {
+          snap.forEach(docSnap => {
+            if (!seenIds.has(docSnap.id)) {
+              seenIds.add(docSnap.id);
+              directApps.push({ docId: docSnap.id, ...docSnap.data() });
+            }
+          });
+        });
+        return directApps;
+      } catch (err) {
+        console.warn('Direct Firestore fetch note:', err);
+        return [];
+      }
+    };
+
+    // Helper 2: Server workspace query capped with strict 2.5s race timeout to prevent proxy hangs
+    const fetchWorkspaceWithTimeout = async () => {
+      try {
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Workspace timeout')), 2500)
+        );
+        return await Promise.race([loadAdmissionWorkspace(), timeoutPromise]);
+      } catch (err) {
+        console.warn('Workspace timeout or fetch note:', err?.message || err);
+        return null;
+      }
+    };
+
+    try {
+      // Run direct Firestore read and workspace fetch concurrently
+      const [directApps, workspaceResult] = await Promise.all([
+        fetchDirectFirestoreApps(),
+        fetchWorkspaceWithTimeout()
+      ]);
+
+      let applications = [];
+      if (workspaceResult && (workspaceResult.data?.applications || workspaceResult.applications)) {
+        applications = workspaceResult.data?.applications || workspaceResult.applications || [];
+        activeSession = workspaceResult.data?.activeSession || workspaceResult.activeSession || activeSession;
+      }
+
+      // Merge directApps if workspace timed out, failed, or returned empty
+      if (directApps.length > 0) {
+        if (!applications.length) {
+          applications = directApps;
+        } else {
+          const seenIds = new Set(applications.map(a => a.docId || a.id));
+          directApps.forEach(da => {
+            if (!seenIds.has(da.docId || da.id)) {
+              applications.push(da);
+            }
+          });
+        }
+      }
+
+      if (applications.length > 0) {
         setAllApplications(applications);
         let currentApp = selectStudentApplication(applications, activeSession);
         if (currentApp && (currentApp.Session || currentApp.session || currentApp['Academic Session'])) {
           activeSession = currentApp.Session || currentApp.session || currentApp['Academic Session'];
-        } else {
-          activeSession = applicationResult?.data?.activeSession || applicationResult?.activeSession || activeSession;
         }
         setSessionInfo(activeSession);
-
-        if (currentApp) {
-          try {
-            const photo = await fetchStudentPhotoOnDemand(currentApp);
-            if (photo && photo.length > 20 && photo !== '/logo.png') {
-              currentApp = {
-                ...currentApp,
-                photo_id: photo,
-                photoUrl: photo,
-                'Student Photo': photo,
-              };
-            }
-          } catch (pErr) {
-            console.warn('Student dashboard photo load note:', pErr);
-          }
-        }
         setAppData(currentApp);
-        if (currentApp && user?.uid) {
+        setLoadError(null);
+
+        // Synchronize instant local cache
+        if (user?.uid && currentApp) {
           try {
             localStorage.setItem(`hss_student_app_${user.uid}`, JSON.stringify({
               currentApp,
@@ -181,55 +252,26 @@ export default function StudentDashboard() {
             }));
           } catch (_) {}
         }
-      } catch (appErr) {
-        console.warn('Student applications load note:', appErr);
-        let recovered = false;
 
-        // Resilient Fallback 1: Direct client-side Firestore query for student's own record
-        try {
-          const email = String(user?.email || '').toLowerCase().trim();
-          const queries = [
-            getDocs(query(collection(db, 'admissions'), where('ownerUid', '==', user.uid)))
-          ];
-          if (email) {
-            queries.push(getDocs(query(collection(db, 'admissions'), where('emailNormalized', '==', email))));
-            queries.push(getDocs(query(collection(db, 'admissions'), where('Email Address', '==', email))));
-          }
-          const snaps = await Promise.all(queries);
-          const directApps = [];
-          const seenIds = new Set();
-          snaps.forEach(snap => {
-            snap.forEach(docSnap => {
-              if (!seenIds.has(docSnap.id)) {
-                seenIds.add(docSnap.id);
-                directApps.push({ docId: docSnap.id, ...docSnap.data() });
-              }
-            });
-          });
-          if (directApps.length > 0) {
-            setAllApplications(directApps);
-            const fallbackApp = selectStudentApplication(directApps, activeSession);
-            if (fallbackApp) {
-              setAppData(fallbackApp);
-              setSessionInfo(fallbackApp.Session || fallbackApp.session || activeSession);
-              setLoadError(null);
-              recovered = true;
-              try {
-                localStorage.setItem(`hss_student_app_${user.uid}`, JSON.stringify({
-                  currentApp: fallbackApp,
-                  applications: directApps,
-                  activeSession,
-                  cachedAt: Date.now()
-                }));
-              } catch (_) {}
+        // Asynchronously load student photo on-demand in background without blocking screen
+        if (currentApp) {
+          fetchStudentPhotoOnDemand(currentApp).then(photo => {
+            if (photo && photo.length > 20 && photo !== '/logo.png') {
+              setAppData(prev => {
+                if (!prev) return prev;
+                return {
+                  ...prev,
+                  photo_id: photo,
+                  photoUrl: photo,
+                  'Student Photo': photo,
+                };
+              });
             }
-          }
-        } catch (directErr) {
-          console.warn('Direct Firestore client read fallback note:', directErr);
+          }).catch(pErr => console.warn('Async photo load note:', pErr));
         }
-
-        // Resilient Fallback 2: Cached application from localStorage
-        if (!recovered && user?.uid) {
+      } else {
+        // Fallback: Check local storage cache if both network queries returned no docs
+        if (user?.uid) {
           try {
             const rawCache = localStorage.getItem(`hss_student_app_${user.uid}`);
             if (rawCache) {
@@ -239,25 +281,16 @@ export default function StudentDashboard() {
                 if (cached.applications) setAllApplications(cached.applications);
                 if (cached.activeSession) setSessionInfo(cached.activeSession);
                 setLoadError(null);
-                recovered = true;
-                setAlert({
-                  type: 'info',
-                  text: '⚡ Displaying your confirmed application details from local cache. The server is currently refreshing capacity.'
-                });
               }
             }
-          } catch (cacheErr) {
-            console.warn('Cache fallback read note:', cacheErr);
-          }
-        }
-
-        if (!recovered) {
-          setLoadError(appErr.message || 'Application status could not be loaded.');
+          } catch (_) {}
         }
       }
     } catch (fsErr) {
-      console.error('Firestore student dashboard read error:', fsErr);
-      setLoadError('Application status could not be loaded. Please retry.');
+      console.error('Student dashboard read error:', fsErr);
+      if (!appDataRef.current) {
+        setLoadError('Application status could not be loaded. Please retry.');
+      }
     } finally {
       setLoading(false);
     }
