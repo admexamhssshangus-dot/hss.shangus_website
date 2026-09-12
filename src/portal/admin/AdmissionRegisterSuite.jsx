@@ -80,12 +80,12 @@ export const DEFAULT_COLUMN_WIDTHS = {
   st_sno: 38,
   st_rollNo: 46,
   st_photo: 44,
-  st_boardReg: 120,
-  st_name: 165,
+  st_boardReg: 135,
+  st_name: 195,
   st_parentage: 140,
   st_dob: 70,
-  st_subs: 65,
-  st_boardRoll: 95,
+  st_subs: 40,
+  st_boardRoll: 70,
   st_result: 75,
   st_admitReceipt: 65,
   st_marksReceipt: 140
@@ -152,10 +152,11 @@ function ResizableTh({
 
   return (
     <th
+      data-col={colKey}
       rowSpan={rowSpan}
       colSpan={colSpan}
       style={styleObj}
-      className={`relative group/th select-none ${sortKey && onSort ? 'cursor-pointer hover:brightness-110 active:scale-[0.99] transition-all' : ''} ${className}`}
+      className={`relative group/th select-none ${colKey ? `th-col-${colKey}` : ''} ${sortKey && onSort ? 'cursor-pointer hover:brightness-110 active:scale-[0.99] transition-all' : ''} ${className}`}
       onClick={handleClick}
       title={sortKey && onSort ? `Click to sort by this column (${isSorted ? (isAsc ? 'ascending → descending' : 'descending → default') : 'ascending'})` : undefined}
       {...rest}
@@ -867,14 +868,14 @@ function formatBoardRegSplit(val) {
   if (!s) return '—';
   if (s.length > 12) {
     return (
-      <div className="leading-tight text-left font-mono text-[12.5px]">
+      <div className="leading-tight text-left font-mono text-[13px] st-reg-split">
         <span className="font-black text-slate-900 dark:text-slate-100 tracking-tight">{s.substring(0, 12)}</span>
         <br />
-        <span className="font-extrabold text-slate-700 dark:text-slate-300 tracking-tight">{s.substring(12)}</span>
+        <span className="font-extrabold text-slate-800 dark:text-slate-200 tracking-tight">{s.substring(12)}</span>
       </div>
     );
   }
-  return <span className="font-black font-mono text-[12.5px] tracking-tight">{s}</span>;
+  return <span className="font-black font-mono text-[13px] tracking-tight">{s}</span>;
 }
 
 export default function AdmissionRegisterSuite({
@@ -1110,7 +1111,8 @@ export default function AdmissionRegisterSuite({
             ...parsed.columnWidths,
             st_boardReg: Math.max(DEFAULT_COLUMN_WIDTHS.st_boardReg, parsed.columnWidths.st_boardReg || 0),
             st_name: Math.max(DEFAULT_COLUMN_WIDTHS.st_name, parsed.columnWidths.st_name || 0),
-            st_boardRoll: Math.max(DEFAULT_COLUMN_WIDTHS.st_boardRoll, parsed.columnWidths.st_boardRoll || 0),
+            st_subs: Math.min(DEFAULT_COLUMN_WIDTHS.st_subs, parsed.columnWidths.st_subs || DEFAULT_COLUMN_WIDTHS.st_subs),
+            st_boardRoll: Math.min(DEFAULT_COLUMN_WIDTHS.st_boardRoll, parsed.columnWidths.st_boardRoll || DEFAULT_COLUMN_WIDTHS.st_boardRoll),
             st_parentage: Math.max(DEFAULT_COLUMN_WIDTHS.st_parentage, parsed.columnWidths.st_parentage || 0)
           };
         }
@@ -3439,23 +3441,33 @@ export default function AdmissionRegisterSuite({
 
           .sentup-table .sentup-photo-cell,
           .sentup-table td.sentup-photo-cell {
-            height: 12.5mm !important;
-            max-height: 12.5mm !important;
-            width: 10.5mm !important;
-            padding: 0 !important;
+            height: 13.5mm !important;
+            max-height: 13.8mm !important;
+            width: 11mm !important;
+            max-width: 12mm !important;
+            padding: 0.5px !important;
             text-align: center !important;
+            vertical-align: middle !important;
+            box-sizing: border-box !important;
           }
 
-          .sentup-table .sentup-photo-cell img {
-            height: 12.5mm !important;
-            max-height: 12.5mm !important;
-            width: 100% !important;
-            object-fit: cover !important;
+          .sentup-table .sentup-photo-cell img,
+          .sentup-table td.sentup-photo-cell img {
+            max-height: 12.8mm !important;
+            max-width: 100% !important;
+            width: auto !important;
+            height: auto !important;
+            object-fit: contain !important;
+            object-position: center center !important;
             display: block !important;
             margin: 0 auto !important;
           }
 
-          .sentup-table .st-subs-cell {
+          /* Compact column widths: Subjects & Board Roll No */
+          .sentup-table th[data-col="st_subs"],
+          .sentup-table td.st-subs-cell {
+            width: 10mm !important;
+            max-width: 11mm !important;
             padding: 0.5px 1px !important;
           }
 
@@ -3465,33 +3477,82 @@ export default function AdmissionRegisterSuite({
             font-weight: 800 !important;
           }
 
+          .sentup-table th[data-col="st_boardRoll"],
+          .sentup-table th.th-col-st_boardRoll,
+          .sentup-table td.st-boardroll-cell {
+            width: 20mm !important;
+            max-width: 21mm !important;
+            padding: 0.5px 1px !important;
+          }
+
+          .sentup-table td.st-boardroll-cell,
+          .sentup-table .st-boardroll-cell {
+            font-size: 11.5px !important;
+            font-weight: 900 !important;
+            line-height: 1.1 !important;
+            letter-spacing: -0.01em !important;
+          }
+
+          .sentup-table .st-boardroll-cell div {
+            font-size: 11.5px !important;
+            font-weight: 900 !important;
+          }
+
+          /* Generous width and larger print font for BOARD REG. NO. */
+          .sentup-table th[data-col="st_boardReg"],
+          .sentup-table th.th-col-st_boardReg {
+            width: 38mm !important;
+            min-width: 36mm !important;
+            font-size: 10px !important;
+            font-weight: 900 !important;
+            line-height: 1.1 !important;
+            letter-spacing: 0.02em !important;
+          }
+
           .sentup-table td.st-boardreg-cell,
           .sentup-table .st-boardreg-cell {
-            font-size: 10px !important;
+            width: 38mm !important;
+            min-width: 36mm !important;
+            font-size: 12.5px !important;
             font-weight: 900 !important;
             line-height: 1.15 !important;
           }
 
-          .sentup-table .st-boardreg-cell div {
-            font-size: 10px !important;
+          .sentup-table .st-boardreg-cell div,
+          .sentup-table .st-boardreg-cell span {
+            font-size: 12.5px !important;
+            font-weight: 900 !important;
             line-height: 1.15 !important;
+            letter-spacing: -0.01em !important;
+          }
+
+          /* Generous width and larger print font for STUDENT'S NAME */
+          .sentup-table th[data-col="st_name"],
+          .sentup-table th.th-col-st_name {
+            width: 58mm !important;
+            min-width: 54mm !important;
+            font-size: 10.5px !important;
+            font-weight: 900 !important;
+            line-height: 1.1 !important;
+            letter-spacing: 0.02em !important;
           }
 
           .sentup-table td.st-name-cell,
           .sentup-table .st-name-cell {
-            font-size: 11px !important;
+            width: 58mm !important;
+            min-width: 54mm !important;
+            font-size: 14px !important;
             font-weight: 900 !important;
             line-height: 1.15 !important;
           }
 
           .sentup-table .st-name-cell span {
-            font-size: 11px !important;
+            font-size: 14px !important;
             font-weight: 900 !important;
             line-height: 1.15 !important;
+            letter-spacing: 0.01em !important;
           }
 
-          .sentup-table td.st-boardroll-cell,
-          .sentup-table .st-boardroll-cell,
           .sentup-table td.st-rollno-cell,
           .sentup-table .st-rollno-cell {
             font-size: 12px !important;
@@ -3500,7 +3561,6 @@ export default function AdmissionRegisterSuite({
             letter-spacing: 0.02em !important;
           }
 
-          .sentup-table .st-boardroll-cell div,
           .sentup-table .st-rollno-cell div {
             font-size: 12px !important;
             font-weight: 900 !important;
@@ -3661,10 +3721,12 @@ export default function AdmissionRegisterSuite({
           }
 
           .register-photo-cell img {
-            width: 100% !important;
+            width: auto !important;
+            max-width: 100% !important;
             height: calc(var(--register-row-height) - 2px) !important;
             max-height: calc(var(--register-row-height) - 2px) !important;
-            object-fit: cover !important;
+            object-fit: contain !important;
+            object-position: center center !important;
             display: block !important;
             margin: 0 auto !important;
           }
@@ -4912,19 +4974,21 @@ export default function AdmissionRegisterSuite({
                                     <td className="border border-slate-900 px-1 py-0.5 text-center font-bold ledger-mono-font">{s.sno}</td>
                                     <td className="register-photo-cell border border-slate-900 p-0 text-center overflow-hidden bg-slate-50 print:bg-transparent" style={{ width: columnWidths.photo ? `${columnWidths.photo}px` : undefined, height: `${rowHeight}px` }}>
                                       {photoSrc ? (
-                                        <img
-                                          src={photoSrc}
-                                          alt={s.name}
-                                          className="block w-full object-cover"
-                                          style={{ height: `${Math.max(30, rowHeight - 1)}px` }}
-                                          loading="eager"
-                                          onError={(e) => {
-                                            e.currentTarget.style.display = 'none';
-                                            if (e.currentTarget.nextElementSibling) {
-                                              e.currentTarget.nextElementSibling.style.display = 'flex';
-                                            }
-                                          }}
-                                        />
+                                        <div className="w-full h-full flex items-center justify-center p-0.5">
+                                          <img
+                                            src={photoSrc}
+                                            alt={s.name}
+                                            className="block max-h-full max-w-full object-contain mx-auto"
+                                            style={{ maxHeight: `${Math.max(30, rowHeight - 2)}px` }}
+                                            loading="eager"
+                                            onError={(e) => {
+                                              e.currentTarget.style.display = 'none';
+                                              if (e.currentTarget.parentElement && e.currentTarget.parentElement.nextElementSibling) {
+                                                e.currentTarget.parentElement.nextElementSibling.style.display = 'flex';
+                                              }
+                                            }}
+                                          />
+                                        </div>
                                       ) : null}
                                       <div className={`w-full h-full items-center justify-center text-[7px] text-slate-400 font-bold ${photoSrc ? 'hidden' : 'flex'}`}>
                                         Photo
@@ -5467,19 +5531,21 @@ export default function AdmissionRegisterSuite({
                                 {isSentupColVisible('st_photo') && (
                                   <td className="sentup-photo-cell register-photo-cell border border-slate-900 p-0 text-center overflow-hidden bg-slate-50 print:bg-transparent" style={{ width: columnWidths.st_photo ? `${columnWidths.st_photo}px` : undefined, height: `${rowHeight}px` }}>
                                     {photoSrc ? (
-                                      <img
-                                        src={photoSrc}
-                                        alt={s.name}
-                                        className="block w-full object-cover"
-                                        style={{ height: `${Math.max(34, rowHeight - 1)}px` }}
-                                        loading="eager"
-                                        onError={(e) => {
-                                          e.currentTarget.style.display = 'none';
-                                          if (e.currentTarget.nextElementSibling) {
-                                            e.currentTarget.nextElementSibling.style.display = 'flex';
-                                          }
-                                        }}
-                                      />
+                                      <div className="w-full h-full flex items-center justify-center p-0.5">
+                                        <img
+                                          src={photoSrc}
+                                          alt={s.name}
+                                          className="block max-h-full max-w-full object-contain mx-auto"
+                                          style={{ maxHeight: `${Math.max(32, rowHeight - 2)}px` }}
+                                          loading="eager"
+                                          onError={(e) => {
+                                            e.currentTarget.style.display = 'none';
+                                            if (e.currentTarget.parentElement && e.currentTarget.parentElement.nextElementSibling) {
+                                              e.currentTarget.parentElement.nextElementSibling.style.display = 'flex';
+                                            }
+                                          }}
+                                        />
+                                      </div>
                                     ) : null}
                                     <div className={`w-full h-full items-center justify-center text-[8.5px] text-slate-400 font-bold ${photoSrc ? 'hidden' : 'flex'}`}>
                                       Photo
@@ -5487,10 +5553,10 @@ export default function AdmissionRegisterSuite({
                                   </td>
                                 )}
                                 {isSentupColVisible('st_boardReg') && (
-                                  <td className="border border-slate-900 px-1.5 py-0.5 text-left pl-2 ledger-mono-font text-[12.5px] font-extrabold st-boardreg-cell">{formatBoardRegSplit(s.boardReg)}</td>
+                                  <td className="border border-slate-900 px-1.5 py-0.5 text-left pl-2 ledger-mono-font text-[13px] font-black st-boardreg-cell">{formatBoardRegSplit(s.boardReg)}</td>
                                 )}
                                 {isSentupColVisible('st_name') && (
-                                  <td className="border border-slate-900 px-2 py-0.5 text-left font-black uppercase text-[13.5px] st-name-cell">
+                                  <td className="border border-slate-900 px-2 py-0.5 text-left font-black uppercase text-[14px] st-name-cell">
                                     <div className="flex flex-col items-start justify-center gap-0.5 min-w-0">
                                       {(s.hasInheritedData || s.isReadmission) && (
                                         <div className="flex items-center gap-1 print:hidden shrink-0 leading-none">
@@ -5510,7 +5576,7 @@ export default function AdmissionRegisterSuite({
                                           )}
                                         </div>
                                       )}
-                                      <span className="tracking-tight whitespace-normal break-words leading-tight font-black">{s.name}</span>
+                                      <span className="tracking-tight whitespace-normal break-words leading-tight font-black text-[14px]">{s.name}</span>
                                     </div>
                                   </td>
                                 )}
