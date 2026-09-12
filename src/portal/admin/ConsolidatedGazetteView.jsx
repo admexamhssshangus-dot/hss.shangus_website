@@ -5,11 +5,9 @@ import {
   ChevronDown, ExternalLink, BookOpen, School, XCircle, ArrowUpDown, Tag
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import { collection, getDocs, doc, getDoc } from 'firebase/firestore';
+import { collection, onSnapshot, getDocs, doc, getDoc } from 'firebase/firestore';
 import { db } from '../../services/firebase';
-import { getCachedCollection } from '../../services/dbCache';
-import { DEFAULT_SCHOOL_EVALUATIONS, SUBJECT_CONFIG_DEFS } from '../../utils/practicalsSettingsManager';
-import { gradeAssessment, expectedSubjectCodes } from '../../shared/assessment';
+import { DEFAULT_SCHOOL_EVALUATIONS } from '../../utils/practicalsSettingsManager';
 import { sameCohort, recordIdentity, identityKey, sessionKey, classKey } from '../../utils/recordIdentity';
 
 const SESSIONS = ['2025-26', '2024-25', '2023-24'];
@@ -35,28 +33,50 @@ const RESULT_FILTERS = [
 ];
 
 /**
+ * Authoritative 15 Separate Subjects for Master Tabulation Register & Gazette
+ * Botany (BO) and Zoology (ZO) are strictly separate columns.
+ */
+export const STANDARD_15_GAZETTE_SUBJECTS = [
+  { code: 'EN', name: 'General English', defaultMax: 50 },
+  { code: 'PH', name: 'Physics', defaultMax: 50 },
+  { code: 'CH', name: 'Chemistry', defaultMax: 50 },
+  { code: 'BO', name: 'Botany', defaultMax: 25 },
+  { code: 'ZO', name: 'Zoology', defaultMax: 25 },
+  { code: 'MA', name: 'Mathematics', defaultMax: 50 },
+  { code: 'CS', name: 'Computer Science', defaultMax: 50 },
+  { code: 'ES', name: 'Environmental Science', defaultMax: 50 },
+  { code: 'PD', name: 'Physical Education', defaultMax: 50 },
+  { code: 'EC', name: 'Economics', defaultMax: 50 },
+  { code: 'PS', name: 'Political Science', defaultMax: 50 },
+  { code: 'HT', name: 'History', defaultMax: 50 },
+  { code: 'SO', name: 'Sociology', defaultMax: 50 },
+  { code: 'ED', name: 'Education', defaultMax: 50 },
+  { code: 'UR', name: 'Urdu', defaultMax: 50 },
+];
+
+/**
  * Multi-tier student record matcher against a teacher's evaluation section records.
  * Compares Board Reg No, Form No, Class Roll No, and normalized Candidate Name.
  */
 function matchStudentRecord(rec, student, identity) {
   if (!rec) return false;
 
-  // 1. Board Registration Number (100% unique)
+  // 1. Board Registration Number (100% authoritative)
   const rowReg = identityKey(rec.regNo || rec.boardRegNo || rec.reg);
   if (rowReg && identity.reg && rowReg === identity.reg) return true;
 
-  // 2. Form Number (unique within session)
+  // 2. Form Number
   const rowForm = identityKey(rec.formNo || rec.form || rec.id);
   if (rowForm && identity.form && rowForm === identity.form) return true;
 
   // 3. Class Roll Number
-  const rowRoll = identityKey(rec.rollNo || rec.classRollNo || rec.roll);
+  const rowRoll = identityKey(rec.rollNo || rec.classRollNo || rec.roll || rec.examRollNo);
   if (rowRoll && identity.roll && rowRoll === identity.roll && rowRoll !== '-' && rowRoll !== '—' && rowRoll !== 'n/a') return true;
 
-  // 4. Candidate Name (clean alphanumeric lowercase comparison)
+  // 4. Candidate Name (clean alphanumeric match)
   const rowName = String(rec.name || rec.studentName || '').toLowerCase().trim().replace(/[^a-z0-9]/g, '');
   const stuName = String(student.studentName || student.name || student["Student's Name"] || student["Student's Name (as per school records)"] || '').toLowerCase().trim().replace(/[^a-z0-9]/g, '');
-  if (rowName && stuName && rowName.length > 3 && rowName === stuName) return true;
+  if (rowName && stuName && rowName.length > 3 && (rowName === stuName || rowName.includes(stuName) || stuName.includes(rowName))) return true;
 
   return false;
 }
@@ -94,49 +114,48 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
     fetchEvalConfig();
   }, []);
 
-  // Fetch practicals data documents
-  const loadPracticalsData = useCallback(async () => {
+  // Real-Time Live Firestore Listener: Immediately reflects teacher partial or full submissions
+  useEffect(() => {
+    setLoading(true);
+    const unsubscribe = onSnapshot(
+      collection(db, 'practicalsData'),
+      (snapshot) => {
+        const docs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+        setPracticalsDocs(docs);
+        setLoading(false);
+      },
+      (err) => {
+        console.error('Real-time practicalsData listener error:', err);
+        getDocs(collection(db, 'practicalsData'))
+          .then(snap => setPracticalsDocs(snap.docs.map(d => ({ id: d.id, ...d.data() }))))
+          .finally(() => setLoading(false));
+      }
+    );
+    return () => unsubscribe();
+  }, []);
+
+  // Manual refresh fallback
+  const refreshPracticalsData = useCallback(async () => {
     setLoading(true);
     try {
-      let docs = [];
-      try {
-        const cached = await getCachedCollection('practicalsData', false, 10 * 60 * 1000).catch(() => []);
-        if (Array.isArray(cached) && cached.length > 0) {
-          docs = cached;
-        } else {
-          const snap = await getDocs(collection(db, 'practicalsData'));
-          docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        }
-      } catch (e) {
-        const snap = await getDocs(collection(db, 'practicalsData'));
-        docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      }
-      setPracticalsDocs(docs);
+      const snap = await getDocs(collection(db, 'practicalsData'));
+      setPracticalsDocs(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     } catch (err) {
-      console.error('Failed to load practicalsData for gazette:', err);
+      console.error('Failed to manually reload practicalsData:', err);
     } finally {
       setLoading(false);
     }
   }, []);
 
-  useEffect(() => {
-    loadPracticalsData();
-  }, [loadPracticalsData]);
-
-  // Aggregate student and subject marks matrix
+  // Aggregate student and 15 subject marks matrix
   const { gazetteRows, subjectsList, stats } = useMemo(() => {
-    const evaluation = availableEvaluations.find(item =>
-      (item.evalType || item.title) === selectedEvalType &&
-      (!item.session || item.session === selectedSession)
-    );
-
     const targetClass = classKey(selectedClass);
     const targetSession = sessionKey(selectedSession);
 
-    // 1. Identify matching practicals documents submitted by teachers
+    // 1. Identify matching practicals documents submitted by teachers (including partial submissions)
     const matchingDocs = practicalsDocs.filter(section => {
-      // Reject explicit drafts
-      if (section.isDraft === true || String(section.status || '').toLowerCase() === 'draft') return false;
+      // Must contain student records
+      if (!Array.isArray(section.records) || section.records.length === 0) return false;
 
       // Class matching
       const docCls = classKey(section.className || section.class || section.selectedClass || section.docId || '');
@@ -166,77 +185,59 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
       return true;
     });
 
-    // 2. Build map of distinct subjects submitted by teachers
-    const subjectMap = new Map();
-    matchingDocs.forEach(section => {
-      const sCode = (section.subjectCode || section.code || '').toUpperCase().trim();
-      const sName = section.subjectName || section.subject || sCode;
-      let finalCode = sCode;
-      let finalName = sName;
-      if (!finalCode || finalCode.length < 2) {
-        const def = SUBJECT_CONFIG_DEFS.find(d => d.name.toLowerCase() === sName.toLowerCase());
-        if (def) {
-          finalCode = def.code;
-          finalName = def.name;
-        } else {
-          finalCode = sName.slice(0, 3).toUpperCase();
+    // 2. Build 15 Standard Subject Columns with dynamic maxMarks from matching teacher submissions
+    const subjectsListArray = STANDARD_15_GAZETTE_SUBJECTS.map(subj => {
+      // Find matching document for this subject to retrieve teacher's maxMarks and minMarks
+      const matchedDoc = matchingDocs.find(sec => {
+        const c = (sec.subjectCode || '').toUpperCase().trim();
+        const n = String(sec.subjectName || sec.subject || '').toLowerCase();
+        if (c === subj.code) return true;
+        if (subj.code === 'BO' && (c === 'BO' || n.includes('botany'))) return true;
+        if (subj.code === 'ZO' && (c === 'ZO' || n.includes('zoology'))) return true;
+        if ((subj.code === 'BO' || subj.code === 'ZO') && (c === 'BI' || n.includes('biology'))) return true;
+        return n === subj.name.toLowerCase() || n.includes(subj.name.toLowerCase());
+      });
+
+      let maxMarks = subj.defaultMax;
+      let minMarks = Math.ceil(maxMarks * 0.36);
+
+      if (matchedDoc) {
+        const docMax = Number(matchedDoc.maxMarks);
+        if (docMax > 0) {
+          // If Biology was submitted as a single 30 or 50 mark sheet, split for Botany and Zoology
+          if ((subj.code === 'BO' || subj.code === 'ZO') && (matchedDoc.subjectCode === 'BI' || String(matchedDoc.subject || '').toLowerCase().includes('biology'))) {
+            maxMarks = Math.round(docMax / 2);
+          } else {
+            maxMarks = docMax;
+          }
+          minMarks = Number(matchedDoc.minMarks) > 0
+            ? (subj.code === 'BO' || subj.code === 'ZO' ? Math.ceil(Number(matchedDoc.minMarks) / 2) : Number(matchedDoc.minMarks))
+            : Math.ceil(maxMarks * 0.36);
         }
       }
-      const maxMarks = Number(section.maxMarks) || evaluation?.maxMarks || (['PH', 'CH', 'BI', 'CS', 'PD', 'ITE'].includes(finalCode) ? 30 : 100);
-      const minMarks = Number(section.minMarks) || evaluation?.minMarks || Math.ceil(maxMarks * 0.36);
 
-      const existing = subjectMap.get(finalCode) || {
-        code: finalCode,
-        name: finalName,
+      return {
+        code: subj.code,
+        name: subj.name,
         maxMarks,
         minMarks,
-        sections: [],
       };
-      existing.sections.push(section);
-      subjectMap.set(finalCode, existing);
     });
 
     // Filter cohort students for class and session
     const cohort = allStudents.filter(student => sameCohort(student, selectedSession, selectedClass) && !student._deleted);
 
-    // If matchingDocs is empty, also collect standard enrolled subject codes for this cohort so columns are visible
-    if (subjectMap.size === 0) {
-      const enrolledCodes = new Set();
-      cohort.forEach(student => {
-        const codes = expectedSubjectCodes(student);
-        codes.forEach(c => enrolledCodes.add(c.toUpperCase()));
-      });
-
-      // Default to core stream subjects if none found in student records
-      if (enrolledCodes.size === 0) {
-        ['EN', 'PH', 'CH', 'BI', 'MA'].forEach(c => enrolledCodes.add(c));
-      }
-
-      enrolledCodes.forEach(code => {
-        const def = SUBJECT_CONFIG_DEFS.find(d => d.code === code);
-        const name = def ? def.name : code;
-        const maxMarks = evaluation?.maxMarks || (['PH', 'CH', 'BI', 'CS', 'PD', 'ITE'].includes(code) ? 30 : 100);
-        const minMarks = evaluation?.minMarks || Math.ceil(maxMarks * 0.36);
-        subjectMap.set(code, {
-          code,
-          name,
-          maxMarks,
-          minMarks,
-          sections: [],
-        });
-      });
-    }
-
-    const subjectsListArray = [...subjectMap.values()];
-
-    // 3. Compile student rows, match marks, and calculate total, %, result, and grade accordingly
+    // 3. Compile student rows, populate 15 subject marks, and calculate total, %, result, and grade
     const compiledRows = cohort.map((student, index) => {
       const identity = recordIdentity(student);
 
-      // Admission / Category Status (Approved, Submitted, Provisional, Pending, etc.)
-      const rawStatus = student.Status || student.status || student.admissionStatus || student['Application Status'] ||
-        (student.isApproved ? 'Approved' : student.isProvisional ? 'Provisional' : 'Submitted');
-      const admissionStatus = String(rawStatus || 'Submitted').trim();
+      // Authoritative Admission Status: any student with an assigned Class Roll Number is Approved/Confirmed
+      const hasAssignedRoll = Boolean(student.classRollNo || student['Class Roll No'] || student.rollNo);
+      const rawStatus = student.Status || student.status || student.admissionStatus || student['Application Status'] || '';
+      const isExplicitApproved = String(rawStatus).toLowerCase().includes('appr') || student.isApproved === true;
+      const isApproved = isExplicitApproved || (hasAssignedRoll && !String(rawStatus).toLowerCase().includes('reject'));
+      const isProvisional = !isApproved && (String(rawStatus).toLowerCase().includes('provis') || student.isProvisional === true);
+      const admissionStatus = isApproved ? 'Approved' : isProvisional ? 'Provisional' : (String(rawStatus).trim() || 'Submitted');
 
       const subjectMarks = {};
       let totalObtained = 0;
@@ -245,30 +246,44 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
       let absentSubjectsCount = 0;
       let failedSubjectsCount = 0;
 
-      subjectMap.forEach((subjMeta, code) => {
+      // Populate each of the 15 subject columns
+      subjectsListArray.forEach(sMeta => {
+        const code = sMeta.code;
         let foundRecord = null;
+        let isFromBiology = false;
 
-        // Check sections dedicated to this subject
-        const sections = subjMeta.sections || [];
-        for (const sec of sections) {
-          const recs = sec.records || [];
-          const match = recs.find(r => matchStudentRecord(r, student, identity));
-          if (match) {
-            foundRecord = match;
-            break;
+        // Search matching teacher submission for this subject
+        for (const sec of matchingDocs) {
+          const sCode = (sec.subjectCode || '').toUpperCase().trim();
+          const sName = String(sec.subjectName || sec.subject || '').toLowerCase();
+
+          const isDirectMatch = sCode === code || sName === sMeta.name.toLowerCase() ||
+            (code === 'BO' && (sCode === 'BO' || sName.includes('botany'))) ||
+            (code === 'ZO' && (sCode === 'ZO' || sName.includes('zoology'))) ||
+            (code === 'CS' && (sCode === 'IP' || sName.includes('information practice')));
+
+          if (isDirectMatch) {
+            const recs = sec.records || [];
+            const match = recs.find(r => matchStudentRecord(r, student, identity));
+            if (match) {
+              foundRecord = match;
+              isFromBiology = false;
+              break;
+            }
           }
         }
 
-        // Fallback: search all matchingDocs with matching subject code or name
-        if (!foundRecord) {
+        // Fallback for BO and ZO from Biology (BI) submission if no separate BO/ZO was submitted
+        if (!foundRecord && (code === 'BO' || code === 'ZO')) {
           for (const sec of matchingDocs) {
-            const sCode = (sec.subjectCode || '').toUpperCase();
-            const sName = (sec.subjectName || sec.subject || '').toLowerCase();
-            if (sCode === code || sName.includes(subjMeta.name.toLowerCase())) {
+            const sCode = (sec.subjectCode || '').toUpperCase().trim();
+            const sName = String(sec.subjectName || sec.subject || '').toLowerCase();
+            if (sCode === 'BI' || sName.includes('biology')) {
               const recs = sec.records || [];
               const match = recs.find(r => matchStudentRecord(r, student, identity));
               if (match) {
                 foundRecord = match;
+                isFromBiology = true;
                 break;
               }
             }
@@ -284,21 +299,23 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
           if (isAbsent) {
             absentSubjectsCount++;
             evaluatedSubjectsCount++;
-            totalMax += subjMeta.maxMarks;
+            totalMax += sMeta.maxMarks;
             subjectMarks[code] = {
               obtained: 'AB',
               isAbsent: true,
               isPass: false,
               isFailed: true,
-              maxMarks: subjMeta.maxMarks,
-              minMarks: subjMeta.minMarks,
+              maxMarks: sMeta.maxMarks,
+              minMarks: sMeta.minMarks,
             };
           } else if (hasNumeric) {
             evaluatedSubjectsCount++;
-            const marksVal = Math.min(subjMeta.maxMarks, numeric);
-            const isPass = marksVal >= subjMeta.minMarks;
+            // If from combined Biology, split the score between Botany and Zoology
+            let marksVal = isFromBiology ? Math.round(numeric / 2) : Math.min(sMeta.maxMarks, numeric);
+            marksVal = Math.min(sMeta.maxMarks, marksVal);
+            const isPass = marksVal >= sMeta.minMarks;
             totalObtained += marksVal;
-            totalMax += subjMeta.maxMarks;
+            totalMax += sMeta.maxMarks;
             if (!isPass) failedSubjectsCount++;
 
             subjectMarks[code] = {
@@ -306,8 +323,8 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
               isAbsent: false,
               isPass,
               isFailed: !isPass,
-              maxMarks: subjMeta.maxMarks,
-              minMarks: subjMeta.minMarks,
+              maxMarks: sMeta.maxMarks,
+              minMarks: sMeta.minMarks,
             };
           } else {
             subjectMarks[code] = {
@@ -315,8 +332,8 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
               isAbsent: false,
               isPass: false,
               isFailed: false,
-              maxMarks: subjMeta.maxMarks,
-              minMarks: subjMeta.minMarks,
+              maxMarks: sMeta.maxMarks,
+              minMarks: sMeta.minMarks,
             };
           }
         } else {
@@ -325,8 +342,8 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
             isAbsent: false,
             isPass: false,
             isFailed: false,
-            maxMarks: subjMeta.maxMarks,
-            minMarks: subjMeta.minMarks,
+            maxMarks: sMeta.maxMarks,
+            minMarks: sMeta.minMarks,
           };
         }
       });
@@ -347,7 +364,7 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
           division = 'Absent';
         } else if (hasFail) {
           resultStatus = 'RE-APPEAR';
-          division = 'Reappear / Needs Work';
+          division = 'Re-Appear / Fail';
         } else {
           resultStatus = 'PASS';
           division = numericPercentage >= 75 ? 'Distinction (Grade A)' :
@@ -365,6 +382,7 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
         fatherName: student.fatherName || student["Father's/Guardian's Name (as per school records)"] || student["Father's Name"] || '—',
         stream: student.stream || student.Stream || 'General',
         admissionStatus,
+        isApproved,
         subjectMarks,
         totalObtained,
         totalMax,
@@ -394,7 +412,7 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
         avgScorePct: complete.length ? (complete.reduce((total, row) => total + row.numericPercentage, 0) / complete.length).toFixed(1) : 0
       }
     };
-  }, [practicalsDocs, allStudents, selectedClass, selectedSession, selectedEvalType, availableEvaluations]);
+  }, [practicalsDocs, allStudents, selectedClass, selectedSession, selectedEvalType]);
 
   // Filtered rows for Search, Stream, Admission Status, and Result
   const filteredRows = useMemo(() => {
@@ -413,7 +431,7 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
       const target = selectedStatus.toLowerCase().trim();
       rows = rows.filter(r => {
         const st = String(r.admissionStatus || '').toLowerCase().trim();
-        if (target === 'approved') return st.includes('appr');
+        if (target === 'approved') return st.includes('appr') || r.isApproved === true;
         if (target === 'submitted') return st.includes('submit');
         if (target === 'provisional') return st.includes('provis');
         if (target === 'pending') return st.includes('pend') || st.includes('review');
@@ -445,7 +463,7 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
     return rows;
   }, [gazetteRows, selectedStream, selectedStatus, selectedResultFilter, searchQuery]);
 
-  // Export to Excel (.xlsx)
+  // Export to Excel (.xlsx) with all 15 separate subject columns
   const handleExportExcel = () => {
     if (filteredRows.length === 0) {
       alert('No candidate records available to export.');
@@ -459,14 +477,14 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
       'Candidate Name',
       "Father's Name",
       'Stream',
-      'Admission Status'
+      'Status'
     ];
 
     subjectsList.forEach(s => {
-      headerRow.push(`${s.name} (${s.code}) [Max:${s.maxMarks}]`);
+      headerRow.push(`${s.code} [Max:${s.maxMarks}]`);
     });
 
-    headerRow.push('Total Obtained', 'Max Marks', 'Percentage %', 'Result Status', 'Division / Grade');
+    headerRow.push('Total Obtained', 'Max Marks', 'Percentage %', 'Result', 'Grade / Division');
 
     const dataRows = filteredRows.map((r, idx) => {
       const row = [
@@ -476,7 +494,7 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
         r.name || '—',
         r.fatherName || '—',
         r.stream || 'General',
-        r.admissionStatus || 'Submitted'
+        r.admissionStatus || 'Approved'
       ];
 
       subjectsList.forEach(s => {
@@ -501,7 +519,7 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
 
     const worksheet = XLSX.utils.aoa_to_sheet([
       [`GOVT. HIGHER SECONDARY SCHOOL SHANGUS, ANANTNAG`],
-      [`CONSOLIDATED TABULATION REGISTER & RESULT GAZETTE - ${selectedEvalType.toUpperCase()}`],
+      [`CONSOLIDATED 15-SUBJECT TABULATION REGISTER & RESULT GAZETTE - ${selectedEvalType.toUpperCase()}`],
       [`Class: ${selectedClass} | Academic Session: ${selectedSession} | Status: ${selectedStatus} | Generated: ${new Date().toLocaleDateString()}`],
       [],
       headerRow,
@@ -519,8 +537,8 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
   const handleExportCsv = () => {
     if (filteredRows.length === 0) return;
 
-    const headers = ['S.No', 'Roll No', 'Reg No', 'Candidate Name', 'Father Name', 'Stream', 'Admission Status'];
-    subjectsList.forEach(s => headers.push(`"${s.name} (${s.code})"`));
+    const headers = ['S.No', 'Roll No', 'Reg No', 'Candidate Name', 'Father Name', 'Stream', 'Status'];
+    subjectsList.forEach(s => headers.push(`"${s.code} /${s.maxMarks}"`));
     headers.push('Total Obtained', 'Max Marks', 'Percentage', 'Result', 'Division');
 
     const csvLines = [headers.join(',')];
@@ -552,7 +570,7 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
     document.body.removeChild(link);
   };
 
-  // Dedicated End-to-End Multi-Page Landscape Print Generator
+  // Dedicated End-to-End Multi-Page Landscape Print Generator with 15 Abbreviations
   const handlePrint = () => {
     if (filteredRows.length === 0) {
       alert('No candidate records available to print.');
@@ -569,10 +587,11 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
     const subtitle = 'OFFICIAL TABULATION REGISTER & CONSOLIDATED RESULT GAZETTE';
     const metaInfo = `Assessment: ${selectedEvalType} | Class: ${selectedClass} | Academic Session: ${selectedSession} | Status: ${selectedStatus === 'All' ? 'All Categories' : selectedStatus} | Candidates: ${filteredRows.length} | Date: ${new Date().toLocaleDateString()}`;
 
+    // Subject Headers: Abbreviation only (with Botany & Zoology separate)
     const subjectHeadersHtml = subjectsList.map(s => `
-      <th style="padding: 4px 5px; text-align: center; border: 1px solid #334155; font-size: 7.5pt; background: #f1f5f9; min-width: 50px;">
-        <div style="font-weight: 800;">${s.name}</div>
-        <div style="font-size: 6.5pt; color: #64748b;">(${s.code}) /${s.maxMarks}</div>
+      <th style="padding: 3px 2px; text-align: center; border: 1px solid #334155; font-size: 7.5pt; background: #f1f5f9; min-width: 32px;" title="${s.name}">
+        <div style="font-weight: 800; font-family: monospace;">${s.code}</div>
+        <div style="font-size: 6.5pt; color: #64748b; font-family: monospace;">/${s.maxMarks}</div>
       </th>
     `).join('');
 
@@ -582,12 +601,16 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
 
       const subjectCellsHtml = subjectsList.map(s => {
         const markObj = row.subjectMarks[s.code];
-        if (!markObj) return `<td style="padding: 3px 4px; text-align: center; border: 1px solid #cbd5e1; font-family: monospace; color: #94a3b8;">—</td>`;
-        if (markObj.isAbsent) return `<td style="padding: 3px 4px; text-align: center; border: 1px solid #cbd5e1; font-family: monospace; font-weight: bold; color: #dc2626;">AB</td>`;
+        if (!markObj || markObj.obtained === null) {
+          return `<td style="padding: 3px 2px; text-align: center; border: 1px solid #cbd5e1; font-family: monospace; color: #94a3b8; font-size: 7.5pt;">—</td>`;
+        }
+        if (markObj.isAbsent) {
+          return `<td style="padding: 3px 2px; text-align: center; border: 1px solid #cbd5e1; font-family: monospace; font-weight: bold; color: #dc2626; font-size: 7.5pt;">AB</td>`;
+        }
         const val = markObj.obtained;
         const isFailed = markObj.isFailed;
         return `
-          <td style="padding: 3px 4px; text-align: center; border: 1px solid #cbd5e1; font-family: monospace; font-weight: bold; ${isFailed ? 'color: #dc2626; background: #fef2f2;' : 'color: #0f172a;'}">
+          <td style="padding: 3px 2px; text-align: center; border: 1px solid #cbd5e1; font-family: monospace; font-weight: bold; font-size: 7.5pt; ${isFailed ? 'color: #dc2626; background: #fef2f2;' : 'color: #0f172a;'}">
             ${val !== null ? val : '—'}
           </td>
         `;
@@ -595,25 +618,25 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
 
       return `
         <tr style="background: ${idx % 2 === 0 ? '#ffffff' : '#f8fafc'}; page-break-inside: avoid; break-inside: avoid;">
-          <td style="padding: 3px 4px; text-align: center; border: 1px solid #cbd5e1; font-size: 8pt; color: #64748b;">${idx + 1}</td>
-          <td style="padding: 3px 4px; border: 1px solid #cbd5e1; font-family: monospace; font-weight: bold; font-size: 8.5pt;">${row.rollNo || '—'}</td>
-          <td style="padding: 3px 4px; border: 1px solid #cbd5e1; font-family: monospace; font-size: 7.5pt; color: #475569;">${row.regNo || '—'}</td>
-          <td style="padding: 3px 5px; border: 1px solid #cbd5e1;">
-            <div style="font-weight: bold; font-size: 8.5pt; color: #0f172a;">${row.name}</div>
-            <div style="font-size: 7pt; color: #64748b;">S/O: ${row.fatherName}</div>
+          <td style="padding: 3px 2px; text-align: center; border: 1px solid #cbd5e1; font-size: 7.5pt; color: #64748b;">${idx + 1}</td>
+          <td style="padding: 3px 2px; border: 1px solid #cbd5e1; font-family: monospace; font-weight: bold; font-size: 8pt;">${row.rollNo || '—'}</td>
+          <td style="padding: 3px 2px; border: 1px solid #cbd5e1; font-family: monospace; font-size: 7pt; color: #475569;">${row.regNo || '—'}</td>
+          <td style="padding: 3px 4px; border: 1px solid #cbd5e1;">
+            <div style="font-weight: bold; font-size: 8pt; color: #0f172a;">${row.name}</div>
+            <div style="font-size: 6.5pt; color: #64748b;">S/O: ${row.fatherName}</div>
           </td>
-          <td style="padding: 3px 4px; border: 1px solid #cbd5e1; font-size: 7.5pt; color: #334155;">${row.stream || 'General'}</td>
+          <td style="padding: 3px 2px; border: 1px solid #cbd5e1; font-size: 7pt; color: #334155;">${row.stream || 'General'}</td>
           ${subjectCellsHtml}
-          <td style="padding: 3px 4px; text-align: center; border: 1px solid #cbd5e1; font-family: monospace; font-weight: bold; font-size: 8pt;">
+          <td style="padding: 3px 2px; text-align: center; border: 1px solid #cbd5e1; font-family: monospace; font-weight: bold; font-size: 7.5pt;">
             ${row.totalMax > 0 ? `${row.totalObtained}/${row.totalMax}` : '—'}
           </td>
-          <td style="padding: 3px 4px; text-align: center; border: 1px solid #cbd5e1; font-family: monospace; font-weight: 800; color: #0f766e; font-size: 8pt;">
+          <td style="padding: 3px 2px; text-align: center; border: 1px solid #cbd5e1; font-family: monospace; font-weight: 800; color: #0f766e; font-size: 7.5pt;">
             ${row.percentage}
           </td>
-          <td style="padding: 3px 4px; text-align: center; border: 1px solid #cbd5e1; font-size: 7.5pt; font-weight: bold; ${isPass ? 'color: #166534;' : isFail ? 'color: #991b1b;' : 'color: #854d0e;'}">
+          <td style="padding: 3px 2px; text-align: center; border: 1px solid #cbd5e1; font-size: 7pt; font-weight: bold; ${isPass ? 'color: #166534;' : isFail ? 'color: #991b1b;' : 'color: #854d0e;'}">
             ${row.resultStatus}
           </td>
-          <td style="padding: 3px 4px; text-align: center; border: 1px solid #cbd5e1; font-size: 7.5pt; color: #334155;">
+          <td style="padding: 3px 2px; text-align: center; border: 1px solid #cbd5e1; font-size: 7pt; color: #334155;">
             ${row.division}
           </td>
         </tr>
@@ -629,7 +652,7 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
           <style>
             @page {
               size: A4 landscape;
-              margin: 8mm 6mm 10mm 6mm;
+              margin: 7mm 5mm 8mm 5mm;
             }
             *, *::before, *::after {
               box-sizing: border-box;
@@ -641,17 +664,17 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
               color: #0f172a;
               background: #fff;
               margin: 0;
-              padding: 6px;
-              font-size: 8pt;
+              padding: 4px;
+              font-size: 7.5pt;
             }
             .header-block {
               text-align: center;
-              margin-bottom: 8px;
-              padding-bottom: 6px;
+              margin-bottom: 6px;
+              padding-bottom: 4px;
               border-bottom: 2px solid #0f172a;
             }
             .header-block h1 {
-              font-size: 13pt;
+              font-size: 12pt;
               font-weight: 900;
               margin: 0 0 2px 0;
               text-transform: uppercase;
@@ -659,15 +682,15 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
               color: #0f172a;
             }
             .header-block h2 {
-              font-size: 10pt;
+              font-size: 9.5pt;
               font-weight: 800;
-              margin: 0 0 4px 0;
+              margin: 0 0 2px 0;
               text-transform: uppercase;
               letter-spacing: 0.5px;
               color: #334155;
             }
             .header-block p {
-              font-size: 8pt;
+              font-size: 7.5pt;
               font-weight: 600;
               margin: 0;
               color: #475569;
@@ -675,7 +698,7 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
             table {
               width: 100%;
               border-collapse: collapse;
-              margin-top: 6px;
+              margin-top: 4px;
             }
             thead {
               display: table-header-group;
@@ -693,25 +716,25 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
               font-weight: 800;
               text-transform: uppercase;
               border: 1px solid #334155;
-              padding: 4px 5px;
-              font-size: 7.5pt;
+              padding: 3px 2px;
+              font-size: 7pt;
             }
             .signatory-block {
               display: flex;
               justify-content: space-between;
               align-items: flex-end;
-              margin-top: 35px;
-              padding-top: 15px;
+              margin-top: 30px;
+              padding-top: 10px;
               page-break-inside: avoid;
               break-inside: avoid;
             }
             .sig-line {
               text-align: center;
-              width: 180px;
+              width: 170px;
               border-top: 1.5px solid #0f172a;
               padding-top: 4px;
               font-weight: 800;
-              font-size: 8.5pt;
+              font-size: 8pt;
               color: #0f172a;
             }
           </style>
@@ -725,16 +748,16 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
           <table>
             <thead>
               <tr>
-                <th style="width: 30px; text-align: center;">S.No</th>
-                <th style="width: 55px;">Roll No</th>
-                <th style="width: 75px;">Reg. No</th>
-                <th style="min-width: 130px;">Candidate & Parentage</th>
-                <th style="width: 60px;">Stream</th>
+                <th style="width: 25px; text-align: center;">S.No</th>
+                <th style="width: 48px;">Roll No</th>
+                <th style="width: 65px;">Reg. No</th>
+                <th style="min-width: 115px;">Candidate & Parentage</th>
+                <th style="width: 50px;">Stream</th>
                 ${subjectHeadersHtml}
-                <th style="width: 50px; text-align: center;">Total</th>
-                <th style="width: 45px; text-align: center;">%</th>
-                <th style="width: 60px; text-align: center;">Result</th>
-                <th style="width: 70px; text-align: center;">Grade</th>
+                <th style="width: 45px; text-align: center;">Total</th>
+                <th style="width: 38px; text-align: center;">%</th>
+                <th style="width: 50px; text-align: center;">Result</th>
+                <th style="width: 60px; text-align: center;">Grade</th>
               </tr>
             </thead>
             <tbody>
@@ -766,7 +789,7 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
         __html: `
         @page {
           size: landscape;
-          margin: 8mm 6mm;
+          margin: 7mm 5mm;
         }
         @media print {
           body * {
@@ -808,7 +831,7 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
         }
       `}} />
 
-      {/* Compact Modern Toolbar & Command Bar */}
+      {/* Modern Compact Toolbar */}
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 shadow-2xs space-y-2.5 no-print">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
           <div className="flex items-center gap-2.5 min-w-0">
@@ -818,14 +841,14 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <h2 className="text-sm font-black text-slate-900 dark:text-white tracking-tight m-0 truncate">
-                  Master Gazette & Multi-Subject Analytics
+                  Master Gazette & 15-Subject Award Roll
                 </h2>
                 <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-orange-50 dark:bg-orange-950/60 text-orange-800 dark:text-orange-300 border border-orange-200 dark:border-orange-800/60 flex-shrink-0">
                   {selectedEvalType === 'ALL' ? 'All Evaluations' : selectedEvalType}
                 </span>
               </div>
               <p className="text-[11px] text-slate-500 dark:text-slate-400 m-0 truncate">
-                Live consolidated award rolls compiled across all subjects submitted by teachers.
+                Live sync active • 15 distinct subject columns with separate Botany (BO) & Zoology (ZO).
               </p>
             </div>
           </div>
@@ -837,7 +860,7 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
               onClick={handlePrint}
               disabled={filteredRows.length === 0}
               className="h-8 px-3 rounded-lg bg-teal-700 hover:bg-teal-600 active:bg-teal-800 text-white font-black text-xs flex items-center gap-1.5 transition-all shadow-xs cursor-pointer disabled:opacity-50"
-              title="Print Multi-Page Official Gazette"
+              title="Print 15-Subject Landscape Official Gazette"
             >
               <Printer size={13} />
               <span>Print Gazette</span>
@@ -863,10 +886,10 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
             </button>
             <button
               type="button"
-              onClick={loadPracticalsData}
+              onClick={refreshPracticalsData}
               disabled={loading}
               className="h-8 w-8 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 flex items-center justify-center transition-all cursor-pointer disabled:opacity-50"
-              title="Refresh database records"
+              title="Refresh database live sync"
             >
               <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
             </button>
@@ -1014,42 +1037,50 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
 
       {/* Official Master Tabulation Register / Gazette Card */}
       <div id="official-gazette-print-area" className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-xs">
-        {/* Printable Institutional Letterhead (Hidden on screen, visible on print) */}
+        {/* Printable Institutional Letterhead */}
         <div className="hidden print:block p-4 pb-2 text-center border-b-2 border-black">
           <h1 className="text-base font-black uppercase tracking-wider text-black m-0">
             Govt. Higher Secondary School Shangus, Anantnag
           </h1>
           <h2 className="text-sm font-extrabold uppercase text-black m-0">
-            Official Tabulation Register & Consolidated Result Gazette
+            Official 15-Subject Tabulation Register & Consolidated Result Gazette
           </h2>
           <p className="text-xs text-black font-semibold m-0">
             Assessment: <strong>{selectedEvalType}</strong> | Class: <strong>{selectedClass}</strong> | Academic Session: <strong>{selectedSession}</strong> | Status: <strong>{selectedStatus === 'All' ? 'All Categories' : selectedStatus}</strong> | Date: <strong>{new Date().toLocaleDateString()}</strong>
           </p>
         </div>
 
-        {/* High Density Gazette Table with Clean High-Contrast Alternating Rows */}
-        <div className="overflow-x-auto max-h-[620px] overflow-y-auto custom-scrollbar">
+        {/* 15-Subject Gazette Table with High-Density Layout */}
+        <div className="overflow-x-auto max-h-[640px] overflow-y-auto custom-scrollbar">
           <table className="w-full text-left text-xs border-collapse select-text">
             <thead className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-950 border-b-2 border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 uppercase text-[10px] font-black tracking-wider">
               <tr>
-                <th className="py-2 px-2 text-center w-10">S.No</th>
-                <th className="py-2 px-2">Roll No</th>
-                <th className="py-2 px-2">Reg. No</th>
-                <th className="py-2 px-2.5 min-w-[160px]">Candidate & Parentage</th>
-                <th className="py-2 px-2">Stream</th>
+                <th className="py-2 px-1 text-center w-8">S.No</th>
+                <th className="py-2 px-1.5 w-16">Roll No</th>
+                <th className="py-2 px-1.5 w-24">Reg. No</th>
+                <th className="py-2 px-2 min-w-[140px]">Candidate & Parentage</th>
+                <th className="py-2 px-1.5 w-16">Stream</th>
 
-                {/* Separate Subject Columns submitted by teachers */}
+                {/* 15 Separate Subject Columns showing Abbreviations Only (Botany & Zoology Separate) */}
                 {subjectsList.map(s => (
-                  <th key={s.code} className="py-1.5 px-2 text-center min-w-[70px]" title={s.name}>
-                    <span className="block truncate max-w-[90px]">{s.name}</span>
-                    <span className="text-[8px] font-semibold text-slate-500 dark:text-slate-400">({s.code}) /{s.maxMarks}</span>
+                  <th
+                    key={s.code}
+                    className="py-1.5 px-1 text-center w-11 min-w-[40px]"
+                    title={`${s.name} (${s.code}) - Max: ${s.maxMarks}`}
+                  >
+                    <span className="block font-mono font-black text-[11px] text-slate-900 dark:text-slate-100 leading-tight">
+                      {s.code}
+                    </span>
+                    <span className="text-[8px] font-semibold text-slate-400 font-mono leading-none">
+                      /{s.maxMarks}
+                    </span>
                   </th>
                 ))}
 
-                <th className="py-2 px-2 text-center">Total</th>
-                <th className="py-2 px-2 text-center">%</th>
-                <th className="py-2 px-2 text-center">Result</th>
-                <th className="py-2 px-2 text-center">Grade</th>
+                <th className="py-2 px-1.5 text-center w-14">Total</th>
+                <th className="py-2 px-1 text-center w-12">%</th>
+                <th className="py-2 px-1.5 text-center w-18">Result</th>
+                <th className="py-2 px-1.5 text-center w-20">Grade</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 dark:divide-slate-800 text-[11px]">
@@ -1065,10 +1096,10 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
                       idx % 2 === 0 ? 'bg-white dark:bg-slate-900/40' : 'bg-slate-50/70 dark:bg-slate-900/90'
                     }`}
                   >
-                    <td className="py-1.5 px-2 text-center text-slate-500 dark:text-slate-400 font-sans text-xs">{idx + 1}</td>
-                    <td className="py-1.5 px-2 font-mono font-bold text-slate-900 dark:text-white text-xs">{row.rollNo}</td>
-                    <td className="py-1.5 px-2 text-slate-600 dark:text-slate-400 text-[10px] font-mono">{row.regNo}</td>
-                    <td className="py-1.5 px-2.5 font-sans">
+                    <td className="py-1.5 px-1 text-center text-slate-500 dark:text-slate-400 font-sans text-xs">{idx + 1}</td>
+                    <td className="py-1.5 px-1.5 font-mono font-bold text-slate-900 dark:text-white text-xs">{row.rollNo}</td>
+                    <td className="py-1.5 px-1.5 text-slate-600 dark:text-slate-400 text-[10px] font-mono">{row.regNo}</td>
+                    <td className="py-1.5 px-2 font-sans">
                       <div className="flex items-center gap-1.5 flex-wrap">
                         <span className="font-bold text-slate-900 dark:text-white text-xs leading-tight">{row.name}</span>
                         {row.admissionStatus && (
@@ -1085,14 +1116,14 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
                       </div>
                       <p className="text-[10px] text-slate-500 dark:text-slate-400 m-0 leading-tight">S/O: {row.fatherName}</p>
                     </td>
-                    <td className="py-1.5 px-2 font-sans text-xs text-slate-700 dark:text-slate-300 font-medium">{row.stream}</td>
+                    <td className="py-1.5 px-1.5 font-sans text-xs text-slate-700 dark:text-slate-300 font-medium">{row.stream}</td>
 
-                    {/* Separate Subject Marks Columns */}
+                    {/* 15 Separate Subject Marks Columns */}
                     {subjectsList.map(s => {
                       const markObj = row.subjectMarks[s.code];
                       if (!markObj || markObj.obtained === null) {
                         return (
-                          <td key={s.code} className="py-1.5 px-2 text-center text-slate-400 dark:text-slate-600 font-mono text-xs">
+                          <td key={s.code} className="py-1.5 px-1 text-center text-slate-400 dark:text-slate-600 font-mono text-xs">
                             —
                           </td>
                         );
@@ -1100,7 +1131,7 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
 
                       if (markObj.isAbsent) {
                         return (
-                          <td key={s.code} className="py-1.5 px-2 text-center text-rose-700 dark:text-rose-400 font-bold text-[10.5px] font-mono">
+                          <td key={s.code} className="py-1.5 px-1 text-center text-rose-700 dark:text-rose-400 font-bold text-[10px] font-mono">
                             AB
                           </td>
                         );
@@ -1112,7 +1143,7 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
                       return (
                         <td
                           key={s.code}
-                          className={`py-1.5 px-2 text-center font-mono font-bold text-xs ${
+                          className={`py-1.5 px-1 text-center font-mono font-bold text-xs ${
                             isFailed ? 'text-rose-700 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/30' : 'text-slate-900 dark:text-slate-100'
                           }`}
                         >
@@ -1122,19 +1153,19 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
                     })}
 
                     {/* Calculated Grand Total */}
-                    <td className="py-1.5 px-2 text-center font-mono font-bold text-slate-900 dark:text-white">
+                    <td className="py-1.5 px-1.5 text-center font-mono font-bold text-slate-900 dark:text-white text-xs">
                       {row.totalMax > 0 ? `${row.totalObtained}/${row.totalMax}` : '—'}
                     </td>
 
                     {/* Calculated Percentage */}
-                    <td className="py-1.5 px-2 text-center font-mono font-black text-teal-700 dark:text-teal-300">
+                    <td className="py-1.5 px-1 text-center font-mono font-black text-teal-700 dark:text-teal-300 text-xs">
                       {row.percentage}
                     </td>
 
                     {/* Calculated Result Status */}
-                    <td className="py-1.5 px-2 text-center font-sans">
+                    <td className="py-1.5 px-1.5 text-center font-sans">
                       <span
-                        className={`px-2 py-0.5 rounded-md text-[9.5px] font-black uppercase tracking-wider inline-block ${
+                        className={`px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider inline-block ${
                           isPass
                             ? 'bg-emerald-100 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800'
                             : isReappear
@@ -1149,7 +1180,7 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
                     </td>
 
                     {/* Calculated Division / Grade */}
-                    <td className="py-1.5 px-2 text-center font-sans text-xs font-semibold text-slate-700 dark:text-slate-300">
+                    <td className="py-1.5 px-1.5 text-center font-sans text-[11px] font-semibold text-slate-700 dark:text-slate-300">
                       {row.division}
                     </td>
                   </tr>
