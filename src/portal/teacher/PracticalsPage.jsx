@@ -2779,7 +2779,7 @@ export default function PracticalsPage() {
                   return (
                     <div 
                       key={idx} 
-                      className={`rounded-xl border p-2 transition-all shadow-2xs space-y-1 ${
+                      className={`rounded-xl border py-1.5 px-2 transition-all shadow-2xs space-y-0.5 ${
                         isSelected
                           ? 'border-indigo-400/80 bg-indigo-50/40 dark:border-indigo-600/80 dark:bg-indigo-950/30'
                           : isAbsent 
@@ -2787,7 +2787,7 @@ export default function PracticalsPage() {
                           : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900'
                       }`}
                     >
-                      {/* Row 1: Checkbox, Roll Badge, Student Name & Compact Marks Input */}
+                      {/* Row 1: Checkbox, Roll Badge, Student Name & Compact Marks Input (30% Reduced Height) */}
                       <div className="flex items-center justify-between gap-1.5">
                         <div className="flex items-center gap-1.5 min-w-0 flex-1">
                           <input
@@ -2796,7 +2796,7 @@ export default function PracticalsPage() {
                             onChange={() => handleToggleRow(key)}
                             className="w-3.5 h-3.5 rounded border-slate-300 dark:border-slate-700 text-indigo-600 focus:ring-indigo-500 cursor-pointer shrink-0"
                           />
-                          <span className="w-6 h-6 rounded-md bg-indigo-600/10 text-indigo-700 dark:text-indigo-300 font-mono font-bold text-[11px] flex items-center justify-center border border-indigo-500/20 shrink-0" title={`Class Roll: ${st.rollNo}`}>
+                          <span className="w-5.5 h-5.5 rounded-md bg-indigo-600/10 text-indigo-700 dark:text-indigo-300 font-mono font-bold text-[10px] flex items-center justify-center border border-indigo-500/20 shrink-0" title={`Class Roll: ${st.rollNo}`}>
                             {st.rollNo}
                           </span>
                           <div className="min-w-0 flex-1">
@@ -2808,7 +2808,7 @@ export default function PracticalsPage() {
                           </div>
                         </div>
 
-                        {/* Marks Input + Quick Absent Toggle (Compact, Standard Layout) */}
+                        {/* Marks Input + Quick Absent Toggle (30% Reduced Height: h-5) */}
                         <div className="flex items-center gap-1 shrink-0">
                           <input
                             type="text"
@@ -2816,7 +2816,7 @@ export default function PracticalsPage() {
                             placeholder={`0-${subjectMaxMarks}`}
                             value={st.practicalMarks}
                             onChange={(e) => handleMarkChange(originalIdx !== -1 ? originalIdx : idx, 'practicalMarks', e.target.value)}
-                            className={`w-12 h-7 px-1 rounded-lg border text-xs font-bold text-center focus:outline-none focus:ring-1 focus:ring-indigo-500 uppercase transition-all placeholder:text-slate-400 placeholder:text-[10px] placeholder:font-normal ${
+                            className={`w-11.5 h-5 px-1 rounded-md border text-[11px] font-bold text-center leading-none focus:outline-none focus:ring-1 focus:ring-indigo-500 uppercase transition-all placeholder:text-slate-400 placeholder:text-[9.5px] placeholder:font-normal ${
                               isAbsent
                                 ? 'bg-amber-50 dark:bg-amber-950/50 border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300 font-bold'
                                 : st.practicalMarks !== ''
@@ -2827,7 +2827,7 @@ export default function PracticalsPage() {
                           <button
                             type="button"
                             onClick={() => handleMarkChange(originalIdx !== -1 ? originalIdx : idx, 'practicalMarks', isAbsent ? '' : 'A')}
-                            className={`h-7 px-2 rounded-lg font-mono text-[10.5px] font-bold border transition-all cursor-pointer flex items-center justify-center shrink-0 active:scale-95 ${
+                            className={`h-5 px-1.5 rounded-md font-mono text-[10px] font-bold border transition-all cursor-pointer flex items-center justify-center shrink-0 active:scale-95 leading-none ${
                               isAbsent
                                 ? 'bg-amber-500 text-white border-amber-600 shadow-2xs'
                                 : 'bg-slate-100 dark:bg-slate-800 text-slate-600 hover:text-amber-600 dark:hover:text-amber-400 border-slate-200 dark:border-slate-700'
@@ -2937,10 +2937,10 @@ export default function PracticalsPage() {
                                 placeholder={`0-${subjectMaxMarks} / A`}
                                 value={st.practicalMarks}
                                 onChange={(e) => handleMarkChange(originalIdx !== -1 ? originalIdx : idx, 'practicalMarks', e.target.value)}
-                                className="w-20 px-2 py-0.5 rounded-lg border text-xs font-black h-7 focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white dark:bg-slate-950 border-slate-300 dark:border-slate-700 uppercase text-center"
+                                className="w-20 px-2 py-0 rounded-md border text-[11px] font-black h-5.5 focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white dark:bg-slate-950 border-slate-300 dark:border-slate-700 uppercase text-center leading-none"
                               />
                               {inWords ? (
-                                <span className="px-2 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 text-[10px] font-black whitespace-nowrap">
+                                <span className="px-1.5 py-0.2 rounded-md bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 text-[9.5px] font-black whitespace-nowrap">
                                   {inWords} {(!isNaN(parseInt(valToConvert, 10)) && parseInt(valToConvert, 10) > 0) ? 'Only' : ''}
                                 </span>
                               ) : (
