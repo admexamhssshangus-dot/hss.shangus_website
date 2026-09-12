@@ -1659,25 +1659,22 @@ export default function AttendancePage() {
         path="/portal/teacher/attendance"
       />
 
-      <div className="max-w-7xl mx-auto space-y-3">
-        {/* Header Navigation Bar with Logout */}
-        <div className="flex items-center justify-between">
-          <Link
-            to="/portal/teacher"
-            className="inline-flex items-center gap-1 text-xs font-bold hover:underline"
-            style={{ color: 'var(--teal-accent, #0d9488)' }}
-          >
-            <ArrowLeft size={14} /> Back to Teacher Workspace
-          </Link>
-        </div>
-
+      <div className="max-w-7xl mx-auto space-y-3 pb-24">
         {/* Main Ultra-Compact Attendance Card Container */}
         <div className="rounded-2xl p-2 sm:p-3 border shadow-xs space-y-2 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800">
 
           {/* Single-Row Native Header & Quick Controls Bar */}
           <div className="flex items-center justify-between gap-1.5 p-1 px-2 rounded-xl bg-slate-100/80 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 text-xs">
-            {/* Left: Title & Class Badge */}
+            {/* Left: Back + Title & Class Badge */}
             <div className="flex items-center gap-1.5 min-w-0">
+              <Link
+                to="/portal/teacher"
+                className="inline-flex items-center gap-1 text-xs font-black text-teal-700 hover:text-teal-800 dark:text-teal-400 p-1 px-1.5 rounded-lg bg-teal-500/10 hover:bg-teal-500/20 border border-teal-500/20 transition-all shrink-0 active:scale-95"
+                title="Back to Teacher Workspace"
+              >
+                <ArrowLeft size={13} />
+                <span>Back</span>
+              </Link>
               <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0"></div>
               <h1 className="text-xs font-black text-slate-900 dark:text-white tracking-tight truncate">
                 Attendance
@@ -1863,207 +1860,337 @@ export default function AttendancePage() {
             </div>
           )}
 
-          {/* Collapsible Filters & Settings Drawer */}
+          {/* Collapsible Filters & Settings Drawer (Desktop: Inline, Mobile: Popup Modal) */}
           {showToolsDrawer && (
-            <div className="p-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 grid grid-cols-2 sm:grid-cols-5 gap-1.5 text-xs animate-fadeIn">
-              <div>
-                <label className="text-[9px] font-black text-slate-400 uppercase block">Class</label>
-                <select
-                  value={selectedClass}
-                  onChange={(e) => setSelectedClass(e.target.value)}
-                  className="w-full px-1.5 py-1 rounded-md text-xs font-bold border bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700"
-                >
-                  <option value="12th">12th Class</option>
-                  <option value="11th">11th Class</option>
-                  <option value="10th">10th Class</option>
-                  <option value="9th">9th Class</option>
-                </select>
-              </div>
+            <>
+              {/* Desktop Inline Drawer */}
+              <div className="hidden sm:grid p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 grid-cols-2 sm:grid-cols-5 gap-2 text-xs animate-fadeIn shadow-2xs">
+                <div>
+                  <label className="text-[9.5px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block">Class</label>
+                  <select
+                    value={selectedClass}
+                    onChange={(e) => setSelectedClass(e.target.value)}
+                    className="w-full px-2 py-1.5 rounded-lg text-xs font-bold border bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700"
+                  >
+                    <option value="12th">12th Class</option>
+                    <option value="11th">11th Class</option>
+                    <option value="10th">10th Class</option>
+                    <option value="9th">9th Class</option>
+                  </select>
+                </div>
 
-              <div>
-                <label className="text-[9px] font-black text-slate-400 uppercase block">Session</label>
-                <select
-                  value={selectedSession}
-                  onChange={(e) => setSelectedSession(e.target.value)}
-                  onFocus={loadAvailableSessions}
-                  className="w-full px-1.5 py-1 rounded-md text-xs font-bold border bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700"
-                >
-                  {availableSessions.map(yr => (
-                    <option key={yr} value={yr}>{yr}</option>
-                  ))}
-                </select>
-              </div>
+                <div>
+                  <label className="text-[9.5px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block">Session</label>
+                  <select
+                    value={selectedSession}
+                    onChange={(e) => setSelectedSession(e.target.value)}
+                    onFocus={loadAvailableSessions}
+                    className="w-full px-2 py-1.5 rounded-lg text-xs font-bold border bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700"
+                  >
+                    {availableSessions.map(yr => (
+                      <option key={yr} value={yr}>{yr}</option>
+                    ))}
+                  </select>
+                </div>
 
-              <div>
-                <label className="text-[9px] font-black text-slate-400 uppercase block">Date</label>
-                <input
-                  type="date"
-                  value={selectedDate}
-                  onChange={(e) => setSelectedDate(e.target.value)}
-                  className="w-full px-1.5 py-1 rounded-md text-xs font-bold border bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700"
-                />
-              </div>
+                <div>
+                  <label className="text-[9.5px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block">Date</label>
+                  <input
+                    type="date"
+                    value={selectedDate}
+                    onChange={(e) => setSelectedDate(e.target.value)}
+                    className="w-full px-2 py-1.5 rounded-lg text-xs font-bold border bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700"
+                  />
+                </div>
 
-              <div>
-                <label className="text-[9px] font-black text-slate-400 uppercase block">Subject</label>
-                <select
-                  value={selectedSubject}
-                  onChange={(e) => setSelectedSubject(e.target.value)}
-                  className="w-full px-1.5 py-1 rounded-md text-xs font-bold border bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 truncate"
-                >
-                  <option value="">All Subjects</option>
-                  {MASTER_SUBJECTS.map(s => (
-                    <option key={s.code} value={s.code}>{s.name} ({s.code})</option>
-                  ))}
-                </select>
-              </div>
+                <div>
+                  <label className="text-[9.5px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block">Subject</label>
+                  <select
+                    value={selectedSubject}
+                    onChange={(e) => setSelectedSubject(e.target.value)}
+                    className="w-full px-2 py-1.5 rounded-lg text-xs font-bold border bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 truncate"
+                  >
+                    <option value="">All Subjects</option>
+                    {MASTER_SUBJECTS.map(s => (
+                      <option key={s.code} value={s.code}>{s.name} ({s.code})</option>
+                    ))}
+                  </select>
+                </div>
 
-              {/* Quick Fill Mode Preference Setting */}
-              <div className="col-span-2 sm:col-span-1">
-                <label className="text-[9px] font-black text-indigo-600 dark:text-indigo-400 uppercase block">Quick Fill Mode</label>
-                <select
-                  value={quickRollMode}
-                  onChange={(e) => handleQuickRollModeChange(e.target.value)}
-                  className="w-full px-1.5 py-1 rounded-md text-xs font-bold border bg-indigo-50 dark:bg-indigo-950/60 border-indigo-300 dark:border-indigo-700 text-indigo-900 dark:text-indigo-200"
-                >
-                  <option value="PRESENT_FIRST">Present (Rest Absent)</option>
-                  <option value="ABSENT_FIRST">Absent (Rest Present)</option>
-                </select>
-              </div>
+                {/* Quick Fill Mode Preference Setting */}
+                <div>
+                  <label className="text-[9.5px] font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400 block">Quick Fill Mode</label>
+                  <select
+                    value={quickRollMode}
+                    onChange={(e) => handleQuickRollModeChange(e.target.value)}
+                    className="w-full px-2 py-1.5 rounded-lg text-xs font-bold border bg-indigo-50 dark:bg-indigo-950/60 border-indigo-300 dark:border-indigo-700 text-indigo-900 dark:text-indigo-200"
+                  >
+                    <option value="PRESENT_FIRST">Present (Rest Absent)</option>
+                    <option value="ABSENT_FIRST">Absent (Rest Present)</option>
+                  </select>
+                </div>
 
-              {/* Missed Days Audit & Smart Backfill Panel */}
-              <div className="col-span-2 sm:col-span-5 p-2.5 rounded-xl bg-purple-50/80 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800 space-y-2 animate-fadeIn">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                  <div className="flex items-center gap-1.5 min-w-0">
-                    <Wand2 size={16} className="text-purple-600 dark:text-purple-400 flex-shrink-0" />
-                    <div className="min-w-0">
-                      <span className="text-[10px] font-black uppercase text-purple-700 dark:text-purple-300 block leading-tight">
-                        Missed Attendance Audit & Smart Backfill
-                      </span>
-                      <p className="text-[10.5px] font-bold text-slate-600 dark:text-slate-300 truncate">
-                        {!hasRunMissedAudit ? (
-                          <span>Run the audit when you need to check missing days.</span>
-                        ) : auditingMissed ? (
-                          <span>Scanning working days...</span>
-                        ) : missedDates.length > 0 ? (
-                          <span className="text-amber-700 dark:text-amber-400 font-extrabold">
-                            ⚠️ {missedDates.length} Missed Working {missedDates.length === 1 ? 'Day' : 'Days'} Found
-                          </span>
-                        ) : (
-                          <span className="text-emerald-700 dark:text-emerald-400 font-extrabold">
-                            ✅ All working days recorded!
-                          </span>
-                        )}
-                      </p>
+                {/* Missed Days Audit & Smart Backfill Panel */}
+                <div className="col-span-2 sm:col-span-5 p-2.5 rounded-xl bg-purple-50/80 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800 space-y-2 animate-fadeIn">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <Wand2 size={16} className="text-purple-600 dark:text-purple-400 flex-shrink-0" />
+                      <div className="min-w-0">
+                        <span className="text-[10px] font-black uppercase text-purple-700 dark:text-purple-300 block leading-tight">
+                          Missed Attendance Audit & Smart Backfill
+                        </span>
+                        <p className="text-[10.5px] font-bold text-slate-600 dark:text-slate-300 truncate">
+                          {!hasRunMissedAudit ? (
+                            <span>Run the audit when you need to check missing days.</span>
+                          ) : auditingMissed ? (
+                            <span>Scanning working days...</span>
+                          ) : missedDates.length > 0 ? (
+                            <span className="text-amber-700 dark:text-amber-400 font-extrabold">
+                              ⚠️ {missedDates.length} Missed Working {missedDates.length === 1 ? 'Day' : 'Days'} Found
+                            </span>
+                          ) : (
+                            <span className="text-emerald-700 dark:text-emerald-400 font-extrabold">
+                              ✅ All working days recorded!
+                            </span>
+                          )}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Audit Month Dropdown + Smart Backfill Button */}
+                    <div className="flex items-center gap-1.5 w-full sm:w-auto justify-between sm:justify-end">
+                      <select
+                        value={auditTargetMonth}
+                        onChange={(e) => setAuditTargetMonth(e.target.value)}
+                        className="px-2 py-1.5 rounded-lg text-xs font-bold border bg-white dark:bg-slate-900 border-purple-300 dark:border-purple-700 text-purple-900 dark:text-purple-200 flex-1 sm:flex-initial"
+                      >
+                        <option value="2026-08">August 2026</option>
+                        <option value="2026-07">July 2026</option>
+                        <option value="2026-06">June 2026</option>
+                        <option value="2026-05">May 2026</option>
+                        <option value="2026-04">April 2026</option>
+                        <option value="ALL_SESSION">🌟 Full Session ({selectedSession})</option>
+                      </select>
+
+                      <button
+                        type="button"
+                        onClick={() => hasRunMissedAudit ? auditMissedDates() : setHasRunMissedAudit(true)}
+                        disabled={auditingMissed}
+                        className="px-3 py-1.5 rounded-lg text-xs font-black text-white bg-slate-800 hover:bg-slate-700 shadow-2xs transition-all cursor-pointer disabled:opacity-50 flex-shrink-0 dark:bg-slate-100 dark:text-slate-900"
+                      >
+                        {auditingMissed ? 'Checking…' : hasRunMissedAudit ? 'Recheck' : 'Run audit'}
+                      </button>
+
+                      {missedDates.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setShowBackfillModal(true)}
+                          className="px-3 py-1.5 rounded-lg text-xs font-black text-white bg-purple-600 hover:bg-purple-500 shadow-2xs transition-all cursor-pointer flex items-center gap-1 flex-shrink-0"
+                        >
+                          <Wand2 size={12} />
+                          <span>Smart Backfill ({missedDates.length})</span>
+                        </button>
+                      )}
                     </div>
                   </div>
 
-                  {/* Audit Month Dropdown + Smart Backfill Button */}
-                  <div className="flex items-center gap-1.5 w-full sm:w-auto justify-between sm:justify-end">
-                    <select
-                      value={auditTargetMonth}
-                      onChange={(e) => setAuditTargetMonth(e.target.value)}
-                      className="px-2 py-1.5 rounded-lg text-xs font-bold border bg-white dark:bg-slate-900 border-purple-300 dark:border-purple-700 text-purple-900 dark:text-purple-200 flex-1 sm:flex-initial"
-                    >
-                      <option value="2026-08">August 2026</option>
-                      <option value="2026-07">July 2026</option>
-                      <option value="2026-06">June 2026</option>
-                      <option value="2026-05">May 2026</option>
-                      <option value="2026-04">April 2026</option>
-                      <option value="ALL_SESSION">🌟 Full Session ({selectedSession})</option>
-                    </select>
+                  {/* Badges preview list of missed dates */}
+                  {missedDates.length > 0 && (
+                    <div className="flex items-center gap-1 overflow-x-auto py-0.5 text-[10px] font-mono font-bold">
+                      {missedDates.slice(0, 10).map(d => (
+                        <span key={d} className="px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800 flex-shrink-0">
+                          {d}
+                        </span>
+                      ))}
+                      {missedDates.length > 10 && (
+                        <span className="px-1.5 py-0.5 rounded bg-purple-100 dark:bg-purple-900 text-purple-800 dark:text-purple-200 font-bold flex-shrink-0">
+                          +{missedDates.length - 10} more...
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Declared Holidays & Vacations Management Panel */}
+                <div className="col-span-2 sm:col-span-5 p-2.5 rounded-xl bg-amber-50/80 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 space-y-2 animate-fadeIn">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <Calendar size={16} className="text-amber-600 dark:text-amber-400 flex-shrink-0" />
+                      <div className="min-w-0">
+                        <span className="text-[10px] font-black uppercase text-amber-800 dark:text-amber-300 block leading-tight">
+                          Declared Holidays & Vacations Manager
+                        </span>
+                        <p className="text-[10.5px] font-bold text-slate-600 dark:text-slate-300 truncate">
+                          {holidaysList.length > 0 ? `${holidaysList.length} Official Holidays / Vacations Declared` : 'No custom holidays declared yet.'}
+                        </p>
+                      </div>
+                    </div>
 
                     <button
                       type="button"
-                      onClick={() => hasRunMissedAudit ? auditMissedDates() : setHasRunMissedAudit(true)}
-                      disabled={auditingMissed}
-                      className="px-3 py-1.5 rounded-lg text-xs font-black text-white bg-slate-800 hover:bg-slate-700 shadow-2xs transition-all cursor-pointer disabled:opacity-50 flex-shrink-0 dark:bg-slate-100 dark:text-slate-900"
+                      onClick={() => {
+                        setEditingHoliday(null);
+                        setHolidayDate(selectedDate || toLocalDateKey());
+                        setHolidayEndDate('');
+                        setHolidayLabel('');
+                        setHolidayPurpose('');
+                        setShowHolidayManageModal(true);
+                      }}
+                      className="px-3 py-1.5 rounded-lg text-xs font-black text-white bg-amber-600 hover:bg-amber-500 shadow-2xs transition-all cursor-pointer flex items-center justify-center gap-1 w-full sm:w-auto"
                     >
-                      {auditingMissed ? 'Checking…' : hasRunMissedAudit ? 'Recheck' : 'Run audit'}
+                      <Plus size={13} />
+                      <span>Manage / Add Holidays</span>
                     </button>
-
-                    {missedDates.length > 0 && (
-                      <button
-                        type="button"
-                        onClick={() => setShowBackfillModal(true)}
-                        className="px-3 py-1.5 rounded-lg text-xs font-black text-white bg-purple-600 hover:bg-purple-500 shadow-2xs transition-all cursor-pointer flex items-center gap-1 flex-shrink-0"
-                      >
-                        <Wand2 size={12} />
-                        <span>Smart Backfill ({missedDates.length})</span>
-                      </button>
-                    )}
                   </div>
+
+                  {/* Holiday Chips */}
+                  {holidaysList.length > 0 && (
+                    <div className="flex items-center gap-1 overflow-x-auto py-0.5 text-[10px] font-bold">
+                      {holidaysList.slice(0, 8).map(h => (
+                        <span key={h.id || h.dateStr} className="px-2 py-0.5 rounded-md bg-amber-200/80 dark:bg-amber-900/80 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-700 flex-shrink-0 flex items-center gap-1">
+                          <span>🏖️ {h.label || 'Holiday'} ({h.dateStr || h.startDate})</span>
+                          <button
+                            type="button"
+                            onClick={() => setHolidayToDelete(h)}
+                            className="hover:text-red-600 cursor-pointer ml-0.5"
+                            title="Delete holiday"
+                          >
+                            <X size={10} />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
-
-                {/* Badges preview list of missed dates */}
-                {missedDates.length > 0 && (
-                  <div className="flex items-center gap-1 overflow-x-auto py-0.5 text-[10px] font-mono font-bold">
-                    {missedDates.slice(0, 10).map(d => (
-                      <span key={d} className="px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800 flex-shrink-0">
-                        {d}
-                      </span>
-                    ))}
-                    {missedDates.length > 10 && (
-                      <span className="px-1.5 py-0.5 rounded bg-purple-100 dark:bg-purple-900 text-purple-800 dark:text-purple-200 font-bold flex-shrink-0">
-                        +{missedDates.length - 10} more...
-                      </span>
-                    )}
-                  </div>
-                )}
               </div>
 
-              {/* Declared Holidays & Vacations Management Panel */}
-              <div className="col-span-2 sm:col-span-5 p-2.5 rounded-xl bg-amber-50/80 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 space-y-2 animate-fadeIn">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                  <div className="flex items-center gap-1.5 min-w-0">
-                    <Calendar size={16} className="text-amber-600 dark:text-amber-400 flex-shrink-0" />
-                    <div className="min-w-0">
-                      <span className="text-[10px] font-black uppercase text-amber-800 dark:text-amber-300 block leading-tight">
-                        Declared Holidays & Vacations Manager
-                      </span>
-                      <p className="text-[10.5px] font-bold text-slate-600 dark:text-slate-300 truncate">
-                        {holidaysList.length > 0 ? `${holidaysList.length} Official Holidays / Vacations Declared` : 'No custom holidays declared yet.'}
-                      </p>
+              {/* Mobile Bottom-Sheet Modal for Filters & Tools */}
+              <div className="sm:hidden fixed inset-0 z-[9990] bg-slate-950/60 backdrop-blur-xs flex items-end justify-center p-0 animate-fadeIn">
+                <div className="fixed inset-0" onClick={() => setShowToolsDrawer(false)} />
+                <div className="relative bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 rounded-t-3xl p-4 shadow-2xl max-w-lg w-full space-y-3.5 z-10 animate-in slide-in-from-bottom duration-200">
+                  <div className="flex items-center justify-between pb-2.5 border-b border-slate-100 dark:border-slate-800">
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 rounded-xl bg-teal-500/15 text-teal-600 dark:text-teal-400 flex items-center justify-center">
+                        <SlidersHorizontal size={14} />
+                      </div>
+                      <div>
+                        <h3 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider">
+                          Attendance Settings & Tools
+                        </h3>
+                        <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">Configure session, class, filters & holidays</p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowToolsDrawer(false)}
+                      className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                    >
+                      <X size={16} />
+                    </button>
+                  </div>
+
+                  <div className="space-y-3 max-h-[70vh] overflow-y-auto pr-1">
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 block">Class</label>
+                        <select
+                          value={selectedClass}
+                          onChange={(e) => setSelectedClass(e.target.value)}
+                          className="w-full px-2.5 py-1.5 rounded-xl text-xs font-bold border bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 shadow-2xs"
+                        >
+                          <option value="12th">12th Class</option>
+                          <option value="11th">11th Class</option>
+                          <option value="10th">10th Class</option>
+                          <option value="9th">9th Class</option>
+                        </select>
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 block">Session</label>
+                        <select
+                          value={selectedSession}
+                          onChange={(e) => setSelectedSession(e.target.value)}
+                          onFocus={loadAvailableSessions}
+                          className="w-full px-2.5 py-1.5 rounded-xl text-xs font-bold border bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 shadow-2xs"
+                        >
+                          {availableSessions.map(yr => (
+                            <option key={yr} value={yr}>{yr}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 block">Date</label>
+                        <input
+                          type="date"
+                          value={selectedDate}
+                          onChange={(e) => setSelectedDate(e.target.value)}
+                          className="w-full px-2.5 py-1.5 rounded-xl text-xs font-bold border bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 shadow-2xs"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 block">Subject</label>
+                        <select
+                          value={selectedSubject}
+                          onChange={(e) => setSelectedSubject(e.target.value)}
+                          className="w-full px-2.5 py-1.5 rounded-xl text-xs font-bold border bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 shadow-2xs truncate"
+                        >
+                          <option value="">All Subjects</option>
+                          {MASTER_SUBJECTS.map(s => (
+                            <option key={s.code} value={s.code}>{s.name} ({s.code})</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400 block">Quick Roll Entry Mode</label>
+                      <select
+                        value={quickRollMode}
+                        onChange={(e) => handleQuickRollModeChange(e.target.value)}
+                        className="w-full px-2.5 py-2 rounded-xl text-xs font-bold border bg-indigo-50 dark:bg-indigo-950/60 border-indigo-300 dark:border-indigo-700 text-indigo-900 dark:text-indigo-200 shadow-2xs"
+                      >
+                        <option value="PRESENT_FIRST">Present First (Unlisted marked Absent)</option>
+                        <option value="ABSENT_FIRST">Absent First (Unlisted marked Present)</option>
+                      </select>
+                    </div>
+
+                    {/* Holiday Shortcut Button */}
+                    <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowToolsDrawer(false);
+                          setEditingHoliday(null);
+                          setHolidayDate(selectedDate || toLocalDateKey());
+                          setHolidayEndDate('');
+                          setHolidayLabel('');
+                          setHolidayPurpose('');
+                          setShowHolidayManageModal(true);
+                        }}
+                        className="flex-1 py-2 px-3 rounded-xl text-xs font-bold text-amber-800 dark:text-amber-200 bg-amber-500/10 border border-amber-500/20 hover:bg-amber-500/20 transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                      >
+                        <Calendar size={13} className="text-amber-600" />
+                        <span>Holidays Manager ({holidaysList.length})</span>
+                      </button>
                     </div>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEditingHoliday(null);
-                      setHolidayDate(selectedDate || toLocalDateKey());
-                      setHolidayEndDate('');
-                      setHolidayLabel('');
-                      setHolidayPurpose('');
-                      setShowHolidayManageModal(true);
-                    }}
-                    className="px-3 py-1.5 rounded-lg text-xs font-black text-white bg-amber-600 hover:bg-amber-500 shadow-2xs transition-all cursor-pointer flex items-center justify-center gap-1 w-full sm:w-auto"
-                  >
-                    <Plus size={13} />
-                    <span>Manage / Add Holidays</span>
-                  </button>
-                </div>
-
-                {/* Holiday Chips */}
-                {holidaysList.length > 0 && (
-                  <div className="flex items-center gap-1 overflow-x-auto py-0.5 text-[10px] font-bold">
-                    {holidaysList.slice(0, 8).map(h => (
-                      <span key={h.id || h.dateStr} className="px-2 py-0.5 rounded-md bg-amber-200/80 dark:bg-amber-900/80 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-700 flex-shrink-0 flex items-center gap-1">
-                        <span>🏖️ {h.label || 'Holiday'} ({h.dateStr || h.startDate})</span>
-                        <button
-                          type="button"
-                          onClick={() => setHolidayToDelete(h)}
-                          className="hover:text-red-600 cursor-pointer ml-0.5"
-                          title="Delete holiday"
-                        >
-                          <X size={10} />
-                        </button>
-                      </span>
-                    ))}
+                  <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
+                    <button
+                      type="button"
+                      onClick={() => setShowToolsDrawer(false)}
+                      className="w-full py-2.5 rounded-xl text-xs font-black text-white bg-teal-600 hover:bg-teal-500 transition-all cursor-pointer shadow-md active:scale-98"
+                    >
+                      Apply & Close
+                    </button>
                   </div>
-                )}
+                </div>
               </div>
-            </div>
+            </>
           )}
 
           {/* Alert Notification */}
