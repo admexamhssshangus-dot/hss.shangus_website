@@ -1,17 +1,12 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import { useOutletContext, Link, useNavigate } from 'react-router-dom';
 import { 
   History, CalendarCheck, LogOut,
-  ArrowRight, ShieldCheck, CheckCircle2, Users, BookOpen,
-  Award, X, Clock, RefreshCw
+  ArrowRight, Award, X, Clock, RefreshCw
 } from 'lucide-react';
 import SEO from '../../components/SEO';
 import LogoutConfirmModal from '../components/LogoutConfirmModal';
 import { getCachedCollection } from '../../services/dbCache';
-import { db } from '../../services/firebase';
-import { collection, getCountFromServer, getDocs, query, where } from 'firebase/firestore';
-import { getAssignedClassRollNumber } from '../../utils/studentApprovalStatus';
-import { toLocalDateKey } from '../../utils/localDate';
 
 export default function TeacherDashboard() {
   const { user, onLogout } = useOutletContext();
@@ -28,10 +23,9 @@ export default function TeacherDashboard() {
   const fetchSubmissionHistory = useCallback(async () => {
     setLoadingHistory(true);
     try {
-      const snap = await getDocs(collection(db, 'practicalsData'));
-      if (!snap.empty) {
-        const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        list.sort((a, b) => new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0));
+      const docs = await getCachedCollection('practicalsData', false, 15 * 60 * 1000);
+      if (Array.isArray(docs) && docs.length > 0) {
+        const list = [...docs].sort((a, b) => new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0));
         setSubmissionHistory(list);
       } else {
         setSubmissionHistory([]);
@@ -48,134 +42,6 @@ export default function TeacherDashboard() {
     fetchSubmissionHistory();
   };
 
-  const [stats, setStats] = useState(() => {
-    try {
-      const cached = localStorage.getItem('hss_teacher_dash_stats_cache');
-      if (cached) return JSON.parse(cached);
-    } catch (e) {}
-    return {
-      totalStudents: 0,
-      totalClasses: 0,
-      todayAttendancePct: '0%',
-      practicalsSubmitted: 0,
-      sessionLabel: 'Not configured',
-    };
-  });
-
-  // Helper: check if student is approved and has assigned class roll no
-  const hasAssignedRollAndApproved = (st) => {
-    if (!st) return false;
-    const roll = getAssignedClassRollNumber(st);
-    const hasRoll = roll !== undefined && roll !== null && String(roll).trim() !== '' && String(roll).trim() !== '—';
-    const status = String(st.status || st.admissionStatus || st.ApprovalStatus || 'Approved').toLowerCase();
-    const isApproved = !status.includes('reject') && !status.includes('cancel');
-    return hasRoll && isApproved;
-  };
-
-  // Fetch Teacher Stats & Today's Attendance overview (Fast 0ms SWR)
-  const fetchDashboardStats = useCallback(async () => {
-    try {
-      const todayStr = toLocalDateKey();
-      const recordCandidates = [];
-
-      const recordIdentity = (student, fallbackClass = '', fallbackSession = '') => {
-        if (!hasAssignedRollAndApproved(student)) return;
-        const roll = getAssignedClassRollNumber(student);
-        const cls = String(student.class || student.Class || student['Admission sought for class'] || fallbackClass || '').trim();
-        const session = String(student.Session || student.session || student['Academic Session'] || fallbackSession || '').trim();
-        recordCandidates.push({ roll, className: cls, session });
-      };
-
-      // Load roster data plus only today's attendance and a server-side practical count.
-      const [masterDocsRes, admDocsRes, attDateRes, attDateStrRes, practicalCountRes] = await Promise.allSettled([
-        getCachedCollection('masterRegisters', false, 15 * 60 * 1000).catch(() => []),
-        getCachedCollection('admissions', false, 15 * 60 * 1000).catch(() => []),
-        getDocs(query(collection(db, 'attendance'), where('date', '==', todayStr))),
-        getDocs(query(collection(db, 'attendance'), where('dateStr', '==', todayStr))),
-        getCountFromServer(collection(db, 'practicalsData'))
-      ]);
-
-      const masterDocs = masterDocsRes.status === 'fulfilled' ? masterDocsRes.value : [];
-      const admDocs = admDocsRes.status === 'fulfilled' ? admDocsRes.value : [];
-      const attendanceById = new Map();
-      [attDateRes, attDateStrRes].forEach(result => {
-        if (result.status !== 'fulfilled') return;
-        result.value.docs.forEach(snapshot => attendanceById.set(snapshot.id, { id: snapshot.id, ...snapshot.data() }));
-      });
-      const attDocs = Array.from(attendanceById.values());
-
-      if (Array.isArray(masterDocs)) {
-        masterDocs.forEach(data => {
-          const items = data.items || data.data || data.records || data.students;
-          if (Array.isArray(items)) {
-            items.forEach(st => {
-              recordIdentity(st, data.className, data.Session || data.session);
-            });
-          }
-        });
-      }
-
-      if (Array.isArray(admDocs)) {
-        admDocs.forEach(data => {
-          const items = data.items || data.data || data.records || data.students;
-          if (Array.isArray(items)) {
-            items.forEach(st => {
-              recordIdentity(st, data.className, data.Session || data.session);
-            });
-          } else recordIdentity(data);
-        });
-      }
-
-      const sessionSet = new Set(recordCandidates.map(record => record.session).filter(Boolean));
-      const activeSession = Array.from(sessionSet).sort((a, b) => b.localeCompare(a, undefined, { numeric: true }))[0] || '';
-      const activeRecords = recordCandidates.filter(record => !activeSession || !record.session || record.session === activeSession);
-      const countSet = new Set(activeRecords.map(record => `${record.className || 'class'}_${record.roll}`));
-      const classSet = new Set(activeRecords.map(record => record.className.toLowerCase()).filter(Boolean));
-      const approvedRollCount = countSet.size;
-
-      // Count today's unique attended students across all marked subjects (prevents >100% bug when multiple subjects submit)
-      const todayAttendedStudents = new Set();
-      if (Array.isArray(attDocs)) {
-        attDocs.forEach(d => {
-          const data = d.data ? (typeof d.data === 'function' ? d.data() : d.data) : d;
-          const dDate = data.date || data.dateStr || '';
-          if (dDate === todayStr && Array.isArray(data.records)) {
-            const clsNorm = String(data.className || data.class || '').replace(/class/i, '').trim();
-            data.records.forEach(r => {
-              const roll = r.rollNo || r.classRollNo || r.name;
-              if (roll) todayAttendedStudents.add(`${clsNorm}_${roll}`);
-            });
-          }
-        });
-      }
-
-      // Count practicals
-      const practicalCount = practicalCountRes.status === 'fulfilled' ? practicalCountRes.value.data().count : 0;
-      const markedUniqueCount = todayAttendedStudents.size;
-      const rawPct = approvedRollCount > 0 ? Math.round((markedUniqueCount / approvedRollCount) * 100) : 0;
-      const pct = `${Math.min(100, Math.max(0, rawPct))}%`;
-
-      const newStats = {
-        totalStudents: approvedRollCount,
-        totalClasses: classSet.size,
-        todayAttendancePct: pct,
-        practicalsSubmitted: practicalCount,
-        sessionLabel: activeSession || 'Not configured',
-      };
-
-      setStats(newStats);
-      try {
-        localStorage.setItem('hss_teacher_dash_stats_cache', JSON.stringify(newStats));
-      } catch (e) {}
-    } catch (err) {
-      console.error('Failed to load dashboard stats:', err);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchDashboardStats();
-  }, [fetchDashboardStats]);
-
   const userName = user?.displayName || user?.name || 'Teacher';
 
   return (
@@ -188,8 +54,8 @@ export default function TeacherDashboard() {
 
       <div className="max-w-6xl mx-auto space-y-2.5 pb-16">
         {/* Ultra-Minimal Header Card */}
-        <div className="rounded-2xl p-2.5 sm:p-3 border shadow-xs space-y-2" style={{ backgroundColor: 'var(--bg-card, #ffffff)', borderColor: 'var(--border-ui, #cbd5e1)' }}>
-          {/* Row 1: Profile + Quick Actions */}
+        <div className="rounded-2xl p-2.5 sm:p-3 border shadow-xs" style={{ backgroundColor: 'var(--bg-card, #ffffff)', borderColor: 'var(--border-ui, #cbd5e1)' }}>
+          {/* Profile + Quick Actions */}
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2 min-w-0">
               <div className="w-8 h-8 rounded-xl bg-teal-600 text-white font-black text-xs flex items-center justify-center shadow-2xs flex-shrink-0">
@@ -231,29 +97,6 @@ export default function TeacherDashboard() {
               </button>
             </div>
           </div>
-
-          {/* Row 2: Minimal Stat Chips — 2x2 on mobile, 4-col on desktop */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 text-[11px] font-black pt-2 border-t border-slate-100 dark:border-slate-800">
-            <div className="px-2 py-1.5 rounded-xl bg-slate-100/90 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 border border-slate-200/60 dark:border-slate-700/60 flex items-center justify-center gap-1.5 truncate">
-              <Users size={13} className="text-teal-600 dark:text-teal-400 shrink-0" />
-              <span className="truncate">{stats.totalStudents ?? 0} Students</span>
-            </div>
-
-            <div className="px-2 py-1.5 rounded-xl bg-slate-100/90 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 border border-slate-200/60 dark:border-slate-700/60 flex items-center justify-center gap-1.5 truncate">
-              <BookOpen size={13} className="text-indigo-600 dark:text-indigo-400 shrink-0" />
-              <span className="truncate">{stats.totalClasses ?? 0} Classes</span>
-            </div>
-
-            <div className="px-2 py-1.5 rounded-xl bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20 flex items-center justify-center gap-1.5 truncate">
-              <CheckCircle2 size={13} className="text-emerald-600 shrink-0" />
-              <span className="truncate">Session {stats.sessionLabel || 'Not configured'}</span>
-            </div>
-
-            <div className="px-2 py-1.5 rounded-xl bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20 flex items-center justify-center gap-1.5 truncate">
-              <ShieldCheck size={13} className="text-amber-600 shrink-0" />
-              <span className="truncate">Verified Faculty</span>
-            </div>
-          </div>
         </div>
 
         {/* Quick Action Navigation Grid (2 Mobile-First Interactive Cards) */}
@@ -277,8 +120,8 @@ export default function TeacherDashboard() {
             </div>
 
             <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
-              <span className="text-[10.5px] font-bold text-teal-700 dark:text-teal-400 flex items-center gap-1">
-                <CheckCircle2 size={12} className="text-teal-600" /> Today: {stats.todayAttendancePct} Marked
+              <span className="text-[10.5px] font-bold text-teal-700 dark:text-teal-400">
+                Daily Roster
               </span>
               <Link
                 to="/portal/teacher/attendance"
@@ -316,7 +159,7 @@ export default function TeacherDashboard() {
                 title="Click to view all practical award submission history & records"
               >
                 <History size={13} className="text-indigo-600 dark:text-indigo-400 group-hover:rotate-[-20deg] transition-transform" />
-                <span className="font-extrabold">{stats.practicalsSubmitted} Submissions</span>
+                <span className="font-extrabold">Submissions History</span>
               </button>
               <Link
                 to="/portal/teacher/practicals"

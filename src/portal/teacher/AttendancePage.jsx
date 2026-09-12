@@ -4,7 +4,7 @@ import { Link, useOutletContext } from 'react-router-dom';
 import { ArrowLeft, Save, CheckCircle2, AlertCircle, AlertTriangle, RefreshCw, Plus, Trash2, Calendar, ShieldCheck, Printer, X, FileText, Zap, SlidersHorizontal, ChevronLeft, ChevronRight, Info, User, Wand2, History } from 'lucide-react';
 import SEO from '../../components/SEO';
 import { db, auth } from '../../services/firebase';
-import { collection, getDocs, doc, setDoc, getDoc, deleteDoc } from 'firebase/firestore';
+import { collection, getDocs, doc, setDoc, getDoc, deleteDoc, query, where } from 'firebase/firestore';
 import appsScriptApi from '../../services/appsScriptApi';
 import ConfirmModal from '../components/ConfirmModal';
 import { getCachedCollection } from '../../services/dbCache';
@@ -1190,33 +1190,46 @@ export default function AttendancePage() {
         }
       } catch (e) {}
 
-      // 1. Try candidate doc IDs if not loaded from local cache
-      if (!savedData) {
-        for (const idCandidate of candidateDocIds) {
-          try {
-            const snap = await getDoc(doc(db, 'attendance', idCandidate));
-            if (snap.exists()) {
-              savedData = snap.data();
-              break;
-            }
-          } catch (e) { /* skip */ }
-        }
-      }
-
-      // 2. Fallback to collection scan if direct doc ID lookup missed
+      // 1. Try candidate doc IDs concurrently in parallel
       if (!savedData) {
         try {
-          const qSnap = await getDocs(collection(db, 'attendance'));
-          qSnap.forEach(d => {
-            if (savedData) return;
-            const data = d.data();
-            const dClassMatch = isClassMatch(data.className || data.class, selectedClass);
-            const dDateMatch = areDatesMatching(data.date, selectedDate) || areDatesMatching(data.dateStr, selectedDate) || d.id.includes(selectedDate);
-            const dSubjMatch = isDocSubjectMatch(data.subject || data.subjectCode || data.subjectName || data.subjectFull, selectedSubject);
-            if (dClassMatch && dDateMatch && dSubjMatch) {
-              savedData = data;
+          const snaps = await Promise.allSettled(
+            candidateDocIds.map(idCandidate => getDoc(doc(db, 'attendance', idCandidate)))
+          );
+          for (const res of snaps) {
+            if (res.status === 'fulfilled' && res.value.exists()) {
+              savedData = res.value.data();
+              break;
             }
-          });
+          }
+        } catch (e) { /* skip */ }
+      }
+
+      // 2. Fast Fallback: Query only documents for selectedDate (prevents scanning entire collection)
+      if (!savedData) {
+        try {
+          const dateQueries = [
+            query(collection(db, 'attendance'), where('date', '==', selectedDate)),
+            query(collection(db, 'attendance'), where('dateStr', '==', selectedDate))
+          ];
+          if (dateISO && dateISO !== selectedDate) {
+            dateQueries.push(query(collection(db, 'attendance'), where('date', '==', dateISO)));
+          }
+          const qResults = await Promise.allSettled(dateQueries.map(q => getDocs(q)));
+          for (const qRes of qResults) {
+            if (savedData) break;
+            if (qRes.status === 'fulfilled' && !qRes.value.empty) {
+              for (const d of qRes.value.docs) {
+                const data = d.data();
+                const dClassMatch = isClassMatch(data.className || data.class, selectedClass);
+                const dSubjMatch = isDocSubjectMatch(data.subject || data.subjectCode || data.subjectName || data.subjectFull, selectedSubject);
+                if (dClassMatch && dSubjMatch) {
+                  savedData = data;
+                  break;
+                }
+              }
+            }
+          }
         } catch (qErr) {
           console.warn('Attendance query fallback note:', qErr);
         }
@@ -1263,15 +1276,20 @@ export default function AttendancePage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, selectedClass, selectedSession, selectedDate, selectedSubject]);
 
-  // Fetch Holidays List (Firestore + Local Cache)
+  // Fetch Holidays List (Firestore Cache + Local Storage)
   const fetchHolidays = useCallback(async () => {
     setLoadingHolidays(true);
     try {
       let list = [];
       try {
-        const snap = await getDocs(collection(db, 'holidays'));
-        if (!snap.empty) {
-          list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        const cachedHolidays = await getCachedCollection('holidays', false, 30 * 60 * 1000);
+        if (Array.isArray(cachedHolidays) && cachedHolidays.length > 0) {
+          list = [...cachedHolidays];
+        } else {
+          const snap = await getDocs(collection(db, 'holidays'));
+          if (!snap.empty) {
+            list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+          }
         }
       } catch (e) {
         console.warn('Firestore holidays fetch note, checking local cache:', e);
@@ -1352,14 +1370,17 @@ export default function AttendancePage() {
         setHolidaysList(prev => prev.filter(h => h.docId !== oldId && h.id !== oldId));
       }
 
+      const cleanLabel = String(holidayLabel || '').trim().slice(0, 100);
+      const cleanPurpose = String(holidayPurpose || '').trim().slice(0, 300);
+
       const payload = {
         docId,
         id: docId,
         dateStr: holidayDate,
         startDate: holidayDate,
         endDate: holidayEndDate || holidayDate,
-        label: holidayLabel,
-        purpose: holidayPurpose,
+        label: cleanLabel,
+        purpose: cleanPurpose,
         isRange: isMultiDay,
         updatedAt: new Date().toISOString()
       };
@@ -1570,14 +1591,27 @@ export default function AttendancePage() {
         console.warn('Firestore ownership check note:', e);
       }
 
-      const records = students.map((s) => ({
-        rollNo: s.rollNo,
-        name: s.name,
-        formNo: s.formNo,
-        regNo: s.regNo,
-        examRollBadges: s.examRollBadges,
-        status: s.status,
-      }));
+      if (!auth.currentUser) {
+        throw new Error('Active authenticated faculty session required to save attendance.');
+      }
+
+      const records = students.map((s) => {
+        let cleanStatus = String(s.status || 'A').toUpperCase().trim();
+        if (cleanStatus === 'PRESENT') cleanStatus = 'P';
+        if (cleanStatus === 'LEAVE') cleanStatus = 'L';
+        if (cleanStatus === 'ABSENT') cleanStatus = 'A';
+        if (!['P', 'L', 'A'].includes(cleanStatus)) {
+          cleanStatus = 'A';
+        }
+        return {
+          rollNo: String(s.rollNo || '').trim(),
+          name: String(s.name || '').trim().slice(0, 120),
+          formNo: String(s.formNo || '').trim().slice(0, 50),
+          regNo: String(s.regNo || '').trim().slice(0, 50),
+          examRollBadges: s.examRollBadges || '',
+          status: cleanStatus,
+        };
+      });
 
       const payload = {
         docId,
@@ -3632,11 +3666,17 @@ function PrintReportModal({ isOpen, onClose, defaultClass, defaultSession, defau
       setInternalHolidays(holidaysList);
       return;
     }
-    getDocs(collection(db, 'holidays')).then(snap => {
-      if (!snap.empty) {
-        setInternalHolidays(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    getCachedCollection('holidays', false, 30 * 60 * 1000).then(cached => {
+      if (Array.isArray(cached) && cached.length > 0) {
+        setInternalHolidays(cached);
+      } else {
+        getDocs(collection(db, 'holidays')).then(snap => {
+          if (!snap.empty) {
+            setInternalHolidays(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+          }
+        }).catch(e => console.warn('Print modal holiday fetch note:', e));
       }
-    }).catch(e => console.warn('Print modal holiday fetch note:', e));
+    }).catch(() => {});
   }, [isOpen, holidaysList]);
 
   const effectiveHolidays = (holidaysList && holidaysList.length > 0) ? holidaysList : internalHolidays;
@@ -3682,15 +3722,28 @@ function PrintReportModal({ isOpen, onClose, defaultClass, defaultSession, defau
     const fetchMonthlyData = async () => {
       setLoadingMonthly(true);
       try {
-        // 1. Fetch live documents from Firestore
+        // 1. Fetch live documents from Firestore scoped to target month
         let attItems = [];
         try {
-          const snap = await getDocs(collection(db, 'attendance'));
+          const startMonth = `${reportYearMonth}-01`;
+          const endMonth = `${reportYearMonth}-31`;
+          const snap = await getDocs(
+            query(
+              collection(db, 'attendance'),
+              where('date', '>=', startMonth),
+              where('date', '<=', endMonth)
+            )
+          );
           if (!snap.empty) {
             attItems = snap.docs.map(d => ({ id: d.id, ...d.data() }));
           }
         } catch (fErr) {
-          console.warn('Firestore direct fetch note, fallback to cache:', fErr);
+          try {
+            const cachedAll = await getCachedCollection('attendance', false, 10 * 60 * 1000);
+            attItems = Array.isArray(cachedAll) ? cachedAll : [];
+          } catch (cErr) {
+            console.warn('Firestore direct fetch note, fallback to cache:', fErr);
+          }
         }
 
         // 2. Supplement / fallback with local cache
