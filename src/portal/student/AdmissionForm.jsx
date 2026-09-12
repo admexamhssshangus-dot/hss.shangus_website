@@ -335,10 +335,14 @@ export default function AdmissionForm() {
   const timestampMillis = (value) => {
     if (!value) return 0;
     if (typeof value === 'object') return Number(value._seconds || value.seconds || 0) * 1000;
-    return Date.parse(value) || 0;
+    return Date.parse(value) || Number(value) || 0;
   };
+  const isUnlockedByAdmin = (formData.editUnlocked === true || formData.isEditable === true) && (
+    timestampMillis(formData.editableUntil || formData.editUnlockedUntil) > Date.now() ||
+    (!formData.editableUntil && !formData.editUnlockedUntil)
+  );
   const rejectedEditable = currentStatus === 'Rejected' && (timestampMillis(formData.editableUntil) > Date.now() || !formData.editableUntil || formData.isEditable === true);
-  const isFormLocked = (isSubmittedOrApproved || currentStatus === 'Under Review' ||
+  const isFormLocked = !isUnlockedByAdmin && (isSubmittedOrApproved || currentStatus === 'Under Review' ||
     (currentStatus === 'Rejected' && !rejectedEditable)) && !upgradeMode;
   const availabilityClass = formData['Admission sought for class'] || '';
   const admissionsClosed = admissionAvailability.globalClosed ||

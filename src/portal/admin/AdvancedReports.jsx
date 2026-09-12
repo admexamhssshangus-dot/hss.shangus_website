@@ -4,6 +4,7 @@ import JSZip from 'jszip';
 import { RefreshCw, Search, SearchX, Wrench, Columns, Printer, Check, X, Play, ChevronDown, ChevronLeft, ChevronRight, CheckSquare, Square, FileSpreadsheet, FileText, Maximize2, Settings, Hash, Layers, Mail, CreditCard, Camera, Upload, Image as ImageIcon, Download, Copy, Save, RotateCcw, Lock, LogOut, Unlock, Eye, History, Key, MessageSquare, AlertOctagon, Trash2, CheckCircle2, ClipboardCheck, CalendarCheck, Edit3, UserCheck, User, BookOpen, Landmark, CheckCircle, Loader2, PlusCircle, ShieldCheck, ShieldAlert, BarChart2, Building2, Database, Zap, Sliders, Sparkles, Star, FolderDown } from 'lucide-react';
 import appsScriptApi from '../../services/appsScriptApi';
 import { db, auth, ensureFirestoreConnected } from '../../services/firebase';
+import { sendPasswordResetEmail } from 'firebase/auth';
 import { collection, getDocs, doc, updateDoc, setDoc, deleteDoc, deleteField, writeBatch, query, where } from 'firebase/firestore';
 import { invalidateCache, updateCachedItem, getCachedCollectionSync, getCachedCollection, getMasterRegistersScoped, getPhotoUrlFromCache, preloadStudentPhotosCache, fetchStudentPhotoOnDemand, fetchAllMatchingStudentPhotos, syncStudentPhotoOnRegUpdate, reconcileAllStudentPhotosInDatabase } from '../../services/dbCache';
 import { compressImageFile, parsePhotoFilename, getStudentPhotoUrl } from '../../utils/imageCompressor';
@@ -2116,17 +2117,25 @@ function StatusActionDropdown({ student, onViewEdit, onRefresh, onDeleteRecord, 
         try {
           setIsSubmitting(true);
           const formNo = student?.formNo || student?.['Form Number'] || student?.id;
+          const unlockUntil = Date.now() + hrs * 3600000;
           await appsScriptApi.call('unlockApplication', { formNo, hours: hrs }).catch(() => {});
-          await updateStudentDocument(student, { editUnlocked: true, editUnlockedUntil: Date.now() + hrs * 3600000 });
+          await updateStudentDocument(student, {
+            editUnlocked: true,
+            editUnlockedUntil: unlockUntil,
+            isEditable: true,
+            editableUntil: new Date(unlockUntil).toISOString()
+          });
           if (student) {
             student.editUnlocked = true;
-            student.editUnlockedUntil = Date.now() + hrs * 3600000;
+            student.editUnlockedUntil = unlockUntil;
+            student.isEditable = true;
+            student.editableUntil = new Date(unlockUntil).toISOString();
           }
           if (onRefresh) onRefresh();
           setDialogConfig({
             type: 'alert',
             title: 'Application Unlocked',
-            message: `Application Form #${formNo} has been unlocked for editing for ${hrs} hours!`,
+            message: `Application Form #${formNo} has been unlocked for editing for ${hrs} hours! The applicant can now edit their details in the Student Portal.`,
             icon: CheckCircle2,
             iconColor: 'text-emerald-600 dark:text-emerald-400',
             btnColor: 'bg-emerald-700 hover:bg-emerald-600 text-white'
@@ -2193,10 +2202,45 @@ function StatusActionDropdown({ student, onViewEdit, onRefresh, onDeleteRecord, 
   const handleViewHistory = (e) => {
     e.stopPropagation();
     setIsOpen(false);
+    const formNum = localFormNo || student?.formNo || student?.['Form Number'] || student?.id || '—';
+    const sName = student?.studentName || student?.["Student's Name"] || 'Student';
+    const sClass = student?.class || student?.['Class'] || student?.['Admission sought for class'] || '11th';
+    const sStream = student?.stream || student?.['Stream'] || '';
+    const sRoll = localRoll || student?.classRollNo || student?.['Class Roll No'] || student?.rollNo || 'Not allotted';
+    const sAdm = student?.admNo || student?.['Adm. No.'] || '—';
+    const curStatus = localStatus || student?.status || student?.Status || 'Submitted';
+    const subDate = student?.onlineSubmDate || student?.submissionDate || student?.createdAt || '—';
+    const admDate = student?.admDate || student?.approvedAt || '—';
+
+    const extraDetails = [];
+    if (student?.rejectionReason) {
+      extraDetails.push(`• Rejection Reason: "${student.rejectionReason}"`);
+    }
+    if (student?.editUnlocked) {
+      const untilStr = student?.editUnlockedUntil || student?.editableUntil;
+      const untilDate = untilStr ? new Date(Number(untilStr) || untilStr).toLocaleString('en-IN') : 'Active';
+      extraDetails.push(`• Edit Unlocked: Yes (Valid until ${untilDate})`);
+    }
+    if (student?.withdrawnAt) {
+      extraDetails.push(`• Withdrawn At: ${new Date(student.withdrawnAt).toLocaleString('en-IN')}`);
+    }
+    if (student?.provisionalAt) {
+      extraDetails.push(`• Provisional Since: ${new Date(student.provisionalAt).toLocaleString('en-IN')}`);
+    }
+    if (student?.updatedAt) {
+      extraDetails.push(`• Last Updated: ${new Date(student.updatedAt).toLocaleString('en-IN')}`);
+    }
+
     setDialogConfig({
       type: 'alert',
-      title: `Activity History: ${student?.studentName || 'Student'}`,
-      message: `Form #${student?.formNo || student?.id}\n• Current Status: ${localStatus || student?.status || 'Submitted'}\n• Online Submission Date: ${student?.onlineSubmDate || '—'}\n• Admission Date: ${student?.admDate || '—'}`,
+      title: `Application History: ${sName}`,
+      message: `Form #${formNum} — Class ${sClass} ${sStream ? `(${sStream})` : ''}\n\n` +
+        `• Current Status: ${curStatus}\n` +
+        `• Class Roll No: ${sRoll}\n` +
+        `• Admission No: ${sAdm}\n` +
+        `• Online Submission Date: ${subDate}\n` +
+        `• Admission / Approval Date: ${admDate}` +
+        (extraDetails.length > 0 ? `\n\n${extraDetails.join('\n')}` : ''),
       icon: History,
       iconColor: 'text-purple-600 dark:text-purple-400',
       btnColor: 'bg-purple-700 hover:bg-purple-600 text-white'
@@ -2206,14 +2250,68 @@ function StatusActionDropdown({ student, onViewEdit, onRefresh, onDeleteRecord, 
   const handleSendPassword = (e) => {
     e.stopPropagation();
     setIsOpen(false);
-    const mob = student?.mobile || student?.["Student's Contact"] || 'N/A';
+    const email = String(student?.email || student?.['Email ID'] || student?.['Email'] || student?.['Email Address'] || student?.['Student Email'] || '').trim();
+    const mob = String(student?.mobile || student?.["Student's Contact"] || student?.["Mobile No. (with working WhatsApp)"] || student?.["Mobile No."] || '').trim();
+
+    if (!email || email === '—' || email === 'N/A' || !email.includes('@')) {
+      setDialogConfig({
+        type: 'alert',
+        title: 'No Registered Email Address',
+        message: `No valid email address is linked to the admission record for ${student?.studentName || 'this student'}.\n\n` +
+          `• Contact Number: ${mob || 'Not Available'}\n` +
+          `• Form Number: #${localFormNo || student?.formNo || '—'}\n\n` +
+          `To enable self-service password reset, update the student's email address via "View / Edit Record", or communicate directly using "Send WhatsApp".`,
+        icon: Key,
+        iconColor: 'text-amber-600 dark:text-amber-400',
+        btnColor: 'bg-amber-700 hover:bg-amber-600 text-white'
+      });
+      return;
+    }
+
     setDialogConfig({
-      type: 'alert',
-      title: 'Credentials Sent',
-      message: `Credentials notification successfully sent to student mobile: ${mob}`,
+      type: 'confirm',
+      title: 'Send Official Password Reset Link',
+      message: `Dispatch a secure Firebase password reset email to ${student?.studentName || 'student'}?\n\n` +
+        `• Target Email: ${email}\n` +
+        `• Form Number: #${localFormNo || student?.formNo || '—'}\n\n` +
+        `The student will receive an official reset link allowing them to create or update their portal password.`,
       icon: Key,
       iconColor: 'text-blue-600 dark:text-blue-400',
-      btnColor: 'bg-blue-700 hover:bg-blue-600 text-white'
+      btnColor: 'bg-blue-700 hover:bg-blue-600 text-white',
+      confirmText: 'Send Reset Link',
+      submittingText: 'Sending Reset Email...',
+      onConfirm: async () => {
+        try {
+          setIsSubmitting(true);
+          await sendPasswordResetEmail(auth, email);
+          setDialogConfig({
+            type: 'alert',
+            title: 'Password Reset Dispatched',
+            message: `Official password reset link has been dispatched to ${email}.\n\nThe applicant can follow the link in their inbox to set their credentials.`,
+            icon: CheckCircle2,
+            iconColor: 'text-emerald-600 dark:text-emerald-400',
+            btnColor: 'bg-emerald-700 hover:bg-emerald-600 text-white'
+          });
+        } catch (err) {
+          console.error('Password reset dispatch error:', err);
+          let userMsg = err?.message || 'Failed to dispatch password reset link.';
+          if (err?.code === 'auth/user-not-found') {
+            userMsg = `No registered login account was found for email "${email}". The student may need to create an account first.`;
+          } else if (err?.code === 'auth/invalid-email') {
+            userMsg = `The email address "${email}" is invalid. Please correct it in the student's record.`;
+          }
+          setDialogConfig({
+            type: 'alert',
+            title: 'Reset Link Failed',
+            message: userMsg,
+            icon: AlertOctagon,
+            iconColor: 'text-rose-600 dark:text-rose-400',
+            btnColor: 'bg-rose-700 hover:bg-rose-600 text-white'
+          });
+        } finally {
+          setIsSubmitting(false);
+        }
+      }
     });
   };
 
@@ -2262,17 +2360,9 @@ function StatusActionDropdown({ student, onViewEdit, onRefresh, onDeleteRecord, 
     }
 
     const text = encodeURIComponent(msgText);
-    const appUrl = `whatsapp://send?phone=${cleanMob}&text=${text}`;
-    const webUrl = `https://api.whatsapp.com/send?phone=${cleanMob}&text=${text}`;
-
-    const start = Date.now();
-    window.location.href = appUrl;
-
-    setTimeout(() => {
-      if (Date.now() - start < 2000) {
-        window.open(webUrl, '_blank');
-      }
-    }, 1000);
+    const cleanNumber = cleanMob.startsWith('91') ? cleanMob : `91${cleanMob}`;
+    const waUrl = `https://wa.me/${cleanNumber}?text=${text}`;
+    window.open(waUrl, '_blank', 'noopener,noreferrer');
   };
 
   const handleAssignRollNo = (e) => {
@@ -2469,6 +2559,62 @@ function StatusActionDropdown({ student, onViewEdit, onRefresh, onDeleteRecord, 
             type: 'alert',
             title: 'Update Failed',
             message: err?.message || 'Could not update student status to Provisional.',
+            icon: AlertOctagon,
+            iconColor: 'text-rose-600 dark:text-rose-400',
+            btnColor: 'bg-rose-700 hover:bg-rose-600 text-white'
+          });
+        } finally {
+          setIsSubmitting(false);
+        }
+      }
+    });
+  };
+
+  const handleMarkSubmitted = (e) => {
+    e.stopPropagation();
+    setIsOpen(false);
+    setDialogConfig({
+      type: 'confirm',
+      title: 'Restore to Submitted / Under Verification',
+      message: `Reset admission application for ${student?.studentName || 'student'} (Form #${localFormNo || student?.formNo || '—'}) to Submitted state?\n\nThis returns the application to the normal verification queue.`,
+      icon: ClipboardCheck,
+      iconColor: 'text-blue-600 dark:text-blue-400',
+      btnColor: 'bg-blue-700 hover:bg-blue-600 text-white',
+      confirmText: 'Confirm Submitted Status',
+      submittingText: 'Updating to Submitted...',
+      onConfirm: async () => {
+        try {
+          setIsSubmitting(true);
+          await updateStudentDocument(student, {
+            'Status': 'Submitted',
+            'status': 'Submitted',
+            'rejectionReason': '',
+            'Rejection Reason': '',
+            isApproved: false,
+            approvedAt: null
+          });
+          setLocalStatus('Submitted');
+          if (student) {
+            student.status = 'Submitted';
+            student.Status = 'Submitted';
+            student.rejectionReason = '';
+            student['Rejection Reason'] = '';
+          }
+          if (onRefresh) onRefresh();
+          setDialogConfig({
+            type: 'alert',
+            title: 'Application Reverted to Submitted',
+            message: `Application for ${student?.studentName || 'student'} has been restored to Submitted (Under Verification).`,
+            icon: CheckCircle2,
+            iconColor: 'text-blue-600 dark:text-blue-400',
+            btnColor: 'bg-blue-700 hover:bg-blue-600 text-white'
+          });
+        } catch (err) {
+          console.error('Mark submitted error:', err);
+          setDialogConfig({
+            type: 'alert',
+            title: 'Update Failed',
+            message: err?.message || 'Could not update status to Submitted.',
             icon: AlertOctagon,
             iconColor: 'text-rose-600 dark:text-rose-400',
             btnColor: 'bg-rose-700 hover:bg-rose-600 text-white'
@@ -2810,6 +2956,17 @@ function StatusActionDropdown({ student, onViewEdit, onRefresh, onDeleteRecord, 
               >
                 <CheckCircle size={13} className="text-indigo-600 dark:text-indigo-400" />
                 <span>Mark as Provisional</span>
+              </button>
+            )}
+
+            {(isProv || isRejt) && !isWithdrawn && (
+              <button
+                type="button"
+                onClick={handleMarkSubmitted}
+                className="w-full text-left px-2.5 py-1.5 rounded-xl flex items-center gap-2.5 hover:bg-blue-500/15 dark:hover:bg-blue-500/25 border border-transparent hover:border-blue-500/30 text-blue-700 dark:text-blue-400 cursor-pointer font-extrabold transition-all hover:scale-[1.01]"
+              >
+                <ClipboardCheck size={13} className="text-blue-600 dark:text-blue-400" />
+                <span>Mark as Submitted / In Review</span>
               </button>
             )}
 
@@ -4377,7 +4534,15 @@ const COLUMN_DEFS = [
       );
     }
   },
-  { key: 'classRollNo', label: 'R.NO.', className: 'font-mono font-black text-teal-700 dark:text-teal-400 whitespace-nowrap text-center' },
+  {
+    key: 'classRollNo', label: 'R.NO.', className: 'font-mono font-black text-teal-700 dark:text-teal-400 whitespace-nowrap text-center', render: (val, student) => {
+      const rollVal = String(student?.classRollNo || student?.rollNo || student?.['Class Roll No'] || student?.['Class R.No.'] || val || '').trim();
+      if (!rollVal || rollVal === '—' || rollVal === 'N/A' || rollVal === 'null' || rollVal === 'undefined') {
+        return <span className="font-mono text-slate-400 dark:text-slate-600">—</span>;
+      }
+      return rollVal;
+    }
+  },
   {
     key: 'admNo', label: 'Adm. No.', className: 'font-mono font-black whitespace-nowrap text-center', render: (val, student) => {
       const formatted = formatStudentAdmNo(student) || cleanAdmNoVal(val);
