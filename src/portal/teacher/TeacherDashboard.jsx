@@ -155,7 +155,7 @@ export default function TeacherDashboard() {
         path="/portal/teacher"
       />
 
-      <div className="max-w-6xl mx-auto space-y-2.5">
+      <div className="max-w-6xl mx-auto space-y-2.5 pb-16">
         {/* Ultra-Minimal Header Card */}
         <div className="rounded-2xl p-2.5 sm:p-3 border shadow-xs space-y-2" style={{ backgroundColor: 'var(--bg-card, #ffffff)', borderColor: 'var(--border-ui, #cbd5e1)' }}>
           {/* Row 1: Profile + Quick Actions */}

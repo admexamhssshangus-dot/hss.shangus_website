@@ -1996,52 +1996,44 @@ export default function PracticalsPage() {
         path="/portal/teacher/practicals"
       />
 
-      <div className="max-w-6xl mx-auto space-y-3">
-        {/* Header Navigation Bar with Logout */}
-        <div className="flex items-center justify-between gap-2">
-          <Link
-            to="/portal/teacher"
-            className="inline-flex items-center gap-1 text-xs font-black hover:underline shrink-0"
-            style={{ color: 'var(--teal-accent, #0d9488)' }}
-          >
-            <ArrowLeft size={14} />
-            <span className="hidden sm:inline">Back to Teacher Workspace</span>
-            <span className="sm:hidden">Back</span>
-          </Link>
-
-          <div className="flex items-center gap-1.5">
-            <button
-              onClick={() => {
-                setShowHistoryModal(true);
-                fetchSubmissionHistory();
-              }}
-              className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700 transition-all cursor-pointer"
-            >
-              <History size={13} className="text-indigo-600 dark:text-indigo-400" />
-              <span className="hidden sm:inline">Submission Log</span>
-            </button>
-          </div>
-        </div>
-
+      <div className="max-w-6xl mx-auto space-y-3 pb-24">
         {/* Main Ultra-Compact Card */}
-        <div className="rounded-2xl p-3.5 sm:p-4 border shadow-md space-y-3 bg-white dark:bg-slate-900" style={{ borderColor: 'var(--border-ui, #cbd5e1)' }}>
-          {/* Title Header — Ultra-Compact */}
-          <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2">
+        <div className="rounded-2xl p-2.5 sm:p-4 border shadow-md space-y-2.5 bg-white dark:bg-slate-900" style={{ borderColor: 'var(--border-ui, #cbd5e1)' }}>
+          {/* Integrated Header Navigation Bar */}
+          <div className="flex items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800/80 pb-2">
             <div className="flex items-center gap-2 min-w-0">
-              <div className="w-7 h-7 rounded-lg bg-indigo-600/15 border border-indigo-600/30 flex items-center justify-center text-indigo-600 dark:text-indigo-400 shrink-0">
-                <UserCheck size={16} />
+              <Link
+                to="/portal/teacher"
+                className="inline-flex items-center gap-1 text-xs font-black text-teal-700 hover:text-teal-800 dark:text-teal-400 p-1 px-1.5 rounded-lg bg-teal-500/10 hover:bg-teal-500/20 border border-teal-500/20 transition-all shrink-0 active:scale-95"
+                title="Back to Teacher Workspace"
+              >
+                <ArrowLeft size={13} />
+                <span>Back</span>
+              </Link>
+              <div className="w-6 h-6 rounded-lg bg-indigo-600/15 border border-indigo-600/30 flex items-center justify-center text-indigo-600 dark:text-indigo-400 shrink-0">
+                <UserCheck size={14} />
               </div>
-              <div className="min-w-0">
-                <h1 className="text-xs sm:text-sm font-black text-slate-900 dark:text-white leading-tight truncate">
-                  Practical Evaluation Portal
-                </h1>
-                <div className="text-[9.5px] font-bold text-slate-500 dark:text-slate-400 truncate">
-                  {selectedClass} Class • {currentSubjectObj.name} ({currentSubjectObj.code})
-                </div>
-              </div>
+              <h1 className="text-xs sm:text-sm font-black text-slate-900 dark:text-white leading-tight truncate">
+                Practical Evaluation Portal
+              </h1>
             </div>
-            <div className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20 shrink-0">
-              <ShieldCheck size={10} /> LAB EVALUATION
+
+            <div className="flex items-center gap-1.5 shrink-0">
+              <div className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">
+                <ShieldCheck size={10} /> LAB EVALUATION
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowHistoryModal(true);
+                  fetchSubmissionHistory();
+                }}
+                className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700 transition-all cursor-pointer shadow-2xs active:scale-95"
+                title="View Submission Log & History"
+              >
+                <History size={13} className="text-indigo-600 dark:text-indigo-400" />
+                <span className="hidden sm:inline">Submission Log</span>
+              </button>
             </div>
           </div>
 
@@ -2133,8 +2125,8 @@ export default function PracticalsPage() {
                 </select>
               </div>
 
-              {/* Quick Fill + Fail filter + Print */}
-              <div className="flex items-center justify-between sm:justify-end gap-1.5 w-full sm:w-auto shrink-0">
+              {/* Quick Fill + Print (Fail button cleanly moved to filters drawer) */}
+              <div className="flex items-center justify-end gap-1.5 w-full sm:w-auto shrink-0">
                 <button
                   type="button"
                   onClick={() => setShowQuickFill(prev => !prev)}
@@ -2156,18 +2148,6 @@ export default function PracticalsPage() {
 
                 <button
                   type="button"
-                  onClick={() => setShowFailOnly(!showFailOnly)}
-                  className={`practicals-control h-8 px-2.5 py-1 rounded-lg font-bold text-xs border transition-all cursor-pointer flex items-center justify-center active:scale-95 shadow-2xs ${
-                    showFailOnly
-                      ? 'bg-rose-500 text-white border-rose-500'
-                      : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800'
-                  }`}
-                >
-                  {showFailOnly ? 'Show All' : '📋 Fail'}
-                </button>
-
-                <button
-                  type="button"
                   onClick={handlePrintReport}
                   className="practicals-control h-8 px-3 py-1 rounded-lg font-bold text-xs bg-indigo-600 text-white hover:bg-indigo-500 border border-indigo-600 shadow-2xs cursor-pointer flex items-center justify-center gap-1 active:scale-95"
                 >
@@ -2176,9 +2156,9 @@ export default function PracticalsPage() {
               </div>
             </div>
 
-            {/* Expandable Filter Inputs Panel */}
+            {/* Desktop-only Expandable Filter Inputs Panel */}
             {showFilterSettings && (
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-slate-200 dark:border-slate-800 animate-in fade-in duration-150">
+              <div className="hidden sm:grid grid-cols-4 gap-2 pt-2 border-t border-slate-200 dark:border-slate-800 animate-in fade-in duration-150">
                 <div className="space-y-0.5">
                   <label className="text-[9.5px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block truncate">Class</label>
                   <select
@@ -2243,6 +2223,112 @@ export default function PracticalsPage() {
                       return <option key={yr} value={yr}>{label}</option>;
                     })}
                   </select>
+                </div>
+              </div>
+            )}
+
+            {/* Mobile Filter Popup Modal / Bottom Sheet */}
+            {showFilterSettings && (
+              <div className="sm:hidden fixed inset-0 z-[9990] bg-slate-950/60 backdrop-blur-xs flex items-end justify-center p-0 animate-fadeIn">
+                <div className="fixed inset-0" onClick={() => setShowFilterSettings(false)} />
+                <div className="relative bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 rounded-t-3xl p-4 shadow-2xl max-w-lg w-full space-y-3.5 z-10 animate-in slide-in-from-bottom duration-200">
+                  <div className="flex items-center justify-between pb-2.5 border-b border-slate-100 dark:border-slate-800">
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 rounded-xl bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
+                        <SlidersHorizontal size={14} />
+                      </div>
+                      <div>
+                        <h3 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider">
+                          Evaluation Filters
+                        </h3>
+                        <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">Select class, subject & evaluation type</p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowFilterSettings(false)}
+                      className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                    >
+                      <X size={16} />
+                    </button>
+                  </div>
+
+                  <div className="space-y-2.5 max-h-[65vh] overflow-y-auto pr-1">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 block">Class</label>
+                      <select
+                        value={selectedClass}
+                        onChange={(e) => setSelectedClass(e.target.value)}
+                        className="w-full px-3 py-2 rounded-xl text-xs font-bold border bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 shadow-2xs"
+                      >
+                        <option value="12th">Class 12th</option>
+                        <option value="11th">Class 11th</option>
+                        <option value="10th">Class 10th</option>
+                        <option value="9th">Class 9th</option>
+                      </select>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 block">Subject</label>
+                      <CustomSubjectSelect
+                        selectedSubject={selectedSubject}
+                        setSelectedSubject={setSelectedSubject}
+                        subjectMap={SUBJECT_MAP}
+                        currentSubjectObj={currentSubjectObj}
+                        getSubjectMax={getSubjectMax}
+                        subjectMaxMarks={subjectMaxMarks}
+                        minPassMarks={minPassMarks}
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 block">Evaluation Type</label>
+                      <select
+                        value={practicalType}
+                        onChange={(e) => setPracticalType(e.target.value)}
+                        className="w-full px-3 py-2 rounded-xl text-xs font-bold border bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 shadow-2xs"
+                      >
+                        {availableEvalTypes.map(et => (
+                          <option key={et.value} value={et.value}>{et.label || et.value}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 block">Academic Session</label>
+                      <select
+                        value={yearSuffix}
+                        onChange={(e) => setYearSuffix(e.target.value)}
+                        className="w-full px-3 py-2 rounded-xl text-xs font-bold border bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 shadow-2xs"
+                      >
+                        {availableSessions.map(yr => (
+                          <option key={yr} value={yr}>{yr}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                      <label className="flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-300 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={showFailOnly}
+                          onChange={(e) => setShowFailOnly(e.target.checked)}
+                          className="w-4 h-4 rounded border-slate-300 dark:border-slate-700 text-rose-600 focus:ring-rose-500"
+                        />
+                        <span>Show failing / absent records only</span>
+                      </label>
+                    </div>
+                  </div>
+
+                  <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
+                    <button
+                      type="button"
+                      onClick={() => setShowFilterSettings(false)}
+                      className="w-full py-2.5 rounded-xl text-xs font-black text-white bg-indigo-600 hover:bg-indigo-500 transition-all cursor-pointer shadow-md active:scale-98"
+                    >
+                      Apply & Close
+                    </button>
+                  </div>
                 </div>
               </div>
             )}
@@ -2534,7 +2620,7 @@ export default function PracticalsPage() {
                             placeholder={`0-${subjectMaxMarks}`}
                             value={st.practicalMarks}
                             onChange={(e) => handleMarkChange(originalIdx !== -1 ? originalIdx : idx, 'practicalMarks', e.target.value)}
-                            className={`w-14 h-7.5 px-1 rounded-lg border text-xs font-bold text-center focus:outline-none focus:ring-1 focus:ring-indigo-500 uppercase transition-all placeholder:text-slate-400 placeholder:text-[10.5px] placeholder:font-normal ${
+                            className={`w-12 h-7 px-1 rounded-lg border text-xs font-bold text-center focus:outline-none focus:ring-1 focus:ring-indigo-500 uppercase transition-all placeholder:text-slate-400 placeholder:text-[10px] placeholder:font-normal ${
                               isAbsent
                                 ? 'bg-amber-50 dark:bg-amber-950/50 border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300 font-bold'
                                 : st.practicalMarks !== ''
@@ -2545,7 +2631,7 @@ export default function PracticalsPage() {
                           <button
                             type="button"
                             onClick={() => handleMarkChange(originalIdx !== -1 ? originalIdx : idx, 'practicalMarks', isAbsent ? '' : 'A')}
-                            className={`h-7.5 px-2 rounded-lg font-mono text-[11px] font-bold border transition-all cursor-pointer flex items-center justify-center shrink-0 active:scale-95 ${
+                            className={`h-7 px-2 rounded-lg font-mono text-[10.5px] font-bold border transition-all cursor-pointer flex items-center justify-center shrink-0 active:scale-95 ${
                               isAbsent
                                 ? 'bg-amber-500 text-white border-amber-600 shadow-2xs'
                                 : 'bg-slate-100 dark:bg-slate-800 text-slate-600 hover:text-amber-600 dark:hover:text-amber-400 border-slate-200 dark:border-slate-700'
@@ -2560,11 +2646,12 @@ export default function PracticalsPage() {
                       {/* Row 2: Streamlined Single-Line Metadata & In-Words Award Feedback */}
                       <div className="flex items-center justify-between gap-1 text-[10px] text-slate-500 dark:text-slate-400 font-medium truncate pt-0.5 border-t border-slate-100 dark:border-slate-800/80">
                         <div className="flex items-center gap-1 truncate font-mono">
-                          {st.rollNo && <span className="font-bold text-slate-700 dark:text-slate-200">Roll:{st.rollNo}</span>}
-                          {st.formNo && <span>{st.rollNo ? '• ' : ''}F#{st.formNo}</span>}
-                          {st.regNo && <span>• R:{st.regNo.slice(-6)}</span>}
+                          {st.formNo && <span>F#{st.formNo}</span>}
+                          {st.regNo && <span>{st.formNo ? '• ' : ''}R:{st.regNo.slice(-6)}</span>}
                           {st.examRollNo && <span>• E:{st.examRollNo}</span>}
-                          <span className="truncate text-teal-700 dark:text-teal-400 font-sans font-medium">• {allSubjs}</span>
+                          <span className="truncate text-teal-700 dark:text-teal-400 font-sans font-medium">
+                            {(st.formNo || st.regNo || st.examRollNo) ? '• ' : ''}{allSubjs}
+                          </span>
                         </div>
                         {inWords && (
                           <span className="text-[9.5px] font-bold text-indigo-600 dark:text-indigo-400 shrink-0 italic">
