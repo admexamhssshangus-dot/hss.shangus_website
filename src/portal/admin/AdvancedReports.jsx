@@ -2885,23 +2885,27 @@ function StatusActionDropdown({ student, onViewEdit, onRefresh, onDeleteRecord, 
               </button>
             )}
 
-            <button
-              type="button"
-              onClick={handleUnlock}
-              className="w-full text-left px-2.5 py-1.5 rounded-xl flex items-center gap-2.5 hover:bg-amber-500/15 dark:hover:bg-amber-500/25 border border-transparent hover:border-amber-500/30 text-slate-800 dark:text-slate-200 cursor-pointer font-extrabold transition-all hover:scale-[1.01]"
-            >
-              <Unlock size={13} className="text-amber-600 dark:text-amber-400" />
-              <span>Unlock for Edit</span>
-            </button>
+            {!isWithdrawn && (
+              <button
+                type="button"
+                onClick={handleUnlock}
+                className="w-full text-left px-2.5 py-1.5 rounded-xl flex items-center gap-2.5 hover:bg-amber-500/15 dark:hover:bg-amber-500/25 border border-transparent hover:border-amber-500/30 text-slate-800 dark:text-slate-200 cursor-pointer font-extrabold transition-all hover:scale-[1.01]"
+              >
+                <Unlock size={13} className="text-amber-600 dark:text-amber-400" />
+                <span>Unlock for Edit</span>
+              </button>
+            )}
 
-            <button
-              type="button"
-              onClick={handleAssignRollNo}
-              className="w-full text-left px-2.5 py-1.5 rounded-xl flex items-center gap-2.5 hover:bg-teal-500/15 dark:hover:bg-teal-500/25 border border-transparent hover:border-teal-500/30 text-slate-800 dark:text-slate-200 cursor-pointer font-extrabold transition-all hover:scale-[1.01]"
-            >
-              <Hash size={13} className="text-teal-600 dark:text-teal-400" />
-              <span>Assign Class Roll No</span>
-            </button>
+            {!isWithdrawn && (
+              <button
+                type="button"
+                onClick={handleAssignRollNo}
+                className="w-full text-left px-2.5 py-1.5 rounded-xl flex items-center gap-2.5 hover:bg-teal-500/15 dark:hover:bg-teal-500/25 border border-transparent hover:border-teal-500/30 text-slate-800 dark:text-slate-200 cursor-pointer font-extrabold transition-all hover:scale-[1.01]"
+              >
+                <Hash size={13} className="text-teal-600 dark:text-teal-400" />
+                <span>Assign Class Roll No</span>
+              </button>
+            )}
 
             <button
               type="button"
@@ -2939,14 +2943,16 @@ function StatusActionDropdown({ student, onViewEdit, onRefresh, onDeleteRecord, 
               <span>Send WhatsApp</span>
             </button>
 
-            <button
-              type="button"
-              onClick={handleReject}
-              className="w-full text-left px-2.5 py-1.5 rounded-xl flex items-center gap-2.5 hover:bg-rose-500/15 dark:hover:bg-rose-500/25 border border-transparent hover:border-rose-500/30 text-rose-700 dark:text-rose-400 cursor-pointer font-extrabold transition-all hover:scale-[1.01]"
-            >
-              <AlertOctagon size={13} className="text-rose-600 dark:text-rose-400" />
-              <span>Reject Application</span>
-            </button>
+            {!isWithdrawn && (
+              <button
+                type="button"
+                onClick={handleReject}
+                className="w-full text-left px-2.5 py-1.5 rounded-xl flex items-center gap-2.5 hover:bg-rose-500/15 dark:hover:bg-rose-500/25 border border-transparent hover:border-rose-500/30 text-rose-700 dark:text-rose-400 cursor-pointer font-extrabold transition-all hover:scale-[1.01]"
+              >
+                <AlertOctagon size={13} className="text-rose-600 dark:text-rose-400" />
+                <span>Reject Application</span>
+              </button>
+            )}
 
             {!isProv && !isWithdrawn && !isApp && (
               <button
