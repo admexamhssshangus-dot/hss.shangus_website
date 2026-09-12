@@ -45,6 +45,154 @@ const STANDARD_STREAM_SUBJECTS = {
   ],
 };
 
+/**
+ * Authoritative Educational Performance Descriptors (NEP 2020 / Progressive Assessment Standard)
+ * Avoids punitive and demoralizing labels like "FAIL" or "RE-APPEAR".
+ * Uses growth-oriented achievement descriptors:
+ * - Excellent (>= 85%)
+ * - Very Good (>= 70%)
+ * - Good (>= 50%)
+ * - Satisfactory (>= 36% / Passing Criteria)
+ * - Needs Improvement (< 36% / Below Minimum)
+ */
+export const getSubjectPerformanceDescriptor = (marksVal, maxMarks, minMarks, isAbsent) => {
+  if (isAbsent) {
+    return {
+      status: 'Absent',
+      tone: 'neutral',
+      isPass: false,
+      badgeClass: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 border border-slate-200 dark:border-slate-700'
+    };
+  }
+  if (typeof marksVal !== 'number' || isNaN(marksVal)) {
+    return {
+      status: 'Awaiting Award',
+      tone: 'neutral',
+      isPass: false,
+      badgeClass: 'bg-slate-50 text-slate-400 dark:bg-slate-800/60 dark:text-slate-500 border border-slate-200/60 dark:border-slate-700'
+    };
+  }
+
+  const max = Number(maxMarks) || 50;
+  const min = Number(minMarks) || Math.ceil(max * 0.36);
+  const isPass = marksVal >= min;
+  const pct = max > 0 ? (marksVal / max) * 100 : 0;
+
+  if (!isPass) {
+    return {
+      status: 'Needs Improvement',
+      shortStatus: 'Improve',
+      tone: 'improve',
+      isPass: false,
+      badgeClass: 'bg-amber-50 text-amber-800 dark:bg-amber-950/70 dark:text-amber-300 border border-amber-200 dark:border-amber-800'
+    };
+  }
+
+  if (pct >= 85) {
+    return {
+      status: 'Excellent',
+      shortStatus: 'Excellent',
+      tone: 'excellent',
+      isPass: true,
+      badgeClass: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/70 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
+    };
+  }
+
+  if (pct >= 70) {
+    return {
+      status: 'Very Good',
+      shortStatus: 'Very Good',
+      tone: 'veryGood',
+      isPass: true,
+      badgeClass: 'bg-teal-50 text-teal-700 dark:bg-teal-950/70 dark:text-teal-300 border border-teal-200 dark:border-teal-800'
+    };
+  }
+
+  if (pct >= 50) {
+    return {
+      status: 'Good',
+      shortStatus: 'Good',
+      tone: 'good',
+      isPass: true,
+      badgeClass: 'bg-sky-50 text-sky-700 dark:bg-sky-950/70 dark:text-sky-300 border border-sky-200 dark:border-sky-800'
+    };
+  }
+
+  return {
+    status: 'Satisfactory',
+    shortStatus: 'Satisfactory',
+    tone: 'satisfactory',
+    isPass: true,
+    badgeClass: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/70 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
+  };
+};
+
+export const getOverallResultDescriptor = (evaluatedCount, totalCount, totalObtained, totalMax, hasFail, allAbsent) => {
+  if (evaluatedCount === 0) {
+    return {
+      resultStatus: 'AWAITING AWARD',
+      division: 'Evaluation Pending',
+      badgeClass: 'bg-slate-600 text-white'
+    };
+  }
+
+  if (allAbsent) {
+    return {
+      resultStatus: 'ABSENT',
+      division: 'Absent',
+      badgeClass: 'bg-slate-600 text-white'
+    };
+  }
+
+  const isPartial = evaluatedCount < totalCount;
+  const pct = totalMax > 0 ? ((totalObtained / totalMax) * 100).toFixed(1) : '0.0';
+  const nPct = Number(pct);
+
+  if (isPartial) {
+    return {
+      resultStatus: 'IN PROGRESS',
+      division: `In Progress (${evaluatedCount}/${totalCount} Tabulated)`,
+      badgeClass: 'bg-teal-700 text-white'
+    };
+  }
+
+  // All subjects have been evaluated
+  if (hasFail) {
+    return {
+      resultStatus: 'NEEDS IMPROVEMENT',
+      division: 'Scope for Improvement',
+      badgeClass: 'bg-amber-600 text-white'
+    };
+  }
+
+  if (nPct >= 85) {
+    return {
+      resultStatus: 'EXCELLENT',
+      division: 'Distinction (Outstanding)',
+      badgeClass: 'bg-emerald-700 text-white'
+    };
+  }
+  if (nPct >= 70) {
+    return {
+      resultStatus: 'VERY GOOD',
+      division: 'First Division (Very Good)',
+      badgeClass: 'bg-teal-700 text-white'
+    };
+  }
+  if (nPct >= 50) {
+    return {
+      resultStatus: 'GOOD',
+      division: 'Second Division (Good)',
+      badgeClass: 'bg-sky-700 text-white'
+    };
+  }
+  return {
+    resultStatus: 'SATISFACTORY',
+    division: 'Third Division (Satisfactory)',
+    badgeClass: 'bg-emerald-600 text-white'
+  };
+};
+
 export default function PublicResultLookup() {
   const [searchParams] = useSearchParams();
   const initialReg = searchParams.get('reg') || searchParams.get('roll') || searchParams.get('fno') || '';
@@ -149,11 +297,34 @@ export default function PublicResultLookup() {
         const res = response.result;
         const pUrl = (res.photoUrl || '');
         const cleanPhoto = (pUrl.includes('drive.google.com') || pUrl.includes('googleusercontent.com') || pUrl.includes('docs.google.com')) ? '' : pUrl;
+        
+        // Normalize subjects and overall status to encouraging, modern labels
+        const rawSubs = Array.isArray(res.subjects) ? res.subjects : [];
+        const sanitizedSubjects = rawSubs.map(sub => {
+          const desc = getSubjectPerformanceDescriptor(sub.marksObtained, sub.maxMarks, sub.minMarks, sub.isAbsent);
+          return {
+            ...sub,
+            status: desc.status,
+            statusTone: desc.tone,
+            badgeClass: desc.badgeClass,
+            isPass: desc.isPass
+          };
+        });
+
+        const evCount = res.evaluatedCount ?? sanitizedSubjects.filter(s => s.isEvaluated).length;
+        const totCount = res.totalCount ?? (sanitizedSubjects.length || 6);
+        const anyFail = sanitizedSubjects.some(s => s.isEvaluated && !s.isPass && !s.isAbsent);
+        const allAb = sanitizedSubjects.length > 0 && sanitizedSubjects.every(s => s.isAbsent);
+        const overall = getOverallResultDescriptor(evCount, totCount, res.totalObtained, res.totalMax, anyFail, allAb);
+
         setStudentResult({
           ...res,
           name: formatConsistentName(res.name || res.studentName),
           fatherName: formatConsistentName(res.fatherName || res.parentage),
-          photoUrl: cleanPhoto
+          photoUrl: cleanPhoto,
+          subjects: sanitizedSubjects.length > 0 ? sanitizedSubjects : res.subjects,
+          resultStatus: overall.resultStatus,
+          division: overall.division
         });
         setSearching(false);
         return;
@@ -369,7 +540,7 @@ export default function PublicResultLookup() {
             const maxMarks = isFromBiology ? Math.round(docMax / 2) : docMax;
             const minMarks = Math.ceil(maxMarks * 0.36);
             const marksVal = isAbsent ? 'AB' : (isFromBiology ? Math.round(num / 2) : num);
-            const isPass = !isAbsent && typeof marksVal === 'number' && marksVal >= minMarks;
+            const desc = getSubjectPerformanceDescriptor(marksVal, maxMarks, minMarks, isAbsent);
 
             finalSubjectsList.push({
               subjectCode: tpl.code,
@@ -378,9 +549,11 @@ export default function PublicResultLookup() {
               minMarks,
               marksObtained: isAbsent ? 'AB' : marksVal,
               isAbsent,
-              isPass,
+              isPass: desc.isPass,
               isEvaluated: true,
-              status: isAbsent ? 'Absent' : isPass ? 'PASS' : 'RE-APPEAR'
+              status: desc.status,
+              statusTone: desc.tone,
+              badgeClass: desc.badgeClass
             });
           } else {
             // Subject has not been evaluated yet -> Place holder entry!
@@ -393,7 +566,9 @@ export default function PublicResultLookup() {
               isAbsent: false,
               isPass: false,
               isEvaluated: false,
-              status: 'Awaiting Award'
+              status: 'Awaiting Award',
+              statusTone: 'neutral',
+              badgeClass: 'bg-slate-50 text-slate-400 dark:bg-slate-800/60 dark:text-slate-500 border border-slate-200/60 dark:border-slate-700'
             });
           }
         });
@@ -409,7 +584,7 @@ export default function PublicResultLookup() {
               const maxMarks = Number(sec.maxMarks) || 50;
               const minMarks = Number(sec.minMarks) || Math.ceil(maxMarks * 0.36);
               const marksVal = isAbsent ? 'AB' : num;
-              const isPass = !isAbsent && typeof marksVal === 'number' && marksVal >= minMarks;
+              const desc = getSubjectPerformanceDescriptor(marksVal, maxMarks, minMarks, isAbsent);
 
               finalSubjectsList.push({
                 subjectCode: (sec.subjectCode || 'ELEC').toUpperCase(),
@@ -418,9 +593,11 @@ export default function PublicResultLookup() {
                 minMarks,
                 marksObtained: isAbsent ? 'AB' : marksVal,
                 isAbsent,
-                isPass,
+                isPass: desc.isPass,
                 isEvaluated: true,
-                status: isAbsent ? 'Absent' : isPass ? 'PASS' : 'RE-APPEAR'
+                status: desc.status,
+                statusTone: desc.tone,
+                badgeClass: desc.badgeClass
               });
             }
           }
@@ -435,25 +612,11 @@ export default function PublicResultLookup() {
         const hasMarks = evaluatedCount > 0;
         const pct = hasMarks && totalMax > 0 ? ((totalObtained / totalMax) * 100).toFixed(1) : null;
 
-        let resultStatus = 'PENDING';
-        let division = 'Evaluation in Progress';
-
-        if (hasMarks) {
-          const allAbsent = evaluatedSubjects.every(s => s.isAbsent);
-          const hasFail = evaluatedSubjects.some(s => !s.isPass && !s.isAbsent);
-          if (allAbsent) {
-            resultStatus = 'ABSENT';
-            division = 'Absent';
-          } else if (hasFail) {
-            resultStatus = 'RE-APPEAR';
-            division = 'Re-Appear';
-          } else {
-            const isAllEvaluated = evaluatedCount === totalCount;
-            resultStatus = isAllEvaluated ? 'PASS' : 'PROVISIONAL PASS';
-            const nPct = Number(pct);
-            division = nPct >= 75 ? 'Distinction' : nPct >= 60 ? 'First Division' : nPct >= 45 ? 'Second Division' : 'Third Division';
-          }
-        }
+        const allAbsent = hasMarks && evaluatedSubjects.every(s => s.isAbsent);
+        const hasFail = hasMarks && evaluatedSubjects.some(s => !s.isPass && !s.isAbsent);
+        const overall = getOverallResultDescriptor(evaluatedCount, totalCount, totalObtained, totalMax, hasFail, allAbsent);
+        const resultStatus = overall.resultStatus;
+        const division = overall.division;
 
         let firebasePhoto = '';
         try {
@@ -858,7 +1021,7 @@ export default function PublicResultLookup() {
                       <tr
                         key={sub.subjectCode || idx}
                         className={sub.isEvaluated
-                          ? (sub.isPass ? 'bg-emerald-50/20 dark:bg-emerald-950/10 print:bg-transparent' : 'bg-rose-50/25 dark:bg-rose-950/15 print:bg-transparent')
+                          ? (sub.isPass ? 'bg-emerald-50/20 dark:bg-emerald-950/10 print:bg-transparent' : 'bg-amber-50/20 dark:bg-amber-950/10 print:bg-transparent')
                           : 'bg-white dark:bg-slate-900/40 print:bg-transparent'
                         }
                       >
@@ -878,9 +1041,9 @@ export default function PublicResultLookup() {
                         <td className="py-1 px-2 print:py-0.5 print:px-1.5 text-center font-mono font-bold text-xs">
                           {sub.isEvaluated ? (
                             sub.isAbsent ? (
-                              <span className="text-rose-600 dark:text-rose-400 print:text-black font-black">AB</span>
+                              <span className="text-slate-500 dark:text-slate-400 print:text-black font-bold">AB</span>
                             ) : (
-                              <span className={sub.isPass ? 'text-slate-900 dark:text-white print:text-black font-black' : 'text-rose-600 dark:text-rose-400 print:text-black font-black'}>
+                              <span className={sub.isPass ? 'text-slate-900 dark:text-white print:text-black font-black' : 'text-amber-700 dark:text-amber-400 print:text-black font-black'}>
                                 {sub.marksObtained}
                               </span>
                             )
@@ -890,12 +1053,14 @@ export default function PublicResultLookup() {
                         </td>
                         <td className="py-1 px-2 print:py-0.5 print:px-1.5 text-center">
                           {sub.isEvaluated ? (
-                            <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-tight inline-block ${
-                              sub.isAbsent
-                                ? 'bg-rose-50 text-rose-700 dark:bg-rose-950/70 dark:text-rose-300 border border-rose-200 dark:border-rose-900 print:border-slate-400 print:text-black print:bg-transparent'
-                                : sub.isPass
-                                ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/70 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-900 print:border-slate-400 print:text-black print:bg-transparent'
-                                : 'bg-rose-50 text-rose-700 dark:bg-rose-950/70 dark:text-rose-300 border border-rose-200 dark:border-rose-900 print:border-slate-400 print:text-black print:bg-transparent'
+                            <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-tight inline-block print:border-slate-400 print:text-black print:bg-transparent ${
+                              sub.badgeClass || (
+                                sub.isAbsent
+                                  ? 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 border border-slate-200 dark:border-slate-700'
+                                  : sub.isPass
+                                  ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/70 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-900'
+                                  : 'bg-amber-50 text-amber-800 dark:bg-amber-950/70 dark:text-amber-300 border border-amber-200 dark:border-amber-900'
+                              )
                             }`}>
                               {sub.status}
                             </span>
@@ -921,16 +1086,22 @@ export default function PublicResultLookup() {
                         {studentResult.hasMarks ? studentResult.totalObtained : '—'}
                       </td>
                       <td className="py-1 px-2 print:py-0.5 print:px-1.5 text-center">
-                        <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase inline-block ${
-                          studentResult.resultStatus === 'PASS'
-                            ? 'bg-emerald-700 text-white print:border print:border-slate-400 print:bg-transparent print:text-black'
-                            : studentResult.resultStatus === 'PROVISIONAL PASS'
-                            ? 'bg-teal-700 text-white print:border print:border-slate-400 print:bg-transparent print:text-black'
-                            : studentResult.resultStatus === 'RE-APPEAR'
-                            ? 'bg-rose-700 text-white print:border print:border-slate-400 print:bg-transparent print:text-black'
-                            : 'bg-amber-600 text-white print:border print:border-slate-400 print:bg-transparent print:text-black'
+                        <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase inline-block print:border print:border-slate-400 print:bg-transparent print:text-black ${
+                          studentResult.resultStatus === 'EXCELLENT'
+                            ? 'bg-emerald-700 text-white'
+                            : studentResult.resultStatus === 'VERY GOOD'
+                            ? 'bg-teal-700 text-white'
+                            : studentResult.resultStatus === 'GOOD'
+                            ? 'bg-sky-700 text-white'
+                            : studentResult.resultStatus === 'SATISFACTORY' || studentResult.resultStatus === 'PASS'
+                            ? 'bg-emerald-600 text-white'
+                            : studentResult.resultStatus === 'IN PROGRESS' || studentResult.resultStatus === 'PROVISIONAL PASS'
+                            ? 'bg-teal-700 text-white'
+                            : studentResult.resultStatus === 'NEEDS IMPROVEMENT' || studentResult.resultStatus === 'RE-APPEAR' || studentResult.resultStatus === 'FAIL'
+                            ? 'bg-amber-600 text-white'
+                            : 'bg-slate-600 text-white'
                         }`}>
-                          {studentResult.resultStatus}
+                          {studentResult.resultStatus === 'RE-APPEAR' || studentResult.resultStatus === 'FAIL' ? 'NEEDS IMPROVEMENT' : studentResult.resultStatus}
                         </span>
                       </td>
                     </tr>
@@ -951,7 +1122,7 @@ export default function PublicResultLookup() {
                 </div>
                 {studentResult.hasMarks && (
                   <span className="font-mono font-bold text-teal-700 dark:text-teal-300 print:text-black">
-                    Percentage: {studentResult.percentage} ({studentResult.division})
+                    Percentage: {studentResult.percentage} ({String(studentResult.division || 'In Progress').replace(/re-appear|fail/gi, 'Scope for Improvement')})
                   </span>
                 )}
               </div>
