@@ -89,7 +89,7 @@ export default function Footer() {
 
   return (
     <>
-      <footer className="site-footer bg-slate-950 text-slate-300 pt-12 pb-24 md:pb-8 mt-0 border-t-[3px] footer-theme-border">
+      <footer className="site-footer bg-slate-950 text-slate-300 pt-12 pb-24 md:pb-8 mt-0 border-t-[3px] footer-theme-border print:hidden">
         <div className="max-w-7xl mx-auto px-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[1.6fr_0.65fr_1.2fr_0.95fr] gap-8 lg:gap-10 xl:gap-12 mb-8">
 
           {/* Brand */}

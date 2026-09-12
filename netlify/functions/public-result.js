@@ -30,9 +30,11 @@ async function lookupResult(db, body) {
         sessionKey(section.sessionCanonical || section.yearSuffix || section.session || section.sessionText) !== body.session ||
         normalize(section.practicalType) !== normalize(body.evaluation)) continue;
     const matches = (section.records || []).filter(record => {
-      const form = first(record, FIELDS.formNo), reg = first(record, FIELDS.regNo);
-      if (form) return normalize(form) === normalize(student.formNo) && (!reg || normalize(reg) === normalize(student.boardRegNo));
-      return reg && normalize(reg) === normalize(student.boardRegNo);
+      const form = first(record, FIELDS.formNo), reg = first(record, FIELDS.regNo), roll = first(record, FIELDS.rollNo);
+      if (form && normalize(form) === normalize(student.formNo) && (!reg || normalize(reg) === normalize(student.boardRegNo))) return true;
+      if (reg && normalize(reg) === normalize(student.boardRegNo)) return true;
+      if (roll && student.classRollNo && normalize(roll) === normalize(student.classRollNo)) return true;
+      return false;
     });
     if (matches.length > 1) throw Object.assign(new Error('A duplicate result needs school review.'), { status: 409 });
     if (!matches.length) continue;

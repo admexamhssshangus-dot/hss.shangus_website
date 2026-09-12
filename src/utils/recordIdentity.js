@@ -195,3 +195,62 @@ export function locateNestedRecord(data, locator) {
   throw new Error('Archived student identity is missing or ambiguous. No records were changed.');
 }
 
+/**
+ * Standardizes student and parent names across data sources:
+ * - Fixes clerical abbreviations (Mohd, Ah., Gh., Ab., Gulam, etc.)
+ * - Capitalizes in consistent Title Case
+ * - Preserves compound names with proper hyphenation (Mohi-Ud-Din, Zia-Ul-Haq, etc.)
+ */
+export function formatConsistentName(raw) {
+  if (!raw || typeof raw !== 'string') return '';
+  const trimmed = raw.trim();
+  if (!trimmed || trimmed === '—' || trimmed === '-' || trimmed.toLowerCase() === 'null' || trimmed.toLowerCase() === 'undefined') {
+    return '—';
+  }
+
+  // Normalize clerical abbreviations and common typo variants
+  let clean = trimmed
+    .replace(/\bMohd\.?\b/gi, 'Mohammad')
+    .replace(/\bMd\.?\b/gi, 'Mohammad')
+    .replace(/\bMohamad\b/gi, 'Mohammad')
+    .replace(/\bMuhammed\b/gi, 'Mohammad')
+    .replace(/\bMohammed\b/gi, 'Mohammad')
+    .replace(/\bMuhammad\b/gi, 'Mohammad')
+    .replace(/\bAh\.?\b/gi, 'Ahmad')
+    .replace(/\bAhemad\b/gi, 'Ahmad')
+    .replace(/\bAhmed\b/gi, 'Ahmad')
+    .replace(/\bGh\.?\b/gi, 'Ghulam')
+    .replace(/\bGulam\b/gi, 'Ghulam')
+    .replace(/\bAb\.?\b/gi, 'Abdul')
+    .replace(/\bSyed\.?\b/gi, 'Syed')
+    .replace(/\s+/g, ' ');
+
+  // Standardize particles around Din / Haq
+  clean = clean.replace(/\bMohi\s+Ud\s+Din\b/gi, 'Mohi-Ud-Din')
+               .replace(/\bMohi-ud-din\b/gi, 'Mohi-Ud-Din')
+               .replace(/\bMohiuddin\b/gi, 'Mohi-Ud-Din')
+               .replace(/\bMohi\s+u\s+din\b/gi, 'Mohi-Ud-Din')
+               .replace(/\bShams\s+Ud\s+Din\b/gi, 'Shams-Ud-Din')
+               .replace(/\bNaseer\s+Ud\s+Din\b/gi, 'Naseer-Ud-Din')
+               .replace(/\bZia\s+Ul\s+Haq\b/gi, 'Zia-Ul-Haq')
+               .replace(/\bInam\s+Ul\s+Haq\b/gi, 'Inam-Ul-Haq');
+
+  // Title Case words
+  clean = clean.split(' ').map(word => {
+    if (!word) return '';
+    if (word.includes('-')) {
+      return word.split('-').map(part => {
+        const lower = part.toLowerCase();
+        if (lower === 'ud' || lower === 'ul' || lower === 'ur' || lower === 'al') return 'Ud';
+        return part.charAt(0).toUpperCase() + part.slice(1).toLowerCase();
+      }).join('-');
+    }
+    const lower = word.toLowerCase();
+    if (lower === 'ud' || lower === 'ul') return 'Ud';
+    if (lower === 'din') return 'Din';
+    return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+  }).join(' ');
+
+  return clean;
+}
+

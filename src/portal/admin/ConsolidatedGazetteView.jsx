@@ -8,7 +8,7 @@ import * as XLSX from 'xlsx';
 import { collection, onSnapshot, getDocs, doc, getDoc } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import { DEFAULT_SCHOOL_EVALUATIONS } from '../../utils/practicalsSettingsManager';
-import { sameCohort, recordIdentity, identityKey, sessionKey, classKey } from '../../utils/recordIdentity';
+import { sameCohort, recordIdentity, identityKey, sessionKey, classKey, formatConsistentName } from '../../utils/recordIdentity';
 import verifiedCatalog from '../../data/verifiedStudentsCatalog.json';
 
 const SESSIONS = ['2025-26', '2024-25', '2023-24'];
@@ -43,7 +43,7 @@ export const SUBJECT_RESULT_FILTERS = [
 ];
 
 /**
- * Authoritative 15 Separate Subjects Offered at Govt. Higher Secondary School Shangus
+ * Authoritative 15 Separate Subjects Offered at Govt. Higher Secondary School Shangus (Class 11th & 12th)
  * Compulsory: General English
  * Science: Physics, Chemistry, Botany, Zoology, Mathematics
  * Electives / Vocational: Environmental Science, Physical Education, Healthcare, IT & ITeS
@@ -65,6 +65,26 @@ export const STANDARD_15_GAZETTE_SUBJECTS = [
   { code: 'HT', name: 'History', defaultMax: 50 },
   { code: 'ED', name: 'Education', defaultMax: 50 },
   { code: 'UR', name: 'Urdu', defaultMax: 50 },
+];
+
+/**
+ * Authoritative 7 Standard Subjects Offered for Class 10th (Secondary) at Govt. Higher Secondary School Shangus:
+ * 1. General English (EN)
+ * 2. Mathematics (MA)
+ * 3. Science (SC)
+ * 4. Social Science (SS)
+ * 5. Urdu (UR)
+ * 6. Healthcare (HTC)
+ * 7. IT & ITeS (ITE)
+ */
+export const STANDARD_7_CLASS_10TH_SUBJECTS = [
+  { code: 'EN', name: 'General English', defaultMax: 50 },
+  { code: 'MA', name: 'Mathematics', defaultMax: 50 },
+  { code: 'SC', name: 'Science', defaultMax: 50 },
+  { code: 'SS', name: 'Social Science', defaultMax: 50 },
+  { code: 'UR', name: 'Urdu', defaultMax: 50 },
+  { code: 'HTC', name: 'Healthcare', defaultMax: 50 },
+  { code: 'ITE', name: 'IT & ITeS', defaultMax: 50 },
 ];
 
 /**
@@ -200,8 +220,11 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
       return true;
     });
 
-    // 2. Build 15 Standard Subject Columns with dynamic maxMarks from matching teacher submissions
-    const subjectsListArray = STANDARD_15_GAZETTE_SUBJECTS.map(subj => {
+    // 2. Select appropriate standard subjects list based on class (Class 10th/9th has only 7 subjects, 11th/12th has 15 subjects)
+    const isSecondary = targetClass === '10th' || targetClass === '9th' || targetClass === '10' || targetClass === '9';
+    const baseSubjects = isSecondary ? STANDARD_7_CLASS_10TH_SUBJECTS : STANDARD_15_GAZETTE_SUBJECTS;
+
+    const subjectsListArray = baseSubjects.map(subj => {
       // Find matching document for this subject to retrieve teacher's maxMarks and minMarks
       const matchedDoc = matchingDocs.find(sec => {
         const c = (sec.subjectCode || '').toUpperCase().trim();
@@ -214,6 +237,8 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
         if (subj.code === 'ZO' && (c === 'ZO' || n.includes('zoology'))) return true;
         if ((subj.code === 'BO' || subj.code === 'ZO') && (c === 'BI' || n.includes('biology'))) return true;
         if (subj.code === 'MA' && (c === 'MATH' || c === 'MATHS' || n.includes('mathematics') || n.includes('math'))) return true;
+        if (subj.code === 'SC' && (c === 'SC' || c === 'SCI' || c === 'SCIENCE' || (n.includes('science') && !n.includes('social') && !n.includes('pol') && !n.includes('environmental') && !n.includes('computer')))) return true;
+        if (subj.code === 'SS' && (c === 'SS' || c === 'SST' || c === 'SOC' || n.includes('social science') || n.includes('social studies') || n === 'sst')) return true;
         if (subj.code === 'ES' && (c === 'EVS' || n.includes('environmental') || n.includes('env'))) return true;
         if (subj.code === 'PD' && (c === 'PE' || c === 'PET' || n.includes('physical'))) return true;
         if (subj.code === 'HTC' && (c === 'HC' || (c === 'HT' && n.includes('health')) || n.includes('healthcare') || n.includes('health care'))) return true;
@@ -389,6 +414,8 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
             (code === 'BO' && (sCode === 'BO' || sName.includes('botany'))) ||
             (code === 'ZO' && (sCode === 'ZO' || sName.includes('zoology'))) ||
             (code === 'MA' && (sCode === 'MATH' || sCode === 'MATHS' || sName.includes('mathematics') || sName.includes('math'))) ||
+            (code === 'SC' && (sCode === 'SC' || sCode === 'SCI' || sCode === 'SCIENCE' || (sName.includes('science') && !sName.includes('social') && !sName.includes('pol') && !sName.includes('environmental') && !sName.includes('computer')))) ||
+            (code === 'SS' && (sCode === 'SS' || sCode === 'SST' || sCode === 'SOC' || sName.includes('social science') || sName.includes('social studies') || sName === 'sst')) ||
             (code === 'ES' && (sCode === 'EVS' || sName.includes('environmental') || sName.includes('env'))) ||
             (code === 'PD' && (sCode === 'PE' || sCode === 'PET' || sName.includes('physical'))) ||
             (code === 'HTC' && (sCode === 'HC' || (sCode === 'HT' && sName.includes('health')) || sName.includes('healthcare') || sName.includes('health care'))) ||
@@ -524,8 +551,8 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
         rollNo: String(student.classRollNo || student['Class Roll No'] || student.rollNo || '—'),
         regNo: resolvedRegNo,
         formNo: student.formNo || student['Form Number'] || student.form || '—',
-        name: student.studentName || student.name || student["Student's Name (as per school records)"] || student["Student's Name"] || 'Student',
-        fatherName: student.fatherName || student["Father's/Guardian's Name (as per school records)"] || student["Father's Name"] || '—',
+        name: formatConsistentName(student.studentName || student.name || student["Student's Name (as per school records)"] || student["Student's Name"] || 'Student'),
+        fatherName: formatConsistentName(student.fatherName || student["Father's/Guardian's Name (as per school records)"] || student["Father's Name"] || '—'),
         stream: resolvedStream,
         admissionStatus,
         isApproved,
@@ -1062,25 +1089,16 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
       `}} />
 
       {/* Modern Compact Toolbar */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 shadow-2xs space-y-2.5 no-print">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div className="w-8 h-8 rounded-lg bg-orange-50 dark:bg-orange-950/60 text-orange-700 dark:text-orange-400 flex items-center justify-center font-black flex-shrink-0">
-              <Award size={16} />
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 shadow-2xs space-y-2 no-print">
+        {/* Top Header: Title & Quick Actions */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="w-7 h-7 rounded-lg bg-orange-50 dark:bg-orange-950/60 text-orange-700 dark:text-orange-400 flex items-center justify-center font-black flex-shrink-0">
+              <Award size={15} />
             </div>
-            <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <h2 className="text-sm font-black text-slate-900 dark:text-white tracking-tight m-0 truncate">
-                  Master Gazette & 15-Subject Award Roll
-                </h2>
-                <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-orange-50 dark:bg-orange-950/60 text-orange-800 dark:text-orange-300 border border-orange-200 dark:border-orange-800/60 flex-shrink-0">
-                  {selectedEvalType === 'ALL' ? 'All Evaluations' : selectedEvalType}
-                </span>
-              </div>
-              <p className="text-[11px] text-slate-500 dark:text-slate-400 m-0 truncate">
-                Live sync active • 15 distinct subject columns with separate Botany (BO) & Zoology (ZO).
-              </p>
-            </div>
+            <h2 className="text-sm font-black text-slate-900 dark:text-white tracking-tight m-0 truncate">
+              Master Gazette & Tabulation Register
+            </h2>
           </div>
 
           {/* Action Buttons */}
@@ -1089,7 +1107,7 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
               type="button"
               onClick={handlePrint}
               disabled={filteredRows.length === 0}
-              className="h-8 px-3 rounded-lg bg-teal-700 hover:bg-teal-600 active:bg-teal-800 text-white font-black text-xs flex items-center gap-1.5 transition-all shadow-xs cursor-pointer disabled:opacity-50"
+              className="h-7.5 px-3 rounded-lg bg-teal-700 hover:bg-teal-600 active:bg-teal-800 text-white font-black text-xs flex items-center gap-1.5 transition-all shadow-xs cursor-pointer disabled:opacity-50"
               title="Print 15-Subject Landscape Official Gazette"
             >
               <Printer size={13} />
@@ -1099,7 +1117,7 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
               type="button"
               onClick={handleExportExcel}
               disabled={filteredRows.length === 0}
-              className="h-8 px-3 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white font-bold text-xs flex items-center gap-1.5 transition-all shadow-xs cursor-pointer disabled:opacity-50"
+              className="h-7.5 px-3 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white font-bold text-xs flex items-center gap-1.5 transition-all shadow-xs cursor-pointer disabled:opacity-50"
             >
               <Download size={13} />
               <span>Excel (.xlsx)</span>
@@ -1108,7 +1126,7 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
               type="button"
               onClick={handleExportCsv}
               disabled={filteredRows.length === 0}
-              className="h-8 px-2.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 font-semibold text-xs flex items-center gap-1 transition-all cursor-pointer disabled:opacity-50"
+              className="h-7.5 px-2.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 font-semibold text-xs flex items-center gap-1 transition-all cursor-pointer disabled:opacity-50"
               title="Export CSV"
             >
               <Download size={12} />
@@ -1118,150 +1136,145 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
               type="button"
               onClick={refreshPracticalsData}
               disabled={loading}
-              className="h-8 w-8 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 flex items-center justify-center transition-all cursor-pointer disabled:opacity-50"
-              title="Refresh database live sync"
+              className="h-7.5 w-7.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 flex items-center justify-center transition-all cursor-pointer disabled:opacity-50"
+              title="Refresh live data"
             >
               <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
             </button>
           </div>
         </div>
 
-        {/* High-Density Multi-Filter Ribbon */}
-        <div className="space-y-2 pt-1 border-t border-slate-100 dark:border-slate-800">
-          {/* Row 1: Global Filters */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-12 gap-2">
-            {/* Exam / Evaluation */}
-            <div className="col-span-2 sm:col-span-1 lg:col-span-3">
-              <select
-                value={selectedEvalType}
-                onChange={(e) => setSelectedEvalType(e.target.value)}
-                className="w-full h-8 px-2.5 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-xs text-teal-800 dark:text-teal-300 font-bold focus:outline-none focus:border-teal-600 cursor-pointer"
-              >
-                <option value="ALL">All Evaluations (Consolidated)</option>
-                {availableEvaluations.map(ev => (
-                  <option key={ev.id || ev.evalType} value={ev.evalType}>
-                    {ev.evalType} ({ev.title || ev.session})
-                  </option>
-                ))}
-                <option value="Pre-Board Test">Pre-Board Test</option>
-                <option value="Internal Assessment">Internal Assessment (Standard)</option>
-                <option value="External Practical">External Practical (Standard)</option>
-                <option value="Term End Evaluation">Term End Evaluation</option>
-              </select>
-            </div>
-
-            {/* Class */}
-            <div className="col-span-1 sm:col-span-1 lg:col-span-1">
-              <select
-                value={selectedClass}
-                onChange={(e) => setSelectedClass(e.target.value)}
-                className="w-full h-8 px-2 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-white font-bold focus:outline-none focus:border-teal-600 cursor-pointer"
-              >
-                {CLASSES.map(cls => (
-                  <option key={cls} value={cls}>Class {cls}</option>
-                ))}
-              </select>
-            </div>
-
-            {/* Session */}
-            <div className="col-span-1 sm:col-span-1 lg:col-span-1">
-              <select
-                value={selectedSession}
-                onChange={(e) => setSelectedSession(e.target.value)}
-                className="w-full h-8 px-2 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-white font-bold focus:outline-none focus:border-teal-600 cursor-pointer"
-              >
-                {SESSIONS.map(sess => (
-                  <option key={sess} value={sess}>{sess}</option>
-                ))}
-              </select>
-            </div>
-
-            {/* Stream */}
-            <div className="col-span-1 sm:col-span-1 lg:col-span-2">
-              <select
-                value={selectedStream}
-                onChange={(e) => setSelectedStream(e.target.value)}
-                className="w-full h-8 px-2 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-white font-bold focus:outline-none focus:border-teal-600 cursor-pointer"
-              >
-                {STREAMS.map(str => (
-                  <option key={str} value={str}>{str === 'All' ? 'All Streams' : str}</option>
-                ))}
-              </select>
-            </div>
-
-            {/* Admission Category / Status Filter */}
-            <div className="col-span-1 sm:col-span-1 lg:col-span-2">
-              <select
-                value={selectedStatus}
-                onChange={(e) => setSelectedStatus(e.target.value)}
-                className="w-full h-8 px-2 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-xs text-indigo-700 dark:text-indigo-400 font-bold focus:outline-none focus:border-indigo-600 cursor-pointer"
-                title="Filter by admission / candidate status"
-              >
-                {STATUS_CATEGORIES.map(st => (
-                  <option key={st.value} value={st.value}>{st.label}</option>
-                ))}
-              </select>
-            </div>
-
-            {/* Overall Result Filter */}
-            <div className="col-span-1 sm:col-span-1 lg:col-span-1">
-              <select
-                value={selectedResultFilter}
-                onChange={(e) => setSelectedResultFilter(e.target.value)}
-                className="w-full h-8 px-2 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-xs text-emerald-700 dark:text-emerald-400 font-bold focus:outline-none focus:border-teal-600 cursor-pointer"
-                title="Filter by overall candidate result"
-              >
-                {RESULT_FILTERS.map(rf => (
-                  <option key={rf.value} value={rf.value}>{rf.label}</option>
-                ))}
-              </select>
-            </div>
-
-            {/* Search Query */}
-            <div className="col-span-2 sm:col-span-2 lg:col-span-2">
-              <div className="relative">
-                <Search size={13} className="absolute left-2.5 top-2.5 text-slate-400" />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search candidate, reg, roll..."
-                  className="w-full h-8 pl-7 pr-3 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-teal-600 placeholder-slate-400"
-                />
-              </div>
-            </div>
+        {/* Unified Single-Row Multi-Filter Bar */}
+        <div className="flex items-center gap-1.5 flex-wrap pt-1.5 border-t border-slate-100 dark:border-slate-800">
+          {/* Evaluation */}
+          <div className="w-48 min-w-[150px] flex-1 sm:flex-initial">
+            <select
+              value={selectedEvalType}
+              onChange={(e) => setSelectedEvalType(e.target.value)}
+              className="w-full h-7.5 px-2 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-xs text-teal-800 dark:text-teal-300 font-bold focus:outline-none focus:border-teal-600 cursor-pointer truncate"
+              title="Evaluation Type"
+            >
+              <option value="ALL">All Evaluations</option>
+              {availableEvaluations.map(ev => (
+                <option key={ev.id || ev.evalType} value={ev.evalType}>
+                  {ev.evalType}
+                </option>
+              ))}
+              <option value="Pre-Board Test">Pre-Board Test</option>
+              <option value="Internal Assessment">Internal Assessment</option>
+              <option value="External Practical">External Practical</option>
+              <option value="Term End Evaluation">Term End Evaluation</option>
+            </select>
           </div>
 
-          {/* Row 2: Subject Result Filter & Deep-Dive Ribbon */}
-          <div className="flex items-center gap-2 pt-2 border-t border-slate-100 dark:border-slate-800/80 flex-wrap">
-            <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300">
-              <Tag size={13} className="text-teal-600 dark:text-teal-400" />
-              <span>Subject Filter:</span>
-            </div>
+          {/* Class */}
+          <div className="w-24">
+            <select
+              value={selectedClass}
+              onChange={(e) => setSelectedClass(e.target.value)}
+              className="w-full h-7.5 px-2 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-white font-bold focus:outline-none focus:border-teal-600 cursor-pointer"
+              title="Class"
+            >
+              {CLASSES.map(cls => (
+                <option key={cls} value={cls}>Class {cls}</option>
+              ))}
+            </select>
+          </div>
 
-            {/* Subject Selector */}
-            <div className="min-w-[200px]">
-              <select
-                value={selectedSubject}
-                onChange={(e) => {
-                  setSelectedSubject(e.target.value);
-                  if (e.target.value === 'All') setSelectedSubjectResult('All');
-                }}
-                className={`w-full h-7.5 px-2.5 rounded-lg text-xs font-extrabold focus:outline-none cursor-pointer transition-all ${
-                  selectedSubject !== 'All'
-                    ? 'bg-teal-700 text-white border-2 border-teal-500 ring-2 ring-teal-400/50 shadow-xs'
-                    : 'bg-teal-50/70 dark:bg-teal-950/40 border border-teal-200 dark:border-teal-800 text-teal-900 dark:text-teal-200'
-                }`}
-                title="Select a specific subject to see its result and highlight its column"
-              >
-                <option value="All" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">All 15 Subjects (Full Master Gazette)</option>
-                {subjectsList.map(s => (
-                  <option key={s.code} value={s.code} className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">
-                    {s.code} — {s.name} (/{s.maxMarks})
-                  </option>
-                ))}
-              </select>
+          {/* Session */}
+          <div className="w-24">
+            <select
+              value={selectedSession}
+              onChange={(e) => setSelectedSession(e.target.value)}
+              className="w-full h-7.5 px-2 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-white font-bold focus:outline-none focus:border-teal-600 cursor-pointer"
+              title="Academic Session"
+            >
+              {SESSIONS.map(sess => (
+                <option key={sess} value={sess}>{sess}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Stream */}
+          <div className="w-28">
+            <select
+              value={selectedStream}
+              onChange={(e) => setSelectedStream(e.target.value)}
+              className="w-full h-7.5 px-2 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-white font-bold focus:outline-none focus:border-teal-600 cursor-pointer"
+              title="Stream"
+            >
+              {STREAMS.map(str => (
+                <option key={str} value={str}>{str === 'All' ? 'All Streams' : str}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Status / Category */}
+          <div className="w-36 min-w-[120px]">
+            <select
+              value={selectedStatus}
+              onChange={(e) => setSelectedStatus(e.target.value)}
+              className="w-full h-7.5 px-2 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-xs text-indigo-700 dark:text-indigo-400 font-bold focus:outline-none focus:border-indigo-600 cursor-pointer truncate"
+              title="Category / Admission Status"
+            >
+              {STATUS_CATEGORIES.map(st => (
+                <option key={st.value} value={st.value}>{st.label}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Overall Results */}
+          <div className="w-28">
+            <select
+              value={selectedResultFilter}
+              onChange={(e) => setSelectedResultFilter(e.target.value)}
+              className="w-full h-7.5 px-2 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-xs text-emerald-700 dark:text-emerald-400 font-bold focus:outline-none focus:border-teal-600 cursor-pointer"
+              title="Overall Candidate Result"
+            >
+              {RESULT_FILTERS.map(rf => (
+                <option key={rf.value} value={rf.value}>{rf.label}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Subject Filter Dropdown */}
+          <div className="w-40 min-w-[130px]">
+            <select
+              value={selectedSubject}
+              onChange={(e) => {
+                setSelectedSubject(e.target.value);
+                if (e.target.value === 'All') setSelectedSubjectResult('All');
+              }}
+              className={`w-full h-7.5 px-2 rounded-lg text-xs font-extrabold focus:outline-none cursor-pointer transition-all truncate ${
+                selectedSubject !== 'All'
+                  ? 'bg-teal-700 text-white border border-teal-500 shadow-xs'
+                  : 'bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-teal-800 dark:text-teal-300 font-bold'
+              }`}
+              title="Subject Filter"
+            >
+              <option value="All" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">All {subjectsList.length} Subjects</option>
+              {subjectsList.map(s => (
+                <option key={s.code} value={s.code} className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">
+                  {s.code} — {s.name} (/{s.maxMarks})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Search Query */}
+          <div className="flex-1 min-w-[150px]">
+            <div className="relative">
+              <Search size={12} className="absolute left-2.5 top-2.5 text-slate-400" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search candidate, roll, reg..."
+                className="w-full h-7.5 pl-7 pr-2.5 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-teal-600 placeholder-slate-400"
+              />
             </div>
+          </div>
+        </div>
 
             {/* Subject-Specific Result Filter & Quick Action Pills (Visible when a subject is picked) */}
             {selectedSubject !== 'All' && (
@@ -1312,16 +1325,14 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
                   type="button"
                   onClick={() => { setSelectedSubject('All'); setSelectedSubjectResult('All'); }}
                   className="h-7 px-2.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-[11px] flex items-center gap-1 transition-all cursor-pointer shadow-2xs border border-slate-200 dark:border-slate-700"
-                  title="Reset subject filter to view full 15 subjects"
+                  title={`Reset subject filter to view full ${subjectsList.length} subjects`}
                 >
                   <XCircle size={12} />
-                  <span>Show All 15 Subjects</span>
+                  <span>Show All {subjectsList.length} Subjects</span>
                 </button>
               </div>
             )}
           </div>
-        </div>
-      </div>
 
       {/* KPI Metric Ribbon */}
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-2 px-3 flex items-center justify-between gap-3 overflow-x-auto custom-scrollbar no-print shadow-2xs">
