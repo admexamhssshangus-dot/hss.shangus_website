@@ -2254,42 +2254,45 @@ export default function PracticalsPage() {
             {showFilterSettings && (
               <div className="sm:hidden fixed inset-0 z-[9990] bg-slate-950/60 backdrop-blur-xs flex items-end justify-center p-0 animate-fadeIn">
                 <div className="fixed inset-0" onClick={() => setShowFilterSettings(false)} />
-                <div className="relative bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 rounded-t-3xl p-4 shadow-2xl max-w-lg w-full space-y-3.5 z-10 animate-in slide-in-from-bottom duration-200">
-                  <div className="flex items-center justify-between pb-2.5 border-b border-slate-100 dark:border-slate-800">
+                <div className="relative bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 rounded-t-2xl p-3 sm:p-4 shadow-2xl max-w-lg w-full space-y-2.5 z-10 animate-in slide-in-from-bottom duration-200">
+                  {/* Native Mobile Pull Handle */}
+                  <div className="w-9 h-1 bg-slate-300 dark:bg-slate-700 rounded-full mx-auto" />
+
+                  <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
                     <div className="flex items-center gap-2 min-w-0 flex-1">
-                      <div className="w-7 h-7 rounded-xl bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0">
-                        <SlidersHorizontal size={14} />
+                      <div className="w-6 h-6 rounded-lg bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0">
+                        <SlidersHorizontal size={13} />
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-1.5">
-                          <h3 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider">
+                          <h3 className="text-xs font-bold text-slate-900 dark:text-white">
                             Evaluation Filters
                           </h3>
-                          <span className="px-1.5 py-0.2 rounded-md bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 font-mono text-[9.5px] font-black">
-                            {displayedStudents.length} Stu
+                          <span className="px-1.5 py-0.2 rounded-md bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 font-mono text-[9.5px] font-bold">
+                            {displayedStudents.length} Students
                           </span>
                         </div>
-                        <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium truncate">Select class, subject & evaluation type</p>
+                        <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium truncate">Select class, session & subject</p>
                       </div>
                     </div>
                     <button
                       type="button"
                       onClick={() => setShowFilterSettings(false)}
-                      className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                      className="p-1 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
                     >
-                      <X size={16} />
+                      <X size={15} />
                     </button>
                   </div>
 
-                  <div className="space-y-2.5 max-h-[70vh] overflow-y-auto pr-0.5">
+                  <div className="space-y-2 max-h-[70vh] overflow-y-auto pr-0.5">
                     {/* Class & Academic Session in 2-Column Responsive Grid */}
                     <div className="grid grid-cols-2 gap-2">
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 block">Class</label>
+                      <div>
+                        <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 block mb-0.5">Class</label>
                         <select
                           value={selectedClass}
                           onChange={(e) => setSelectedClass(e.target.value)}
-                          className="w-full px-2.5 py-2 rounded-xl text-xs font-bold border bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 shadow-2xs cursor-pointer"
+                          className="portal-compact-select w-full border bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 shadow-2xs cursor-pointer"
                         >
                           <option value="12th">Class 12th</option>
                           <option value="11th">Class 11th</option>
@@ -2298,12 +2301,12 @@ export default function PracticalsPage() {
                         </select>
                       </div>
 
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 block">Session</label>
+                      <div>
+                        <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 block mb-0.5">Session</label>
                         <select
                           value={yearSuffix}
                           onChange={(e) => setYearSuffix(e.target.value)}
-                          className="w-full px-2.5 py-2 rounded-xl text-xs font-bold border bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 shadow-2xs cursor-pointer"
+                          className="portal-compact-select w-full border bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 shadow-2xs cursor-pointer"
                         >
                           {availableSessions.map(yr => (
                             <option key={yr} value={yr}>{yr}</option>
@@ -2313,7 +2316,7 @@ export default function PracticalsPage() {
                     </div>
 
                     {/* Subject (Single unified header rendered inside CustomSubjectSelect) */}
-                    <div className="space-y-1">
+                    <div>
                       <CustomSubjectSelect
                         selectedSubject={selectedSubject}
                         setSelectedSubject={setSelectedSubject}
@@ -2326,12 +2329,12 @@ export default function PracticalsPage() {
                     </div>
 
                     {/* Evaluation Type */}
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 block">Evaluation Type</label>
+                    <div>
+                      <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 block mb-0.5">Evaluation Type</label>
                       <select
                         value={practicalType}
                         onChange={(e) => setPracticalType(e.target.value)}
-                        className="w-full px-3 py-2 rounded-xl text-xs font-bold border bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 shadow-2xs cursor-pointer"
+                        className="portal-compact-select w-full border bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 shadow-2xs cursor-pointer"
                       >
                         {availableEvalTypes.map(et => (
                           <option key={et.value} value={et.value}>{et.label || et.value}</option>
@@ -2339,26 +2342,26 @@ export default function PracticalsPage() {
                       </select>
                     </div>
 
-                    <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
-                      <label className="flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-300 cursor-pointer select-none">
+                    <div className="pt-1.5 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                      <label className="flex items-center gap-2 text-xs font-semibold text-slate-700 dark:text-slate-300 cursor-pointer select-none">
                         <input
                           type="checkbox"
                           checked={showFailOnly}
                           onChange={(e) => setShowFailOnly(e.target.checked)}
-                          className="w-4 h-4 rounded border-slate-300 dark:border-slate-700 text-rose-600 focus:ring-rose-500 cursor-pointer"
+                          className="w-3.5 h-3.5 rounded border-slate-300 dark:border-slate-700 text-rose-600 focus:ring-rose-500 cursor-pointer"
                         />
-                        <span>Show failing / absent records only</span>
+                        <span>Show failing or absent only</span>
                       </label>
                     </div>
                   </div>
 
-                  <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
+                  <div className="pt-1.5 border-t border-slate-100 dark:border-slate-800">
                     <button
                       type="button"
                       onClick={() => setShowFilterSettings(false)}
-                      className="w-full py-2.5 rounded-xl text-xs font-black text-white bg-indigo-600 hover:bg-indigo-500 transition-all cursor-pointer shadow-md active:scale-98"
+                      className="w-full py-2 rounded-lg text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-500 transition-all cursor-pointer shadow-xs active:scale-98"
                     >
-                      Apply & Close
+                      Apply Filters
                     </button>
                   </div>
                 </div>
