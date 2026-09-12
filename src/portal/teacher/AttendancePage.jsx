@@ -1665,7 +1665,7 @@ export default function AttendancePage() {
 
           {/* Single-Row Native Header & Quick Controls Bar */}
           <div className="flex items-center justify-between gap-1.5 p-1 px-2 rounded-xl bg-slate-100/80 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 text-xs">
-            {/* Left: Back + Title & Class Badge */}
+            {/* Left: Back + Title & Class Label Below */}
             <div className="flex items-center gap-1.5 min-w-0">
               <Link
                 to="/portal/teacher"
@@ -1675,12 +1675,14 @@ export default function AttendancePage() {
                 <ArrowLeft size={13} />
                 <span>Back</span>
               </Link>
-              <h1 className="text-xs sm:text-sm font-black text-slate-900 dark:text-white tracking-tight shrink-0">
-                Attendance
-              </h1>
-              <span className="px-1.5 py-0.2 rounded-md bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border border-indigo-500/20 text-[10px] font-black shrink-0">
-                {selectedClass}
-              </span>
+              <div className="flex flex-col min-w-0">
+                <h1 className="text-xs sm:text-sm font-black text-slate-900 dark:text-white tracking-tight leading-tight">
+                  Attendance
+                </h1>
+                <span className="text-[9.5px] font-bold text-indigo-600 dark:text-indigo-400 leading-none">
+                  Class {selectedClass}
+                </span>
+              </div>
             </div>
 
             {/* Right: Quick Action Controls */}
