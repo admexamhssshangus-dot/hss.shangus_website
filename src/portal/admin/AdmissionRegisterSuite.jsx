@@ -1177,7 +1177,22 @@ export default function AdmissionRegisterSuite({
   const [isLayoutModified, setIsLayoutModified] = useState(false);
   const [savingLayout, setSavingLayout] = useState(false);
 
-  // Load layout from Firebase on mount
+  // Sentup Subject Abbreviations Directory (Configurable in View & Layout, Persisted to Cloud and LocalStorage)
+  const [sentupSubjectAbbreviations, setSentupSubjectAbbreviations] = useState(() => {
+    try {
+      const saved = localStorage.getItem('hss_sentup_subject_abbreviations');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {
+      console.error('Failed to load custom subject abbreviations', e);
+    }
+    return DEFAULT_SENTUP_SUBJECT_DIRECTORY;
+  });
+  const [savingSubjectsCloud, setSavingSubjectsCloud] = useState(false);
+
+  // Load layout and subject abbreviations from Firebase on mount
   useEffect(() => {
     const loadFirebaseLayout = async () => {
       try {
@@ -1198,6 +1213,12 @@ export default function AdmissionRegisterSuite({
           }
           if (data.printMargin && typeof data.printMargin === 'number') {
             setPrintMargin(data.printMargin);
+          }
+          if (Array.isArray(data.sentupSubjectAbbreviations) && data.sentupSubjectAbbreviations.length > 0) {
+            setSentupSubjectAbbreviations(data.sentupSubjectAbbreviations);
+            try {
+              localStorage.setItem('hss_sentup_subject_abbreviations', JSON.stringify(data.sentupSubjectAbbreviations));
+            } catch (_) {}
           }
           try {
             localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify(data));
@@ -1248,12 +1269,14 @@ export default function AdmissionRegisterSuite({
       columnWidths,
       rowHeight,
       printMargin,
+      sentupSubjectAbbreviations,
       updatedAt: new Date().toISOString()
     };
 
     // 1. Immediately preserve in LocalStorage so settings are NEVER lost
     try {
       localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify(layoutPayload));
+      localStorage.setItem('hss_sentup_subject_abbreviations', JSON.stringify(sentupSubjectAbbreviations));
     } catch (_) {}
 
     try {
@@ -1277,11 +1300,16 @@ export default function AdmissionRegisterSuite({
       setIsLayoutModified(false);
       if (firebaseSaved) {
         setToast({
-          message: '✅ Table layout (column widths & row height) saved to Firebase and device default!',
+          message: '✅ Table layout & subject key saved to Cloud and browser storage!',
           type: 'success'
         });
         try {
-          logAdminActivity(user?.email || 'Admin', 'UPDATE_REGISTER_LAYOUT', `Saved custom admission register column widths & row height (${rowHeight}px) to Firebase default.`);
+          logAdminActivity({
+            actionType: 'update_register_layout',
+            actionTitle: 'Saved Register Layout & Subject Key to Cloud',
+            details: `Saved custom register column widths, row height (${rowHeight}px), and ${sentupSubjectAbbreviations.length} subject abbreviations to Cloud settings.`,
+            metadata: { rowHeight, subjectCount: sentupSubjectAbbreviations.length }
+          });
         } catch (_) {}
       } else {
         setToast({
@@ -1300,6 +1328,70 @@ export default function AdmissionRegisterSuite({
       setSavingLayout(false);
     }
   };
+
+  // Dedicated direct cloud-sync function for Subject Abbreviations (Subject Key)
+  const saveSubjectAbbreviationsToCloud = useCallback(async (updatedList) => {
+    // 1. Immediately update LocalStorage
+    try {
+      localStorage.setItem('hss_sentup_subject_abbreviations', JSON.stringify(updatedList));
+    } catch (_) {}
+
+    // 2. Persist to Cloud Firestore
+    setSavingSubjectsCloud(true);
+    try {
+      const payload = {
+        sentupSubjectAbbreviations: updatedList,
+        columnWidths,
+        rowHeight,
+        printMargin,
+        updatedAt: new Date().toISOString()
+      };
+
+      let cloudSaved = false;
+      try {
+        await setDoc(doc(db, 'systemSettings', 'admission_register_layout'), payload, { merge: true });
+        cloudSaved = true;
+      } catch (err1) {
+        try {
+          await setDoc(doc(db, 'system_settings', 'admission_register_layout'), payload, { merge: true });
+          cloudSaved = true;
+        } catch (err2) {
+          try {
+            await setDoc(doc(db, 'adminSettings', 'admission_register_layout'), payload, { merge: true });
+            cloudSaved = true;
+          } catch (_) {}
+        }
+      }
+
+      if (cloudSaved) {
+        setToast({
+          message: '☁️ Subject abbreviations saved to cloud!',
+          type: 'success'
+        });
+        try {
+          logAdminActivity({
+            actionType: 'update_sentup_subject_abbreviations',
+            actionTitle: 'Updated Sentup Subject Key Directory in Cloud',
+            details: `Saved ${updatedList.length} subject abbreviations to cloud system settings.`,
+            metadata: { count: updatedList.length }
+          });
+        } catch (_) {}
+      } else {
+        setToast({
+          message: '💾 Subject abbreviations preserved in browser storage.',
+          type: 'info'
+        });
+      }
+    } catch (err) {
+      console.error('Failed to save subject abbreviations to cloud:', err);
+      setToast({
+        message: '💾 Subject abbreviations preserved in browser storage.',
+        type: 'info'
+      });
+    } finally {
+      setSavingSubjectsCloud(false);
+    }
+  }, [columnWidths, rowHeight, printMargin]);
 
   const handleResetLayoutToOriginal = () => {
     setColumnWidths(DEFAULT_COLUMN_WIDTHS);
@@ -2827,22 +2919,43 @@ export default function AdmissionRegisterSuite({
   const [includeCoverPage, setIncludeCoverPage] = useState(true);
   const [includePlanPage, setIncludePlanPage] = useState(true);
 
-  // Sentup Subject Abbreviations Directory (Configurable in View & Layout, Persisted to LocalStorage)
-  const [sentupSubjectAbbreviations, setSentupSubjectAbbreviations] = useState(() => {
-    try {
-      const saved = localStorage.getItem('hss_sentup_subject_abbreviations');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      }
-    } catch (e) {
-      console.error('Failed to load custom subject abbreviations', e);
-    }
-    return DEFAULT_SENTUP_SUBJECT_DIRECTORY;
-  });
-
   const [newSubCode, setNewSubCode] = useState('');
   const [newSubName, setNewSubName] = useState('');
+  const [editingSubKey, setEditingSubKey] = useState(null);
+  const [editSubCode, setEditSubCode] = useState('');
+  const [editSubName, setEditSubName] = useState('');
+
+  const handleStartEditSubjectAbbreviation = useCallback((sub, key) => {
+    setEditingSubKey(key);
+    setEditSubCode(sub.code || '');
+    setEditSubName(sub.name || '');
+  }, []);
+
+  const handleCancelEditSubjectAbbreviation = useCallback(() => {
+    setEditingSubKey(null);
+    setEditSubCode('');
+    setEditSubName('');
+  }, []);
+
+  const handleSaveEditSubjectAbbreviation = useCallback((key) => {
+    if (!editSubCode.trim() || !editSubName.trim()) return;
+    const updated = sentupSubjectAbbreviations.map((item, idx) => {
+      const itemKey = item.id || `sub_idx_${idx}`;
+      if (itemKey === key) {
+        return {
+          ...item,
+          code: editSubCode.trim().toUpperCase(),
+          name: editSubName.trim()
+        };
+      }
+      return item;
+    });
+    setSentupSubjectAbbreviations(updated);
+    setEditingSubKey(null);
+    setEditSubCode('');
+    setEditSubName('');
+    saveSubjectAbbreviationsToCloud(updated);
+  }, [editSubCode, editSubName, sentupSubjectAbbreviations, saveSubjectAbbreviationsToCloud]);
 
   const handleAddSubjectAbbreviation = useCallback(() => {
     if (!newSubCode.trim() || !newSubName.trim()) return;
@@ -2851,33 +2964,28 @@ export default function AdmissionRegisterSuite({
       code: newSubCode.trim().toUpperCase(),
       name: newSubName.trim()
     };
-    setSentupSubjectAbbreviations(prev => {
-      const updated = [...prev, newEntry];
-      try {
-        localStorage.setItem('hss_sentup_subject_abbreviations', JSON.stringify(updated));
-      } catch (e) {}
-      return updated;
-    });
+    const updated = [...sentupSubjectAbbreviations, newEntry];
+    setSentupSubjectAbbreviations(updated);
     setNewSubCode('');
     setNewSubName('');
-  }, [newSubCode, newSubName]);
+    saveSubjectAbbreviationsToCloud(updated);
+  }, [newSubCode, newSubName, sentupSubjectAbbreviations, saveSubjectAbbreviationsToCloud]);
 
-  const handleDeleteSubjectAbbreviation = useCallback((targetIdOrIdx) => {
-    setSentupSubjectAbbreviations(prev => {
-      const updated = prev.filter((item, idx) => (item.id ? item.id !== targetIdOrIdx : idx !== targetIdOrIdx));
-      try {
-        localStorage.setItem('hss_sentup_subject_abbreviations', JSON.stringify(updated));
-      } catch (e) {}
-      return updated;
+  const handleDeleteSubjectAbbreviation = useCallback((targetKey) => {
+    const updated = sentupSubjectAbbreviations.filter((item, idx) => {
+      const itemKey = item.id || `sub_idx_${idx}`;
+      return itemKey !== targetKey;
     });
-  }, []);
+    setSentupSubjectAbbreviations(updated);
+    setEditingSubKey(prev => prev === targetKey ? null : prev);
+    saveSubjectAbbreviationsToCloud(updated);
+  }, [sentupSubjectAbbreviations, saveSubjectAbbreviationsToCloud]);
 
   const handleResetSubjectAbbreviations = useCallback(() => {
-    setSentupSubjectAbbreviations(DEFAULT_SENTUP_SUBJECT_DIRECTORY);
-    try {
-      localStorage.removeItem('hss_sentup_subject_abbreviations');
-    } catch (e) {}
-  }, []);
+    const updated = DEFAULT_SENTUP_SUBJECT_DIRECTORY;
+    setSentupSubjectAbbreviations(updated);
+    saveSubjectAbbreviationsToCloud(updated);
+  }, [saveSubjectAbbreviationsToCloud]);
 
   // Split subject abbreviations into two balanced columns for compact 2-column display on Page 2
   const { leftSubjects, rightSubjects } = useMemo(() => {
@@ -3577,6 +3685,20 @@ export default function AdmissionRegisterSuite({
             margin-bottom: 1.5mm !important;
             padding-bottom: 1mm !important;
             border-bottom: 1.5px solid #0f172a !important;
+          }
+
+          .manual-sno-circle {
+            width: 24px !important;
+            height: 24px !important;
+            min-width: 24px !important;
+            min-height: 24px !important;
+            border-radius: 50% !important;
+            border: 1.5px solid #0f172a !important;
+            display: inline-flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            flex-shrink: 0 !important;
+            box-sizing: border-box !important;
           }
 
           .sentup-ledger-page .sentup-header h1 {
@@ -4629,18 +4751,40 @@ export default function AdmissionRegisterSuite({
                       {activeTab === 'sentup' && (
                         <div className="border-t border-slate-200 pt-3 mt-3 text-left">
                           <div className="flex items-center justify-between mb-1.5">
-                            <span className="font-black text-xs text-slate-900 flex items-center gap-1.5">
-                              <BookOpen size={13} className="text-indigo-600" />
-                              <span>Page 2 Subject Abbreviations ({sentupSubjectAbbreviations.length})</span>
-                            </span>
-                            <button
-                              type="button"
-                              onClick={handleResetSubjectAbbreviations}
-                              className="text-[10px] font-black text-indigo-600 hover:text-indigo-800 hover:underline cursor-pointer"
-                              title="Reset to default JKBOSE & School Portal abbreviations"
-                            >
-                              Reset to Defaults
-                            </button>
+                            <div className="flex items-center gap-2">
+                              <span className="font-black text-xs text-slate-900 flex items-center gap-1.5">
+                                <BookOpen size={13} className="text-indigo-600" />
+                                <span>Page 2 Subject Key ({sentupSubjectAbbreviations.length})</span>
+                              </span>
+                              {savingSubjectsCloud ? (
+                                <span className="text-[10px] font-bold text-indigo-600 flex items-center gap-1">
+                                  <Loader2 size={10} className="animate-spin" /> Saving to Cloud...
+                                </span>
+                              ) : (
+                                <span className="text-[9.5px] font-black text-emerald-800 bg-emerald-100 border border-emerald-300 px-1.5 py-0.5 rounded-full flex items-center gap-1">
+                                  <Check size={9} /> Cloud Synced
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => saveSubjectAbbreviationsToCloud(sentupSubjectAbbreviations)}
+                                disabled={savingSubjectsCloud}
+                                className="text-[10.5px] font-black text-emerald-700 hover:text-emerald-900 hover:underline cursor-pointer flex items-center gap-0.5"
+                                title="Sync current subject abbreviations to cloud"
+                              >
+                                <Save size={11} /> Save to Cloud
+                              </button>
+                              <button
+                                type="button"
+                                onClick={handleResetSubjectAbbreviations}
+                                className="text-[10px] font-black text-slate-500 hover:text-rose-600 hover:underline cursor-pointer"
+                                title="Reset to default JKBOSE & School Portal abbreviations"
+                              >
+                                Reset Defaults
+                              </button>
+                            </div>
                           </div>
                           <div className="text-[10px] text-slate-500 mb-2 leading-tight">
                             Manage abbreviations displayed on Page 2 of the Sent-up Roll Sheet as per JKBOSE guidelines and website usage:
@@ -4680,31 +4824,106 @@ export default function AdmissionRegisterSuite({
                             </button>
                           </div>
 
-                          {/* List of current abbreviations with Delete button */}
-                          <div className="max-h-44 overflow-y-auto space-y-1 p-1.5 bg-slate-50/80 rounded-xl border border-slate-200">
-                            {sentupSubjectAbbreviations.map((sub, sIdx) => (
-                              <div
-                                key={sub.id || `${sub.code}_${sIdx}`}
-                                className="flex items-center justify-between px-2 py-1 bg-white hover:bg-slate-50 rounded-lg border border-slate-200/70 text-xs shadow-2xs group transition-colors"
-                              >
-                                <div className="flex items-center gap-2 min-w-0 pr-2">
-                                  <span className="px-1.5 py-0.5 rounded bg-indigo-50 border border-indigo-200 text-indigo-900 font-mono font-black text-[10px] shrink-0">
-                                    {sub.code}
-                                  </span>
-                                  <span className="font-semibold text-slate-800 text-[11px] truncate">
-                                    {sub.name}
-                                  </span>
-                                </div>
-                                <button
-                                  type="button"
-                                  onClick={() => handleDeleteSubjectAbbreviation(sub.id || sIdx)}
-                                  className="p-1 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded cursor-pointer transition-colors shrink-0"
-                                  title={`Delete ${sub.name} (${sub.code})`}
+                          {/* List of current abbreviations with Edit and Delete buttons */}
+                          <div className="max-h-52 overflow-y-auto space-y-1.5 p-1.5 bg-slate-50/80 rounded-xl border border-slate-200">
+                            {sentupSubjectAbbreviations.map((sub, sIdx) => {
+                              const itemKey = sub.id || `sub_idx_${sIdx}`;
+                              const isEditing = editingSubKey === itemKey;
+
+                              if (isEditing) {
+                                return (
+                                  <div
+                                    key={itemKey}
+                                    className="flex items-center gap-1.5 p-1.5 bg-indigo-50/90 rounded-lg border border-indigo-300 shadow-xs"
+                                  >
+                                    <input
+                                      type="text"
+                                      value={editSubCode}
+                                      onChange={(e) => setEditSubCode(e.target.value)}
+                                      className="w-24 px-2 py-1 text-xs rounded border border-indigo-400 bg-white font-mono font-bold uppercase focus:ring-1 focus:ring-indigo-600 focus:outline-hidden"
+                                      placeholder="Code"
+                                      autoFocus
+                                      onKeyDown={(e) => {
+                                        if (e.key === 'Enter') {
+                                          e.preventDefault();
+                                          handleSaveEditSubjectAbbreviation(itemKey);
+                                        } else if (e.key === 'Escape') {
+                                          e.preventDefault();
+                                          handleCancelEditSubjectAbbreviation();
+                                        }
+                                      }}
+                                    />
+                                    <input
+                                      type="text"
+                                      value={editSubName}
+                                      onChange={(e) => setEditSubName(e.target.value)}
+                                      className="flex-1 px-2 py-1 text-xs rounded border border-indigo-400 bg-white font-medium focus:ring-1 focus:ring-indigo-600 focus:outline-hidden"
+                                      placeholder="Subject Title"
+                                      onKeyDown={(e) => {
+                                        if (e.key === 'Enter') {
+                                          e.preventDefault();
+                                          handleSaveEditSubjectAbbreviation(itemKey);
+                                        } else if (e.key === 'Escape') {
+                                          e.preventDefault();
+                                          handleCancelEditSubjectAbbreviation();
+                                        }
+                                      }}
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={() => handleSaveEditSubjectAbbreviation(itemKey)}
+                                      disabled={!editSubCode.trim() || !editSubName.trim()}
+                                      className="p-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded cursor-pointer transition-colors shrink-0 disabled:opacity-40 disabled:cursor-not-allowed shadow-2xs"
+                                      title="Save changes (Enter)"
+                                    >
+                                      <Check size={13} />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={handleCancelEditSubjectAbbreviation}
+                                      className="p-1 text-slate-500 hover:text-slate-700 hover:bg-slate-200 rounded cursor-pointer transition-colors shrink-0"
+                                      title="Cancel editing (Esc)"
+                                    >
+                                      <X size={13} />
+                                    </button>
+                                  </div>
+                                );
+                              }
+
+                              return (
+                                <div
+                                  key={itemKey}
+                                  className="flex items-center justify-between px-2 py-1 bg-white hover:bg-indigo-50/40 rounded-lg border border-slate-200/70 text-xs shadow-2xs group transition-colors"
                                 >
-                                  <Trash2 size={12} />
-                                </button>
-                              </div>
-                            ))}
+                                  <div className="flex items-center gap-2 min-w-0 pr-2">
+                                    <span className="px-1.5 py-0.5 rounded bg-indigo-50 border border-indigo-200 text-indigo-900 font-mono font-black text-[10px] shrink-0">
+                                      {sub.code}
+                                    </span>
+                                    <span className="font-semibold text-slate-800 text-[11px] truncate">
+                                      {sub.name}
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center gap-1 shrink-0">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleStartEditSubjectAbbreviation(sub, itemKey)}
+                                      className="p-1 text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 rounded cursor-pointer transition-colors"
+                                      title={`Edit ${sub.name} (${sub.code})`}
+                                    >
+                                      <Edit3 size={12} />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDeleteSubjectAbbreviation(itemKey)}
+                                      className="p-1 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded cursor-pointer transition-colors"
+                                      title={`Delete ${sub.name} (${sub.code})`}
+                                    >
+                                      <Trash2 size={12} />
+                                    </button>
+                                  </div>
+                                </div>
+                              );
+                            })}
                           </div>
                         </div>
                       )}
@@ -5746,8 +5965,16 @@ export default function AdmissionRegisterSuite({
                       <div className="text-[10px] font-black uppercase text-slate-600 tracking-wider">
                         Govt. of Jammu & Kashmir • School Education Department
                       </div>
-                      <div className="text-[10px] font-black uppercase tracking-wider text-red-900 bg-red-50 border border-red-200 px-2.5 py-0.5 rounded">
-                        Page 1 of {sentupTotalPages}
+                      <div className="flex items-center gap-2.5">
+                        <div className="text-[10px] font-black uppercase tracking-wider text-red-900 bg-red-50 border border-red-200 px-2.5 py-0.5 rounded">
+                          Page 1 of {sentupTotalPages}
+                        </div>
+                        {/* Circle for manual hand-stamped S.No on top right */}
+                        <div
+                          className="w-6 h-6 rounded-full border-2 border-slate-900 flex items-center justify-center text-[8px] font-mono text-transparent select-none shrink-0"
+                          title="Manual Serial Number / Stamp Area"
+                        >
+                        </div>
                       </div>
                     </div>
                     <h1 className="cover-school-title text-2xl sm:text-3xl lg:text-4xl font-black text-red-900 uppercase tracking-wide school-header-font mt-1">
@@ -5761,67 +5988,71 @@ export default function AdmissionRegisterSuite({
                     </div>
                   </div>
 
-                  {/* Center Document Label Card (BIGGER FONT AS REQUESTED) */}
+                  {/* Center Document Label Card */}
                   <div className="my-auto py-4">
-                    <div className="cover-title-box border-4 border-double border-red-900 bg-linear-to-b from-red-50/50 via-white to-amber-50/30 p-6 rounded-2xl text-center shadow-xs mx-auto max-w-4xl">
-                      <div className="inline-block bg-red-900 text-white text-[10.5px] font-black uppercase tracking-widest px-4 py-1 rounded-full mb-3 shadow-xs">
-                        Official Institutional Record & Examination Gazette
-                      </div>
-
-                      <h2 className="cover-doc-title text-2xl sm:text-3xl lg:text-4xl font-black text-slate-900 uppercase tracking-tight leading-snug">
+                    <div className="cover-title-box border-2 border-slate-800 bg-white p-6 rounded-xl text-center shadow-xs mx-auto max-w-4xl">
+                      <h2 className="cover-doc-title text-3xl sm:text-4xl font-black text-slate-900 uppercase tracking-tight leading-snug">
                         Candidate Sent-up Roll Sheet
                       </h2>
-                      <div className="text-base sm:text-xl font-black text-red-800 uppercase tracking-wide mt-1">
-                        & Examination Roll Gazette
+
+                      <div className="mt-2 text-sm sm:text-base font-bold text-slate-700">
+                        Class: {selectedClass} • Session: {selectedSession}
                       </div>
 
-                      <div className="mt-3 text-xs sm:text-sm font-bold text-slate-700">
-                        Annual Regular Examination • Academic Session {selectedSession}
-                      </div>
-
-                      {/* 4 Metadata Cards */}
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-5 pt-4 border-t border-red-200 text-left">
-                        <div className="p-3 bg-white rounded-xl border border-slate-200 shadow-2xs">
-                          <div className="text-[9.5px] font-black uppercase text-slate-500">Academic Class</div>
-                          <div className="text-sm sm:text-base font-black text-red-900 mt-0.5">Class {selectedClass}</div>
-                          <div className="text-[9px] text-slate-500 font-semibold">Senior Secondary</div>
+                      {/* Summary Cards */}
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6 pt-4 border-t border-slate-200 text-left">
+                        <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
+                          <div className="text-[10px] font-bold uppercase text-slate-500">Class</div>
+                          <div className="text-base font-black text-red-900 mt-0.5">Class {selectedClass}</div>
                         </div>
-                        <div className="p-3 bg-white rounded-xl border border-slate-200 shadow-2xs">
-                          <div className="text-[9.5px] font-black uppercase text-slate-500">Academic Session</div>
-                          <div className="text-sm sm:text-base font-black text-slate-900 mt-0.5">{selectedSession}</div>
-                          <div className="text-[9px] text-slate-500 font-semibold">JKBOSE Annual Regular</div>
+                        <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
+                          <div className="text-[10px] font-bold uppercase text-slate-500">Session</div>
+                          <div className="text-base font-black text-slate-900 mt-0.5">{selectedSession}</div>
                         </div>
-                        <div className="p-3 bg-white rounded-xl border border-slate-200 shadow-2xs">
-                          <div className="text-[9.5px] font-black uppercase text-slate-500">Sent-up Candidates</div>
-                          <div className="text-sm sm:text-base font-black text-emerald-800 mt-0.5">
-                            {sentupCensus.total} <span className="text-xs font-bold text-slate-600">Students</span>
+                        <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
+                          <div className="text-[10px] font-bold uppercase text-slate-500">Total Candidates</div>
+                          <div className="text-base font-black text-emerald-800 mt-0.5">
+                            {sentupCensus.total}
                           </div>
-                          <div className="text-[9px] text-slate-500 font-semibold">
+                          <div className="text-[9.5px] text-slate-600 font-semibold mt-0.5">
                             {sentupCensus.boys} Boys • {sentupCensus.girls} Girls
                           </div>
                         </div>
-                        <div className="p-3 bg-white rounded-xl border border-slate-200 shadow-2xs">
-                          <div className="text-[9.5px] font-black uppercase text-slate-500">Roll Number Span</div>
-                          <div className="text-xs sm:text-sm font-black text-indigo-900 mt-0.5 font-mono">
+                        <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
+                          <div className="text-[10px] font-bold uppercase text-slate-500">Roll No. Range</div>
+                          <div className="text-base font-black text-indigo-900 mt-0.5 font-mono">
                             {sentupCensus.rollRange}
                           </div>
-                          <div className="text-[9px] text-slate-500 font-semibold">
-                            Pages {includeCoverPage && includePlanPage ? 3 : 2} to {sentupTotalPages}
-                          </div>
+                        </div>
+                      </div>
+
+                      {/* Signature Row */}
+                      <div className="grid grid-cols-3 gap-6 text-center pt-8 mt-6 border-t border-slate-200">
+                        <div>
+                          <div className="h-10"></div>
+                          <div className="border-t border-slate-400 pt-1 text-xs font-bold text-slate-700">Incharge Examination</div>
+                        </div>
+                        <div>
+                          <div className="h-10"></div>
+                          <div className="border-t border-slate-400 pt-1 text-xs font-bold text-slate-700">Checked By</div>
+                        </div>
+                        <div>
+                          <div className="h-10"></div>
+                          <div className="border-t border-slate-400 pt-1 text-xs font-bold text-slate-700">Principal</div>
                         </div>
                       </div>
                     </div>
                   </div>
 
                   {/* Institutional Bottom Bar */}
-                  <div className="border-t border-red-900/30 pt-2 text-center text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-                    Government Higher Secondary School Shangus • Official Sent-up Examination Roll Gazette
+                  <div className="border-t border-slate-300 pt-2 text-center text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                    Government Higher Secondary School Shangus
                   </div>
                 </div>
               )}
 
               {/* ============================================================== */}
-              {/* PAGE 2: EXAMINATION PLAN, CENSUS & SUBJECT ABBREVIATIONS       */}
+              {/* PAGE 2: CANDIDATE SUMMARY & SUBJECT KEY                        */}
               {/* ============================================================== */}
               {includePlanPage && (
                 <div
@@ -5834,58 +6065,66 @@ export default function AdmissionRegisterSuite({
                     <div className="flex items-center justify-between">
                       <div>
                         <div className="text-[9.5px] font-black uppercase text-red-800 tracking-wider">
-                          {SCHOOL_NAME} • Examination Cell
+                          {SCHOOL_NAME}
                         </div>
                         <h2 className="text-sm sm:text-base font-black uppercase tracking-tight text-slate-900">
-                          Examination Administration Plan, Candidate Census & Subject Directory
+                          Candidate Summary & Subject Key
                         </h2>
                         <div className="text-[9.5px] font-bold text-slate-700">
-                          Class: {selectedClass} • Session: {selectedSession} • Total Sent-up: {sentupCensus.total} Candidates • Roll Sheet Extent: Page {includeCoverPage ? 3 : 2} to Page {sentupTotalPages}
+                          Class: {selectedClass} • Session: {selectedSession} • Total Candidates: {sentupCensus.total}
                         </div>
                       </div>
-                      <div className="text-right shrink-0">
-                        <div className="text-[9.5px] font-black uppercase tracking-wider text-red-800 bg-red-50 border border-red-200 px-2 py-0.5 rounded">
-                          Page {includeCoverPage ? 2 : 1} of {sentupTotalPages}
+                      <div className="text-right shrink-0 flex items-center gap-2.5">
+                        <div>
+                          <div className="text-[9.5px] font-black uppercase tracking-wider text-red-800 bg-red-50 border border-red-200 px-2 py-0.5 rounded">
+                            Page {includeCoverPage ? 2 : 1} of {sentupTotalPages}
+                          </div>
+                          <div className="text-[8.5px] text-slate-500 font-bold mt-0.5">
+                            Summary & Key
+                          </div>
                         </div>
-                        <div className="text-[8.5px] text-slate-500 font-bold mt-0.5">
-                          Admin Plan & Key
+                        {/* Circle for manual hand-stamped S.No on top right */}
+                        <div
+                          className="w-6 h-6 rounded-full border-2 border-slate-900 flex items-center justify-center text-[8px] font-mono text-transparent select-none shrink-0"
+                          title="Manual Serial Number / Stamp Area"
+                        >
                         </div>
                       </div>
                     </div>
                   </div>
 
-                  {/* Main Grid: Left = Census & Audit Declaration, Right = Full Subject Key */}
+                  {/* Main Grid: Left = Summary & Certificate, Right = Subject Key */}
                   <div className="grid grid-cols-12 gap-2.5 my-auto flex-1">
-                    {/* Left Column: Candidate Census & Audit Declaration (4 cols) */}
+                    {/* Left Column: Candidate & Stream Summary + Certificate (4 cols) */}
                     <div className="col-span-4 flex flex-col justify-between gap-2">
-                      {/* Census Table */}
+                      {/* Summary Table */}
                       <div className="border border-slate-300 rounded-lg p-2 bg-slate-50/60">
                         <div className="text-[10px] font-black uppercase text-red-900 border-b border-red-200 pb-0.5 mb-1 flex items-center justify-between">
-                          <span>Candidate Census & Stream Distribution</span>
+                          <span>Candidate & Stream Summary</span>
                           <span className="text-[9px] text-slate-600 font-bold font-mono">Class {selectedClass}</span>
                         </div>
                         <table className="w-full text-left text-[9.5px] border-collapse">
                           <tbody>
                             <tr className="border-b border-slate-200">
-                              <td className="py-0.5 font-bold text-slate-700">Total Enrolled / Registered</td>
+                              <td className="py-0.5 font-bold text-slate-700">Total Enrolled</td>
                               <td className="py-0.5 text-right font-black text-slate-900 font-mono">{filteredStudents.length}</td>
                             </tr>
                             <tr className="border-b border-slate-200">
-                              <td className="py-0.5 font-bold text-slate-700">Total Sent-up / Appearing</td>
+                              <td className="py-0.5 font-bold text-slate-700">Total Sent-up</td>
                               <td className="py-0.5 text-right font-black text-emerald-800 font-mono">{sentupCensus.total}</td>
                             </tr>
                             <tr className="border-b border-slate-200">
-                              <td className="py-0.5 font-bold text-slate-700">Gender Distribution</td>
+                              <td className="py-0.5 font-bold text-slate-700">Boys / Girls</td>
                               <td className="py-0.5 text-right font-bold text-slate-900 font-mono">
-                                {sentupCensus.boys} Boys • {sentupCensus.girls} Girls
+                                {sentupCensus.boys} / {sentupCensus.girls}
                               </td>
                             </tr>
                             <tr className="border-b border-slate-200">
-                              <td className="py-0.5 font-bold text-slate-700">Science Stream (Medical / Non-Med)</td>
+                              <td className="py-0.5 font-bold text-slate-700">Science Stream</td>
                               <td className="py-0.5 text-right font-black text-sky-800 font-mono">{sentupCensus.science}</td>
                             </tr>
                             <tr className="border-b border-slate-200">
-                              <td className="py-0.5 font-bold text-slate-700">Humanities & Arts Stream</td>
+                              <td className="py-0.5 font-bold text-slate-700">Humanities Stream</td>
                               <td className="py-0.5 text-right font-black text-amber-800 font-mono">{sentupCensus.humanities}</td>
                             </tr>
                             {sentupCensus.commerce > 0 && (
@@ -5894,54 +6133,51 @@ export default function AdmissionRegisterSuite({
                                 <td className="py-0.5 text-right font-black text-indigo-800 font-mono">{sentupCensus.commerce}</td>
                               </tr>
                             )}
-                            <tr className="border-b border-slate-200">
-                              <td className="py-0.5 font-bold text-slate-700">Class Roll No. Span</td>
-                              <td className="py-0.5 text-right font-black text-slate-900 font-mono">{sentupCensus.rollRange}</td>
-                            </tr>
                             <tr>
-                              <td className="py-0.5 font-bold text-slate-700">Roll Sheet Ledger Extent</td>
-                              <td className="py-0.5 text-right font-black text-red-900 font-mono">
-                                {pageChunks.length} Pages (Pg {includeCoverPage && includePlanPage ? 3 : includeCoverPage || includePlanPage ? 2 : 1}–{sentupTotalPages})
-                              </td>
+                              <td className="py-0.5 font-bold text-slate-700">Roll No. Range</td>
+                              <td className="py-0.5 text-right font-black text-slate-900 font-mono">{sentupCensus.rollRange}</td>
                             </tr>
                           </tbody>
                         </table>
                       </div>
 
-                      {/* Institutional Audit Certification */}
+                      {/* Certificate */}
                       <div className="border border-slate-300 rounded-lg p-2.5 bg-slate-50/60 text-[9px] leading-relaxed text-slate-700">
                         <div className="text-[9.5px] font-black uppercase text-red-900 border-b border-red-200 pb-0.5 mb-1.5">
-                          Institutional Audit Certification
+                          Certificate
                         </div>
-                        <p className="mb-1.5">
-                          Certified that candidate particulars, stream allocations, and subject combinations tabulated in this Sent-up Gazette have been verified against the official Master Admission Register of HSS Shangus and JKBOSE enrollment records for Class {selectedClass} ({selectedSession}).
-                        </p>
-                        <p className="font-semibold text-slate-800">
-                          Examinees are authorized to appear strictly in the subjects documented in the ensuing Roll Sheet (Pages 3 to {sentupTotalPages}).
+                        <p>
+                          Certified that candidate particulars and subject combinations in this roll sheet have been verified from official school records for Class {selectedClass} ({selectedSession}).
                         </p>
                       </div>
                     </div>
 
-                    {/* Right Column: Comprehensive Subject Abbreviation Directory (8 cols) */}
+                    {/* Right Column: Subject Key (8 cols) */}
                     <div className="col-span-8 flex flex-col justify-between border border-slate-300 rounded-lg p-2 bg-white">
                       <div>
                         <div className="text-[10px] font-black uppercase text-red-900 border-b border-red-200 pb-1 mb-1.5 flex items-center justify-between">
                           <div className="flex items-center gap-2">
-                            <span>Subject Abbreviations Directory & Reference Key</span>
+                            <span>Subject Key</span>
                             <span className="text-[8.5px] font-bold text-slate-500">({sentupSubjectAbbreviations.length} Subjects)</span>
+                            {savingSubjectsCloud ? (
+                              <span className="text-[8px] font-bold text-indigo-600 flex items-center gap-1 print:hidden">
+                                <Loader2 size={9} className="animate-spin" /> Saving to Cloud...
+                              </span>
+                            ) : (
+                              <span className="text-[8px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-1 py-0.2 rounded flex items-center gap-0.5 print:hidden">
+                                <Check size={8} /> Cloud Synced
+                              </span>
+                            )}
                           </div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-[8px] font-bold text-slate-500 uppercase tracking-wider">JKBOSE Guidelines & Portal Directory</span>
-                            <button
-                              type="button"
-                              onClick={() => setShowViewPopover(true)}
-                              className="print:hidden text-[9px] font-bold text-indigo-600 hover:text-indigo-800 hover:underline flex items-center gap-1 cursor-pointer bg-indigo-50 border border-indigo-200 px-1.5 py-0.5 rounded shadow-2xs"
-                              title="Add or remove subject abbreviations in View & Layout popover"
-                            >
-                              <Edit3 size={10} />
-                              <span>Edit in View & Layout</span>
-                            </button>
-                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setShowViewPopover(true)}
+                            className="print:hidden text-[9px] font-bold text-indigo-600 hover:text-indigo-800 hover:underline flex items-center gap-1 cursor-pointer bg-indigo-50 border border-indigo-200 px-1.5 py-0.5 rounded shadow-2xs"
+                            title="Add, edit, or remove subject abbreviations in View & Layout popover"
+                          >
+                            <Edit3 size={10} />
+                            <span>Edit in View & Layout</span>
+                          </button>
                         </div>
 
                         {/* 2-Column Split Tables for Clean Single-Page Density */}
@@ -5951,7 +6187,7 @@ export default function AdmissionRegisterSuite({
                             <thead>
                               <tr className="bg-slate-900 text-white uppercase text-[8px] font-black">
                                 <th className="border border-slate-300 px-1.5 py-0.5 w-20 text-center">Code</th>
-                                <th className="border border-slate-300 px-2 py-0.5">Subject Full Title</th>
+                                <th className="border border-slate-300 px-2 py-0.5">Subject Name</th>
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-200 text-slate-800">
@@ -5973,7 +6209,7 @@ export default function AdmissionRegisterSuite({
                             <thead>
                               <tr className="bg-slate-900 text-white uppercase text-[8px] font-black">
                                 <th className="border border-slate-300 px-1.5 py-0.5 w-20 text-center">Code</th>
-                                <th className="border border-slate-300 px-2 py-0.5">Subject Full Title</th>
+                                <th className="border border-slate-300 px-2 py-0.5">Subject Name</th>
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-200 text-slate-800">
@@ -5991,42 +6227,12 @@ export default function AdmissionRegisterSuite({
                           </table>
                         </div>
                       </div>
-
-                      {/* Official Guidance Note on 2nd page */}
-                      <div className="mt-2 p-2 rounded bg-amber-50 border border-amber-200 text-[9px] sm:text-[9.5px] text-amber-950 leading-snug">
-                        <strong>📌 Official Guidance Note on Subject Nomenclature & Codes:</strong> All subject abbreviations tabulated above strictly adhere to the official guidelines and syllabus prescribed by the Jammu & Kashmir Board of School Education (JKBOSE) and match the institutional subject nomenclature utilized throughout the official school website portal. Each candidate's subject combination in the ensuing Roll Sheet (commencing from Page 3 through Page {sentupTotalPages}) conforms strictly to these codes. Authorized administrators can customize, add, or delete subject abbreviations via the 'View & Layout' settings menu.
-                      </div>
                     </div>
                   </div>
 
-                  {/* Signatures on Plan Page */}
-                  <div className="border-t border-slate-900 pt-1.5 text-[10px] font-black text-slate-900">
-                    <div className="grid grid-cols-4 gap-4 text-center">
-                      <div className="flex flex-col items-center justify-end">
-                        <div className="w-32 border-t border-slate-800 pt-0.5">
-                          <div className="text-[9.5px] font-black uppercase">Prepared By</div>
-                          <div className="text-[7.5px] text-slate-500 font-semibold">(Data Entry / Clerk)</div>
-                        </div>
-                      </div>
-                      <div className="flex flex-col items-center justify-end">
-                        <div className="w-32 border-t border-slate-800 pt-0.5">
-                          <div className="text-[9.5px] font-black uppercase">Incharge Exam Committee</div>
-                          <div className="text-[7.5px] text-slate-500 font-semibold">HSS Shangus</div>
-                        </div>
-                      </div>
-                      <div className="flex flex-col items-center justify-end">
-                        <div className="w-32 border-t border-slate-800 pt-0.5">
-                          <div className="text-[9.5px] font-black uppercase">Superintendent of Exam</div>
-                          <div className="text-[7.5px] text-slate-500 font-semibold">Center Shangus</div>
-                        </div>
-                      </div>
-                      <div className="flex flex-col items-center justify-end">
-                        <div className="w-36 border-t border-red-900 pt-0.5">
-                          <div className="text-[9.5px] font-black text-red-900 uppercase">Principal (Seal & Sign)</div>
-                          <div className="text-[7.5px] text-slate-500 font-semibold">Head of Institution</div>
-                        </div>
-                      </div>
-                    </div>
+                  {/* Institutional Bottom Bar */}
+                  <div className="border-t border-slate-300 pt-1 text-center text-[9px] font-bold text-slate-500 uppercase tracking-widest">
+                    Government Higher Secondary School Shangus
                   </div>
                 </div>
               )}
@@ -6054,8 +6260,16 @@ export default function AdmissionRegisterSuite({
                       <div className="sentup-subtitle text-[10px] sm:text-[11px] font-extrabold text-slate-800 mt-0.5">
                         JKBOSE Sentup Roll Sheet • Class {selectedClass} • Session {selectedSession} • {selectedStatus} Candidates
                       </div>
-                      <div className="absolute right-0 top-0 text-[10px] font-black text-red-900 uppercase tracking-wider">
-                        Page {overallPageNum} of {sentupTotalPages} <span className="font-bold text-slate-500 text-[8.5px] print:inline">(Sheet {idx + 1})</span>
+                      <div className="absolute right-0 top-0 flex items-center gap-2.5">
+                        <div className="text-[10px] font-black text-red-900 uppercase tracking-wider">
+                          Page {overallPageNum} of {sentupTotalPages} <span className="font-bold text-slate-500 text-[8.5px] print:inline">(Sheet {idx + 1})</span>
+                        </div>
+                        {/* Circle for manual hand-stamped S.No on top right */}
+                        <div
+                          className="w-6 h-6 rounded-full border-2 border-slate-900 flex items-center justify-center text-[8px] font-mono text-transparent select-none shrink-0"
+                          title="Manual Serial Number / Stamp Area"
+                        >
+                        </div>
                       </div>
                     </div>
 
