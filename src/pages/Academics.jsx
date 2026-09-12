@@ -150,22 +150,28 @@ export default function Academics() {
   const [dynamicLoading, setDynamicLoading] = useState(true);
 
   useEffect(() => {
+    let isMounted = true;
     async function loadData() {
       try {
-        const snap = await getDoc(doc(db, 'site', 'page_academics'));
-        if (snap.exists()) {
+        const docPromise = getDoc(doc(db, 'site', 'page_academics'));
+        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 1800));
+        const snap = await Promise.race([docPromise, timeoutPromise]);
+        if (snap && snap.exists() && isMounted) {
           const data = snap.data();
           if (data.blocks && data.blocks.length > 0) {
             setDynamicData(data);
           }
         }
       } catch (e) {
-        console.warn("Failed to load dynamic page content", e);
+        // Fallback gracefully to default curriculum layout
       } finally {
-        setDynamicLoading(false);
+        if (isMounted) {
+          setDynamicLoading(false);
+        }
       }
     }
     loadData();
+    return () => { isMounted = false; };
   }, []);
 
   const [modalOpen, setModalOpen] = useState(false);
