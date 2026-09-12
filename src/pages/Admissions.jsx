@@ -16,22 +16,28 @@ export default function Admissions() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let isMounted = true;
     async function loadData() {
       try {
-        const snap = await getDoc(doc(db, 'site', 'page_admissions'));
-        if (snap.exists()) {
+        const docPromise = getDoc(doc(db, 'site', 'page_admissions'));
+        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 1800));
+        const snap = await Promise.race([docPromise, timeoutPromise]);
+        if (snap && snap.exists() && isMounted) {
           const data = snap.data();
           if (data.blocks && data.blocks.length > 0) {
             setDynamicData(data);
           }
         }
       } catch (e) {
-        console.warn("Failed to load dynamic page content", e);
+        // Fallback gracefully to default interactive admissions layout
       } finally {
-        setLoading(false);
+        if (isMounted) {
+          setLoading(false);
+        }
       }
     }
     loadData();
+    return () => { isMounted = false; };
   }, []);
 
   useEffect(() => {

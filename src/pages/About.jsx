@@ -13,22 +13,28 @@ export default function About() {
   const [showFullGlimpse, setShowFullGlimpse] = useState(false);
 
   useEffect(() => {
+    let isMounted = true;
     async function loadData() {
       try {
-        const snap = await getDoc(doc(db, 'site', 'page_about'));
-        if (snap.exists()) {
+        const docPromise = getDoc(doc(db, 'site', 'page_about'));
+        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 1800));
+        const snap = await Promise.race([docPromise, timeoutPromise]);
+        if (snap && snap.exists() && isMounted) {
           const data = snap.data();
           if (data.blocks && data.blocks.length > 0) {
             setDynamicData(data);
           }
         }
       } catch (e) {
-        console.warn("Failed to load dynamic page content", e);
+        // Fallback gracefully to default institutional layout
       } finally {
-        setLoading(false);
+        if (isMounted) {
+          setLoading(false);
+        }
       }
     }
     loadData();
+    return () => { isMounted = false; };
   }, []);
 
   if (loading) {

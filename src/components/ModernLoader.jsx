@@ -22,6 +22,36 @@ const PAGE_MODULE_PRESETS = {
       "Securing your digital application draft…"
     ]
   },
+  admissions: {
+    title: "Govt. Higher Secondary School Shangus",
+    badge: "Admissions Portal",
+    defaultText: "Loading Admissions & Intake Information",
+    hints: [
+      "Loading admission criteria and class availability…",
+      "Connecting to student admissions database…",
+      "Preparing online application services…"
+    ]
+  },
+  academics: {
+    title: "Govt. Higher Secondary School Shangus",
+    badge: "Academics & Faculty",
+    defaultText: "Loading Academic Programmes",
+    hints: [
+      "Loading secondary & higher secondary curricula…",
+      "Fetching faculty directory & subject combinations…",
+      "Preparing academic guidelines…"
+    ]
+  },
+  about: {
+    title: "Govt. Higher Secondary School Shangus",
+    badge: "About Us",
+    defaultText: "Loading Institutional Overview",
+    hints: [
+      "Govt. Higher Secondary School Shangus — Estd. 1917",
+      "Serving students in Shangus, Anantnag, Jammu & Kashmir…",
+      "Loading campus facilities and institutional history…"
+    ]
+  },
   auth: {
     title: "Govt. Higher Secondary School Shangus",
     badge: "Secure Access",
