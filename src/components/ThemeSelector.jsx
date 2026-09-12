@@ -69,7 +69,7 @@ export default function ThemeSelector() {
   const active = themes.find(t => t.id === currentTheme) || themes[0];
 
   return (
-    <div className={`fixed z-[9999] flex flex-col items-end gap-2 print:hidden transition-all duration-300 ${
+    <div className={`fixed z-40 flex flex-col items-end gap-2 print:hidden transition-all duration-300 ${
       isHome ? 'bottom-3 right-3 md:bottom-3 md:right-4' : 'bottom-3.5 right-3.5 md:bottom-3.5 md:right-4.5'
     }`}>
       {/* Panel */}
