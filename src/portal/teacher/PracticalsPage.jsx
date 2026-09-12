@@ -9,7 +9,7 @@ import {
 import ConfirmModal from '../components/ConfirmModal';
 import SEO from '../../components/SEO';
 import { db, auth } from '../../services/firebase';
-import { collection, getDocs, doc, setDoc, addDoc } from 'firebase/firestore';
+import { collection, getDocs, addDoc } from 'firebase/firestore';
 import { getCachedCollection } from '../../services/dbCache';
 import { printIndividualAwardRoll } from '../../utils/practicalsPdfGenerator';
 import { loadSiteSettings } from '../../utils/settingsLoader';
@@ -958,7 +958,7 @@ export default function PracticalsPage() {
   // Roster & Marks State
   const [loading, setLoading] = useState(false);
   const [studentMarks, setStudentMarks] = useState([]);
-  const [masterRosterCache, setMasterRosterCache] = useState({});
+  const masterRosterCacheRef = useRef({});
   const [saving, setSaving] = useState(false);
   const [alert, setAlert] = useState(null);
   const [showFailOnly, setShowFailOnly] = useState(false);
@@ -1034,14 +1034,23 @@ export default function PracticalsPage() {
           return null;
         };
 
-        const snap = await getDocs(collection(db, 'practicalsData')).catch(() => null);
-        if (snap && !snap.empty) {
-          snap.docs.forEach(d => {
-            const data = d.data();
-            const rawYr = data.yearSuffix || data.Session || data.session;
+        const cachedPracticals = await getCachedCollection('practicalsData', false, 30 * 60 * 1000).catch(() => []);
+        if (Array.isArray(cachedPracticals) && cachedPracticals.length > 0) {
+          cachedPracticals.forEach(d => {
+            const rawYr = d.yearSuffix || d.Session || d.session;
             const canonical = normalizeSessionKey(rawYr);
             if (canonical) sessionsSet.add(canonical);
           });
+        } else {
+          const snap = await getDocs(collection(db, 'practicalsData')).catch(() => null);
+          if (snap && !snap.empty) {
+            snap.docs.forEach(d => {
+              const data = d.data();
+              const rawYr = data.yearSuffix || data.Session || data.session;
+              const canonical = normalizeSessionKey(rawYr);
+              if (canonical) sessionsSet.add(canonical);
+            });
+          }
         }
         setAvailableSessions(Array.from(sessionsSet).sort((a, b) => b.localeCompare(a)));
       } catch (e) {
@@ -1196,7 +1205,7 @@ export default function PracticalsPage() {
       }
 
       const cacheKey = `${selectedClass}_${yearSuffix}_${selectedSubject}_${practicalType}`;
-      let uniqueStudents = masterRosterCache[cacheKey];
+      let uniqueStudents = masterRosterCacheRef.current[cacheKey];
 
       if (!uniqueStudents || uniqueStudents.length === 0) {
         let allCandidates = [];
@@ -1473,7 +1482,7 @@ export default function PracticalsPage() {
 
         uniqueStudents = Array.from(uniqueMap.values());
         if (uniqueStudents.length > 0) {
-          setMasterRosterCache(prev => ({ ...prev, [cacheKey]: uniqueStudents }));
+          masterRosterCacheRef.current[cacheKey] = uniqueStudents;
         }
       }
 
@@ -1585,7 +1594,7 @@ export default function PracticalsPage() {
       setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedClass, selectedSubject, practicalType, yearSuffix, masterRosterCache]);
+  }, [selectedClass, selectedSubject, practicalType, yearSuffix]);
 
   useEffect(() => {
     fetchPracticalData();
@@ -1595,13 +1604,19 @@ export default function PracticalsPage() {
   const fetchSubmissionHistory = useCallback(async () => {
     setLoadingHistory(true);
     try {
-      const snap = await getDocs(collection(db, 'practicalsData'));
-      if (!snap.empty) {
-        const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        list.sort((a, b) => new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0));
+      const docs = await getCachedCollection('practicalsData', false, 15 * 60 * 1000);
+      if (Array.isArray(docs) && docs.length > 0) {
+        const list = [...docs].sort((a, b) => new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0));
         setSubmissionHistory(list);
       } else {
-        setSubmissionHistory([]);
+        const snap = await getDocs(collection(db, 'practicalsData'));
+        if (!snap.empty) {
+          const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+          list.sort((a, b) => new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0));
+          setSubmissionHistory(list);
+        } else {
+          setSubmissionHistory([]);
+        }
       }
     } catch (e) {
       console.error('Failed to load practicals history:', e);
@@ -1725,14 +1740,14 @@ export default function PracticalsPage() {
     setAlert(null);
     try {
       if (!auth.currentUser) {
-        if (!auth.currentUser) throw new Error('Authenticated teacher session required.');
+        throw new Error('Active authenticated faculty session required to submit practical marks.');
       }
       const clsNorm = String(selectedClass).replace(/class/i, '').trim();
       const docId = `${clsNorm}_${selectedSubject}_${practicalType}_${yearSuffix}`;
 
       const records = studentMarks.map((s) => {
-        let pMarks = s.practicalMarks;
-        let vMarks = s.vivaMarks;
+        let pMarks = String(s.practicalMarks !== undefined && s.practicalMarks !== null ? s.practicalMarks : '').trim().toUpperCase();
+        let vMarks = String(s.vivaMarks !== undefined && s.vivaMarks !== null ? s.vivaMarks : '').trim().toUpperCase();
 
         if (autoMarkAbsentForUnfilled && pMarks === '' && vMarks === '') {
           pMarks = 'AB';
@@ -1740,18 +1755,23 @@ export default function PracticalsPage() {
         }
 
         const isAbsent = pMarks === 'A' || vMarks === 'A' || pMarks === 'AB' || vMarks === 'AB';
-        const pVal = isNaN(Number(pMarks)) ? 0 : Number(pMarks);
-        const vVal = isNaN(Number(vMarks)) ? 0 : Number(vMarks);
-        const total = isAbsent ? 'AB' : (pVal + vVal);
+        let pVal = isNaN(Number(pMarks)) ? 0 : Number(pMarks);
+        let vVal = isNaN(Number(vMarks)) ? 0 : Number(vMarks);
+        if (pVal < 0) pVal = 0;
+        if (pVal > subjectMaxMarks) pVal = subjectMaxMarks;
+        if (vVal < 0) vVal = 0;
+        if (vVal > subjectMaxMarks) vVal = subjectMaxMarks;
+
+        const total = isAbsent ? 'AB' : Math.min(subjectMaxMarks, pVal + vVal);
 
         return {
-          rollNo: s.rollNo,
-          name: s.name,
-          formNo: s.formNo,
-          regNo: s.regNo || s.boardRegNo || '',
-          examRollNo: s.examRollNo,
-          practicalMarks: pMarks,
-          vivaMarks: vMarks,
+          rollNo: String(s.rollNo || '').trim(),
+          name: String(s.name || '').trim().slice(0, 120),
+          formNo: String(s.formNo || '').trim().slice(0, 50),
+          regNo: String(s.regNo || s.boardRegNo || '').trim().slice(0, 50),
+          examRollNo: String(s.examRollNo || '').trim().slice(0, 50),
+          practicalMarks: isAbsent ? 'AB' : pMarks,
+          vivaMarks: isAbsent ? 'AB' : vMarks,
           totalMarks: total,
           marksInWords: numberToWords(total),
         };
