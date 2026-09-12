@@ -91,6 +91,31 @@ export const DEFAULT_COLUMN_WIDTHS = {
   st_marksReceipt: 140
 };
 
+// Official JKBOSE Subject Abbreviation Directory for Page 2 Examination Plan
+const SENTUP_SUBJECT_DIRECTORY = [
+  { code: 'EN / GE', name: 'General English', stream: 'All Streams (Compulsory)', type: 'Theory & Internal' },
+  { code: 'PH', name: 'Physics', stream: 'Science (Medical / Non-Med)', type: 'Theory + Practical' },
+  { code: 'CH', name: 'Chemistry', stream: 'Science (Medical / Non-Med)', type: 'Theory + Practical' },
+  { code: 'BI / BIO', name: 'Biology (Botany & Zoology)', stream: 'Science (Medical)', type: 'Theory + Practical' },
+  { code: 'MA / MTH', name: 'Mathematics', stream: 'Non-Medical / Humanities', type: 'Theory + Internal' },
+  { code: 'PS / POL', name: 'Political Science', stream: 'Humanities / Arts', type: 'Theory + Project' },
+  { code: 'ED / EDU', name: 'Education', stream: 'Humanities / Arts', type: 'Theory + Internal' },
+  { code: 'SO / SOC', name: 'Sociology', stream: 'Humanities / Arts', type: 'Theory + Project' },
+  { code: 'EC / ECO', name: 'Economics', stream: 'Humanities / Commerce', type: 'Theory + Project' },
+  { code: 'HI / HIST', name: 'History', stream: 'Humanities / Arts', type: 'Theory + Project' },
+  { code: 'UR', name: 'Urdu', stream: 'Humanities / Languages', type: 'Theory + Internal' },
+  { code: 'AR', name: 'Arabic', stream: 'Humanities / Languages', type: 'Theory + Internal' },
+  { code: 'KA / KAS', name: 'Kashmiri', stream: 'Humanities / Languages', type: 'Theory + Internal' },
+  { code: 'HI / HND', name: 'Hindi', stream: 'Humanities / Languages', type: 'Theory + Internal' },
+  { code: 'ES / EVS', name: 'Environmental Science', stream: 'All Streams (Compulsory)', type: 'Grading / Project' },
+  { code: 'IP / ITE', name: 'Information Tech / Informatics', stream: 'Elective / Vocational', type: 'Theory + Practical' },
+  { code: 'HTC', name: 'Health Care', stream: 'Elective / Vocational', type: 'Theory + Practical' },
+  { code: 'PD / PE', name: 'Physical Education', stream: 'Elective / Activity', type: 'Theory + Practical' },
+  { code: 'GEO', name: 'Geography', stream: 'Humanities / Arts', type: 'Theory + Practical' },
+  { code: 'ACC', name: 'Accountancy', stream: 'Commerce', type: 'Theory + Project' },
+  { code: 'BST', name: 'Business Studies', stream: 'Commerce', type: 'Theory + Project' }
+];
+
 // Draggable Table Column Header Component
 function ResizableTh({
   colKey,
@@ -2789,6 +2814,60 @@ export default function AdmissionRegisterSuite({
     return chunks;
   }, [activeTab, activeIncludedRows, filteredStudents]);
 
+  // ─── Sentup Multi-Page Structure (Page 1: Title/Cover, Page 2: Plan & Subject Key, Page 3+: Actual Roll Sheet) ───
+  const [includeCoverPage, setIncludeCoverPage] = useState(true);
+  const [includePlanPage, setIncludePlanPage] = useState(true);
+
+  // Sentup Candidate Census Statistics (Rendered on Cover & Plan Pages)
+  const sentupCensus = useMemo(() => {
+    const total = activeIncludedRows.length;
+    let boys = 0;
+    let girls = 0;
+    let science = 0;
+    let humanities = 0;
+    let commerce = 0;
+    let general = 0;
+    const rollNos = [];
+
+    activeIncludedRows.forEach(s => {
+      const g = String(s.gender || '').toLowerCase();
+      if (g.startsWith('m')) boys++;
+      else if (g.startsWith('f')) girls++;
+
+      const st = extractStudentStream(s, s.subs || '');
+      if (st === 'Science') science++;
+      else if (st === 'Humanities') humanities++;
+      else if (st === 'Commerce') commerce++;
+      else general++;
+
+      if (s.rollNo) {
+        rollNos.push(String(s.rollNo).trim());
+      }
+    });
+
+    let rollRange = '—';
+    if (rollNos.length === 1) {
+      rollRange = `Roll No. ${rollNos[0]}`;
+    } else if (rollNos.length > 1) {
+      rollRange = `Roll No. ${rollNos[0]} to ${rollNos[rollNos.length - 1]}`;
+    }
+
+    return {
+      total,
+      boys,
+      girls,
+      science,
+      humanities,
+      commerce,
+      general,
+      rollRange,
+      firstRoll: rollNos[0] || '—',
+      lastRoll: rollNos[rollNos.length - 1] || '—'
+    };
+  }, [activeIncludedRows]);
+
+  const sentupTotalPages = (includeCoverPage ? 1 : 0) + (includePlanPage ? 1 : 0) + pageChunks.length;
+
   // Summary Target Students: strictly aggregates the paired classes (e.g. 11th & 12th or 9th & 10th)
   // so the roll statement on the Consolidated Summary page always presents both classes together!
   const summaryTargetStudents = useMemo(() => {
@@ -3349,7 +3428,9 @@ export default function AdmissionRegisterSuite({
             overflow: visible !important;
           }
 
-          .sentup-ledger-page {
+          .sentup-ledger-page,
+          .sentup-cover-page,
+          .sentup-plan-page {
             display: flex !important;
             flex-direction: column !important;
             justify-content: space-between !important;
@@ -3359,7 +3440,7 @@ export default function AdmissionRegisterSuite({
             width: 100% !important;
             max-width: 100% !important;
             box-sizing: border-box !important;
-            padding: 2mm 3mm !important;
+            padding: 3mm 4mm !important;
             margin: 0 !important;
             page-break-inside: avoid !important;
             break-inside: avoid-page !important;
@@ -3369,9 +3450,55 @@ export default function AdmissionRegisterSuite({
             background: #ffffff !important;
           }
 
-          .sentup-ledger-page:last-child {
+          .sentup-ledger-page:last-child,
+          .sentup-cover-page:last-child,
+          .sentup-plan-page:last-child {
             page-break-after: auto !important;
             break-after: auto !important;
+          }
+
+          .sentup-cover-page .cover-title-box {
+            border: 3px double #991b1b !important;
+            background: #fffafa !important;
+            padding: 4mm 6mm !important;
+            border-radius: 4mm !important;
+            text-align: center !important;
+          }
+
+          .sentup-cover-page .cover-school-title {
+            font-size: 22pt !important;
+            font-weight: 900 !important;
+            line-height: 1.15 !important;
+            letter-spacing: 0.03em !important;
+            color: #991b1b !important;
+          }
+
+          .sentup-cover-page .cover-doc-title {
+            font-size: 20pt !important;
+            font-weight: 900 !important;
+            line-height: 1.15 !important;
+            letter-spacing: 0.02em !important;
+            color: #0f172a !important;
+          }
+
+          .sentup-plan-page .subject-key-table {
+            width: 100% !important;
+            border-collapse: collapse !important;
+            font-size: 7.5px !important;
+            line-height: 1.1 !important;
+          }
+
+          .sentup-plan-page .subject-key-table th {
+            background-color: #0f172a !important;
+            color: #ffffff !important;
+            font-weight: 900 !important;
+            padding: 1.5px 3px !important;
+            font-size: 7.5px !important;
+          }
+
+          .sentup-plan-page .subject-key-table td {
+            border: 1px solid #cbd5e1 !important;
+            padding: 1px 2.5px !important;
           }
 
           .sentup-ledger-page .sentup-header {
@@ -5379,6 +5506,28 @@ export default function AdmissionRegisterSuite({
                 </div>
 
                 <div className="flex items-center gap-2">
+                  {/* Toggles for Cover Page and Plan Page */}
+                  <div className="flex items-center gap-3 border-r border-slate-300 dark:border-slate-600 pr-3 mr-1">
+                    <label className="flex items-center gap-1.5 cursor-pointer select-none text-[11px] font-bold text-slate-700 dark:text-slate-300 hover:text-red-800 transition-colors" title="Include Page 1 Document Label & Title Cover Page">
+                      <input
+                        type="checkbox"
+                        checked={includeCoverPage}
+                        onChange={(e) => setIncludeCoverPage(e.target.checked)}
+                        className="rounded border-slate-300 text-red-800 focus:ring-red-800 cursor-pointer"
+                      />
+                      <span>Cover (Pg 1)</span>
+                    </label>
+                    <label className="flex items-center gap-1.5 cursor-pointer select-none text-[11px] font-bold text-slate-700 dark:text-slate-300 hover:text-red-800 transition-colors" title="Include Page 2 Examination Plan & Subject Key">
+                      <input
+                        type="checkbox"
+                        checked={includePlanPage}
+                        onChange={(e) => setIncludePlanPage(e.target.checked)}
+                        className="rounded border-slate-300 text-red-800 focus:ring-red-800 cursor-pointer"
+                      />
+                      <span>Plan & Key (Pg 2)</span>
+                    </label>
+                  </div>
+
                   {skippedCount > 0 && (
                     <>
                       <button
@@ -5427,15 +5576,326 @@ export default function AdmissionRegisterSuite({
                 </div>
               )}
 
+              {/* ============================================================== */}
+              {/* PAGE 1: OFFICIAL DOCUMENT LABEL & TITLE COVER PAGE             */}
+              {/* ============================================================== */}
+              {includeCoverPage && (
+                <div
+                  key="sentup-cover-page"
+                  className={`page-container sentup-cover-page bg-white rounded-xl border border-slate-300 shadow-sm print:border-none print:shadow-none max-w-[355.6mm] mx-auto flex flex-col justify-between p-6 ${includePlanPage || pageChunks.length > 0 ? 'page-break-after' : ''}`}
+                  style={{ padding: `${printMargin}in` }}
+                >
+                  {/* Institutional Header Banner */}
+                  <div className="text-center border-b-2 border-red-900 pb-2 relative">
+                    <div className="flex items-center justify-between px-2">
+                      <div className="text-[10px] font-black uppercase text-slate-600 tracking-wider">
+                        Govt. of Jammu & Kashmir • School Education Department
+                      </div>
+                      <div className="text-[10px] font-black uppercase tracking-wider text-red-900 bg-red-50 border border-red-200 px-2.5 py-0.5 rounded">
+                        Page 1 of {sentupTotalPages}
+                      </div>
+                    </div>
+                    <h1 className="cover-school-title text-2xl sm:text-3xl lg:text-4xl font-black text-red-900 uppercase tracking-wide school-header-font mt-1">
+                      {SCHOOL_NAME}
+                    </h1>
+                    <div className="text-xs sm:text-sm font-extrabold text-slate-800 tracking-wide mt-0.5">
+                      Zone: Achabal • District: Anantnag • UT of Jammu & Kashmir (192201)
+                    </div>
+                    <div className="text-[10.5px] font-bold text-slate-600 tracking-wider mt-0.5">
+                      UDISE CODE: 01050800701 • SCHOOL CODE: 2011 • AFFILIATED WITH JKBOSE
+                    </div>
+                  </div>
+
+                  {/* Center Document Label Card (BIGGER FONT AS REQUESTED) */}
+                  <div className="my-auto py-3">
+                    <div className="cover-title-box border-4 border-double border-red-900 bg-linear-to-b from-red-50/50 via-white to-amber-50/30 p-5 rounded-2xl text-center shadow-xs mx-auto max-w-4xl">
+                      <div className="inline-block bg-red-900 text-white text-[10.5px] font-black uppercase tracking-widest px-4 py-1 rounded-full mb-2.5 shadow-xs">
+                        Official Institutional Record & Examination Gazette
+                      </div>
+
+                      <h2 className="cover-doc-title text-2xl sm:text-3xl lg:text-4xl font-black text-slate-900 uppercase tracking-tight leading-snug">
+                        Candidate Sent-up Roll Sheet
+                      </h2>
+                      <div className="text-base sm:text-xl font-black text-red-800 uppercase tracking-wide mt-1">
+                        & Examination Roll Gazette
+                      </div>
+
+                      <div className="mt-2.5 text-xs sm:text-sm font-bold text-slate-700">
+                        Annual Regular Examination • Academic Session {selectedSession}
+                      </div>
+
+                      {/* 4 Metadata Cards */}
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mt-4 pt-3 border-t border-red-200 text-left">
+                        <div className="p-2.5 bg-white rounded-lg border border-slate-200 shadow-2xs">
+                          <div className="text-[9.5px] font-black uppercase text-slate-500">Academic Class</div>
+                          <div className="text-sm sm:text-base font-black text-red-900 mt-0.5">Class {selectedClass}</div>
+                          <div className="text-[9px] text-slate-500 font-semibold">Senior Secondary</div>
+                        </div>
+                        <div className="p-2.5 bg-white rounded-lg border border-slate-200 shadow-2xs">
+                          <div className="text-[9.5px] font-black uppercase text-slate-500">Academic Session</div>
+                          <div className="text-sm sm:text-base font-black text-slate-900 mt-0.5">{selectedSession}</div>
+                          <div className="text-[9px] text-slate-500 font-semibold">JKBOSE Annual Regular</div>
+                        </div>
+                        <div className="p-2.5 bg-white rounded-lg border border-slate-200 shadow-2xs">
+                          <div className="text-[9.5px] font-black uppercase text-slate-500">Sent-up Candidates</div>
+                          <div className="text-sm sm:text-base font-black text-emerald-800 mt-0.5">
+                            {sentupCensus.total} <span className="text-xs font-bold text-slate-600">Students</span>
+                          </div>
+                          <div className="text-[9px] text-slate-500 font-semibold">
+                            {sentupCensus.boys} Boys • {sentupCensus.girls} Girls
+                          </div>
+                        </div>
+                        <div className="p-2.5 bg-white rounded-lg border border-slate-200 shadow-2xs">
+                          <div className="text-[9.5px] font-black uppercase text-slate-500">Roll Number Span</div>
+                          <div className="text-xs sm:text-sm font-black text-indigo-900 mt-0.5 font-mono">
+                            {sentupCensus.rollRange}
+                          </div>
+                          <div className="text-[9px] text-slate-500 font-semibold">
+                            Pages {includeCoverPage && includePlanPage ? 3 : 2} to {sentupTotalPages}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Institutional Verification Declaration */}
+                      <div className="mt-3.5 p-3 bg-white/95 rounded-lg border border-red-100 text-left text-[10px] sm:text-[10.5px] leading-relaxed text-slate-800 font-medium">
+                        <strong className="text-red-900 font-black uppercase">Institutional Certification: </strong>
+                        Certified that the candidates enrolled in Class {selectedClass} for the Academic Session {selectedSession} as documented in the ensuing Roll Sheet (commencing from Page 3) have fulfilled all regulatory attendance norms, coursework requirements, and institutional qualifying standards as stipulated by the Jammu & Kashmir Board of School Education (JKBOSE). All candidate particulars—including Board Registration Numbers, Class Roll Numbers, Parentage, and Subject Combinations—have been thoroughly audited and cross-checked against the Institutional Master Admission Register.
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Signatures & Seal Block on Page 1 */}
+                  <div className="border-t-2 border-red-900 pt-2.5 text-[11px] font-black text-red-900">
+                    <div className="grid grid-cols-3 gap-6 text-center">
+                      <div className="flex flex-col items-center justify-end">
+                        <div className="w-44 border-t-2 border-slate-900 pt-1">
+                          <div className="font-black text-[10.5px] text-slate-900 uppercase">Incharge Examination</div>
+                          <div className="text-[8.5px] text-slate-500 font-semibold">HSS Shangus</div>
+                        </div>
+                      </div>
+                      <div className="flex flex-col items-center justify-end">
+                        <div className="w-44 border-t-2 border-slate-900 pt-1">
+                          <div className="font-black text-[10.5px] text-slate-900 uppercase">Checked & Verified By</div>
+                          <div className="text-[8.5px] text-slate-500 font-semibold">Academic Verification Cell</div>
+                        </div>
+                      </div>
+                      <div className="flex flex-col items-center justify-end">
+                        <div className="w-48 border-t-2 border-red-900 pt-1">
+                          <div className="font-black text-[10.5px] text-red-900 uppercase">Principal / Head of Inst.</div>
+                          <div className="text-[8.5px] text-slate-500 font-semibold">(Official Seal & Signature)</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* ============================================================== */}
+              {/* PAGE 2: EXAMINATION PLAN, CENSUS & SUBJECT ABBREVIATIONS       */}
+              {/* ============================================================== */}
+              {includePlanPage && (
+                <div
+                  key="sentup-plan-page"
+                  className={`page-container sentup-plan-page bg-white rounded-xl border border-slate-300 shadow-sm print:border-none print:shadow-none max-w-[355.6mm] mx-auto flex flex-col justify-between p-4 ${pageChunks.length > 0 ? 'page-break-after' : ''}`}
+                  style={{ padding: `${printMargin}in` }}
+                >
+                  {/* Page Header */}
+                  <div className="border-b border-slate-900 pb-1 mb-1.5">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="text-[9.5px] font-black uppercase text-red-800 tracking-wider">
+                          {SCHOOL_NAME} • Examination Cell
+                        </div>
+                        <h2 className="text-sm sm:text-base font-black uppercase tracking-tight text-slate-900">
+                          Examination Administration Plan, Candidate Census & Subject Directory
+                        </h2>
+                        <div className="text-[9.5px] font-bold text-slate-700">
+                          Class: {selectedClass} • Session: {selectedSession} • Total Sent-up: {sentupCensus.total} Candidates • Roll Sheet Extent: Page {includeCoverPage ? 3 : 2} to Page {sentupTotalPages}
+                        </div>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <div className="text-[9.5px] font-black uppercase tracking-wider text-red-800 bg-red-50 border border-red-200 px-2 py-0.5 rounded">
+                          Page {includeCoverPage ? 2 : 1} of {sentupTotalPages}
+                        </div>
+                        <div className="text-[8.5px] text-slate-500 font-bold mt-0.5">
+                          Admin Plan & Key
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Main Grid: Left = Census & Administration Directives, Right = Full Subject Key */}
+                  <div className="grid grid-cols-12 gap-2.5 my-auto flex-1">
+                    {/* Left Column: Candidate Census & Directives (5 cols) */}
+                    <div className="col-span-5 flex flex-col justify-between gap-2">
+                      {/* Census Table */}
+                      <div className="border border-slate-300 rounded-lg p-2 bg-slate-50/60">
+                        <div className="text-[10px] font-black uppercase text-red-900 border-b border-red-200 pb-0.5 mb-1 flex items-center justify-between">
+                          <span>Candidate Census & Stream Distribution</span>
+                          <span className="text-[9px] text-slate-600 font-bold font-mono">Class {selectedClass}</span>
+                        </div>
+                        <table className="w-full text-left text-[9.5px] border-collapse">
+                          <tbody>
+                            <tr className="border-b border-slate-200">
+                              <td className="py-0.5 font-bold text-slate-700">Total Enrolled / Registered</td>
+                              <td className="py-0.5 text-right font-black text-slate-900 font-mono">{filteredStudents.length}</td>
+                            </tr>
+                            <tr className="border-b border-slate-200">
+                              <td className="py-0.5 font-bold text-slate-700">Total Sent-up / Appearing</td>
+                              <td className="py-0.5 text-right font-black text-emerald-800 font-mono">{sentupCensus.total}</td>
+                            </tr>
+                            <tr className="border-b border-slate-200">
+                              <td className="py-0.5 font-bold text-slate-700">Gender Distribution</td>
+                              <td className="py-0.5 text-right font-bold text-slate-900 font-mono">
+                                {sentupCensus.boys} Boys • {sentupCensus.girls} Girls
+                              </td>
+                            </tr>
+                            <tr className="border-b border-slate-200">
+                              <td className="py-0.5 font-bold text-slate-700">Science Stream (Medical / Non-Med)</td>
+                              <td className="py-0.5 text-right font-black text-sky-800 font-mono">{sentupCensus.science}</td>
+                            </tr>
+                            <tr className="border-b border-slate-200">
+                              <td className="py-0.5 font-bold text-slate-700">Humanities & Arts Stream</td>
+                              <td className="py-0.5 text-right font-black text-amber-800 font-mono">{sentupCensus.humanities}</td>
+                            </tr>
+                            {sentupCensus.commerce > 0 && (
+                              <tr className="border-b border-slate-200">
+                                <td className="py-0.5 font-bold text-slate-700">Commerce Stream</td>
+                                <td className="py-0.5 text-right font-black text-indigo-800 font-mono">{sentupCensus.commerce}</td>
+                              </tr>
+                            )}
+                            <tr className="border-b border-slate-200">
+                              <td className="py-0.5 font-bold text-slate-700">Class Roll No. Span</td>
+                              <td className="py-0.5 text-right font-black text-slate-900 font-mono">{sentupCensus.rollRange}</td>
+                            </tr>
+                            <tr>
+                              <td className="py-0.5 font-bold text-slate-700">Roll Sheet Ledger Extent</td>
+                              <td className="py-0.5 text-right font-black text-red-900 font-mono">
+                                {pageChunks.length} Pages (Pg {includeCoverPage && includePlanPage ? 3 : includeCoverPage || includePlanPage ? 2 : 1}–{sentupTotalPages})
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+
+                      {/* Examination Administration Directives */}
+                      <div className="border border-slate-300 rounded-lg p-2 bg-slate-50/60 text-[9.5px] leading-snug text-slate-800">
+                        <div className="text-[10px] font-black uppercase text-red-900 border-b border-red-200 pb-0.5 mb-1">
+                          Administration Directives & Seating Protocol
+                        </div>
+                        <ul className="space-y-1 text-[9px]">
+                          <li className="flex items-start gap-1">
+                            <span className="text-red-800 font-bold">•</span>
+                            <span><strong>Seating Arrangement:</strong> Strict single-candidate seating per desk with roll numbers conspicuously affixed. Minimum 1-metre lateral distance.</span>
+                          </li>
+                          <li className="flex items-start gap-1">
+                            <span className="text-red-800 font-bold">•</span>
+                            <span><strong>Verification Protocol:</strong> Cross-check Candidate Board Reg. No. and Class Roll No. with original Admit Cards prior to entry.</span>
+                          </li>
+                          <li className="flex items-start gap-1">
+                            <span className="text-red-800 font-bold">•</span>
+                            <span><strong>Subject Code Compliance:</strong> Examinees are strictly authorized to appear in subjects as allocated in the official Sent-up Roll Sheet (Pages 3 to {sentupTotalPages}).</span>
+                          </li>
+                          <li className="flex items-start gap-1">
+                            <span className="text-red-800 font-bold">•</span>
+                            <span><strong>Attendance & Absentees:</strong> Daily attendance sheets and absentee statements must be countersigned by the Superintendent and retained in institutional records.</span>
+                          </li>
+                        </ul>
+                      </div>
+                    </div>
+
+                    {/* Right Column: Comprehensive Subject Abbreviation Directory ("keep subejct abbreviations on 2nd page only") */}
+                    <div className="col-span-7 flex flex-col justify-between border border-slate-300 rounded-lg p-2 bg-white">
+                      <div>
+                        <div className="text-[10px] font-black uppercase text-red-900 border-b border-red-200 pb-0.5 mb-1 flex items-center justify-between">
+                          <span>Subject Abbreviations Directory & Reference Key</span>
+                          <span className="text-[8.5px] font-bold text-slate-500">JKBOSE Official Nomenclature</span>
+                        </div>
+
+                        <div className="overflow-x-auto">
+                          <table className="subject-key-table w-full text-left text-[8.5px] border-collapse border border-slate-300">
+                            <thead>
+                              <tr className="bg-slate-900 text-white uppercase text-[8px] font-black">
+                                <th className="border border-slate-300 px-1 py-0.5 w-16 text-center">Code</th>
+                                <th className="border border-slate-300 px-1.5 py-0.5">Subject Full Title</th>
+                                <th className="border border-slate-300 px-1.5 py-0.5">Stream / Category</th>
+                                <th className="border border-slate-300 px-1 py-0.5 text-center">Assessment Mode</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-200 text-slate-800">
+                              {SENTUP_SUBJECT_DIRECTORY.map((sub, sIdx) => (
+                                <tr key={sIdx} className={sIdx % 2 === 0 ? 'bg-white' : 'bg-slate-50/70'}>
+                                  <td className="border border-slate-200 px-1 py-0.5 text-center font-mono font-black text-indigo-900 bg-indigo-50/50">
+                                    {sub.code}
+                                  </td>
+                                  <td className="border border-slate-200 px-1.5 py-0.5 font-bold text-slate-900">
+                                    {sub.name}
+                                  </td>
+                                  <td className="border border-slate-200 px-1.5 py-0.5 text-slate-600 font-medium text-[8px]">
+                                    {sub.stream}
+                                  </td>
+                                  <td className="border border-slate-200 px-1.5 py-0.5 text-center text-slate-600 font-semibold text-[7.5px]">
+                                    {sub.type}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+
+                      {/* Guidance Line on 2nd page only as requested */}
+                      <div className="mt-1.5 p-1.5 rounded bg-amber-50 border border-amber-200 text-[9px] text-amber-950 leading-tight">
+                        <strong>📌 Official Guidance Note on Subject Abbreviations:</strong> All subject combinations recorded in the Candidate Sent-up Roll Sheet (commencing from Page 3 through Page {sentupTotalPages}) conform strictly to the standard JKBOSE codes tabulated above. Each candidate must appear in 5 main subjects plus compulsory Environmental / Internal assessments.
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Signatures on Plan Page */}
+                  <div className="border-t border-slate-900 pt-1.5 text-[10px] font-black text-slate-900">
+                    <div className="grid grid-cols-4 gap-4 text-center">
+                      <div className="flex flex-col items-center justify-end">
+                        <div className="w-32 border-t border-slate-800 pt-0.5">
+                          <div className="text-[9.5px] font-black uppercase">Prepared By</div>
+                          <div className="text-[7.5px] text-slate-500 font-semibold">(Data Entry / Clerk)</div>
+                        </div>
+                      </div>
+                      <div className="flex flex-col items-center justify-end">
+                        <div className="w-32 border-t border-slate-800 pt-0.5">
+                          <div className="text-[9.5px] font-black uppercase">Incharge Exam Committee</div>
+                          <div className="text-[7.5px] text-slate-500 font-semibold">HSS Shangus</div>
+                        </div>
+                      </div>
+                      <div className="flex flex-col items-center justify-end">
+                        <div className="w-32 border-t border-slate-800 pt-0.5">
+                          <div className="text-[9.5px] font-black uppercase">Superintendent of Exam</div>
+                          <div className="text-[7.5px] text-slate-500 font-semibold">Center Shangus</div>
+                        </div>
+                      </div>
+                      <div className="flex flex-col items-center justify-end">
+                        <div className="w-36 border-t border-red-900 pt-0.5">
+                          <div className="text-[9.5px] font-black text-red-900 uppercase">Principal (Seal & Sign)</div>
+                          <div className="text-[7.5px] text-slate-500 font-semibold">Head of Institution</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* ============================================================== */}
+              {/* PAGE 3 ONWARDS: ACTUAL CANDIDATE ROLL SHEET CHUNKS             */}
+              {/* ============================================================== */}
               {pageChunks.map((chunk, idx) => {
-                const pageNum = idx + 1;
+                const pageOffset = (includeCoverPage ? 1 : 0) + (includePlanPage ? 1 : 0);
+                const overallPageNum = pageOffset + idx + 1;
                 const pageHas12th = chunk.some(s => String(s.class || '').includes('12'));
                 const is12th = selectedClass === '12th' || (selectedClass.includes('12') && !selectedClass.includes('11')) || pageHas12th;
                 const themeHeaderBg = is12th ? 'bg-rose-900 text-white' : 'bg-sky-800 text-white';
 
                 return (
                   <div
-                    key={pageNum}
+                    key={overallPageNum}
                     className={`page-container sentup-ledger-page bg-white rounded-xl border border-slate-300 shadow-sm print:border-none print:shadow-none max-w-[355.6mm] mx-auto ${idx < pageChunks.length - 1 ? 'page-break-after' : ''}`}
                     style={{ padding: `${printMargin}in` }}
                   >
@@ -5446,7 +5906,8 @@ export default function AdmissionRegisterSuite({
                       <div className="sentup-subtitle text-[10px] sm:text-[11px] font-extrabold text-slate-800 mt-0.5">
                         JKBOSE Sentup Roll Sheet • Class {selectedClass} • Session {selectedSession} • {selectedStatus} Candidates
                       </div>
-                      <div className="absolute right-0 top-0 w-5 h-5 rounded-full border border-slate-900 text-center text-[9px] font-black leading-4 text-transparent select-none print:hidden">
+                      <div className="absolute right-0 top-0 text-[10px] font-black text-red-900 uppercase tracking-wider">
+                        Page {overallPageNum} of {sentupTotalPages} <span className="font-bold text-slate-500 text-[8.5px] print:inline">(Sheet {idx + 1})</span>
                       </div>
                     </div>
 
