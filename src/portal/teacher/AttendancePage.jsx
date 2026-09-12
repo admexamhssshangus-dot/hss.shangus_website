@@ -2289,9 +2289,14 @@ export default function AttendancePage() {
                         onChange={(e) => handleQuickRollModeChange(e.target.value)}
                         className="w-full px-2.5 py-2 rounded-xl text-xs font-bold border bg-indigo-50 dark:bg-indigo-950/60 border-indigo-300 dark:border-indigo-700 text-indigo-900 dark:text-indigo-200 shadow-2xs"
                       >
-                        <option value="PRESENT_FIRST">Present First (Unlisted marked Absent)</option>
-                        <option value="ABSENT_FIRST">Absent First (Unlisted marked Present)</option>
+                        <option value="PRESENT_FIRST">Present-First (Rest Absent)</option>
+                        <option value="ABSENT_FIRST">Absent-First (Rest Present)</option>
                       </select>
+                      <p className="text-[9.5px] text-slate-500 dark:text-slate-400 font-medium">
+                        {quickRollMode === 'PRESENT_FIRST'
+                          ? 'Entered rolls marked Present; unlisted rolls default to Absent.'
+                          : 'Entered rolls marked Absent; unlisted rolls default to Present.'}
+                      </p>
                     </div>
 
                     {/* Holiday Shortcut Button */}
@@ -3110,14 +3115,14 @@ export default function AttendancePage() {
                   />
                 </div>
 
-                <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-200 dark:border-slate-800">
+                <div className="pt-2 border-t border-slate-200 dark:border-slate-800">
                   <button
                     type="submit"
                     disabled={savingHoliday}
-                    className="px-4 py-2 rounded-xl font-black text-xs text-white bg-amber-600 hover:bg-amber-500 shadow-md cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+                    className="w-full sm:w-auto px-4 py-2.5 rounded-xl font-black text-xs text-white bg-amber-600 hover:bg-amber-500 shadow-md cursor-pointer disabled:opacity-50 flex items-center justify-center gap-1.5 transition-all active:scale-98"
                   >
                     {savingHoliday ? <RefreshCw size={14} className="animate-spin" /> : <Save size={14} />}
-                    <span>{savingHoliday ? 'Saving...' : editingHoliday ? '💾 Update Holiday / Vacation' : '💾 Save Holiday / Vacation Range'}</span>
+                    <span>{savingHoliday ? 'Saving...' : editingHoliday ? 'Update Holiday / Vacation' : 'Save Holiday / Vacation'}</span>
                   </button>
                 </div>
               </form>
@@ -3201,14 +3206,14 @@ export default function AttendancePage() {
             </div>
 
             {/* Modal Actions Footer */}
-            <div className="flex items-center justify-end pt-2 border-t border-slate-200 dark:border-slate-800 flex-shrink-0">
+            <div className="pt-2 border-t border-slate-200 dark:border-slate-800 flex-shrink-0">
               <button
                 type="button"
                 onClick={() => {
                   setEditingHoliday(null);
                   setShowHolidayManageModal(false);
                 }}
-                className="px-4 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 font-bold text-xs text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                className="w-full py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 font-bold text-xs text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer transition-colors active:scale-98"
               >
                 Close Manager
               </button>

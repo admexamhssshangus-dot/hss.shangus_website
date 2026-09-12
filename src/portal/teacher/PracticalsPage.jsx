@@ -2272,23 +2272,39 @@ export default function PracticalsPage() {
                     </button>
                   </div>
 
-                  <div className="space-y-2.5 max-h-[65vh] overflow-y-auto pr-1">
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 block">Class</label>
-                      <select
-                        value={selectedClass}
-                        onChange={(e) => setSelectedClass(e.target.value)}
-                        className="w-full px-3 py-2 rounded-xl text-xs font-bold border bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 shadow-2xs"
-                      >
-                        <option value="12th">Class 12th</option>
-                        <option value="11th">Class 11th</option>
-                        <option value="10th">Class 10th</option>
-                        <option value="9th">Class 9th</option>
-                      </select>
+                  <div className="space-y-2.5 max-h-[70vh] overflow-y-auto pr-0.5">
+                    {/* Class & Academic Session in 2-Column Responsive Grid */}
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 block">Class</label>
+                        <select
+                          value={selectedClass}
+                          onChange={(e) => setSelectedClass(e.target.value)}
+                          className="w-full px-2.5 py-2 rounded-xl text-xs font-bold border bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 shadow-2xs cursor-pointer"
+                        >
+                          <option value="12th">Class 12th</option>
+                          <option value="11th">Class 11th</option>
+                          <option value="10th">Class 10th</option>
+                          <option value="9th">Class 9th</option>
+                        </select>
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 block">Session</label>
+                        <select
+                          value={yearSuffix}
+                          onChange={(e) => setYearSuffix(e.target.value)}
+                          className="w-full px-2.5 py-2 rounded-xl text-xs font-bold border bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 shadow-2xs cursor-pointer"
+                        >
+                          {availableSessions.map(yr => (
+                            <option key={yr} value={yr}>{yr}</option>
+                          ))}
+                        </select>
+                      </div>
                     </div>
 
+                    {/* Subject (Single unified header rendered inside CustomSubjectSelect) */}
                     <div className="space-y-1">
-                      <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 block">Subject</label>
                       <CustomSubjectSelect
                         selectedSubject={selectedSubject}
                         setSelectedSubject={setSelectedSubject}
@@ -2300,12 +2316,13 @@ export default function PracticalsPage() {
                       />
                     </div>
 
+                    {/* Evaluation Type */}
                     <div className="space-y-1">
                       <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 block">Evaluation Type</label>
                       <select
                         value={practicalType}
                         onChange={(e) => setPracticalType(e.target.value)}
-                        className="w-full px-3 py-2 rounded-xl text-xs font-bold border bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 shadow-2xs"
+                        className="w-full px-3 py-2 rounded-xl text-xs font-bold border bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 shadow-2xs cursor-pointer"
                       >
                         {availableEvalTypes.map(et => (
                           <option key={et.value} value={et.value}>{et.label || et.value}</option>
@@ -2313,26 +2330,13 @@ export default function PracticalsPage() {
                       </select>
                     </div>
 
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 block">Academic Session</label>
-                      <select
-                        value={yearSuffix}
-                        onChange={(e) => setYearSuffix(e.target.value)}
-                        className="w-full px-3 py-2 rounded-xl text-xs font-bold border bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 shadow-2xs"
-                      >
-                        {availableSessions.map(yr => (
-                          <option key={yr} value={yr}>{yr}</option>
-                        ))}
-                      </select>
-                    </div>
-
                     <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
-                      <label className="flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-300 cursor-pointer">
+                      <label className="flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-300 cursor-pointer select-none">
                         <input
                           type="checkbox"
                           checked={showFailOnly}
                           onChange={(e) => setShowFailOnly(e.target.checked)}
-                          className="w-4 h-4 rounded border-slate-300 dark:border-slate-700 text-rose-600 focus:ring-rose-500"
+                          className="w-4 h-4 rounded border-slate-300 dark:border-slate-700 text-rose-600 focus:ring-rose-500 cursor-pointer"
                         />
                         <span>Show failing / absent records only</span>
                       </label>
