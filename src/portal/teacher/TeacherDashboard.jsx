@@ -195,12 +195,12 @@ export default function TeacherDashboard() {
               <div className="w-8 h-8 rounded-xl bg-teal-600 text-white font-black text-xs flex items-center justify-center shadow-2xs flex-shrink-0">
                 {userName.charAt(0)}
               </div>
-              <div className="min-w-0">
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <h1 className="text-xs sm:text-sm font-black tracking-tight truncate leading-tight" style={{ color: 'var(--text-main, #0f172a)' }}>
-                    {userName}
-                  </h1>
-                  <span className="px-1.5 py-0.2 rounded-full text-[9px] font-black bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 flex items-center gap-0.5">
+              <div className="min-w-0 flex flex-col justify-center">
+                <h1 className="text-xs sm:text-sm font-black tracking-tight truncate leading-tight" style={{ color: 'var(--text-main, #0f172a)' }}>
+                  {userName}
+                </h1>
+                <div className="flex items-center mt-0.5">
+                  <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold leading-none bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 inline-flex items-center gap-1">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
                     Educator
                   </span>
@@ -212,7 +212,7 @@ export default function TeacherDashboard() {
               <button
                 type="button"
                 onClick={handleLogoutRequest}
-                className="px-2.5 py-1 rounded-lg font-black text-[11px] flex items-center gap-1 cursor-pointer transition-all duration-200 shadow-2xs"
+                className="portal-compact-btn rounded-lg font-black text-[11px] flex items-center gap-1 cursor-pointer transition-all duration-200 shadow-2xs"
                 style={{ backgroundColor: '#ffffff', color: '#000000', border: '1px solid #cbd5e1' }}
                 title="Sign out"
                 onMouseEnter={e => {
@@ -226,7 +226,7 @@ export default function TeacherDashboard() {
                   e.currentTarget.style.borderColor = '#cbd5e1';
                 }}
               >
-                <LogOut size={12} />
+                <LogOut size={11} />
                 <span>Logout</span>
               </button>
             </div>
