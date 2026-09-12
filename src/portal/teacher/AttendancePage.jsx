@@ -1675,11 +1675,11 @@ export default function AttendancePage() {
                 <ArrowLeft size={13} />
                 <span>Back</span>
               </Link>
-              <div className="flex flex-col min-w-0">
-                <h1 className="text-xs sm:text-sm font-black text-slate-900 dark:text-white tracking-tight leading-tight">
+              <div className="flex flex-col min-w-0 shrink-0">
+                <h1 className="text-xs sm:text-sm font-black text-slate-900 dark:text-white tracking-tight leading-tight whitespace-nowrap">
                   Attendance
                 </h1>
-                <span className="text-[9.5px] font-bold text-indigo-600 dark:text-indigo-400 leading-none">
+                <span className="text-[9.5px] font-bold text-indigo-600 dark:text-indigo-400 leading-none whitespace-nowrap">
                   Class {selectedClass}
                 </span>
               </div>
@@ -1690,16 +1690,14 @@ export default function AttendancePage() {
               <button
                 type="button"
                 onClick={() => setShowQuickRollBox(!showQuickRollBox)}
-                className={`h-8 px-2 sm:px-2.5 rounded-lg font-bold text-xs transition-all cursor-pointer flex items-center gap-1 shadow-2xs active:scale-95 ${
+                className={`h-8 w-8 rounded-lg font-bold transition-all cursor-pointer flex items-center justify-center shadow-2xs active:scale-95 shrink-0 border ${
                   showQuickRollBox
-                    ? 'bg-indigo-600 text-white shadow-xs'
-                    : 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100'
+                    ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                    : 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100'
                 }`}
                 title="Toggle Fast Roll Entry Box"
               >
-                <Zap size={13} className={showQuickRollBox ? 'text-white' : 'text-indigo-600 dark:text-indigo-400'} />
-                <span className="hidden xs:inline sm:inline">Quick Roll</span>
-                <span className="xs:hidden sm:hidden">Roll</span>
+                <Zap size={15} className={showQuickRollBox ? 'text-white' : 'text-indigo-600 dark:text-indigo-400'} />
               </button>
 
               {/* Filters / Settings Toggle Button (Bigger touch target and icon) */}
@@ -2470,7 +2468,7 @@ export default function AttendancePage() {
               </div>
             </div>
 
-            {/* Attendance Tallies (40% Compact Height) */}
+            {/* Attendance Tallies (50% Reduced Compact Height: strictly 20px) */}
             <div className="grid grid-cols-4 sm:flex items-center gap-1 text-[10px] font-black">
               <button
                 type="button"
@@ -2482,7 +2480,7 @@ export default function AttendancePage() {
                     list: filteredStudentsBySubject.filter(s => (s.status === 'P' || s.status === 'Present'))
                   });
                 }}
-                className="h-5 sm:h-5.5 px-1.5 rounded-md bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/25 transition-all cursor-pointer shadow-2xs flex items-center justify-center gap-0.5 active:scale-95 leading-none"
+                className="attendance-tally-btn bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/25 transition-all cursor-pointer shadow-2xs flex items-center justify-center gap-0.5 active:scale-95 leading-none"
                 title="Click to view Present Students list"
               >
                 <span>P:</span> <span>{presentCount}</span>
@@ -2497,7 +2495,7 @@ export default function AttendancePage() {
                     list: filteredStudentsBySubject.filter(s => (s.status === 'L' || s.status === 'Leave'))
                   });
                 }}
-                className="h-5 sm:h-5.5 px-1.5 rounded-md bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30 hover:bg-amber-500/25 transition-all cursor-pointer shadow-2xs flex items-center justify-center gap-0.5 active:scale-95 leading-none"
+                className="attendance-tally-btn bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30 hover:bg-amber-500/25 transition-all cursor-pointer shadow-2xs flex items-center justify-center gap-0.5 active:scale-95 leading-none"
                 title="Click to view Students on Leave list"
               >
                 <span>L:</span> <span>{leaveCount}</span>
@@ -2512,7 +2510,7 @@ export default function AttendancePage() {
                     list: filteredStudentsBySubject.filter(s => (s.status === 'A' || s.status === 'Absent' || !s.status))
                   });
                 }}
-                className="h-5 sm:h-5.5 px-1.5 rounded-md bg-rose-500/15 text-rose-700 dark:text-rose-300 border border-rose-500/30 hover:bg-rose-500/25 transition-all cursor-pointer shadow-2xs flex items-center justify-center gap-0.5 active:scale-95 leading-none"
+                className="attendance-tally-btn bg-rose-500/15 text-rose-700 dark:text-rose-300 border border-rose-500/30 hover:bg-rose-500/25 transition-all cursor-pointer shadow-2xs flex items-center justify-center gap-0.5 active:scale-95 leading-none"
                 title="Click to view Absent Students list"
               >
                 <span>A:</span> <span>{absentCount}</span>
@@ -2527,7 +2525,7 @@ export default function AttendancePage() {
                     list: filteredStudentsBySubject
                   });
                 }}
-                className="h-5 sm:h-5.5 px-1.5 rounded-md bg-slate-200/90 dark:bg-slate-800 text-slate-800 dark:text-slate-200 border border-slate-300/60 dark:border-slate-700 hover:bg-slate-300 transition-all cursor-pointer shadow-2xs flex items-center justify-center gap-0.5 active:scale-95 leading-none"
+                className="attendance-tally-btn bg-slate-200/90 dark:bg-slate-800 text-slate-800 dark:text-slate-200 border border-slate-300/60 dark:border-slate-700 hover:bg-slate-300 transition-all cursor-pointer shadow-2xs flex items-center justify-center gap-0.5 active:scale-95 leading-none"
                 title="Click to view full Class Roster list"
               >
                 <span>T:</span> <span>{filteredStudentsBySubject.length}</span>
@@ -2554,7 +2552,7 @@ export default function AttendancePage() {
                     return (
                       <div
                         key={idx}
-                        className="py-1 px-2 rounded-lg border flex items-center justify-between transition-colors hover:border-teal-500/70 gap-1.5 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-2xs"
+                        className="attendance-student-card rounded-lg border flex items-center justify-between transition-colors hover:border-teal-500/70 gap-1.5 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-2xs"
                       >
                         {/* Roll Badge + Student Info */}
                         <div
@@ -2562,27 +2560,27 @@ export default function AttendancePage() {
                           className="flex items-center gap-1.5 min-w-0 flex-1 cursor-pointer group"
                         >
                           {/* Class Roll Badge */}
-                          <div className="w-5.5 h-5.5 rounded-md bg-teal-500/15 dark:bg-teal-950/60 text-teal-800 dark:text-teal-300 font-mono font-bold text-[10px] flex items-center justify-center border border-teal-500/25 shrink-0 group-hover:bg-teal-600 group-hover:text-white transition-all shadow-2xs" title="Tap to view full details">
+                          <div className="w-5 h-5 min-w-[20px] min-h-[20px] rounded bg-teal-500/15 dark:bg-teal-950/60 text-teal-800 dark:text-teal-300 font-mono font-bold text-[9.5px] flex items-center justify-center border border-teal-500/25 shrink-0 group-hover:bg-teal-600 group-hover:text-white transition-all shadow-2xs" title="Tap to view full details">
                             {st.rollNo}
                           </div>
 
                           {/* Student Name & Subtitle */}
-                          <div className="min-w-0 flex-1">
-                            <h4 className="text-[11.5px] font-bold text-slate-900 dark:text-white truncate leading-tight group-hover:text-teal-600 dark:group-hover:text-teal-400 transition-colors">
+                          <div className="min-w-0 flex-1 flex flex-col justify-center leading-none">
+                            <h4 className="text-[11px] font-bold text-slate-900 dark:text-white truncate leading-tight group-hover:text-teal-600 dark:group-hover:text-teal-400 transition-colors">
                               {formatProperCase(st.name)}
                             </h4>
-                            <p className="text-[9px] font-medium text-slate-400 dark:text-slate-500 truncate leading-none">
+                            <p className="text-[8.5px] font-medium text-slate-400 dark:text-slate-500 truncate leading-none mt-0.5">
                               {st.subjectsAbbr || 'General'}
                             </p>
                           </div>
                         </div>
 
-                        {/* Segmented P | L | A Control Capsule (30% Reduced Compact Height) */}
-                        <div className="flex items-center p-0.5 rounded-md bg-slate-100 dark:bg-slate-950 border border-slate-200/80 dark:border-slate-800 shrink-0 gap-0.5">
+                        {/* Segmented P | L | A Control Capsule (Ultra-compact 24px Height) */}
+                        <div className="attendance-pla-capsule flex items-center rounded-md bg-slate-100 dark:bg-slate-950 border border-slate-200/80 dark:border-slate-800 shrink-0 gap-0.5">
                           <button
                             type="button"
                             onClick={() => setStatusForStudent(originalIdx !== -1 ? originalIdx : idx, 'P')}
-                            className={`w-6 h-5.5 rounded text-[10px] font-black transition-all cursor-pointer flex items-center justify-center active:scale-90 ${
+                            className={`attendance-pla-btn rounded text-[9.5px] font-black transition-all cursor-pointer flex items-center justify-center active:scale-90 leading-none ${
                               isP
                                 ? 'bg-emerald-600 text-white shadow-2xs'
                                 : 'text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-200/50 dark:hover:bg-slate-800'
@@ -2594,7 +2592,7 @@ export default function AttendancePage() {
                           <button
                             type="button"
                             onClick={() => setStatusForStudent(originalIdx !== -1 ? originalIdx : idx, 'L')}
-                            className={`w-6 h-5.5 rounded text-[10px] font-black transition-all cursor-pointer flex items-center justify-center active:scale-90 ${
+                            className={`attendance-pla-btn rounded text-[9.5px] font-black transition-all cursor-pointer flex items-center justify-center active:scale-90 leading-none ${
                               isL
                                 ? 'bg-amber-500 text-white shadow-2xs'
                                 : 'text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-200/50 dark:hover:bg-slate-800'
@@ -2606,7 +2604,7 @@ export default function AttendancePage() {
                           <button
                             type="button"
                             onClick={() => setStatusForStudent(originalIdx !== -1 ? originalIdx : idx, 'A')}
-                            className={`w-6 h-5.5 rounded text-[10px] font-black transition-all cursor-pointer flex items-center justify-center active:scale-90 ${
+                            className={`attendance-pla-btn rounded text-[9.5px] font-black transition-all cursor-pointer flex items-center justify-center active:scale-90 leading-none ${
                               isA
                                 ? 'bg-rose-600 text-white shadow-2xs'
                                 : 'text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-200/50 dark:hover:bg-slate-800'
@@ -2649,7 +2647,6 @@ export default function AttendancePage() {
                 </button>
               </div>
             </div>
-          )}
 
           {/* TAB 2: Holidays Management */}
           {activeTab === 'holidays' && (
@@ -3006,20 +3003,20 @@ export default function AttendancePage() {
 
       {/* Holiday / Vacation Range Management Modal Sheet */}
       {showHolidayManageModal && (
-        <div className="fixed inset-0 z-[9996] bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-3 animate-fadeIn">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-2xl max-w-2xl w-full max-h-[90vh] flex flex-col space-y-3.5 text-slate-900 dark:text-slate-100">
+        <div className="fixed inset-0 z-[9996] bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-2.5 sm:p-4 animate-fadeIn">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-3 sm:p-3.5 shadow-2xl max-w-lg w-full max-h-[90vh] flex flex-col space-y-2.5 text-slate-900 dark:text-slate-100">
             
             {/* Modal Header */}
-            <div className="flex items-start justify-between border-b border-slate-200 dark:border-slate-800 pb-2.5 flex-shrink-0">
-              <div className="flex items-center gap-2.5">
-                <div className="w-10 h-10 rounded-2xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center font-black flex-shrink-0">
-                  <Calendar size={22} />
+            <div className="flex items-start justify-between border-b border-slate-200 dark:border-slate-800 pb-2 flex-shrink-0">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center font-black flex-shrink-0">
+                  <Calendar size={15} />
                 </div>
                 <div>
-                  <h3 className="text-sm font-black leading-tight text-slate-900 dark:text-white">
+                  <h3 className="text-xs sm:text-sm font-black leading-tight text-slate-900 dark:text-white">
                     {editingHoliday ? '✏️ Edit Declared Holiday / Vacation' : 'Declare Holiday or Vacation Range'}
                   </h3>
-                  <p className="text-[11px] font-bold text-slate-500">
+                  <p className="text-[10px] font-medium text-slate-500 leading-tight">
                     Declare or edit single-day holidays and multi-day vacation ranges (e.g. Summer Vacation)
                   </p>
                 </div>
@@ -3030,16 +3027,16 @@ export default function AttendancePage() {
                   setEditingHoliday(null);
                   setShowHolidayManageModal(false);
                 }}
-                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
               >
-                <X size={18} />
+                <X size={16} />
               </button>
             </div>
 
             {/* Editing Active Indicator Banner */}
             {editingHoliday && (
-              <div className="p-2 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 border border-indigo-200 dark:border-indigo-800 flex items-center justify-between text-xs font-bold text-indigo-900 dark:text-indigo-200 flex-shrink-0">
-                <span>✏️ Currently Editing: <strong>{editingHoliday.label}</strong></span>
+              <div className="p-1.5 px-2.5 rounded-lg bg-indigo-50 dark:bg-indigo-950/50 border border-indigo-200 dark:border-indigo-800 flex items-center justify-between text-[11px] font-bold text-indigo-900 dark:text-indigo-200 flex-shrink-0">
+                <span className="truncate mr-2">✏️ Currently Editing: <strong>{editingHoliday.label}</strong></span>
                 <button
                   type="button"
                   onClick={() => {
@@ -3049,7 +3046,7 @@ export default function AttendancePage() {
                     setHolidayLabel('');
                     setHolidayPurpose('');
                   }}
-                  className="px-2.5 py-0.5 rounded-lg text-[10px] font-black bg-indigo-200 dark:bg-indigo-900 hover:bg-indigo-300 text-indigo-900 dark:text-indigo-100 cursor-pointer"
+                  className="px-2 py-0.5 rounded text-[10px] font-black bg-indigo-200 dark:bg-indigo-900 hover:bg-indigo-300 text-indigo-900 dark:text-indigo-100 cursor-pointer flex-shrink-0"
                 >
                   Cancel Edit
                 </button>
@@ -3057,89 +3054,91 @@ export default function AttendancePage() {
             )}
 
             {/* Scrollable Content Container */}
-            <div className="space-y-4 overflow-y-auto flex-1 pr-1">
+            <div className="space-y-2.5 overflow-y-auto flex-1 pr-1">
               {/* Form */}
-              <form onSubmit={handleSaveHoliday} className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 space-y-3">
+              <form onSubmit={handleSaveHoliday} className="p-2 sm:p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 space-y-1.5">
                 <div>
-                  <label className="text-[10px] font-black text-slate-500 uppercase block mb-1">Holiday / Vacation Title</label>
+                  <label className="text-[9px] font-black text-slate-500 uppercase block mb-0.5">Holiday / Vacation Title</label>
                   <input
                     type="text"
                     required
                     placeholder="e.g. Summer Vacation / Eid-ul-Adha / Independence Day"
                     value={holidayLabel}
                     onChange={e => setHolidayLabel(e.target.value)}
-                    className="w-full px-3 py-1.5 rounded-xl border bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 font-bold text-xs"
+                    className="w-full px-2.5 py-1 rounded-lg border bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 font-bold text-xs"
                   />
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="text-[10px] font-black text-slate-500 uppercase block mb-1">Start Date</label>
+                    <label className="text-[9px] font-black text-slate-500 uppercase block mb-0.5">Start Date</label>
                     <input
                       type="date"
                       required
                       value={holidayDate}
                       onChange={e => setHolidayDate(e.target.value)}
-                      className="w-full px-3 py-1.5 rounded-xl border bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 font-bold text-xs"
+                      className="w-full px-2 py-1 rounded-lg border bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 font-bold text-xs"
                     />
                   </div>
 
                   <div>
-                    <label className="text-[10px] font-black text-slate-500 uppercase block mb-1">
-                      End Date <span className="text-slate-400 font-normal">(Optional Range End)</span>
+                    <label className="text-[9px] font-black text-slate-500 uppercase block mb-0.5 truncate">
+                      End Date <span className="text-slate-400 font-normal">(Optional)</span>
                     </label>
                     <input
                       type="date"
                       value={holidayEndDate}
                       onChange={e => setHolidayEndDate(e.target.value)}
                       placeholder="Leave blank for single day"
-                      className="w-full px-3 py-1.5 rounded-xl border bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 font-bold text-xs"
+                      className="w-full px-2 py-1 rounded-lg border bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 font-bold text-xs"
                     />
                   </div>
                 </div>
 
                 {holidayDate && holidayEndDate && holidayEndDate > holidayDate && (
-                  <div className="p-2 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-[11px] font-bold text-amber-800 dark:text-amber-300">
-                    🗓️ Vacation Range Active: From <strong>{formatReadableDate(holidayDate, true)}</strong> to <strong>{formatReadableDate(holidayEndDate, true)}</strong>. All days in this range will automatically be marked as official holidays (<strong>H</strong>).
+                  <div className="p-1.5 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-[10px] font-semibold text-amber-800 dark:text-amber-300 leading-tight">
+                    🗓️ Vacation Range: <strong>{formatReadableDate(holidayDate, true)}</strong> to <strong>{formatReadableDate(holidayEndDate, true)}</strong> (all days marked as <strong>H</strong>).
                   </div>
                 )}
 
-                <div>
-                  <label className="text-[10px] font-black text-slate-500 uppercase block mb-1">Purpose / Notes (Optional)</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Govt. Order No. 42-DSEK of 2026"
-                    value={holidayPurpose}
-                    onChange={e => setHolidayPurpose(e.target.value)}
-                    className="w-full px-3 py-1.5 rounded-xl border bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 font-bold text-xs"
-                  />
-                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 items-end">
+                  <div className="sm:col-span-2">
+                    <label className="text-[9px] font-black text-slate-500 uppercase block mb-0.5">Purpose / Notes (Optional)</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Govt. Order No. 42-DSEK of 2026"
+                      value={holidayPurpose}
+                      onChange={e => setHolidayPurpose(e.target.value)}
+                      className="w-full px-2.5 py-1 rounded-lg border bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 font-bold text-xs"
+                    />
+                  </div>
 
-                <div className="pt-2 border-t border-slate-200 dark:border-slate-800">
-                  <button
-                    type="submit"
-                    disabled={savingHoliday}
-                    className="w-full sm:w-auto px-4 py-2.5 rounded-xl font-black text-xs text-white bg-amber-600 hover:bg-amber-500 shadow-md cursor-pointer disabled:opacity-50 flex items-center justify-center gap-1.5 transition-all active:scale-98"
-                  >
-                    {savingHoliday ? <RefreshCw size={14} className="animate-spin" /> : <Save size={14} />}
-                    <span>{savingHoliday ? 'Saving...' : editingHoliday ? 'Update Holiday / Vacation' : 'Save Holiday / Vacation'}</span>
-                  </button>
+                  <div>
+                    <button
+                      type="submit"
+                      disabled={savingHoliday}
+                      className="w-full py-1.5 px-3 rounded-lg font-black text-xs text-white bg-amber-600 hover:bg-amber-500 shadow-xs cursor-pointer disabled:opacity-50 flex items-center justify-center gap-1 transition-all active:scale-98"
+                    >
+                      {savingHoliday ? <RefreshCw size={13} className="animate-spin" /> : <Save size={13} />}
+                      <span>{savingHoliday ? 'Saving...' : editingHoliday ? 'Update' : 'Save Holiday'}</span>
+                    </button>
+                  </div>
                 </div>
               </form>
 
               {/* All Declared Holidays List & Edit Table */}
-              <div className="space-y-2">
-                <h4 className="text-xs font-black uppercase text-slate-400 tracking-wider flex items-center justify-between">
+              <div className="space-y-1.5">
+                <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-wider flex items-center justify-between">
                   <span>Declared Holidays & Vacations List ({holidaysList.length})</span>
-                  {loadingHolidays && <RefreshCw size={12} className="animate-spin text-amber-500" />}
+                  {loadingHolidays && <RefreshCw size={11} className="animate-spin text-amber-500" />}
                 </h4>
 
                 {holidaysList.length === 0 ? (
-                  <p className="text-xs font-semibold text-slate-400 p-4 text-center border border-dashed rounded-xl">
+                  <p className="text-xs font-semibold text-slate-400 p-3 text-center border border-dashed rounded-xl">
                     No custom holidays declared yet. Use the form above to add holidays or multi-day vacation ranges.
                   </p>
                 ) : (
-                  <div className="space-y-1.5 max-h-60 overflow-y-auto pr-1">
+                  <div className="space-y-1">
                     {holidaysList.map((h, hIdx) => {
                       const sDate = h.startDate || h.dateStr || h.date;
                       const eDate = h.endDate && h.endDate !== sDate ? h.endDate : null;
@@ -3153,36 +3152,40 @@ export default function AttendancePage() {
                       return (
                         <div
                           key={h.id || h.docId || hIdx}
-                          className="p-2 px-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex items-center justify-between gap-2 text-xs hover:border-amber-400 transition-all"
+                          className="p-1.5 px-2.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex items-center justify-between gap-2 text-xs hover:border-amber-400 transition-all"
                         >
                           <div className="min-w-0 flex-1 space-y-0.5">
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              <span className="font-black text-slate-900 dark:text-white leading-tight">
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <span
+                                className="font-bold text-xs text-slate-900 dark:text-white leading-tight truncate flex-1"
+                                title={h.label || h.title || 'Holiday'}
+                              >
                                 🏖️ {h.label || h.title || 'Holiday'}
                               </span>
-                              <span className={`px-1.5 py-0.2 rounded text-[10px] font-black ${
-                                eDate ? 'bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-300' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
+                              <span className={`px-1.5 py-0.2 rounded text-[9px] font-black flex-shrink-0 ${
+                                eDate ? 'bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
                               }`}>
                                 {durationText}
                               </span>
                             </div>
 
-                            <div className="flex items-center gap-2 text-[11px] font-mono text-slate-600 dark:text-slate-400 font-bold">
-                              <span>📅 {formatReadableDate(sDate, true)}{eDate ? ` ➔ ${formatReadableDate(eDate, true)}` : ''}</span>
+                            <div className="flex items-center gap-1.5 text-[10px] text-slate-500 dark:text-slate-400 font-medium">
+                              <span className="font-mono font-bold flex-shrink-0">
+                                📅 {formatReadableDate(sDate, true)}{eDate ? ` ➔ ${formatReadableDate(eDate, true)}` : ''}
+                              </span>
+                              {h.purpose && (
+                                <span className="truncate max-w-[140px] text-slate-400" title={h.purpose}>
+                                  • {h.purpose}
+                                </span>
+                              )}
                             </div>
-
-                            {h.purpose && (
-                              <p className="text-[10px] font-medium text-slate-400 truncate">
-                                Notes: {h.purpose}
-                              </p>
-                            )}
                           </div>
 
                           <div className="flex items-center gap-1 flex-shrink-0">
                             <button
                               type="button"
                               onClick={() => handleStartEditHoliday(h)}
-                              className="px-2.5 py-1 rounded-lg text-[11px] font-extrabold bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 cursor-pointer border border-indigo-200 dark:border-indigo-800 flex items-center gap-1"
+                              className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 cursor-pointer border border-indigo-200 dark:border-indigo-800 flex items-center gap-0.5"
                               title="Edit holiday details"
                             >
                               <span>✏️ Edit</span>
@@ -3191,10 +3194,10 @@ export default function AttendancePage() {
                             <button
                               type="button"
                               onClick={() => setHolidayToDelete(h)}
-                              className="p-1 rounded-lg text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950 cursor-pointer"
+                              className="p-1 rounded-md text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950 cursor-pointer"
                               title="Delete holiday"
                             >
-                              <X size={14} />
+                              <X size={13} />
                             </button>
                           </div>
                         </div>
@@ -3206,14 +3209,14 @@ export default function AttendancePage() {
             </div>
 
             {/* Modal Actions Footer */}
-            <div className="pt-2 border-t border-slate-200 dark:border-slate-800 flex-shrink-0">
+            <div className="pt-1.5 border-t border-slate-200 dark:border-slate-800 flex-shrink-0">
               <button
                 type="button"
                 onClick={() => {
                   setEditingHoliday(null);
                   setShowHolidayManageModal(false);
                 }}
-                className="w-full py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 font-bold text-xs text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer transition-colors active:scale-98"
+                className="w-full py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 font-bold text-xs text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer transition-colors active:scale-98"
               >
                 Close Manager
               </button>
