@@ -3873,21 +3873,21 @@ function PrintReportModal({ isOpen, onClose, defaultClass, defaultSession, defau
       <div id="printable-register-modal-content" className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl w-full max-w-5xl max-h-[92vh] flex flex-col overflow-hidden text-slate-900 dark:text-slate-100 print:max-h-none print:border-none print:shadow-none print:w-full">
         
         {/* Modal Header */}
-        <div className="p-2 sm:p-3 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-950 print-hide gap-2">
+        <div className="p-2 sm:p-2.5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-950 print-hide gap-2">
           <div className="flex items-center gap-1.5 min-w-0">
-            <Printer className="text-teal-600 dark:text-teal-400 flex-shrink-0" size={16} />
-            <h3 className="text-xs font-black uppercase tracking-wider truncate text-slate-900 dark:text-slate-100">
+            <Printer className="text-teal-600 dark:text-teal-400 flex-shrink-0" size={15} />
+            <h3 className="text-xs font-bold truncate text-slate-900 dark:text-slate-100">
               Attendance Register
             </h3>
             {loadingMonthly && (
-              <RefreshCw size={13} className="animate-spin text-teal-600 ml-1.5" />
+              <RefreshCw size={12} className="animate-spin text-teal-600 ml-1" />
             )}
           </div>
 
           <div className="flex items-center gap-1.5 flex-shrink-0">
             <button
               onClick={handleTriggerPrint}
-              className="px-2 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white text-xs font-black flex items-center gap-1 shadow-2xs transition-all cursor-pointer"
+              className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold flex items-center gap-1 shadow-2xs transition-all cursor-pointer"
               title="Print Register"
             >
               <Printer size={13} />
@@ -3896,7 +3896,7 @@ function PrintReportModal({ isOpen, onClose, defaultClass, defaultSession, defau
 
             <button
               onClick={handleDownloadPdf}
-              className="px-2 py-1.5 rounded-lg bg-teal-600 hover:bg-teal-700 text-white text-xs font-black flex items-center gap-1 shadow-2xs transition-all cursor-pointer"
+              className="px-2.5 py-1.5 rounded-lg bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold flex items-center gap-1 shadow-2xs transition-all cursor-pointer"
               title="Download PDF"
             >
               <FileText size={13} />
@@ -3905,10 +3905,10 @@ function PrintReportModal({ isOpen, onClose, defaultClass, defaultSession, defau
 
             <button
               onClick={onClose}
-              className="p-1.5 rounded-lg text-slate-500 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 transition-colors cursor-pointer flex-shrink-0"
+              className="p-1 rounded-lg text-slate-500 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 transition-colors cursor-pointer flex-shrink-0"
               title="Close Window"
             >
-              <X size={16} />
+              <X size={15} />
             </button>
           </div>
         </div>
@@ -3916,33 +3916,33 @@ function PrintReportModal({ isOpen, onClose, defaultClass, defaultSession, defau
         {/* Controls / Filter Section (Hidden during Print) */}
         <div className="p-2 bg-slate-100 dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800 grid grid-cols-2 sm:grid-cols-4 gap-1.5 text-xs print-hide">
           <div>
-            <label className="text-[9px] font-black text-slate-500 uppercase block mb-0.5">Month</label>
+            <label className="text-[9px] font-bold text-slate-500 uppercase block mb-0.5">Month</label>
             <input
               type="month"
               value={reportYearMonth}
               onChange={e => setReportYearMonth(e.target.value)}
-              className="w-full px-2 py-1 rounded-md border bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 font-bold text-xs"
+              className="portal-compact-input w-full border bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 font-semibold text-xs"
             />
           </div>
           <div>
-            <label className="text-[9px] font-black text-slate-500 uppercase block mb-0.5">Class</label>
+            <label className="text-[9px] font-bold text-slate-500 uppercase block mb-0.5">Class</label>
             <select
               value={reportClass}
               onChange={e => setReportClass(e.target.value)}
-              className="w-full px-2 py-1 rounded-md border bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 font-bold text-xs"
+              className="portal-compact-select w-full border bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 text-xs font-semibold"
             >
-              <option value="12th">12th Class</option>
-              <option value="11th">11th Class</option>
-              <option value="10th">10th Class</option>
-              <option value="9th">9th Class</option>
+              <option value="12th">Class 12th</option>
+              <option value="11th">Class 11th</option>
+              <option value="10th">Class 10th</option>
+              <option value="9th">Class 9th</option>
             </select>
           </div>
           <div>
-            <label className="text-[9px] font-black text-slate-500 uppercase block mb-0.5">Session</label>
+            <label className="text-[9px] font-bold text-slate-500 uppercase block mb-0.5">Session</label>
             <select
               value={reportSession}
               onChange={e => setReportSession(e.target.value)}
-              className="w-full px-2 py-1 rounded-md border bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 font-bold text-xs"
+              className="portal-compact-select w-full border bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 text-xs font-semibold"
             >
               {(availableSessions && availableSessions.length > 0 ? availableSessions : ['2026', '2025-26']).map(s => (
                 <option key={s} value={s}>{s}</option>
@@ -3950,13 +3950,13 @@ function PrintReportModal({ isOpen, onClose, defaultClass, defaultSession, defau
             </select>
           </div>
           <div>
-            <label className="text-[9px] font-black text-slate-500 uppercase block mb-0.5">Subject</label>
+            <label className="text-[9px] font-bold text-slate-500 uppercase block mb-0.5">Subject</label>
             <select
               value={reportSubject}
               onChange={e => setReportSubject(e.target.value)}
-              className="w-full px-2 py-1 rounded-md border bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 font-bold text-xs truncate"
+              className="portal-compact-select w-full border bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 text-xs font-semibold truncate"
             >
-              <option value="General">All / General</option>
+              <option value="General">All Subjects</option>
               {MASTER_SUBJECTS.map(s => (
                 <option key={s.code} value={s.code}>{s.name} ({s.code})</option>
               ))}
@@ -3965,7 +3965,7 @@ function PrintReportModal({ isOpen, onClose, defaultClass, defaultSession, defau
         </div>
 
         {/* Printable Report Content Body */}
-        <div id="printable-register-sheet" className="p-4 overflow-y-auto flex-1 bg-white text-slate-900 font-sans print:p-0">
+        <div id="printable-register-sheet" className="p-3 sm:p-4 overflow-y-auto flex-1 bg-white text-slate-900 font-sans print:p-0">
           
           {/* Attendance Table */}
           <div className="overflow-x-auto">
@@ -3974,7 +3974,7 @@ function PrintReportModal({ isOpen, onClose, defaultClass, defaultSession, defau
                 {/* Document Header Row inside thead so it repeats on every printed page */}
                 <tr className="bg-white border-b-2 border-teal-800">
                   <th colSpan={daysInMonth.length + 8} className="p-2 text-center font-normal">
-                    <h1 className="text-base sm:text-lg font-black uppercase text-teal-900 tracking-wider">MONTHLY STUDENT ATTENDANCE REGISTER</h1>
+                    <h1 className="text-sm sm:text-base font-black uppercase text-teal-900 tracking-wider">MONTHLY STUDENT ATTENDANCE REGISTER</h1>
                     <div className="flex items-center justify-between text-xs font-bold text-teal-800 mt-1 px-2">
                       <span><strong>Class:</strong> {reportClass}</span>
                       <span><strong>Month:</strong> {new Date(`${reportYearMonth}-01`).toLocaleString('en-US', { month: 'long', year: 'numeric' })}</span>
@@ -3986,9 +3986,9 @@ function PrintReportModal({ isOpen, onClose, defaultClass, defaultSession, defau
 
                 {/* Column Headers */}
                 <tr className="bg-slate-100 text-slate-800 border-b border-slate-300 font-bold">
-                  <th className="border border-slate-300 px-1 py-1 text-center w-6">SL</th>
-                  <th className="border border-slate-300 px-1 py-1 text-center w-8">RNO</th>
-                  <th className="border border-slate-300 px-1 py-1 text-left min-w-[120px]">STUDENT NAME</th>
+                  <th className="border border-slate-300 px-1 py-1 text-center w-6 whitespace-nowrap">#</th>
+                  <th className="border border-slate-300 px-1 py-1 text-center w-8 whitespace-nowrap">Roll</th>
+                  <th className="border border-slate-300 px-1.5 py-1 text-left min-w-[120px] whitespace-nowrap">Student Name</th>
                   {daysInMonth.map(d => (
                     <th key={d.dayNum} className={`border border-slate-300 px-0.5 py-1 text-center w-5 ${d.isSunday ? 'bg-amber-100 text-amber-900' : ''}`}>
                       {d.dayNum}
