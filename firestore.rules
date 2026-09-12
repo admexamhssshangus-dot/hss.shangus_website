@@ -662,6 +662,15 @@ service cloud.firestore {
       allow get: if isOwner(userId);
       allow list, write: if false;
     }
+    match /userSessions/{userId} {
+      allow get: if isOwner(userId) || isSuperAdmin();
+      allow list: if isSuperAdmin();
+      allow create, update: if isOwner(userId) &&
+        request.resource.data.keys().hasAll(['sessionId', 'deviceId', 'updatedAt']) &&
+        request.resource.data.sessionId is string && request.resource.data.sessionId.size() <= 128 &&
+        request.resource.data.deviceId is string && request.resource.data.deviceId.size() <= 128;
+      allow delete: if isOwner(userId) || isSuperAdmin();
+    }
     match /issuedDocuments/{documentId} {
       allow read: if canUse('certStudio');
       allow create, update: if canUse('certStudio') && validStaffDocument(request.resource.data);

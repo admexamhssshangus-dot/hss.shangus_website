@@ -236,12 +236,64 @@ export default function PortalLayout() {
   }, [sessionState.isAuthenticated]);
 
   // ---------------------------------------------------------------------------
+  // Single Active Device Policy — Listen for session revocation from other devices
+  // If the user signs into another device, this session is terminated immediately.
+  // ---------------------------------------------------------------------------
+  useEffect(() => {
+    if (!sessionState.isAuthenticated || !sessionState.user?.uid) return;
+
+    let currentSessionId = sessionManager.getSessionId();
+    if (!currentSessionId) {
+      currentSessionId = sessionManager.generateSessionId();
+      sessionManager.setSessionId(currentSessionId);
+      sessionManager.registerActiveSessionInCloud(sessionState.user, sessionManager.getDeviceId(), currentSessionId);
+    }
+
+    const unsubscribe = sessionManager.listenForSessionRevocation(
+      sessionState.user.uid,
+      currentSessionId,
+      (revocationInfo) => {
+        console.warn('Session terminated: logged in on another device', revocationInfo);
+        try {
+          sessionStorage.setItem('hss_session_terminated', JSON.stringify({
+            reason: 'concurrent_device',
+            deviceInfo: revocationInfo?.deviceInfo || 'another device',
+            time: Date.now(),
+          }));
+        } catch (_) {}
+
+        try {
+          sessionManager.clearSession();
+          if (auth?.currentUser) {
+            signOut(auth).catch(() => {});
+          }
+        } catch (_) {}
+
+        setSessionStateStable({ loading: false, user: null, isAuthenticated: false });
+        navigate('/portal/login', {
+          replace: true,
+          state: {
+            terminated: true,
+            reason: 'concurrent_device',
+            deviceInfo: revocationInfo?.deviceInfo || 'another device',
+          }
+        });
+      }
+    );
+
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, [sessionState.isAuthenticated, sessionState.user?.uid, navigate, setSessionStateStable]);
+
+  // ---------------------------------------------------------------------------
   // Handle login success (called from LoginPage)
   // ---------------------------------------------------------------------------
   const handleLoginSuccess = useCallback((loginResult, keepLoggedIn) => {
     try {
       sessionStorage.removeItem('hss_explicit_logout');
       localStorage.removeItem('hss_explicit_logout');
+      sessionStorage.removeItem('hss_session_terminated');
     } catch (_) {}
 
     const user = loginResult.user || {
@@ -251,8 +303,13 @@ export default function PortalLayout() {
       uid: loginResult.uid,
     };
     const token = loginResult.token || loginResult.user?.token || `session_${Date.now()}`;
+    const sessionId = loginResult.sessionId || sessionManager.getSessionId() || sessionManager.generateSessionId();
 
-    sessionManager.saveSession({ user, token }, keepLoggedIn);
+    sessionManager.setSessionId(sessionId);
+    sessionManager.saveSession({ user, token, sessionId }, keepLoggedIn);
+    if (user.uid) {
+      sessionManager.registerActiveSessionInCloud(user, sessionManager.getDeviceId(), sessionId);
+    }
     setSessionStateStable({ loading: false, user, isAuthenticated: true });
     _redirectToDashboard(user);
   }, [_redirectToDashboard, setSessionStateStable]);
@@ -262,6 +319,10 @@ export default function PortalLayout() {
   // ---------------------------------------------------------------------------
   const handleLogout = useCallback(async () => {
     try { sessionStorage.setItem('hss_explicit_logout', 'true'); } catch (_) {}
+
+    if (sessionState.user?.uid) {
+      sessionManager.clearActiveSessionInCloud(sessionState.user.uid).catch(() => {});
+    }
 
     try {
       if (auth?.currentUser) {
@@ -274,7 +335,7 @@ export default function PortalLayout() {
     sessionManager.clearSession();
     setSessionStateStable({ loading: false, user: null, isAuthenticated: false });
     navigate('/portal/login', { replace: true });
-  }, [navigate, setSessionStateStable]);
+  }, [navigate, sessionState.user?.uid, setSessionStateStable]);
 
   // Manual session refresh (exposed via context for child routes if needed)
   const refreshSession = useCallback(() => {
