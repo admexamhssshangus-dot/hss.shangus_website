@@ -2913,16 +2913,35 @@ export default function AdmissionRegisterSuite({
   const isAllRowsIncluded = skippedCount === 0 && filteredStudents.length > 0;
   const isSomeRowsSkipped = skippedCount > 0 && skippedCount < filteredStudents.length;
 
-  // 10 Students Per Page Chunks for Legal Print Layout
-  const STUDENTS_PER_PAGE = 10;
+  // Dynamic Students Per Page Chunks for Legal Print Layout (Default 15 to efficiently fill Legal landscape)
+  const [studentsPerPage, setStudentsPerPage] = useState(() => {
+    try {
+      const cached = localStorage.getItem('hss_register_students_per_page');
+      if (cached) {
+        const val = parseInt(cached, 10);
+        if ([8, 10, 12, 14, 15, 16, 18, 20].includes(val)) return val;
+      }
+    } catch (_) {}
+    return 15;
+  });
+
+  const handleStudentsPerPageChange = useCallback((val) => {
+    const num = Math.max(5, Math.min(25, parseInt(val, 10) || 15));
+    setStudentsPerPage(num);
+    try {
+      localStorage.setItem('hss_register_students_per_page', String(num));
+    } catch (_) {}
+  }, []);
+
   const pageChunks = useMemo(() => {
     const targetList = activeTab === 'sentup' ? activeIncludedRows : filteredStudents;
+    const perPage = studentsPerPage || 15;
     const chunks = [];
-    for (let i = 0; i < targetList.length; i += STUDENTS_PER_PAGE) {
-      chunks.push(targetList.slice(i, i + STUDENTS_PER_PAGE));
+    for (let i = 0; i < targetList.length; i += perPage) {
+      chunks.push(targetList.slice(i, i + perPage));
     }
     return chunks;
-  }, [activeTab, activeIncludedRows, filteredStudents]);
+  }, [activeTab, activeIncludedRows, filteredStudents, studentsPerPage]);
 
   // ─── Sentup Multi-Page Structure (Page 1: Title/Cover, Page 2: Plan & Subject Key, Page 3+: Actual Roll Sheet) ───
   const [includeCoverPage, setIncludeCoverPage] = useState(true);
@@ -3503,7 +3522,7 @@ export default function AdmissionRegisterSuite({
       <style>{`
         @page {
           size: legal landscape;
-          margin: 5mm;
+          margin: 4mm 5mm;
         }
         @media print {
           *, *::before, *::after {
@@ -3634,15 +3653,62 @@ export default function AdmissionRegisterSuite({
             flex-direction: column !important;
             justify-content: space-between !important;
             height: 195mm !important;
-            min-height: 0 !important;
+            min-height: 195mm !important;
             max-height: 198mm !important;
             box-sizing: border-box !important;
-            padding: 2mm 3mm !important;
+            padding: 2.5mm 3mm !important;
             page-break-after: always !important;
             break-after: page !important;
             page-break-inside: avoid !important;
             break-inside: avoid-page !important;
+            overflow: hidden !important;
+            background: #ffffff !important;
+          }
+
+          .register-ledger-page .overflow-x-auto {
             overflow: visible !important;
+            display: flex !important;
+            flex-direction: column !important;
+            width: 100% !important;
+            flex: 1 1 auto !important;
+            min-height: 0 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+          }
+
+          .register-ledger-page .admission-spread-table {
+            flex: 1 1 auto !important;
+            height: 100% !important;
+          }
+
+          .register-ledger-page .admission-spread-table tbody {
+            height: 100% !important;
+          }
+
+          .register-header {
+            display: flex !important;
+            align-items: center !important;
+            justify-content: space-between !important;
+            height: 12mm !important;
+            min-height: 12mm !important;
+            max-height: 12mm !important;
+            margin-bottom: 1.5mm !important;
+            padding-bottom: 1mm !important;
+            border-bottom: 1.5px solid #0f172a !important;
+            box-sizing: border-box !important;
+            flex-shrink: 0 !important;
+          }
+
+          .register-header h2 {
+            font-size: 16px !important;
+            line-height: 1.1 !important;
+            margin: 0 !important;
+          }
+
+          .register-header .register-header-sub {
+            font-size: 9.5px !important;
+            line-height: 1.1 !important;
+            margin-top: 0.5mm !important;
           }
 
           .sentup-ledger-page,
@@ -4022,26 +4088,31 @@ export default function AdmissionRegisterSuite({
             table-layout: fixed !important;
             width: 100% !important;
             border-collapse: collapse !important;
-            font-size: 8.5px !important;
+            font-size: 8px !important;
           }
 
           .admission-spread-table thead {
             height: 14mm !important;
+            min-height: 14mm !important;
             max-height: 14mm !important;
+            box-sizing: border-box !important;
           }
 
           .admission-spread-table thead tr {
             height: 7mm !important;
+            min-height: 7mm !important;
             max-height: 7mm !important;
+            box-sizing: border-box !important;
           }
 
           .admission-spread-table thead th {
             height: 7mm !important;
+            min-height: 7mm !important;
             max-height: 7mm !important;
-            padding: 1.5px 2px !important;
-            font-size: 8px !important;
+            padding: 1px 1.5px !important;
+            font-size: 7.5px !important;
             font-weight: 800 !important;
-            line-height: 1.1 !important;
+            line-height: 1.05 !important;
             vertical-align: middle !important;
             text-align: center !important;
             box-sizing: border-box !important;
@@ -4050,30 +4121,40 @@ export default function AdmissionRegisterSuite({
 
           .admission-spread-table thead th[rowspan="2"] {
             height: 14mm !important;
+            min-height: 14mm !important;
             max-height: 14mm !important;
           }
 
-          .register-resizable-row {
-            height: var(--register-row-height) !important;
-            max-height: var(--register-row-height) !important;
+          .register-resizable-row,
+          .admission-spread-table tbody tr {
+            height: auto !important;
+            min-height: 0 !important;
+            max-height: none !important;
             box-sizing: border-box !important;
           }
 
-          .register-resizable-row > td {
-            height: var(--register-row-height) !important;
-            max-height: var(--register-row-height) !important;
-            padding: 1.5px 3px !important;
-            font-size: 8.5px !important;
+          .register-resizable-row > td,
+          .admission-spread-table tbody tr > td {
+            height: auto !important;
+            min-height: 0 !important;
+            max-height: none !important;
+            padding: 1px 2px !important;
+            font-size: 8px !important;
             line-height: 1.15 !important;
             vertical-align: middle !important;
             box-sizing: border-box !important;
             overflow: hidden !important;
           }
 
+          .admission-spread-table tbody tr > td > div {
+            max-height: none !important;
+            overflow: hidden !important;
+          }
+
           .register-photo-cell {
             padding: 0 !important;
-            height: var(--register-row-height) !important;
-            max-height: var(--register-row-height) !important;
+            height: auto !important;
+            max-height: none !important;
             overflow: hidden !important;
             box-sizing: border-box !important;
           }
@@ -4081,30 +4162,38 @@ export default function AdmissionRegisterSuite({
           .register-photo-cell img {
             width: auto !important;
             max-width: 100% !important;
-            height: calc(var(--register-row-height) - 2px) !important;
-            max-height: calc(var(--register-row-height) - 2px) !important;
+            height: auto !important;
+            max-height: 12.5mm !important;
             object-fit: contain !important;
             object-position: center center !important;
             display: block !important;
             margin: 0 auto !important;
           }
 
-          .signature-footer {
+          .register-ledger-page .signature-footer {
             display: flex !important;
             justify-content: space-between !important;
             align-items: flex-end !important;
             margin-top: auto !important;
-            height: 18mm !important;
-            min-height: 18mm !important;
-            max-height: 18mm !important;
-            padding: 4mm 0 1mm !important;
+            height: 14mm !important;
+            min-height: 14mm !important;
+            max-height: 14mm !important;
+            padding: 2mm 0 1mm !important;
             box-sizing: border-box !important;
             page-break-inside: avoid !important;
             break-inside: avoid !important;
+            flex-shrink: 0 !important;
           }
 
-          .signature-footer > .signature-block {
+          .register-ledger-page .signature-footer > .signature-block {
+            width: 42mm !important;
             flex: 0 0 42mm !important;
+            text-align: center !important;
+            font-size: 9.5px !important;
+            font-weight: 900 !important;
+            color: #991b1b !important;
+            border-top: 1.5px solid #991b1b !important;
+            padding-top: 1mm !important;
             box-sizing: border-box !important;
           }
 
@@ -4162,7 +4251,19 @@ export default function AdmissionRegisterSuite({
           min-height: 690px;
         }
 
+        .register-header {
+          flex-shrink: 0;
+        }
+
         .admission-spread-table thead {
+          height: 58px;
+        }
+
+        .admission-spread-table thead tr {
+          height: 29px;
+        }
+
+        .admission-spread-table thead th[rowspan="2"] {
           height: 58px;
         }
 
@@ -4187,6 +4288,7 @@ export default function AdmissionRegisterSuite({
 
         .register-ledger-page > .signature-footer {
           margin-top: auto;
+          flex-shrink: 0;
         }
 
         /* ─── PURE HIGH-CONTRAST POPOVER DIALOG STYLING (OVERRIDES ANY THEME CASCADE) ─── */
@@ -5435,11 +5537,11 @@ export default function AdmissionRegisterSuite({
                         }`}
                         style={{ padding: `${printMargin}in` }}
                       >
-                        <div className="flex items-center justify-between border-b border-slate-900 pb-1 mb-1.5">
+                        <div className="flex items-center justify-between border-b border-slate-900 pb-1 mb-1.5 register-header">
                           <div className="text-xs font-black text-slate-900">{pageNum} (part1)</div>
                           <div className="text-center">
                             <h2 className="text-lg sm:text-xl font-black text-red-700 uppercase leading-none font-sans tracking-wide">{SCHOOL_NAME}</h2>
-                            <div className="text-[10.5px] font-bold text-emerald-700 mt-0.5">
+                            <div className="register-header-sub text-[10.5px] font-bold text-emerald-700 mt-0.5">
                               Admission Register of {selectedClass === 'ALL' ? 'classes 11th and 12th' : (selectedClass.includes('&') || selectedClass.includes('and')) ? `classes ${selectedClass.replace('&', 'and')}` : `class ${selectedClass}`}, session {selectedSession}
                             </div>
                           </div>
@@ -5577,7 +5679,9 @@ export default function AdmissionRegisterSuite({
                                     <td className="border border-slate-900 px-1 py-0.5 text-left uppercase text-[8px]">{s.father}</td>
                                     <td className="border border-slate-900 px-1 py-0.5 text-left uppercase text-[8px]">{s.mother}</td>
                                     <td className="border border-slate-900 px-1 py-0.5 text-center font-mono ledger-mono-font">{s.dobFigures}</td>
-                                    <td className="border border-slate-900 px-1 py-0.5 text-left text-[7px] leading-tight font-serif">{s.dobWords}</td>
+                                    <td className="border border-slate-900 px-1 py-0.5 text-left text-[7px] leading-tight font-serif overflow-hidden">
+                                      <div className="line-clamp-2 leading-tight">{s.dobWords}</div>
+                                    </td>
                                     <td className="border border-slate-900 px-1 py-0.5 text-center font-semibold">{s.gender}</td>
                                     <td className="border border-slate-900 px-1 py-0.5 text-left bg-yellow-50">{s.village}</td>
                                     <td className="border border-slate-900 px-1 py-0.5 text-left bg-yellow-50">{s.block}</td>
@@ -5607,11 +5711,11 @@ export default function AdmissionRegisterSuite({
                         }`}
                         style={{ padding: `${printMargin}in` }}
                       >
-                        <div className="flex items-center justify-between border-b border-slate-900 pb-1 mb-1.5">
+                        <div className="flex items-center justify-between border-b border-slate-900 pb-1 mb-1.5 register-header">
                           <div className="text-xs font-black text-slate-900">{pageNum} (part2)</div>
                           <div className="text-center">
                             <h2 className="text-lg sm:text-xl font-black text-red-700 uppercase leading-none font-sans tracking-wide">{SCHOOL_NAME}</h2>
-                            <div className="text-[10.5px] font-bold text-emerald-700 mt-0.5">
+                            <div className="register-header-sub text-[10.5px] font-bold text-emerald-700 mt-0.5">
                               Admission Register of {selectedClass === 'ALL' ? 'classes 11th and 12th' : (selectedClass.includes('&') || selectedClass.includes('and')) ? `classes ${selectedClass.replace('&', 'and')}` : `class ${selectedClass}`}, session {selectedSession}
                             </div>
                           </div>
@@ -5670,7 +5774,9 @@ export default function AdmissionRegisterSuite({
                               {chunk.map((s) => (
                                 <ResizableDataRow key={s.id} rowHeight={rowHeight} onResize={handleRowHeightChange} className="hover:bg-slate-50">
                                   <td className="border border-slate-900 px-1 py-0.5 text-center"><StreamLabel value={s.stream} /></td>
-                                  <td className="border border-slate-900 px-1 py-0.5 text-left text-[7px] leading-tight font-medium">{s.subs}</td>
+                                  <td className="border border-slate-900 px-1 py-0.5 text-left text-[7px] leading-tight font-medium overflow-hidden">
+                                    <div className="line-clamp-2 leading-tight">{s.subs}</div>
+                                  </td>
                                   <td className="border border-slate-900 px-1 py-0.5 text-center font-mono bg-yellow-50 ledger-mono-font">{s.aadhar}</td>
                                   <td className="border border-slate-900 px-1 py-0.5 text-center bg-yellow-50 font-black">{s.category}</td>
                                   <td className="border border-slate-900 px-1 py-0.5 text-center bg-yellow-50">{s.socioEcon}</td>
@@ -5685,7 +5791,9 @@ export default function AdmissionRegisterSuite({
                                        </div>
                                      )}
                                    </td>
-                                  <td className="border border-slate-900 px-1 py-0.5 text-left text-[7.5px] leading-tight">{s.prevSchool}</td>
+                                  <td className="border border-slate-900 px-1 py-0.5 text-left text-[7.5px] leading-tight overflow-hidden">
+                                    <div className="line-clamp-2 leading-tight">{s.prevSchool}</div>
+                                  </td>
                                   <td className="border border-slate-900 px-1 py-0.5 text-center font-mono ledger-mono-font">{s.prevRoll}</td>
                                   <td className="border border-slate-900 px-1 py-0.5 text-center font-bold">
                                     {(() => {
@@ -5702,27 +5810,29 @@ export default function AdmissionRegisterSuite({
                                     {renderAdmittedVideCell(s.prevCC)}
                                   </td>
                                   <td className="border border-slate-900 px-1 py-0.5 text-center text-rose-900 text-[7.5px] bg-rose-50">{s.withdrawal}</td>
-                                  <td className="border border-slate-900 px-1.5 py-0.5 text-left text-[6.5px] bg-rose-50/50 overflow-hidden" style={{ verticalAlign: 'top', height: `${rowHeight}px` }}>
+                                  <td className="border border-slate-900 px-1 py-0.5 text-left text-[6.5px] bg-rose-50/50 overflow-hidden" style={{ verticalAlign: 'middle', height: `${rowHeight}px` }}>
                                     {s.issuedCC ? (
-                                      <div className="text-[7px] leading-tight font-medium pt-2 pb-0.5">{s.issuedCC}</div>
+                                      <div className="text-[7px] leading-tight font-medium line-clamp-2">{s.issuedCC}</div>
                                     ) : (
-                                      <div className="h-full flex flex-col justify-between text-[6.5px] leading-none pt-2.5 pb-1 select-none font-medium text-slate-800" style={{ minHeight: `${Math.max(38, rowHeight - 14)}px` }}>
+                                      <div className="h-full flex flex-col justify-between text-[6.5px] leading-none py-1 select-none font-medium text-slate-800" style={{ maxHeight: `${Math.max(26, rowHeight - 4)}px` }}>
                                         <div className="leading-tight">C.No. _________</div>
                                         <div className="leading-tight">Dt. _________</div>
                                       </div>
                                     )}
                                   </td>
-                                  <td className="border border-slate-900 px-1.5 py-0.5 text-left text-[6.5px] leading-tight bg-rose-50/50 overflow-hidden" style={{ verticalAlign: 'top', height: `${rowHeight}px` }}>
+                                  <td className="border border-slate-900 px-1 py-0.5 text-left text-[6.5px] leading-tight bg-rose-50/50 overflow-hidden" style={{ verticalAlign: 'middle', height: `${rowHeight}px` }}>
                                     {s.receipt ? (
-                                      <div className="text-[7px] leading-tight font-medium pt-2 pb-0.5">{s.receipt}</div>
+                                      <div className="text-[7px] leading-tight font-medium line-clamp-2">{s.receipt}</div>
                                     ) : (
-                                      <div className="h-full flex flex-col justify-between text-[6.5px] leading-none pt-2.5 pb-1 select-none font-medium text-slate-800" style={{ minHeight: `${Math.max(38, rowHeight - 14)}px` }}>
-                                        <div className="leading-tight">received DC/CC vide C. No. _________</div>
-                                        <div className="leading-tight">on _________ Sig. _________</div>
+                                      <div className="h-full flex flex-col justify-between text-[6.5px] leading-none py-1 select-none font-medium text-slate-800" style={{ maxHeight: `${Math.max(26, rowHeight - 4)}px` }}>
+                                        <div className="leading-tight truncate">rcvd DC/CC C.No. _____</div>
+                                        <div className="leading-tight">on ______ Sig. _______</div>
                                       </div>
                                     )}
                                   </td>
-                                  <td className="border border-slate-900 px-1 py-0.5 text-left text-[7px] leading-tight overflow-hidden">{s.remarks}</td>
+                                  <td className="border border-slate-900 px-1 py-0.5 text-left text-[7px] leading-tight overflow-hidden">
+                                    <div className="line-clamp-2 leading-tight">{s.remarks}</div>
+                                  </td>
                                 </ResizableDataRow>
                               ))}
                             </tbody>

@@ -309,6 +309,11 @@ function clearSession() {
       storage.removeItem(STORAGE_KEYS.SESSION_ID);
       storage.removeItem(STORAGE_KEYS.LAST_HEARTBEAT);
       storage.removeItem('hss_explicit_logout');
+      storage.removeItem('hss_pending_admin_login');
+      storage.removeItem('emailForSignIn');
+      storage.removeItem('hss_admin_auth_approved');
+      storage.removeItem('hss_auth_handshake_id');
+      storage.removeItem('hss_session_terminated');
 
       const privateCachePrefixes = [
         'hss_cache_', 'draft_prac_', 'hss_att_cache_', 'hss_csv_import_batches_', 'hss_auth_verified_sync',

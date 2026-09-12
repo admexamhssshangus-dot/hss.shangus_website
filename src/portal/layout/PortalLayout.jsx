@@ -145,10 +145,25 @@ export default function PortalLayout() {
 
       if (fbUser) {
         // Skip if user explicitly logged out
-        if (sessionStorage.getItem('hss_explicit_logout') === 'true') {
+        if (sessionStorage.getItem('hss_explicit_logout') === 'true' || localStorage.getItem('hss_explicit_logout') === 'true') {
           sessionManager.clearSession();
           setSessionStateStable({ loading: false, user: null, isAuthenticated: false });
           if (!isOnPublicPage) navigate('/portal/login', { replace: true });
+          return;
+        }
+
+        // If 2-step verification is pending, do not establish an authenticated session
+        if (localStorage.getItem('hss_pending_admin_login')) {
+          setSessionStateStable({ loading: false, user: null, isAuthenticated: false });
+          if (!isOnPublicPage) navigate('/portal/login', { replace: true });
+          return;
+        }
+
+        // On public pages (login, register, etc.), do not auto-elevate session from raw Firebase Auth events
+        // unless a valid portal session was already active in sessionManager.
+        // LoginPage's onLoginSuccess manages explicit verified session elevation.
+        if (isOnPublicPage && !sessionManager.isLoggedIn()) {
+          setSessionStateStable({ loading: false, user: null, isAuthenticated: false });
           return;
         }
 
@@ -318,7 +333,15 @@ export default function PortalLayout() {
   // Handle logout
   // ---------------------------------------------------------------------------
   const handleLogout = useCallback(async () => {
-    try { sessionStorage.setItem('hss_explicit_logout', 'true'); } catch (_) {}
+    try {
+      sessionStorage.setItem('hss_explicit_logout', 'true');
+      localStorage.setItem('hss_explicit_logout', 'true');
+      localStorage.removeItem('hss_pending_admin_login');
+      localStorage.removeItem('emailForSignIn');
+      localStorage.removeItem('hss_admin_auth_approved');
+      sessionStorage.removeItem('hss_auth_handshake_id');
+      sessionStorage.removeItem('hss_session_terminated');
+    } catch (_) {}
 
     if (sessionState.user?.uid) {
       sessionManager.clearActiveSessionInCloud(sessionState.user.uid).catch(() => {});
