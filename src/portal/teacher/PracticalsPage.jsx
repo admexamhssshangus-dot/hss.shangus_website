@@ -2573,8 +2573,6 @@ export default function PracticalsPage() {
               <div className="sm:hidden space-y-1.5">
                 {displayedStudents.map((st, idx) => {
                   const isAbsent = st.practicalMarks === 'A' || st.practicalMarks === 'AB';
-                  const valToConvert = isAbsent ? 'A' : (st.practicalMarks !== '' ? st.practicalMarks : '');
-                  const inWords = valToConvert ? numberToWords(valToConvert) : '';
                   const originalIdx = studentMarks.findIndex(s => s.rollNo === st.rollNo && s.name === st.name);
                   const allSubjs = st.subjectsAbbr || st.rawSubjects || st.subjects || 'N/A';
                   const key = getStudentKey(st);
@@ -2643,22 +2641,13 @@ export default function PracticalsPage() {
                         </div>
                       </div>
 
-                      {/* Row 2: Streamlined Single-Line Metadata & In-Words Award Feedback */}
-                      <div className="flex items-center justify-between gap-1 text-[10px] text-slate-500 dark:text-slate-400 font-medium truncate pt-0.5 border-t border-slate-100 dark:border-slate-800/80">
-                        <div className="flex items-center gap-1 truncate font-mono">
-                          {st.formNo && <span>F#{st.formNo}</span>}
-                          {st.regNo && <span>{st.formNo ? '• ' : ''}R:{st.regNo.slice(-6)}</span>}
-                          {st.examRollNo && <span>• E:{st.examRollNo}</span>}
-                          <span className="truncate text-teal-700 dark:text-teal-400 font-sans font-medium">
-                            {(st.formNo || st.regNo || st.examRollNo) ? '• ' : ''}{allSubjs}
-                          </span>
-                        </div>
-                        {inWords && (
-                          <span className="text-[9.5px] font-bold text-indigo-600 dark:text-indigo-400 shrink-0 italic">
-                            {inWords}
-                          </span>
-                        )}
-                      </div>
+                      {/* Row 2: Streamlined Single-Line Continuous Metadata (Ellipsis without character collision) */}
+                      <p className="text-[10px] text-slate-500 dark:text-slate-400 font-mono font-medium truncate pt-0.5 border-t border-slate-100 dark:border-slate-800/80 leading-normal">
+                        {st.formNo && <span>F#{st.formNo} • </span>}
+                        {st.regNo && <span>R:{st.regNo.slice(-6)} • </span>}
+                        {st.examRollNo && <span>E:{st.examRollNo} • </span>}
+                        <span className="text-teal-700 dark:text-teal-400 font-sans font-medium">{allSubjs}</span>
+                      </p>
                     </div>
                   );
                 })}
