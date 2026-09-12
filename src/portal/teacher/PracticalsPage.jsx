@@ -2413,7 +2413,7 @@ export default function PracticalsPage() {
                           }
                         }}
                         placeholder={`0-${subjectMaxMarks} / A`}
-                        className="w-20 px-2 py-1 rounded-lg border text-xs font-black text-center uppercase bg-white dark:bg-slate-900 border-amber-300 dark:border-amber-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-2xs"
+                        className="portal-compact-input !h-7 !min-h-[28px] !max-h-[28px] w-16 !p-0 border text-xs font-black text-center uppercase bg-white dark:bg-slate-900 border-amber-300 dark:border-amber-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-2xs"
                         maxLength={4}
                       />
 
@@ -2429,7 +2429,7 @@ export default function PracticalsPage() {
                             key={chipVal}
                             type="button"
                             onClick={() => setQuickFillMark(chipVal)}
-                            className={`px-2 py-1 rounded-md text-[11px] font-black border transition-colors cursor-pointer ${
+                            className={`portal-compact-btn !h-7 !min-h-[28px] !max-h-[28px] px-2 rounded-md text-[11px] font-black border transition-colors cursor-pointer ${
                               quickFillMark === chipVal
                                 ? 'bg-amber-500 text-white border-amber-500 shadow-2xs'
                                 : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700'
@@ -2450,16 +2450,16 @@ export default function PracticalsPage() {
                       type="button"
                       onClick={() => handleApplyQuickFill('empty')}
                       disabled={emptyCount === 0 || !quickFillMark.trim()}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-black flex items-center gap-1.5 transition-all ${
+                      className={`portal-compact-btn !h-7 !min-h-[28px] !max-h-[28px] px-2.5 rounded-lg text-xs font-black flex items-center gap-1.5 transition-all ${
                         emptyCount > 0 && quickFillMark.trim()
                           ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-xs cursor-pointer active:scale-95'
                           : 'bg-slate-200 dark:bg-slate-800 text-slate-400 cursor-not-allowed'
                       }`}
                       title="Fill all students who currently have empty marks (preserves already-entered marks)"
                     >
-                      <Zap size={13} />
+                      <Zap size={12} />
                       <span>Fill Empty</span>
-                      <span className="px-1.5 py-0.2 rounded-full bg-emerald-700 text-white text-[9.5px] font-black">
+                      <span className="px-1 py-0.2 rounded-full bg-emerald-700 text-white text-[9.5px] font-black leading-none">
                         {emptyCount}
                       </span>
                     </button>
@@ -2469,20 +2469,18 @@ export default function PracticalsPage() {
                       type="button"
                       onClick={() => handleApplyQuickFill('selected')}
                       disabled={selectedKeys.size === 0 || !quickFillMark.trim()}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-black flex items-center gap-1.5 transition-all ${
+                      className={`portal-compact-btn !h-7 !min-h-[28px] !max-h-[28px] px-2.5 rounded-lg text-xs font-black flex items-center gap-1.5 transition-all ${
                         selectedKeys.size > 0 && quickFillMark.trim()
                           ? 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-xs cursor-pointer active:scale-95'
                           : 'bg-slate-200 dark:bg-slate-800 text-slate-400 cursor-not-allowed'
                       }`}
-                      title="Fill mark into currently selected checkboxes"
+                      title="Fill all selected student rows"
                     >
-                      <Check size={13} />
+                      <Check size={12} />
                       <span>Fill Selected</span>
-                      {selectedKeys.size > 0 && (
-                        <span className="px-1.5 py-0.2 rounded-full bg-indigo-700 text-white text-[9.5px] font-black">
-                          {selectedKeys.size}
-                        </span>
-                      )}
+                      <span className="px-1 py-0.2 rounded-full bg-indigo-700 text-white text-[9.5px] font-black leading-none">
+                        {selectedKeys.size}
+                      </span>
                     </button>
 
                     {/* Fill All */}
@@ -2630,7 +2628,7 @@ export default function PracticalsPage() {
                         value={quickFillMark}
                         onChange={(e) => setQuickFillMark(e.target.value.toUpperCase())}
                         placeholder={`0-${subjectMaxMarks} / A`}
-                        className="w-24 px-3 py-2 rounded-xl border text-sm font-black text-center uppercase bg-slate-50 dark:bg-slate-950 border-amber-300 dark:border-amber-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-2xs"
+                        className="portal-compact-input !h-8 !min-h-[32px] !max-h-[32px] w-20 px-2 rounded-lg border text-xs font-black text-center uppercase bg-white dark:bg-slate-900 border-amber-300 dark:border-amber-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-2xs !p-0"
                         maxLength={4}
                       />
                       {/* Presets */}
@@ -2645,7 +2643,7 @@ export default function PracticalsPage() {
                             key={chipVal}
                             type="button"
                             onClick={() => setQuickFillMark(chipVal)}
-                            className={`py-2 rounded-xl text-xs font-black border transition-all cursor-pointer text-center active:scale-95 ${
+                            className={`portal-compact-btn !h-8 !min-h-[32px] !max-h-[32px] rounded-lg text-xs font-black border transition-all cursor-pointer text-center active:scale-95 ${
                               quickFillMark === chipVal
                                 ? 'bg-amber-500 text-white border-amber-500 shadow-xs'
                                 : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-200'
@@ -2986,18 +2984,17 @@ export default function PracticalsPage() {
 
               {/* Floating Sticky Action Bar when Rows are Selected */}
               {selectedKeys.size > 0 && (
-                <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 w-[95%] max-w-2xl bg-slate-900/95 dark:bg-slate-950/95 text-white p-2.5 sm:p-3 rounded-2xl shadow-2xl border border-indigo-500/40 backdrop-blur-md flex flex-wrap items-center justify-between gap-2.5 animate-in slide-in-from-bottom-5 duration-200">
-                  <div className="flex items-center gap-2">
-                    <span className="w-6 h-6 rounded-full bg-indigo-500 flex items-center justify-center font-black text-xs text-white shrink-0">
-                      ✓
+                <div className="fixed bottom-3 left-1/2 -translate-x-1/2 z-40 w-[94%] max-w-lg bg-white/95 dark:bg-slate-900/95 text-slate-900 dark:text-slate-100 px-3 py-2 rounded-2xl shadow-2xl border border-slate-300 dark:border-slate-700 backdrop-blur-md flex items-center justify-between gap-2 animate-in slide-in-from-bottom-3 duration-200">
+                  <div className="flex items-center gap-1.5 shrink-0 min-w-0">
+                    <span className="px-2 py-0.5 rounded-full bg-indigo-600 text-white font-black text-xs leading-none flex items-center gap-1 shrink-0 shadow-2xs">
+                      ✓ {selectedKeys.size}
                     </span>
-                    <div className="text-xs">
-                      <span className="font-extrabold text-white">{selectedKeys.size}</span>
-                      <span className="text-slate-300 ml-1">of {displayedStudents.length} selected</span>
-                    </div>
+                    <span className="text-xs font-bold text-slate-700 dark:text-slate-200 truncate hidden xs:inline">
+                      of {displayedStudents.length} selected
+                    </span>
                   </div>
 
-                  <div className="flex items-center gap-1.5 flex-wrap">
+                  <div className="flex items-center gap-1.5 shrink-0">
                     <input
                       type="text"
                       value={quickFillMark}
@@ -3009,30 +3006,31 @@ export default function PracticalsPage() {
                         }
                       }}
                       placeholder={`0-${subjectMaxMarks}/A`}
-                      className="w-20 px-2 py-1.5 rounded-xl bg-slate-800 border border-slate-700 text-white font-black text-xs text-center focus:ring-2 focus:ring-indigo-500 uppercase tracking-wide"
+                      className="portal-compact-input !h-7 !min-h-[28px] !max-h-[28px] w-16 !text-xs font-black text-center bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 text-slate-900 dark:text-white placeholder:text-slate-500 dark:placeholder:text-slate-400 rounded-lg focus:ring-2 focus:ring-indigo-500 uppercase tracking-wide !p-0 shadow-2xs"
                       maxLength={4}
+                      aria-label="Bulk fill marks for selected students"
                     />
                     <button
                       type="button"
                       onClick={() => handleApplyQuickFill('selected')}
                       disabled={!quickFillMark.trim()}
-                      className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 ${
+                      className={`portal-compact-btn !h-7 !min-h-[28px] !max-h-[28px] px-2.5 rounded-lg text-xs font-black transition-all flex items-center gap-1 shrink-0 ${
                         quickFillMark.trim()
                           ? 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-xs cursor-pointer active:scale-95'
-                          : 'bg-slate-700 text-slate-400 cursor-not-allowed'
+                          : 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 border border-slate-200 dark:border-slate-700 cursor-not-allowed'
                       }`}
                       title="Apply mark to all selected students (Press Enter)"
                     >
-                      <Zap size={13} />
-                      <span>Apply to {selectedKeys.size} Selected</span>
+                      <Zap size={12} className={quickFillMark.trim() ? "text-amber-300" : "text-slate-400 dark:text-slate-500"} />
+                      <span>Apply ({selectedKeys.size})</span>
                     </button>
                     <button
                       type="button"
                       onClick={() => setSelectedKeys(new Set())}
-                      className="p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition-colors cursor-pointer shrink-0"
+                      className="portal-compact-btn !h-7 !min-h-[28px] !max-h-[28px] !w-7 !min-w-[28px] p-0 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 transition-colors cursor-pointer shrink-0"
                       title="Clear selection"
                     >
-                      <X size={15} />
+                      <X size={14} />
                     </button>
                   </div>
                 </div>
