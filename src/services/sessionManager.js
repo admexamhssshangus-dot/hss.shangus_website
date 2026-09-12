@@ -5,11 +5,17 @@
 // Apps Script REST API bridge. Supports persistent sessions
 // ("Keep me logged in") via localStorage, and temporary sessions
 // via sessionStorage.
+// Enforces single-device active sessions across Student, Teacher,
+// Admin, and Super Admin roles.
 // =================================================================
+
+import { doc, setDoc, onSnapshot } from 'firebase/firestore';
+import { db } from './firebase';
 
 const STORAGE_KEYS = {
   TOKEN: 'hss_session_token',
   DEVICE_ID: 'hss_device_id',
+  SESSION_ID: 'hss_session_id',
   USER: 'hss_session_user',
   PERSISTENT: 'hss_persistent_login',
   LAST_HEARTBEAT: 'hss_last_heartbeat',
@@ -47,6 +53,142 @@ function _generateDeviceId() {
 }
 
 // ---------------------------------------------------------------------------
+// Session ID (unique per active login session)
+// ---------------------------------------------------------------------------
+
+/**
+ * Generate a unique session ID for an active login.
+ */
+function generateSessionId() {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  return 'sess-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+}
+
+/**
+ * Get current active session ID from sessionStorage or localStorage.
+ */
+function getSessionId() {
+  return sessionStorage.getItem(STORAGE_KEYS.SESSION_ID) || localStorage.getItem(STORAGE_KEYS.SESSION_ID) || null;
+}
+
+/**
+ * Set active session ID in both sessionStorage and localStorage.
+ */
+function setSessionId(sessionId) {
+  if (!sessionId) return;
+  try {
+    sessionStorage.setItem(STORAGE_KEYS.SESSION_ID, sessionId);
+    localStorage.setItem(STORAGE_KEYS.SESSION_ID, sessionId);
+  } catch (_) {}
+}
+
+// ---------------------------------------------------------------------------
+// Cloud Active Session Management (Firestore userSessions collection)
+// ---------------------------------------------------------------------------
+
+/**
+ * Register this device as the single active session in Firestore.
+ * Automatically invalidates any existing sessions on other devices.
+ * @param {object} user - User object containing uid, email, role
+ * @param {string} deviceId - Device identifier
+ * @param {string} sessionId - Session identifier
+ */
+async function registerActiveSessionInCloud(user, deviceId, sessionId) {
+  if (!user?.uid || !db) return;
+  const uid = user.uid;
+  const cleanEmail = String(user.email || '').toLowerCase().trim();
+  const sessionDocRef = doc(db, 'userSessions', uid);
+
+  let platform = 'Web';
+  if (typeof navigator !== 'undefined') {
+    const ua = navigator.userAgent || '';
+    if (/android/i.test(ua)) platform = 'Android';
+    else if (/iphone|ipad|ipod/i.test(ua)) platform = 'iOS';
+    else if (/macintosh|mac os x/i.test(ua)) platform = 'macOS';
+    else if (/windows/i.test(ua)) platform = 'Windows';
+    else if (/linux/i.test(ua)) platform = 'Linux';
+  }
+
+  const payload = {
+    sessionId: String(sessionId),
+    deviceId: String(deviceId || getDeviceId()),
+    updatedAt: new Date().toISOString(),
+    email: cleanEmail,
+    role: user.role || 'Student',
+    deviceInfo: `${platform} (${typeof navigator !== 'undefined' ? (navigator.platform || 'Web') : 'Web'})`.slice(0, 100),
+  };
+
+  try {
+    await setDoc(sessionDocRef, payload, { merge: true });
+  } catch (err) {
+    console.warn('Active session cloud registration note:', err);
+  }
+}
+
+/**
+ * Listen for session revocation in real-time.
+ * If another device logs into this account, onRevoked is called immediately.
+ * @param {string} uid - User UID
+ * @param {string} currentSessionId - Local session ID
+ * @param {function} onRevoked - Callback when session is revoked by another device
+ * @returns {function} Unsubscribe function
+ */
+function listenForSessionRevocation(uid, currentSessionId, onRevoked) {
+  if (!uid || !currentSessionId || !db) return () => {};
+
+  const sessionDocRef = doc(db, 'userSessions', uid);
+  let isInitial = true;
+
+  const unsubscribe = onSnapshot(sessionDocRef, (docSnap) => {
+    if (!docSnap.exists()) return;
+
+    const data = docSnap.data();
+    const remoteSessionId = data?.sessionId;
+    const remoteDeviceId = data?.deviceId;
+    const myDeviceId = getDeviceId();
+
+    // On initial snapshot: if another session was registered on another device while offline
+    if (isInitial) {
+      isInitial = false;
+      if (remoteSessionId && remoteSessionId !== currentSessionId && remoteDeviceId !== myDeviceId) {
+        onRevoked({ remoteSessionId, remoteDeviceId, deviceInfo: data.deviceInfo });
+      }
+      return;
+    }
+
+    // Live update when another device writes to userSessions/{uid}
+    if (remoteSessionId && remoteSessionId !== currentSessionId) {
+      // Same physical browser/device (e.g., another tab of same device):
+      if (remoteDeviceId === myDeviceId) {
+        // Synchronize local session ID so this tab stays alive
+        setSessionId(remoteSessionId);
+        return;
+      }
+
+      // DIFFERENT physical device! Terminate this old session immediately!
+      onRevoked({ remoteSessionId, remoteDeviceId, deviceInfo: data.deviceInfo });
+    }
+  }, (err) => {
+    console.warn('Session revocation listener note:', err);
+  });
+
+  return unsubscribe;
+}
+
+/**
+ * Clear the cloud active session record on explicit logout.
+ */
+async function clearActiveSessionInCloud(uid) {
+  if (!uid || !db) return;
+  try {
+    const sessionDocRef = doc(db, 'userSessions', uid);
+    await setDoc(sessionDocRef, { sessionId: '', updatedAt: new Date().toISOString() }, { merge: true }).catch(() => {});
+  } catch (_) {}
+}
+
+// ---------------------------------------------------------------------------
 // Session Storage (token + user data)
 // ---------------------------------------------------------------------------
 
@@ -58,42 +200,40 @@ function _generateDeviceId() {
  * @param {boolean} keepLoggedIn - Whether to persist across browser restarts
  */
 function saveSession(data, keepLoggedIn = true) {
-  // Always save to both localStorage and sessionStorage to ensure session persistence
-  // across tabs, browser restarts, and page reloads.
   localStorage.setItem(STORAGE_KEYS.PERSISTENT, keepLoggedIn ? 'true' : 'false');
 
   const userStr = JSON.stringify(data.user || {});
   const tokenStr = data.token || '';
   const nowStr = Date.now().toString();
 
+  // Ensure sessionId is recorded
+  const sessionId = data.sessionId || getSessionId() || generateSessionId();
+  setSessionId(sessionId);
+
   [localStorage, sessionStorage].forEach(storage => {
     try {
       storage.setItem(STORAGE_KEYS.TOKEN, tokenStr);
       storage.setItem(STORAGE_KEYS.USER, userStr);
+      storage.setItem(STORAGE_KEYS.SESSION_ID, sessionId);
       storage.setItem(STORAGE_KEYS.LAST_HEARTBEAT, nowStr);
       storage.removeItem('hss_explicit_logout');
     } catch (_) {}
   });
-  // Do not persist bearer tokens across browser restarts. Firebase Auth owns
-  // refresh-token persistence and refreshes short-lived ID tokens safely.
+
   try { localStorage.removeItem(STORAGE_KEYS.TOKEN); } catch (_) {}
 
-  // Auth signal in localStorage so Navbar's storage-event listener gets notified
   localStorage.setItem('hss_auth_state', JSON.stringify({ role: data.user?.role, name: data.user?.name, ts: Date.now() }));
 
-  // Dispatch a custom event so same-tab listeners (Navbar) update immediately
   try { window.dispatchEvent(new CustomEvent('hss-auth-changed', { detail: { loggedIn: true } })); } catch (_) {}
 
-  // Ensure device ID is set
   getDeviceId();
 }
 
 /**
  * Get the current session data. Checks sessionStorage first, then falls back to localStorage.
- * @returns {{ token: string, user: object, deviceId: string } | null}
+ * @returns {{ token: string, user: object, deviceId: string, sessionId: string } | null}
  */
 function getSession() {
-  // Try sessionStorage first, then fallback to localStorage
   let token = sessionStorage.getItem(STORAGE_KEYS.TOKEN);
   let userRaw = sessionStorage.getItem(STORAGE_KEYS.USER) || localStorage.getItem(STORAGE_KEYS.USER);
 
@@ -112,6 +252,7 @@ function getSession() {
     token,
     user,
     deviceId: getDeviceId(),
+    sessionId: getSessionId(),
     isPersistent: localStorage.getItem(STORAGE_KEYS.PERSISTENT) !== 'false',
   };
 }
@@ -161,16 +302,14 @@ function updateUser(updates) {
  * Clear all session data (logout).
  */
 function clearSession() {
-  // Clear from both storage types
   [localStorage, sessionStorage].forEach(storage => {
     try {
       storage.removeItem(STORAGE_KEYS.TOKEN);
       storage.removeItem(STORAGE_KEYS.USER);
+      storage.removeItem(STORAGE_KEYS.SESSION_ID);
       storage.removeItem(STORAGE_KEYS.LAST_HEARTBEAT);
       storage.removeItem('hss_explicit_logout');
 
-      // Security Guardrail: Clear admin student caches on explicit logout
-      // (ensures shared/public computers never retain historical or active student data)
       const privateCachePrefixes = [
         'hss_cache_', 'draft_prac_', 'hss_att_cache_', 'hss_csv_import_batches_', 'hss_auth_verified_sync',
         'hss_reports_cache_',
@@ -192,9 +331,7 @@ function clearSession() {
     } catch (_) {}
   });
   localStorage.removeItem(STORAGE_KEYS.PERSISTENT);
-  // Remove auth signal so Navbar knows the user logged out
   localStorage.removeItem('hss_auth_state');
-  // Notify same-tab listeners immediately
   try { window.dispatchEvent(new CustomEvent('hss-auth-changed', { detail: { loggedIn: false } })); } catch (_) {}
 }
 
@@ -202,10 +339,6 @@ function clearSession() {
 // Heartbeat tracking
 // ---------------------------------------------------------------------------
 
-/**
- * Check if a heartbeat is due.
- * @returns {boolean}
- */
 function isHeartbeatDue() {
   const isPersistent = localStorage.getItem(STORAGE_KEYS.PERSISTENT) === 'true';
   const storage = isPersistent ? localStorage : sessionStorage;
@@ -214,9 +347,6 @@ function isHeartbeatDue() {
   return (Date.now() - last) > HEARTBEAT_INTERVAL_MS;
 }
 
-/**
- * Record that a heartbeat was just sent.
- */
 function recordHeartbeat() {
   const isPersistent = localStorage.getItem(STORAGE_KEYS.PERSISTENT) === 'true';
   const storage = isPersistent ? localStorage : sessionStorage;
@@ -224,15 +354,11 @@ function recordHeartbeat() {
 }
 
 // ---------------------------------------------------------------------------
-// Export
+// SuperAdmin Check
 // ---------------------------------------------------------------------------
 
 export const SUPERADMIN_EMAIL = 'adm.exam.hss.shangus@gmail.com';
 
-/**
- * Check if currently authenticated user or session is a SuperAdmin.
- * adm.exam.hss.shangus@gmail.com is the sole SuperAdmin.
- */
 export function isSuperAdminUser(user = null) {
   try {
     const targetUser = user || getUser();
@@ -263,8 +389,16 @@ export function isSuperAdminUser(user = null) {
 }
 
 export const sessionManager = {
-  // Device ID
+  // Device ID & Session ID
   getDeviceId,
+  getSessionId,
+  setSessionId,
+  generateSessionId,
+
+  // Cloud Active Session
+  registerActiveSessionInCloud,
+  listenForSessionRevocation,
+  clearActiveSessionInCloud,
 
   // Session CRUD
   saveSession,

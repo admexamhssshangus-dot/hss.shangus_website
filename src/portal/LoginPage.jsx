@@ -34,6 +34,7 @@ import {
   isBootstrapSuperAdminEmail,
   isSuperAdminEmail
 } from '../services/staffAuthService';
+import { sessionManager } from '../services/sessionManager';
 
 export default function LoginPage() {
   const { onLoginSuccess, isAuthenticated, user } = useOutletContext();
@@ -81,6 +82,14 @@ export default function LoginPage() {
   // Status & loading
   const [isLoading, setIsLoading] = useState(false);
   const [alert, setAlert] = useState(() => {
+    const terminated = location.state?.terminated || sessionStorage.getItem('hss_session_terminated');
+    if (terminated) {
+      try { sessionStorage.removeItem('hss_session_terminated'); } catch (_) {}
+      return {
+        type: 'error',
+        text: '⚠️ Session Terminated: Your account was logged in on another device. All previous sessions have been cleared for security.'
+      };
+    }
     const msg = location.state?.message;
     if (msg && !msg.toLowerCase().includes('no longer valid') && !msg.toLowerCase().includes('expired')) {
       return { type: 'error', text: msg };
@@ -178,18 +187,28 @@ export default function LoginPage() {
           ? claims.permissions
           : [];
 
+    const sessionId = sessionManager.generateSessionId();
+    sessionManager.setSessionId(sessionId);
+
+    const resolvedUser = {
+      email: emailLower,
+      name: staffProfile?.name || activeUser?.displayName || emailLower.split('@')[0],
+      role,
+      perms,
+      subject: staffProfile?.subject || '',
+      mobile: staffProfile?.mobile || '',
+      photoURL: activeUser?.photoURL || null,
+      uid: activeUser?.uid || 'admin_handshake_auth',
+    };
+
+    if (activeUser?.uid && activeUser.uid !== 'admin_handshake_auth') {
+      await sessionManager.registerActiveSessionInCloud(resolvedUser, sessionManager.getDeviceId(), sessionId);
+    }
+
     return {
-      user: {
-        email: emailLower,
-        name: staffProfile?.name || activeUser?.displayName || emailLower.split('@')[0],
-        role,
-        perms,
-        subject: staffProfile?.subject || '',
-        mobile: staffProfile?.mobile || '',
-        photoURL: activeUser?.photoURL || null,
-        uid: activeUser?.uid || 'admin_handshake_auth',
-      },
+      user: resolvedUser,
       token: tokenResult?.token || 'verified_handshake_token',
+      sessionId,
     };
   };
 
