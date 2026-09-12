@@ -42,7 +42,20 @@ export default function LoginPage() {
   const navigate = useNavigate();
 
   // Tab role selection: 'student' | 'teacher' | 'admin' | 'superadmin'
-  const [selectedRole, setSelectedRole] = useState('student');
+  const [selectedRole, setSelectedRole] = useState(() => {
+    try {
+      if (sessionStorage.getItem('hss_explicit_logout') !== 'true' && localStorage.getItem('hss_explicit_logout') !== 'true') {
+        const pending = localStorage.getItem('hss_pending_admin_login');
+        if (pending) {
+          const parsed = JSON.parse(pending);
+          if (parsed.email && Date.now() - parsed.ts < 15 * 60 * 1000) {
+            return parsed.role === 'SuperAdmin' ? 'superadmin' : 'admin';
+          }
+        }
+      }
+    } catch (_) {}
+    return 'student';
+  });
 
   // Form states
   const [email, setEmail] = useState('');
@@ -53,11 +66,17 @@ export default function LoginPage() {
   // 2-Step Verification Link State for Admin / SuperAdmin (Window 1 waiting state)
   const [emailLinkSentState, setEmailLinkSentState] = useState(() => {
     try {
+      if (sessionStorage.getItem('hss_explicit_logout') === 'true' || localStorage.getItem('hss_explicit_logout') === 'true') {
+        localStorage.removeItem('hss_pending_admin_login');
+        localStorage.removeItem('emailForSignIn');
+        localStorage.removeItem('hss_admin_auth_approved');
+        return null;
+      }
       const pending = localStorage.getItem('hss_pending_admin_login');
       if (pending) {
         const parsed = JSON.parse(pending);
         if (parsed.email && Date.now() - parsed.ts < 15 * 60 * 1000) {
-          return { email: parsed.email, handshakeId: parsed.handshakeId, sentAt: parsed.ts };
+          return { email: parsed.email, handshakeId: parsed.handshakeId, sentAt: parsed.ts, role: parsed.role || 'Admin' };
         }
       }
     } catch (_) {}
@@ -99,9 +118,9 @@ export default function LoginPage() {
 
   const isSuperAdmin = selectedRole === 'superadmin';
 
-  // If user is already authenticated, automatically redirect to their dashboard (Except when in Window 2 verification gateway)
+  // If user is already authenticated, automatically redirect to their dashboard (Except when in Window 2 verification gateway or waiting for 2-step verification)
   useEffect(() => {
-    if (isEmailVerificationTabRef.current || window2VerifiedState) {
+    if (isEmailVerificationTabRef.current || window2VerifiedState || emailLinkSentState || localStorage.getItem('hss_pending_admin_login')) {
       return;
     }
 
@@ -113,7 +132,7 @@ export default function LoginPage() {
         : '/portal/admin';
       navigate(dest, { replace: true });
     }
-  }, [isAuthenticated, user, navigate, window2VerifiedState]);
+  }, [isAuthenticated, user, navigate, window2VerifiedState, emailLinkSentState]);
 
   // Auto-redirect to dashboard when Window 2 is verified (especially critical on mobile where tabs can't close)
   useEffect(() => {
@@ -491,9 +510,15 @@ export default function LoginPage() {
       setEmailLinkSentState({ email: cleanEmail, handshakeId, sentAt: Date.now(), role: profile.role });
       setResendCooldown(60);
       setAlert({ type: 'success', text: `🛡️ Verification link dispatched to ${cleanEmail}. Check your inbox to complete sign-in.` });
+      setIsLoading(false);
       return true;
     } catch (err) {
       console.error('Admin 2SV dispatch error:', err);
+      try {
+        localStorage.removeItem('hss_pending_admin_login');
+        localStorage.removeItem('emailForSignIn');
+        sessionStorage.removeItem('hss_auth_handshake_id');
+      } catch (_) {}
       let errorMsg = 'Failed to dispatch verification link.';
       if (err.code === 'auth/unauthorized-continue-uri') {
         errorMsg = 'This URL is not authorized for verification links in Firebase Console. Please whitelist it in Authorized Domains.';
@@ -601,7 +626,9 @@ export default function LoginPage() {
       }
       localStorage.removeItem('emailForSignIn');
       localStorage.removeItem('hss_pending_admin_login');
+      localStorage.removeItem('hss_admin_auth_approved');
       sessionStorage.removeItem('hss_auth_handshake_id');
+      sessionStorage.removeItem('hss_session_terminated');
       await signOut(auth).catch(() => {});
     } catch (_) {}
     setEmailLinkSentState(null);
@@ -927,7 +954,10 @@ export default function LoginPage() {
             <div className="grid grid-cols-3 p-1 rounded-2xl border text-xs font-black relative z-10 bg-slate-100/90 dark:bg-slate-950/90 border-slate-200 dark:border-slate-800 mb-3">
               <button
                 type="button"
-                onClick={() => setSelectedRole('student')}
+                onClick={() => {
+                  if (emailLinkSentState) handleCancel2Step();
+                  setSelectedRole('student');
+                }}
                 className={`py-2.5 sm:py-2 rounded-xl flex items-center justify-center gap-1.5 transition-all duration-200 cursor-pointer ${
                   selectedRole === 'student'
                     ? 'bg-teal-600 text-white shadow-md font-black scale-[1.02]'
@@ -940,7 +970,10 @@ export default function LoginPage() {
 
               <button
                 type="button"
-                onClick={() => setSelectedRole('teacher')}
+                onClick={() => {
+                  if (emailLinkSentState) handleCancel2Step();
+                  setSelectedRole('teacher');
+                }}
                 className={`py-2.5 sm:py-2 rounded-xl flex items-center justify-center gap-1.5 transition-all duration-200 cursor-pointer ${
                   selectedRole === 'teacher'
                     ? 'bg-emerald-600 text-white shadow-md font-black scale-[1.02]'

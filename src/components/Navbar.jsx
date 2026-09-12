@@ -94,6 +94,11 @@ export default function Navbar() {
   const executeGlobalLogout = async () => {
     setIsLoggingOut(true);
     try {
+      sessionStorage.setItem('hss_explicit_logout', 'true');
+      localStorage.setItem('hss_explicit_logout', 'true');
+      localStorage.removeItem('hss_pending_admin_login');
+      localStorage.removeItem('emailForSignIn');
+      localStorage.removeItem('hss_admin_auth_approved');
       sessionManager.clearSession();
       sessionStorage.removeItem('isAdminAuthenticated');
       sessionStorage.removeItem('adminEmail');

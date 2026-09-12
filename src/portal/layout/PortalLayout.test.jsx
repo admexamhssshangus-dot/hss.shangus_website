@@ -42,3 +42,21 @@ test('token verification failure does not establish a session', async () => {
   await act(async () => onAuthStateChanged.mock.calls.at(-1)[1](auth.currentUser));
   expect(screen.getByText('Unauthenticated')).toBeInTheDocument();
 });
+
+test('pending 2-step verification prevents premature session establishment', async () => {
+  localStorage.setItem('hss_pending_admin_login', JSON.stringify({ email: 'admin@example.invalid', handshakeId: 'hsk_123', ts: Date.now() }));
+  resolveStaffRoleAndPerms.mockResolvedValue({ role: 'Admin', perms: ['*'] });
+  auth.currentUser = { uid: 'admin-uid', email: 'admin@example.invalid' };
+  render(<PortalLayout />);
+  await act(async () => onAuthStateChanged.mock.calls.at(-1)[1](auth.currentUser));
+  expect(screen.getByText('Unauthenticated')).toBeInTheDocument();
+});
+
+test('explicit logout flag blocks session restoration', async () => {
+  sessionStorage.setItem('hss_explicit_logout', 'true');
+  resolveStaffRoleAndPerms.mockResolvedValue({ role: 'Admin', perms: ['*'] });
+  auth.currentUser = { uid: 'admin-uid', email: 'admin@example.invalid' };
+  render(<PortalLayout />);
+  await act(async () => onAuthStateChanged.mock.calls.at(-1)[1](auth.currentUser));
+  expect(screen.getByText('Unauthenticated')).toBeInTheDocument();
+});
