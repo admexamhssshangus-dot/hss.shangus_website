@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import {
   Search, Printer, Award, CheckCircle2, AlertCircle, ArrowLeft,
@@ -277,6 +277,454 @@ export const getOverallResultDescriptor = (evaluatedCount, totalCount, totalObta
   };
 };
 
+/**
+ * Normalizes raw paper marks to a standard target scale (default 50).
+ * Handles custom raw paper scales (e.g. 20, 25, 30, 40, 50, 70, 100),
+ * absent candidates ('AB'), empty values, and calculates proportional pass mark (36%).
+ */
+export function normalizeMarksToScale(rawMarks, rawMax = 50, targetMax = 50) {
+  const normTargetMax = Number(targetMax) > 0 ? Number(targetMax) : 50;
+  const targetMinPass = Math.ceil(normTargetMax * 0.36);
+
+  if (rawMarks === null || rawMarks === undefined || rawMarks === '' || rawMarks === '—') {
+    return {
+      normalizedMarks: '—',
+      maxMarks: normTargetMax,
+      minMarks: targetMinPass,
+      rawMarks: '—',
+      rawMax: Number(rawMax) || 50,
+      isAbsent: false,
+      isEvaluated: false
+    };
+  }
+
+  const strMark = String(rawMarks).trim().toUpperCase();
+  if (/^(A|AB|ABSENT)$/i.test(strMark)) {
+    return {
+      normalizedMarks: 'AB',
+      maxMarks: normTargetMax,
+      minMarks: targetMinPass,
+      rawMarks: 'AB',
+      rawMax: Number(rawMax) || 50,
+      isAbsent: true,
+      isEvaluated: true
+    };
+  }
+
+  const numVal = Number(strMark);
+  const parsedRawMax = Number(rawMax) > 0 ? Number(rawMax) : 50;
+
+  if (isNaN(numVal)) {
+    return {
+      normalizedMarks: '—',
+      maxMarks: normTargetMax,
+      minMarks: targetMinPass,
+      rawMarks: '—',
+      rawMax: parsedRawMax,
+      isAbsent: false,
+      isEvaluated: false
+    };
+  }
+
+  // Calculate normalized marks rounded to nearest integer
+  let normalized = parsedRawMax === normTargetMax
+    ? Math.round(numVal)
+    : Math.round((numVal / parsedRawMax) * normTargetMax);
+
+  normalized = Math.min(normTargetMax, Math.max(0, normalized));
+
+  return {
+    normalizedMarks: normalized,
+    maxMarks: normTargetMax,
+    minMarks: targetMinPass,
+    rawMarks: numVal,
+    rawMax: parsedRawMax,
+    rawScore: `${numVal}/${parsedRawMax}`,
+    isAbsent: false,
+    isEvaluated: true
+  };
+}
+
+/**
+ * Computes the complete scorecard subject roster with automatic normalization to 50M
+ * and flexible Botany & Zoology combined (50M) vs separate (50M each) display.
+ */
+export function computeScorecardSubjects({
+  matchedStudent,
+  streamName,
+  matchingSections = [],
+  matchRecord,
+  biologyDisplayMode = 'combined'
+}) {
+  let botanySec = null;
+  let zoologySec = null;
+  let biologySec = null;
+  let botanyRec = null;
+  let zoologyRec = null;
+  let biologyRec = null;
+
+  for (const sec of matchingSections) {
+    const c = (sec.subjectCode || '').toUpperCase().trim();
+    const n = String(sec.subjectName || sec.subject || '').toLowerCase();
+    const rec = (sec.records || []).find(matchRecord);
+    if (!rec) continue;
+
+    if (c === 'BO' || n.includes('botany')) {
+      botanySec = sec;
+      botanyRec = rec;
+    } else if (c === 'ZO' || n.includes('zoology')) {
+      zoologySec = sec;
+      zoologyRec = rec;
+    } else if (c === 'BI' || n.includes('biology')) {
+      biologySec = sec;
+      biologyRec = rec;
+    }
+  }
+
+  const isScience = String(streamName || '').toLowerCase().includes('scien');
+  const hasRegisteredBio = Array.isArray(matchedStudent?.subjects) &&
+    matchedStudent.subjects.some(s => ['BI', 'BO', 'ZO'].includes(s.code) || /biology|botany|zoology/i.test(s.name));
+  const hasBioActivity = Boolean(botanyRec || zoologyRec || biologyRec || hasRegisteredBio || (isScience && !Array.isArray(matchedStudent?.subjects)));
+
+  let rawTemplate = [];
+  if (Array.isArray(matchedStudent?.subjects) && matchedStudent.subjects.length > 0) {
+    rawTemplate = matchedStudent.subjects.map(s => ({
+      code: s.code,
+      name: s.name,
+      defaultMax: s.defaultMax || 50
+    }));
+  } else if (isScience) {
+    rawTemplate = [
+      { code: 'EN', name: 'General English', defaultMax: 50 },
+      { code: 'PH', name: 'Physics', defaultMax: 50 },
+      { code: 'CH', name: 'Chemistry', defaultMax: 50 },
+      { code: 'ES', name: 'Environmental Science', defaultMax: 50 }
+    ];
+  } else {
+    rawTemplate = (STANDARD_STREAM_SUBJECTS.Humanities || []).map(s => ({ ...s }));
+  }
+
+  const finalSubjectsList = [];
+  const matchedSectionIds = new Set();
+  if (botanySec && botanyRec) matchedSectionIds.add(botanySec.id || botanySec.docId);
+  if (zoologySec && zoologyRec) matchedSectionIds.add(zoologySec.id || zoologySec.docId);
+  if (biologySec && biologyRec) matchedSectionIds.add(biologySec.id || biologySec.docId);
+
+  // Process Biology / Botany / Zoology if applicable
+  if (hasBioActivity) {
+    if (biologyDisplayMode === 'combined') {
+      if (biologyRec && !botanyRec && !zoologyRec) {
+        const rawVal = biologyRec.totalMarks ?? biologyRec.practicalMarks;
+        const docMax = Number(biologySec?.maxMarks) || 50;
+        const norm = normalizeMarksToScale(rawVal, docMax, 50);
+        const desc = getSubjectPerformanceDescriptor(norm.normalizedMarks, 50, 18, norm.isAbsent);
+
+        finalSubjectsList.push({
+          subjectCode: 'BI',
+          subjectName: 'Biology (Botany & Zoology)',
+          maxMarks: 50,
+          minMarks: 18,
+          marksObtained: norm.normalizedMarks,
+          rawScore: norm.rawScore,
+          rawMax: docMax,
+          isAbsent: norm.isAbsent,
+          isPass: desc.isPass,
+          isEvaluated: norm.isEvaluated,
+          status: desc.status,
+          statusTone: desc.tone,
+          badgeClass: desc.badgeClass,
+          componentNote: norm.rawScore && docMax !== 50 ? `Raw: ${norm.rawScore}` : null
+        });
+      } else {
+        const boRaw = botanyRec ? (botanyRec.totalMarks ?? botanyRec.practicalMarks) : null;
+        const zoRaw = zoologyRec ? (zoologyRec.totalMarks ?? zoologyRec.practicalMarks) : null;
+        const boMax = Number(botanySec?.maxMarks) || 25;
+        const zoMax = Number(zoologySec?.maxMarks) || 25;
+
+        const boIsAb = boRaw !== null && /^(a|ab|absent)$/i.test(String(boRaw).trim());
+        const zoIsAb = zoRaw !== null && /^(a|ab|absent)$/i.test(String(zoRaw).trim());
+
+        const boEvaluated = botanyRec !== null && boRaw !== null && boRaw !== '';
+        const zoEvaluated = zoologyRec !== null && zoRaw !== null && zoRaw !== '';
+
+        let boPart = 0;
+        let zoPart = 0;
+        if (boEvaluated && !boIsAb) {
+          const num = Number(boRaw);
+          boPart = isNaN(num) ? 0 : Math.round((num / boMax) * 25);
+        }
+        if (zoEvaluated && !zoIsAb) {
+          const num = Number(zoRaw);
+          zoPart = isNaN(num) ? 0 : Math.round((num / zoMax) * 25);
+        }
+
+        const isBothAbsent = boEvaluated && zoEvaluated && boIsAb && zoIsAb;
+        const isAnyEvaluated = boEvaluated || zoEvaluated;
+
+        let marksObtained = '—';
+        if (isBothAbsent) {
+          marksObtained = 'AB';
+        } else if (isAnyEvaluated) {
+          marksObtained = Math.min(50, boPart + zoPart);
+        }
+
+        let compParts = [];
+        if (boEvaluated) {
+          compParts.push(`BO: ${boIsAb ? 'AB' : `${boRaw}/${boMax}`}`);
+        } else {
+          compParts.push(`BO: Awaiting`);
+        }
+        if (zoEvaluated) {
+          compParts.push(`ZO: ${zoIsAb ? 'AB' : `${zoRaw}/${zoMax}`}`);
+        } else {
+          compParts.push(`ZO: Awaiting`);
+        }
+
+        const desc = getSubjectPerformanceDescriptor(marksObtained, 50, 18, isBothAbsent);
+
+        finalSubjectsList.push({
+          subjectCode: 'BI',
+          subjectName: 'Biology (Botany & Zoology)',
+          maxMarks: 50,
+          minMarks: 18,
+          marksObtained,
+          isAbsent: isBothAbsent,
+          isPass: desc.isPass,
+          isEvaluated: isAnyEvaluated,
+          status: desc.status,
+          statusTone: desc.tone,
+          badgeClass: desc.badgeClass,
+          componentNote: compParts.join(' • ')
+        });
+      }
+    } else {
+      // SEPARATE BOTANY & ZOOLOGY
+      if (botanyRec) {
+        const boRaw = botanyRec.totalMarks ?? botanyRec.practicalMarks;
+        const boMax = Number(botanySec?.maxMarks) || 25;
+        const norm = normalizeMarksToScale(boRaw, boMax, 50);
+        const desc = getSubjectPerformanceDescriptor(norm.normalizedMarks, 50, 18, norm.isAbsent);
+
+        finalSubjectsList.push({
+          subjectCode: 'BO',
+          subjectName: 'Botany',
+          maxMarks: 50,
+          minMarks: 18,
+          marksObtained: norm.normalizedMarks,
+          rawScore: norm.rawScore,
+          rawMax: boMax,
+          isAbsent: norm.isAbsent,
+          isPass: desc.isPass,
+          isEvaluated: norm.isEvaluated,
+          status: desc.status,
+          statusTone: desc.tone,
+          badgeClass: desc.badgeClass,
+          componentNote: norm.rawScore && boMax !== 50 ? `Raw Paper: ${norm.rawScore}` : null
+        });
+      } else {
+        finalSubjectsList.push({
+          subjectCode: 'BO',
+          subjectName: 'Botany',
+          maxMarks: 50,
+          minMarks: 18,
+          marksObtained: '—',
+          isAbsent: false,
+          isPass: false,
+          isEvaluated: false,
+          status: 'Awaiting Award',
+          statusTone: 'neutral',
+          badgeClass: 'bg-slate-50 text-slate-400 dark:bg-slate-800/60 dark:text-slate-500 border border-slate-200/60 dark:border-slate-700',
+          componentNote: null
+        });
+      }
+
+      if (zoologyRec) {
+        const zoRaw = zoologyRec.totalMarks ?? zoologyRec.practicalMarks;
+        const zoMax = Number(zoologySec?.maxMarks) || 25;
+        const norm = normalizeMarksToScale(zoRaw, zoMax, 50);
+        const desc = getSubjectPerformanceDescriptor(norm.normalizedMarks, 50, 18, norm.isAbsent);
+
+        finalSubjectsList.push({
+          subjectCode: 'ZO',
+          subjectName: 'Zoology',
+          maxMarks: 50,
+          minMarks: 18,
+          marksObtained: norm.normalizedMarks,
+          rawScore: norm.rawScore,
+          rawMax: zoMax,
+          isAbsent: norm.isAbsent,
+          isPass: desc.isPass,
+          isEvaluated: norm.isEvaluated,
+          status: desc.status,
+          statusTone: desc.tone,
+          badgeClass: desc.badgeClass,
+          componentNote: norm.rawScore && zoMax !== 50 ? `Raw Paper: ${norm.rawScore}` : null
+        });
+      } else {
+        finalSubjectsList.push({
+          subjectCode: 'ZO',
+          subjectName: 'Zoology',
+          maxMarks: 50,
+          minMarks: 18,
+          marksObtained: '—',
+          isAbsent: false,
+          isPass: false,
+          isEvaluated: false,
+          status: 'Awaiting Award',
+          statusTone: 'neutral',
+          badgeClass: 'bg-slate-50 text-slate-400 dark:bg-slate-800/60 dark:text-slate-500 border border-slate-200/60 dark:border-slate-700',
+          componentNote: null
+        });
+      }
+    }
+  }
+
+  // Process all other non-Biology template subjects
+  const nonBioTemplate = rawTemplate.filter(t => !['BI', 'BO', 'ZO'].includes(t.code) && !/biology|botany|zoology/i.test(t.name));
+
+  nonBioTemplate.forEach(tpl => {
+    let foundRec = null;
+    let foundSec = null;
+
+    for (const sec of matchingSections) {
+      const c = (sec.subjectCode || '').toUpperCase().trim();
+      const n = String(sec.subjectName || sec.subject || '').toLowerCase();
+      const isMatch = c === tpl.code || n === tpl.name.toLowerCase() ||
+        (tpl.code === 'EN' && (c === 'GE' || n.includes('english'))) ||
+        (tpl.code === 'PH' && (c === 'PHY' || n.includes('physics'))) ||
+        (tpl.code === 'CH' && (c === 'CHEM' || n.includes('chemistry'))) ||
+        (tpl.code === 'MA' && (c === 'MATH' || c === 'MATHS' || n.includes('mathematics') || n.includes('math'))) ||
+        (tpl.code === 'SC' && (c === 'SC' || c === 'SCI' || c === 'SCIENCE' || (n.includes('science') && !n.includes('social') && !n.includes('pol') && !n.includes('environmental') && !n.includes('computer')))) ||
+        (tpl.code === 'SS' && (c === 'SS' || c === 'SST' || c === 'SOC' || n.includes('social science') || n.includes('social studies') || n === 'sst')) ||
+        (tpl.code === 'ES' && (c === 'EVS' || n.includes('environmental') || n.includes('env'))) ||
+        (tpl.code === 'PS' && (c === 'POL' || n.includes('political'))) ||
+        (tpl.code === 'HT' && (c === 'HIST' || n.includes('history'))) ||
+        (tpl.code === 'ED' && (c === 'EDU' || n.includes('education'))) ||
+        (tpl.code === 'UR' && (c === 'UR' || n.includes('urdu'))) ||
+        (tpl.code === 'HTC' && (c === 'HTC' || c === 'HC' || (c === 'HT' && n.includes('health')) || n.includes('healthcare') || n.includes('health care'))) ||
+        (tpl.code === 'ITE' && (c === 'ITE' || c === 'IT' || c === 'CS' || c === 'IP' || n.includes('ites') || n.includes('information') || n.includes('it & ites') || n.includes('it and ites')));
+
+      if (isMatch) {
+        const rec = (sec.records || []).find(matchRecord);
+        if (rec) {
+          foundRec = rec;
+          foundSec = sec;
+          matchedSectionIds.add(sec.id || sec.docId);
+          break;
+        }
+      }
+    }
+
+    if (foundRec && foundSec) {
+      const rawMark = foundRec.totalMarks ?? foundRec.practicalMarks;
+      const docMax = Number(foundSec.maxMarks) || 50;
+      const norm = normalizeMarksToScale(rawMark, docMax, 50);
+      const desc = getSubjectPerformanceDescriptor(norm.normalizedMarks, 50, 18, norm.isAbsent);
+
+      finalSubjectsList.push({
+        subjectCode: tpl.code,
+        subjectName: tpl.name,
+        maxMarks: 50,
+        minMarks: 18,
+        marksObtained: norm.normalizedMarks,
+        rawScore: norm.rawScore,
+        rawMax: docMax,
+        isAbsent: norm.isAbsent,
+        isPass: desc.isPass,
+        isEvaluated: true,
+        status: desc.status,
+        statusTone: desc.tone,
+        badgeClass: desc.badgeClass,
+        componentNote: norm.rawScore && docMax !== 50 ? `Raw Paper: ${norm.rawScore}` : null
+      });
+    } else {
+      finalSubjectsList.push({
+        subjectCode: tpl.code,
+        subjectName: tpl.name,
+        maxMarks: 50,
+        minMarks: 18,
+        marksObtained: '—',
+        isAbsent: false,
+        isPass: false,
+        isEvaluated: false,
+        status: 'Awaiting Award',
+        statusTone: 'neutral',
+        badgeClass: 'bg-slate-50 text-slate-400 dark:bg-slate-800/60 dark:text-slate-500 border border-slate-200/60 dark:border-slate-700',
+        componentNote: null
+      });
+    }
+  });
+
+  // Additional electives found in sections
+  matchingSections.forEach(sec => {
+    if (!matchedSectionIds.has(sec.id || sec.docId)) {
+      const secCode = sec.subjectCode || '';
+      const secName = sec.subjectName || sec.subject || '';
+
+      if (['BO', 'ZO', 'BI'].includes(secCode.toUpperCase()) || /biology|botany|zoology/i.test(secName)) return;
+
+      if (!isSubjectCompatibleWithStream(secCode, secName, streamName)) return;
+
+      if (Array.isArray(matchedStudent?.subjects) && matchedStudent.subjects.length > 0) {
+        if (!isSubjectEnrolledByStudent(secCode, secName, matchedStudent)) return;
+      }
+
+      const rec = (sec.records || []).find(matchRecord);
+      if (rec) {
+        const rawMark = rec.totalMarks ?? rec.practicalMarks;
+        const docMax = Number(sec.maxMarks) || 50;
+        const norm = normalizeMarksToScale(rawMark, docMax, 50);
+        const desc = getSubjectPerformanceDescriptor(norm.normalizedMarks, 50, 18, norm.isAbsent);
+
+        finalSubjectsList.push({
+          subjectCode: (sec.subjectCode || 'ELEC').toUpperCase(),
+          subjectName: sec.subjectName || sec.subject || 'Elective Subject',
+          maxMarks: 50,
+          minMarks: 18,
+          marksObtained: norm.normalizedMarks,
+          rawScore: norm.rawScore,
+          rawMax: docMax,
+          isAbsent: norm.isAbsent,
+          isPass: desc.isPass,
+          isEvaluated: true,
+          status: desc.status,
+          statusTone: desc.tone,
+          badgeClass: desc.badgeClass,
+          componentNote: norm.rawScore && docMax !== 50 ? `Raw Paper: ${norm.rawScore}` : null
+        });
+      }
+    }
+  });
+
+  const codeWeight = { EN: 1, PH: 2, CH: 3, BI: 4, BO: 4, ZO: 5, MA: 6, ES: 7, ED: 8, HT: 9, PS: 10, UR: 11, SC: 12, SS: 13 };
+  finalSubjectsList.sort((a, b) => (codeWeight[a.subjectCode] || 30) - (codeWeight[b.subjectCode] || 30));
+
+  const evaluatedSubjects = finalSubjectsList.filter(s => s.isEvaluated);
+  const evaluatedCount = evaluatedSubjects.length;
+  const totalCount = finalSubjectsList.length;
+  const totalObtained = evaluatedSubjects.reduce((acc, s) => acc + (typeof s.marksObtained === 'number' ? s.marksObtained : 0), 0);
+  const totalMax = evaluatedSubjects.reduce((acc, s) => acc + s.maxMarks, 0);
+  const hasMarks = evaluatedCount > 0;
+  const pct = hasMarks && totalMax > 0 ? ((totalObtained / totalMax) * 100).toFixed(1) : null;
+
+  const allAbsent = hasMarks && evaluatedSubjects.every(s => s.isAbsent);
+  const hasFail = hasMarks && evaluatedSubjects.some(s => !s.isPass && !s.isAbsent);
+  const overall = getOverallResultDescriptor(evaluatedCount, totalCount, totalObtained, totalMax, hasFail, allAbsent);
+
+  return {
+    subjects: finalSubjectsList,
+    evaluatedCount,
+    totalCount,
+    totalObtained,
+    totalMax,
+    hasMarks,
+    percentage: pct !== null ? `${pct}%` : '—',
+    division: overall.division,
+    resultStatus: overall.resultStatus,
+    hasBiologySubjects: hasBioActivity
+  };
+}
+
 export default function PublicResultLookup() {
   const [searchParams] = useSearchParams();
   const initialReg = searchParams.get('reg') || searchParams.get('roll') || searchParams.get('fno') || '';
@@ -301,6 +749,28 @@ export default function PublicResultLookup() {
   const [studentResult, setStudentResult] = useState(null);
   const [errorMsg, setErrorMsg] = useState('');
   const [isSearchExpandedOnMobile, setIsSearchExpandedOnMobile] = useState(false);
+  const [biologyDisplayMode, setBiologyDisplayMode] = useState('combined');
+
+  // Reactively derive active scorecard when toggling between Combined Bio and Separate BO & ZO
+  const activeScorecard = useMemo(() => {
+    if (!studentResult) return null;
+    if (studentResult.lookupContext) {
+      const computed = computeScorecardSubjects({
+        matchedStudent: studentResult.lookupContext.matchedStudent,
+        streamName: studentResult.lookupContext.streamName,
+        matchingSections: studentResult.lookupContext.matchingSections,
+        matchRecord: studentResult.lookupContext.matchRecord,
+        biologyDisplayMode
+      });
+      return {
+        ...studentResult,
+        ...computed
+      };
+    }
+    return studentResult;
+  }, [studentResult, biologyDisplayMode]);
+
+  const activeResult = activeScorecard || studentResult;
 
   // Helper to persist searches to localStorage
   const saveSearchToHistory = useCallback((entry) => {
@@ -379,6 +849,7 @@ export default function PublicResultLookup() {
           if (evaluations[0]) {
             setSelectedEvalType(evaluations[0].evalType || evaluations[0].title);
             if (evaluations[0].session) setSelectedSession(evaluations[0].session);
+            if (evaluations[0].biologyDisplayMode) setBiologyDisplayMode(evaluations[0].biologyDisplayMode);
           }
           return;
         }
@@ -397,12 +868,14 @@ export default function PublicResultLookup() {
         title: ev.title,
         evalType: ev.evalType,
         session: ev.session || '2025-26',
-        classes: ev.classes || ['10th', '11th', '12th']
+        classes: ev.classes || ['10th', '11th', '12th'],
+        biologyDisplayMode: ev.biologyDisplayMode || 'combined'
       }));
       setEvalOptions(fallbackEvals);
       setAvailableSessions(['2025-26', '2024-25', '2023-24']);
       if (fallbackEvals[0]) {
         setSelectedEvalType(fallbackEvals[0].evalType || fallbackEvals[0].title);
+        if (fallbackEvals[0].biologyDisplayMode) setBiologyDisplayMode(fallbackEvals[0].biologyDisplayMode);
       }
     }
 
@@ -451,16 +924,26 @@ export default function PublicResultLookup() {
         const pUrl = (res.photoUrl || '');
         const cleanPhoto = (pUrl.includes('drive.google.com') || pUrl.includes('googleusercontent.com') || pUrl.includes('docs.google.com')) ? '' : pUrl;
         
-        // Normalize subjects and overall status to encouraging, modern labels
+        // Normalize subjects and overall status to encouraging, modern labels with 50M scale
         const rawSubs = Array.isArray(res.subjects) ? res.subjects : [];
         const sanitizedSubjects = rawSubs.map(sub => {
-          const desc = getSubjectPerformanceDescriptor(sub.marksObtained, sub.maxMarks, sub.minMarks, sub.isAbsent);
+          const rawM = sub.marksObtained;
+          const isAb = sub.isAbsent || /^(a|ab|absent)$/i.test(String(rawM).trim());
+          const docMax = Number(sub.maxMarks) || 50;
+          const norm = normalizeMarksToScale(rawM, docMax, 50);
+          const desc = getSubjectPerformanceDescriptor(norm.normalizedMarks, 50, 18, isAb);
           return {
             ...sub,
+            maxMarks: 50,
+            minMarks: 18,
+            marksObtained: isAb ? 'AB' : norm.normalizedMarks,
+            rawScore: norm.rawScore,
+            rawMax: docMax,
             status: desc.status,
             statusTone: desc.tone,
             badgeClass: desc.badgeClass,
-            isPass: desc.isPass
+            isPass: desc.isPass,
+            componentNote: norm.rawScore && docMax !== 50 ? `Raw Paper: ${norm.rawScore}` : (sub.componentNote || null)
           };
         });
 
@@ -468,7 +951,11 @@ export default function PublicResultLookup() {
         const totCount = res.totalCount ?? (sanitizedSubjects.length || 6);
         const anyFail = sanitizedSubjects.some(s => s.isEvaluated && !s.isPass && !s.isAbsent);
         const allAb = sanitizedSubjects.length > 0 && sanitizedSubjects.every(s => s.isAbsent);
-        const overall = getOverallResultDescriptor(evCount, totCount, res.totalObtained, res.totalMax, anyFail, allAb);
+        const totalObt = sanitizedSubjects.reduce((acc, s) => acc + (typeof s.marksObtained === 'number' ? s.marksObtained : 0), 0);
+        const totalMx = sanitizedSubjects.reduce((acc, s) => acc + s.maxMarks, 0);
+        const overall = getOverallResultDescriptor(evCount, totCount, totalObt, totalMx, anyFail, allAb);
+
+        const hasBioInServerless = sanitizedSubjects.some(s => ['BI', 'BO', 'ZO'].includes((s.subjectCode || '').toUpperCase()) || /biology|botany|zoology/i.test(s.subjectName || ''));
 
         setStudentResult({
           ...res,
@@ -476,8 +963,15 @@ export default function PublicResultLookup() {
           fatherName: formatConsistentName(res.fatherName || res.parentage),
           photoUrl: cleanPhoto,
           subjects: sanitizedSubjects.length > 0 ? sanitizedSubjects : res.subjects,
+          totalObtained: totalObt,
+          totalMax: totalMx,
+          evaluatedCount: evCount,
+          totalCount: totCount,
+          hasMarks: evCount > 0,
+          percentage: evCount > 0 && totalMx > 0 ? `${((totalObt / totalMx) * 100).toFixed(1)}%` : '—',
           resultStatus: overall.resultStatus,
-          division: overall.division
+          division: overall.division,
+          hasBiologySubjects: hasBioInServerless
         });
         saveSearchToHistory({
           query: cleanQuery,
@@ -652,15 +1146,6 @@ export default function PublicResultLookup() {
               : (rawStream.includes('human') || hasHumanitiesSubjects ? 'Humanities' : 'General'))
           : 'General';
 
-        const templateRoster = (Array.isArray(matchedStudent.subjects) && matchedStudent.subjects.length > 0)
-          ? matchedStudent.subjects.map(s => ({
-              code: s.code,
-              name: s.name,
-              defaultMax: s.defaultMax || 50
-            }))
-          : isHigherSec
-            ? (streamName === 'Science' ? STANDARD_STREAM_SUBJECTS.Science : STANDARD_STREAM_SUBJECTS.Humanities)
-            : STANDARD_STREAM_SUBJECTS.Secondary;
 
         // Fetch fresh practicals data from Firestore (falling back to cache on error)
         let practicalDocs = [];
@@ -756,162 +1241,14 @@ export default function PublicResultLookup() {
           return false;
         };
 
-        // Build the complete student subject roster with placeholders for pending subjects
-        const finalSubjectsList = [];
-        const matchedSectionIds = new Set();
-
-        templateRoster.forEach(tpl => {
-          let foundRec = null;
-          let foundSec = null;
-          let isFromBiology = false;
-
-          // 1. Direct match by subject code or subject name
-          for (const sec of matchingSections) {
-            const c = (sec.subjectCode || '').toUpperCase().trim();
-            const n = String(sec.subjectName || sec.subject || '').toLowerCase();
-            const isMatch = c === tpl.code || n === tpl.name.toLowerCase() ||
-              (tpl.code === 'EN' && (c === 'GE' || n.includes('english'))) ||
-              (tpl.code === 'PH' && (c === 'PHY' || n.includes('physics'))) ||
-              (tpl.code === 'CH' && (c === 'CHEM' || n.includes('chemistry'))) ||
-              (tpl.code === 'BO' && (c === 'BO' || n.includes('botany'))) ||
-              (tpl.code === 'ZO' && (c === 'ZO' || n.includes('zoology'))) ||
-              (tpl.code === 'MA' && (c === 'MATH' || c === 'MATHS' || n.includes('mathematics') || n.includes('math'))) ||
-              (tpl.code === 'SC' && (c === 'SC' || c === 'SCI' || c === 'SCIENCE' || (n.includes('science') && !n.includes('social') && !n.includes('pol') && !n.includes('environmental') && !n.includes('computer')))) ||
-              (tpl.code === 'SS' && (c === 'SS' || c === 'SST' || c === 'SOC' || n.includes('social science') || n.includes('social studies') || n === 'sst')) ||
-              (tpl.code === 'ES' && (c === 'EVS' || n.includes('environmental') || n.includes('env'))) ||
-              (tpl.code === 'PS' && (c === 'POL' || n.includes('political'))) ||
-              (tpl.code === 'HT' && (c === 'HIST' || n.includes('history'))) ||
-              (tpl.code === 'ED' && (c === 'EDU' || n.includes('education'))) ||
-              (tpl.code === 'UR' && (c === 'UR' || n.includes('urdu'))) ||
-              (tpl.code === 'HTC' && (c === 'HTC' || c === 'HC' || (c === 'HT' && n.includes('health')) || n.includes('healthcare') || n.includes('health care'))) ||
-              (tpl.code === 'ITE' && (c === 'ITE' || c === 'IT' || c === 'CS' || c === 'IP' || n.includes('ites') || n.includes('information') || n.includes('it & ites') || n.includes('it and ites')));
-
-            if (isMatch) {
-              const rec = (sec.records || []).find(matchRecord);
-              if (rec) {
-                foundRec = rec;
-                foundSec = sec;
-                matchedSectionIds.add(sec.id || sec.docId);
-                break;
-              }
-            }
-          }
-
-          // 2. Botany & Zoology fallback from Biology (BI)
-          if (!foundRec && (tpl.code === 'BO' || tpl.code === 'ZO')) {
-            for (const sec of matchingSections) {
-              const c = (sec.subjectCode || '').toUpperCase().trim();
-              const n = String(sec.subjectName || sec.subject || '').toLowerCase();
-              if (c === 'BI' || n.includes('biology')) {
-                const rec = (sec.records || []).find(matchRecord);
-                if (rec) {
-                  foundRec = rec;
-                  foundSec = sec;
-                  isFromBiology = true;
-                  matchedSectionIds.add(sec.id || sec.docId);
-                  break;
-                }
-              }
-            }
-          }
-
-          if (foundRec && foundSec) {
-            const rawMark = foundRec.totalMarks ?? foundRec.practicalMarks;
-            const isAbsent = /^(a|ab|absent)$/i.test(String(rawMark).trim());
-            const num = Number(rawMark);
-            const docMax = Number(foundSec.maxMarks) || tpl.defaultMax;
-            const maxMarks = isFromBiology ? Math.round(docMax / 2) : docMax;
-            const minMarks = Math.ceil(maxMarks * 0.36);
-            const marksVal = isAbsent ? 'AB' : (isFromBiology ? Math.round(num / 2) : num);
-            const desc = getSubjectPerformanceDescriptor(marksVal, maxMarks, minMarks, isAbsent);
-
-            finalSubjectsList.push({
-              subjectCode: tpl.code,
-              subjectName: tpl.name,
-              maxMarks,
-              minMarks,
-              marksObtained: isAbsent ? 'AB' : marksVal,
-              isAbsent,
-              isPass: desc.isPass,
-              isEvaluated: true,
-              status: desc.status,
-              statusTone: desc.tone,
-              badgeClass: desc.badgeClass
-            });
-          } else {
-            // Subject has not been evaluated yet -> Place holder entry!
-            finalSubjectsList.push({
-              subjectCode: tpl.code,
-              subjectName: tpl.name,
-              maxMarks: tpl.defaultMax,
-              minMarks: Math.ceil(tpl.defaultMax * 0.36),
-              marksObtained: '—',
-              isAbsent: false,
-              isPass: false,
-              isEvaluated: false,
-              status: 'Awaiting Award',
-              statusTone: 'neutral',
-              badgeClass: 'bg-slate-50 text-slate-400 dark:bg-slate-800/60 dark:text-slate-500 border border-slate-200/60 dark:border-slate-700'
-            });
-          }
+        // Compute normalized subject roster and overall performance descriptors
+        const scorecardData = computeScorecardSubjects({
+          matchedStudent,
+          streamName,
+          matchingSections,
+          matchRecord,
+          biologyDisplayMode
         });
-
-        // 3. Append any additional evaluated subjects found in sections (e.g. Healthcare, IT & ITeS, Math, etc.)
-        // Strictly filtered to prevent cross-stream pollution (e.g. Botany in Humanities)
-        matchingSections.forEach(sec => {
-          if (!matchedSectionIds.has(sec.id || sec.docId)) {
-            const secCode = sec.subjectCode || '';
-            const secName = sec.subjectName || sec.subject || '';
-
-            // Must be compatible with student's stream
-            if (!isSubjectCompatibleWithStream(secCode, secName, streamName)) return;
-
-            // If student has explicit registered subjects, only allow if student is enrolled in this subject
-            if (Array.isArray(matchedStudent.subjects) && matchedStudent.subjects.length > 0) {
-              if (!isSubjectEnrolledByStudent(secCode, secName, matchedStudent)) return;
-            }
-
-            const rec = (sec.records || []).find(matchRecord);
-            if (rec) {
-              const rawMark = rec.totalMarks ?? rec.practicalMarks;
-              const isAbsent = /^(a|ab|absent)$/i.test(String(rawMark).trim());
-              const num = Number(rawMark);
-              const maxMarks = Number(sec.maxMarks) || 50;
-              const minMarks = Number(sec.minMarks) || Math.ceil(maxMarks * 0.36);
-              const marksVal = isAbsent ? 'AB' : num;
-              const desc = getSubjectPerformanceDescriptor(marksVal, maxMarks, minMarks, isAbsent);
-
-              finalSubjectsList.push({
-                subjectCode: (sec.subjectCode || 'ELEC').toUpperCase(),
-                subjectName: sec.subjectName || sec.subject || 'Elective Subject',
-                maxMarks,
-                minMarks,
-                marksObtained: isAbsent ? 'AB' : marksVal,
-                isAbsent,
-                isPass: desc.isPass,
-                isEvaluated: true,
-                status: desc.status,
-                statusTone: desc.tone,
-                badgeClass: desc.badgeClass
-              });
-            }
-          }
-        });
-
-        // 4. Calculate Grand Totals and Award Roll Status
-        const evaluatedSubjects = finalSubjectsList.filter(s => s.isEvaluated);
-        const evaluatedCount = evaluatedSubjects.length;
-        const totalCount = finalSubjectsList.length;
-        const totalObtained = evaluatedSubjects.reduce((acc, s) => acc + (typeof s.marksObtained === 'number' ? s.marksObtained : 0), 0);
-        const totalMax = evaluatedSubjects.reduce((acc, s) => acc + s.maxMarks, 0);
-        const hasMarks = evaluatedCount > 0;
-        const pct = hasMarks && totalMax > 0 ? ((totalObtained / totalMax) * 100).toFixed(1) : null;
-
-        const allAbsent = hasMarks && evaluatedSubjects.every(s => s.isAbsent);
-        const hasFail = hasMarks && evaluatedSubjects.some(s => !s.isPass && !s.isAbsent);
-        const overall = getOverallResultDescriptor(evaluatedCount, totalCount, totalObtained, totalMax, hasFail, allAbsent);
-        const resultStatus = overall.resultStatus;
-        const division = overall.division;
 
         let firebasePhoto = '';
         try {
@@ -932,16 +1269,14 @@ export default function PublicResultLookup() {
           session: matchedStudent.session || selectedSession,
           photoUrl: firebasePhoto,
           evalTitle: selectedEvalType,
-          subjects: finalSubjectsList,
-          evaluatedCount,
-          totalCount,
-          hasMarks,
-          totalObtained,
-          totalMax,
-          percentage: pct !== null ? `${pct}%` : '—',
-          division,
-          resultStatus,
-          verifiedFromCatalog: true
+          verifiedFromCatalog: true,
+          lookupContext: {
+            matchedStudent,
+            streamName,
+            matchingSections,
+            matchRecord
+          },
+          ...scorecardData
         });
         saveSearchToHistory({
           query: cleanQuery,
@@ -1200,7 +1535,14 @@ export default function PublicResultLookup() {
               <div className="w-full sm:w-36">
                 <select
                   value={selectedEvalType}
-                  onChange={(e) => setSelectedEvalType(e.target.value)}
+                  onChange={(e) => {
+                    const newEval = e.target.value;
+                    setSelectedEvalType(newEval);
+                    const matched = evalOptions.find(ev => (ev.evalType || ev.title) === newEval);
+                    if (matched?.biologyDisplayMode) {
+                      setBiologyDisplayMode(matched.biologyDisplayMode);
+                    }
+                  }}
                   aria-label="Evaluation"
                   className="w-full h-8 px-2 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-800 dark:text-slate-200 focus:outline-none focus:border-teal-600 truncate cursor-pointer"
                 >
@@ -1322,7 +1664,8 @@ export default function PublicResultLookup() {
         </div>
 
         {/* Minimal, Clean and Modern Official Scorecard */}
-        {studentResult && (
+        {/* Minimal, Clean and Modern Official Scorecard */}
+        {activeResult && (
           <div
             id="official-scorecard-print"
             className="relative overflow-hidden bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg sm:rounded-xl p-2.5 sm:p-5 print:p-2.5 shadow-xs space-y-2 sm:space-y-3 print:space-y-1.5 animate-fadeIn print:border-slate-300 print:bg-white print:rounded-md"
@@ -1354,11 +1697,11 @@ export default function PublicResultLookup() {
                 </button>
               </div>
               <p className="text-[10px] sm:text-[10.5px] font-medium text-slate-500 dark:text-slate-400 print:text-slate-600 m-0 mt-0.5">
-                <strong className="font-bold text-slate-800 dark:text-slate-200 print:text-black">{studentResult.evalTitle}</strong>
+                <strong className="font-bold text-slate-800 dark:text-slate-200 print:text-black">{activeResult.evalTitle}</strong>
                 <span className="mx-1 opacity-40">•</span>
-                <span>Session {studentResult.session}</span>
+                <span>Session {activeResult.session}</span>
                 <span className="mx-1 opacity-40">•</span>
-                <span>Class {studentResult.className}</span>
+                <span>Class {activeResult.className}</span>
               </p>
             </div>
 
@@ -1366,10 +1709,10 @@ export default function PublicResultLookup() {
             <div className="relative z-10 flex items-stretch gap-2.5 sm:gap-4 p-2 sm:p-3 rounded-lg sm:rounded-xl bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 print:border-slate-300 print:bg-transparent print:p-2">
               {/* Photo Box: Compact on mobile screen, standard on desktop & print */}
               <div className="w-11 h-14 sm:w-16 sm:h-20 rounded-md sm:rounded-lg bg-slate-200 dark:bg-slate-700 flex-shrink-0 overflow-hidden border border-slate-200 dark:border-slate-600 flex items-center justify-center print:border-slate-400 print:bg-transparent shadow-2xs">
-                {studentResult.photoUrl && !studentResult.photoUrl.includes('drive.google.com') && !studentResult.photoUrl.includes('googleusercontent.com') ? (
+                {activeResult.photoUrl && !activeResult.photoUrl.includes('drive.google.com') && !activeResult.photoUrl.includes('googleusercontent.com') ? (
                   <img
-                    src={studentResult.photoUrl}
-                    alt={studentResult.name}
+                    src={activeResult.photoUrl}
+                    alt={activeResult.name}
                     className="w-full h-full object-cover"
                     onError={(e) => { e.currentTarget.style.display = 'none'; }}
                   />
@@ -1390,19 +1733,19 @@ export default function PublicResultLookup() {
                   </span>
                   <div className="flex items-center gap-1.5 flex-wrap mt-0.2">
                     <span className="text-xs sm:text-base font-black text-slate-900 dark:text-white print:text-black leading-tight">
-                      {studentResult.name}
+                      {activeResult.name}
                     </span>
                     <span className="text-[8.5px] sm:text-[9px] font-black px-1.5 py-0.2 rounded bg-teal-50 dark:bg-teal-950/80 text-teal-800 dark:text-teal-300 uppercase border border-teal-200/80 dark:border-teal-800/80 print:border-slate-400 print:text-slate-800 print:bg-transparent">
-                      {studentResult.stream || 'General'}
+                      {activeResult.stream || 'General'}
                     </span>
                   </div>
                 </div>
 
                 {/* Mobile-Only Compact Roll Info Row (Saves ~90px of vertical space on mobile) */}
                 <div className="sm:hidden flex items-center justify-between text-[10px] font-mono pt-1 text-slate-700 dark:text-slate-300">
-                  <span>Roll: <strong className="text-teal-700 dark:text-teal-300 font-bold">{studentResult.classRollNo || '—'}</strong></span>
-                  <span>Class: <strong>{studentResult.className}</strong></span>
-                  <span className="truncate max-w-[125px] text-[9.5px] text-slate-500">S/o {studentResult.fatherName || '—'}</span>
+                  <span>Roll: <strong className="text-teal-700 dark:text-teal-300 font-bold">{activeResult.classRollNo || '—'}</strong></span>
+                  <span>Class: <strong>{activeResult.className}</strong></span>
+                  <span className="truncate max-w-[125px] text-[9.5px] text-slate-500">S/o {activeResult.fatherName || '—'}</span>
                 </div>
 
                 {/* Desktop & Print: Full 2-column info & 4 Attribute Cards */}
@@ -1412,7 +1755,7 @@ export default function PublicResultLookup() {
                       Father's Name
                     </span>
                     <p className="text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-200 print:text-black leading-tight mt-0.5">
-                      {studentResult.fatherName || '—'}
+                      {activeResult.fatherName || '—'}
                     </p>
                   </div>
 
@@ -1420,19 +1763,19 @@ export default function PublicResultLookup() {
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs font-mono">
                     <div className="bg-white/70 dark:bg-slate-900/50 print:bg-transparent p-1.5 rounded-lg border border-slate-100 dark:border-slate-800 print:border-0 print:p-0">
                       <span className="text-slate-400 print:text-slate-500 block text-[9px] font-sans font-bold uppercase tracking-wider">Class</span>
-                      <strong className="text-slate-800 dark:text-slate-200 print:text-black font-bold">{studentResult.className}</strong>
+                      <strong className="text-slate-800 dark:text-slate-200 print:text-black font-bold">{activeResult.className}</strong>
                     </div>
                     <div className="bg-white/70 dark:bg-slate-900/50 print:bg-transparent p-1.5 rounded-lg border border-slate-100 dark:border-slate-800 print:border-0 print:p-0">
                       <span className="text-slate-400 print:text-slate-500 block text-[9px] font-sans font-bold uppercase tracking-wider">Class Roll No</span>
-                      <strong className="text-teal-700 dark:text-teal-300 print:text-black font-bold">{studentResult.classRollNo || '—'}</strong>
+                      <strong className="text-teal-700 dark:text-teal-300 print:text-black font-bold">{activeResult.classRollNo || '—'}</strong>
                     </div>
                     <div className="bg-white/70 dark:bg-slate-900/50 print:bg-transparent p-1.5 rounded-lg border border-slate-100 dark:border-slate-800 print:border-0 print:p-0">
                       <span className="text-slate-400 print:text-slate-500 block text-[9px] font-sans font-bold uppercase tracking-wider">Board Reg No</span>
-                      <strong className="text-slate-800 dark:text-slate-200 print:text-black font-bold text-[11px] sm:text-xs">{studentResult.boardRegNo || '—'}</strong>
+                      <strong className="text-slate-800 dark:text-slate-200 print:text-black font-bold text-[11px] sm:text-xs">{activeResult.boardRegNo || '—'}</strong>
                     </div>
                     <div className="bg-white/70 dark:bg-slate-900/50 print:bg-transparent p-1.5 rounded-lg border border-slate-100 dark:border-slate-800 print:border-0 print:p-0 sm:text-right">
                       <span className="text-slate-400 print:text-slate-500 block text-[9px] font-sans font-bold uppercase tracking-wider">Form No</span>
-                      <strong className="text-slate-800 dark:text-slate-200 print:text-black font-bold">{studentResult.formNo || '—'}</strong>
+                      <strong className="text-slate-800 dark:text-slate-200 print:text-black font-bold">{activeResult.formNo || '—'}</strong>
                     </div>
                   </div>
                 </div>
@@ -1441,10 +1784,40 @@ export default function PublicResultLookup() {
 
             {/* Subject-Wise Performance Table */}
             <div className="relative z-10 space-y-1 pt-0.5 sm:pt-1">
-              <div className="flex items-center justify-between text-[9px] sm:text-[10px] font-bold text-slate-500 dark:text-slate-400 print:text-slate-600 uppercase tracking-wider pb-0.5">
-                <span>Academic Performance</span>
+              <div className="flex flex-wrap items-center justify-between gap-1 text-[9px] sm:text-[10px] font-bold text-slate-500 dark:text-slate-400 print:text-slate-600 uppercase tracking-wider pb-0.5">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span>Academic Performance</span>
+                  {activeResult.hasBiologySubjects && (
+                    <div className="inline-flex items-center rounded-md p-0.5 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 print:hidden">
+                      <button
+                        type="button"
+                        onClick={() => setBiologyDisplayMode('combined')}
+                        className={`px-1.5 py-0.5 rounded text-[8.5px] font-bold transition-all cursor-pointer ${
+                          biologyDisplayMode === 'combined'
+                            ? 'bg-white dark:bg-slate-900 text-teal-700 dark:text-teal-300 shadow-2xs'
+                            : 'text-slate-500 hover:text-slate-700 dark:text-slate-400'
+                        }`}
+                        title="Combine Botany and Zoology into single 50M Biology"
+                      >
+                        Combined Bio (50M)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setBiologyDisplayMode('separate')}
+                        className={`px-1.5 py-0.5 rounded text-[8.5px] font-bold transition-all cursor-pointer ${
+                          biologyDisplayMode === 'separate'
+                            ? 'bg-white dark:bg-slate-900 text-teal-700 dark:text-teal-300 shadow-2xs'
+                            : 'text-slate-500 hover:text-slate-700 dark:text-slate-400'
+                        }`}
+                        title="Display Botany and Zoology as separate 50M subjects"
+                      >
+                        Separate (BO & ZO)
+                      </button>
+                    </div>
+                  )}
+                </div>
                 <span className="font-mono">
-                  Tabulated: {studentResult.evaluatedCount || 0} / {studentResult.totalCount || 0}
+                  Tabulated: {activeResult.evaluatedCount || 0} / {activeResult.totalCount || 0}
                 </span>
               </div>
 
@@ -1461,7 +1834,7 @@ export default function PublicResultLookup() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80 print:divide-slate-200 text-[11px]">
-                    {studentResult.subjects && studentResult.subjects.map((sub, idx) => (
+                    {activeResult.subjects && activeResult.subjects.map((sub, idx) => (
                       <tr
                         key={sub.subjectCode || idx}
                         className={sub.isEvaluated
@@ -1476,6 +1849,11 @@ export default function PublicResultLookup() {
                           <span className="font-semibold">{sub.subjectName}</span>
                           <span className="text-[9px] text-slate-400 print:text-slate-500 font-mono ml-1">[{sub.subjectCode}]</span>
                           <span className="sm:hidden text-[9px] text-slate-400 font-mono ml-1.5">• Max: {sub.maxMarks}</span>
+                          {sub.componentNote && (
+                            <div className="text-[8.5px] sm:text-[9px] text-teal-700 dark:text-teal-400 font-mono font-medium print:text-slate-600 leading-tight">
+                              {sub.componentNote}
+                            </div>
+                          )}
                         </td>
                         <td className="py-1 px-2 print:py-0.5 print:px-1.5 text-center font-mono text-slate-500 dark:text-slate-400 print:text-slate-600 text-[10.5px] hidden sm:table-cell print:table-cell">
                           {sub.maxMarks}
@@ -1527,29 +1905,29 @@ export default function PublicResultLookup() {
                         Tabulated Total / Result
                       </td>
                       <td className="py-1 px-2 print:py-0.5 print:px-1.5 text-center font-mono font-bold text-slate-700 dark:text-slate-300 print:text-black hidden sm:table-cell print:table-cell">
-                        {studentResult.totalMax > 0 ? studentResult.totalMax : '—'}
+                        {activeResult.totalMax > 0 ? activeResult.totalMax : '—'}
                       </td>
                       <td className="py-1 px-2 print:py-0.5 print:px-1.5 text-center font-mono text-slate-400 print:text-slate-500 hidden sm:table-cell print:table-cell">—</td>
                       <td className="py-1 px-2 print:py-0.5 print:px-1.5 text-center font-mono font-black text-teal-800 dark:text-teal-300 print:text-black text-xs">
-                        {studentResult.hasMarks ? studentResult.totalObtained : '—'}
+                        {activeResult.hasMarks ? activeResult.totalObtained : '—'}
                       </td>
                       <td className="py-1 px-2 print:py-0.5 print:px-1.5 text-center">
                         <span className={`px-1.5 sm:px-2 py-0.5 rounded text-[8.5px] sm:text-[9px] font-bold uppercase inline-block print:border print:border-slate-400 print:bg-transparent print:text-black ${
-                          studentResult.resultStatus === 'EXCELLENT'
+                          activeResult.resultStatus === 'EXCELLENT'
                             ? 'bg-emerald-700 text-white'
-                            : studentResult.resultStatus === 'VERY GOOD'
+                            : activeResult.resultStatus === 'VERY GOOD'
                             ? 'bg-teal-700 text-white'
-                            : studentResult.resultStatus === 'GOOD'
+                            : activeResult.resultStatus === 'GOOD'
                             ? 'bg-sky-700 text-white'
-                            : studentResult.resultStatus === 'SATISFACTORY' || studentResult.resultStatus === 'PASS'
+                            : activeResult.resultStatus === 'SATISFACTORY' || activeResult.resultStatus === 'PASS'
                             ? 'bg-emerald-600 text-white'
-                            : studentResult.resultStatus === 'IN PROGRESS' || studentResult.resultStatus === 'PROVISIONAL PASS'
+                            : activeResult.resultStatus === 'IN PROGRESS' || activeResult.resultStatus === 'PROVISIONAL PASS'
                             ? 'bg-teal-700 text-white'
-                            : studentResult.resultStatus === 'NEEDS IMPROVEMENT' || studentResult.resultStatus === 'RE-APPEAR' || studentResult.resultStatus === 'FAIL'
+                            : activeResult.resultStatus === 'NEEDS IMPROVEMENT' || activeResult.resultStatus === 'RE-APPEAR' || activeResult.resultStatus === 'FAIL'
                             ? 'bg-amber-600 text-white'
                             : 'bg-slate-600 text-white'
                         }`}>
-                          {studentResult.resultStatus === 'RE-APPEAR' || studentResult.resultStatus === 'FAIL' ? 'NEEDS IMPROVEMENT' : studentResult.resultStatus}
+                          {activeResult.resultStatus === 'RE-APPEAR' || activeResult.resultStatus === 'FAIL' ? 'NEEDS IMPROVEMENT' : activeResult.resultStatus}
                         </span>
                       </td>
                     </tr>
@@ -1562,15 +1940,15 @@ export default function PublicResultLookup() {
                 <div className="flex items-center gap-1">
                   <Clock size={10} className="text-teal-600 print:text-slate-500 shrink-0" />
                   <span className="truncate max-w-[200px] sm:max-w-none">
-                    {studentResult.evaluatedCount < studentResult.totalCount
-                      ? `Provisional Roll • ${studentResult.evaluatedCount}/${studentResult.totalCount} subjects tabulated.`
+                    {activeResult.evaluatedCount < activeResult.totalCount
+                      ? `Provisional Roll • ${activeResult.evaluatedCount}/${activeResult.totalCount} subjects tabulated.`
                       : `Official Award Roll • Verified.`
                     }
                   </span>
                 </div>
-                {studentResult.hasMarks && (
+                {activeResult.hasMarks && (
                   <span className="font-mono font-bold text-teal-700 dark:text-teal-300 print:text-black shrink-0">
-                    {studentResult.percentage} ({String(studentResult.division || 'In Progress').replace(/re-appear|fail/gi, 'Scope for Improvement')})
+                    {activeResult.percentage} ({String(activeResult.division || 'In Progress').replace(/re-appear|fail/gi, 'Scope for Improvement')})
                   </span>
                 )}
               </div>

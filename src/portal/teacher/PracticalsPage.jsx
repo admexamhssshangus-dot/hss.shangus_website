@@ -4,7 +4,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { 
   ArrowLeft, RefreshCw, AlertCircle, 
   CheckCircle2, Printer, ShieldCheck, History, Clock,
-  Bookmark, Send, ChevronDown, Check, SlidersHorizontal, Zap, X, Info
+  Bookmark, Send, ChevronDown, Check, SlidersHorizontal, Zap, X, Info, Sparkles
 } from 'lucide-react';
 import ConfirmModal from '../components/ConfirmModal';
 import SEO from '../../components/SEO';
@@ -967,6 +967,11 @@ export default function PracticalsPage() {
   const [selectedKeys, setSelectedKeys] = useState(new Set());
   const [quickFillMark, setQuickFillMark] = useState('');
   const [showQuickFill, setShowQuickFill] = useState(false);
+  const [teacherCustomMax, setTeacherCustomMax] = useState(null);
+
+  useEffect(() => {
+    setTeacherCustomMax(null);
+  }, [selectedSubject, practicalType, selectedClass, yearSuffix]);
 
   // Custom Confirmation Dialog State (replaces ugly native window.confirm)
   const [confirmModal, setConfirmModal] = useState({
@@ -1069,19 +1074,26 @@ export default function PracticalsPage() {
   const currentSubjectObj = SUBJECT_MAP.find(s => s.name === selectedSubject) || SUBJECT_MAP[1];
   const evalTypeNorm = String(practicalType || '').toLowerCase().includes('ext') ? 'external' : 'internal';
   const currentMarksConfig = getSubjectMarksConfig(practicalsSettings, selectedClass, evalTypeNorm, currentSubjectObj.code);
-  const subjectMaxMarks = isCustomEval && activeEvalOption?.evalConfig?.maxMarks
+  const baseEvalMax = isCustomEval && activeEvalOption?.evalConfig?.maxMarks
     ? Number(activeEvalOption.evalConfig.maxMarks)
     : currentMarksConfig.max;
-  const minPassMarks = isCustomEval && activeEvalOption?.evalConfig?.minMarks
-    ? Number(activeEvalOption.evalConfig.minMarks)
-    : currentMarksConfig.min;
+  const isBioSubj = ['BO', 'ZO'].includes(currentSubjectObj.code);
+  const defaultSubjectPaperMax = isBioSubj && isCustomEval && baseEvalMax === 50 ? 25 : baseEvalMax;
+  const subjectMaxMarks = Number(teacherCustomMax) > 0 ? Number(teacherCustomMax) : defaultSubjectPaperMax;
+  const minPassMarks = Math.ceil(subjectMaxMarks * 0.36);
 
   const getSubjectMax = useCallback((code) => {
+    if (code === currentSubjectObj.code && Number(teacherCustomMax) > 0) {
+      return Number(teacherCustomMax);
+    }
+    if (['BO', 'ZO'].includes(code) && isCustomEval && Number(activeEvalOption?.evalConfig?.maxMarks) === 50) {
+      return 25;
+    }
     if (isCustomEval && activeEvalOption?.evalConfig?.maxMarks) {
       return Number(activeEvalOption.evalConfig.maxMarks);
     }
     return getSubjectMarksConfig(practicalsSettings, selectedClass, evalTypeNorm, code).max;
-  }, [practicalsSettings, selectedClass, evalTypeNorm, isCustomEval, activeEvalOption]);
+  }, [practicalsSettings, selectedClass, evalTypeNorm, isCustomEval, activeEvalOption, currentSubjectObj.code, teacherCustomMax]);
 
   // Fetch Roster strictly for confirmed students with assigned class roll numbers
   const fetchPracticalData = useCallback(async () => {
@@ -1144,6 +1156,10 @@ export default function PracticalsPage() {
                             dId === docId;
           
           if (!matchSubj && dId !== docId) return;
+
+          if (data.maxMarks && Number(data.maxMarks) > 0) {
+            setTeacherCustomMax(Number(data.maxMarks));
+          }
 
           // Parse records array if present
           if (Array.isArray(data.records)) {
@@ -2201,7 +2217,7 @@ export default function PracticalsPage() {
 
           {/* Desktop-only Expandable Filter Inputs Panel */}
           {showFilterSettings && (
-              <div className="hidden sm:grid grid-cols-4 gap-2 pt-2 border-t border-slate-200 dark:border-slate-800 animate-in fade-in duration-150">
+              <div className="hidden sm:grid grid-cols-5 gap-2 pt-2 border-t border-slate-200 dark:border-slate-800 animate-in fade-in duration-150">
                 <div className="space-y-0.5">
                   <label className="text-[9.5px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block truncate">Class</label>
                   <select
@@ -2266,6 +2282,33 @@ export default function PracticalsPage() {
                       return <option key={yr} value={yr}>{label}</option>;
                     })}
                   </select>
+                </div>
+
+                <div className="space-y-0.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[9.5px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block truncate">Paper Scale</label>
+                    <span className="text-[9px] font-bold text-teal-600 dark:text-teal-400">Pass {minPassMarks}</span>
+                  </div>
+                  <select
+                    value={subjectMaxMarks}
+                    onChange={(e) => setTeacherCustomMax(Number(e.target.value))}
+                    className="practicals-select practicals-control w-full px-2 py-1 rounded-lg text-xs font-semibold h-8.5 border focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 shadow-2xs cursor-pointer transition-colors font-mono font-bold"
+                    title="Paper Maximum Marks: auto-normalized to standard 50M on student scorecard"
+                  >
+                    {[20, 25, 30, 40, 50, 70, 100].map(m => (
+                      <option key={m} value={m}>
+                        {m}M Paper (P: {Math.ceil(m * 0.36)})
+                      </option>
+                    ))}
+                    {![20, 25, 30, 40, 50, 70, 100].includes(subjectMaxMarks) && (
+                      <option value={subjectMaxMarks}>{subjectMaxMarks}M Paper</option>
+                    )}
+                  </select>
+                </div>
+
+                <div className="col-span-5 px-1 py-0.5 text-[10.5px] text-indigo-800 dark:text-indigo-300 flex items-center gap-1 font-semibold">
+                  <Sparkles size={12} className="text-amber-500 shrink-0" />
+                  <span>Paper scale is <strong>{subjectMaxMarks} Max Marks</strong>. Scores entered will be automatically normalized to standard <strong>50 Marks</strong> on public scorecards & gazettes.</span>
                 </div>
               </div>
             )}
@@ -2360,6 +2403,32 @@ export default function PracticalsPage() {
                           <option key={et.value} value={et.value}>{et.label || et.value}</option>
                         ))}
                       </select>
+                    </div>
+
+                    {/* Paper Scale / Max Marks */}
+                    <div>
+                      <div className="flex items-center justify-between mb-0.5">
+                        <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 block">Paper Scale (Max Marks)</label>
+                        <span className="text-[9.5px] font-bold text-teal-600 dark:text-teal-400">Passing: {minPassMarks}</span>
+                      </div>
+                      <select
+                        value={subjectMaxMarks}
+                        onChange={(e) => setTeacherCustomMax(Number(e.target.value))}
+                        className="portal-compact-select w-full border bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 shadow-2xs cursor-pointer font-bold font-mono"
+                      >
+                        {[20, 25, 30, 40, 50, 70, 100].map(m => (
+                          <option key={m} value={m}>
+                            {m} Marks Paper (Pass {Math.ceil(m * 0.36)})
+                          </option>
+                        ))}
+                        {![20, 25, 30, 40, 50, 70, 100].includes(subjectMaxMarks) && (
+                          <option value={subjectMaxMarks}>{subjectMaxMarks} Marks</option>
+                        )}
+                      </select>
+                      <p className="text-[9.5px] text-indigo-700 dark:text-indigo-300 mt-1 font-semibold flex items-center gap-1">
+                        <Sparkles size={11} className="text-amber-500 shrink-0" />
+                        <span>Scores will be auto-normalized to standard 50 Marks on scorecards.</span>
+                      </p>
                     </div>
 
                     <div className="pt-1.5 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
