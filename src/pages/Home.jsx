@@ -536,8 +536,12 @@ export default function Home() {
               >
                 {tickerPaused ? <Play size={15} aria-hidden="true" /> : <Pause size={15} aria-hidden="true" />}
               </button>
-              <Link to="/notices" className="hero-news-ticker__all">
-                View all <ArrowRight size={15} aria-hidden="true" />
+              <Link to="/notices" className="hero-news-ticker__all" title="View all notices and updates">
+                <span className="hero-news-ticker__all-text">
+                  <span>View</span>
+                  <span>all</span>
+                </span>
+                <ArrowRight size={14} aria-hidden="true" className="shrink-0" />
               </Link>
             </div>
           </aside>
