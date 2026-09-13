@@ -2295,12 +2295,12 @@ export default function PracticalsPage() {
                     className="practicals-select practicals-control w-full px-2 py-1 rounded-lg text-xs font-semibold h-8.5 border focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 shadow-2xs cursor-pointer transition-colors font-mono font-bold"
                     title="Paper Maximum Marks: auto-normalized to standard 50M on student scorecard"
                   >
-                    {[20, 25, 30, 40, 50, 70, 100].map(m => (
+                    {[15, 20, 25, 30, 35, 40, 50, 60, 70, 75, 80, 100].map(m => (
                       <option key={m} value={m}>
                         {m}M Paper (P: {Math.ceil(m * 0.36)})
                       </option>
                     ))}
-                    {![20, 25, 30, 40, 50, 70, 100].includes(subjectMaxMarks) && (
+                    {![15, 20, 25, 30, 35, 40, 50, 60, 70, 75, 80, 100].includes(subjectMaxMarks) && (
                       <option value={subjectMaxMarks}>{subjectMaxMarks}M Paper</option>
                     )}
                   </select>
@@ -2416,12 +2416,12 @@ export default function PracticalsPage() {
                         onChange={(e) => setTeacherCustomMax(Number(e.target.value))}
                         className="portal-compact-select w-full border bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 shadow-2xs cursor-pointer font-bold font-mono"
                       >
-                        {[20, 25, 30, 40, 50, 70, 100].map(m => (
+                        {[15, 20, 25, 30, 35, 40, 50, 60, 70, 75, 80, 100].map(m => (
                           <option key={m} value={m}>
                             {m} Marks Paper (Pass {Math.ceil(m * 0.36)})
                           </option>
                         ))}
-                        {![20, 25, 30, 40, 50, 70, 100].includes(subjectMaxMarks) && (
+                        {![15, 20, 25, 30, 35, 40, 50, 60, 70, 75, 80, 100].includes(subjectMaxMarks) && (
                           <option value={subjectMaxMarks}>{subjectMaxMarks} Marks</option>
                         )}
                       </select>
