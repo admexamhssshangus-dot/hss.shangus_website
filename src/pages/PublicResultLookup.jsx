@@ -5,7 +5,7 @@ import {
   RefreshCw, School, BookOpen, ShieldCheck, X, ChevronDown, Check,
   User, Sparkles, Hash, Layers, FileText, CheckCircle, Clock, History
 } from 'lucide-react';
-import { collection, getDocs } from 'firebase/firestore';
+import { collection, getDocs, doc, getDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { publicLookup } from '../services/backendEndpoint';
 import SEO from '../components/SEO';
@@ -633,7 +633,8 @@ export function computeScorecardSubjects({
 
     if (foundRec && foundSec) {
       const rawMark = foundRec.totalMarks ?? foundRec.practicalMarks;
-      const docMax = Number(foundSec.maxMarks) || Number(evalConfig?.subjectOverrides?.[tpl.code]?.maxMarks) || 50;
+      const defaultAssessmentMax = Number(evalConfig?.maxMarks) > 0 ? Number(evalConfig.maxMarks) : 50;
+      const docMax = Number(foundSec.maxMarks) || Number(evalConfig?.subjectOverrides?.[tpl.code]?.maxMarks) || defaultAssessmentMax;
       const norm = normalizeMarksToScale(rawMark, docMax, 50);
       const desc = getSubjectPerformanceDescriptor(norm.normalizedMarks, 50, 18, norm.isAbsent);
 
@@ -773,6 +774,13 @@ export default function PublicResultLookup() {
     return evalOptions.find(e => (e.evalType || e.title) === selectedEvalType) || null;
   }, [evalOptions, selectedEvalType]);
 
+  // Synchronize biologyDisplayMode automatically when active assessment changes
+  useEffect(() => {
+    if (activeEvalConfig?.biologyDisplayMode) {
+      setBiologyDisplayMode(activeEvalConfig.biologyDisplayMode);
+    }
+  }, [activeEvalConfig]);
+
   // Reactively derive active scorecard when toggling between Combined Bio and Separate BO & ZO
   const activeScorecard = useMemo(() => {
     if (!studentResult) return null;
@@ -818,13 +826,13 @@ export default function PublicResultLookup() {
         },
         ...existing.filter(item => !(
           String(item.query).trim().toLowerCase() === String(entry.query).trim().toLowerCase() &&
-          item.className === entry.className
+          String(item.className) === String(entry.className) &&
+          String(item.evalType) === String(entry.evalType)
         ))
-      ].slice(0, 5);
-
-      localStorage.setItem(STORAGE_KEY_RECENT_SEARCHES, JSON.stringify(updated));
-      setRecentSearches(updated);
-    } catch {}
+      ];
+      localStorage.setItem(STORAGE_KEY_RECENT_SEARCHES, JSON.stringify(updated.slice(0, 5)));
+      setRecentSearches(updated.slice(0, 5));
+    } catch (_) {}
   }, []);
 
   const handleRemoveRecent = (queryToRemove) => {
@@ -838,12 +846,13 @@ export default function PublicResultLookup() {
   const handleClearAllRecent = () => {
     try {
       localStorage.removeItem(STORAGE_KEY_RECENT_SEARCHES);
+      localStorage.removeItem(STORAGE_KEY_LAST_LOOKUP);
       setRecentSearches([]);
-    } catch {}
+    } catch (_) {}
   };
 
   const handleSelectRecent = (item) => {
-    setQueryInput(item.query);
+    setQueryInput(item.query || '');
     if (item.className) setSelectedClass(item.className);
     if (item.session) setSelectedSession(item.session);
     if (item.evalType) setSelectedEvalType(item.evalType);
@@ -884,6 +893,31 @@ export default function PublicResultLookup() {
         }
       }
 
+      // Tier 1.5: Direct live Firestore configuration lookup
+      try {
+        const snap = await getDoc(doc(db, 'adminPracticalsSettings', 'config')).catch(() => null);
+        if (!isMounted) return;
+        if (snap && snap.exists()) {
+          const data = snap.data();
+          if (Array.isArray(data.customEvaluations) && data.customEvaluations.length > 0) {
+            const published = data.customEvaluations.filter(item => item.isPublishedForStudents !== false);
+            if (published.length > 0) {
+              setEvalOptions(published);
+              const sessions = [...new Set(published.map(item => item.session))].filter(Boolean);
+              if (sessions.length) setAvailableSessions(sessions);
+              if (published[0]) {
+                setSelectedEvalType(published[0].evalType || published[0].title);
+                if (published[0].session) setSelectedSession(published[0].session);
+                if (published[0].biologyDisplayMode) setBiologyDisplayMode(published[0].biologyDisplayMode);
+              }
+              return;
+            }
+          }
+        }
+      } catch (fErr) {
+        console.warn('Firestore evaluation config lookup note:', fErr);
+      }
+
       // Fallback to active evaluations preset (Pre-Board Test, Internal, External)
       if (!isMounted) return;
       const fallbackEvals = DEFAULT_SCHOOL_EVALUATIONS.map(ev => ({
@@ -892,7 +926,11 @@ export default function PublicResultLookup() {
         evalType: ev.evalType,
         session: ev.session || '2025-26',
         classes: ev.classes || ['10th', '11th', '12th'],
-        biologyDisplayMode: ev.biologyDisplayMode || 'combined'
+        biologyDisplayMode: ev.biologyDisplayMode || 'combined',
+        maxMarks: ev.maxMarks || 50,
+        minMarks: ev.minMarks || 18,
+        subjectOverrides: ev.subjectOverrides || {},
+        allowedStatuses: ev.allowedStatuses || ['approved']
       }));
       setEvalOptions(fallbackEvals);
       setAvailableSessions(['2025-26', '2024-25', '2023-24']);

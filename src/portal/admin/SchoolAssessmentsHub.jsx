@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../../services/firebase';
+import { invalidateCache } from '../../services/dbCache';
 import { DEFAULT_SCHOOL_EVALUATIONS, SUBJECT_CONFIG_DEFS } from '../../utils/practicalsSettingsManager';
 
 const PRESET_EVALUATIONS = [
@@ -158,6 +159,10 @@ export default function SchoolAssessmentsHub({ allStudents = [], onSwitchToGazet
         customEvaluations: newList,
         updatedAt: new Date().toISOString()
       }, { merge: true });
+
+      try {
+        invalidateCache('adminPracticalsSettings');
+      } catch (_) {}
 
       setEvaluations(newList);
       setAlertMsg({ type: 'success', text: 'School assessment settings saved live to database.' });
@@ -585,434 +590,520 @@ export default function SchoolAssessmentsHub({ allStudents = [], onSwitchToGazet
         </div>
       )}
 
-      {/* Create / Edit Modal (Compact Modern Form) */}
+      {/* Create / Edit Modal (Wider Minimal Desktop Dialog) */}
       {showModal && (
-        <div className="fixed inset-0 z-[9999] bg-black/70 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-lg w-full p-4 sm:p-5 shadow-2xl space-y-3.5 my-auto animate-in fade-in zoom-in-95 duration-150 text-slate-900 dark:text-slate-100">
-            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2.5">
-              <div>
-                <h3 className="text-sm sm:text-base font-black text-slate-900 dark:text-white m-0">
-                  {editingId ? 'Edit School Assessment' : 'Create School Assessment'}
-                </h3>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 font-medium m-0">
-                  Configure evaluation rules, status eligibility, and scoring scheme.
-                </p>
+        <div className="fixed inset-0 z-[9999] bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-2.5 sm:p-4 md:p-6 overflow-y-auto">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-full sm:max-w-2xl md:max-w-4xl lg:max-w-5xl shadow-2xl my-auto animate-in fade-in zoom-in-95 duration-150 text-slate-900 dark:text-slate-100 flex flex-col max-h-[92vh] overflow-hidden">
+            {/* Minimal Header */}
+            <div className="px-4 sm:px-6 py-3.5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3 bg-white dark:bg-slate-900 shrink-0">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-9 h-9 rounded-xl bg-teal-50 dark:bg-teal-950/70 border border-teal-200/60 dark:border-teal-800/60 text-teal-700 dark:text-teal-300 flex items-center justify-center font-bold shrink-0 shadow-2xs">
+                  <Award size={18} />
+                </div>
+                <div className="min-w-0">
+                  <h3 className="text-sm sm:text-base font-black text-slate-900 dark:text-white m-0 truncate">
+                    {editingId ? 'Edit School Assessment' : 'Create School Assessment'}
+                  </h3>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 font-medium m-0 truncate">
+                    Configure evaluation rules, status eligibility, scoring scheme, and subject scales.
+                  </p>
+                </div>
               </div>
               <button
                 type="button"
                 onClick={() => setShowModal(false)}
-                className="p-1 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-500 hover:text-slate-900 dark:hover:text-white cursor-pointer"
+                className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-500 hover:text-slate-900 dark:hover:text-white flex items-center justify-center cursor-pointer transition-colors shrink-0"
+                title="Close modal"
               >
                 ✕
               </button>
             </div>
 
-            <form onSubmit={handleSaveModal} className="space-y-3">
-              {/* Title & Evaluation Type */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
-                    Assessment Title *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={formState.title}
-                    onChange={(e) => setFormState({ ...formState, title: e.target.value })}
-                    placeholder="e.g. Pre-Board Examination 2026"
-                    className="w-full px-2.5 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-teal-600 font-medium"
-                  />
-                </div>
+            {/* Scrollable Form Body: 2-Column Responsive Desktop Grid */}
+            <form onSubmit={handleSaveModal} className="flex flex-col flex-1 overflow-hidden">
+              <div className="overflow-y-auto custom-scrollbar p-4 sm:p-5 md:p-6 space-y-4 flex-1">
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-5">
+                  {/* ── LEFT COLUMN: Core Examination Settings (Col Span 6) ── */}
+                  <div className="lg:col-span-6 space-y-4">
+                    {/* Identity & Scope Card */}
+                    <div className="p-3.5 sm:p-4 rounded-xl bg-slate-50/70 dark:bg-slate-950/60 border border-slate-200/80 dark:border-slate-800/80 space-y-3">
+                      <div className="flex items-center gap-1.5 border-b border-slate-200/60 dark:border-slate-800/60 pb-2">
+                        <Calendar size={13} className="text-teal-700 dark:text-teal-400" />
+                        <span className="text-[10.5px] font-bold uppercase tracking-wider text-slate-800 dark:text-slate-200">
+                          Assessment Identity & Session
+                        </span>
+                      </div>
 
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
-                    Evaluation Type Label *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={formState.evalType}
-                    onChange={(e) => setFormState({ ...formState, evalType: e.target.value })}
-                    placeholder="e.g. Pre-Board Test"
-                    className="w-full px-2.5 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-teal-600 font-medium"
-                  />
-                </div>
-              </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
+                            Assessment Title *
+                          </label>
+                          <input
+                            type="text"
+                            required
+                            value={formState.title}
+                            onChange={(e) => setFormState({ ...formState, title: e.target.value })}
+                            placeholder="e.g. Pre-Board Examination 2026"
+                            className="w-full px-2.5 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-teal-600 font-medium transition-colors"
+                          />
+                        </div>
 
-              {/* Session & Target Classes */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
-                    Academic Session *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={formState.session}
-                    onChange={(e) => setFormState({ ...formState, session: e.target.value })}
-                    placeholder="e.g. 2025-26"
-                    className="w-full px-2.5 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-teal-600 font-medium"
-                  />
-                </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
+                            Evaluation Type Label *
+                          </label>
+                          <input
+                            type="text"
+                            required
+                            value={formState.evalType}
+                            onChange={(e) => setFormState({ ...formState, evalType: e.target.value })}
+                            placeholder="e.g. Pre-Board Test"
+                            className="w-full px-2.5 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-teal-600 font-medium transition-colors"
+                          />
+                        </div>
+                      </div>
 
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
-                    Target Classes *
-                  </label>
-                  <div className="flex items-center gap-1">
-                    {AVAILABLE_CLASSES.map(cls => {
-                      const isSelected = formState.classes.includes(cls);
-                      return (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
+                            Academic Session *
+                          </label>
+                          <input
+                            type="text"
+                            required
+                            value={formState.session}
+                            onChange={(e) => setFormState({ ...formState, session: e.target.value })}
+                            placeholder="e.g. 2025-26"
+                            className="w-full px-2.5 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-teal-600 font-medium transition-colors"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
+                            Target Classes *
+                          </label>
+                          <div className="flex items-center gap-1.5">
+                            {AVAILABLE_CLASSES.map(cls => {
+                              const isSelected = formState.classes.includes(cls);
+                              return (
+                                <button
+                                  key={cls}
+                                  type="button"
+                                  onClick={() => {
+                                    const newClasses = isSelected
+                                      ? formState.classes.filter(c => c !== cls)
+                                      : [...formState.classes, cls];
+                                    setFormState({ ...formState, classes: newClasses });
+                                  }}
+                                  className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-black transition-all cursor-pointer border ${
+                                    isSelected
+                                      ? 'bg-teal-700 dark:bg-teal-600 text-white border-teal-600 shadow-xs'
+                                      : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-400 border-slate-300 dark:border-slate-800 hover:bg-slate-100'
+                                  }`}
+                                >
+                                  {cls}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Student Status Eligibility Card */}
+                    <div className="p-3.5 sm:p-4 rounded-xl bg-slate-50/70 dark:bg-slate-950/60 border border-slate-200/80 dark:border-slate-800/80 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[10px] font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
+                          <ShieldCheck size={14} className="text-teal-700 dark:text-teal-400" />
+                          <span>Eligible Student Admission Status *</span>
+                        </label>
+                        <span className="text-[9.5px] text-slate-500 dark:text-slate-400 font-bold">
+                          (Default: Approved Only)
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-2 pt-0.5">
+                        {AVAILABLE_STATUSES.map(st => {
+                          const isChecked = formState.allowedStatuses.includes(st.id);
+                          return (
+                            <button
+                              key={st.id}
+                              type="button"
+                              onClick={() => {
+                                const newStatuses = isChecked
+                                  ? formState.allowedStatuses.filter(s => s !== st.id)
+                                  : [...formState.allowedStatuses, st.id];
+                                setFormState({ ...formState, allowedStatuses: newStatuses });
+                              }}
+                              className={`p-2 rounded-lg border text-left transition-all cursor-pointer flex items-center gap-2 ${
+                                isChecked
+                                  ? 'bg-teal-50 dark:bg-teal-950/60 border-teal-500 text-teal-950 dark:text-teal-200 shadow-2xs font-bold'
+                                  : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:border-slate-400 font-medium'
+                              }`}
+                            >
+                              {isChecked ? (
+                                <CheckSquare size={14} className="text-teal-700 dark:text-teal-400 shrink-0" />
+                              ) : (
+                                <Square size={14} className="text-slate-400 shrink-0" />
+                              )}
+                              <span className="text-[11px] truncate">{st.label.split(' ')[0]}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Marks Scoring Scheme Card */}
+                    <div className="p-3.5 sm:p-4 rounded-xl bg-slate-50/70 dark:bg-slate-950/60 border border-slate-200/80 dark:border-slate-800/80 space-y-2.5">
+                      <div className="flex items-center gap-1.5 border-b border-slate-200/60 dark:border-slate-800/60 pb-2">
+                        <Clock size={13} className="text-teal-700 dark:text-teal-400" />
+                        <span className="text-[10.5px] font-bold uppercase tracking-wider text-slate-800 dark:text-slate-200">
+                          Default Subject Scoring Scheme
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2.5">
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
+                            Default Max Marks per Subject
+                          </label>
+                          <input
+                            type="number"
+                            min="10"
+                            max="100"
+                            value={formState.maxMarks}
+                            onChange={(e) => {
+                              const val = Number(e.target.value) || 50;
+                              setFormState({
+                                ...formState,
+                                maxMarks: val,
+                                minMarks: Math.ceil(val * 0.36)
+                              });
+                            }}
+                            className="w-full px-2.5 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-teal-600 font-mono font-bold transition-colors"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
+                            Min Passing Marks
+                          </label>
+                          <input
+                            type="number"
+                            min="1"
+                            max={formState.maxMarks}
+                            value={formState.minMarks}
+                            onChange={(e) => setFormState({ ...formState, minMarks: Number(e.target.value) || 18 })}
+                            className="w-full px-2.5 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-teal-600 font-mono font-bold transition-colors"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Toggles & Circular Note */}
+                    <div className="p-3.5 sm:p-4 rounded-xl bg-slate-50/70 dark:bg-slate-950/60 border border-slate-200/80 dark:border-slate-800/80 space-y-3">
+                      <div className="grid grid-cols-2 gap-2.5">
+                        <label className="flex items-center gap-2.5 p-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 cursor-pointer hover:border-slate-300 dark:hover:border-slate-700 transition-colors">
+                          <input
+                            type="checkbox"
+                            checked={formState.isOpenForTeachers}
+                            onChange={(e) => setFormState({ ...formState, isOpenForTeachers: e.target.checked })}
+                            className="rounded border-slate-300 text-teal-600 focus:ring-0 w-4 h-4 cursor-pointer"
+                          />
+                          <div>
+                            <span className="block text-[11px] font-bold text-slate-800 dark:text-slate-200 leading-tight">Teacher Entry</span>
+                            <span className="text-[9.5px] text-slate-500 leading-tight">Allow marks roll in portal</span>
+                          </div>
+                        </label>
+
+                        <label className="flex items-center gap-2.5 p-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 cursor-pointer hover:border-slate-300 dark:hover:border-slate-700 transition-colors">
+                          <input
+                            type="checkbox"
+                            checked={formState.isPublishedForStudents}
+                            onChange={(e) => setFormState({ ...formState, isPublishedForStudents: e.target.checked })}
+                            className="rounded border-slate-300 text-emerald-600 focus:ring-0 w-4 h-4 cursor-pointer"
+                          />
+                          <div>
+                            <span className="block text-[11px] font-bold text-slate-800 dark:text-slate-200 leading-tight">Student Search</span>
+                            <span className="text-[9.5px] text-slate-500 leading-tight">Live at /results scorecard</span>
+                          </div>
+                        </label>
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
+                          Circular / Reference Note (Optional)
+                        </label>
+                        <input
+                          type="text"
+                          value={formState.description}
+                          onChange={(e) => setFormState({ ...formState, description: e.target.value })}
+                          placeholder="e.g. Conducted under Order No. HSS/SH/2026/EXAM-01 as pre-board test."
+                          className="w-full px-2.5 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-teal-600 font-medium transition-colors"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* ── RIGHT COLUMN: Subject Overrides & Special Modes (Col Span 6) ── */}
+                  <div className="lg:col-span-6 space-y-4">
+                    {/* Subject-Specific Custom Paper Scales (Overrides) */}
+                    <div className="p-3.5 sm:p-4 rounded-xl bg-slate-50/70 dark:bg-slate-950/60 border border-slate-200/80 dark:border-slate-800/80 space-y-2.5">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[10.5px] font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
+                          <BookOpen size={14} className="text-teal-700 dark:text-teal-400" />
+                          <span>Subject-Specific Paper Scales (Overrides)</span>
+                        </label>
+                        <span className="text-[10px] text-teal-700 dark:text-teal-300 font-extrabold px-1.5 py-0.5 rounded-full bg-teal-50 dark:bg-teal-950/80 border border-teal-200 dark:border-teal-800/60">
+                          {Object.keys(formState.subjectOverrides || {}).length} Configured
+                        </span>
+                      </div>
+
+                      <p className="text-[10px] text-slate-500 dark:text-slate-400 m-0 leading-normal">
+                        Need custom scales for specific papers? (e.g. Botany 25M, Zoology 25M, Physics 35M, Chemistry 35M). Teachers will enter scores out of these custom scales. All unconfigured subjects use the default {formState.maxMarks}M scale.
+                      </p>
+
+                      {/* Quick 1-Click Preset Shortcuts */}
+                      <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
+                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Quick:</span>
                         <button
-                          key={cls}
                           type="button"
                           onClick={() => {
-                            const newClasses = isSelected
-                              ? formState.classes.filter(c => c !== cls)
-                              : [...formState.classes, cls];
-                            setFormState({ ...formState, classes: newClasses });
+                            setFormState(prev => ({
+                              ...prev,
+                              subjectOverrides: {
+                                ...(prev.subjectOverrides || {}),
+                                'BO': { name: 'Botany', code: 'BO', maxMarks: 25, minMarks: 9 },
+                                'ZO': { name: 'Zoology', code: 'ZO', maxMarks: 25, minMarks: 9 }
+                              }
+                            }));
                           }}
-                          className={`flex-1 py-1 px-1.5 rounded-lg text-xs font-black transition-all cursor-pointer border ${
-                            isSelected
-                              ? 'bg-teal-700 dark:bg-teal-600 text-white border-teal-600 shadow-xs'
-                              : 'bg-slate-100 dark:bg-slate-950 text-slate-700 dark:text-slate-400 border-slate-300 dark:border-slate-800 hover:bg-slate-200'
+                          className="px-2 py-0.5 rounded-md bg-teal-50 hover:bg-teal-100 dark:bg-teal-950 dark:hover:bg-teal-900/60 text-teal-800 dark:text-teal-300 border border-teal-200 dark:border-teal-800 text-[10px] font-bold cursor-pointer transition-colors"
+                        >
+                          + Botany & Zoology (25M each)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setFormState(prev => ({
+                              ...prev,
+                              subjectOverrides: {
+                                ...(prev.subjectOverrides || {}),
+                                'PH': { name: 'Physics', code: 'PH', maxMarks: 35, minMarks: 13 },
+                                'CH': { name: 'Chemistry', code: 'CH', maxMarks: 35, minMarks: 13 }
+                              }
+                            }));
+                          }}
+                          className="px-2 py-0.5 rounded-md bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950 dark:hover:bg-indigo-900/60 text-indigo-800 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 text-[10px] font-bold cursor-pointer transition-colors"
+                        >
+                          + Science 35M (Physics & Chemistry)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setFormState(prev => ({
+                              ...prev,
+                              subjectOverrides: {
+                                ...(prev.subjectOverrides || {}),
+                                'HTC': { name: 'Healthcare', code: 'HTC', maxMarks: 30, minMarks: 11 },
+                                'ITE': { name: 'IT and ITES', code: 'ITE', maxMarks: 30, minMarks: 11 }
+                              }
+                            }));
+                          }}
+                          className="px-2 py-0.5 rounded-md bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950 dark:hover:bg-emerald-900/60 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 text-[10px] font-bold cursor-pointer transition-colors"
+                        >
+                          + Vocational 30M (IT/Healthcare)
+                        </button>
+                      </div>
+
+                      {/* Add Custom Override Row */}
+                      <div className="flex items-center gap-1.5 pt-1">
+                        <select
+                          value={overrideSelectCode}
+                          onChange={(e) => setOverrideSelectCode(e.target.value)}
+                          className="flex-1 min-w-[130px] px-2 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-none focus:border-teal-600 transition-colors"
+                        >
+                          <option value="">Select Subject...</option>
+                          {SUBJECT_CONFIG_DEFS.map(sub => (
+                            <option key={sub.code} value={sub.code}>
+                              {sub.name} [{sub.code}]
+                            </option>
+                          ))}
+                        </select>
+                        <div className="relative w-20 shrink-0">
+                          <input
+                            type="number"
+                            min="10"
+                            max="100"
+                            placeholder="Max"
+                            value={overrideMaxInput}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setOverrideMaxInput(val);
+                              if (val && Number(val) > 0) {
+                                setOverridePassInput(String(Math.ceil(Number(val) * 0.36)));
+                              }
+                            }}
+                            className="w-full px-2 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-xs font-mono font-bold text-center text-slate-800 dark:text-slate-200 focus:outline-none focus:border-teal-600"
+                            title="Custom Max Marks"
+                          />
+                        </div>
+                        <div className="relative w-20 shrink-0">
+                          <input
+                            type="number"
+                            min="1"
+                            placeholder="Pass"
+                            value={overridePassInput}
+                            onChange={(e) => setOverridePassInput(e.target.value)}
+                            className="w-full px-2 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-xs font-mono font-bold text-center text-slate-800 dark:text-slate-200 focus:outline-none focus:border-teal-600"
+                            title="Custom Min Pass Marks"
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleAddSubjectOverride}
+                          className="h-8 px-3 rounded-lg bg-teal-700 hover:bg-teal-600 text-white font-black text-xs cursor-pointer shrink-0 transition-colors shadow-2xs"
+                        >
+                          + Add
+                        </button>
+                      </div>
+
+                      {/* List of Configured Subject Overrides */}
+                      {Object.keys(formState.subjectOverrides || {}).length > 0 ? (
+                        <div className="space-y-1.5 pt-1 border-t border-slate-200/80 dark:border-slate-800/80">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[9.5px] font-bold text-slate-400 uppercase tracking-wider">Active Overrides:</span>
+                            <button
+                              type="button"
+                              onClick={() => setFormState({ ...formState, subjectOverrides: {} })}
+                              className="text-[10px] text-rose-600 hover:underline cursor-pointer font-bold"
+                            >
+                              Clear All
+                            </button>
+                          </div>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            {Object.entries(formState.subjectOverrides).map(([code, ov]) => (
+                              <span
+                                key={code}
+                                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 text-[11px] shadow-2xs font-medium"
+                              >
+                                <strong className="font-bold text-teal-800 dark:text-teal-300">{ov.name || code} [{code}]</strong>
+                                <span className="font-mono font-black text-slate-900 dark:text-white">{ov.maxMarks}M</span>
+                                <span className="text-[9.5px] text-slate-400 font-mono">(Pass {ov.minMarks})</span>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setFormState(prev => {
+                                      const next = { ...(prev.subjectOverrides || {}) };
+                                      delete next[code];
+                                      return { ...prev, subjectOverrides: next };
+                                    });
+                                  }}
+                                  className="text-slate-400 hover:text-rose-600 cursor-pointer font-bold ml-1 transition-colors"
+                                  title="Remove custom marks"
+                                >
+                                  ✕
+                                </button>
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="py-2.5 px-3 rounded-lg bg-white/60 dark:bg-slate-900/40 border border-dashed border-slate-200 dark:border-slate-800 text-center text-[10.5px] text-slate-400">
+                          No custom overrides configured. All subjects evaluate out of {formState.maxMarks}M.
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Botany & Zoology Handling & Normalization Config */}
+                    <div className="p-3.5 sm:p-4 rounded-xl bg-teal-50/40 dark:bg-teal-950/20 border border-teal-200/70 dark:border-teal-800/50 space-y-2.5">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[10.5px] font-bold text-teal-900 dark:text-teal-200 uppercase tracking-wider flex items-center gap-1.5">
+                          <Layers size={14} className="text-teal-700 dark:text-teal-400" />
+                          <span>Biology (Botany & Zoology) Display Mode</span>
+                        </label>
+                        <span className="text-[9.5px] font-semibold text-teal-700 dark:text-teal-300">
+                          Faculty submit separately
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setFormState({ ...formState, biologyDisplayMode: 'combined' })}
+                          className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                            formState.biologyDisplayMode === 'combined'
+                              ? 'bg-white dark:bg-slate-900 border-teal-600 dark:border-teal-400 text-teal-950 dark:text-teal-200 shadow-xs ring-1 ring-teal-500/20'
+                              : 'bg-teal-50/30 dark:bg-slate-950 border-teal-200/80 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:border-teal-400'
                           }`}
                         >
-                          {cls}
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-[11.5px] font-black">Combined Biology (50M)</span>
+                            {formState.biologyDisplayMode === 'combined' && <CheckCircle2 size={14} className="text-teal-600 dark:text-teal-400" />}
+                          </div>
+                          <p className="text-[10px] text-slate-500 dark:text-slate-400 m-0 leading-normal">
+                            Merges Botany & Zoology into 1 row with sub-breakdown (BO: X/25 • ZO: Y/25).
+                          </p>
                         </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
 
-              {/* STUDENT STATUS CONTROL */}
-              <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <label className="text-[10px] font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider flex items-center gap-1">
-                    <ShieldCheck size={13} className="text-teal-700 dark:text-teal-400" />
-                    <span>Eligible Student Admission Status *</span>
-                  </label>
-                  <span className="text-[9.5px] text-slate-500 font-bold">
-                    (Default: Approved Only)
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-3 gap-1.5 pt-0.5">
-                  {AVAILABLE_STATUSES.map(st => {
-                    const isChecked = formState.allowedStatuses.includes(st.id);
-                    return (
-                      <button
-                        key={st.id}
-                        type="button"
-                        onClick={() => {
-                          const newStatuses = isChecked
-                            ? formState.allowedStatuses.filter(s => s !== st.id)
-                            : [...formState.allowedStatuses, st.id];
-                          setFormState({ ...formState, allowedStatuses: newStatuses });
-                        }}
-                        className={`p-2 rounded-lg border text-left transition-all cursor-pointer flex items-center gap-1.5 ${
-                          isChecked
-                            ? 'bg-teal-50 dark:bg-teal-950/60 border-teal-500 text-teal-950 dark:text-teal-200 shadow-2xs font-bold'
-                            : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:border-slate-400 font-medium'
-                        }`}
-                      >
-                        {isChecked ? (
-                          <CheckSquare size={14} className="text-teal-700 dark:text-teal-400 flex-shrink-0" />
-                        ) : (
-                          <Square size={14} className="text-slate-400 flex-shrink-0" />
-                        )}
-                        <span className="text-[11px] truncate">{st.label.split(' ')[0]}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Marks Scoring Scheme */}
-              <div className="grid grid-cols-2 gap-2.5">
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
-                    Max Marks per Subject
-                  </label>
-                  <input
-                    type="number"
-                    min="10"
-                    max="100"
-                    value={formState.maxMarks}
-                    onChange={(e) => setFormState({ ...formState, maxMarks: Number(e.target.value) || 100 })}
-                    className="w-full px-2.5 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-teal-600 font-mono font-bold"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
-                    Min Passing Marks
-                  </label>
-                  <input
-                    type="number"
-                    min="1"
-                    max={formState.maxMarks}
-                    value={formState.minMarks}
-                    onChange={(e) => setFormState({ ...formState, minMarks: Number(e.target.value) || 36 })}
-                    className="w-full px-2.5 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-teal-600 font-mono font-bold"
-                  />
-                </div>
-              </div>
-
-              {/* Subject-Specific Custom Paper Scales (Overrides) */}
-              <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-2">
-                <div className="flex items-center justify-between">
-                  <label className="text-[10px] font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider flex items-center gap-1">
-                    <BookOpen size={13} className="text-teal-700 dark:text-teal-400" />
-                    <span>Subject-Specific Paper Scales (Custom Overrides)</span>
-                  </label>
-                  <span className="text-[9.5px] text-teal-700 dark:text-teal-300 font-bold">
-                    {Object.keys(formState.subjectOverrides || {}).length} Configured
-                  </span>
-                </div>
-                <p className="text-[10px] text-slate-500 dark:text-slate-400 m-0 leading-tight">
-                  Need a different scale for specific subjects? (e.g. Botany 25M, Zoology 25M, Physics 35M, Chemistry 35M). Configured subjects will automatically use these paper scales during entry. All other subjects use the default {formState.maxMarks}M.
-                </p>
-
-                {/* Quick 1-Click Preset Shortcuts */}
-                <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
-                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Quick:</span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setFormState(prev => ({
-                        ...prev,
-                        subjectOverrides: {
-                          ...(prev.subjectOverrides || {}),
-                          'BO': { name: 'Botany', code: 'BO', maxMarks: 25, minMarks: 9 },
-                          'ZO': { name: 'Zoology', code: 'ZO', maxMarks: 25, minMarks: 9 }
-                        }
-                      }));
-                    }}
-                    className="px-2 py-0.5 rounded-md bg-teal-50 hover:bg-teal-100 dark:bg-teal-950 dark:hover:bg-teal-900/60 text-teal-800 dark:text-teal-300 border border-teal-200 dark:border-teal-800 text-[10px] font-bold cursor-pointer transition-colors"
-                  >
-                    + Botany & Zoology (25M each)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setFormState(prev => ({
-                        ...prev,
-                        subjectOverrides: {
-                          ...(prev.subjectOverrides || {}),
-                          'PH': { name: 'Physics', code: 'PH', maxMarks: 35, minMarks: 13 },
-                          'CH': { name: 'Chemistry', code: 'CH', maxMarks: 35, minMarks: 13 }
-                        }
-                      }));
-                    }}
-                    className="px-2 py-0.5 rounded-md bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950 dark:hover:bg-indigo-900/60 text-indigo-800 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 text-[10px] font-bold cursor-pointer transition-colors"
-                  >
-                    + Science 35M (Physics & Chemistry)
-                  </button>
-                </div>
-
-                {/* Add Custom Override Row */}
-                <div className="flex items-center gap-1.5 pt-1">
-                  <select
-                    value={overrideSelectCode}
-                    onChange={(e) => setOverrideSelectCode(e.target.value)}
-                    className="flex-1 min-w-[120px] px-2 py-1 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-none focus:border-teal-600"
-                  >
-                    <option value="">Select Subject...</option>
-                    {SUBJECT_CONFIG_DEFS.map(sub => (
-                      <option key={sub.code} value={sub.code}>
-                        {sub.name} [{sub.code}]
-                      </option>
-                    ))}
-                  </select>
-                  <div className="relative w-18 shrink-0">
-                    <input
-                      type="number"
-                      min="10"
-                      max="100"
-                      placeholder="Max"
-                      value={overrideMaxInput}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        setOverrideMaxInput(val);
-                        if (val && Number(val) > 0) {
-                          setOverridePassInput(String(Math.ceil(Number(val) * 0.36)));
-                        }
-                      }}
-                      className="w-full px-2 py-1 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-xs font-mono font-bold text-center text-slate-800 dark:text-slate-200 focus:outline-none focus:border-teal-600"
-                      title="Custom Max Marks"
-                    />
-                  </div>
-                  <div className="relative w-18 shrink-0">
-                    <input
-                      type="number"
-                      min="1"
-                      placeholder="Pass"
-                      value={overridePassInput}
-                      onChange={(e) => setOverridePassInput(e.target.value)}
-                      className="w-full px-2 py-1 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-xs font-mono font-bold text-center text-slate-800 dark:text-slate-200 focus:outline-none focus:border-teal-600"
-                      title="Custom Min Pass Marks"
-                    />
-                  </div>
-                  <button
-                    type="button"
-                    onClick={handleAddSubjectOverride}
-                    className="h-7 px-2.5 rounded-lg bg-teal-700 hover:bg-teal-600 text-white font-black text-xs cursor-pointer shrink-0 transition-colors shadow-2xs"
-                  >
-                    Add
-                  </button>
-                </div>
-
-                {/* List of Configured Subject Overrides */}
-                {Object.keys(formState.subjectOverrides || {}).length > 0 && (
-                  <div className="flex items-center gap-1.5 flex-wrap pt-1 border-t border-slate-200/80 dark:border-slate-800/80">
-                    {Object.entries(formState.subjectOverrides).map(([code, ov]) => (
-                      <span
-                        key={code}
-                        className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 text-[11px] shadow-2xs font-medium"
-                      >
-                        <strong className="font-bold text-teal-800 dark:text-teal-300">{ov.name || code} [{code}]</strong>
-                        <span className="font-mono font-black text-slate-900 dark:text-white">{ov.maxMarks}M</span>
-                        <span className="text-[9.5px] text-slate-400 font-mono">(Pass {ov.minMarks})</span>
                         <button
                           type="button"
-                          onClick={() => {
-                            setFormState(prev => {
-                              const next = { ...(prev.subjectOverrides || {}) };
-                              delete next[code];
-                              return { ...prev, subjectOverrides: next };
-                            });
-                          }}
-                          className="text-slate-400 hover:text-rose-600 cursor-pointer font-bold ml-0.5"
-                          title="Remove custom marks"
+                          onClick={() => setFormState({ ...formState, biologyDisplayMode: 'separate' })}
+                          className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                            formState.biologyDisplayMode === 'separate'
+                              ? 'bg-white dark:bg-slate-900 border-teal-600 dark:border-teal-400 text-teal-950 dark:text-teal-200 shadow-xs ring-1 ring-teal-500/20'
+                              : 'bg-teal-50/30 dark:bg-slate-950 border-teal-200/80 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:border-teal-400'
+                          }`}
                         >
-                          ✕
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-[11.5px] font-black">Show Separately</span>
+                            {formState.biologyDisplayMode === 'separate' && <CheckCircle2 size={14} className="text-teal-600 dark:text-teal-400" />}
+                          </div>
+                          <p className="text-[10px] text-slate-500 dark:text-slate-400 m-0 leading-normal">
+                            Displays Botany (50M) and Zoology (50M) as two individual subject rows.
+                          </p>
                         </button>
-                      </span>
-                    ))}
+                      </div>
+
+                      <div className="text-[10px] text-teal-900 dark:text-teal-300/90 bg-white/70 dark:bg-slate-900/60 p-2.5 rounded-xl border border-teal-200/60 dark:border-teal-800/40 flex items-start gap-2 leading-relaxed">
+                        <Sparkles size={14} className="text-amber-500 shrink-0 mt-0.5" />
+                        <span>
+                          <strong>Auto-Score Normalization:</strong> Teachers can set exam papers of any scale (e.g. 20, 25, 30, 35, 40, 50, 70, 100). On student scorecards and public result lookup, all subjects will be automatically standardized to <strong>50 Max Marks (Passing: 18/50)</strong>.
+                        </span>
+                      </div>
+                    </div>
                   </div>
-                )}
+                </div>
               </div>
 
-              {/* Botany & Zoology Handling & Normalization Config */}
-              <div className="p-2.5 rounded-xl bg-teal-50/50 dark:bg-teal-950/30 border border-teal-200 dark:border-teal-800/60 space-y-2">
-                <div className="flex items-center justify-between">
-                  <label className="text-[10px] font-bold text-teal-900 dark:text-teal-200 uppercase tracking-wider flex items-center gap-1">
-                    <Layers size={13} className="text-teal-700 dark:text-teal-400" />
-                    <span>Biology (Botany & Zoology) Display Mode</span>
-                  </label>
-                  <span className="text-[9.5px] font-semibold text-teal-700 dark:text-teal-300">
-                    Faculty submit separately
-                  </span>
+              {/* Minimal Clean Footer */}
+              <div className="px-4 sm:px-6 py-3 bg-slate-50 dark:bg-slate-950/80 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3 shrink-0">
+                <div className="hidden sm:flex items-center gap-2 text-[10.5px] text-slate-500 dark:text-slate-400">
+                  <span>Session: <strong className="text-slate-800 dark:text-slate-200 font-mono">{formState.session}</strong></span>
+                  <span>•</span>
+                  <span>Classes: <strong className="text-slate-800 dark:text-slate-200">{formState.classes.join(', ')}</strong></span>
+                  <span>•</span>
+                  <span>Overrides: <strong className="text-teal-700 dark:text-teal-400 font-bold">{Object.keys(formState.subjectOverrides || {}).length}</strong></span>
                 </div>
 
-                <div className="grid grid-cols-2 gap-1.5">
+                <div className="flex items-center justify-end gap-2 ml-auto">
                   <button
                     type="button"
-                    onClick={() => setFormState({ ...formState, biologyDisplayMode: 'combined' })}
-                    className={`p-2 rounded-lg border text-left transition-all cursor-pointer ${
-                      formState.biologyDisplayMode === 'combined'
-                        ? 'bg-white dark:bg-slate-900 border-teal-600 dark:border-teal-400 text-teal-950 dark:text-teal-200 shadow-xs'
-                        : 'bg-teal-50/40 dark:bg-slate-950 border-teal-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:border-teal-400'
-                    }`}
+                    onClick={() => setShowModal(false)}
+                    className="px-3.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-bold cursor-pointer transition-colors"
                   >
-                    <div className="flex items-center justify-between mb-0.5">
-                      <span className="text-[11px] font-black">Combined Biology (50M)</span>
-                      {formState.biologyDisplayMode === 'combined' && <CheckCircle2 size={13} className="text-teal-600" />}
-                    </div>
-                    <p className="text-[9.5px] text-slate-500 dark:text-slate-400 m-0 leading-tight">
-                      Merges Botany & Zoology into 1 row with sub-breakdown (BO: X/25 • ZO: Y/25).
-                    </p>
+                    Cancel
                   </button>
-
                   <button
-                    type="button"
-                    onClick={() => setFormState({ ...formState, biologyDisplayMode: 'separate' })}
-                    className={`p-2 rounded-lg border text-left transition-all cursor-pointer ${
-                      formState.biologyDisplayMode === 'separate'
-                        ? 'bg-white dark:bg-slate-900 border-teal-600 dark:border-teal-400 text-teal-950 dark:text-teal-200 shadow-xs'
-                        : 'bg-teal-50/40 dark:bg-slate-950 border-teal-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:border-teal-400'
-                    }`}
+                    type="submit"
+                    disabled={saving}
+                    className="px-4 py-1.5 rounded-lg bg-teal-700 hover:bg-teal-600 active:bg-teal-800 text-white text-xs font-black flex items-center gap-1.5 shadow-xs cursor-pointer disabled:opacity-50 transition-all"
                   >
-                    <div className="flex items-center justify-between mb-0.5">
-                      <span className="text-[11px] font-black">Show Separately</span>
-                      {formState.biologyDisplayMode === 'separate' && <CheckCircle2 size={13} className="text-teal-600" />}
-                    </div>
-                    <p className="text-[9.5px] text-slate-500 dark:text-slate-400 m-0 leading-tight">
-                      Displays Botany (50M) and Zoology (50M) as two individual subject rows.
-                    </p>
+                    {saving ? <RefreshCw size={13} className="animate-spin" /> : <Save size={13} />}
+                    <span>{editingId ? 'Save Changes' : 'Create Test'}</span>
                   </button>
                 </div>
-
-                <div className="text-[10px] text-teal-800 dark:text-teal-300/90 bg-white/70 dark:bg-slate-900/60 p-2 rounded-lg border border-teal-200/60 dark:border-teal-800/40 flex items-start gap-1.5 leading-snug">
-                  <Sparkles size={13} className="text-amber-500 flex-shrink-0 mt-0.5" />
-                  <span>
-                    <strong>Auto-Score Normalization:</strong> Teachers can set exam papers of any scale (e.g. 20, 25, 30, 35, 40, 50, 70, 100). On student scorecards and public result lookup, all subjects will be automatically normalized to <strong>50 Max Marks (Passing: 18/50)</strong>.
-                  </span>
-                </div>
-              </div>
-
-              {/* Toggles: Teacher Portal & Student Lookup */}
-              <div className="grid grid-cols-2 gap-2">
-                <label className="flex items-center gap-2 p-2 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={formState.isOpenForTeachers}
-                    onChange={(e) => setFormState({ ...formState, isOpenForTeachers: e.target.checked })}
-                    className="rounded border-slate-300 text-teal-600 focus:ring-0 w-3.5 h-3.5 cursor-pointer"
-                  />
-                  <div>
-                    <span className="block text-[11px] font-bold text-slate-800 dark:text-slate-200 leading-tight">Teacher Entry</span>
-                    <span className="text-[9.5px] text-slate-500 leading-tight">Allow marks roll</span>
-                  </div>
-                </label>
-
-                <label className="flex items-center gap-2 p-2 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={formState.isPublishedForStudents}
-                    onChange={(e) => setFormState({ ...formState, isPublishedForStudents: e.target.checked })}
-                    className="rounded border-slate-300 text-emerald-600 focus:ring-0 w-3.5 h-3.5 cursor-pointer"
-                  />
-                  <div>
-                    <span className="block text-[11px] font-bold text-slate-800 dark:text-slate-200 leading-tight">Student Search</span>
-                    <span className="text-[9.5px] text-slate-500 leading-tight">Live at /results</span>
-                  </div>
-                </label>
-              </div>
-
-              {/* Description (Optional) */}
-              <div>
-                <label className="block text-[10px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
-                  Description / Circular Note (Optional)
-                </label>
-                <input
-                  type="text"
-                  value={formState.description}
-                  onChange={(e) => setFormState({ ...formState, description: e.target.value })}
-                  placeholder="e.g. Conducted under Order No. HSS/SH/2026/EXAM-01 as pre-board test."
-                  className="w-full px-2.5 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-teal-600 font-medium"
-                />
-              </div>
-
-              {/* Action Buttons */}
-              <div className="flex items-center justify-end gap-2 pt-2.5 border-t border-slate-200 dark:border-slate-800">
-                <button
-                  type="button"
-                  onClick={() => setShowModal(false)}
-                  className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-bold cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className="px-4 py-1.5 rounded-lg bg-teal-700 hover:bg-teal-600 text-white text-xs font-black flex items-center gap-1.5 shadow-xs cursor-pointer disabled:opacity-50"
-                >
-                  {saving ? <RefreshCw size={13} className="animate-spin" /> : <Save size={13} />}
-                  <span>{editingId ? 'Save Changes' : 'Create Test'}</span>
-                </button>
               </div>
             </form>
           </div>
