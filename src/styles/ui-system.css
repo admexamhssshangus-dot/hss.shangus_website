@@ -125,9 +125,8 @@ button, input, select, textarea { font: inherit; }
 
 @media (min-width: 48rem) {
   .hero-container {
-    height: clamp(24rem, 76vh, 42rem);
-    min-height: 24rem;
-    max-height: calc(100vh - 8rem);
+    height: calc(100vh - var(--site-header-height, 7rem));
+    min-height: 36rem;
   }
 }
 
@@ -231,10 +230,11 @@ button, input, select, textarea { font: inherit; }
     display: flex;
     align-items: stretch;
     border-left: 1px solid rgba(148, 163, 184, 0.28);
+    padding-right: 4.25rem;
   }
   .hero-news-ticker__pause {
     display: inline-flex;
-    width: 3.5rem;
+    width: 3.25rem;
     min-height: 3.5rem;
     align-items: center;
     justify-content: center;
@@ -250,13 +250,24 @@ button, input, select, textarea { font: inherit; }
     min-height: 3.5rem;
     align-items: center;
     gap: 0.35rem;
-    padding: 0 1.25rem;
+    padding: 0 1rem;
     color: #99f6e4;
     font-size: 0.75rem;
     font-weight: 900;
     letter-spacing: 0.04em;
     text-transform: uppercase;
     white-space: nowrap;
+    text-decoration: none;
+  }
+  .hero-news-ticker__all-text {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    line-height: 1.05;
+    font-size: 0.65rem;
+    letter-spacing: 0.05em;
+    font-weight: 900;
   }
 
   /* 1. Light Theme */
