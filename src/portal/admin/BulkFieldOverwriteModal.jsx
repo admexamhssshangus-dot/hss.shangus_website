@@ -8,13 +8,14 @@ import {
 } from '../../utils/certificateStudentResolution';
 import { parseJkboseMarks, calculateDivision } from '../../utils/jkboseMarksParser';
 import { expandJkboseSubjectCodes } from '../../utils/jkboseResultManager';
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { 
   X, AlertTriangle, CheckSquare, Square, FileSpreadsheet, 
   Upload, Copy, CheckCircle2, User, BookOpen, Award, Hash,
   ArrowRight, Sparkles, RefreshCw, Eye, EyeOff, Plus, Trash2,
   ChevronDown, ChevronUp, Database, Sliders, Download, Search,
-  Phone, Landmark, Layers, Check, Terminal, ExternalLink, RotateCcw
+  Phone, Landmark, Layers, Check, Terminal, ExternalLink, RotateCcw,
+  Minimize2, Maximize2, Lock
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { db } from '../../services/firebase';
@@ -290,11 +291,27 @@ export default function BulkFieldOverwriteModal({
   const [selectedRowIds, setSelectedRowIds] = useState(new Set());
   const [inspectStudent, setInspectStudent] = useState(null);
 
-  // Execution Progress
+  // Execution & Parsing Progress
   const [progressStage, setProgressStage] = useState('');
   const [progressPercent, setProgressPercent] = useState(0);
   const [executionStats, setExecutionStats] = useState(null);
   const [errorMsg, setErrorMsg] = useState(null);
+
+  // Non-blocking chunked parsing progress state
+  const [isProcessingRows, setIsProcessingRows] = useState(false);
+  const [parsingProgress, setParsingProgress] = useState({
+    percent: 0,
+    current: 0,
+    total: 0,
+    stage: '',
+    candidateInfo: ''
+  });
+
+  // Real-time execution activity stream & safe abort control
+  const abortExecutionRef = useRef(false);
+  const [isAborting, setIsAborting] = useState(false);
+  const [executionLogs, setExecutionLogs] = useState([]);
+  const [isMinimized, setIsMinimized] = useState(false);
 
   // Reset workflow back to initial upload step (enables immediate overwrite for another cohort/class)
   const handleResetToUpload = useCallback(() => {
@@ -307,6 +324,11 @@ export default function BulkFieldOverwriteModal({
     setProgressPercent(0);
     setProgressStage('');
     setSelectedRowIds(new Set());
+    setIsProcessingRows(false);
+    setIsAborting(false);
+    setIsMinimized(false);
+    setExecutionLogs([]);
+    abortExecutionRef.current = false;
   }, []);
 
   // Safe modal close handler that cleans up state so reopening always starts fresh
@@ -326,6 +348,19 @@ export default function BulkFieldOverwriteModal({
 
   // Helper to normalize alphanumeric keys
   const cleanKey = (val) => String(val || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase().trim();
+
+  // Helper to canonically normalize subjects for diff comparison
+  // Ensures 'IT & ITES', 'IT and ITES', 'IT & ITeS', 'ITES', 'ITE' are recognized as identical
+  const normalizeSubjectForDiff = (sub) => {
+    if (!sub) return '';
+    const expanded = expandJkboseSubjectCodes(sub) || sub;
+    return String(expanded)
+      .replace(/\b(it\s*(&|and)\s*ites|it\s*(&|and)\s*ite|ites|ite)\b/gi, 'it_ites')
+      .replace(/&/g, 'and')
+      .replace(/[^a-zA-Z0-9]/g, '')
+      .toLowerCase()
+      .trim();
+  };
 
   // Helper to determine effective status consistent with AdvancedReports
   const getEffectiveStatus = useCallback((st) => {
@@ -596,7 +631,7 @@ export default function BulkFieldOverwriteModal({
     });
   }, [universalStudents, targetSession, targetClass, targetStream, targetStatus, getStudentProperStream, getEffectiveStatus]);
 
-  // Dynamic discovery of any additional fields present in actual database records
+  // Dynamic discovery of any additional genuine student fields in database records (filtering system metadata)
   const dynamicDatabaseCategories = useMemo(() => {
     const knownDbKeysSet = new Set();
     STANDARD_DB_CATEGORIES.forEach(cat => {
@@ -607,42 +642,39 @@ export default function BulkFieldOverwriteModal({
       });
     });
 
+    // Extensive blacklist of system, audit, internal, and non-student metadata keys
+    const internalBlacklist = new Set([
+      'id', 'docid', 'owneruid', 'uid', 'createdat', 'updatedat', 'timestamp', 'date',
+      'created_at', 'updated_at', 'lasteditedat', 'lasteditedby', 'lastboardsyncat',
+      'boardsyncsource', 'batchid', 'jobid', 'entryid', 'expiresat', 'submissiondate',
+      'isapproved', 'isupdated', 'isverified', 'verified', 'status', 'admissionstatus',
+      'statuscanonical', 'selectedsession', 'selectedclass', 'sessioncanonical',
+      'classcanonical', 'classnamecanonical', 'academicsession', 'admissionsoughtforclass',
+      'academictier', 'classtier', 'formfeepaid', 'formfeereceipt', 'applicationstatus',
+      'isregistered', 'registered', 'sno', 'hasmismatch', 'hasstreammismatch',
+      'hassubsmismatch', 'streammismatchnotice', 'subsmismatchnotice', 'stream11th',
+      'subs11th', 'optedstream12th', 'optedsubs12th', 'photo_id', 'photourl',
+      'photoid', 'photo_url', 'studentphoto', 'signature', 'signatureurl', 'pdfurl',
+      'raw', 'items', 'students', 'records', 'data', 'groupkey', 'arrayindex',
+      'arraykey', 'srccollection', 'source', 'parentdocid', 'ishistorical', 'currentscope'
+    ]);
+
     const discoveredFields = [];
     const discoveredKeysSeen = new Set();
     const sampleStudents = Array.isArray(universalStudents) ? universalStudents : [];
-    sampleStudents.forEach(st => {
+    
+    sampleStudents.slice(0, 80).forEach(st => {
       if (!st || typeof st !== 'object') return;
       Object.keys(st).forEach(rawK => {
-        if (
-          rawK.startsWith('_') || 
-          rawK.startsWith('$') || 
-          rawK === 'id' || 
-          rawK === 'docId' || 
-          rawK === 'createdAt' || 
-          rawK === 'updatedAt' || 
-          rawK === 'ownerUid' || 
-          rawK === 'photo_id' || 
-          rawK === 'photoUrl' ||
-          rawK === 'photoId' || 
-          rawK === 'Student Photo' || 
-          rawK === 'studentPhoto' ||
-          rawK === 'pdfUrl' || 
-          rawK === 'PDF_URL' ||
-          rawK === 'sno' ||
-          rawK === 'hasMismatch' ||
-          rawK === 'hasStreamMismatch' ||
-          rawK === 'hasSubsMismatch' ||
-          rawK === 'streamMismatchNotice' ||
-          rawK === 'subsMismatchNotice' ||
-          rawK === 'stream11th' ||
-          rawK === 'subs11th' ||
-          rawK === 'optedStream12th' ||
-          rawK === 'optedSubs12th'
-        ) {
-          return;
-        }
+        if (rawK.startsWith('_') || rawK.startsWith('$')) return;
         const cKey = cleanKey(rawK);
-        if (!cKey || knownDbKeysSet.has(cKey) || discoveredKeysSeen.has(cKey)) return;
+        if (!cKey || cKey.length < 2 || cKey.length > 30) return;
+        if (/^\d+$/.test(cKey) || /^[a-f0-9]{8,}$/i.test(cKey)) return;
+        if (knownDbKeysSet.has(cKey) || discoveredKeysSeen.has(cKey) || internalBlacklist.has(cKey)) return;
+
+        // Skip non-primitive values (arrays, sub-objects, functions)
+        const val = st[rawK];
+        if (val !== null && typeof val === 'object') return;
 
         discoveredKeysSeen.add(cKey);
         discoveredFields.push({
@@ -655,20 +687,22 @@ export default function BulkFieldOverwriteModal({
       });
     });
 
+    // Only surface genuine discovered student fields, capped at 8 to keep UI elegant
     if (discoveredFields.length === 0) {
       return STANDARD_DB_CATEGORIES;
     }
 
+    const cappedFields = discoveredFields.slice(0, 8);
     return [
       ...STANDARD_DB_CATEGORIES,
       {
         id: 'discovered_db',
-        title: `Discovered in Database (${discoveredFields.length})`,
+        title: `Discovered in Database (${cappedFields.length})`,
         badge: 'Live Database',
         badgeClass: 'bg-teal-100 dark:bg-teal-950/80 text-teal-800 dark:text-teal-300 border-teal-300 dark:border-teal-800',
         color: 'teal',
         icon: Database,
-        fields: discoveredFields
+        fields: cappedFields
       }
     ];
   }, [universalStudents]);
@@ -894,34 +928,44 @@ export default function BulkFieldOverwriteModal({
     reader.readAsArrayBuffer(file);
   };
 
-  // ─── STRICT AUTHORITATIVE STUDENT MATCHING & COLUMN AUTO-DETECTION ENGINE ───
+  // ─── STRICT AUTHORITATIVE STUDENT MATCHING & COLUMN AUTO-DETECTION ENGINE (NON-BLOCKING CHUNKED) ───
   // First column is strictly parsed as Registration Number.
   // Automatically detects every column header in the uploaded file and selects corresponding DB fields.
-  const processIncomingRows = (rows, sourceTitle = 'Spreadsheet') => {
+  const processIncomingRows = async (rows, sourceTitle = 'Spreadsheet') => {
+    if (!rows || rows.length === 0) return;
     setRawParsedRows(rows);
     setErrorMsg(null);
+    setIsProcessingRows(true);
+    setParsingProgress({
+      percent: 5,
+      current: 0,
+      total: rows.length,
+      stage: 'Detecting columns & verifying headers...',
+      candidateInfo: ''
+    });
+
+    // Yield so progress overlay appears immediately
+    await new Promise(r => setTimeout(r, 20));
 
     // 1. Automatic Column Header Auto-Detection:
     // Inspect headers of incoming file and automatically activate all matching database fields
     const detectedFieldKeys = new Set();
-    if (rows.length > 0) {
-      const incomingHeaders = Object.keys(rows[0]);
-      incomingHeaders.forEach(rawH => {
-        const clnH = cleanKey(rawH);
-        if (!clnH) return;
-        allFieldDefinitions.forEach(f => {
-          const matchCandidates = [
-            cleanKey(f.label),
-            cleanKey(f.key),
-            ...(f.excelKeys || []).map(cleanKey),
-            ...(f.dbKeys || []).map(cleanKey)
-          ];
-          if (matchCandidates.includes(clnH)) {
-            detectedFieldKeys.add(f.key);
-          }
-        });
+    const incomingHeaders = Object.keys(rows[0] || {});
+    incomingHeaders.forEach(rawH => {
+      const clnH = cleanKey(rawH);
+      if (!clnH) return;
+      allFieldDefinitions.forEach(f => {
+        const matchCandidates = [
+          cleanKey(f.label),
+          cleanKey(f.key),
+          ...(f.excelKeys || []).map(cleanKey),
+          ...(f.dbKeys || []).map(cleanKey)
+        ];
+        if (matchCandidates.includes(clnH)) {
+          detectedFieldKeys.add(f.key);
+        }
       });
-    }
+    });
 
     const effectiveSelectedFields = { ...selectedFields };
     if (detectedFieldKeys.size > 0) {
@@ -933,147 +977,168 @@ export default function BulkFieldOverwriteModal({
 
     const correlated = [];
     const initialSelectedIds = new Set();
+    const total = rows.length;
+    const CHUNK_SIZE = 25;
 
-    rows.forEach((row, idx) => {
-      // Normalize row keys
-      const normalizedRow = {};
-      Object.entries(row).forEach(([k, v]) => {
-        normalizedRow[cleanKey(k)] = typeof v === 'string' ? v.trim() : String(v || '');
-      });
+    for (let start = 0; start < total; start += CHUNK_SIZE) {
+      const end = Math.min(start + CHUNK_SIZE, total);
 
-      // Find first column / Registration No with complete alias coverage
-      let rawReg = row['Board Registration Number'] || row['Registration No.'] || row['Registration No'] || 
-                     row['Board Reg. No.'] || row['Board Reg No'] || row['Board Reg. No'] ||
-                     row['Registration Number'] || row['Reg. No.'] || row['Reg No'] || row['REG. NO.'] ||
-                     normalizedRow['boardregistrationnumber'] || normalizedRow['registrationno'] || 
-                     normalizedRow['regno'] || normalizedRow['boardregno'] || normalizedRow['boardregistrationno'] || 
-                     normalizedRow['registrationnumber'] || '';
-      
-      if (!rawReg) {
-        const firstColVal = String(Object.values(row)[0] || '').trim();
-        if (firstColVal && (firstColVal.length >= 10 || /^\d{16}$/i.test(firstColVal) || /\d{4,}/.test(firstColVal))) {
-          rawReg = firstColVal;
-        }
-      }
-
-      const rawAdm = normalizedRow['admissionno'] || normalizedRow['admno'] || normalizedRow['admissionnumber'] || '';
-      const rawForm = normalizedRow['formno'] || normalizedRow['formnumber'] || normalizedRow['fno'] || '';
-      const rawRoll = row['Class Roll No.'] || row['Class Roll No'] || row['Roll No.'] || row['Roll No'] ||
-                      normalizedRow['classrollno'] || normalizedRow['classroll'] || normalizedRow['rollno'] || normalizedRow['rollnumber'] || '';
-
-      const cleanReg = cleanKey(rawReg);
-      const cleanAdm = cleanKey(rawAdm);
-      const cleanForm = cleanKey(rawForm);
-      const cleanRoll = cleanKey(rawRoll);
-
-      // Authoritative multi-tier matching:
-      // Tier 1: Try strict multi-identifier match within target cohort
-      let matchedStudent = uniqueStudentMatch(universalStudents,
-        { reg: rawReg, adm: rawAdm, form: rawForm, roll: rawRoll }, targetSession, targetClass);
-
-      // Tier 2: If secondary fields (form/adm) caused conflict, match strictly by Registration Number within cohort
-      if (!matchedStudent && cleanReg) {
-        matchedStudent = uniqueStudentMatch(universalStudents, { reg: rawReg }, targetSession, targetClass);
-      }
-
-      // Tier 3: Search universal student pool for exact registration match (handles session aliases e.g. 2026 APR/BIAN)
-      if (!matchedStudent && cleanReg) {
-        const regCandidates = universalStudents.filter(st => {
-          const stReg = cleanKey(st.boardRegNo || st.regNo || st['Board Registration Number'] || st['Board Reg. No.']);
-          return stReg && stReg === cleanReg;
+      for (let idx = start; idx < end; idx++) {
+        const row = rows[idx];
+        // Normalize row keys
+        const normalizedRow = {};
+        Object.entries(row).forEach(([k, v]) => {
+          normalizedRow[cleanKey(k)] = typeof v === 'string' ? v.trim() : String(v || '');
         });
-        if (regCandidates.length === 1) {
-          matchedStudent = regCandidates[0];
-        } else if (regCandidates.length > 1) {
-          const inTargetClass = regCandidates.find(st => {
-            const cls = cleanKey(st.selectedClass || st.className || st.Class || st.class);
-            return cls.includes(cleanKey(targetClass)) || cleanKey(targetClass).includes(cls);
+
+        // Find first column / Registration No with complete alias coverage
+        let rawReg = row['Board Registration Number'] || row['Registration No.'] || row['Registration No'] || 
+                       row['Board Reg. No.'] || row['Board Reg No'] || row['Board Reg. No'] ||
+                       row['Registration Number'] || row['Reg. No.'] || row['Reg No'] || row['REG. NO.'] ||
+                       normalizedRow['boardregistrationnumber'] || normalizedRow['registrationno'] || 
+                       normalizedRow['regno'] || normalizedRow['boardregno'] || normalizedRow['boardregistrationno'] || 
+                       normalizedRow['registrationnumber'] || '';
+        
+        if (!rawReg) {
+          const firstColVal = String(Object.values(row)[0] || '').trim();
+          if (firstColVal && (firstColVal.length >= 10 || /^\d{16}$/i.test(firstColVal) || /\d{4,}/.test(firstColVal))) {
+            rawReg = firstColVal;
+          }
+        }
+
+        const rawAdm = normalizedRow['admissionno'] || normalizedRow['admno'] || normalizedRow['admissionnumber'] || '';
+        const rawForm = normalizedRow['formno'] || normalizedRow['formnumber'] || normalizedRow['fno'] || '';
+        const rawRoll = row['Class Roll No.'] || row['Class Roll No'] || row['Roll No.'] || row['Roll No'] ||
+                        normalizedRow['classrollno'] || normalizedRow['classroll'] || normalizedRow['rollno'] || normalizedRow['rollnumber'] || '';
+
+        const cleanReg = cleanKey(rawReg);
+        const cleanAdm = cleanKey(rawAdm);
+        const cleanForm = cleanKey(rawForm);
+        const cleanRoll = cleanKey(rawRoll);
+
+        // Authoritative multi-tier matching:
+        // Tier 1: Try strict multi-identifier match within target cohort
+        let matchedStudent = uniqueStudentMatch(universalStudents,
+          { reg: rawReg, adm: rawAdm, form: rawForm, roll: rawRoll }, targetSession, targetClass);
+
+        // Tier 2: If secondary fields (form/adm) caused conflict, match strictly by Registration Number within cohort
+        if (!matchedStudent && cleanReg) {
+          matchedStudent = uniqueStudentMatch(universalStudents, { reg: rawReg }, targetSession, targetClass);
+        }
+
+        // Tier 3: Search universal student pool for exact registration match (handles session aliases e.g. 2026 APR/BIAN)
+        if (!matchedStudent && cleanReg) {
+          const regCandidates = universalStudents.filter(st => {
+            const stReg = cleanKey(st.boardRegNo || st.regNo || st['Board Registration Number'] || st['Board Reg. No.']);
+            return stReg && stReg === cleanReg;
           });
-          matchedStudent = inTargetClass || regCandidates[0];
-        }
-      }
-
-      // Extract all incoming fields dynamically
-      const incomingFields = {};
-      allFieldDefinitions.forEach(f => {
-        let extracted = '';
-        for (const ek of [...new Set([cleanKey(f.label), cleanKey(f.key), ...(f.excelKeys || [])])]) {
-          const val = normalizedRow[ek];
-          if (val !== undefined && val !== '') {
-            extracted = val;
-            break;
+          if (regCandidates.length === 1) {
+            matchedStudent = regCandidates[0];
+          } else if (regCandidates.length > 1) {
+            const inTargetClass = regCandidates.find(st => {
+              const cls = cleanKey(st.selectedClass || st.className || st.Class || st.class);
+              return cls.includes(cleanKey(targetClass)) || cleanKey(targetClass).includes(cls);
+            });
+            matchedStudent = inTargetClass || regCandidates[0];
           }
         }
 
-        if (f.key === 'studentName' || f.key === 'fatherName' || f.key === 'motherName' || f.key === 'gender' || f.key === 'stream' || f.key === 'category' || f.key === 'address') {
-          extracted = toTitleCase(extracted);
-        } else if (f.key === 'dob' && extracted) {
-          extracted = formatDobToDisplay(extracted);
-        } else if (f.key === 'subjects' && extracted) {
-          extracted = cleanRawSubjectTokens(extracted).join(', ');
-        } else if ((f.key.startsWith('subjects') || f.key.startsWith('Subjects') || f.key === 'Subject6') && extracted) {
-          extracted = expandJkboseSubjectCodes(extracted) || extracted;
-        } else if (f.key === 'boardRollNo' && extracted) {
-          extracted = String(extracted).replace(/\.0+$/, '').trim();
-        } else if (f.key === 'marks' && extracted) {
-          extracted = String(extracted).replace(/\.0+$/, '').trim();
-        } else if (f.key === 'result' && extracted) {
-          const resUpper = String(extracted).trim().toUpperCase();
-          if (resUpper === 'PASS' || resUpper === 'PASSED' || resUpper === 'QUAL' || resUpper === 'QUALIFIED') {
-            extracted = 'Qualified';
-          } else if (resUpper === 'REAP' || resUpper === 'RE-APPEAR' || resUpper === 'REAPPEAR') {
-            extracted = 'Reappear';
-          }
-        }
-        incomingFields[f.key] = extracted;
-      });
-
-      // Automatic Calculation of Percentage, Division & Additional Subjects
-      const rawIncMarks = incomingFields['marks'];
-      const rawIncMax = incomingFields['maxMarks'] || '500';
-      const rawIncRes = incomingFields['result'] || '';
-
-      if (rawIncMarks) {
-        const parsedM = parseJkboseMarks(rawIncMarks, rawIncMax, rawIncRes || 'Qualified');
-        if (parsedM.formattedMarks) {
-          incomingFields['marks'] = parsedM.formattedMarks;
-        }
-        if (parsedM.max) {
-          incomingFields['maxMarks'] = parsedM.max;
-        }
-        if (!incomingFields['percentage'] && parsedM.pctStr !== '—') {
-          incomingFields['percentage'] = parsedM.pctStr;
-        }
-        if (!incomingFields['grade'] && parsedM.division !== '—') {
-          incomingFields['grade'] = parsedM.division;
-        }
-      }
-
-      // Compute diff against matched student using canonical DB values
-      const diffs = {};
-      let hasChanges = false;
-
-      if (matchedStudent) {
+        // Extract all incoming fields dynamically
+        const incomingFields = {};
         allFieldDefinitions.forEach(f => {
-          if (!effectiveSelectedFields[f.key]) return;
-          const incVal = incomingFields[f.key];
-          if (!incVal) return;
-
-          let currVal = '';
-          if (f.key === 'stream') {
-            currVal = getStudentProperStream(matchedStudent);
-          } else if (f.key === 'subjects') {
-            const formatted = formatStudentSubjects(matchedStudent, targetClass);
-            currVal = (formatted && formatted !== '—') ? formatted : '';
-            if (!currVal) {
-              currVal = String(matchedStudent.subjects || matchedStudent.subs || matchedStudent.selectedSubjects || matchedStudent['Subjects'] || '').trim();
+          let extracted = '';
+          for (const ek of [...new Set([cleanKey(f.label), cleanKey(f.key), ...(f.excelKeys || [])])]) {
+            const val = normalizedRow[ek];
+            if (val !== undefined && val !== '') {
+              extracted = val;
+              break;
             }
-          } else if (f.key.startsWith('subjects') || f.key.startsWith('Subjects') || f.key === 'Subject6') {
-            const matchSlot = f.key.match(/\d+/);
-            const slotIdx = matchSlot ? parseInt(matchSlot[0], 10) - 1 : -1;
-            const indiv = extractIndividualSubjectsList(matchedStudent, targetClass);
-            if (slotIdx >= 0 && indiv && indiv[slotIdx]) {
-              currVal = indiv[slotIdx];
+          }
+
+          if (f.key === 'studentName' || f.key === 'fatherName' || f.key === 'motherName' || f.key === 'gender' || f.key === 'stream' || f.key === 'category' || f.key === 'address') {
+            extracted = toTitleCase(extracted);
+          } else if (f.key === 'dob' && extracted) {
+            extracted = formatDobToDisplay(extracted);
+          } else if (f.key === 'subjects' && extracted) {
+            extracted = cleanRawSubjectTokens(extracted).join(', ');
+          } else if ((f.key.startsWith('subjects') || f.key.startsWith('Subjects') || f.key === 'Subject6') && extracted) {
+            extracted = expandJkboseSubjectCodes(extracted) || extracted;
+          } else if (f.key === 'boardRollNo' && extracted) {
+            extracted = String(extracted).replace(/\.0+$/, '').trim();
+          } else if (f.key === 'marks' && extracted) {
+            extracted = String(extracted).replace(/\.0+$/, '').trim();
+          } else if (f.key === 'result' && extracted) {
+            const resUpper = String(extracted).trim().toUpperCase();
+            if (resUpper === 'PASS' || resUpper === 'PASSED' || resUpper === 'QUAL' || resUpper === 'QUALIFIED') {
+              extracted = 'Qualified';
+            } else if (resUpper === 'REAP' || resUpper === 'RE-APPEAR' || resUpper === 'REAPPEAR') {
+              extracted = 'Reappear';
+            }
+          }
+          incomingFields[f.key] = extracted;
+        });
+
+        // Automatic Calculation of Percentage, Division & Additional Subjects
+        const rawIncMarks = incomingFields['marks'];
+        const rawIncMax = incomingFields['maxMarks'] || '500';
+        const rawIncRes = incomingFields['result'] || '';
+
+        if (rawIncMarks) {
+          const parsedM = parseJkboseMarks(rawIncMarks, rawIncMax, rawIncRes || 'Qualified');
+          if (parsedM.formattedMarks) {
+            incomingFields['marks'] = parsedM.formattedMarks;
+          }
+          if (parsedM.max) {
+            incomingFields['maxMarks'] = parsedM.max;
+          }
+          if (!incomingFields['percentage'] && parsedM.pctStr !== '—') {
+            incomingFields['percentage'] = parsedM.pctStr;
+          }
+          if (!incomingFields['grade'] && parsedM.division !== '—') {
+            incomingFields['grade'] = parsedM.division;
+          }
+        }
+
+        // Compute diff against matched student using canonical DB values
+        const diffs = {};
+        let hasChanges = false;
+
+        if (matchedStudent) {
+          allFieldDefinitions.forEach(f => {
+            if (!effectiveSelectedFields[f.key]) return;
+            const incVal = incomingFields[f.key];
+            if (!incVal) return;
+
+            let currVal = '';
+            if (f.key === 'stream') {
+              currVal = getStudentProperStream(matchedStudent);
+            } else if (f.key === 'subjects') {
+              const formatted = formatStudentSubjects(matchedStudent, targetClass);
+              currVal = (formatted && formatted !== '—') ? formatted : '';
+              if (!currVal) {
+                currVal = String(matchedStudent.subjects || matchedStudent.subs || matchedStudent.selectedSubjects || matchedStudent['Subjects'] || '').trim();
+              }
+            } else if (f.key.startsWith('subjects') || f.key.startsWith('Subjects') || f.key === 'Subject6') {
+              const matchSlot = f.key.match(/\d+/);
+              const slotIdx = matchSlot ? parseInt(matchSlot[0], 10) - 1 : -1;
+              const indiv = extractIndividualSubjectsList(matchedStudent, targetClass);
+              if (slotIdx >= 0 && indiv && indiv[slotIdx]) {
+                currVal = indiv[slotIdx];
+              } else {
+                for (const k of f.dbKeys) {
+                  if (matchedStudent[k] !== undefined && String(matchedStudent[k]).trim() !== '') {
+                    currVal = String(matchedStudent[k]).trim();
+                    break;
+                  }
+                }
+              }
+            } else if (f.key === 'dob') {
+              for (const k of f.dbKeys) {
+                if (matchedStudent[k] !== undefined && String(matchedStudent[k]).trim() !== '') {
+                  currVal = formatDobToDisplay(matchedStudent[k]);
+                  break;
+                }
+              }
             } else {
               for (const k of f.dbKeys) {
                 if (matchedStudent[k] !== undefined && String(matchedStudent[k]).trim() !== '') {
@@ -1082,62 +1147,74 @@ export default function BulkFieldOverwriteModal({
                 }
               }
             }
-          } else if (f.key === 'dob') {
-            for (const k of f.dbKeys) {
-              if (matchedStudent[k] !== undefined && String(matchedStudent[k]).trim() !== '') {
-                currVal = formatDobToDisplay(matchedStudent[k]);
-                break;
-              }
-            }
-          } else {
-            for (const k of f.dbKeys) {
-              if (matchedStudent[k] !== undefined && String(matchedStudent[k]).trim() !== '') {
-                currVal = String(matchedStudent[k]).trim();
-                break;
-              }
-            }
-          }
 
-          let normCurr = cleanKey(currVal);
-          let normInc = cleanKey(incVal);
-          if (f.key === 'subjects' || f.key.startsWith('subjects')) {
-            normCurr = cleanKey(expandJkboseSubjectCodes(currVal) || currVal);
-            normInc = cleanKey(expandJkboseSubjectCodes(incVal) || incVal);
-          }
+            let normCurr = cleanKey(currVal);
+            let normInc = cleanKey(incVal);
+            if (f.key === 'subjects' || f.key.startsWith('subjects') || f.key.startsWith('Subjects') || f.key === 'Subject6') {
+              normCurr = normalizeSubjectForDiff(currVal);
+              normInc = normalizeSubjectForDiff(incVal);
+            }
 
-          if (normCurr !== normInc) {
-            diffs[f.key] = {
-              fieldLabel: f.label,
-              currentValue: currVal || '—',
-              incomingValue: incVal
-            };
-            hasChanges = true;
-          }
+            if (normCurr !== normInc) {
+              diffs[f.key] = {
+                fieldLabel: f.label,
+                currentValue: currVal || '—',
+                incomingValue: incVal
+              };
+              hasChanges = true;
+            }
+          });
+        }
+
+        const rowId = `row_${idx}_${cleanReg || cleanAdm || cleanForm || idx}`;
+        if (hasChanges) {
+          initialSelectedIds.add(rowId);
+        }
+
+        correlated.push({
+          id: rowId,
+          rowIndex: idx + 1,
+          matchedStudent,
+          rawReg: rawReg || '—',
+          rawAdm: rawAdm || '—',
+          rawForm: rawForm || '—',
+          incomingFields,
+          diffs,
+          hasChanges,
+          isUnmatched: !matchedStudent
         });
       }
 
-      const rowId = `row_${idx}_${cleanReg || cleanAdm || cleanForm || idx}`;
-      if (hasChanges) {
-        initialSelectedIds.add(rowId);
-      }
+      // Update non-blocking progress
+      const pct = Math.min(95, 10 + Math.round((end / total) * 85));
+      const lastCorrelated = correlated[correlated.length - 1];
+      const name = lastCorrelated?.matchedStudent?.studentName || lastCorrelated?.matchedStudent?.["Student's Name"] || `Record #${end}`;
 
-      correlated.push({
-        id: rowId,
-        rowIndex: idx + 1,
-        matchedStudent,
-        rawReg: rawReg || '—',
-        rawAdm: rawAdm || '—',
-        rawForm: rawForm || '—',
-        incomingFields,
-        diffs,
-        hasChanges,
-        isUnmatched: !matchedStudent
+      setParsingProgress({
+        percent: pct,
+        current: end,
+        total,
+        stage: `Correlated ${end} of ${total} candidate records...`,
+        candidateInfo: name ? `Matched: ${name}` : ''
       });
+
+      // Yield control back to the browser to paint frame and avoid freezing
+      await new Promise(r => setTimeout(r, 0));
+    }
+
+    setParsingProgress({
+      percent: 100,
+      current: total,
+      total,
+      stage: 'Comparison complete! Preparing diff table...',
+      candidateInfo: 'Ready'
     });
+    await new Promise(r => setTimeout(r, 100));
 
     setPreviewData(correlated);
     setSelectedRowIds(initialSelectedIds);
     setFileName(sourceTitle);
+    setIsProcessingRows(false);
     setStep('preview');
   };
 
@@ -1247,6 +1324,13 @@ export default function BulkFieldOverwriteModal({
     });
   };
 
+  // Safe abort handler for running execution
+  const handleAbortExecution = () => {
+    abortExecutionRef.current = true;
+    setIsAborting(true);
+    setProgressStage('Stopping execution safely... Completing current candidate.');
+  };
+
   // Execute Overwrite into Firestore & dbCache
   const executeOverwrite = async () => {
     const rowsToExecute = previewData.filter(r => selectedRowIds.has(r.id) && r.matchedStudent);
@@ -1255,8 +1339,11 @@ export default function BulkFieldOverwriteModal({
       return;
     }
 
+    abortExecutionRef.current = false;
+    setIsAborting(false);
+    setExecutionLogs([]);
     setStep('executing');
-    setProgressPercent(10);
+    setProgressPercent(5);
     setProgressStage('Initializing Board Database Transaction...');
     setErrorMsg(null);
 
@@ -1265,9 +1352,17 @@ export default function BulkFieldOverwriteModal({
       let updatedCount = 0;
 
       for (let i = 0; i < rowsToExecute.length; i++) {
+        if (abortExecutionRef.current) {
+          setProgressStage(`Execution safely stopped by admin after updating ${updatedCount} records.`);
+          break;
+        }
+
         const item = rowsToExecute[i];
         const st = item.matchedStudent;
         const inc = item.incomingFields;
+        const sName = String(st.studentName || st["Student's Name"] || 'Candidate');
+        const sRoll = String(st.classRollNo || st['Class Roll No'] || '—');
+        const sReg = String(st.boardRegNo || st.regNo || item.rawReg || '—');
 
         const payload = {};
         allFieldDefinitions.forEach(f => {
@@ -1410,9 +1505,25 @@ export default function BulkFieldOverwriteModal({
         await applyRecordPatch(st, payload, { jobId, entryId: String(i), force: true });
 
         updatedCount++;
-        const pct = 10 + Math.round(((i + 1) / rowsToExecute.length) * 80);
+        const pct = Math.round(((i + 1) / rowsToExecute.length) * 100);
         setProgressPercent(pct);
-        setProgressStage(`Overwriting records (${i + 1}/${rowsToExecute.length})...`);
+        setProgressStage(`Overwriting records (${i + 1} of ${rowsToExecute.length}): ${sName}...`);
+
+        const fieldsChanged = Object.keys(item.diffs || {}).length;
+        setExecutionLogs(prev => [
+          {
+            id: `log_${i}_${Date.now()}`,
+            name: sName,
+            roll: sRoll,
+            reg: sReg,
+            fieldsCount: fieldsChanged,
+            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+          },
+          ...prev.slice(0, 8)
+        ]);
+
+        // Yield to event loop
+        await new Promise(r => setTimeout(r, 0));
       }
 
       await completeMutationJob(jobId);
@@ -1427,7 +1538,8 @@ export default function BulkFieldOverwriteModal({
           count: updatedCount,
           fields: Object.keys(selectedFields).filter(k => selectedFields[k]),
           session: targetSession,
-          class: targetClass
+          class: targetClass,
+          abortedEarly: abortExecutionRef.current
         }
       });
 
@@ -1436,8 +1548,9 @@ export default function BulkFieldOverwriteModal({
       window.dispatchEvent(new CustomEvent('hss-admissions-updated'));
 
       setProgressPercent(100);
-      setProgressStage('All fields successfully overwritten and synchronized!');
+      setProgressStage(abortExecutionRef.current ? `Execution stopped safely. ${updatedCount} records updated.` : 'All fields successfully overwritten and synchronized!');
       setExecutionStats({ updatedCount });
+      setIsMinimized(false);
       setStep('completed');
 
       if (onComplete) onComplete({ updatedCount });
@@ -1445,15 +1558,84 @@ export default function BulkFieldOverwriteModal({
     } catch (err) {
       console.error('Execution error during bulk field overwrite:', err);
       setErrorMsg('Failed during overwrite execution: ' + err.message);
+      setIsMinimized(false);
       setStep('preview');
+    } finally {
+      setIsAborting(false);
     }
   };
 
   if (!isOpen) return null;
 
+  // Floating Minimized Background Dock Widget (leaves website 100% interactive in View-Only mode)
+  if (isMinimized && (isProcessingRows || step === 'executing')) {
+    return (
+      <div className="fixed bottom-5 right-5 z-[9999] bg-white/95 dark:bg-slate-900/95 border border-emerald-500/50 shadow-2xl rounded-2xl p-3.5 flex flex-col gap-2.5 w-80 sm:w-96 backdrop-blur-md animate-slideUp transition-all select-none">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="w-7 h-7 rounded-lg bg-emerald-100 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 flex items-center justify-center flex-shrink-0 shadow-2xs">
+              <RefreshCw size={13} className="animate-spin" />
+            </div>
+            <div className="min-w-0">
+              <div className="text-xs font-black text-slate-900 dark:text-white flex items-center gap-1.5 truncate">
+                <span>{isProcessingRows ? 'Verifying Cohort Data' : 'Syncing Database Records'}</span>
+                <span className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 font-mono bg-emerald-50 dark:bg-emerald-950/80 px-1 py-0.2 rounded">
+                  {isProcessingRows ? `${parsingProgress.percent}%` : `${progressPercent}%`}
+                </span>
+              </div>
+              <div className="text-[10px] text-slate-500 dark:text-slate-400 truncate">
+                {isProcessingRows 
+                  ? `${parsingProgress.current} of ${parsingProgress.total} evaluated`
+                  : `${progressStage || 'Applying transactional updates...'}`}
+              </div>
+            </div>
+          </div>
+          
+          <button
+            type="button"
+            onClick={() => setIsMinimized(false)}
+            className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition-colors cursor-pointer flex-shrink-0 shadow-2xs"
+            title="Expand to full sync dialog"
+          >
+            <Maximize2 size={13} />
+          </button>
+        </div>
+
+        {/* Mini progress bar */}
+        <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2 overflow-hidden border border-slate-200 dark:border-slate-700/60 shadow-inner">
+          <div 
+            className="bg-gradient-to-r from-emerald-600 via-teal-500 to-cyan-400 h-full rounded-full transition-all duration-300"
+            style={{ width: `${isProcessingRows ? parsingProgress.percent : progressPercent}%` }}
+          />
+        </div>
+
+        {/* Lock indicator & safe abort */}
+        <div className="flex items-center justify-between text-[10px] pt-1 border-t border-slate-100 dark:border-slate-800/80">
+          <div className="flex items-center gap-1 font-bold text-amber-600 dark:text-amber-400">
+            <Lock size={10} />
+            <span>View-Only Mode • Edits Locked</span>
+          </div>
+          {step === 'executing' && (
+            isAborting ? (
+              <span className="text-amber-600 font-bold">Stopping...</span>
+            ) : (
+              <button
+                type="button"
+                onClick={handleAbortExecution}
+                className="text-rose-600 dark:text-rose-400 hover:underline font-bold cursor-pointer"
+              >
+                Stop Safely
+              </button>
+            )
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-1 sm:p-3 overflow-y-auto animate-fadeIn">
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-4xl rounded-xl shadow-2xl overflow-hidden flex flex-col h-[96vh] sm:h-auto max-h-[96vh] sm:max-h-[92vh]">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-5xl lg:max-w-6xl xl:max-w-7xl rounded-2xl shadow-2xl overflow-hidden flex flex-col h-[96vh] sm:h-auto max-h-[96vh] sm:max-h-[92vh]">
         
         {/* Master Modal Header - Minimal & Slim */}
         <div className="px-3.5 py-2 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50/80 dark:bg-slate-950/80 flex-shrink-0">
@@ -2258,6 +2440,144 @@ export default function BulkFieldOverwriteModal({
                 Done
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Non-Blocking Async Processing & Overwrite Progress Overlay */}
+      {(isProcessingRows || step === 'executing') && (
+        <div className="fixed inset-0 z-70 flex items-center justify-center bg-slate-950/75 backdrop-blur-md p-4 animate-fadeIn">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-xl rounded-2xl shadow-2xl overflow-hidden flex flex-col p-6 space-y-5">
+            
+            {/* Header: Parsing vs Executing */}
+            <div className="flex items-start gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800/80 text-emerald-600 dark:text-emerald-400 flex items-center justify-center flex-shrink-0 shadow-sm">
+                <RefreshCw size={22} className="animate-spin" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <h3 className="text-sm font-black text-slate-900 dark:text-white truncate">
+                    {isProcessingRows ? 'Parsing & Correlating Cohort Records' : 'Synchronizing Board Fields into Database'}
+                  </h3>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300">
+                    {isProcessingRows ? 'Live Verification' : 'Batch Mutator'}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 truncate">
+                  {isProcessingRows 
+                    ? (parsingProgress.stage || 'Cross-referencing registration numbers against master database...') 
+                    : (progressStage || 'Applying transactional patches to student documents...')}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsMinimized(true)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer flex-shrink-0"
+                title="Minimize to background pill (Continue browsing in View-Only mode)"
+              >
+                <Minimize2 size={16} />
+              </button>
+            </div>
+
+            {/* Glowing Gradient Progress Bar */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between text-xs font-bold text-slate-600 dark:text-slate-300">
+                <span className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+                  <span>{isProcessingRows ? 'Processing Records...' : 'Writing Changes...'}</span>
+                </span>
+                <span className="text-sm font-black text-emerald-600 dark:text-emerald-400 font-mono">
+                  {isProcessingRows ? `${parsingProgress.percent}%` : `${progressPercent}%`}
+                </span>
+              </div>
+              <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-3 overflow-hidden border border-slate-200 dark:border-slate-700/60 shadow-inner">
+                <div 
+                  className="bg-gradient-to-r from-emerald-600 via-teal-500 to-cyan-400 h-full rounded-full transition-all duration-300 shadow-sm"
+                  style={{ width: `${isProcessingRows ? parsingProgress.percent : progressPercent}%` }}
+                />
+              </div>
+            </div>
+
+            {/* Real-time Metric Cards */}
+            <div className="grid grid-cols-3 gap-2 text-center">
+              <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-800">
+                <div className="text-[10px] font-black uppercase text-slate-400">Total</div>
+                <div className="text-sm font-black text-slate-800 dark:text-slate-100 font-mono">
+                  {isProcessingRows ? parsingProgress.total : previewData.filter(r => selectedRowIds.has(r.id)).length}
+                </div>
+              </div>
+              <div className="p-2.5 rounded-xl bg-emerald-50/50 dark:bg-emerald-950/30 border border-emerald-200/60 dark:border-emerald-800/60">
+                <div className="text-[10px] font-black uppercase text-emerald-700 dark:text-emerald-400">Processed</div>
+                <div className="text-sm font-black text-emerald-600 dark:text-emerald-400 font-mono">
+                  {isProcessingRows ? parsingProgress.current : Math.round((progressPercent / 100) * previewData.filter(r => selectedRowIds.has(r.id)).length)}
+                </div>
+              </div>
+              <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-800">
+                <div className="text-[10px] font-black uppercase text-slate-400">Remaining</div>
+                <div className="text-sm font-black text-slate-700 dark:text-slate-300 font-mono">
+                  {isProcessingRows 
+                    ? Math.max(0, parsingProgress.total - parsingProgress.current) 
+                    : Math.max(0, previewData.filter(r => selectedRowIds.has(r.id)).length - Math.round((progressPercent / 100) * previewData.filter(r => selectedRowIds.has(r.id)).length))}
+                </div>
+              </div>
+            </div>
+
+            {/* Live Streaming Execution Activity Log (when executing) */}
+            {step === 'executing' && executionLogs.length > 0 && (
+              <div className="space-y-1.5">
+                <div className="text-[10px] font-black uppercase text-slate-400 tracking-wider flex items-center justify-between">
+                  <span>Recent Mutations</span>
+                  <span className="text-emerald-500 font-bold">Live</span>
+                </div>
+                <div className="bg-slate-950 rounded-xl p-3 border border-slate-800 font-mono text-[11px] text-slate-300 max-h-28 overflow-y-auto divide-y divide-slate-850 no-scrollbar">
+                  {executionLogs.map(log => (
+                    <div key={log.id} className="py-1 flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5 truncate">
+                        <span className="text-emerald-400 font-bold">✓</span>
+                        <span className="text-white font-medium truncate">{log.name}</span>
+                        <span className="text-slate-500 text-[10px]">({log.roll ? `Roll ${log.roll}` : log.reg})</span>
+                      </div>
+                      <span className="text-[10px] font-bold text-emerald-400 bg-emerald-950/80 px-1.5 py-0.2 rounded flex-shrink-0">
+                        {log.fieldsCount} field(s)
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Action Bar / Safe Abort (when executing) */}
+            {step === 'executing' && (
+              <div className="pt-1 flex items-center justify-between flex-wrap gap-2">
+                <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                  Please keep this window open until write operations complete.
+                </p>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsMinimized(true)}
+                    className="px-3 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 font-bold text-xs flex items-center gap-1.5 cursor-pointer transition-colors shadow-2xs"
+                  >
+                    <Minimize2 size={13} />
+                    <span>Minimize to Background</span>
+                  </button>
+                  {isAborting ? (
+                    <span className="px-3 py-1.5 rounded-xl bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 font-bold text-xs">
+                      Stopping safely...
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={handleAbortExecution}
+                      className="px-3.5 py-1.5 rounded-xl border border-rose-300 dark:border-rose-800 bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 hover:bg-rose-100 dark:hover:bg-rose-900/60 font-bold text-xs cursor-pointer transition-colors"
+                    >
+                      Stop Execution Safely
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
           </div>
         </div>
       )}
