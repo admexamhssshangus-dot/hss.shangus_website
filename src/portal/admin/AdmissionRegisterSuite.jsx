@@ -32,6 +32,7 @@ const SCHOOL_SUBTITLE = 'Nurturing Minds, Shaping Futures • District Anantnag'
 export const DEFAULT_ROW_HEIGHT = 56; // Standard row height in px
 const MIN_REGISTER_ROW_HEIGHT = 30;
 const MAX_REGISTER_ROW_HEIGHT = 100; // Allows up to 100px custom row height
+export const LAYOUT_STORAGE_KEY = 'hss_admission_register_layout_v2';
 
 export const DEFAULT_COLUMN_WIDTHS = {
   // PART 1
@@ -928,7 +929,18 @@ export default function AdmissionRegisterSuite({
   const [spreadLayoutMode, setSpreadLayoutMode] = useState('side_by_side');
 
   // Print & Layout Configuration (DEFAULT: 0.3 INCH DYNAMIC MARGINS ON LEGAL LANDSCAPE)
-  const [printMargin, setPrintMargin] = useState(0.3); // 0.3 inch default
+  const [printMargin, setPrintMargin] = useState(() => {
+    try {
+      const cached = localStorage.getItem(LAYOUT_STORAGE_KEY);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (typeof parsed.printMargin === 'number') {
+          return Math.min(0.8, Math.max(0.05, parsed.printMargin));
+        }
+      }
+    } catch (_) {}
+    return 0.3;
+  });
   const [showMarginControls, setShowMarginControls] = useState(false);
 
   // Global Filter States
@@ -1123,8 +1135,6 @@ export default function AdmissionRegisterSuite({
     });
   }, []);
 
-  const LAYOUT_STORAGE_KEY = 'hss_admission_register_layout_v2';
-
   // ─── DYNAMIC COLUMN WIDTHS & ROW HEIGHT STATE (FIREBASE + LOCAL STORAGE PRESERVED) ───
   const [columnWidths, setColumnWidths] = useState(() => {
     try {
@@ -1168,8 +1178,61 @@ export default function AdmissionRegisterSuite({
     setRowHeightInput(String(rowHeight));
   }, [rowHeight]);
 
+  // Candidates / Students per sheet for Legal print layout
+  const [studentsPerPage, setStudentsPerPage] = useState(() => {
+    try {
+      const cached = localStorage.getItem('hss_register_students_per_page');
+      if (cached) {
+        const val = parseInt(cached, 10);
+        if ([8, 10, 12, 14, 15, 16, 18, 20].includes(val)) return val;
+      }
+      const layoutCached = localStorage.getItem(LAYOUT_STORAGE_KEY);
+      if (layoutCached) {
+        const parsed = JSON.parse(layoutCached);
+        if (typeof parsed.studentsPerPage === 'number') return parsed.studentsPerPage;
+      }
+    } catch (_) {}
+    return 15;
+  });
+
   const [isLayoutModified, setIsLayoutModified] = useState(false);
   const [savingLayout, setSavingLayout] = useState(false);
+
+  // Popover internal tab state & search queries
+  const [popoverActiveTab, setPopoverActiveTab] = useState('layout'); // 'layout' | 'columns' | 'subjects'
+  const [columnSearchQuery, setColumnSearchQuery] = useState('');
+  const [subjectSearchQuery, setSubjectSearchQuery] = useState('');
+
+  const handlePrintMarginChange = useCallback((newMargin) => {
+    const clamped = Math.min(0.8, Math.max(0.05, Math.round(parseFloat(newMargin) * 100) / 100 || 0.3));
+    setPrintMargin(clamped);
+    try {
+      localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify({
+        columnWidths,
+        rowHeight,
+        printMargin: clamped,
+        studentsPerPage,
+        updatedAt: new Date().toISOString()
+      }));
+    } catch (_) {}
+    setIsLayoutModified(true);
+  }, [columnWidths, rowHeight, studentsPerPage]);
+
+  const handleStudentsPerPageChange = useCallback((val) => {
+    const num = Math.max(5, Math.min(25, parseInt(val, 10) || 15));
+    setStudentsPerPage(num);
+    try {
+      localStorage.setItem('hss_register_students_per_page', String(num));
+      localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify({
+        columnWidths,
+        rowHeight,
+        printMargin,
+        studentsPerPage: num,
+        updatedAt: new Date().toISOString()
+      }));
+    } catch (_) {}
+    setIsLayoutModified(true);
+  }, [columnWidths, rowHeight, printMargin]);
 
   // Helper to detect outdated generic lists with non-school subjects
   const isOldGenericSubjectList = (list) => {
@@ -1220,6 +1283,9 @@ export default function AdmissionRegisterSuite({
           if (data.printMargin && typeof data.printMargin === 'number') {
             setPrintMargin(data.printMargin);
           }
+          if (data.studentsPerPage && typeof data.studentsPerPage === 'number') {
+            setStudentsPerPage(data.studentsPerPage);
+          }
           if (Array.isArray(data.sentupSubjectAbbreviations) && data.sentupSubjectAbbreviations.length > 0) {
             const cleanList = isOldGenericSubjectList(data.sentupSubjectAbbreviations)
               ? DEFAULT_SENTUP_SUBJECT_DIRECTORY
@@ -1251,6 +1317,7 @@ export default function AdmissionRegisterSuite({
           columnWidths: updated,
           rowHeight,
           printMargin,
+          studentsPerPage,
           updatedAt: new Date().toISOString()
         }));
       } catch (_) {}
@@ -1267,6 +1334,7 @@ export default function AdmissionRegisterSuite({
         columnWidths,
         rowHeight: clamped,
         printMargin,
+        studentsPerPage,
         updatedAt: new Date().toISOString()
       }));
     } catch (_) {}
@@ -1278,6 +1346,7 @@ export default function AdmissionRegisterSuite({
       columnWidths,
       rowHeight,
       printMargin,
+      studentsPerPage: studentsPerPage || 15,
       sentupSubjectAbbreviations,
       updatedAt: new Date().toISOString()
     };
@@ -1286,6 +1355,7 @@ export default function AdmissionRegisterSuite({
     try {
       localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify(layoutPayload));
       localStorage.setItem('hss_sentup_subject_abbreviations', JSON.stringify(sentupSubjectAbbreviations));
+      localStorage.setItem('hss_register_students_per_page', String(studentsPerPage || 15));
     } catch (_) {}
 
     try {
@@ -1316,8 +1386,8 @@ export default function AdmissionRegisterSuite({
           logAdminActivity({
             actionType: 'update_register_layout',
             actionTitle: 'Saved Register Layout & Subject Key to Cloud',
-            details: `Saved custom register column widths, row height (${rowHeight}px), and ${sentupSubjectAbbreviations.length} subject abbreviations to Cloud settings.`,
-            metadata: { rowHeight, subjectCount: sentupSubjectAbbreviations.length }
+            details: `Saved custom register column widths, row height (${rowHeight}px), margin (${printMargin}in), ${studentsPerPage} per sheet, and ${sentupSubjectAbbreviations.length} subject abbreviations to Cloud settings.`,
+            metadata: { rowHeight, studentsPerPage, printMargin, subjectCount: sentupSubjectAbbreviations.length }
           });
         } catch (_) {}
       } else {
@@ -1353,6 +1423,7 @@ export default function AdmissionRegisterSuite({
         columnWidths,
         rowHeight,
         printMargin,
+        studentsPerPage,
         updatedAt: new Date().toISOString()
       };
 
@@ -1400,18 +1471,20 @@ export default function AdmissionRegisterSuite({
     } finally {
       setSavingSubjectsCloud(false);
     }
-  }, [columnWidths, rowHeight, printMargin]);
+  }, [columnWidths, rowHeight, printMargin, studentsPerPage]);
 
   const handleResetLayoutToOriginal = () => {
     setColumnWidths(DEFAULT_COLUMN_WIDTHS);
     setRowHeight(DEFAULT_ROW_HEIGHT);
-    setPrintMargin(0.35);
+    setPrintMargin(0.3);
+    setStudentsPerPage(15);
     try {
       localStorage.removeItem(LAYOUT_STORAGE_KEY);
+      localStorage.removeItem('hss_register_students_per_page');
     } catch (_) {}
     setIsLayoutModified(true);
     setToast({
-      message: '🔄 Column widths and row heights restored to factory format. Click "Set to Default" to save permanently.',
+      message: '🔄 Column widths, row heights, print margins, and page density restored to factory defaults.',
       type: 'info'
     });
   };
@@ -2913,25 +2986,7 @@ export default function AdmissionRegisterSuite({
   const isAllRowsIncluded = skippedCount === 0 && filteredStudents.length > 0;
   const isSomeRowsSkipped = skippedCount > 0 && skippedCount < filteredStudents.length;
 
-  // Dynamic Students Per Page Chunks for Legal Print Layout (Default 15 to efficiently fill Legal landscape)
-  const [studentsPerPage, setStudentsPerPage] = useState(() => {
-    try {
-      const cached = localStorage.getItem('hss_register_students_per_page');
-      if (cached) {
-        const val = parseInt(cached, 10);
-        if ([8, 10, 12, 14, 15, 16, 18, 20].includes(val)) return val;
-      }
-    } catch (_) {}
-    return 15;
-  });
-
-  const handleStudentsPerPageChange = useCallback((val) => {
-    const num = Math.max(5, Math.min(25, parseInt(val, 10) || 15));
-    setStudentsPerPage(num);
-    try {
-      localStorage.setItem('hss_register_students_per_page', String(num));
-    } catch (_) {}
-  }, []);
+  // pageChunks uses studentsPerPage declared in top layout state
 
   const pageChunks = useMemo(() => {
     const targetList = activeTab === 'sentup' ? activeIncludedRows : filteredStudents;
@@ -3516,13 +3571,21 @@ export default function AdmissionRegisterSuite({
     }
   };
 
+  // Dynamic Print Dimensions for Legal Landscape (Paper: 355.6mm x 215.9mm)
+  const printMarginMm = Math.max(2.5, Math.min(20, printMargin * 25.4));
+  const printableHeightMm = Math.max(150, 215.9 - (printMarginMm * 2) - 1);
+  const headerFooterAllowanceMm = activeTab === 'sentup' ? 34 : 44;
+  const targetRowHeightMm = rowHeight * 0.264583;
+  const maxFittingRowMm = (printableHeightMm - headerFooterAllowanceMm) / (studentsPerPage || 15);
+  const calculatedRowHeightMm = Math.max(7.5, Math.min(targetRowHeightMm, maxFittingRowMm)).toFixed(1);
+
   return (
     <div ref={suiteRootRef} className="admission-suite-root min-h-screen bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col font-sans">
       {/* ─── DYNAMIC PRINT CSS STYLESHEET (STRICT CLEAN LEGAL LANDSCAPE) ─── */}
       <style>{`
         @page {
           size: legal landscape;
-          margin: 4mm 5mm;
+          margin: ${printMargin}in;
         }
         @media print {
           *, *::before, *::after {
@@ -3633,8 +3696,8 @@ export default function AdmissionRegisterSuite({
             max-width: 100% !important;
             height: auto !important;
             min-height: 0 !important;
-            max-height: none !important;
-            padding: ${printMargin}in !important;
+            max-height: ${printableHeightMm.toFixed(1)}mm !important;
+            padding: 0 !important;
             margin: 0 !important;
             border: none !important;
             border-radius: 0 !important;
@@ -3654,14 +3717,17 @@ export default function AdmissionRegisterSuite({
             justify-content: space-between !important;
             height: auto !important;
             min-height: 0 !important;
-            max-height: 188mm !important;
+            max-height: ${printableHeightMm.toFixed(1)}mm !important;
+            width: 100% !important;
+            max-width: 100% !important;
             box-sizing: border-box !important;
-            padding: 2mm 3mm !important;
+            padding: 0 !important;
+            margin: 0 !important;
             page-break-after: always !important;
             break-after: page !important;
             page-break-inside: avoid !important;
             break-inside: avoid-page !important;
-            overflow: hidden !important;
+            overflow: visible !important;
             background: #ffffff !important;
           }
 
@@ -3718,7 +3784,7 @@ export default function AdmissionRegisterSuite({
             justify-content: space-between !important;
             height: auto !important;
             min-height: 0 !important;
-            max-height: 182mm !important;
+            max-height: ${printableHeightMm.toFixed(1)}mm !important;
             width: 100% !important;
             max-width: 100% !important;
             box-sizing: border-box !important;
@@ -3738,7 +3804,7 @@ export default function AdmissionRegisterSuite({
             justify-content: space-between !important;
             height: auto !important;
             min-height: 0 !important;
-            max-height: 182mm !important;
+            max-height: ${printableHeightMm.toFixed(1)}mm !important;
             width: 100% !important;
             max-width: 100% !important;
             box-sizing: border-box !important;
@@ -3757,11 +3823,11 @@ export default function AdmissionRegisterSuite({
             position: relative !important;
             height: auto !important;
             min-height: 0 !important;
-            max-height: 188mm !important;
+            max-height: ${printableHeightMm.toFixed(1)}mm !important;
             width: 100% !important;
             max-width: 100% !important;
             box-sizing: border-box !important;
-            padding: 1.5mm 3mm !important;
+            padding: 0 !important;
             margin: 0 !important;
             page-break-inside: avoid !important;
             break-inside: avoid-page !important;
@@ -3908,15 +3974,15 @@ export default function AdmissionRegisterSuite({
 
           .sentup-table tbody tr {
             display: table-row !important;
-            height: 9.8mm !important;
-            max-height: 10mm !important;
+            height: ${calculatedRowHeightMm}mm !important;
+            max-height: ${calculatedRowHeightMm}mm !important;
             page-break-inside: avoid !important;
             break-inside: avoid !important;
           }
 
           .sentup-table td {
-            height: 9.8mm !important;
-            max-height: 10mm !important;
+            height: ${calculatedRowHeightMm}mm !important;
+            max-height: ${calculatedRowHeightMm}mm !important;
             padding: 0.5px 2px !important;
             line-height: 1.15 !important;
             font-size: 8.5px !important;
@@ -3927,8 +3993,8 @@ export default function AdmissionRegisterSuite({
 
           .sentup-table .sentup-photo-cell,
           .sentup-table td.sentup-photo-cell {
-            height: 9.8mm !important;
-            max-height: 10mm !important;
+            height: ${calculatedRowHeightMm}mm !important;
+            max-height: ${calculatedRowHeightMm}mm !important;
             width: 10mm !important;
             max-width: 11mm !important;
             padding: 0.5px !important;
@@ -3939,7 +4005,7 @@ export default function AdmissionRegisterSuite({
 
           .sentup-table .sentup-photo-cell img,
           .sentup-table td.sentup-photo-cell img {
-            max-height: 9mm !important;
+            max-height: calc(${calculatedRowHeightMm}mm - 1mm) !important;
             max-width: 100% !important;
             width: auto !important;
             height: auto !important;
@@ -4059,8 +4125,8 @@ export default function AdmissionRegisterSuite({
 
           .sentup-table .st-receipt-inner {
             min-height: 0 !important;
-            height: 9mm !important;
-            max-height: 9mm !important;
+            height: calc(${calculatedRowHeightMm}mm - 1mm) !important;
+            max-height: calc(${calculatedRowHeightMm}mm - 1mm) !important;
             overflow: hidden !important;
           }
 
@@ -4196,17 +4262,17 @@ export default function AdmissionRegisterSuite({
 
           .register-resizable-row,
           .admission-spread-table tbody tr {
-            height: auto !important;
-            min-height: 0 !important;
-            max-height: none !important;
+            height: ${calculatedRowHeightMm}mm !important;
+            max-height: ${calculatedRowHeightMm}mm !important;
             box-sizing: border-box !important;
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
           }
 
           .register-resizable-row > td,
           .admission-spread-table tbody tr > td {
-            height: auto !important;
-            min-height: 0 !important;
-            max-height: none !important;
+            height: ${calculatedRowHeightMm}mm !important;
+            max-height: ${calculatedRowHeightMm}mm !important;
             padding: 1px 2px !important;
             font-size: 8px !important;
             line-height: 1.15 !important;
@@ -4222,8 +4288,8 @@ export default function AdmissionRegisterSuite({
 
           .register-photo-cell {
             padding: 0 !important;
-            height: auto !important;
-            max-height: none !important;
+            height: ${calculatedRowHeightMm}mm !important;
+            max-height: ${calculatedRowHeightMm}mm !important;
             overflow: hidden !important;
             box-sizing: border-box !important;
           }
@@ -4232,7 +4298,7 @@ export default function AdmissionRegisterSuite({
             width: auto !important;
             max-width: 100% !important;
             height: auto !important;
-            max-height: 12.5mm !important;
+            max-height: calc(${calculatedRowHeightMm}mm - 1mm) !important;
             object-fit: contain !important;
             object-position: center center !important;
             display: block !important;
@@ -4715,437 +4781,618 @@ export default function AdmissionRegisterSuite({
 
                   {/* View Popover Dropdown Panel */}
                   {showViewPopover && (
-                    <div className="register-popover-panel absolute right-0 top-full mt-1.5 w-[540px] sm:w-[580px] max-w-[92vw] p-4 rounded-2xl shadow-2xl z-[100] whitespace-normal animate-in fade-in zoom-in-95 max-h-[88vh] overflow-y-auto">
-                      <div className="flex items-center justify-between border-b border-slate-200 pb-2 mb-3">
-                        <span className="font-black text-xs text-slate-900 flex items-center gap-1.5">
-                          <Eye size={13} className="text-indigo-600" /> Display & Table Layout
-                        </span>
-                        {isLayoutModified && (
-                          <span className="text-[9.5px] uppercase tracking-wider font-black text-amber-700 bg-amber-100 border border-amber-300 px-2 py-0.5 rounded-full">
-                            Custom Modified
-                          </span>
-                        )}
-                      </div>
-
-                      {/* 2-Column Grid Layout */}
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-left">
-                        {/* COLUMN 1: Views & Zoom */}
-                        <div className="space-y-3.5 flex flex-col justify-between">
-                          {/* Sub-view Section Selector */}
-                          {activeTab === 'adm_register' && (
-                            <div>
-                              <label className="block text-[11px] font-black text-slate-800 mb-1">Section to Display:</label>
-                              <select
-                                value={registerViewSection}
-                                onChange={(e) => setRegisterViewSection(e.target.value)}
-                                className="w-full py-1.5 px-2.5 text-xs rounded-xl font-bold bg-white text-slate-900 border border-slate-300 shadow-2xs focus:ring-2 focus:ring-indigo-500 cursor-pointer"
-                              >
-                                <option value="all" className="bg-white text-slate-900 font-bold">📑 All Spreads (Full Register)</option>
-                                <option value="cover" className="bg-white text-slate-900 font-bold">📜 Cover Page Only</option>
-                                <option value="spreads" className="bg-white text-slate-900 font-bold">📖 Ledger Table Only</option>
-                                <option value="summary" className="bg-white text-slate-900 font-bold">📊 Summary Statement Only</option>
-                                <option value="notes" className="bg-white text-slate-900 font-bold">📝 Notes & Annexure Only</option>
-                              </select>
-                            </div>
-                          )}
-
-                          {/* Sentup Columns Selector (Inside View & Layout Popover) */}
-                          {activeTab === 'sentup' && (
-                            <div>
-                              <div className="flex items-center justify-between mb-1">
-                                <label className="block text-[11px] font-black text-slate-800">Sentup Table Columns:</label>
-                                <button
-                                  type="button"
-                                  onClick={resetSentupCols}
-                                  className="text-[10px] font-black text-indigo-600 hover:text-indigo-800 hover:underline cursor-pointer"
-                                >
-                                  Reset Default
-                                </button>
-                              </div>
-                              <div className="space-y-1 p-2 bg-slate-50 rounded-xl border border-slate-200 max-h-48 overflow-y-auto">
-                                {ALL_SENTUP_COLS.map(col => (
-                                  <label key={col.key} className="flex items-center gap-2 text-xs font-bold text-slate-800 cursor-pointer hover:bg-slate-100 p-0.5 rounded">
-                                    <input
-                                      type="checkbox"
-                                      checked={isSentupColVisible(col.key)}
-                                      onChange={() => toggleSentupCol(col.key)}
-                                      className="rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer"
-                                    />
-                                    <span>{col.label}</span>
-                                    {col.key === 'st_rollNo' && isAprBianSession && !sentupExplicitCols.has('st_rollNo') && (
-                                      <span className="text-[9px] text-amber-600 font-bold ml-auto">(Default off for APR)</span>
-                                    )}
-                                  </label>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-
-                          {/* Screen Layout Mode (Side-by-Side Book View vs Stacked) */}
-                          {activeTab === 'adm_register' && (
-                            <div>
-                              <label className="block text-[11px] font-black text-slate-800 mb-1">Book Layout:</label>
-                              <div className="grid grid-cols-2 gap-1.5 p-1 bg-slate-100 rounded-xl border border-slate-200">
-                                <button
-                                  type="button"
-                                  onClick={() => setSpreadLayoutMode('side_by_side')}
-                                  className={`py-1.5 px-2 rounded-lg text-[11px] font-black flex items-center justify-center gap-1.5 cursor-pointer transition-all ${
-                                    spreadLayoutMode === 'side_by_side'
-                                      ? 'bg-indigo-600 text-white shadow-xs'
-                                      : 'bg-white hover:bg-slate-50 text-slate-800 font-bold border border-slate-200'
-                                  }`}
-                                >
-                                  <Columns size={12} />
-                                  <span>Side-by-Side</span>
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => setSpreadLayoutMode('stacked')}
-                                  className={`py-1.5 px-2 rounded-lg text-[11px] font-black flex items-center justify-center gap-1.5 cursor-pointer transition-all ${
-                                    spreadLayoutMode === 'stacked'
-                                      ? 'bg-indigo-600 text-white shadow-xs'
-                                      : 'bg-white hover:bg-slate-50 text-slate-800 font-bold border border-slate-200'
-                                  }`}
-                                >
-                                  <LayoutGrid size={12} />
-                                  <span>Stacked Pages</span>
-                                </button>
-                              </div>
-                            </div>
-                          )}
-
-                          {/* Zoom Controls */}
-                          <div>
-                            <div className="flex items-center justify-between text-[11px] font-black mb-1">
-                              <span className="text-slate-800">Screen Zoom:</span>
-                              <span className="px-2 py-0.5 rounded-md bg-white font-mono font-black text-[11px] text-slate-800 border border-slate-300">{Math.round(zoomLevel * 100)}%</span>
-                            </div>
-                            <div className="flex items-center justify-between p-1 rounded-xl popover-zoom-box bg-slate-50 border border-slate-200">
-                              <button
-                                type="button"
-                                onClick={() => setZoomLevel(prev => Math.max(0.6, Math.round((prev - 0.1) * 10) / 10))}
-                                className="w-7 h-7 flex items-center justify-center bg-white hover:bg-slate-100 rounded-lg text-xs font-black text-slate-900 border border-slate-300 cursor-pointer shadow-2xs"
-                              >
-                                -
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setZoomLevel(1.0)}
-                                className="text-[11px] font-black text-indigo-600 hover:underline cursor-pointer"
-                              >
-                                Reset 100%
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setZoomLevel(prev => Math.min(1.4, Math.round((prev + 0.1) * 10) / 10))}
-                                className="w-7 h-7 flex items-center justify-center bg-white hover:bg-slate-100 rounded-lg text-xs font-black text-slate-900 border border-slate-300 cursor-pointer shadow-2xs"
-                              >
-                                +
-                              </button>
-                            </div>
+                    <div className="register-popover-panel absolute right-0 top-full mt-2 w-[540px] sm:w-[600px] max-w-[95vw] max-h-[85vh] bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 z-[100] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 text-slate-900 dark:text-slate-100">
+                      {/* 1. Header (Sticky Top) */}
+                      <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-800/60 backdrop-blur-sm shrink-0">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-indigo-600 to-indigo-800 text-white flex items-center justify-center shadow-md shadow-indigo-500/20">
+                            <SlidersHorizontal size={15} />
                           </div>
-                        </div>
-
-                        {/* COLUMN 2: Dimensions & Printing */}
-                        <div className="space-y-3.5 flex flex-col justify-between">
-                          {/* Dynamic Row Height Manager */}
                           <div>
-                            <div className="flex items-center justify-between text-[11px] font-black mb-1">
-                              <span className="text-slate-800">Row Height:</span>
-                              <div className="flex items-center gap-1">
-                                <input
-                                  type="number"
-                                  min={MIN_REGISTER_ROW_HEIGHT}
-                                  max={MAX_REGISTER_ROW_HEIGHT}
-                                  value={rowHeightInput}
-                                  onChange={(e) => {
-                                    const raw = e.target.value;
-                                    setRowHeightInput(raw);
-                                    const val = parseInt(raw, 10);
-                                    if (!isNaN(val) && val >= MIN_REGISTER_ROW_HEIGHT && val <= MAX_REGISTER_ROW_HEIGHT) {
-                                      handleRowHeightChange(val);
-                                    }
-                                  }}
-                                  onBlur={() => {
-                                    const val = parseInt(rowHeightInput, 10);
-                                    if (isNaN(val) || val < MIN_REGISTER_ROW_HEIGHT) {
-                                      handleRowHeightChange(MIN_REGISTER_ROW_HEIGHT);
-                                      setRowHeightInput(String(MIN_REGISTER_ROW_HEIGHT));
-                                    } else if (val > MAX_REGISTER_ROW_HEIGHT) {
-                                      handleRowHeightChange(MAX_REGISTER_ROW_HEIGHT);
-                                      setRowHeightInput(String(MAX_REGISTER_ROW_HEIGHT));
-                                    } else {
-                                      handleRowHeightChange(val);
-                                      setRowHeightInput(String(val));
-                                    }
-                                  }}
-                                  onKeyDown={(e) => {
-                                    if (e.key === 'Enter') {
-                                      e.currentTarget.blur();
-                                    }
-                                  }}
-                                  className="w-14 text-center py-0.5 px-1 rounded-md bg-white border border-slate-300 font-mono font-black text-[11px] text-slate-800 focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
-                                  title="Enter custom row height in px (30-100)"
-                                />
-                                <span className="text-[10px] font-bold text-slate-500">px</span>
-                              </div>
-                            </div>
-                            <input
-                              type="range"
-                              min={MIN_REGISTER_ROW_HEIGHT}
-                              max={MAX_REGISTER_ROW_HEIGHT}
-                              step="1"
-                              value={rowHeight}
-                              onChange={(e) => handleRowHeightChange(parseInt(e.target.value, 10))}
-                              className="w-full cursor-pointer accent-indigo-600 mb-1.5"
-                            />
-                            <div className="grid grid-cols-3 gap-1.5">
-                              {[
-                                { label: 'Compact', val: 40 },
-                                { label: 'Default', val: 56, star: true },
-                                { label: 'Spacious', val: 75 }
-                              ].map(({ label, val, star }) => (
-                                <button
-                                  key={val}
-                                  type="button"
-                                  onClick={() => handleRowHeightChange(val)}
-                                  className={`py-1 rounded-lg text-[10px] font-black cursor-pointer transition-all ${
-                                    rowHeight === val
-                                      ? 'bg-indigo-600 text-white shadow-xs'
-                                      : 'popover-btn-inactive'
-                                  }`}
-                                >
-                                  {label} ({val}px){star ? ' ★' : ''}
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-
-                          {/* Margins */}
-                          <div>
-                            <div className="flex items-center justify-between text-[11px] font-black mb-1">
-                              <span className="text-slate-800">Print Margins:</span>
-                              <span className="px-2 py-0.5 rounded-md popover-badge font-mono font-black text-[11px]">{printMargin} in</span>
-                            </div>
-                            <input
-                              type="range"
-                              min="0.1"
-                              max="0.8"
-                              step="0.05"
-                              value={printMargin}
-                              onChange={(e) => setPrintMargin(parseFloat(e.target.value))}
-                              className="w-full cursor-pointer accent-indigo-600 mb-1.5"
-                            />
-                            <div className="grid grid-cols-4 gap-1.5">
-                              {[0.2, 0.3, 0.4, 0.5].map(m => (
-                                <button
-                                  key={m}
-                                  type="button"
-                                  onClick={() => setPrintMargin(m)}
-                                  className={`py-1 rounded-lg text-[10.5px] font-black cursor-pointer transition-all ${
-                                    printMargin === m
-                                      ? 'bg-indigo-600 text-white shadow-xs'
-                                      : 'popover-btn-inactive'
-                                  }`}
-                                >
-                                  {m}" {m === 0.3 ? '★' : ''}
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Sentup Subject Abbreviations Management Section (Configurable in View & Layout) */}
-                      {activeTab === 'sentup' && (
-                        <div className="border-t border-slate-200 pt-3 mt-3 text-left">
-                          <div className="flex items-center justify-between mb-1.5">
-                            <div className="flex items-center gap-2">
-                              <span className="font-black text-xs text-slate-900 flex items-center gap-1.5">
-                                <BookOpen size={13} className="text-indigo-600" />
-                                <span>Page 2 Subject Key ({sentupSubjectAbbreviations.length} · HSS Shangus)</span>
-                              </span>
-                              {savingSubjectsCloud ? (
-                                <span className="text-[10px] font-bold text-indigo-600 flex items-center gap-1">
-                                  <Loader2 size={10} className="animate-spin" /> Saving to Cloud...
-                                </span>
-                              ) : (
-                                <span className="text-[9.5px] font-black text-emerald-800 bg-emerald-100 border border-emerald-300 px-1.5 py-0.5 rounded-full flex items-center gap-1">
-                                  <Check size={9} /> Cloud Synced
+                            <div className="font-black text-xs sm:text-sm text-slate-900 dark:text-white flex items-center gap-2 leading-none">
+                              Display & Print Layout
+                              {isLayoutModified && (
+                                <span className="text-[9.5px] uppercase tracking-wider font-black text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-950/70 border border-amber-300 dark:border-amber-700 px-2 py-0.5 rounded-full">
+                                  Modified
                                 </span>
                               )}
                             </div>
-                            <div className="flex items-center gap-2">
-                              <button
-                                type="button"
-                                onClick={() => saveSubjectAbbreviationsToCloud(sentupSubjectAbbreviations)}
-                                disabled={savingSubjectsCloud}
-                                className="text-[10.5px] font-black text-emerald-700 hover:text-emerald-900 hover:underline cursor-pointer flex items-center gap-0.5"
-                                title="Sync current subject abbreviations to cloud"
-                              >
-                                <Save size={11} /> Save to Cloud
-                              </button>
-                              <button
-                                type="button"
-                                onClick={handleResetSubjectAbbreviations}
-                                className="text-[10px] font-black text-slate-500 hover:text-rose-600 hover:underline cursor-pointer"
-                                title="Reset to official Govt HSS Shangus subjects directory"
-                              >
-                                Reset to School Subjects
-                              </button>
+                            <div className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold mt-0.5">
+                              Customise table density, margins & printing options
                             </div>
                           </div>
-                          <div className="text-[10px] text-slate-500 mb-2 leading-tight">
-                            Manage abbreviations displayed on Page 2 of the Sent-up Roll Sheet as per JKBOSE guidelines and website usage:
-                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setShowViewPopover(false)}
+                          className="p-1.5 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 cursor-pointer transition-colors"
+                          title="Close"
+                        >
+                          <X size={16} />
+                        </button>
+                      </div>
 
-                          {/* Add Form */}
-                          <div className="flex items-center gap-1.5 p-2 bg-slate-50 rounded-xl border border-slate-200 mb-2">
-                            <input
-                              type="text"
-                              placeholder="Code (e.g. BIO)"
-                              value={newSubCode}
-                              onChange={(e) => setNewSubCode(e.target.value)}
-                              className="w-28 px-2 py-1 text-xs rounded-lg border border-slate-300 bg-white font-mono font-bold uppercase focus:ring-1 focus:ring-indigo-500 focus:outline-hidden"
-                            />
-                            <input
-                              type="text"
-                              placeholder="Subject Title (e.g. Biology)"
-                              value={newSubName}
-                              onChange={(e) => setNewSubName(e.target.value)}
-                              className="flex-1 px-2 py-1 text-xs rounded-lg border border-slate-300 bg-white font-medium focus:ring-1 focus:ring-indigo-500 focus:outline-hidden"
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') {
-                                  e.preventDefault();
-                                  handleAddSubjectAbbreviation();
-                                }
-                              }}
-                            />
-                            <button
-                              type="button"
-                              onClick={handleAddSubjectAbbreviation}
-                              disabled={!newSubCode.trim() || !newSubName.trim()}
-                              className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-black cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed transition-all flex items-center gap-1 shrink-0 shadow-2xs"
-                              title="Add subject abbreviation to Page 2 Key"
-                            >
-                              <Plus size={12} />
-                              <span>Add</span>
-                            </button>
-                          </div>
+                      {/* 2. Segmented Navigation Tabs */}
+                      <div className="flex items-center gap-1.5 p-1.5 bg-slate-100/90 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-700 shrink-0 text-xs font-bold">
+                        <button
+                          type="button"
+                          onClick={() => setPopoverActiveTab('layout')}
+                          className={`flex-1 py-1.5 px-2.5 rounded-xl flex items-center justify-center gap-1.5 cursor-pointer transition-all ${
+                            popoverActiveTab === 'layout'
+                              ? 'bg-white dark:bg-slate-900 text-indigo-700 dark:text-indigo-400 shadow-xs font-black border border-slate-200/80 dark:border-slate-700'
+                              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 hover:bg-white/60 dark:hover:bg-slate-900/40'
+                          }`}
+                        >
+                          <Printer size={13} />
+                          <span>Layout & Print</span>
+                        </button>
 
-                          {/* List of current abbreviations with Edit and Delete buttons */}
-                          <div className="max-h-52 overflow-y-auto space-y-1.5 p-1.5 bg-slate-50/80 rounded-xl border border-slate-200">
-                            {sentupSubjectAbbreviations.map((sub, sIdx) => {
-                              const itemKey = sub.id || `sub_idx_${sIdx}`;
-                              const isEditing = editingSubKey === itemKey;
+                        {activeTab === 'sentup' && (
+                          <button
+                            type="button"
+                            onClick={() => setPopoverActiveTab('columns')}
+                            className={`flex-1 py-1.5 px-2.5 rounded-xl flex items-center justify-center gap-1.5 cursor-pointer transition-all ${
+                              popoverActiveTab === 'columns'
+                                ? 'bg-white dark:bg-slate-900 text-indigo-700 dark:text-indigo-400 shadow-xs font-black border border-slate-200/80 dark:border-slate-700'
+                                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 hover:bg-white/60 dark:hover:bg-slate-900/40'
+                            }`}
+                          >
+                            <Columns size={13} />
+                            <span>Columns</span>
+                            <span className="text-[10px] font-black px-1.5 py-0.2 rounded-full bg-indigo-100 dark:bg-indigo-950 text-indigo-800 dark:text-indigo-300">
+                              {ALL_SENTUP_COLS.filter(c => isSentupColVisible(c.key)).length}/{ALL_SENTUP_COLS.length}
+                            </span>
+                          </button>
+                        )}
 
-                              if (isEditing) {
-                                return (
-                                  <div
-                                    key={itemKey}
-                                    className="flex items-center gap-1.5 p-1.5 bg-indigo-50/90 rounded-lg border border-indigo-300 shadow-xs"
+                        <button
+                          type="button"
+                          onClick={() => setPopoverActiveTab('subjects')}
+                          className={`flex-1 py-1.5 px-2.5 rounded-xl flex items-center justify-center gap-1.5 cursor-pointer transition-all ${
+                            popoverActiveTab === 'subjects'
+                              ? 'bg-white dark:bg-slate-900 text-indigo-700 dark:text-indigo-400 shadow-xs font-black border border-slate-200/80 dark:border-slate-700'
+                              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 hover:bg-white/60 dark:hover:bg-slate-900/40'
+                          }`}
+                        >
+                          <BookOpen size={13} />
+                          <span>Subject Key</span>
+                          <span className="text-[10px] font-black px-1.5 py-0.2 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300">
+                            {sentupSubjectAbbreviations.length}
+                          </span>
+                        </button>
+                      </div>
+
+                      {/* 3. Scrollable Tab Content Body */}
+                      <div className="flex-1 overflow-y-auto p-4 space-y-4 text-left">
+                        {/* ─── TAB 1: LAYOUT & PRINT ─── */}
+                        {popoverActiveTab === 'layout' && (
+                          <div className="space-y-4">
+                            {/* Students Per Sheet Selector */}
+                            <div className="p-3 bg-indigo-50/50 dark:bg-indigo-950/30 rounded-xl border border-indigo-100 dark:border-indigo-900/50">
+                              <div className="flex items-center justify-between mb-1.5">
+                                <div>
+                                  <span className="text-xs font-black text-slate-900 dark:text-slate-100">
+                                    Students Per Sheet (Page Density)
+                                  </span>
+                                  <p className="text-[10.5px] text-slate-500 dark:text-slate-400">
+                                    Prevents multi-page overflow on Legal landscape paper
+                                  </p>
+                                </div>
+                                <span className="px-2 py-0.5 rounded-md bg-white dark:bg-slate-800 border border-indigo-200 dark:border-indigo-800 font-mono font-black text-[11px] text-indigo-700 dark:text-indigo-300">
+                                  {pageChunks.length} Sheet{pageChunks.length === 1 ? '' : 's'} Total
+                                </span>
+                              </div>
+                              <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 mt-2">
+                                {[
+                                  { val: 10, label: '10 Rows', note: 'Spacious / Large' },
+                                  { val: 12, label: '12 Rows', note: 'Balanced' },
+                                  { val: 14, label: '14 Rows', note: 'Compact' },
+                                  { val: 15, label: '15 Rows', note: 'Standard ★', star: true }
+                                ].map(({ val, label, note }) => {
+                                  const isActive = studentsPerPage === val;
+                                  return (
+                                    <button
+                                      key={val}
+                                      type="button"
+                                      onClick={() => handleStudentsPerPageChange(val)}
+                                      className={`p-2 rounded-xl text-left cursor-pointer transition-all border ${
+                                        isActive
+                                          ? 'border-indigo-600 bg-indigo-600 text-white shadow-xs'
+                                          : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-750'
+                                      }`}
+                                    >
+                                      <div className="font-black text-xs flex items-center justify-between">
+                                        <span>{label}</span>
+                                        {isActive && <Check size={12} className="shrink-0" />}
+                                      </div>
+                                      <div className={`text-[9.5px] font-semibold ${isActive ? 'text-indigo-100' : 'text-slate-500 dark:text-slate-400'}`}>
+                                        {note}
+                                      </div>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+
+                            {/* Row Height & Print Margins Grid */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                              {/* Row Height */}
+                              <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700 flex flex-col justify-between">
+                                <div>
+                                  <div className="flex items-center justify-between text-xs font-black text-slate-900 dark:text-slate-100 mb-1">
+                                    <span>Row Height:</span>
+                                    <div className="flex items-center gap-1">
+                                      <input
+                                        type="number"
+                                        min={MIN_REGISTER_ROW_HEIGHT}
+                                        max={MAX_REGISTER_ROW_HEIGHT}
+                                        value={rowHeightInput}
+                                        onChange={(e) => {
+                                          const raw = e.target.value;
+                                          setRowHeightInput(raw);
+                                          const val = parseInt(raw, 10);
+                                          if (!isNaN(val) && val >= MIN_REGISTER_ROW_HEIGHT && val <= MAX_REGISTER_ROW_HEIGHT) {
+                                            handleRowHeightChange(val);
+                                          }
+                                        }}
+                                        onBlur={() => {
+                                          const val = parseInt(rowHeightInput, 10);
+                                          if (isNaN(val) || val < MIN_REGISTER_ROW_HEIGHT) {
+                                            handleRowHeightChange(MIN_REGISTER_ROW_HEIGHT);
+                                            setRowHeightInput(String(MIN_REGISTER_ROW_HEIGHT));
+                                          } else if (val > MAX_REGISTER_ROW_HEIGHT) {
+                                            handleRowHeightChange(MAX_REGISTER_ROW_HEIGHT);
+                                            setRowHeightInput(String(MAX_REGISTER_ROW_HEIGHT));
+                                          } else {
+                                            handleRowHeightChange(val);
+                                            setRowHeightInput(String(val));
+                                          }
+                                        }}
+                                        className="w-12 text-center py-0.5 px-1 rounded-md bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 font-mono font-black text-[11px] text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-indigo-500"
+                                        title="Enter custom row height (30-100px)"
+                                      />
+                                      <span className="text-[10px] font-bold text-slate-500">px</span>
+                                    </div>
+                                  </div>
+                                  <input
+                                    type="range"
+                                    min={MIN_REGISTER_ROW_HEIGHT}
+                                    max={MAX_REGISTER_ROW_HEIGHT}
+                                    step="1"
+                                    value={rowHeight}
+                                    onChange={(e) => handleRowHeightChange(parseInt(e.target.value, 10))}
+                                    className="w-full cursor-pointer accent-indigo-600 my-1.5"
+                                  />
+                                </div>
+                                <div className="grid grid-cols-3 gap-1 mt-1">
+                                  {[
+                                    { label: 'Compact', val: 40 },
+                                    { label: 'Default', val: 56, star: true },
+                                    { label: 'Spacious', val: 72 }
+                                  ].map(({ label, val, star }) => (
+                                    <button
+                                      key={val}
+                                      type="button"
+                                      onClick={() => handleRowHeightChange(val)}
+                                      className={`py-1 rounded-lg text-[10px] font-black cursor-pointer transition-all text-center border ${
+                                        rowHeight === val
+                                          ? 'bg-indigo-600 text-white border-indigo-600 shadow-2xs'
+                                          : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100'
+                                      }`}
+                                    >
+                                      {label} {star ? '★' : ''}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+
+                              {/* Print Margins */}
+                              <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700 flex flex-col justify-between">
+                                <div>
+                                  <div className="flex items-center justify-between text-xs font-black text-slate-900 dark:text-slate-100 mb-1">
+                                    <span>Print Margin:</span>
+                                    <span className="px-2 py-0.5 rounded-md bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 font-mono font-black text-[11px] text-slate-800 dark:text-slate-200">
+                                      {printMargin}" ({Math.round(printMargin * 25.4)}mm)
+                                    </span>
+                                  </div>
+                                  <input
+                                    type="range"
+                                    min="0.1"
+                                    max="0.6"
+                                    step="0.05"
+                                    value={printMargin}
+                                    onChange={(e) => handlePrintMarginChange(parseFloat(e.target.value))}
+                                    className="w-full cursor-pointer accent-indigo-600 my-1.5"
+                                  />
+                                </div>
+                                <div className="grid grid-cols-4 gap-1 mt-1">
+                                  {[
+                                    { m: 0.2, label: '0.2"' },
+                                    { m: 0.3, label: '0.3" ★' },
+                                    { m: 0.4, label: '0.4"' },
+                                    { m: 0.5, label: '0.5"' }
+                                  ].map(({ m, label }) => (
+                                    <button
+                                      key={m}
+                                      type="button"
+                                      onClick={() => handlePrintMarginChange(m)}
+                                      className={`py-1 rounded-lg text-[10px] font-black cursor-pointer transition-all text-center border ${
+                                        Math.abs(printMargin - m) < 0.02
+                                          ? 'bg-indigo-600 text-white border-indigo-600 shadow-2xs'
+                                          : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100'
+                                      }`}
+                                    >
+                                      {label}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Section to Display & View Layout */}
+                            {activeTab === 'adm_register' && (
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700">
+                                <div>
+                                  <label className="block text-xs font-black text-slate-800 dark:text-slate-200 mb-1.5">
+                                    Section to Display:
+                                  </label>
+                                  <select
+                                    value={registerViewSection}
+                                    onChange={(e) => setRegisterViewSection(e.target.value)}
+                                    className="w-full py-1.5 px-2.5 text-xs rounded-xl font-bold bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-300 dark:border-slate-600 shadow-2xs focus:ring-2 focus:ring-indigo-500 cursor-pointer"
                                   >
-                                    <input
-                                      type="text"
-                                      value={editSubCode}
-                                      onChange={(e) => setEditSubCode(e.target.value)}
-                                      className="w-24 px-2 py-1 text-xs rounded border border-indigo-400 bg-white font-mono font-bold uppercase focus:ring-1 focus:ring-indigo-600 focus:outline-hidden"
-                                      placeholder="Code"
-                                      autoFocus
-                                      onKeyDown={(e) => {
-                                        if (e.key === 'Enter') {
-                                          e.preventDefault();
-                                          handleSaveEditSubjectAbbreviation(itemKey);
-                                        } else if (e.key === 'Escape') {
-                                          e.preventDefault();
-                                          handleCancelEditSubjectAbbreviation();
-                                        }
-                                      }}
-                                    />
-                                    <input
-                                      type="text"
-                                      value={editSubName}
-                                      onChange={(e) => setEditSubName(e.target.value)}
-                                      className="flex-1 px-2 py-1 text-xs rounded border border-indigo-400 bg-white font-medium focus:ring-1 focus:ring-indigo-600 focus:outline-hidden"
-                                      placeholder="Subject Title"
-                                      onKeyDown={(e) => {
-                                        if (e.key === 'Enter') {
-                                          e.preventDefault();
-                                          handleSaveEditSubjectAbbreviation(itemKey);
-                                        } else if (e.key === 'Escape') {
-                                          e.preventDefault();
-                                          handleCancelEditSubjectAbbreviation();
-                                        }
-                                      }}
-                                    />
+                                    <option value="all">📑 All Spreads (Full Register)</option>
+                                    <option value="cover">📜 Cover Page Only</option>
+                                    <option value="spreads">📖 Ledger Table Only</option>
+                                    <option value="summary">📊 Summary Statement Only</option>
+                                    <option value="notes">📝 Notes & Annexure Only</option>
+                                  </select>
+                                </div>
+                                <div>
+                                  <label className="block text-xs font-black text-slate-800 dark:text-slate-200 mb-1.5">
+                                    Book Layout:
+                                  </label>
+                                  <div className="grid grid-cols-2 gap-1.5 p-0.5 bg-slate-200 dark:bg-slate-700 rounded-xl">
                                     <button
                                       type="button"
-                                      onClick={() => handleSaveEditSubjectAbbreviation(itemKey)}
-                                      disabled={!editSubCode.trim() || !editSubName.trim()}
-                                      className="p-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded cursor-pointer transition-colors shrink-0 disabled:opacity-40 disabled:cursor-not-allowed shadow-2xs"
-                                      title="Save changes (Enter)"
+                                      onClick={() => setSpreadLayoutMode('side_by_side')}
+                                      className={`py-1.5 px-2 rounded-lg text-[11px] font-black flex items-center justify-center gap-1 cursor-pointer transition-all ${
+                                        spreadLayoutMode === 'side_by_side'
+                                          ? 'bg-indigo-600 text-white shadow-xs'
+                                          : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300'
+                                      }`}
                                     >
-                                      <Check size={13} />
+                                      <Columns size={12} />
+                                      <span>Side-by-Side</span>
                                     </button>
                                     <button
                                       type="button"
-                                      onClick={handleCancelEditSubjectAbbreviation}
-                                      className="p-1 text-slate-500 hover:text-slate-700 hover:bg-slate-200 rounded cursor-pointer transition-colors shrink-0"
-                                      title="Cancel editing (Esc)"
+                                      onClick={() => setSpreadLayoutMode('stacked')}
+                                      className={`py-1.5 px-2 rounded-lg text-[11px] font-black flex items-center justify-center gap-1 cursor-pointer transition-all ${
+                                        spreadLayoutMode === 'stacked'
+                                          ? 'bg-indigo-600 text-white shadow-xs'
+                                          : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300'
+                                      }`}
                                     >
-                                      <X size={13} />
-                                    </button>
-                                  </div>
-                                );
-                              }
-
-                              return (
-                                <div
-                                  key={itemKey}
-                                  className="flex items-center justify-between px-2 py-1 bg-white hover:bg-indigo-50/40 rounded-lg border border-slate-200/70 text-xs shadow-2xs group transition-colors"
-                                >
-                                  <div className="flex items-center gap-2 min-w-0 pr-2">
-                                    <span className="px-1.5 py-0.5 rounded bg-indigo-50 border border-indigo-200 text-indigo-900 font-mono font-black text-[10px] shrink-0">
-                                      {sub.code}
-                                    </span>
-                                    <span className="font-semibold text-slate-800 text-[11px] truncate">
-                                      {sub.name}
-                                    </span>
-                                  </div>
-                                  <div className="flex items-center gap-1 shrink-0">
-                                    <button
-                                      type="button"
-                                      onClick={() => handleStartEditSubjectAbbreviation(sub, itemKey)}
-                                      className="p-1 text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 rounded cursor-pointer transition-colors"
-                                      title={`Edit ${sub.name} (${sub.code})`}
-                                    >
-                                      <Edit3 size={12} />
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => handleDeleteSubjectAbbreviation(itemKey)}
-                                      className="p-1 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded cursor-pointer transition-colors"
-                                      title={`Delete ${sub.name} (${sub.code})`}
-                                    >
-                                      <Trash2 size={12} />
+                                      <LayoutGrid size={12} />
+                                      <span>Stacked</span>
                                     </button>
                                   </div>
                                 </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      )}
+                              </div>
+                            )}
 
-                      {/* Footer Actions */}
-                      <div className="border-t border-slate-200 pt-3 mt-3 space-y-2">
+                            {/* Sentup Page Inclusions */}
+                            {activeTab === 'sentup' && (
+                              <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700">
+                                <span className="block text-xs font-black text-slate-800 dark:text-slate-200 mb-1.5">
+                                  Sentup Document Pages:
+                                </span>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                  <label className="flex items-center gap-2.5 p-2 bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 cursor-pointer text-xs font-bold text-slate-800 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800">
+                                    <input
+                                      type="checkbox"
+                                      checked={includeCoverPage}
+                                      onChange={(e) => setIncludeCoverPage(e.target.checked)}
+                                      className="rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer w-4 h-4"
+                                    />
+                                    <div>
+                                      <div>Cover Page (Page 1)</div>
+                                      <div className="text-[10px] text-slate-500 font-normal">Official red document title label</div>
+                                    </div>
+                                  </label>
+                                  <label className="flex items-center gap-2.5 p-2 bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 cursor-pointer text-xs font-bold text-slate-800 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800">
+                                    <input
+                                      type="checkbox"
+                                      checked={includePlanPage}
+                                      onChange={(e) => setIncludePlanPage(e.target.checked)}
+                                      className="rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer w-4 h-4"
+                                    />
+                                    <div>
+                                      <div>Exam Plan & Key (Page 2)</div>
+                                      <div className="text-[10px] text-slate-500 font-normal">Subject codes & seat scheme</div>
+                                    </div>
+                                  </label>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Screen Zoom Controls */}
+                            <div className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700">
+                              <div>
+                                <span className="text-xs font-black text-slate-800 dark:text-slate-200">
+                                  On-Screen Zoom:
+                                </span>
+                                <div className="text-[10.5px] text-slate-500 dark:text-slate-400">
+                                  Scales ledger display on current screen
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-1.5 p-1 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
+                                <button
+                                  type="button"
+                                  onClick={() => setZoomLevel(prev => Math.max(0.6, Math.round((prev - 0.1) * 10) / 10))}
+                                  className="w-7 h-7 flex items-center justify-center rounded-lg font-black text-xs bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 hover:bg-slate-200 cursor-pointer shadow-2xs"
+                                  title="Zoom Out"
+                                >
+                                  -
+                                </button>
+                                <span className="px-2 font-mono font-black text-xs text-slate-800 dark:text-slate-200 min-w-[50px] text-center">
+                                  {Math.round(zoomLevel * 100)}%
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => setZoomLevel(prev => Math.min(1.4, Math.round((prev + 0.1) * 10) / 10))}
+                                  className="w-7 h-7 flex items-center justify-center rounded-lg font-black text-xs bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 hover:bg-slate-200 cursor-pointer shadow-2xs"
+                                  title="Zoom In"
+                                >
+                                  +
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setZoomLevel(1.0)}
+                                  className="text-[10.5px] font-black text-indigo-600 dark:text-indigo-400 hover:underline px-1.5 cursor-pointer"
+                                >
+                                  Reset
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* ─── TAB 2: SENTUP VISIBLE COLUMNS ─── */}
+                        {popoverActiveTab === 'columns' && (
+                          <div className="space-y-3">
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="relative flex-1">
+                                <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                                <input
+                                  type="text"
+                                  placeholder="Search columns..."
+                                  value={columnSearchQuery}
+                                  onChange={(e) => setColumnSearchQuery(e.target.value)}
+                                  className="w-full pl-7 pr-2 py-1 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 font-medium focus:ring-1 focus:ring-indigo-500 focus:outline-hidden"
+                                />
+                              </div>
+                              <button
+                                type="button"
+                                onClick={resetSentupCols}
+                                className="text-[10.5px] font-black text-indigo-600 dark:text-indigo-400 hover:underline shrink-0 cursor-pointer px-2 py-1 rounded-lg bg-indigo-50 dark:bg-indigo-950/60"
+                              >
+                                Reset Defaults
+                              </button>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-60 overflow-y-auto pr-1">
+                              {ALL_SENTUP_COLS
+                                .filter(col => !columnSearchQuery.trim() || col.label.toLowerCase().includes(columnSearchQuery.toLowerCase()))
+                                .map(col => {
+                                  const checked = isSentupColVisible(col.key);
+                                  return (
+                                    <label
+                                      key={col.key}
+                                      className={`flex items-center gap-2.5 p-2 rounded-xl border cursor-pointer transition-all ${
+                                        checked
+                                          ? 'border-indigo-300 dark:border-indigo-800 bg-indigo-50/40 dark:bg-indigo-950/30 text-slate-900 dark:text-slate-100'
+                                          : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-400 dark:text-slate-500'
+                                      }`}
+                                    >
+                                      <input
+                                        type="checkbox"
+                                        checked={checked}
+                                        onChange={() => toggleSentupCol(col.key)}
+                                        className="rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer w-4 h-4"
+                                      />
+                                      <span className="text-xs font-bold truncate">{col.label}</span>
+                                      {col.key === 'st_rollNo' && isAprBianSession && !sentupExplicitCols.has('st_rollNo') && (
+                                        <span className="text-[9px] text-amber-600 font-bold ml-auto shrink-0">(APR off)</span>
+                                      )}
+                                    </label>
+                                  );
+                                })}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* ─── TAB 3: SUBJECT KEY (PAGE 2) ─── */}
+                        {popoverActiveTab === 'subjects' && (
+                          <div className="space-y-3">
+                            {/* Action Bar */}
+                            <div className="flex items-center justify-between gap-2 p-2.5 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700">
+                              <div className="flex items-center gap-1.5">
+                                {savingSubjectsCloud ? (
+                                  <span className="text-[10.5px] font-bold text-indigo-600 flex items-center gap-1">
+                                    <Loader2 size={11} className="animate-spin" /> Saving Cloud...
+                                  </span>
+                                ) : (
+                                  <span className="text-[10px] font-black text-emerald-800 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950/70 border border-emerald-300 dark:border-emerald-700 px-2 py-0.5 rounded-full flex items-center gap-1">
+                                    <Check size={10} /> Cloud Synced
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => saveSubjectAbbreviationsToCloud(sentupSubjectAbbreviations)}
+                                  disabled={savingSubjectsCloud}
+                                  className="text-[10.5px] font-black text-emerald-700 dark:text-emerald-400 hover:text-emerald-800 flex items-center gap-1 cursor-pointer bg-white dark:bg-slate-900 border border-emerald-300 dark:border-emerald-700 px-2 py-1 rounded-lg shadow-2xs hover:bg-emerald-50"
+                                >
+                                  <Save size={11} /> Save to Cloud
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={handleResetSubjectAbbreviations}
+                                  className="text-[10.5px] font-black text-slate-500 hover:text-rose-600 cursor-pointer hover:underline"
+                                >
+                                  Reset Official
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Add Form */}
+                            <div className="flex items-center gap-1.5 p-2 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200 dark:border-slate-700">
+                              <input
+                                type="text"
+                                placeholder="Code (e.g. BIO)"
+                                value={newSubCode}
+                                onChange={(e) => setNewSubCode(e.target.value)}
+                                className="w-24 px-2 py-1 text-xs rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 font-mono font-bold uppercase focus:ring-1 focus:ring-indigo-500 focus:outline-hidden"
+                              />
+                              <input
+                                type="text"
+                                placeholder="Subject Title (e.g. Biology)"
+                                value={newSubName}
+                                onChange={(e) => setNewSubName(e.target.value)}
+                                className="flex-1 px-2 py-1 text-xs rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 font-medium focus:ring-1 focus:ring-indigo-500 focus:outline-hidden"
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    handleAddSubjectAbbreviation();
+                                  }
+                                }}
+                              />
+                              <button
+                                type="button"
+                                onClick={handleAddSubjectAbbreviation}
+                                disabled={!newSubCode.trim() || !newSubName.trim()}
+                                className="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-black cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed transition-all flex items-center gap-1 shrink-0 shadow-2xs"
+                              >
+                                <Plus size={12} />
+                                <span>Add</span>
+                              </button>
+                            </div>
+
+                            {/* Search Filter for Subject Key */}
+                            <div className="relative">
+                              <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                              <input
+                                type="text"
+                                placeholder="Filter subject key..."
+                                value={subjectSearchQuery}
+                                onChange={(e) => setSubjectSearchQuery(e.target.value)}
+                                className="w-full pl-7 pr-2 py-1 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 font-medium focus:ring-1 focus:ring-indigo-500 focus:outline-hidden"
+                              />
+                            </div>
+
+                            {/* List of current abbreviations */}
+                            <div className="max-h-52 overflow-y-auto space-y-1 pr-1">
+                              {sentupSubjectAbbreviations
+                                .filter(sub => !subjectSearchQuery.trim() || (sub.name || '').toLowerCase().includes(subjectSearchQuery.toLowerCase()) || (sub.code || '').toLowerCase().includes(subjectSearchQuery.toLowerCase()))
+                                .map((sub, sIdx) => {
+                                  const itemKey = sub.id || `sub_idx_${sIdx}`;
+                                  const isEditing = editingSubKey === itemKey;
+
+                                  if (isEditing) {
+                                    return (
+                                      <div
+                                        key={itemKey}
+                                        className="flex items-center gap-1.5 p-1.5 bg-indigo-50/90 dark:bg-indigo-950/60 rounded-xl border border-indigo-300 dark:border-indigo-700 shadow-xs"
+                                      >
+                                        <input
+                                          type="text"
+                                          value={editSubCode}
+                                          onChange={(e) => setEditSubCode(e.target.value)}
+                                          className="w-20 px-2 py-1 text-xs rounded border border-indigo-400 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 font-mono font-bold uppercase focus:outline-hidden"
+                                          placeholder="Code"
+                                          autoFocus
+                                        />
+                                        <input
+                                          type="text"
+                                          value={editSubName}
+                                          onChange={(e) => setEditSubName(e.target.value)}
+                                          className="flex-1 px-2 py-1 text-xs rounded border border-indigo-400 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 font-medium focus:outline-hidden"
+                                          placeholder="Subject Title"
+                                        />
+                                        <button
+                                          type="button"
+                                          onClick={() => handleSaveEditSubjectAbbreviation(itemKey)}
+                                          disabled={!editSubCode.trim() || !editSubName.trim()}
+                                          className="p-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded cursor-pointer transition-colors shrink-0 disabled:opacity-40"
+                                          title="Save changes"
+                                        >
+                                          <Check size={13} />
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={handleCancelEditSubjectAbbreviation}
+                                          className="p-1 text-slate-500 hover:text-slate-700 rounded cursor-pointer transition-colors shrink-0"
+                                          title="Cancel"
+                                        >
+                                          <X size={13} />
+                                        </button>
+                                      </div>
+                                    );
+                                  }
+
+                                  return (
+                                    <div
+                                      key={itemKey}
+                                      className="flex items-center justify-between px-2.5 py-1.5 bg-white dark:bg-slate-800 hover:bg-indigo-50/40 dark:hover:bg-indigo-950/30 rounded-xl border border-slate-200/80 dark:border-slate-700 text-xs shadow-2xs group transition-colors"
+                                    >
+                                      <div className="flex items-center gap-2 min-w-0 pr-2">
+                                        <span className="px-1.5 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950/80 border border-indigo-200 dark:border-indigo-800 text-indigo-900 dark:text-indigo-300 font-mono font-black text-[10px] shrink-0">
+                                          {sub.code}
+                                        </span>
+                                        <span className="font-semibold text-slate-800 dark:text-slate-200 text-[11px] truncate">
+                                          {sub.name}
+                                        </span>
+                                      </div>
+                                      <div className="flex items-center gap-1 shrink-0">
+                                        <button
+                                          type="button"
+                                          onClick={() => handleStartEditSubjectAbbreviation(sub, itemKey)}
+                                          className="p-1 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/60 rounded cursor-pointer transition-colors"
+                                          title={`Edit ${sub.name}`}
+                                        >
+                                          <Edit3 size={12} />
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleDeleteSubjectAbbreviation(itemKey)}
+                                          className="p-1 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/60 rounded cursor-pointer transition-colors"
+                                          title={`Delete ${sub.name}`}
+                                        >
+                                          <Trash2 size={12} />
+                                        </button>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* 4. Sticky Footer Actions (Always Accessible) */}
+                      <div className="border-t border-slate-200 dark:border-slate-800 p-3 bg-slate-50/90 dark:bg-slate-800/80 backdrop-blur-xs space-y-2 shrink-0">
                         {isLayoutModified && (
-                          <div className="flex items-center justify-between px-2.5 py-1.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-[11px] font-bold">
+                          <div className="flex items-center justify-between px-2.5 py-1.5 rounded-xl bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800 text-amber-900 dark:text-amber-200 text-[11px] font-bold">
                             <span className="flex items-center gap-1.5">
-                              <SlidersHorizontal size={12} className="text-amber-600 shrink-0" />
-                              <span>Table Layout Modified</span>
+                              <AlertCircle size={12} className="text-amber-600 shrink-0" />
+                              <span>Layout customized. Save to update cloud defaults.</span>
                             </span>
-                            <span className="text-[9.5px] uppercase tracking-wider font-black text-amber-700 bg-amber-200/80 px-1.5 py-0.5 rounded">Modified</span>
+                            <span className="text-[9.5px] uppercase tracking-wider font-black text-amber-700 dark:text-amber-300 bg-amber-200/80 dark:bg-amber-900/80 px-1.5 py-0.5 rounded">
+                              Modified
+                            </span>
                           </div>
                         )}
                         <div className="grid grid-cols-5 gap-2">
@@ -5153,17 +5400,17 @@ export default function AdmissionRegisterSuite({
                             type="button"
                             onClick={handleSaveLayoutToFirebase}
                             disabled={savingLayout}
-                            className="col-span-3 py-2 px-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs transition-all active:scale-95 disabled:opacity-50"
-                            title="Save custom column widths, row height and margins to Firebase default"
+                            className="col-span-3 py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-md shadow-emerald-600/20 transition-all active:scale-95 disabled:opacity-50"
+                            title="Save custom column widths, row height, margin and candidates per sheet to Firebase"
                           >
                             {savingLayout ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
-                            <span className="truncate">Set to Default (Firebase)</span>
+                            <span className="truncate">Set as Default (Firebase)</span>
                           </button>
                           <button
                             type="button"
                             onClick={handleResetLayoutToOriginal}
-                            className="col-span-2 py-2 px-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-800 font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer transition-all active:scale-95 shadow-2xs"
-                            title="Reset columns and row heights to original factory format"
+                            className="col-span-2 py-2 px-2.5 rounded-xl bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-600 text-slate-800 dark:text-slate-200 font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer transition-all active:scale-95 shadow-2xs"
+                            title="Reset columns, density, margins and row heights to original factory format"
                           >
                             <RotateCcw size={13} />
                             <span>Reset Defaults</span>
