@@ -1156,6 +1156,92 @@ export default function PublicResultLookup() {
             }
           } catch (_) {}
         }
+
+        // Match 6: Discover candidate from live practicalsData or cached admissions/masterRegisters
+        if (!matchedStudent) {
+          try {
+            let livePracticals = [];
+            try {
+              const snap = await getDocs(collection(db, 'practicalsData'));
+              livePracticals = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+            } catch (_) {
+              livePracticals = await getCachedCollection('practicalsData', false, 10 * 60 * 1000).catch(() => []) || [];
+            }
+
+            const targetClsKey = classKey(selectedClass);
+            const qClean = normQ.replace(/[^a-z0-9]/g, '');
+
+            // 6A. Search live teacher practical submission sheets
+            for (const sec of livePracticals) {
+              const secCls = classKey(sec.className || sec.class || sec.selectedClass || '');
+              if (targetClsKey && secCls && secCls !== targetClsKey) continue;
+              const rec = (sec.records || []).find(r => {
+                const rReg = String(r.regNo || r.boardRegNo || r.reg || '').replace(/[^a-z0-9]/g, '');
+                const rForm = String(r.formNo || r.fNo || '').trim().toLowerCase();
+                const rRoll = String(r.classRollNo || r.rollNo || r.roll || '').trim().toLowerCase();
+                const isRegMatch = Boolean(rReg && (rReg === qClean || (rReg.length >= 6 && qClean.length >= 6 && (rReg.endsWith(qClean.slice(-6)) || qClean.endsWith(rReg.slice(-6))))));
+                const isFormMatch = Boolean(rForm && rForm === normQ);
+                const isRollMatch = Boolean(rRoll && rRoll === normQ);
+                return isRegMatch || isFormMatch || isRollMatch;
+              });
+              if (rec) {
+                matchedStudent = {
+                  name: rec.name || rec.studentName,
+                  fatherName: rec.parentName || rec.fatherName || '—',
+                  className: sec.className || selectedClass,
+                  classRollNo: rec.classRollNo || rec.rollNo || '—',
+                  examRollNo: rec.examRollNo || '—',
+                  boardRegNo: rec.regNo || rec.boardRegNo || cleanQuery,
+                  formNo: rec.formNo || '—',
+                  stream: rec.stream || (['11th', '12th'].includes(sec.className) ? 'Humanities' : 'General'),
+                  session: sec.session || selectedSession,
+                  subjects: []
+                };
+                break;
+              }
+            }
+
+            // 6B. Search cached admissions and masterRegisters
+            if (!matchedStudent) {
+              const [cachedAdm, cachedMaster] = await Promise.all([
+                getCachedCollection('admissions', false, 10 * 60 * 1000).catch(() => []),
+                getCachedCollection('masterRegisters', false, 10 * 60 * 1000).catch(() => [])
+              ]);
+              const allCandidates = [
+                ...(Array.isArray(cachedAdm) ? cachedAdm : []),
+                ...(Array.isArray(cachedMaster) ? cachedMaster.flatMap(d => d.items || d.students || d.records || d.data || [d]) : [])
+              ];
+              const found = allCandidates.find(st => {
+                if (!st || typeof st !== 'object') return false;
+                const stCls = classKey(st.selectedClass || st.className || st.Class || st.class || st['Admission sought for class'] || '');
+                if (targetClsKey && stCls && stCls !== targetClsKey) return false;
+                const stReg = String(st.boardRegNo || st.regNo || st['Board Registration Number'] || st['Board Reg. No.'] || '').replace(/[^a-z0-9]/g, '');
+                const stForm = String(st.formNo || st['Form Number'] || '').trim().toLowerCase();
+                const stRoll = String(st.classRollNo || st['Class Roll No'] || '').trim().toLowerCase();
+                const isRegMatch = Boolean(stReg && (stReg === qClean || (stReg.length >= 6 && qClean.length >= 6 && (stReg.endsWith(qClean.slice(-6)) || qClean.endsWith(stReg.slice(-6))))));
+                const isFormMatch = Boolean(stForm && stForm === normQ);
+                const isRollMatch = Boolean(stRoll && stRoll === normQ);
+                return isRegMatch || isFormMatch || isRollMatch;
+              });
+              if (found) {
+                matchedStudent = {
+                  name: found.name || found.studentName || found["Student's Name (as per school records)"] || found["Student's Name"],
+                  fatherName: found.fatherName || found["Father's/Guardian's Name (as per school records)"] || found["Father's Name"] || '—',
+                  className: found.selectedClass || found.className || found.Class || selectedClass,
+                  classRollNo: found.classRollNo || found['Class Roll No'] || found.rollNo || '—',
+                  examRollNo: found.examRollNo || '—',
+                  boardRegNo: found.boardRegNo || found.regNo || found['Board Registration Number'] || cleanQuery,
+                  formNo: found.formNo || found['Form Number'] || '—',
+                  stream: found.stream || found.Stream || 'General',
+                  session: found.selectedSession || found.Session || selectedSession,
+                  subjects: []
+                };
+              }
+            }
+          } catch (dErr) {
+            console.warn('Live candidate fallback error:', dErr);
+          }
+        }
       }
 
       if (matchedStudent) {

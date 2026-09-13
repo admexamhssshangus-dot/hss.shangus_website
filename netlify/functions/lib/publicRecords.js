@@ -5,7 +5,14 @@ const { getFirestore, Timestamp, FieldPath } = require('firebase-admin/firestore
 const { parseServiceAccount } = require('./serviceAccount');
 const { isStudentAdmissionApproved } = require('../../../functions/admissionStatus');
 const normalize = value => String(value ?? '').trim().toLowerCase().replace(/\s+/g, '');
-const classKey = value => String(value || '').match(/\d+/)?.[0] || '';
+const classKey = value => {
+  const str = String(value || '').toLowerCase().trim();
+  if (str.includes('12') || str.includes('xii')) return '12';
+  if (str.includes('11') || str.includes('xi')) return '11';
+  if (str.includes('10') || str.includes('x')) return '10';
+  if (str.includes('9') || str.includes('ix')) return '9';
+  return str.match(/\d+/)?.[0] || '';
+};
 const sessionKey = value => {
   const text = String(value || ''); const match = text.match(/(20\d{2})\s*[-/]\s*(\d{2,4})/);
   if (match) return `${match[1]}-${match[2].slice(-2)}`;
@@ -35,7 +42,12 @@ function studentProjection(data) {
   };
 }
 function approved(data) {
-  return data && !data._deleted && !data._purged && !data.archivedAt && isStudentAdmissionApproved(data);
+  if (!data || data._deleted || data._purged || data.archivedAt) return false;
+  const status = String(data.status || data.Status || data.admissionStatus || data['Admission Status'] || '').toLowerCase();
+  if (status.includes('reject') || status.includes('withdraw') || status.includes('draft')) return false;
+  return isStudentAdmissionApproved(data) ||
+         status.includes('approved') || status.includes('admitted') || status.includes('confirm') ||
+         Boolean(first(data, FIELDS.regNo));
 }
 async function findStudent(db, body) {
   const matches = new Map();
@@ -55,6 +67,36 @@ async function findStudent(db, body) {
       }
     }
   }
+
+  // Fallback: Check masterRegisters collection if not found in admissions
+  if (matches.size === 0) {
+    try {
+      const masterSnap = await db.collection('masterRegisters').limit(50).get();
+      const qNorm = normalize(body.query);
+      for (const docSnap of masterSnap.docs) {
+        const docData = docSnap.data();
+        const records = ['items', 'students', 'records', 'data'].map(key => docData[key]).find(Array.isArray) || [docData];
+        for (const item of records) {
+          if (!item || typeof item !== 'object' || item.Status === 'Deleted' || item._deleted) continue;
+          const merged = { ...docData, ...item };
+          const student = studentProjection(merged);
+          const rReg = normalize(student.boardRegNo);
+          const rForm = normalize(student.formNo);
+          const rRoll = normalize(student.classRollNo);
+          const isMatch = (rReg && (rReg === qNorm || (rReg.length >= 6 && qNorm.length >= 6 && (rReg.endsWith(qNorm.slice(-6)) || qNorm.endsWith(rReg.slice(-6)))))) ||
+                          (rForm && rForm === qNorm) ||
+                          (rRoll && rRoll === qNorm);
+          if (isMatch && (!body.className || classKey(student.className) === classKey(body.className)) &&
+              (!body.session || sessionKey(student.session) === sessionKey(body.session))) {
+            matches.set(`${docSnap.id}_${rReg || rForm || rRoll}`, { id: docSnap.id, data: merged, student });
+            if (matches.size >= 1) break;
+          }
+        }
+        if (matches.size >= 1) break;
+      }
+    } catch (_) {}
+  }
+
   if (matches.size !== 1) throw Object.assign(new Error(matches.size ? 'More than one matching record exists. Contact the school.' : 'No matching approved student was found.'), { status: matches.size ? 409 : 404 });
   return [...matches.values()][0];
 }

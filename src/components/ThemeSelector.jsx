@@ -70,7 +70,7 @@ export default function ThemeSelector() {
 
   return (
     <div className={`fixed z-40 flex flex-col items-end gap-2 print:hidden transition-all duration-300 ${
-      isHome ? 'bottom-3 right-3 md:bottom-3 md:right-4' : 'bottom-3.5 right-3.5 md:bottom-3.5 md:right-4.5'
+      isHome ? 'bottom-16 right-3 md:bottom-16 md:right-4' : 'bottom-3.5 right-3.5 md:bottom-3.5 md:right-4.5'
     }`}>
       {/* Panel */}
       {isOpen && (
