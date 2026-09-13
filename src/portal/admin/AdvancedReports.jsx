@@ -30,7 +30,7 @@ import LazyStudentPhoto from '../../components/LazyStudentPhoto';
 import { expandJkboseSubjectCodes } from '../../utils/jkboseResultManager';
 import { resolveCcDcVal, extractReappearCodes, getClassTier, areClassTiersCompatible, isSecondaryOnlySubjectList } from '../../utils/certificateStudentResolution';
 import JkboseFieldBadge from './JkboseFieldBadge';
-import { getJkboseFieldStatus, loadRecentJkboseBatchTraceability, backfillRecentJkboseBatchTraceability } from '../../utils/jkboseTraceability';
+import { getJkboseFieldStatus, computeStudentJkboseStatusMap, loadRecentJkboseBatchTraceability } from '../../utils/jkboseTraceability';
 
 const BULK_FORM_ROW_BATCH_SIZE = 100;
 
@@ -5634,27 +5634,23 @@ export default function AdvancedReports({
   const recycleBinCount = unreadRecycleBinCount;
   const [jkboseBatchMap, setJkboseBatchMap] = useState({});
 
-  // Hydrate recent JKBOSE batch traceability from csvImportBatches (covers updates done in past hours)
+  // Hydrate recent JKBOSE batch traceability from csvImportBatches once on mount (cached in-memory)
   useEffect(() => {
     let isCancelled = false;
-    const fetchBatchTraceability = async () => {
+    const fetchBatchTraceability = async (force = false) => {
       try {
-        const map = await loadRecentJkboseBatchTraceability();
+        const map = await loadRecentJkboseBatchTraceability(force);
         if (!isCancelled && map && Object.keys(map).length > 0) {
           setJkboseBatchMap(map);
-          // Background backfill if candidates are active
-          if (Array.isArray(currentAdmissions) && currentAdmissions.length > 0) {
-            backfillRecentJkboseBatchTraceability(currentAdmissions, map);
-          }
         }
       } catch (err) {
         console.warn('Traceability hydration error:', err);
       }
     };
-    fetchBatchTraceability();
+    fetchBatchTraceability(false);
 
     const handleBatchUpdate = () => {
-      fetchBatchTraceability();
+      fetchBatchTraceability(true);
     };
     window.addEventListener('hss-results-updated', handleBatchUpdate);
     window.addEventListener('hss-master-register-updated', handleBatchUpdate);
@@ -5666,7 +5662,7 @@ export default function AdvancedReports({
       window.removeEventListener('hss-master-register-updated', handleBatchUpdate);
       window.removeEventListener('hss-admissions-updated', handleBatchUpdate);
     };
-  }, [currentAdmissions]);
+  }, []);
 
   // Load site settings for annual rollover schedule
   useEffect(() => {
@@ -10415,6 +10411,7 @@ export default function AdvancedReports({
             <tbody className="divide-y divide-slate-200 dark:divide-slate-800/50 text-slate-900 dark:text-slate-100 font-extrabold bg-white dark:bg-slate-900">
               {paginatedStudents.length > 0 ? (
                 paginatedStudents.map((s, idx) => {
+                  const jkboseStatusMap = computeStudentJkboseStatusMap(s, jkboseBatchMap);
                   const studentWithModal = {
                     ...s,
                     _visibleCols: visibleCols,
@@ -10434,7 +10431,11 @@ export default function AdvancedReports({
                     _handleCopyCell: handleCopyCell,
                     _copiedCellId: copiedCellId,
                     _jkboseBatchMap: jkboseBatchMap,
-                    _getJkboseStatus: (colKey, subKey) => getJkboseFieldStatus(s, colKey, subKey, jkboseBatchMap)
+                    _jkboseStatusMap: jkboseStatusMap,
+                    _getJkboseStatus: (colKey, subKey) => {
+                      if (!jkboseStatusMap) return null;
+                      return subKey ? jkboseStatusMap[subKey] : jkboseStatusMap[colKey];
+                    }
                   };
                   const dynamicSNo = pageSize === 'All' ? idx + 1 : (currentPage - 1) * (parseInt(pageSize, 10) || 50) + idx + 1;
                   const exactDocId = getExactAdmissionDocId(s);
