@@ -1,4 +1,4 @@
-import { uniqueStudentMatch, sameCohort } from '../../utils/recordIdentity';
+import { uniqueStudentMatch, sameCohort, classKey, sessionKey } from '../../utils/recordIdentity';
 import { beginMutationJob, applyRecordPatch, completeMutationJob } from '../../services/recordMutationService';
 import { 
   resolveCertificateStream, 
@@ -47,17 +47,25 @@ export function flattenMasterRegisters(rawList = []) {
           const iSess = item.Session || item.session || item['Academic Session'] || parentSession;
           const iCls = item.Class || item.class || item['Class'] || parentClass;
           const defaultStream = (String(iCls).includes('9') || String(iCls).includes('10')) ? 'General' : '';
+          const itemRoll = String(item['Class Roll No'] || item['Class Roll No.'] || item['Class R.No.'] || item['Class R.No'] || item['RL. NO.'] || item.classRollNo || item.rollNo || '').trim();
+          const hasItemRoll = itemRoll !== '' && itemRoll !== '-' && itemRoll !== '—' && itemRoll !== 'N/A' && itemRoll !== 'null' && itemRoll !== 'undefined';
+          const defaultStat = hasItemRoll ? 'Approved' : 'Submitted';
+          const resolvedItemStatus = item.status || item.Status || item.admissionStatus || defaultStat;
+
           flat.push({
             ...item,
-            id: item.id || item['Form Number'] || item['Form No.'] || item.formNo || item['Board Registration Number'] || `${docItem.id}_${itemIdx}`,
+            id: item.id || item['Form Number'] || item['Form No.'] || item['Form No'] || item.formNo || item['Board Registration Number'] || `${docItem.id}_${itemIdx}`,
+            formNo: item.formNo || item['Form Number'] || item['Form No.'] || item['Form No'] || item.fNo || '',
+            classRollNo: item.classRollNo || item['Class Roll No'] || item['Class Roll No.'] || item['Class R.No.'] || item['Class R.No'] || item['RL. NO.'] || item.rollNo || '',
+            boardRegNo: item.boardRegNo || item.regNo || item['Board Registration Number'] || item['Board Reg. No.'] || item['Board Registration No.'] || '',
             Session: iSess,
             session: iSess,
             Class: iCls,
             class: iCls,
             Stream: item.Stream || item.stream || item['Stream'] || parentStream || item.faculty || defaultStream,
             stream: item.stream || item.Stream || item['Stream'] || parentStream || item.faculty || defaultStream,
-            status: item.status || item.Status || item.admissionStatus || 'Approved',
-            Status: item.Status || item.status || item.admissionStatus || 'Approved',
+            status: resolvedItemStatus,
+            Status: resolvedItemStatus,
             _source: 'masterRegisters',
             _srcCollection: 'masterRegisters',
             _parentDocId: docItem._docId || docItem.id,
@@ -72,17 +80,25 @@ export function flattenMasterRegisters(rawList = []) {
       const docSess = docItem.Session || docItem.session || docItem['Academic Session'] || parentSession;
       const docCls = docItem.Class || docItem.class || docItem['Class'] || parentClass;
       const defaultDocStream = (String(docCls).includes('9') || String(docCls).includes('10')) ? 'General' : '';
+      const docRoll = String(docItem['Class Roll No'] || docItem['Class Roll No.'] || docItem['Class R.No.'] || docItem['Class R.No'] || docItem['RL. NO.'] || docItem.classRollNo || docItem.rollNo || '').trim();
+      const hasDocRoll = docRoll !== '' && docRoll !== '-' && docRoll !== '—' && docRoll !== 'N/A' && docRoll !== 'null' && docRoll !== 'undefined';
+      const defaultDocStat = hasDocRoll ? 'Approved' : 'Submitted';
+      const resolvedDocStatus = docItem.status || docItem.Status || docItem.admissionStatus || defaultDocStat;
+
       flat.push({
         ...docItem,
-        id: docItem.id || docItem['Form Number'] || `${docItem.id || 'doc'}_${docIdx}`,
+        id: docItem.id || docItem['Form Number'] || docItem['Form No.'] || `${docItem.id || 'doc'}_${docIdx}`,
+        formNo: docItem.formNo || docItem['Form Number'] || docItem['Form No.'] || docItem['Form No'] || docItem.fNo || '',
+        classRollNo: docItem.classRollNo || docItem['Class Roll No'] || docItem['Class Roll No.'] || docItem['Class R.No.'] || docItem['Class R.No'] || docItem['RL. NO.'] || docItem.rollNo || '',
+        boardRegNo: docItem.boardRegNo || docItem.regNo || docItem['Board Registration Number'] || docItem['Board Reg. No.'] || docItem['Board Registration No.'] || '',
         Session: docSess,
         session: docSess,
         Class: docCls,
         class: docCls,
         Stream: docItem.Stream || docItem.stream || docItem['Stream'] || parentStream || docItem.faculty || defaultDocStream,
         stream: docItem.stream || docItem.Stream || docItem['Stream'] || parentStream || docItem.faculty || defaultDocStream,
-        status: docItem.status || docItem.Status || docItem.admissionStatus || 'Approved',
-        Status: docItem.Status || docItem.status || docItem.admissionStatus || 'Approved',
+        status: resolvedDocStatus,
+        Status: resolvedDocStatus,
         _source: 'masterRegisters',
         _srcCollection: 'masterRegisters',
         _isHistorical: true
@@ -311,33 +327,110 @@ export default function BulkFieldOverwriteModal({
   // Helper to normalize alphanumeric keys
   const cleanKey = (val) => String(val || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase().trim();
 
+  // Helper to determine effective status consistent with AdvancedReports
+  const getEffectiveStatus = useCallback((st) => {
+    if (!st || typeof st !== 'object') return 'Submitted';
+    const roll = String(st.classRollNo || st['Class Roll No'] || st['Class Roll No.'] || st['Class R.No.'] || st['Class R.No'] || st['RL. NO.'] || st['RL. NO'] || st.rollNo || '').trim();
+    const hasRoll = roll !== '' && roll !== '-' && roll !== '—' && roll !== 'N/A' && roll !== 'null' && roll !== 'undefined';
+    const rawStat = String(st.status || st.Status || st.admissionStatus || '').trim().toLowerCase();
+
+    if (rawStat.includes('withdrawn') || rawStat.includes('withdraw')) return 'Withdrawn';
+    if (hasRoll || rawStat.includes('approv') || rawStat.includes('confirm')) return 'Approved';
+    if (rawStat.includes('reject') || rawStat.includes('rejt')) return 'Rejected';
+    if (rawStat.includes('draft') || rawStat.includes('dft')) return 'Draft';
+    if (rawStat.includes('provis')) return 'Provisional';
+    return 'Submitted';
+  }, []);
+
   // ─── UNIVERSAL DATABASE POOL (ADMISSIONS + MASTER REGISTERS) ───
-  // Unifies active admissions with full historical / masterRegisters so all 33 candidates for 2026 APR/BIAN are accessible
-  const [universalStudents, setUniversalStudents] = useState(() => {
+  // Builds a deduplicated unified student pool without duplicating current admissions with masterRegisters copies
+  const buildUniversalPool = useCallback((baseList = [], admList = [], masterList = []) => {
     const list = [];
-    const seen = new Set();
-    const add = (s) => {
+    const seenRegs = new Set();
+    const seenForms = new Set();
+    const seenAdms = new Set();
+    const seenNames = new Set();
+    const seenIds = new Set();
+
+    const add = (s, isCurrentAdmissions = false) => {
       if (!s || typeof s !== 'object') return;
-      const id = s.id || s.formNo || s['Form Number'] || s['Board Registration Number'];
-      if (id && seen.has(id)) return;
-      if (id) seen.add(id);
-      list.push(s);
+      if (s.Status === 'Deleted' || s.status === 'Deleted' || s._deleted === true) return;
+
+      const fNo = String(s.formNo || s['Form Number'] || s['Form No.'] || s['Form No'] || s.fNo || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+      const rawReg = String(s.boardRegNo || s.regNo || s.boardReg || s['Board Registration Number'] || s['Board Registration No.'] || s['Board Reg. No.'] || s['Registration No. (allotted by JKBOSE)'] || '');
+      const reg = normalizeRegistrationKey(rawReg);
+      const rawAdm = String(s.admNo || s['Admission No.'] || s['Admission No'] || s['Adm. No.'] || s.admissionNo || '').trim();
+      const adm = rawAdm ? rawAdm.replace(/[^a-zA-Z0-9]/g, '').toLowerCase() : '';
+      const cls = classKey(s.classCanonical || s.selectedClass || s.className || s.Class || s.class || s['Admission sought for class']);
+      const sess = sessionKey(s.sessionCanonical || s.selectedSession || s.Session || s.session || s['Academic Session']);
+      const sName = String(s["Student's Name (as per school records)"] || s["Student's Name"] || s.studentName || s.name || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+      const fName = String(s["Father's/Guardian's Name (as per school records)"] || s["Father's Name"] || s.fatherName || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+      const rawId = s.id || s.docId || s._docId;
+
+      // Identity collision check against previously registered records
+      if (rawId && seenIds.has(rawId)) return;
+      if (reg && reg.length > 5 && !reg.endsWith('00000000') && seenRegs.has(`${cls}_${reg}`)) return;
+      if (fNo && fNo !== '—' && fNo.length > 1 && seenForms.has(`${cls}_${sess}_${fNo}`)) return;
+      if (adm && adm !== '—' && adm.length > 1 && seenAdms.has(`${cls}_${adm}`)) return;
+      if (sName && sName.length > 2 && fName && seenNames.has(`${cls}_${sess}_${sName}_${fName.slice(0, 8)}`)) return;
+
+      // Register seen keys
+      if (rawId) seenIds.add(rawId);
+      if (reg && reg.length > 5 && !reg.endsWith('00000000')) seenRegs.add(`${cls}_${reg}`);
+      if (fNo && fNo !== '—' && fNo.length > 1) seenForms.add(`${cls}_${sess}_${fNo}`);
+      if (adm && adm !== '—' && adm.length > 1) seenAdms.add(`${cls}_${adm}`);
+      if (sName && sName.length > 2 && fName) seenNames.add(`${cls}_${sess}_${sName}_${fName.slice(0, 8)}`);
+
+      const effStatus = isCurrentAdmissions ? getEffectiveStatus(s) : (s.status || s.Status || getEffectiveStatus(s));
+
+      list.push({
+        ...s,
+        status: effStatus,
+        Status: effStatus
+      });
     };
 
-    if (Array.isArray(allStudents)) allStudents.forEach(add);
-    const cachedAdm = getCachedCollectionSync('admissions') || [];
-    cachedAdm.forEach(add);
-    const cachedMaster = getCachedCollectionSync('masterRegisters') || [];
-    flattenMasterRegisters(cachedMaster).forEach(add);
+    // 1. Authoritative baseList (allStudents from parent component)
+    if (Array.isArray(baseList) && baseList.length > 0) {
+      baseList.forEach(s => add(s, s._isCurrentScope === true));
+    }
+
+    // 2. Fallback admissions (only if missing in baseList)
+    if (Array.isArray(admList) && admList.length > 0) {
+      admList.forEach(s => add(s, true));
+    }
+
+    // 3. Fallback master registers (for historical cohorts like 2026 APR/BIAN)
+    if (Array.isArray(masterList) && masterList.length > 0) {
+      const flat = flattenMasterRegisters(masterList);
+      flat.forEach(s => add(s, false));
+    }
 
     return list;
+  }, [getEffectiveStatus]);
+
+  const [universalStudents, setUniversalStudents] = useState(() => {
+    if (Array.isArray(allStudents) && allStudents.length > 0) {
+      return buildUniversalPool(allStudents);
+    }
+    const cachedAdm = getCachedCollectionSync('admissions') || [];
+    const cachedMaster = getCachedCollectionSync('masterRegisters') || [];
+    return buildUniversalPool([], cachedAdm, cachedMaster);
   });
 
-  // Asynchronous background hydration of full database collections
+  // Keep universalStudents in sync when allStudents updates from parent
+  useEffect(() => {
+    if (Array.isArray(allStudents) && allStudents.length > 0) {
+      setUniversalStudents(buildUniversalPool(allStudents));
+    }
+  }, [allStudents, buildUniversalPool]);
+
+  // Asynchronous background hydration only when allStudents is empty
   useEffect(() => {
     if (!isOpen) return;
-    let isCancelled = false;
+    if (Array.isArray(allStudents) && allStudents.length > 0) return;
 
+    let isCancelled = false;
     const hydrateUniversalPool = async () => {
       try {
         const [admissionsList, masterList] = await Promise.all([
@@ -347,50 +440,29 @@ export default function BulkFieldOverwriteModal({
 
         if (isCancelled) return;
 
-        const flatMaster = flattenMasterRegisters(masterList || []);
-        const validAdmissions = Array.isArray(admissionsList) ? admissionsList : [];
+        let validAdmissions = Array.isArray(admissionsList) ? admissionsList : [];
+        let validMaster = Array.isArray(masterList) ? masterList : [];
 
-        // Direct Firestore fallback for masterRegisters if empty
-        let directMaster = [];
-        if (flatMaster.length === 0) {
-          try {
-            const masterSnap = await getDocs(collection(db, 'masterRegisters'));
-            if (!masterSnap.empty) {
-              const rawDocs = masterSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-              directMaster = flattenMasterRegisters(rawDocs);
-            }
-          } catch (_) {}
-        }
-
-        // Direct Firestore fallback for admissions if empty
-        let directAdmissions = [];
         if (validAdmissions.length === 0) {
           try {
             const admSnap = await getDocs(collection(db, 'admissions'));
             if (!admSnap.empty) {
-              directAdmissions = admSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+              validAdmissions = admSnap.docs.map(d => ({ id: d.id, ...d.data() }));
             }
           } catch (_) {}
         }
 
-        const combined = [];
-        const seen = new Set();
-        const add = (s) => {
-          if (!s || typeof s !== 'object') return;
-          const id = s.id || s.formNo || s['Form Number'] || s['Board Registration Number'];
-          if (id && seen.has(id)) return;
-          if (id) seen.add(id);
-          combined.push(s);
-        };
+        if (validMaster.length === 0) {
+          try {
+            const masterSnap = await getDocs(collection(db, 'masterRegisters'));
+            if (!masterSnap.empty) {
+              validMaster = masterSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+            }
+          } catch (_) {}
+        }
 
-        if (Array.isArray(allStudents)) allStudents.forEach(add);
-        validAdmissions.forEach(add);
-        directAdmissions.forEach(add);
-        flatMaster.forEach(add);
-        directMaster.forEach(add);
-
-        if (!isCancelled && combined.length > 0) {
-          setUniversalStudents(combined);
+        if (!isCancelled) {
+          setUniversalStudents(buildUniversalPool([], validAdmissions, validMaster));
         }
       } catch (err) {
         console.warn('Error loading universal students in BulkFieldOverwriteModal:', err);
@@ -399,7 +471,7 @@ export default function BulkFieldOverwriteModal({
 
     hydrateUniversalPool();
     return () => { isCancelled = true; };
-  }, [isOpen, allStudents]);
+  }, [isOpen, allStudents, buildUniversalPool]);
 
   // Dynamic discovery of sessions, classes, streams, and statuses from active database
   const availableClasses = useMemo(() => {
@@ -498,14 +570,16 @@ export default function BulkFieldOverwriteModal({
   const availableStatuses = useMemo(() => {
     const statusSet = new Set(['Approved', 'Confirmed', 'Draft', 'Submitted', 'Provisional']);
     (universalStudents || []).forEach(st => {
-      const stat = String(st.status || st.Status || st.admissionStatus || '').trim();
-      if (stat && stat !== '—' && stat !== 'undefined' && stat !== 'null') {
-        statusSet.add(stat);
+      if (sameCohort(st, targetSession, targetClass)) {
+        const stat = getEffectiveStatus(st);
+        if (stat && stat !== '—' && stat !== 'undefined' && stat !== 'null') {
+          statusSet.add(stat);
+        }
       }
     });
 
     return Array.from(statusSet).sort((a, b) => a.localeCompare(b));
-  }, [universalStudents]);
+  }, [universalStudents, targetSession, targetClass, getEffectiveStatus]);
 
   // Candidates currently matching the selected cohort scope
   const matchingCohortStudents = useMemo(() => {
@@ -515,12 +589,12 @@ export default function BulkFieldOverwriteModal({
 
       const resolvedStrm = getStudentProperStream(st);
       const matchStrm = streamMatches(resolvedStrm, targetStream);
-      const sStat = String(st.status || st.Status || st.admissionStatus || '').toLowerCase();
-      const matchStat = targetStatus === 'All' || sStat === targetStatus.toLowerCase();
+      const effStat = getEffectiveStatus(st).toLowerCase();
+      const matchStat = targetStatus === 'All' || effStat === targetStatus.toLowerCase();
 
       return matchStrm && matchStat;
     });
-  }, [universalStudents, targetSession, targetClass, targetStream, targetStatus, getStudentProperStream]);
+  }, [universalStudents, targetSession, targetClass, targetStream, targetStatus, getStudentProperStream, getEffectiveStatus]);
 
   // Dynamic discovery of any additional fields present in actual database records
   const dynamicDatabaseCategories = useMemo(() => {
