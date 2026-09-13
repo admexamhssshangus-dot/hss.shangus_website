@@ -1294,7 +1294,7 @@ export async function batchUpdateStudentResults(recordsToUpdate = [], options = 
     } else {
       if (!sameCohort(item.matchedStudent, item.session, item.className)) throw new Error('The matched student belongs to a different class or session.');
       recordLocator(item.matchedStudent); // require a physical source before any write
-      await applyRecordPatch(item.matchedStudent, patch, { jobId, entryId: String(updatedCount) });
+      await applyRecordPatch(item.matchedStudent, patch, { jobId, entryId: String(updatedCount), force: true });
     }
     updatedCount++;
   }

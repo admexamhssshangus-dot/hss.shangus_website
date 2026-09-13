@@ -2,6 +2,7 @@ import { collection, doc, getDoc, getDocs, runTransaction, setDoc, serverTimesta
 import { db } from './firebase';
 import { invalidateCache } from './dbCache';
 import { recordLocator, locateNestedRecord, recordIdentity } from '../utils/recordIdentity';
+import { normalizeDobToIso } from '../utils/admissionValidation';
 
 export function cleanFirestoreObject(obj) {
   if (obj === undefined) return null;
@@ -39,7 +40,8 @@ export async function beginMutationJob(fileName, totalCount, reasonCategory = 'F
     expiresAt: new Date(Date.now() + 30 * 86400000).toISOString() });
   return reference.id;
 }
-export async function applyRecordPatch(student, patch, { jobId, entryId = '0' } = {}) {
+
+export async function applyRecordPatch(student, patch, { jobId, entryId = '0', force = false } = {}) {
   const locator = recordLocator(student);
   const reference = doc(db, locator.collection, locator.documentId);
   // An entry is committed in the SAME transaction as the edit. Even interrupted
@@ -54,10 +56,36 @@ export async function applyRecordPatch(student, patch, { jobId, entryId = '0' } 
     const nested = locator.nested ? locateNestedRecord(data, locator) : null;
     const current = nested ? nested.record : data;
     const preview = { ...(student.raw || {}), ...student };
-    for (const key of Object.keys(patch)) {
-      if (['updatedAt', 'lastBoardSyncAt', 'boardSyncSource', 'lastEditedBy'].includes(key)) continue;
-      if (present(preview, key) && !equal(preview[key], current[key])) {
-        throw new Error(`"${key}" changed since the preview. Refresh before overwriting.`);
+
+    if (!force) {
+      for (const key of Object.keys(patch)) {
+        if (['updatedAt', 'lastBoardSyncAt', 'boardSyncSource', 'lastEditedBy'].includes(key)) continue;
+        // Only evaluate conflict if the field actually exists in the database document/record (current)
+        // AND was present in the preview object. Synthetic, client-only, or missing db fields are not conflicts.
+        if (present(current, key) && current[key] !== undefined && present(preview, key) && preview[key] !== undefined) {
+          const curVal = current[key];
+          const prevVal = preview[key];
+
+          // Treat null/undefined/empty string/dash/N/A as equivalent empty states
+          const isEmpty = (v) => v === null || v === undefined || String(v).trim() === '' || String(v).trim() === '—' || String(v).trim() === '-' || String(v).trim() === 'N/A';
+          if (isEmpty(curVal) && isEmpty(prevVal)) continue;
+
+          // Normalized string comparison (trim, case-insensitive, collapsed whitespace)
+          const norm = (v) => String(v ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
+          if (norm(curVal) === norm(prevVal)) continue;
+
+          // Date normalization check (e.g. DD-MM-YYYY vs YYYY-MM-DD vs Timestamp)
+          const isDateKey = /dob|date|birth/i.test(key);
+          if (isDateKey) {
+            const isoCur = normalizeDobToIso(curVal);
+            const isoPrev = normalizeDobToIso(prevVal);
+            if (isoCur && isoPrev && isoCur === isoPrev) continue;
+          }
+
+          if (!equal(prevVal, curVal)) {
+            throw new Error(`"${key}" changed since the preview. Refresh before overwriting.`);
+          }
+        }
       }
     }
     const after = { ...patch };

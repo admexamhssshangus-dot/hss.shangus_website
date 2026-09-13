@@ -1088,7 +1088,7 @@ export default function BulkFieldOverwriteModal({
         payload.lastBoardSyncAt = new Date().toISOString();
         payload.boardSyncSource = fileName || 'Bulk Overwrite';
 
-        await applyRecordPatch(st, payload, { jobId, entryId: String(i) });
+        await applyRecordPatch(st, payload, { jobId, entryId: String(i), force: true });
 
         updatedCount++;
         const pct = 10 + Math.round(((i + 1) / rowsToExecute.length) * 80);
@@ -1161,12 +1161,12 @@ export default function BulkFieldOverwriteModal({
         </div>
 
         {/* Master Mode Tabs Bar - Sleek Compact Pills */}
-        <div className="px-3 py-1.5 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between flex-wrap gap-1.5 flex-shrink-0">
-          <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg text-[11px]">
+        <div className="px-3 py-1.5 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between flex-wrap gap-1.5 flex-shrink-0 overflow-x-auto no-scrollbar">
+          <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg text-[11px] overflow-x-auto no-scrollbar max-w-full flex-shrink-0">
             <button
               type="button"
               onClick={() => setModalMode('overwrite')}
-              className={`px-2.5 py-1 rounded-md font-bold flex items-center gap-1 cursor-pointer transition-all ${
+              className={`px-2.5 py-1 rounded-md font-bold flex items-center gap-1 cursor-pointer transition-all whitespace-nowrap flex-shrink-0 ${
                 modalMode === 'overwrite'
                   ? 'bg-white dark:bg-slate-900 text-emerald-700 dark:text-emerald-300 shadow-2xs font-black'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
@@ -1179,7 +1179,7 @@ export default function BulkFieldOverwriteModal({
             <button
               type="button"
               onClick={() => setModalMode('express')}
-              className={`px-2.5 py-1 rounded-md font-bold flex items-center gap-1 cursor-pointer transition-all ${
+              className={`px-2.5 py-1 rounded-md font-bold flex items-center gap-1 cursor-pointer transition-all whitespace-nowrap flex-shrink-0 ${
                 modalMode === 'express'
                   ? 'bg-white dark:bg-slate-900 text-blue-700 dark:text-blue-300 shadow-2xs font-black'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
@@ -1192,7 +1192,7 @@ export default function BulkFieldOverwriteModal({
             <button
               type="button"
               onClick={() => setModalMode('gazette_ai')}
-              className={`px-2.5 py-1 rounded-md font-bold flex items-center gap-1 cursor-pointer transition-all ${
+              className={`px-2.5 py-1 rounded-md font-bold flex items-center gap-1 cursor-pointer transition-all whitespace-nowrap flex-shrink-0 ${
                 modalMode === 'gazette_ai'
                   ? 'bg-white dark:bg-slate-900 text-purple-700 dark:text-purple-300 shadow-2xs font-black'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
@@ -1205,7 +1205,7 @@ export default function BulkFieldOverwriteModal({
             <button
               type="button"
               onClick={() => setModalMode('admit_ai')}
-              className={`px-2.5 py-1 rounded-md font-bold flex items-center gap-1 cursor-pointer transition-all ${
+              className={`px-2.5 py-1 rounded-md font-bold flex items-center gap-1 cursor-pointer transition-all whitespace-nowrap flex-shrink-0 ${
                 modalMode === 'admit_ai'
                   ? 'bg-white dark:bg-slate-900 text-indigo-700 dark:text-indigo-300 shadow-2xs font-black'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
@@ -1589,25 +1589,25 @@ export default function BulkFieldOverwriteModal({
                     </div>
 
                     {/* Filter Pills */}
-                    <div className="flex items-center gap-1 bg-slate-200/80 dark:bg-slate-800 p-0.5 rounded-lg text-[10px] font-bold">
+                    <div className="flex items-center gap-1 bg-slate-200/80 dark:bg-slate-800 p-0.5 rounded-lg text-[10px] font-bold overflow-x-auto no-scrollbar flex-shrink-0">
                       <button
                         type="button"
                         onClick={() => setPreviewFilter('changed')}
-                        className={`px-2 py-0.5 rounded cursor-pointer ${previewFilter === 'changed' ? 'bg-white dark:bg-slate-900 text-emerald-700 font-black' : 'text-slate-600'}`}
+                        className={`px-2 py-0.5 rounded cursor-pointer whitespace-nowrap flex-shrink-0 ${previewFilter === 'changed' ? 'bg-white dark:bg-slate-900 text-emerald-700 font-black' : 'text-slate-600'}`}
                       >
                         Changes Only ({stats.changed})
                       </button>
                       <button
                         type="button"
                         onClick={() => setPreviewFilter('all')}
-                        className={`px-2 py-0.5 rounded cursor-pointer ${previewFilter === 'all' ? 'bg-white dark:bg-slate-900 text-blue-700 font-black' : 'text-slate-600'}`}
+                        className={`px-2 py-0.5 rounded cursor-pointer whitespace-nowrap flex-shrink-0 ${previewFilter === 'all' ? 'bg-white dark:bg-slate-900 text-blue-700 font-black' : 'text-slate-600'}`}
                       >
                         All ({stats.total})
                       </button>
                       <button
                         type="button"
                         onClick={() => setPreviewFilter('unmatched')}
-                        className={`px-2 py-0.5 rounded cursor-pointer ${previewFilter === 'unmatched' ? 'bg-white dark:bg-slate-900 text-rose-700 font-black' : 'text-slate-600'}`}
+                        className={`px-2 py-0.5 rounded cursor-pointer whitespace-nowrap flex-shrink-0 ${previewFilter === 'unmatched' ? 'bg-white dark:bg-slate-900 text-rose-700 font-black' : 'text-slate-600'}`}
                       >
                         Unmatched ({stats.unmatched})
                       </button>
@@ -1616,10 +1616,10 @@ export default function BulkFieldOverwriteModal({
 
                   {/* Diff Table */}
                   <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-x-auto max-h-[420px] custom-scrollbar">
-                    <table className="w-full text-left border-collapse text-xs">
+                    <table className="w-full min-w-[640px] text-left border-collapse text-xs">
                       <thead className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold sticky top-0 z-10">
                         <tr className="border-b border-slate-200 dark:border-slate-700">
-                          <th className="p-2 text-center w-8">
+                          <th className="p-2 text-center w-8 whitespace-nowrap">
                             <button
                               type="button"
                               onClick={() => handleSelectAllFiltered(selectedRowIds.size === 0)}
@@ -1630,7 +1630,7 @@ export default function BulkFieldOverwriteModal({
                           </th>
                           <th 
                             onClick={() => handleTogglePreviewSort('regNo')}
-                            className="p-2 cursor-pointer select-none hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                            className="p-2 cursor-pointer select-none hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors whitespace-nowrap min-w-[130px]"
                             title="Click to sort by Registration No"
                           >
                             <div className="flex items-center gap-1">
@@ -1644,11 +1644,11 @@ export default function BulkFieldOverwriteModal({
                           </th>
                           <th 
                             onClick={() => handleTogglePreviewSort('rollNo')}
-                            className="p-2 cursor-pointer select-none hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                            className="p-2 cursor-pointer select-none hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors whitespace-nowrap min-w-[190px]"
                             title="Click to toggle sorting by Class Roll No / Student Name"
                           >
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-1.5">
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="flex items-center gap-1.5 whitespace-nowrap">
                                 <span>Database Matched Student</span>
                                 {previewSortColumn === 'rollNo' ? (
                                   <span className="text-[9px] font-black px-1.5 py-0.5 bg-blue-100 dark:bg-blue-950/80 text-blue-700 dark:text-blue-300 rounded-md border border-blue-200 dark:border-blue-800 flex items-center gap-0.5">
@@ -1670,7 +1670,7 @@ export default function BulkFieldOverwriteModal({
                                   e.stopPropagation();
                                   handleTogglePreviewSort('name');
                                 }}
-                                className={`text-[9px] px-1.5 py-0.5 rounded cursor-pointer transition-colors ${previewSortColumn === 'name' ? 'bg-blue-600 text-white font-bold' : 'text-slate-500 hover:bg-slate-300 dark:hover:bg-slate-600'}`}
+                                className={`text-[9px] px-1.5 py-0.5 rounded cursor-pointer transition-colors whitespace-nowrap ${previewSortColumn === 'name' ? 'bg-blue-600 text-white font-bold' : 'text-slate-500 hover:bg-slate-300 dark:hover:bg-slate-600'}`}
                                 title="Sort alphabetically by Student Name"
                               >
                                 By Name
@@ -1679,10 +1679,10 @@ export default function BulkFieldOverwriteModal({
                           </th>
                           <th 
                             onClick={() => handleTogglePreviewSort('diffs')}
-                            className="p-2 cursor-pointer select-none hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                            className="p-2 cursor-pointer select-none hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors min-w-[240px]"
                             title="Click to sort by number of modified fields"
                           >
-                            <div className="flex items-center gap-1">
+                            <div className="flex items-center gap-1 whitespace-nowrap">
                               <span>Field Modifications (Old ➔ New)</span>
                               {previewSortColumn === 'diffs' ? (
                                 previewSortDirection === 'asc' ? <ChevronUp size={13} className="text-blue-600" /> : <ChevronDown size={13} className="text-blue-600" />
@@ -1691,7 +1691,7 @@ export default function BulkFieldOverwriteModal({
                               )}
                             </div>
                           </th>
-                          <th className="p-2 text-center w-16">Inspect</th>
+                          <th className="p-2 text-center w-16 whitespace-nowrap">Inspect</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-200 dark:divide-slate-800">

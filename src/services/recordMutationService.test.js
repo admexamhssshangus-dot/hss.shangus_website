@@ -23,3 +23,77 @@ test('legacy batches with no before-image fail safely', async () => {
   getDoc.mockResolvedValue({ exists: () => true, data: () => ({ kind: 'legacy' }) });
   await expect(rollbackMutationJob('legacy')).rejects.toThrow(/no durable before-images/);
 });
+
+test('missing fields in current database doc do not throw false-positive conflict on preview aliases', async () => {
+  doc.mockImplementation((_db, ...parts) => parts.join('/'));
+  const tx = {
+    get: jest.fn(async ref => ({
+      exists: () => ref === 'admissions/physical',
+      data: () => ({ 'DoB (figures)': '18-05-2007' }) // notice 'dob' is NOT a property in current
+    })),
+    set: jest.fn()
+  };
+  runTransaction.mockImplementation((_db, body) => body(tx));
+
+  // student preview has 'dob', patch updates both 'dob' and 'DoB (figures)'
+  await expect(applyRecordPatch(
+    { _docId: 'physical', dob: '18-05-2007' },
+    { dob: '18-05-2007', 'DoB (figures)': '18-05-2007' },
+    { jobId: 'job', entryId: 'row-1' }
+  )).resolves.toBe('job');
+});
+
+test('date format equivalence (DD-MM-YYYY vs YYYY-MM-DD) avoids conflict error', async () => {
+  doc.mockImplementation((_db, ...parts) => parts.join('/'));
+  const tx = {
+    get: jest.fn(async ref => ({
+      exists: () => ref === 'admissions/physical',
+      data: () => ({ dob: '2007-05-18' })
+    })),
+    set: jest.fn()
+  };
+  runTransaction.mockImplementation((_db, body) => body(tx));
+
+  await expect(applyRecordPatch(
+    { _docId: 'physical', dob: '18-05-2007' },
+    { dob: '18-05-2007' },
+    { jobId: 'job', entryId: 'row-2' }
+  )).resolves.toBe('job');
+});
+
+test('force: true bypasses conflict check entirely during bulk overwrite', async () => {
+  doc.mockImplementation((_db, ...parts) => parts.join('/'));
+  const tx = {
+    get: jest.fn(async ref => ({
+      exists: () => ref === 'admissions/physical',
+      data: () => ({ name: 'DatabaseChangedName' })
+    })),
+    set: jest.fn()
+  };
+  runTransaction.mockImplementation((_db, body) => body(tx));
+
+  await expect(applyRecordPatch(
+    { _docId: 'physical', name: 'OldPreviewName' },
+    { name: 'OverwrittenName' },
+    { jobId: 'job', entryId: 'row-3', force: true }
+  )).resolves.toBe('job');
+});
+
+test('real concurrent conflict throws when force is false', async () => {
+  doc.mockImplementation((_db, ...parts) => parts.join('/'));
+  const tx = {
+    get: jest.fn(async ref => ({
+      exists: () => ref === 'admissions/physical',
+      data: () => ({ name: 'DatabaseChangedName' })
+    })),
+    set: jest.fn()
+  };
+  runTransaction.mockImplementation((_db, body) => body(tx));
+
+  await expect(applyRecordPatch(
+    { _docId: 'physical', name: 'OldPreviewName' },
+    { name: 'NewName' },
+    { jobId: 'job', entryId: 'row-4', force: false }
+  )).rejects.toThrow(/"name" changed since the preview/);
+});
+
