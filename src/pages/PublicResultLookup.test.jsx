@@ -8,7 +8,9 @@ jest.mock('react-router-dom', () => ({ Link: 'a', useSearchParams: () => [new UR
 jest.mock('../components/SEO', () => () => null);
 import {
   getSubjectPerformanceDescriptor,
-  getOverallResultDescriptor
+  getOverallResultDescriptor,
+  isSubjectCompatibleWithStream,
+  isSubjectEnrolledByStudent
 } from './PublicResultLookup';
 
 test('unavailable configuration is explained and cannot submit an empty evaluation', async () => {
@@ -74,5 +76,44 @@ test('verified student catalog stores exact registered subjects and DOB for stud
   expect(codes).toContain('ITE');
   expect(codes).not.toContain('UR'); // Did not take Urdu
   expect(codes).not.toContain('ES'); // Did not take EVS
+});
+
+test('stream and subject compatibility prevents Science subjects like Botany in Humanities students', () => {
+  // Humanities stream must reject Science subjects
+  expect(isSubjectCompatibleWithStream('BO', 'Botany', 'Humanities')).toBe(false);
+  expect(isSubjectCompatibleWithStream('ZO', 'Zoology', 'Humanities')).toBe(false);
+  expect(isSubjectCompatibleWithStream('PH', 'Physics', 'Humanities')).toBe(false);
+  expect(isSubjectCompatibleWithStream('CH', 'Chemistry', 'Humanities')).toBe(false);
+
+  // Humanities stream allows Humanities subjects and common electives
+  expect(isSubjectCompatibleWithStream('ED', 'Education', 'Humanities')).toBe(true);
+  expect(isSubjectCompatibleWithStream('HT', 'History', 'Humanities')).toBe(true);
+  expect(isSubjectCompatibleWithStream('PS', 'Political Science', 'Humanities')).toBe(true);
+  expect(isSubjectCompatibleWithStream('PD', 'Physical Education', 'Humanities')).toBe(true);
+  expect(isSubjectCompatibleWithStream('EN', 'General English', 'Humanities')).toBe(true);
+
+  // Science stream rejects Humanities subjects
+  expect(isSubjectCompatibleWithStream('HT', 'History', 'Science')).toBe(false);
+  expect(isSubjectCompatibleWithStream('PS', 'Political Science', 'Science')).toBe(false);
+  expect(isSubjectCompatibleWithStream('ED', 'Education', 'Science')).toBe(false);
+
+  // Farhaan Rashid Wani (Class 12th Humanities student) check
+  const verifiedCatalog = require('../data/verifiedStudentsCatalog.json');
+  const farhaan = verifiedCatalog.find(s => s.fNo === '250323');
+  expect(farhaan).toBeDefined();
+  expect(farhaan.name.toLowerCase()).toContain('farhaan');
+  expect(farhaan.classRollNo).toBe('202');
+
+  // Botany cannot be enrolled by Farhaan
+  expect(isSubjectEnrolledByStudent('BO', 'Botany', farhaan)).toBe(false);
+  expect(isSubjectEnrolledByStudent('ZO', 'Zoology', farhaan)).toBe(false);
+  expect(isSubjectEnrolledByStudent('PH', 'Physics', farhaan)).toBe(false);
+
+  // Farhaan's actual subjects are verified
+  expect(isSubjectEnrolledByStudent('GE', 'GE', farhaan)).toBe(true);
+  expect(isSubjectEnrolledByStudent('ED', 'Education', farhaan)).toBe(true);
+  expect(isSubjectEnrolledByStudent('HT', 'History', farhaan)).toBe(true);
+  expect(isSubjectEnrolledByStudent('PS', 'Political Science', farhaan)).toBe(true);
+  expect(isSubjectEnrolledByStudent('PD', 'Physical Education', farhaan)).toBe(true);
 });
 
