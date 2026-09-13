@@ -446,14 +446,14 @@ export default function AdminToolsDropdown({
         } w-auto sm:w-[680px] md:w-[720px] max-w-[calc(100vw-20px)] max-h-[90vh] sm:max-h-[520px] sm:h-[490px] flex flex-col rounded-2xl sm:rounded-3xl border border-slate-200/90 dark:border-slate-800/90 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl shadow-2xl z-[99999] p-2.5 sm:p-4 text-xs overflow-hidden animate-fadeIn`}
       >
         {/* Modal Header */}
-        <div className="pb-1.5 sm:pb-2.5 border-b border-slate-100 dark:border-slate-800/80 flex items-center justify-between gap-2 shrink-0">
+        <div className="pb-1 sm:pb-2 border-b border-slate-100 dark:border-slate-800/80 flex items-center justify-between gap-2 shrink-0">
           <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
-            <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg sm:rounded-xl bg-teal-500/10 text-teal-600 dark:text-teal-400 flex items-center justify-center shrink-0">
-              <Wrench size={13} className="sm:hidden" />
+            <div className="w-5.5 h-5.5 sm:w-7 sm:h-7 rounded-md sm:rounded-xl bg-teal-500/10 text-teal-600 dark:text-teal-400 flex items-center justify-center shrink-0">
+              <Wrench size={12} className="sm:hidden" />
               <Wrench size={14} className="hidden sm:block" />
             </div>
             <div>
-              <h2 className="font-bold text-xs sm:text-sm text-slate-900 dark:text-white tracking-tight leading-none truncate">
+              <h2 className="font-bold text-[11px] sm:text-sm text-slate-900 dark:text-white tracking-tight leading-none truncate">
                 <span className="sm:hidden">Admin Modules</span>
                 <span className="hidden sm:inline">Administrative Modules</span>
               </h2>
@@ -462,8 +462,8 @@ export default function AdminToolsDropdown({
 
           <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             {/* Total Available Badge */}
-            <span className="whitespace-nowrap shrink-0 text-teal-800 dark:text-teal-300 font-mono font-bold bg-teal-50 dark:bg-teal-950/80 border border-teal-200 dark:border-teal-800 px-2 sm:px-2.5 py-0.5 rounded-full text-[9px] sm:text-xs flex items-center gap-1 sm:gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-teal-500 animate-pulse" />
+            <span className="whitespace-nowrap shrink-0 text-teal-800 dark:text-teal-300 font-mono font-bold bg-teal-50 dark:bg-teal-950/80 border border-teal-200 dark:border-teal-800 px-1.5 sm:px-2.5 py-0.5 rounded-full text-[8.5px] sm:text-xs flex items-center gap-1 sm:gap-1.5">
+              <span className="w-1 h-1 sm:w-1.5 sm:h-1.5 rounded-full bg-teal-500 animate-pulse" />
               <span>{totalAvailableCount} Available</span>
             </span>
 
@@ -471,37 +471,37 @@ export default function AdminToolsDropdown({
             <button
               type="button"
               onClick={() => setIsOpen(false)}
-              className="p-1 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer shrink-0"
+              className="p-0.5 sm:p-1 rounded-md sm:rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer shrink-0"
               title="Close Menu"
               aria-label="Close Menu"
             >
-              <X size={15} className="sm:hidden" />
+              <X size={14} className="sm:hidden" />
               <X size={16} className="hidden sm:block" />
             </button>
           </div>
         </div>
 
-        {/* Minimal Search & Filter Bar */}
-        <div className="py-1.5 sm:py-2 shrink-0">
+        {/* Minimal Compact Search Bar */}
+        <div className="py-1 sm:py-1.5 shrink-0">
           <div className="relative">
-            <Search size={13} className="sm:hidden absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-            <Search size={14} className="hidden sm:block absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+            <Search size={11} className="sm:hidden absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+            <Search size={13} className="hidden sm:block absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
             <input
               ref={searchInputRef}
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder={isMobile ? `Search ${totalAvailableCount} tools...` : `Search all ${totalAvailableCount} administrative modules & tools...`}
-              className="w-full pl-9 sm:pl-10 pr-7 sm:pr-8 py-1 sm:py-1.5 bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/60 rounded-lg sm:rounded-xl text-[11px] sm:text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-hidden focus:ring-1 focus:ring-teal-500 transition-all"
+              className="w-full h-7 sm:h-8 pl-6 sm:pl-8 pr-6 sm:pr-8 bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/60 rounded-md sm:rounded-xl text-[10px] sm:text-xs placeholder:text-[9.5px] sm:placeholder:text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-hidden focus:ring-1 focus:ring-teal-500 transition-all"
             />
             {searchQuery && (
               <button
                 type="button"
                 onClick={() => setSearchQuery('')}
-                className="absolute right-2 sm:right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-0.5 rounded"
+                className="absolute right-1.5 sm:right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-0.5 rounded"
               >
-                <X size={12} className="sm:hidden" />
-                <X size={13} className="hidden sm:block" />
+                <X size={10} className="sm:hidden" />
+                <X size={12} className="hidden sm:block" />
               </button>
             )}
           </div>
@@ -509,7 +509,7 @@ export default function AdminToolsDropdown({
 
         {/* Category Horizontal Bar for Mobile Only (Hidden when searching) */}
         {!searchQuery && (
-          <div className="flex sm:hidden items-center gap-1 overflow-x-auto no-scrollbar scroll-smooth py-1 border-b border-slate-100 dark:border-slate-800 shrink-0">
+          <div className="flex sm:hidden items-center gap-1 overflow-x-auto no-scrollbar scroll-smooth py-0.5 border-b border-slate-100 dark:border-slate-800 shrink-0">
             {visibleCategories.map((cat) => {
               const CatIcon = cat.icon;
               const isSelected = activeCategoryKey === cat.key;
@@ -520,16 +520,16 @@ export default function AdminToolsDropdown({
                   key={cat.key}
                   type="button"
                   onClick={() => setActiveCategoryKey(cat.key)}
-                  className={`shrink-0 flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10.5px] transition-all cursor-pointer ${
+                  className={`shrink-0 flex items-center gap-1 px-2 py-0.5 rounded-md text-[9.5px] transition-all cursor-pointer ${
                     isSelected
                       ? 'bg-teal-600 text-white font-bold shadow-xs'
                       : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-750 font-medium'
                   }`}
                 >
-                  <CatIcon size={11} className={isSelected ? 'text-white' : cat.color} />
+                  <CatIcon size={10} className={isSelected ? 'text-white' : cat.color} />
                   <span className="whitespace-nowrap">{cat.title}</span>
                   <span
-                    className={`text-[8.5px] font-mono font-bold px-1.5 py-0.2 rounded-full ${
+                    className={`text-[8px] font-mono font-bold px-1 py-0 rounded ${
                       isSelected
                         ? 'bg-white/20 text-white'
                         : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
