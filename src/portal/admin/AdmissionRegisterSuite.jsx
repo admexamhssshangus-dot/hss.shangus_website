@@ -3657,16 +3657,16 @@ export default function AdmissionRegisterSuite({
   const pageSizeCss = isA4 ? 'a4 landscape' : (isStandardLegal ? 'legal landscape' : '13.7in 8.5in');
 
   const printMarginMm = Math.max(2.5, Math.min(20, printMargin * 25.4));
-  const printableHeightMm = Math.max(140, paperHeightMm - (printMarginMm * 2) - 0.5);
+  const printableHeightMm = Math.max(140, paperHeightMm - (printMarginMm * 2) - 1.0);
 
   const currentStudentsPerPage = activeTab === 'sentup' ? (sentupStudentsPerPage || 10) : (studentsPerPage || 15);
   // Allowance for top school header, thead, and signature footer:
-  // Sentup: sentup-header (10.5mm) + thead (6.5mm) + signature-footer (10mm) + borders (2mm) = 29mm
-  // Register: register-header (13.5mm) + thead (14mm) + signature-footer (13.5mm) + borders (2.5mm) = 43.5mm
-  const headerFooterAllowanceMm = activeTab === 'sentup' ? 29 : 43.5;
+  // Sentup: sentup-header (12mm) + margin (1.2mm) + thead (6.5mm) + signature-footer (8.5mm) + margin (1.5mm) + borders (2mm) = 31.7mm -> safe allowance 34mm
+  // Register: register-header (12mm) + margin (1.5mm) + thead (14mm) + signature-footer (13.5mm) + margin (1.5mm) + borders (2mm) = 44.5mm
+  const headerFooterAllowanceMm = activeTab === 'sentup' ? 34 : 44.5;
   const maxFittingRowMm = (printableHeightMm - headerFooterAllowanceMm) / currentStudentsPerPage;
-  // Always fill the available height so that all page space is utilized without blank gaps:
-  const calculatedRowHeightMm = Math.max(6.5, maxFittingRowMm).toFixed(1);
+  // Floor to 1 decimal place with 0.2mm safety buffer to guarantee zero page overflow in Blink:
+  const calculatedRowHeightMm = Math.max(6.0, Math.floor((maxFittingRowMm - 0.2) * 10) / 10).toFixed(1);
 
   return (
     <div ref={suiteRootRef} className="admission-suite-root min-h-screen bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col font-sans">
@@ -3772,6 +3772,9 @@ export default function AdmissionRegisterSuite({
 
           .spread-container {
             display: block !important;
+            width: 100% !important;
+            min-width: 0 !important;
+            max-width: 100% !important;
             margin: 0 !important;
             padding: 0 !important;
             border: none !important;
@@ -3782,10 +3785,11 @@ export default function AdmissionRegisterSuite({
             position: relative !important;
             box-sizing: border-box !important;
             width: 100% !important;
-            max-width: ${paperWidthMm}mm !important;
+            min-width: 100% !important;
+            max-width: 100% !important;
             height: auto !important;
             min-height: 0 !important;
-            max-height: ${printableHeightMm.toFixed(1)}mm !important;
+            max-height: none !important;
             padding: 0 !important;
             margin: 0 !important;
             border: none !important;
@@ -3795,21 +3799,21 @@ export default function AdmissionRegisterSuite({
             page-break-after: always !important;
             break-after: page !important;
             page-break-inside: avoid !important;
-            break-inside: avoid !important;
+            break-inside: avoid-page !important;
             background: #ffffff !important;
-            overflow: hidden !important;
+            overflow: visible !important;
           }
 
           /* ─── DUAL-PART ADMISSION REGISTER (PART 1 & PART 2 IDENTICAL SUB-MILLIMETER ROW ALIGNMENT) ─── */
           .register-ledger-page {
-            display: flex !important;
-            flex-direction: column !important;
-            justify-content: space-between !important;
-            height: ${printableHeightMm.toFixed(1)}mm !important;
-            min-height: ${printableHeightMm.toFixed(1)}mm !important;
-            max-height: ${printableHeightMm.toFixed(1)}mm !important;
+            display: block !important;
+            position: relative !important;
             width: 100% !important;
-            max-width: ${paperWidthMm}mm !important;
+            min-width: 100% !important;
+            max-width: 100% !important;
+            height: auto !important;
+            min-height: 0 !important;
+            max-height: none !important;
             box-sizing: border-box !important;
             padding: 0 !important;
             margin: 0 !important;
@@ -3817,29 +3821,40 @@ export default function AdmissionRegisterSuite({
             break-after: page !important;
             page-break-inside: avoid !important;
             break-inside: avoid-page !important;
-            overflow: hidden !important;
+            overflow: visible !important;
             background: #ffffff !important;
           }
 
-          .register-ledger-page:last-child {
+          .spread-container .register-ledger-page:first-child {
+            page-break-after: always !important;
+            break-after: page !important;
+          }
+
+          .spread-container .register-ledger-page:last-child {
+            page-break-after: always !important;
+            break-after: page !important;
+          }
+
+          .spread-container:last-child .register-ledger-page:last-child {
             page-break-after: auto !important;
             break-after: auto !important;
           }
 
           .register-ledger-page .overflow-x-auto {
             overflow: visible !important;
-            display: flex !important;
-            flex-direction: column !important;
+            display: block !important;
             width: 100% !important;
-            flex: 1 1 auto !important;
-            min-height: 0 !important;
+            min-width: 100% !important;
+            max-width: 100% !important;
             margin: 0 !important;
             padding: 0 !important;
           }
 
           .register-ledger-page .admission-spread-table {
-            flex: 1 1 auto !important;
+            display: table !important;
             width: 100% !important;
+            min-width: 100% !important;
+            max-width: 100% !important;
             table-layout: fixed !important;
             border-collapse: collapse !important;
           }
@@ -3877,8 +3892,11 @@ export default function AdmissionRegisterSuite({
 
           /* Thead locked strictly to 14mm (7mm per row) on both Part 1 and Part 2 */
           .admission-spread-table {
+            display: table !important;
             table-layout: fixed !important;
             width: 100% !important;
+            min-width: 100% !important;
+            max-width: 100% !important;
             border-collapse: collapse !important;
             font-size: ${currentStudentsPerPage >= 16 ? '7px' : '7.8px'} !important;
             box-sizing: border-box !important;
@@ -3919,6 +3937,17 @@ export default function AdmissionRegisterSuite({
             max-height: 14mm !important;
           }
 
+          /* Universal column stretching without rigid max-width caps */
+          .admission-spread-table th,
+          .admission-spread-table td,
+          .sentup-table th,
+          .sentup-table td {
+            min-width: 0 !important;
+            max-width: none !important;
+            overflow-wrap: anywhere !important;
+            word-break: break-word !important;
+          }
+
           /* Every student row locked to EXACT calculatedRowHeightMm on both Part 1 and Part 2 */
           .register-resizable-row,
           .admission-spread-table tbody tr {
@@ -3949,15 +3978,27 @@ export default function AdmissionRegisterSuite({
             overflow: hidden !important;
           }
 
-          .register-photo-cell {
+          .register-photo-cell,
+          .sentup-table .sentup-photo-cell,
+          .sentup-table td.sentup-photo-cell {
             padding: 0.3mm !important;
             height: ${calculatedRowHeightMm}mm !important;
             min-height: ${calculatedRowHeightMm}mm !important;
             max-height: ${calculatedRowHeightMm}mm !important;
+            width: 11mm !important;
+            min-width: 11mm !important;
+            max-width: 13mm !important;
             overflow: hidden !important;
             box-sizing: border-box !important;
             vertical-align: middle !important;
             text-align: center !important;
+          }
+
+          .admission-spread-table th[data-col="sno"],
+          .sentup-table th[data-col="st_sno"] {
+            width: 10mm !important;
+            min-width: 9mm !important;
+            max-width: 12mm !important;
           }
 
           .register-photo-cell img {
@@ -3975,12 +4016,14 @@ export default function AdmissionRegisterSuite({
             display: flex !important;
             justify-content: space-between !important;
             align-items: flex-end !important;
-            margin-top: auto !important;
+            margin-top: 1.5mm !important;
             height: 13.5mm !important;
             min-height: 13.5mm !important;
             max-height: 13.5mm !important;
             padding: 1.5mm 0 0.5mm !important;
             box-sizing: border-box !important;
+            page-break-before: avoid !important;
+            break-before: avoid !important;
             page-break-inside: avoid !important;
             break-inside: avoid !important;
             flex-shrink: 0 !important;
@@ -4000,34 +4043,34 @@ export default function AdmissionRegisterSuite({
 
           /* ─── SENTUP ROLL SHEET PAGES & PAGINATION (ZERO OVERFLOW, RELIABLE BLINK RENDERING) ─── */
           .sentup-cover-page {
-            display: flex !important;
-            flex-direction: column !important;
-            justify-content: space-between !important;
-            height: ${printableHeightMm.toFixed(1)}mm !important;
-            min-height: ${printableHeightMm.toFixed(1)}mm !important;
-            max-height: ${printableHeightMm.toFixed(1)}mm !important;
+            display: block !important;
+            position: relative !important;
             width: 100% !important;
-            max-width: ${paperWidthMm}mm !important;
+            min-width: 100% !important;
+            max-width: 100% !important;
+            height: auto !important;
+            min-height: 0 !important;
+            max-height: none !important;
             box-sizing: border-box !important;
-            padding: 3mm 6mm !important;
+            padding: 3mm 5mm !important;
             margin: 0 !important;
             page-break-inside: avoid !important;
             break-inside: avoid-page !important;
             page-break-after: always !important;
             break-after: page !important;
-            overflow: hidden !important;
+            overflow: visible !important;
             background: #ffffff !important;
           }
 
           .sentup-plan-page {
-            display: flex !important;
-            flex-direction: column !important;
-            justify-content: space-between !important;
-            height: ${printableHeightMm.toFixed(1)}mm !important;
-            min-height: ${printableHeightMm.toFixed(1)}mm !important;
-            max-height: ${printableHeightMm.toFixed(1)}mm !important;
+            display: block !important;
+            position: relative !important;
             width: 100% !important;
-            max-width: ${paperWidthMm}mm !important;
+            min-width: 100% !important;
+            max-width: 100% !important;
+            height: auto !important;
+            min-height: 0 !important;
+            max-height: none !important;
             box-sizing: border-box !important;
             padding: 2mm 3.5mm !important;
             margin: 0 !important;
@@ -4035,20 +4078,45 @@ export default function AdmissionRegisterSuite({
             break-inside: avoid-page !important;
             page-break-after: always !important;
             break-after: page !important;
-            overflow: hidden !important;
+            overflow: visible !important;
             background: #ffffff !important;
           }
 
-          .sentup-ledger-page {
-            display: flex !important;
-            flex-direction: column !important;
-            justify-content: space-between !important;
-            position: relative !important;
-            height: ${printableHeightMm.toFixed(1)}mm !important;
-            min-height: ${printableHeightMm.toFixed(1)}mm !important;
-            max-height: ${printableHeightMm.toFixed(1)}mm !important;
+          .sentup-plan-page .grid {
             width: 100% !important;
-            max-width: ${paperWidthMm}mm !important;
+          }
+
+          .sentup-plan-page .subject-key-table {
+            width: 100% !important;
+            table-layout: fixed !important;
+            border-collapse: collapse !important;
+            font-size: 7px !important;
+            line-height: 1.1 !important;
+          }
+
+          .sentup-plan-page .subject-key-table th {
+            background-color: #0f172a !important;
+            color: #ffffff !important;
+            font-weight: 900 !important;
+            padding: 1px 2.5px !important;
+            font-size: 7px !important;
+          }
+
+          .sentup-plan-page .subject-key-table td {
+            border: 1px solid #cbd5e1 !important;
+            padding: 0.8px 2px !important;
+            font-size: 7px !important;
+          }
+
+          .sentup-ledger-page {
+            display: block !important;
+            position: relative !important;
+            width: 100% !important;
+            min-width: 100% !important;
+            max-width: 100% !important;
+            height: auto !important;
+            min-height: 0 !important;
+            max-height: none !important;
             box-sizing: border-box !important;
             padding: 0 !important;
             margin: 0 !important;
@@ -4056,7 +4124,7 @@ export default function AdmissionRegisterSuite({
             break-inside: avoid-page !important;
             page-break-after: always !important;
             break-after: page !important;
-            overflow: hidden !important;
+            overflow: visible !important;
             background: #ffffff !important;
           }
 
@@ -4091,34 +4159,18 @@ export default function AdmissionRegisterSuite({
             color: #0f172a !important;
           }
 
-          .sentup-plan-page .subject-key-table {
-            width: 100% !important;
-            border-collapse: collapse !important;
-            font-size: 7px !important;
-            line-height: 1.1 !important;
-          }
-
-          .sentup-plan-page .subject-key-table th {
-            background-color: #0f172a !important;
-            color: #ffffff !important;
-            font-weight: 900 !important;
-            padding: 1px 2.5px !important;
-            font-size: 7px !important;
-          }
-
-          .sentup-plan-page .subject-key-table td {
-            border: 1px solid #cbd5e1 !important;
-            padding: 0.8px 2px !important;
-            font-size: 7px !important;
-          }
-
           .sentup-ledger-page .sentup-header {
             display: block !important;
             position: relative !important;
+            height: 12mm !important;
+            min-height: 12mm !important;
+            max-height: 12mm !important;
             margin-bottom: 1.2mm !important;
             padding-bottom: 0.8mm !important;
             border-bottom: 1.5px solid #0f172a !important;
+            box-sizing: border-box !important;
             flex-shrink: 0 !important;
+            overflow: hidden !important;
           }
 
           .manual-sno-circle {
@@ -4154,12 +4206,12 @@ export default function AdmissionRegisterSuite({
 
           .sentup-ledger-page .overflow-x-auto {
             overflow: visible !important;
-            display: flex !important;
-            flex-direction: column !important;
+            display: block !important;
             width: 100% !important;
+            min-width: 100% !important;
+            max-width: 100% !important;
             margin: 0 !important;
             padding: 0 !important;
-            flex: 1 1 auto !important;
           }
 
           .sentup-table,
@@ -4167,12 +4219,13 @@ export default function AdmissionRegisterSuite({
             display: table !important;
             table-layout: fixed !important;
             width: 100% !important;
+            min-width: 100% !important;
+            max-width: 100% !important;
             border-collapse: collapse !important;
             font-size: ${currentStudentsPerPage >= 18 ? '7px' : currentStudentsPerPage >= 15 ? '7.5px' : '8.5px'} !important;
             line-height: 1.15 !important;
             page-break-inside: avoid !important;
             break-inside: avoid !important;
-            flex: none !important;
             box-sizing: border-box !important;
           }
 
@@ -4213,23 +4266,9 @@ export default function AdmissionRegisterSuite({
             height: ${calculatedRowHeightMm}mm !important;
             min-height: ${calculatedRowHeightMm}mm !important;
             max-height: ${calculatedRowHeightMm}mm !important;
-            padding: 0.3mm 1mm !important;
+            padding: 0.3mm 0.8mm !important;
             line-height: 1.15 !important;
             font-size: ${currentStudentsPerPage >= 18 ? '7px' : currentStudentsPerPage >= 15 ? '7.5px' : '8.5px'} !important;
-            vertical-align: middle !important;
-            box-sizing: border-box !important;
-            overflow: hidden !important;
-          }
-
-          .sentup-table .sentup-photo-cell,
-          .sentup-table td.sentup-photo-cell {
-            height: ${calculatedRowHeightMm}mm !important;
-            min-height: ${calculatedRowHeightMm}mm !important;
-            max-height: ${calculatedRowHeightMm}mm !important;
-            width: 10mm !important;
-            max-width: 11mm !important;
-            padding: 0.3mm !important;
-            text-align: center !important;
             vertical-align: middle !important;
             box-sizing: border-box !important;
             overflow: hidden !important;
@@ -4247,11 +4286,10 @@ export default function AdmissionRegisterSuite({
             margin: 0 auto !important;
           }
 
-          /* Compact column widths: Subjects & Board Roll No */
+          /* Proportional column widths for edge-to-edge Sentup print */
           .sentup-table th[data-col="st_subs"],
           .sentup-table td.st-subs-cell {
-            width: ${currentStudentsPerPage >= 18 ? '14mm' : '11mm'} !important;
-            max-width: 15mm !important;
+            width: ${currentStudentsPerPage >= 18 ? '14mm' : '12mm'} !important;
             padding: 0.2mm 0.5mm !important;
             overflow: hidden !important;
           }
@@ -4266,8 +4304,7 @@ export default function AdmissionRegisterSuite({
           .sentup-table th[data-col="st_boardRoll"],
           .sentup-table th.th-col-st_boardRoll,
           .sentup-table td.st-boardroll-cell {
-            width: 19mm !important;
-            max-width: 20mm !important;
+            width: 22mm !important;
             padding: 0.3mm 0.8mm !important;
           }
 
@@ -4287,8 +4324,7 @@ export default function AdmissionRegisterSuite({
           /* Snug proportional width and crisp print font for BOARD REG. NO. */
           .sentup-table th[data-col="st_boardReg"],
           .sentup-table th.th-col-st_boardReg {
-            width: 23mm !important;
-            max-width: 25mm !important;
+            width: 26mm !important;
             font-size: 8.5px !important;
             font-weight: 900 !important;
             line-height: 1.1 !important;
@@ -4297,8 +4333,7 @@ export default function AdmissionRegisterSuite({
 
           .sentup-table td.st-boardreg-cell,
           .sentup-table .st-boardreg-cell {
-            width: 23mm !important;
-            max-width: 25mm !important;
+            width: 26mm !important;
             font-size: ${currentStudentsPerPage >= 18 ? '9px' : '10px'} !important;
             font-weight: 900 !important;
             line-height: 1.15 !important;
@@ -4315,7 +4350,7 @@ export default function AdmissionRegisterSuite({
           /* Generous width and larger print font for STUDENT'S NAME */
           .sentup-table th[data-col="st_name"],
           .sentup-table th.th-col-st_name {
-            width: 58mm !important;
+            width: 65mm !important;
             min-width: 50mm !important;
             font-size: 9.5px !important;
             font-weight: 900 !important;
@@ -4325,9 +4360,26 @@ export default function AdmissionRegisterSuite({
 
           .sentup-table td.st-name-cell,
           .sentup-table .st-name-cell {
-            width: 58mm !important;
+            width: 65mm !important;
             min-width: 50mm !important;
             overflow: hidden !important;
+          }
+
+          .sentup-table th[data-col="st_parentage"],
+          .sentup-table th.th-col-st_parentage,
+          .sentup-table td[data-col="st_parentage"] {
+            width: 48mm !important;
+            min-width: 35mm !important;
+          }
+
+          .sentup-table th[data-col="st_dob"],
+          .sentup-table td[data-col="st_dob"] {
+            width: 20mm !important;
+          }
+
+          .sentup-table th[data-col="st_result"],
+          .sentup-table td[data-col="st_result"] {
+            width: 24mm !important;
           }
 
           .sentup-table .st-name-cell span {
@@ -4343,6 +4395,7 @@ export default function AdmissionRegisterSuite({
 
           .sentup-table td.st-rollno-cell,
           .sentup-table .st-rollno-cell {
+            width: 12mm !important;
             font-size: ${currentStudentsPerPage >= 18 ? '10px' : '11px'} !important;
             font-weight: 900 !important;
             line-height: 1.1 !important;
@@ -4352,6 +4405,18 @@ export default function AdmissionRegisterSuite({
           .sentup-table .st-rollno-cell div {
             font-size: ${currentStudentsPerPage >= 18 ? '10px' : '11px'} !important;
             font-weight: 900 !important;
+          }
+
+          .sentup-table th[data-col="st_admitReceipt"],
+          .sentup-table td.st-admitReceipt-cell {
+            width: 24mm !important;
+            min-width: 18mm !important;
+          }
+
+          .sentup-table th[data-col="st_marksReceipt"],
+          .sentup-table td.st-marksReceipt-cell {
+            width: 50mm !important;
+            min-width: 36mm !important;
           }
 
           .sentup-table td.st-receipt-cell {
@@ -4376,7 +4441,7 @@ export default function AdmissionRegisterSuite({
             display: flex !important;
             justify-content: space-between !important;
             align-items: flex-end !important;
-            margin-top: auto !important;
+            margin-top: 1.5mm !important;
             height: 8.5mm !important;
             min-height: 8.5mm !important;
             max-height: 9mm !important;
@@ -4385,6 +4450,7 @@ export default function AdmissionRegisterSuite({
             page-break-before: avoid !important;
             break-before: avoid !important;
             page-break-inside: avoid !important;
+            break-inside: avoid !important;
             flex-shrink: 0 !important;
           }
 
@@ -4420,7 +4486,8 @@ export default function AdmissionRegisterSuite({
             justify-content: center !important;
             box-sizing: border-box !important;
             width: 100% !important;
-            max-width: ${paperWidthMm}mm !important;
+            min-width: 100% !important;
+            max-width: 100% !important;
             min-height: 0 !important;
             max-height: 185mm !important;
             padding: 8mm 10mm !important;
@@ -4433,6 +4500,8 @@ export default function AdmissionRegisterSuite({
             page-break-inside: avoid !important;
             break-inside: avoid !important;
             width: 100% !important;
+            min-width: 100% !important;
+            max-width: 100% !important;
             border-collapse: collapse !important;
             border: 1px solid #000000 !important;
             table-layout: fixed !important;
@@ -6039,7 +6108,7 @@ export default function AdmissionRegisterSuite({
               {/* 1. COVER PAGE */}
               {(registerViewSection === 'all' || registerViewSection === 'cover') && (
                 <div
-                  className="page-container cover-page bg-white rounded-xl border border-slate-300 shadow-sm text-center flex flex-col items-center justify-center max-w-[355.6mm] mx-auto page-break-after"
+                  className="page-container cover-page bg-white rounded-xl border border-slate-300 shadow-sm text-center flex flex-col items-center justify-center max-w-[355.6mm] mx-auto page-break-after print:w-full print:min-w-full print:max-w-none print:m-0 print:p-0"
                   style={{ padding: `${printMargin}in` }}
                 >
                   <div className="flex flex-col items-center justify-center w-full my-auto py-6 sm:py-8">
@@ -6073,7 +6142,7 @@ export default function AdmissionRegisterSuite({
                   return (
                     <div
                       key={pageNum}
-                      className={`spread-container ${
+                      className={`spread-container print:min-w-0 print:w-full print:max-w-none print:block print:m-0 print:p-0 ${
                         spreadLayoutMode === 'side_by_side'
                           ? 'flex flex-row gap-3 min-w-[1500px] max-w-full mx-auto items-stretch'
                           : 'flex flex-col gap-4 max-w-[355.6mm] mx-auto'
@@ -6081,7 +6150,7 @@ export default function AdmissionRegisterSuite({
                     >
                       {/* LEFT PAGE: PART 1 (Personal & Contact Details) */}
                       <div
-                        className={`page-container register-ledger-page bg-white rounded-xl border border-slate-300 shadow-sm print:border-none print:shadow-none ${
+                        className={`page-container register-ledger-page bg-white rounded-xl border border-slate-300 shadow-sm print:border-none print:shadow-none print:w-full print:min-w-full print:max-w-none print:m-0 print:p-0 ${
                           spreadLayoutMode === 'side_by_side' ? 'flex-1 min-w-0' : 'w-full'
                         }`}
                         style={{ padding: `${printMargin}in` }}
@@ -6255,7 +6324,7 @@ export default function AdmissionRegisterSuite({
 
                       {/* RIGHT PAGE: PART 2 (Academic, Category & Receipt Ledger) */}
                       <div
-                        className={`page-container register-ledger-page bg-white rounded-xl border border-slate-300 shadow-sm print:border-none print:shadow-none ${
+                        className={`page-container register-ledger-page bg-white rounded-xl border border-slate-300 shadow-sm print:border-none print:shadow-none print:w-full print:min-w-full print:max-w-none print:m-0 print:p-0 ${
                           spreadLayoutMode === 'side_by_side' ? 'flex-1 min-w-0' : 'w-full'
                         }`}
                         style={{ padding: `${printMargin}in` }}
@@ -6403,7 +6472,7 @@ export default function AdmissionRegisterSuite({
               {/* 3. CONSOLIDATED SUMMARY PAGE */}
               {(registerViewSection === 'all' || registerViewSection === 'summary') && (
                 <div
-                  className="page-container bg-white rounded-xl border border-slate-300 shadow-sm print:border-none print:shadow-none max-w-[355.6mm] mx-auto page-break-after"
+                  className="page-container bg-white rounded-xl border border-slate-300 shadow-sm print:border-none print:shadow-none print:w-full print:min-w-full print:max-w-none print:m-0 max-w-[355.6mm] mx-auto page-break-after"
                   style={{ padding: `${printMargin}in` }}
                 >
                   <div className="text-center border-b-2 border-red-700 pb-2 mb-3">
@@ -6484,7 +6553,7 @@ export default function AdmissionRegisterSuite({
               {/* 4. EDITABLE OFFICIAL NOTES PAGE */}
               {(registerViewSection === 'all' || registerViewSection === 'notes') && (
                 <div
-                  className="page-container bg-white rounded-xl border border-slate-300 shadow-sm print:border-none print:shadow-none max-w-[355.6mm] mx-auto"
+                  className="page-container bg-white rounded-xl border border-slate-300 shadow-sm print:border-none print:shadow-none print:w-full print:min-w-full print:max-w-none print:m-0 max-w-[355.6mm] mx-auto"
                   style={{ padding: `${printMargin}in` }}
                 >
                   <div className="flex items-center justify-between pb-1 mb-2">
@@ -6678,7 +6747,7 @@ export default function AdmissionRegisterSuite({
               {includeCoverPage && (
                 <div
                   key="sentup-cover-page"
-                  className={`page-container sentup-cover-page bg-white rounded-xl border border-slate-300 shadow-sm print:border-none print:shadow-none max-w-[355.6mm] mx-auto flex flex-col justify-between p-6 ${includePlanPage || pageChunks.length > 0 ? 'page-break-after' : ''}`}
+                  className={`page-container sentup-cover-page bg-white rounded-xl border border-slate-300 shadow-sm print:border-none print:shadow-none print:w-full print:min-w-full print:max-w-none print:m-0 max-w-[355.6mm] mx-auto flex flex-col justify-between p-6 ${includePlanPage || pageChunks.length > 0 ? 'page-break-after' : ''}`}
                   style={{ padding: `${printMargin}in` }}
                 >
                   {/* Institutional Header Banner */}
@@ -6779,7 +6848,7 @@ export default function AdmissionRegisterSuite({
               {includePlanPage && (
                 <div
                   key="sentup-plan-page"
-                  className={`page-container sentup-plan-page bg-white rounded-xl border border-slate-300 shadow-sm print:border-none print:shadow-none max-w-[355.6mm] mx-auto flex flex-col justify-between p-4 ${pageChunks.length > 0 ? 'page-break-after' : ''}`}
+                  className={`page-container sentup-plan-page bg-white rounded-xl border border-slate-300 shadow-sm print:border-none print:shadow-none print:w-full print:min-w-full print:max-w-none print:m-0 max-w-[355.6mm] mx-auto flex flex-col justify-between p-4 ${pageChunks.length > 0 ? 'page-break-after' : ''}`}
                   style={{ padding: `${printMargin}in` }}
                 >
                   {/* Page Header */}
@@ -6995,7 +7064,7 @@ export default function AdmissionRegisterSuite({
                 return (
                   <div
                     key={overallPageNum}
-                    className={`page-container sentup-ledger-page bg-white rounded-xl border border-slate-300 shadow-sm print:border-none print:shadow-none max-w-[355.6mm] mx-auto ${idx < pageChunks.length - 1 ? 'page-break-after' : ''}`}
+                    className={`page-container sentup-ledger-page bg-white rounded-xl border border-slate-300 shadow-sm print:border-none print:shadow-none print:w-full print:min-w-full print:max-w-none print:m-0 max-w-[355.6mm] mx-auto ${idx < pageChunks.length - 1 ? 'page-break-after' : ''}`}
                     style={{ padding: `${printMargin}in` }}
                   >
                     {/* Header */}
