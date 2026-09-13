@@ -3,7 +3,7 @@ import { useSearchParams, Link } from 'react-router-dom';
 import {
   Search, Printer, Award, CheckCircle2, AlertCircle, ArrowLeft,
   RefreshCw, School, BookOpen, ShieldCheck, X, ChevronDown, Check,
-  User, Sparkles, Hash, Layers, FileText, CheckCircle, Clock
+  User, Sparkles, Hash, Layers, FileText, CheckCircle, Clock, History
 } from 'lucide-react';
 import { collection, getDocs } from 'firebase/firestore';
 import { db } from '../services/firebase';
@@ -13,6 +13,30 @@ import { DEFAULT_SCHOOL_EVALUATIONS } from '../utils/practicalsSettingsManager';
 import verifiedCatalog from '../data/verifiedStudentsCatalog.json';
 import { getCachedCollection, fetchStudentPhotoOnDemand } from '../services/dbCache';
 import { identityKey, classKey, sessionKey, formatConsistentName } from '../utils/recordIdentity';
+
+const STORAGE_KEY_RECENT_SEARCHES = 'hss_recent_results_lookups';
+const STORAGE_KEY_LAST_LOOKUP = 'hss_last_result_lookup';
+
+const loadRecentSearches = () => {
+  try {
+    const raw = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEY_RECENT_SEARCHES) : null;
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.slice(0, 5) : [];
+  } catch {
+    return [];
+  }
+};
+
+const loadLastLookup = () => {
+  try {
+    const raw = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEY_LAST_LOOKUP) : null;
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+};
 
 /**
  * Authoritative Standard Curriculum Rosters for Govt. Higher Secondary School Shangus
@@ -43,6 +67,66 @@ const STANDARD_STREAM_SUBJECTS = {
     { code: 'HTC', name: 'Healthcare', defaultMax: 50 },
     { code: 'ITE', name: 'IT & ITeS', defaultMax: 50 },
   ],
+};
+
+// Stream-Subject Incompatibility Constraints to prevent cross-stream leaks (e.g. Botany in Humanities)
+const SCIENCE_ONLY_SUBJECT_CODES = new Set(['PH', 'CH', 'BO', 'ZO', 'BI', 'BT']);
+const SCIENCE_ONLY_SUBJECT_NAMES = ['physics', 'chemistry', 'botany', 'zoology', 'biology', 'biotechnology'];
+
+const HUMANITIES_ONLY_SUBJECT_CODES = new Set(['HT', 'PS', 'ED', 'SO', 'HS', 'PHIL', 'PSY', 'GEO']);
+const HUMANITIES_ONLY_SUBJECT_NAMES = ['history', 'political', 'education', 'sociology', 'philosophy', 'psychology', 'geography'];
+
+export const isSubjectCompatibleWithStream = (code, name, stream) => {
+  const normStream = String(stream || '').toLowerCase();
+  const c = String(code || '').toUpperCase().trim();
+  const n = String(name || '').toLowerCase();
+
+  const isScienceSubj = SCIENCE_ONLY_SUBJECT_CODES.has(c) || SCIENCE_ONLY_SUBJECT_NAMES.some(s => n.includes(s));
+  const isHumanitiesSubj = HUMANITIES_ONLY_SUBJECT_CODES.has(c) || HUMANITIES_ONLY_SUBJECT_NAMES.some(s => n.includes(s));
+
+  if (normStream.includes('human') || normStream.includes('art')) {
+    if (isScienceSubj) return false;
+  }
+  if (normStream.includes('scien')) {
+    if (isHumanitiesSubj) return false;
+  }
+  return true;
+};
+
+export const isSubjectEnrolledByStudent = (secCode, secName, student) => {
+  if (!Array.isArray(student?.subjects) || student.subjects.length === 0) {
+    const stream = student?.stream || (['11th', '12th'].includes(student?.className) ? 'Humanities' : 'General');
+    return isSubjectCompatibleWithStream(secCode, secName, stream);
+  }
+
+  const c = String(secCode || '').toUpperCase().trim();
+  const n = String(secName || '').toLowerCase();
+
+  return student.subjects.some(sub => {
+    const sCode = String(sub.code || '').toUpperCase().trim();
+    const sName = String(sub.name || '').toLowerCase();
+
+    if (sCode === c) return true;
+    if (sName === n) return true;
+    if (sCode === 'EN' && (c === 'GE' || n.includes('english'))) return true;
+    if (sCode === 'GE' && (c === 'EN' || n.includes('english'))) return true;
+    if (sCode === 'PH' && (c === 'PHY' || n.includes('physics'))) return true;
+    if (sCode === 'CH' && (c === 'CHEM' || n.includes('chemistry'))) return true;
+    if (sCode === 'BO' && (c === 'BO' || n.includes('botany'))) return true;
+    if (sCode === 'ZO' && (c === 'ZO' || n.includes('zoology'))) return true;
+    if (sCode === 'BI' && (c === 'BO' || c === 'ZO' || n.includes('biology') || n.includes('botany') || n.includes('zoology'))) return true;
+    if (sCode === 'MA' && (c === 'MATH' || c === 'MATHS' || n.includes('math'))) return true;
+    if (sCode === 'ES' && (c === 'EVS' || n.includes('environmental') || n.includes('env'))) return true;
+    if (sCode === 'PS' && (c === 'POL' || n.includes('political'))) return true;
+    if (sCode === 'HT' && (c === 'HIST' || n.includes('history'))) return true;
+    if (sCode === 'ED' && (c === 'EDU' || n.includes('education'))) return true;
+    if (sCode === 'UR' && (c === 'UR' || n.includes('urdu'))) return true;
+    if (sCode === 'AR' && (c === 'AR' || n.includes('arabic'))) return true;
+    if (sCode === 'PD' && (c === 'PHE' || c === 'PED' || n.includes('physical'))) return true;
+    if (sCode === 'HTC' && (c === 'HTC' || c === 'HC' || n.includes('health'))) return true;
+    if (sCode === 'ITE' && (c === 'ITE' || c === 'IT' || c === 'CS' || c === 'IP' || n.includes('information') || n.includes('ites'))) return true;
+    return false;
+  });
 };
 
 /**
@@ -199,11 +283,15 @@ export default function PublicResultLookup() {
   const initialClass = searchParams.get('class') || '11th';
   const initialSession = searchParams.get('session') || '2025-26';
 
-  const [queryInput, setQueryInput] = useState(initialReg);
+  const lastSavedLookup = useRef(loadLastLookup());
+  const initialSaved = !initialReg && lastSavedLookup.current ? lastSavedLookup.current : null;
+
+  const [queryInput, setQueryInput] = useState(initialReg || initialSaved?.query || '');
   const [queryDob, setQueryDob] = useState('');
-  const [selectedClass, setSelectedClass] = useState(initialClass);
-  const [selectedSession, setSelectedSession] = useState(initialSession);
-  const [selectedEvalType, setSelectedEvalType] = useState('Pre-Board Test');
+  const [selectedClass, setSelectedClass] = useState(initialClass !== '11th' ? initialClass : (initialSaved?.className || initialClass));
+  const [selectedSession, setSelectedSession] = useState(initialSession !== '2025-26' ? initialSession : (initialSaved?.session || initialSession));
+  const [selectedEvalType, setSelectedEvalType] = useState(initialSaved?.evalType || 'Pre-Board Test');
+  const [recentSearches, setRecentSearches] = useState(loadRecentSearches);
 
   const [evalOptions, setEvalOptions] = useState([]);
   const [availableSessions, setAvailableSessions] = useState(['2025-26', '2024-25', '2023-24']);
@@ -213,6 +301,61 @@ export default function PublicResultLookup() {
   const [studentResult, setStudentResult] = useState(null);
   const [errorMsg, setErrorMsg] = useState('');
   const [isSearchExpandedOnMobile, setIsSearchExpandedOnMobile] = useState(false);
+
+  // Helper to persist searches to localStorage
+  const saveSearchToHistory = useCallback((entry) => {
+    if (!entry || !entry.query) return;
+    try {
+      localStorage.setItem(STORAGE_KEY_LAST_LOOKUP, JSON.stringify({
+        query: entry.query,
+        className: entry.className,
+        session: entry.session,
+        evalType: entry.evalType
+      }));
+
+      const existing = loadRecentSearches();
+      const updated = [
+        {
+          query: entry.query,
+          className: entry.className,
+          session: entry.session,
+          evalType: entry.evalType,
+          candidateName: entry.candidateName || '',
+          timestamp: Date.now()
+        },
+        ...existing.filter(item => !(
+          String(item.query).trim().toLowerCase() === String(entry.query).trim().toLowerCase() &&
+          item.className === entry.className
+        ))
+      ].slice(0, 5);
+
+      localStorage.setItem(STORAGE_KEY_RECENT_SEARCHES, JSON.stringify(updated));
+      setRecentSearches(updated);
+    } catch {}
+  }, []);
+
+  const handleRemoveRecent = (queryToRemove) => {
+    try {
+      const updated = recentSearches.filter(item => item.query !== queryToRemove);
+      localStorage.setItem(STORAGE_KEY_RECENT_SEARCHES, JSON.stringify(updated));
+      setRecentSearches(updated);
+    } catch {}
+  };
+
+  const handleClearAllRecent = () => {
+    try {
+      localStorage.removeItem(STORAGE_KEY_RECENT_SEARCHES);
+      setRecentSearches([]);
+    } catch {}
+  };
+
+  const handleSelectRecent = (item) => {
+    setQueryInput(item.query);
+    if (item.className) setSelectedClass(item.className);
+    if (item.session) setSelectedSession(item.session);
+    if (item.evalType) setSelectedEvalType(item.evalType);
+    setErrorMsg('');
+  };
 
   // 0. Set clean-print-mode on body to prevent global duplicate print headers
   useEffect(() => {
@@ -336,6 +479,13 @@ export default function PublicResultLookup() {
           resultStatus: overall.resultStatus,
           division: overall.division
         });
+        saveSearchToHistory({
+          query: cleanQuery,
+          className: res.className || selectedClass,
+          session: res.session || selectedSession,
+          evalType: selectedEvalType,
+          candidateName: formatConsistentName(res.name || res.studentName || '')
+        });
         setIsSearchExpandedOnMobile(false);
         setSearching(false);
         return;
@@ -444,8 +594,19 @@ export default function PublicResultLookup() {
         // Determine stream and curriculum template - prefer student's enrolled subjects
         const isHigherSec = selectedClass === '11th' || selectedClass === '12th';
         const rawStream = String(matchedStudent.stream || '').toLowerCase();
+        const hasScienceSubjects = Array.isArray(matchedStudent.subjects) && matchedStudent.subjects.some(s =>
+          SCIENCE_ONLY_SUBJECT_CODES.has(String(s.code || '').toUpperCase()) ||
+          SCIENCE_ONLY_SUBJECT_NAMES.some(n => String(s.name || '').toLowerCase().includes(n))
+        );
+        const hasHumanitiesSubjects = Array.isArray(matchedStudent.subjects) && matchedStudent.subjects.some(s =>
+          HUMANITIES_ONLY_SUBJECT_CODES.has(String(s.code || '').toUpperCase()) ||
+          HUMANITIES_ONLY_SUBJECT_NAMES.some(n => String(s.name || '').toLowerCase().includes(n))
+        );
+
         const streamName = isHigherSec
-          ? (rawStream.includes('scien') ? 'Science' : 'Humanities')
+          ? (rawStream.includes('scien') || (!rawStream.includes('human') && hasScienceSubjects)
+              ? 'Science'
+              : (rawStream.includes('human') || hasHumanitiesSubjects ? 'Humanities' : 'General'))
           : 'General';
 
         const templateRoster = (Array.isArray(matchedStudent.subjects) && matchedStudent.subjects.length > 0)
@@ -503,21 +664,40 @@ export default function PublicResultLookup() {
           if (!rec) return false;
           const rReg = identityKey(rec.regNo || rec.boardRegNo || rec.reg);
           const sReg = identityKey(matchedStudent.boardRegNo);
-          if (rReg && sReg && (rReg === sReg || (rReg.length >= 6 && sReg.length >= 6 && (rReg.endsWith(sReg.slice(-6)) || sReg.endsWith(rReg.slice(-6)))))) return true;
+          // If both registration numbers exist, they must be consistent
+          if (rReg && sReg) {
+            const isRegMatched = rReg === sReg || (rReg.length >= 6 && sReg.length >= 6 && (rReg.endsWith(sReg.slice(-6)) || sReg.endsWith(rReg.slice(-6))));
+            if (!isRegMatched) return false;
+            return true;
+          }
 
           const rForm = identityKey(rec.formNo || rec.fNo || rec.id);
           const sForm = identityKey(matchedStudent.fNo);
-          if (rForm && sForm && rForm === sForm) return true;
+          // If both form numbers exist, they must be consistent
+          if (rForm && sForm) {
+            if (rForm !== sForm) return false;
+            return true;
+          }
+
+          const rName = String(rec.name || rec.studentName || '').toLowerCase().trim().replace(/[^a-z0-9]/g, '');
+          const sName = String(matchedStudent.name || '').toLowerCase().trim().replace(/[^a-z0-9]/g, '');
+          const isNameMatch = rName && sName && rName.length > 3 && (rName === sName || rName.includes(sName) || sName.includes(rName));
 
           const rRoll = identityKey(rec.rollNo || rec.classRollNo || rec.roll || rec.examRollNo);
           const sRoll = identityKey(matchedStudent.classRollNo);
           const sExamRoll = identityKey(matchedStudent.examRollNo);
-          if (rRoll && sRoll && rRoll === sRoll && rRoll !== '-' && rRoll !== '—' && rRoll !== 'n/a') return true;
-          if (rRoll && sExamRoll && rRoll === sExamRoll && rRoll !== '-' && rRoll !== '—' && rRoll !== 'n/a') return true;
+          const isRollMatch = (rRoll && sRoll && rRoll === sRoll && rRoll !== '-' && rRoll !== '—' && rRoll !== 'n/a') ||
+                              (rRoll && sExamRoll && rRoll === sExamRoll && rRoll !== '-' && rRoll !== '—' && rRoll !== 'n/a');
 
-          const rName = String(rec.name || rec.studentName || '').toLowerCase().trim().replace(/[^a-z0-9]/g, '');
-          const sName = String(matchedStudent.name || '').toLowerCase().trim().replace(/[^a-z0-9]/g, '');
-          if (rName && sName && rName.length > 3 && (rName === sName || rName.includes(sName) || sName.includes(rName))) return true;
+          // Prevent cross-stream / different student roll number collisions
+          if (isRollMatch) {
+            if (rName && sName && !isNameMatch) {
+              return false;
+            }
+            return true;
+          }
+
+          if (isNameMatch) return true;
 
           return false;
         };
@@ -623,8 +803,20 @@ export default function PublicResultLookup() {
         });
 
         // 3. Append any additional evaluated subjects found in sections (e.g. Healthcare, IT & ITeS, Math, etc.)
+        // Strictly filtered to prevent cross-stream pollution (e.g. Botany in Humanities)
         matchingSections.forEach(sec => {
           if (!matchedSectionIds.has(sec.id || sec.docId)) {
+            const secCode = sec.subjectCode || '';
+            const secName = sec.subjectName || sec.subject || '';
+
+            // Must be compatible with student's stream
+            if (!isSubjectCompatibleWithStream(secCode, secName, streamName)) return;
+
+            // If student has explicit registered subjects, only allow if student is enrolled in this subject
+            if (Array.isArray(matchedStudent.subjects) && matchedStudent.subjects.length > 0) {
+              if (!isSubjectEnrolledByStudent(secCode, secName, matchedStudent)) return;
+            }
+
             const rec = (sec.records || []).find(matchRecord);
             if (rec) {
               const rawMark = rec.totalMarks ?? rec.practicalMarks;
@@ -696,6 +888,13 @@ export default function PublicResultLookup() {
           division,
           resultStatus,
           verifiedFromCatalog: true
+        });
+        saveSearchToHistory({
+          query: cleanQuery,
+          className: matchedStudent.className || selectedClass,
+          session: matchedStudent.session || selectedSession,
+          evalType: selectedEvalType,
+          candidateName: formatConsistentName(matchedStudent.name || '')
         });
         setIsSearchExpandedOnMobile(false);
         return;
@@ -1012,6 +1211,54 @@ export default function PublicResultLookup() {
             )}
           </form>
 
+          {/* Recent Searched Lookups Chips */}
+          {recentSearches.length > 0 && !studentResult && (
+            <div className="pt-2 mt-1 border-t border-slate-100 dark:border-slate-800 flex items-center gap-1.5 flex-wrap animate-fadeIn">
+              <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 flex items-center gap-1 shrink-0">
+                <History size={10} />
+                <span>Recent:</span>
+              </span>
+              {recentSearches.map((item, idx) => (
+                <div
+                  key={`${item.query}-${item.className || ''}-${idx}`}
+                  className="inline-flex items-center rounded-full bg-slate-100 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700/60 pl-2 pr-1 py-0.5 text-[10px] font-medium text-slate-700 dark:text-slate-300 hover:bg-teal-50 dark:hover:bg-teal-950/40 hover:border-teal-200 dark:hover:border-teal-800 transition-colors group cursor-pointer"
+                  onClick={() => handleSelectRecent(item)}
+                  title={`Class ${item.className || ''} - ${item.candidateName || item.query}`}
+                >
+                  <span className="truncate max-w-[110px] font-semibold text-slate-800 dark:text-slate-200">
+                    {item.candidateName || item.query}
+                  </span>
+                  {item.candidateName && (
+                    <span className="text-[9px] text-slate-400 ml-1 font-mono">
+                      ({item.query})
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleRemoveRecent(item.query);
+                    }}
+                    className="ml-1 p-0.5 text-slate-400 hover:text-rose-500 rounded-full cursor-pointer"
+                    title="Remove"
+                    aria-label={`Remove ${item.query} from recent`}
+                  >
+                    <X size={9} />
+                  </button>
+                </div>
+              ))}
+              {recentSearches.length > 1 && (
+                <button
+                  type="button"
+                  onClick={handleClearAllRecent}
+                  className="text-[9.5px] font-semibold text-slate-400 hover:text-rose-500 ml-auto transition-colors cursor-pointer"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+          )}
+
           {errorMsg && (
             <div className="p-2 rounded-lg bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 text-[11px] font-bold text-rose-800 dark:text-rose-300 flex items-start gap-1.5 animate-fadeIn">
               <AlertCircle size={13} className="shrink-0 mt-0.5" />
@@ -1026,24 +1273,6 @@ export default function PublicResultLookup() {
             id="official-scorecard-print"
             className="relative overflow-hidden bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg sm:rounded-xl p-2.5 sm:p-5 print:p-2.5 shadow-xs space-y-2 sm:space-y-3 print:space-y-1.5 animate-fadeIn print:border-slate-300 print:bg-white print:rounded-md"
           >
-            {/* Action Bar (Hidden on Print) */}
-            <div className="relative z-10 flex items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-1.5 print:hidden">
-              <span className="px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/70 text-emerald-800 dark:text-emerald-300 text-[9px] sm:text-[9.5px] font-bold flex items-center gap-1 border border-emerald-200 dark:border-emerald-800">
-                <CheckCircle2 size={10} />
-                <span>Verified Record</span>
-              </span>
-
-              <button
-                type="button"
-                onClick={() => window.print()}
-                className="h-6 sm:h-7 px-2.5 sm:px-3 rounded-lg bg-teal-800 hover:bg-teal-700 active:bg-teal-900 text-white font-bold text-[10.5px] sm:text-xs flex items-center gap-1.5 transition-all shadow-xs cursor-pointer shrink-0"
-                title="Print Clean 1-Page Scorecard"
-              >
-                <Printer size={11} />
-                <span>Print / Save PDF</span>
-              </button>
-            </div>
-
             {/* Institutional Header: Full on Desktop & Print, Minimal on Mobile Screen */}
             <div className="relative z-10 text-center pb-1.5 sm:pb-2 border-b border-slate-200 dark:border-slate-800 print:border-slate-300 print:pb-1">
               <img
@@ -1055,9 +1284,21 @@ export default function PublicResultLookup() {
               <p className="hidden sm:block print:block text-[11px] font-bold tracking-widest text-slate-500 dark:text-slate-400 print:text-slate-600 uppercase m-0">
                 Govt. Higher Secondary School Shangus
               </p>
-              <h2 className="text-xs sm:text-base font-black uppercase tracking-tight text-slate-900 dark:text-white print:text-black m-0 leading-tight">
-                Student Evaluation Scorecard
-              </h2>
+              <div className="flex items-center justify-between sm:justify-center relative gap-1.5 mt-0.5 sm:mt-1">
+                <h2 className="text-xs sm:text-base font-black uppercase tracking-tight text-slate-900 dark:text-white print:text-black m-0 leading-tight">
+                  Student Evaluation Scorecard
+                </h2>
+
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="print:hidden sm:absolute sm:right-0 sm:top-1/2 sm:-translate-y-1/2 h-5.5 sm:h-6 px-2 rounded-md bg-teal-800 hover:bg-teal-700 active:bg-teal-900 text-white font-bold text-[10px] sm:text-[11px] flex items-center gap-1 shadow-2xs transition-all cursor-pointer shrink-0"
+                  title="Print / Save PDF Scorecard"
+                >
+                  <Printer size={10.5} />
+                  <span>Print</span>
+                </button>
+              </div>
               <p className="text-[10px] sm:text-[10.5px] font-medium text-slate-500 dark:text-slate-400 print:text-slate-600 m-0 mt-0.5">
                 <strong className="font-bold text-slate-800 dark:text-slate-200 print:text-black">{studentResult.evalTitle}</strong>
                 <span className="mx-1 opacity-40">•</span>
