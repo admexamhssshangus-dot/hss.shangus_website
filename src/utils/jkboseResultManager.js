@@ -106,11 +106,12 @@ export function expandJkboseSubjectCodes(codeStr) {
   }
 
   // Normalize punctuation and extraneous ", and, "
+  // Crucial: preserve multi-word subjects like "IT and ITES", "Beauty and Wellness", "Tourism and Hospitality"
   const preCleaned = cleanStr
     .replace(/\b,\s*and\s*,?\s*/gi, ', ')
     .replace(/\b\s*and\s+(?=[A-Za-z])/gi, (match, offset, str) => {
-      const prefix = str.slice(Math.max(0, offset - 15), offset).toLowerCase();
-      if (prefix.includes('it ') || prefix.includes('beauty ') || prefix.includes('tourism ') || prefix.includes('media ') || prefix.includes('typewriting ')) {
+      const prefix = str.slice(Math.max(0, offset - 15), offset).trim().toLowerCase();
+      if (/(?:^|\b)(it|beauty|tourism|media|typewriting|electronics|apparel)\s*$/i.test(prefix)) {
         return match;
       }
       return ', ';
@@ -153,6 +154,8 @@ export function expandJkboseSubjectCodes(codeStr) {
       name = 'Social Studies';
     } else if (upper === 'SCI' || upper === 'SC') {
       name = 'Science';
+    } else if (/^(IT\s*(&|AND)\s*ITES|IT\s*(&|AND)\s*ITE|ITES|ITE|IT)(\s*\(VOCATIONAL\))?$/i.test(trimmed)) {
+      name = 'IT & ITeS';
     } else {
       const found = JKBOSE_SUBJECT_CODES.find(c => c.code.toUpperCase() === upper);
       if (found) name = found.name;

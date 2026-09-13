@@ -45,6 +45,9 @@ export default function ExcelSpreadsheetGrid({
   const [sortCol, setSortCol] = useState('classRollNo');
   const [sortDir, setSortDir] = useState('asc');
   const [focusedCell, setFocusedCell] = useState(null); // { rowIndex, colKey }
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50); // 25 | 50 | 100 | 'all'
+  const [isLoadingCohort, setIsLoadingCohort] = useState(false);
   const gridContainerRef = useRef(null);
 
   // Sync rows whenever activeFields changes, preserving already typed values
@@ -61,6 +64,7 @@ export default function ExcelSpreadsheetGrid({
   // Handle cell edit with live percentage & division computation
   const handleCellChange = (rowIndex, key, value) => {
     setRows(prev => {
+      if (!prev[rowIndex]) return prev;
       const copy = [...prev];
       const updatedRow = { ...copy[rowIndex], [key]: value };
 
@@ -86,7 +90,16 @@ export default function ExcelSpreadsheetGrid({
 
   // Add new blank row
   const handleAddRow = () => {
-    setRows(prev => [...prev, createBlankRow()]);
+    setRows(prev => {
+      const next = [...prev, createBlankRow()];
+      // Jump to the last page to show the added row
+      if (pageSize !== 'all') {
+        const nextTotal = next.length;
+        const targetPage = Math.ceil(nextTotal / Number(pageSize));
+        setCurrentPage(targetPage);
+      }
+      return next;
+    });
   };
 
   // Remove a specific row
@@ -100,6 +113,7 @@ export default function ExcelSpreadsheetGrid({
   // Clear entire grid
   const handleClearGrid = () => {
     setRows(Array.from({ length: 8 }, (_, i) => createBlankRow(i + 1)));
+    setCurrentPage(1);
     if (showToast) showToast('Cleared spreadsheet grid.', 'info');
   };
 
@@ -133,79 +147,89 @@ export default function ExcelSpreadsheetGrid({
 
   // Pre-fill grid with students from the selected cohort (Default sorted by Class Roll No)
   const handlePreFillCohort = () => {
-    const regMap = new Map();
-    (allStudents || []).forEach(st => {
-      const reg = normalizeRegistrationKey(st.boardRegNo || st.regNo || st['Board Registration Number'] || st['Board Reg. No.']);
-      if (reg) {
-        if (!regMap.has(reg)) regMap.set(reg, []);
-        regMap.get(reg).push(st);
-      }
-    });
-
-    const filtered = (allStudents || []).filter(st => {
-      const sCls = String(st.selectedClass || st.Class || st.class || st.className || st['Admission sought for class'] || '').toLowerCase();
-      const sSess = String(st.selectedSession || st.Session || st.session || st.academicSession || '').toLowerCase();
-      const reg = normalizeRegistrationKey(st.boardRegNo || st.regNo || st['Board Registration Number'] || st['Board Reg. No.']);
-      const history = reg ? (regMap.get(reg) || []) : [];
-      const resolvedStrm = resolveCertificateStream(st, history, targetClass);
-      const sStat = String(st.status || st.Status || st.admissionStatus || '').toLowerCase();
-
-      const matchCls = targetClass === 'All' || sCls.includes(targetClass.toLowerCase());
-      const matchSess = targetSession === 'All' || sSess.includes(targetSession.toLowerCase());
-      const matchStrm = streamMatches(resolvedStrm, targetStream);
-      const matchStat = targetStatus === 'All' || sStat === targetStatus.toLowerCase();
-
-      return matchCls && matchSess && matchStrm && matchStat;
-    });
-
-    if (filtered.length === 0) {
-      if (showToast) showToast(`No student records found matching current cohort filters.`, 'warning');
-      return;
-    }
-
-    // Default sort by Class Roll No in natural numeric ascending order (1, 2, 3... 10... unassigned at end)
-    filtered.sort((a, b) => {
-      const getRollNum = (st) => {
-        const rollVal = String(
-          st.classRollNo || 
-          st['Class Roll No'] || 
-          st['Class Roll No.'] || 
-          st.rollNo || 
-          st['RL. NO.'] || 
-          st['Class R.No.'] || 
-          ''
-        ).trim();
-        const match = rollVal.match(/\d+/);
-        return match ? parseInt(match[0], 10) : 999999;
-      };
-
-      const diff = getRollNum(a) - getRollNum(b);
-      if (diff !== 0) return diff;
-      const nameA = String(a.studentName || a["Student's Name"] || '');
-      const nameB = String(b.studentName || b["Student's Name"] || '');
-      return nameA.localeCompare(nameB);
-    });
-
-    const cohortRows = filtered.map((st, idx) => {
-      const reg = st.boardRegNo || st.regNo || st['Board Registration Number'] || st['Board Reg. No.'] || '';
-      const r = { id: `cohort_${idx}_${Date.now()}`, regNo: reg };
-      activeFields.forEach(f => {
-        let val = '';
-        for (const k of f.dbKeys) {
-          if (st[k] !== undefined && String(st[k]).trim() !== '') {
-            val = String(st[k]).trim();
-            break;
+    setIsLoadingCohort(true);
+    // Yield to browser event loop so loading state renders immediately
+    setTimeout(() => {
+      try {
+        const regMap = new Map();
+        (allStudents || []).forEach(st => {
+          const reg = normalizeRegistrationKey(st.boardRegNo || st.regNo || st['Board Registration Number'] || st['Board Reg. No.']);
+          if (reg) {
+            if (!regMap.has(reg)) regMap.set(reg, []);
+            regMap.get(reg).push(st);
           }
-        }
-        r[f.key] = val;
-      });
-      return r;
-    });
+        });
 
-    setSortCol('classRollNo');
-    setSortDir('asc');
-    setRows(cohortRows);
-    if (showToast) showToast(`✓ Loaded & sorted ${cohortRows.length} students by Class Roll No (ascending)!`, 'success');
+        const filtered = (allStudents || []).filter(st => {
+          const sCls = String(st.selectedClass || st.Class || st.class || st.className || st['Admission sought for class'] || '').toLowerCase();
+          const sSess = String(st.selectedSession || st.Session || st.session || st.academicSession || '').toLowerCase();
+          const reg = normalizeRegistrationKey(st.boardRegNo || st.regNo || st['Board Registration Number'] || st['Board Reg. No.']);
+          const history = reg ? (regMap.get(reg) || []) : [];
+          const resolvedStrm = resolveCertificateStream(st, history, targetClass);
+          const sStat = String(st.status || st.Status || st.admissionStatus || '').toLowerCase();
+
+          const matchCls = targetClass === 'All' || sCls.includes(targetClass.toLowerCase());
+          const matchSess = targetSession === 'All' || sSess.includes(targetSession.toLowerCase());
+          const matchStrm = streamMatches(resolvedStrm, targetStream);
+          const matchStat = targetStatus === 'All' || sStat === targetStatus.toLowerCase();
+
+          return matchCls && matchSess && matchStrm && matchStat;
+        });
+
+        if (filtered.length === 0) {
+          if (showToast) showToast(`No student records found matching current cohort filters.`, 'warning');
+          setIsLoadingCohort(false);
+          return;
+        }
+
+        // Default sort by Class Roll No in natural numeric ascending order (1, 2, 3... 10... unassigned at end)
+        filtered.sort((a, b) => {
+          const getRollNum = (st) => {
+            const rollVal = String(
+              st.classRollNo || 
+              st['Class Roll No'] || 
+              st['Class Roll No.'] || 
+              st.rollNo || 
+              st['RL. NO.'] || 
+              st['Class R.No.'] || 
+              ''
+            ).trim();
+            const match = rollVal.match(/\d+/);
+            return match ? parseInt(match[0], 10) : 999999;
+          };
+
+          const diff = getRollNum(a) - getRollNum(b);
+          if (diff !== 0) return diff;
+          const nameA = String(a.studentName || a["Student's Name"] || '');
+          const nameB = String(b.studentName || b["Student's Name"] || '');
+          return nameA.localeCompare(nameB);
+        });
+
+        const cohortRows = filtered.map((st, idx) => {
+          const reg = st.boardRegNo || st.regNo || st['Board Registration Number'] || st['Board Reg. No.'] || '';
+          const r = { id: `cohort_${idx}_${Date.now()}`, regNo: reg };
+          activeFields.forEach(f => {
+            let val = '';
+            for (const k of f.dbKeys) {
+              if (st[k] !== undefined && String(st[k]).trim() !== '') {
+                val = String(st[k]).trim();
+                break;
+              }
+            }
+            r[f.key] = val;
+          });
+          return r;
+        });
+
+        setSortCol('classRollNo');
+        setSortDir('asc');
+        setRows(cohortRows);
+        setCurrentPage(1);
+        if (showToast) showToast(`✓ Loaded & sorted ${cohortRows.length} students by Class Roll No!`, 'success');
+      } finally {
+        setIsLoadingCohort(false);
+      }
+    }, 20);
   };
 
   // Clipboard Paste Interceptor
@@ -387,11 +411,12 @@ export default function ExcelSpreadsheetGrid({
           <button
             type="button"
             onClick={handlePreFillCohort}
-            className="px-2.5 py-1 rounded-lg bg-blue-50 dark:bg-blue-950/60 hover:bg-blue-100 dark:hover:bg-blue-900/80 text-blue-700 dark:text-blue-300 font-bold text-[11px] flex items-center gap-1 border border-blue-200 dark:border-blue-800 cursor-pointer transition-colors"
+            disabled={isLoadingCohort}
+            className="px-2.5 py-1 rounded-lg bg-blue-50 dark:bg-blue-950/60 hover:bg-blue-100 dark:hover:bg-blue-900/80 text-blue-700 dark:text-blue-300 font-bold text-[11px] flex items-center gap-1 border border-blue-200 dark:border-blue-800 cursor-pointer transition-colors disabled:opacity-50"
             title="Load existing students from current cohort into grid"
           >
-            <Users size={13} />
-            <span>Load Cohort Records</span>
+            {isLoadingCohort ? <RefreshCw size={13} className="animate-spin" /> : <Users size={13} />}
+            <span>{isLoadingCohort ? 'Loading Cohort...' : 'Load Cohort Records'}</span>
           </button>
 
           <button
@@ -406,124 +431,215 @@ export default function ExcelSpreadsheetGrid({
         </div>
       </div>
 
-      {/* Spreadsheet Table Container */}
-      <div className="relative border border-slate-200 dark:border-slate-800 rounded-xl overflow-x-auto max-h-[380px] bg-slate-50/50 dark:bg-slate-950/50 custom-scrollbar">
-        <table className="w-full text-left border-collapse min-w-[700px] text-xs">
-          {/* Header Rows */}
-          <thead>
-            {/* Row 1: Column Letters (A, B, C, D...) */}
-            <tr className="bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-mono text-[10px] text-center border-b border-slate-300 dark:border-slate-700">
-              <th className="sticky left-0 z-30 w-10 py-1 border-r border-slate-300 dark:border-slate-700 bg-slate-300 dark:bg-slate-900 text-slate-700 dark:text-slate-400 select-none">
-                #
-              </th>
-              <th className="sticky left-10 z-30 py-1 px-2 border-r border-slate-300 dark:border-slate-700 bg-emerald-700 text-white font-black tracking-wider min-w-[170px]">
-                Col {getColLetter(0)} (Key)
-              </th>
-              {activeFields.map((field, idx) => (
-                <th key={field.key} className="py-1 px-2 border-r border-slate-300 dark:border-slate-700 font-bold">
-                  Col {getColLetter(idx + 1)}
-                </th>
-              ))}
-              <th className="w-10 py-1"></th>
-            </tr>
+      {/* Spreadsheet Table Container with Smart Virtual/Paginated Rows */}
+      {(() => {
+        const totalRows = rows.length;
+        const effectivePageSize = pageSize === 'all' ? totalRows : Number(pageSize);
+        const totalPages = Math.max(1, Math.ceil(totalRows / (effectivePageSize || 1)));
+        const safePage = Math.min(Math.max(1, currentPage), totalPages);
+        const startIndex = pageSize === 'all' ? 0 : (safePage - 1) * effectivePageSize;
+        const endIndex = pageSize === 'all' ? totalRows : Math.min(startIndex + effectivePageSize, totalRows);
+        const visibleRows = rows.slice(startIndex, endIndex);
 
-            {/* Row 2: Human Field Names */}
-            <tr className="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 font-black text-[11px] border-b-2 border-emerald-500 shadow-xs">
-              <th className="sticky left-0 z-30 w-10 py-2 text-center text-slate-400 font-mono text-[10px] border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
-                —
-              </th>
-              <th 
-                onClick={() => handleSortGridBy('regNo')}
-                className="sticky left-10 z-30 py-2 px-3 border-r border-slate-200 dark:border-slate-800 text-emerald-800 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950 cursor-pointer select-none hover:bg-emerald-100 dark:hover:bg-emerald-900 transition-colors min-w-[170px]"
-                title="Click to sort by Registration No"
-              >
-                <div className="flex items-center justify-between gap-1.5">
-                  <div className="flex items-center gap-1.5">
-                    <span>Registration No.</span>
-                    <span className="text-rose-500 font-black">*</span>
-                  </div>
-                  {sortCol === 'regNo' ? (
-                    sortDir === 'asc' ? <ArrowUp size={12} className="text-emerald-600" /> : <ArrowDown size={12} className="text-emerald-600" />
-                  ) : (
-                    <ArrowUpDown size={11} className="text-slate-400 opacity-40 hover:opacity-100" />
-                  )}
-                </div>
-              </th>
-              {activeFields.map((field) => (
-                <th 
-                  key={field.key}
-                  onClick={() => handleSortGridBy(field.key)}
-                  className="py-2 px-3 border-r border-slate-200 dark:border-slate-800 truncate max-w-[180px] cursor-pointer select-none hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" 
-                  title={`Click to sort by ${field.label}`}
-                >
-                  <div className="flex items-center justify-between gap-1">
-                    <span className="truncate">{field.label}</span>
-                    {sortCol === field.key ? (
-                      sortDir === 'asc' ? <ArrowUp size={12} className="text-blue-600 flex-shrink-0" /> : <ArrowDown size={12} className="text-blue-600 flex-shrink-0" />
-                    ) : (
-                      <ArrowUpDown size={11} className="text-slate-400 opacity-40 hover:opacity-100 flex-shrink-0" />
-                    )}
-                  </div>
-                </th>
-              ))}
-              <th className="w-10 py-2 text-center text-slate-400"></th>
-            </tr>
-          </thead>
+        return (
+          <>
+            <div className="relative border border-slate-200 dark:border-slate-800 rounded-xl overflow-x-auto max-h-[380px] bg-slate-50/50 dark:bg-slate-950/50 custom-scrollbar shadow-inner">
+              <table className="w-full text-left border-collapse min-w-[700px] text-xs">
+                {/* Header Rows */}
+                <thead>
+                  {/* Row 1: Column Letters (A, B, C, D...) */}
+                  <tr className="bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-mono text-[10px] text-center border-b border-slate-300 dark:border-slate-700">
+                    <th className="sticky left-0 z-30 min-w-[56px] w-14 py-1 border-r border-slate-300 dark:border-slate-700 bg-slate-300 dark:bg-slate-900 text-slate-700 dark:text-slate-400 select-none text-center font-mono text-[10px] font-black whitespace-nowrap">
+                      #
+                    </th>
+                    <th className="sticky left-14 z-30 py-1 px-2 border-r border-slate-300 dark:border-slate-700 bg-emerald-700 text-white font-black tracking-wider min-w-[170px]">
+                      Col {getColLetter(0)} (Key)
+                    </th>
+                    {activeFields.map((field, idx) => (
+                      <th key={field.key} className="py-1 px-2 border-r border-slate-300 dark:border-slate-700 font-bold">
+                        Col {getColLetter(idx + 1)}
+                      </th>
+                    ))}
+                    <th className="w-10 py-1"></th>
+                  </tr>
 
-          {/* Grid Rows */}
-          <tbody>
-            {rows.map((row, rIdx) => (
-              <tr 
-                key={row.id || rIdx}
-                className="hover:bg-emerald-50/30 dark:hover:bg-emerald-950/20 transition-colors border-b border-slate-200 dark:border-slate-800"
-              >
-                {/* Row Number (1, 2, 3...) */}
-                <td className="sticky left-0 z-20 w-10 py-1 text-center font-mono text-[10px] font-bold text-slate-400 bg-slate-100 dark:bg-slate-800 border-r border-slate-200 dark:border-slate-800 select-none">
-                  {rIdx + 1}
-                </td>
+                  {/* Row 2: Human Field Names */}
+                  <tr className="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 font-black text-[11px] border-b-2 border-emerald-500 shadow-xs">
+                    <th className="sticky left-0 z-30 min-w-[56px] w-14 py-2 px-2 text-center text-slate-400 font-mono text-[10px] font-bold border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 select-none whitespace-nowrap">
+                      —
+                    </th>
+                    <th 
+                      onClick={() => handleSortGridBy('regNo')}
+                      className="sticky left-14 z-30 py-2 px-3 border-r border-slate-200 dark:border-slate-800 text-emerald-800 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950 cursor-pointer select-none hover:bg-emerald-100 dark:hover:bg-emerald-900 transition-colors min-w-[170px]"
+                      title="Click to sort by Registration No"
+                    >
+                      <div className="flex items-center justify-between gap-1.5">
+                        <div className="flex items-center gap-1.5">
+                          <span>Registration No.</span>
+                          <span className="text-rose-500 font-black">*</span>
+                        </div>
+                        {sortCol === 'regNo' ? (
+                          sortDir === 'asc' ? <ArrowUp size={12} className="text-emerald-600" /> : <ArrowDown size={12} className="text-emerald-600" />
+                        ) : (
+                          <ArrowUpDown size={11} className="text-slate-400 opacity-40 hover:opacity-100" />
+                        )}
+                      </div>
+                    </th>
+                    {activeFields.map((field) => (
+                      <th 
+                        key={field.key}
+                        onClick={() => handleSortGridBy(field.key)}
+                        className="py-2 px-3 border-r border-slate-200 dark:border-slate-800 truncate max-w-[180px] cursor-pointer select-none hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" 
+                        title={`Click to sort by ${field.label}`}
+                      >
+                        <div className="flex items-center justify-between gap-1">
+                          <span className="truncate">{field.label}</span>
+                          {sortCol === field.key ? (
+                            sortDir === 'asc' ? <ArrowUp size={12} className="text-blue-600 flex-shrink-0" /> : <ArrowDown size={12} className="text-blue-600 flex-shrink-0" />
+                          ) : (
+                            <ArrowUpDown size={11} className="text-slate-400 opacity-40 hover:opacity-100 flex-shrink-0" />
+                          )}
+                        </div>
+                      </th>
+                    ))}
+                    <th className="w-10 py-2 text-center text-slate-400"></th>
+                  </tr>
+                </thead>
 
-                {/* Column A: Registration No.* */}
-                <td className="sticky left-10 z-20 p-0 border-r border-slate-200 dark:border-slate-800 bg-emerald-50 dark:bg-emerald-950">
-                  <input
-                    type="text"
-                    value={row.regNo || ''}
-                    onChange={(e) => handleCellChange(rIdx, 'regNo', e.target.value)}
-                    onFocus={() => setFocusedCell({ rowIndex: rIdx, colKey: 'regNo' })}
-                    placeholder={`e.g. 2161234-2024-${String(rIdx + 1).padStart(4, '0')}`}
-                    className="w-full px-2.5 py-1.5 bg-transparent border-0 focus:ring-2 focus:ring-emerald-500 rounded-none text-xs font-mono font-bold text-emerald-900 dark:text-emerald-300 outline-none"
-                  />
-                </td>
+                {/* Grid Rows */}
+                <tbody>
+                  {visibleRows.map((row, localIdx) => {
+                    const globalIdx = startIndex + localIdx;
+                    return (
+                      <tr 
+                        key={row.id || globalIdx}
+                        className="hover:bg-emerald-50/30 dark:hover:bg-emerald-950/20 transition-colors border-b border-slate-200 dark:border-slate-800"
+                      >
+                        {/* Row Number (Clean, Single Line, No wrapping) */}
+                        <td className="sticky left-0 z-20 min-w-[56px] w-14 py-1.5 px-2 text-center font-mono text-[11px] font-bold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 border-r border-slate-200 dark:border-slate-800 select-none whitespace-nowrap">
+                          {globalIdx + 1}
+                        </td>
 
-                {/* Columns B..N: Active Fields */}
-                {activeFields.map((field) => (
-                  <td key={field.key} className="p-0 border-r border-slate-200 dark:border-slate-800">
-                    <input
-                      type="text"
-                      value={row[field.key] || ''}
-                      onChange={(e) => handleCellChange(rIdx, field.key, e.target.value)}
-                      onFocus={() => setFocusedCell({ rowIndex: rIdx, colKey: field.key })}
-                      placeholder={`Enter ${field.label}...`}
-                      className="w-full px-2.5 py-1.5 bg-transparent border-0 focus:ring-2 focus:ring-blue-500 rounded-none text-xs text-slate-800 dark:text-slate-200 outline-none"
-                    />
-                  </td>
-                ))}
+                        {/* Column A: Registration No.* */}
+                        <td className="sticky left-14 z-20 p-0 border-r border-slate-200 dark:border-slate-800 bg-emerald-50 dark:bg-emerald-950">
+                          <input
+                            type="text"
+                            value={row.regNo || ''}
+                            onChange={(e) => handleCellChange(globalIdx, 'regNo', e.target.value)}
+                            onFocus={() => setFocusedCell({ rowIndex: globalIdx, colKey: 'regNo' })}
+                            placeholder={`e.g. 2161234-2024-${String(globalIdx + 1).padStart(4, '0')}`}
+                            className="w-full px-2.5 py-1.5 bg-transparent border-0 focus:ring-2 focus:ring-emerald-500 rounded-none text-xs font-mono font-bold text-emerald-900 dark:text-emerald-300 outline-none"
+                          />
+                        </td>
 
-                {/* Row Delete Action */}
-                <td className="w-10 p-1 text-center">
+                        {/* Columns B..N: Active Fields */}
+                        {activeFields.map((field) => (
+                          <td key={field.key} className="p-0 border-r border-slate-200 dark:border-slate-800">
+                            <input
+                              type="text"
+                              value={row[field.key] || ''}
+                              onChange={(e) => handleCellChange(globalIdx, field.key, e.target.value)}
+                              onFocus={() => setFocusedCell({ rowIndex: globalIdx, colKey: field.key })}
+                              placeholder={`Enter ${field.label}...`}
+                              className="w-full px-2.5 py-1.5 bg-transparent border-0 focus:ring-2 focus:ring-blue-500 rounded-none text-xs text-slate-800 dark:text-slate-200 outline-none"
+                            />
+                          </td>
+                        ))}
+
+                        {/* Row Delete Action */}
+                        <td className="w-10 p-1 text-center">
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveRow(globalIdx)}
+                            className="p-1 rounded text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/50 transition-colors cursor-pointer"
+                            title="Delete row"
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Smart Pagination Controls Bar */}
+            <div className="flex items-center justify-between flex-wrap gap-2 py-1 px-1 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200 dark:border-slate-800 text-[11px]">
+              <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400 font-medium">
+                <span>
+                  Showing <strong className="text-slate-900 dark:text-white font-bold">{totalRows > 0 ? startIndex + 1 : 0}–{endIndex}</strong> of <strong className="text-slate-900 dark:text-white font-bold">{totalRows}</strong> rows
+                </span>
+                <span className="text-slate-300 dark:text-slate-600">•</span>
+                <span className="flex items-center gap-1">
+                  Rows per page:
+                  <select
+                    value={pageSize}
+                    onChange={(e) => {
+                      const val = e.target.value === 'all' ? 'all' : Number(e.target.value);
+                      setPageSize(val);
+                      setCurrentPage(1);
+                    }}
+                    className="bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded px-1.5 py-0.5 text-[10.5px] font-bold text-slate-800 dark:text-slate-200 outline-none cursor-pointer"
+                  >
+                    <option value={25}>25</option>
+                    <option value={50}>50</option>
+                    <option value={100}>100</option>
+                    <option value={200}>200</option>
+                    <option value="all">All ({totalRows})</option>
+                  </select>
+                </span>
+              </div>
+
+              {pageSize !== 'all' && totalPages > 1 && (
+                <div className="flex items-center gap-1 font-bold">
                   <button
                     type="button"
-                    onClick={() => handleRemoveRow(rIdx)}
-                    className="p-1 rounded text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/50 transition-colors cursor-pointer"
-                    title="Delete row"
+                    onClick={() => setCurrentPage(1)}
+                    disabled={safePage <= 1}
+                    className="px-2 py-0.5 rounded bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                    title="First page"
                   >
-                    <Trash2 size={12} />
+                    «
                   </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+                  <button
+                    type="button"
+                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                    disabled={safePage <= 1}
+                    className="px-2 py-0.5 rounded bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                    title="Previous page"
+                  >
+                    ‹ Prev
+                  </button>
+
+                  <span className="px-2 py-0.5 text-slate-700 dark:text-slate-300 font-bold">
+                    Page {safePage} of {totalPages}
+                  </span>
+
+                  <button
+                    type="button"
+                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                    disabled={safePage >= totalPages}
+                    className="px-2 py-0.5 rounded bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                    title="Next page"
+                  >
+                    Next ›
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCurrentPage(totalPages)}
+                    disabled={safePage >= totalPages}
+                    className="px-2 py-0.5 rounded bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                    title="Last page"
+                  >
+                    »
+                  </button>
+                </div>
+              )}
+            </div>
+          </>
+        );
+      })()}
 
       {/* Grid Bottom Action Toolbar */}
       <div className="flex items-center justify-between flex-wrap gap-2 pt-1">

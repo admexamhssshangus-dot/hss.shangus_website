@@ -86,11 +86,12 @@ export function cleanRawSubjectTokens(raw) {
   const text = Array.isArray(raw) ? raw.join(', ') : String(raw);
 
   // Normalize punctuation and remove extraneous conjunctions like ", and, " or ", and "
+  // Crucial: preserve multi-word subjects like "IT and ITES", "Beauty and Wellness", "Tourism and Hospitality"
   const preCleaned = text
     .replace(/\b,\s*and\s*,?\s*/gi, ', ')
     .replace(/\b\s*and\s+(?=[A-Za-z])/gi, (match, offset, str) => {
-      const prefix = str.slice(Math.max(0, offset - 15), offset).toLowerCase();
-      if (prefix.includes('it ') || prefix.includes('beauty ') || prefix.includes('tourism ') || prefix.includes('media ') || prefix.includes('typewriting ')) {
+      const prefix = str.slice(Math.max(0, offset - 15), offset).trim().toLowerCase();
+      if (/(?:^|\b)(it|beauty|tourism|media|typewriting|electronics|apparel)\s*$/i.test(prefix)) {
         return match;
       }
       return ', ';
