@@ -518,7 +518,10 @@ export default function AdminPracticals() {
       const [ssRaw, setDocSnap, ts, admissionsData, masterRegistersData] = await Promise.all([
         getDocs(collection(db, 'practicalsData')),
         getDocs(collection(db, 'adminPracticalsSettings')),
-        getStaffDirectory(),
+        getStaffDirectory().catch(err => {
+          console.warn('getStaffDirectory error handled:', err?.message || err);
+          return { docs: [], empty: true, forEach: () => {} };
+        }),
         getCachedCollection('admissions', force, 30 * 60 * 1000),
         getCachedCollection('masterRegisters', force, 30 * 60 * 1000)
       ]);

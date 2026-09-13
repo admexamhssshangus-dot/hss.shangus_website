@@ -42,6 +42,29 @@ function formatSubjectName(sub) {
   return MASTER_SUBJECT_NAMES[clean] || sub;
 }
 
+export const resolveRecordClass = (r) => {
+  if (!r) return 'other';
+  const idParts = String(r.id || r.docId || '').split('_');
+  const raw = String(r.className || r.class || r.Class || r.admittedClass || idParts[0] || '').trim().toLowerCase();
+  if (raw.includes('11') || raw.includes('xi')) return '11th';
+  if (raw.includes('12') || raw.includes('xii')) return '12th';
+  if (raw.includes('10') || raw.includes('x')) return '10th';
+  if (raw.includes('9') || raw.includes('ix')) return '9th';
+  return raw || 'other';
+};
+
+export const resolveRecordDate = (r) => {
+  if (!r) return '';
+  const idParts = String(r.id || r.docId || '').split('_');
+  return r.date || r.dateStr || (idParts.length >= 2 && /^\d{4}-\d{2}-\d{2}$/.test(idParts[1]) ? idParts[1] : '') || '';
+};
+
+export const resolveRecordSubject = (r) => {
+  if (!r) return 'General';
+  const idParts = String(r.id || r.docId || '').split('_');
+  return r.subject || r.subjectName || r.subjectCode || (idParts.length >= 3 ? idParts[2] : '') || 'General';
+};
+
 export default function AdminAttendance() {
   const getInitialAttendanceSubTab = () => {
     try {
@@ -163,19 +186,30 @@ export default function AdminAttendance() {
     const subjectCount = {};
 
     attendanceRecords.forEach(r => {
-      const cls = (r.className || '').includes('11') ? '11th' : (r.className || '').includes('12') ? '12th' : 'other';
-      classCount[cls] = (classCount[cls] || 0) + 1;
+      const cls = resolveRecordClass(r);
+      if (cls === '11th' || cls === '12th') {
+        classCount[cls] = (classCount[cls] || 0) + 1;
+      } else {
+        classCount.other = (classCount.other || 0) + 1;
+      }
 
-      const subKey = formatSubjectName(r.subject || r.subjectName);
+      const rawSub = resolveRecordSubject(r);
+      const subKey = formatSubjectName(rawSub);
       subjectCount[subKey] = (subjectCount[subKey] || 0) + 1;
 
-      if (r.date) distinctDates.add(r.date);
+      const dt = resolveRecordDate(r);
+      if (dt) distinctDates.add(dt);
 
       if (Array.isArray(r.records)) {
         r.records.forEach(st => {
           totalMarked++;
-          if (st.status === 'P' || st.status === 'Present') totalPresent++;
+          const s = String(st.status || '').toUpperCase();
+          if (s === 'P' || s === 'PRESENT') totalPresent++;
         });
+      } else if (r.status) {
+        totalMarked++;
+        const s = String(r.status || '').toUpperCase();
+        if (s === 'P' || s === 'PRESENT') totalPresent++;
       }
     });
 
@@ -194,8 +228,8 @@ export default function AdminAttendance() {
   const distinctSubjects = useMemo(() => {
     const subs = new Set();
     attendanceRecords.forEach(r => {
-      const sub = r.subject || r.subjectName;
-      if (sub) subs.add(sub);
+      const sub = resolveRecordSubject(r);
+      if (sub && sub !== 'General') subs.add(sub);
     });
     return Array.from(subs).sort();
   }, [attendanceRecords]);
@@ -203,19 +237,24 @@ export default function AdminAttendance() {
   // Filtered Records based on Class, Subject & Search
   const filteredRecords = useMemo(() => {
     return attendanceRecords.filter(r => {
-      if (classFilter !== 'all' && !String(r.className || '').includes(classFilter)) {
-        return false;
+      const cls = resolveRecordClass(r);
+      if (classFilter !== 'all') {
+        if (classFilter === '11th' && cls !== '11th') return false;
+        if (classFilter === '12th' && cls !== '12th') return false;
       }
-      if (subjectFilter !== 'all' && (r.subject || r.subjectName || '') !== subjectFilter) {
+      const sub = resolveRecordSubject(r);
+      if (subjectFilter !== 'all' && sub !== subjectFilter && formatSubjectName(sub) !== subjectFilter) {
         return false;
       }
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim();
-        const dateStr = String(r.date || '').toLowerCase();
-        const subStr = String(r.subject || r.subjectName || '').toLowerCase();
-        const fullSub = formatSubjectName(r.subject || r.subjectName).toLowerCase();
-        const clsStr = String(r.className || '').toLowerCase();
-        if (!dateStr.includes(q) && !subStr.includes(q) && !fullSub.includes(q) && !clsStr.includes(q)) {
+        const dateStr = String(resolveRecordDate(r)).toLowerCase();
+        const subStr = String(sub).toLowerCase();
+        const fullSub = formatSubjectName(sub).toLowerCase();
+        const clsStr = String(cls).toLowerCase();
+        const nameStr = String(r.studentName || r.name || '').toLowerCase();
+        const rollStr = String(r.rollNo || r.classRollNo || '').toLowerCase();
+        if (!dateStr.includes(q) && !subStr.includes(q) && !fullSub.includes(q) && !clsStr.includes(q) && !nameStr.includes(q) && !rollStr.includes(q)) {
           return false;
         }
       }
@@ -227,8 +266,8 @@ export default function AdminAttendance() {
   const groupedBySubject = useMemo(() => {
     const groups = {};
     filteredRecords.forEach(r => {
-      const cls = r.className || 'General';
-      const rawSub = r.subject || r.subjectName || 'General';
+      const cls = resolveRecordClass(r);
+      const rawSub = resolveRecordSubject(r);
       const key = `${cls}_${rawSub}`;
       if (!groups[key]) {
         groups[key] = {
@@ -247,17 +286,28 @@ export default function AdminAttendance() {
       if (Array.isArray(r.records)) {
         r.records.forEach(st => {
           groups[key].totalStudentsCount++;
-          if (st.status === 'P' || st.status === 'Present') {
+          const s = String(st.status || '').toUpperCase();
+          if (s === 'P' || s === 'PRESENT') {
             groups[key].totalPresentCount++;
           }
         });
+      } else if (r.status) {
+        groups[key].totalStudentsCount++;
+        const s = String(r.status || '').toUpperCase();
+        if (s === 'P' || s === 'PRESENT') {
+          groups[key].totalPresentCount++;
+        }
       }
     });
 
     // Sort records inside each group by date descending
     Object.values(groups).forEach(g => {
-      g.records.sort((a, b) => new Date(b.date || b.updatedAt) - new Date(a.date || a.updatedAt));
-      g.latestDate = g.records[0]?.date || '—';
+      g.records.sort((a, b) => {
+        const dateA = resolveRecordDate(a) || a.updatedAt || '';
+        const dateB = resolveRecordDate(b) || b.updatedAt || '';
+        return new Date(dateB) - new Date(dateA);
+      });
+      g.latestDate = resolveRecordDate(g.records[0]) || '—';
       g.avgPresentRate = g.totalStudentsCount > 0 
         ? Math.round((g.totalPresentCount / g.totalStudentsCount) * 100) 
         : 0;
@@ -270,7 +320,7 @@ export default function AdminAttendance() {
   const groupedByDate = useMemo(() => {
     const groups = {};
     filteredRecords.forEach(r => {
-      const dt = r.date || 'Unknown Date';
+      const dt = resolveRecordDate(r) || 'Unknown Date';
       if (!groups[dt]) {
         groups[dt] = {
           date: dt,
@@ -594,17 +644,20 @@ export default function AdminAttendance() {
                           </thead>
                           <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-bold">
                             {group.records.map((rec, rIdx) => {
-                              const total = rec.records?.length || 0;
-                              const present = rec.records?.filter(s => s.status === 'P' || s.status === 'Present').length || 0;
+                              const total = Array.isArray(rec.records) ? rec.records.length : (rec.status ? 1 : 0);
+                              const present = Array.isArray(rec.records) 
+                                ? rec.records.filter(s => String(s.status || '').toUpperCase() === 'P' || String(s.status || '').toUpperCase() === 'PRESENT').length 
+                                : (String(rec.status || '').toUpperCase() === 'P' || String(rec.status || '').toUpperCase() === 'PRESENT' ? 1 : 0);
                               const rate = total > 0 ? Math.round((present / total) * 100) : 0;
+                              const dt = resolveRecordDate(rec);
 
                               return (
                                 <tr key={rIdx} className="hover:bg-white dark:hover:bg-slate-900/80">
                                   <td className="py-1.5 px-2 font-black text-indigo-700 dark:text-indigo-400 font-mono">
-                                    {rec.date}
+                                    {dt || '—'}
                                   </td>
                                   <td className="py-1.5 px-2 text-slate-500 text-[11px]">
-                                    {new Date(rec.updatedAt).toLocaleDateString()} {new Date(rec.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                    {rec.updatedAt ? `${new Date(rec.updatedAt).toLocaleDateString()} ${new Date(rec.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : (dt || '—')}
                                   </td>
                                   <td className="py-1.5 px-2 font-black text-slate-800 dark:text-slate-200">
                                     {total} Students
@@ -667,9 +720,13 @@ export default function AdminAttendance() {
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-1.5">
                     {group.records.map((rec, rIdx) => {
-                      const total = rec.records?.length || 0;
-                      const present = rec.records?.filter(s => s.status === 'P' || s.status === 'Present').length || 0;
+                      const total = Array.isArray(rec.records) ? rec.records.length : (rec.status ? 1 : 0);
+                      const present = Array.isArray(rec.records) 
+                        ? rec.records.filter(s => String(s.status || '').toUpperCase() === 'P' || String(s.status || '').toUpperCase() === 'PRESENT').length 
+                        : (String(rec.status || '').toUpperCase() === 'P' || String(rec.status || '').toUpperCase() === 'PRESENT' ? 1 : 0);
                       const rate = total > 0 ? Math.round((present / total) * 100) : 0;
+                      const sub = resolveRecordSubject(rec);
+                      const cls = resolveRecordClass(rec);
 
                       return (
                         <div
@@ -679,10 +736,10 @@ export default function AdminAttendance() {
                         >
                           <div>
                             <span className="font-black text-slate-900 dark:text-white block text-[11px]">
-                              {formatSubjectName(rec.subject || rec.subjectName)} ({rec.subject})
+                              {formatSubjectName(sub)} ({sub})
                             </span>
                             <span className="text-[10px] font-bold text-slate-500">
-                              Class {rec.className} • {present}/{total} ({rate}%)
+                              Class {cls} • {present}/{total} ({rate}%)
                             </span>
                           </div>
                           <Eye size={13} className="text-slate-400 hover:text-indigo-600" />
@@ -714,17 +771,22 @@ export default function AdminAttendance() {
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-bold">
                     {filteredRecords.map((rec, idx) => {
-                      const total = rec.records?.length || 0;
-                      const present = rec.records?.filter(s => s.status === 'P' || s.status === 'Present').length || 0;
+                      const total = Array.isArray(rec.records) ? rec.records.length : (rec.status ? 1 : 0);
+                      const present = Array.isArray(rec.records) 
+                        ? rec.records.filter(s => String(s.status || '').toUpperCase() === 'P' || String(s.status || '').toUpperCase() === 'PRESENT').length 
+                        : (String(rec.status || '').toUpperCase() === 'P' || String(rec.status || '').toUpperCase() === 'PRESENT' ? 1 : 0);
                       const rate = total > 0 ? Math.round((present / total) * 100) : 0;
+                      const dt = resolveRecordDate(rec);
+                      const cls = resolveRecordClass(rec);
+                      const sub = resolveRecordSubject(rec);
 
                       return (
                         <tr key={rec.id || idx} className="hover:bg-slate-50/70 dark:hover:bg-slate-800/40">
                           <td className="px-3 py-2 font-mono text-slate-400 font-black">{idx + 1}</td>
-                          <td className="px-3 py-2 font-mono font-black text-indigo-700 dark:text-indigo-400">{rec.date}</td>
-                          <td className="px-3 py-2 font-black text-slate-900 dark:text-white">Class {rec.className}</td>
+                          <td className="px-3 py-2 font-mono font-black text-indigo-700 dark:text-indigo-400">{dt || '—'}</td>
+                          <td className="px-3 py-2 font-black text-slate-900 dark:text-white">Class {cls}</td>
                           <td className="px-3 py-2 font-black">
-                            {formatSubjectName(rec.subject || rec.subjectName)} <span className="font-mono text-slate-400 text-[10px]">({rec.subject})</span>
+                            {formatSubjectName(sub)} <span className="font-mono text-slate-400 text-[10px]">({sub})</span>
                           </td>
                           <td className="px-3 py-2 text-slate-700 dark:text-slate-300 font-black">{total}</td>
                           <td className="px-3 py-2">
@@ -733,7 +795,7 @@ export default function AdminAttendance() {
                             </span>
                           </td>
                           <td className="px-3 py-2 text-[11px] text-slate-500 font-mono">
-                            {new Date(rec.updatedAt).toLocaleDateString()} {new Date(rec.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            {rec.updatedAt ? `${new Date(rec.updatedAt).toLocaleDateString()} ${new Date(rec.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : (dt || '—')}
                           </td>
                           <td className="px-3 py-2 text-right">
                             <button
@@ -774,10 +836,10 @@ export default function AdminAttendance() {
                 </div>
                 <div>
                   <h3 className="font-black text-xs sm:text-sm leading-tight">
-                    {formatSubjectName(selectedRecordForModal.subject || selectedRecordForModal.subjectName)} — Class {selectedRecordForModal.className}
+                    {formatSubjectName(resolveRecordSubject(selectedRecordForModal))} — Class {resolveRecordClass(selectedRecordForModal)}
                   </h3>
                   <p className="text-[11px] font-mono text-indigo-600 dark:text-indigo-400 font-black">
-                    Date: {selectedRecordForModal.date} • Logged: {new Date(selectedRecordForModal.updatedAt).toLocaleTimeString()}
+                    Date: {resolveRecordDate(selectedRecordForModal) || '—'} • Logged: {selectedRecordForModal.updatedAt ? new Date(selectedRecordForModal.updatedAt).toLocaleTimeString() : 'Recorded'}
                   </p>
                 </div>
               </div>
@@ -791,73 +853,80 @@ export default function AdminAttendance() {
               </button>
             </div>
 
-            {/* Quick Stats Banner */}
-            <div className="grid grid-cols-3 gap-2 p-3 bg-slate-50/50 dark:bg-slate-950/50 border-b border-slate-100 dark:border-slate-800 text-center">
-              <div className="p-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-                <span className="text-[10px] font-black uppercase text-slate-400 block">Total Marked</span>
-                <strong className="text-sm font-black">{selectedRecordForModal.records?.length || 0}</strong>
-              </div>
-              <div className="p-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 text-emerald-800 dark:text-emerald-200">
-                <span className="text-[10px] font-black uppercase block">Present (P)</span>
-                <strong className="text-sm font-black">
-                  {selectedRecordForModal.records?.filter(s => s.status === 'P' || s.status === 'Present').length || 0}
-                </strong>
-              </div>
-              <div className="p-2 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800/60 text-rose-800 dark:text-rose-200">
-                <span className="text-[10px] font-black uppercase block">Absent (A)</span>
-                <strong className="text-sm font-black">
-                  {selectedRecordForModal.records?.filter(s => s.status === 'A' || s.status === 'Absent').length || 0}
-                </strong>
-              </div>
-            </div>
+            {(() => {
+              const modalRecords = Array.isArray(selectedRecordForModal.records) && selectedRecordForModal.records.length > 0
+                ? selectedRecordForModal.records
+                : [{
+                    rollNo: selectedRecordForModal.rollNo || selectedRecordForModal.classRollNo || '—',
+                    name: selectedRecordForModal.studentName || selectedRecordForModal.name || 'Student Candidate',
+                    status: selectedRecordForModal.status || 'P'
+                  }];
+              const totalMarked = modalRecords.length;
+              const totalPresent = modalRecords.filter(s => String(s.status || '').toUpperCase() === 'P' || String(s.status || '').toUpperCase() === 'PRESENT').length;
+              const totalAbsent = modalRecords.filter(s => String(s.status || '').toUpperCase() === 'A' || String(s.status || '').toUpperCase() === 'ABSENT').length;
 
-            {/* Students List Table */}
-            <div className="p-3 overflow-y-auto flex-1">
-              <table className="w-full text-left text-xs">
-                <thead className="sticky top-0 bg-white dark:bg-slate-900 text-slate-400 font-black text-[10px] uppercase border-b border-slate-200 dark:border-slate-800">
-                  <tr>
-                    <th className="py-1.5 px-2">Roll No</th>
-                    <th className="py-1.5 px-2">Student Name / ID</th>
-                    <th className="py-1.5 px-2 text-right">Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-bold">
-                  {selectedRecordForModal.records?.map((st, idx) => {
-                    const isP = st.status === 'P' || st.status === 'Present';
-                    const isL = st.status === 'L' || st.status === 'Leave';
+              return (
+                <>
+                  {/* Quick Stats Banner */}
+                  <div className="grid grid-cols-3 gap-2 p-3 bg-slate-50/50 dark:bg-slate-950/50 border-b border-slate-100 dark:border-slate-800 text-center">
+                    <div className="p-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                      <span className="text-[10px] font-black uppercase text-slate-400 block">Total Marked</span>
+                      <strong className="text-sm font-black">{totalMarked}</strong>
+                    </div>
+                    <div className="p-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 text-emerald-800 dark:text-emerald-200">
+                      <span className="text-[10px] font-black uppercase block">Present (P)</span>
+                      <strong className="text-sm font-black">{totalPresent}</strong>
+                    </div>
+                    <div className="p-2 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800/60 text-rose-800 dark:text-rose-200">
+                      <span className="text-[10px] font-black uppercase block">Absent (A)</span>
+                      <strong className="text-sm font-black">{totalAbsent}</strong>
+                    </div>
+                  </div>
 
-                    return (
-                      <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
-                        <td className="py-1.5 px-2 font-mono font-black text-amber-600 dark:text-amber-400">
-                          {st.classRollNo || st.rollNo || idx + 1}
-                        </td>
-                        <td className="py-1.5 px-2 font-black text-slate-800 dark:text-slate-200">
-                          {st.studentName || st.name || `Student #${st.classRollNo || st.rollNo || idx + 1}`}
-                        </td>
-                        <td className="py-1.5 px-2 text-right">
-                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black ${
-                            isP 
-                              ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800' 
-                              : isL 
-                              ? 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 border border-amber-200 dark:border-amber-800'
-                              : 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300 border border-rose-200 dark:border-rose-800'
-                          }`}>
-                            {isP ? 'Present (P)' : isL ? 'Leave (L)' : 'Absent (A)'}
-                          </span>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                  {(!selectedRecordForModal.records || selectedRecordForModal.records.length === 0) && (
-                    <tr>
-                      <td colSpan="3" className="py-6 text-center text-slate-400 font-bold">
-                        No student breakdown stored for this register.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
+                  {/* Students List Table */}
+                  <div className="p-3 overflow-y-auto flex-1">
+                    <table className="w-full text-left text-xs">
+                      <thead className="sticky top-0 bg-white dark:bg-slate-900 text-slate-400 font-black text-[10px] uppercase border-b border-slate-200 dark:border-slate-800">
+                        <tr>
+                          <th className="py-1.5 px-2">Roll No</th>
+                          <th className="py-1.5 px-2">Student Name / ID</th>
+                          <th className="py-1.5 px-2 text-right">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-bold">
+                        {modalRecords.map((st, idx) => {
+                          const s = String(st.status || '').toUpperCase();
+                          const isP = s === 'P' || s === 'PRESENT';
+                          const isL = s === 'L' || s === 'LEAVE';
+
+                          return (
+                            <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                              <td className="py-1.5 px-2 font-mono font-black text-amber-600 dark:text-amber-400">
+                                {st.classRollNo || st.rollNo || idx + 1}
+                              </td>
+                              <td className="py-1.5 px-2 font-black text-slate-800 dark:text-slate-200">
+                                {st.studentName || st.name || `Student #${st.classRollNo || st.rollNo || idx + 1}`}
+                              </td>
+                              <td className="py-1.5 px-2 text-right">
+                                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black ${
+                                  isP 
+                                    ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800' 
+                                    : isL 
+                                    ? 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 border border-amber-200 dark:border-amber-800'
+                                    : 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300 border border-rose-200 dark:border-rose-800'
+                                }`}>
+                                  {isP ? 'Present (P)' : isL ? 'Leave (L)' : 'Absent (A)'}
+                                </span>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              );
+            })()}
 
             {/* Modal Footer */}
             <div className="p-3 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 flex justify-end">
