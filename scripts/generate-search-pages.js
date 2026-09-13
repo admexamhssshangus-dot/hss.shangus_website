@@ -10,6 +10,8 @@ const escapeHtml = (value) => String(value).replace(/[&<>"']/g, (char) => ({
   '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
 }[char]));
 
+const searchOverviewCss = fs.readFileSync(path.resolve(__dirname, '../public/search-overview.css'), 'utf8');
+
 function renderHead(seo) {
   const meta = (attribute, name, content) => `<meta ${attribute}="${name}" content="${escapeHtml(content)}">`;
   return [
@@ -22,6 +24,7 @@ function renderHead(seo) {
     meta('property', 'og:image', seo.image), meta('name', 'twitter:card', 'summary_large_image'),
     meta('name', 'twitter:title', seo.title), meta('name', 'twitter:description', seo.description),
     meta('name', 'twitter:image', seo.image),
+    `<style id="search-overview-css">${searchOverviewCss}</style>`,
     `<script id="hss-structured-data" type="application/ld+json">${JSON.stringify(getStructuredData(seo)).replace(/</g, '\\u003c')}</script>`
   ].join('\n');
 }
@@ -54,7 +57,14 @@ for (const route of routes) {
   const head = shell.replace(/<title>[\s\S]*?<\/title>/i, '').replace('</head>', `${renderHead(getPageSeo(route))}</head>`);
   const html = head.replace(/<body>[\s\S]*<\/body>/i, `<body><div id="root">${renderOverview(PUBLIC_PAGES[route])}</div></body>`);
   if (html === head) throw new Error('Could not replace the CRA body with the public overview.');
-  fs.writeFileSync(path.join(build, route === '/' ? 'index.html' : `${route.slice(1)}.html`), html);
+  if (route === '/') {
+    fs.writeFileSync(path.join(build, 'index.html'), html);
+  } else {
+    fs.writeFileSync(path.join(build, `${route.slice(1)}.html`), html);
+    const routeDir = path.join(build, route.slice(1));
+    if (!fs.existsSync(routeDir)) fs.mkdirSync(routeDir, { recursive: true });
+    fs.writeFileSync(path.join(routeDir, 'index.html'), html);
+  }
 }
 
 // Keep stable public URLs. Only aliases redirect; React's private/CMS routes
@@ -69,7 +79,7 @@ const publicRules = [
     `${alias} ${canonical} 301!`, `${alias}/ ${canonical} 301!`
   ]),
   ...routes.filter((route) => route !== '/').flatMap((route) => [
-    `${route}/ ${route} 301!`, `${route} ${route}.html 200!`
+    `${route}.html ${route} 301!`, `${route}/ ${route} 301!`
   ])
 ];
 fs.writeFileSync(redirectsPath, redirects.replace(catchAll, `${publicRules.join('\n')}\n/* /app-shell.html 200\n`));
