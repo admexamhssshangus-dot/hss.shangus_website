@@ -10,7 +10,9 @@ import {
   getSubjectPerformanceDescriptor,
   getOverallResultDescriptor,
   isSubjectCompatibleWithStream,
-  isSubjectEnrolledByStudent
+  isSubjectEnrolledByStudent,
+  normalizeMarksToScale,
+  computeScorecardSubjects
 } from './PublicResultLookup';
 
 test('unavailable configuration is explained and cannot submit an empty evaluation', async () => {
@@ -139,4 +141,147 @@ test('verified catalog correctly resolves 16-digit registration numbers like Sal
   expect(isSubjectEnrolledByStudent('HT', 'History', salma)).toBe(true);
   expect(isSubjectEnrolledByStudent('PS', 'Political Science', salma)).toBe(true);
 });
+
+describe('Score Normalization and Flexible Biology Display', () => {
+  test('normalizeMarksToScale correctly scales 20/25, 70/100, and absent to 50M base', () => {
+    // 20 out of 25 -> 40 out of 50
+    const scaled25 = normalizeMarksToScale(20, 25, 50);
+    expect(scaled25.normalizedMarks).toBe(40);
+    expect(scaled25.rawScore).toBe('20/25');
+    expect(scaled25.isAbsent).toBe(false);
+    expect(scaled25.isEvaluated).toBe(true);
+
+    // 70 out of 100 -> 35 out of 50
+    const scaled100 = normalizeMarksToScale(70, 100, 50);
+    expect(scaled100.normalizedMarks).toBe(35);
+    expect(scaled100.rawScore).toBe('70/100');
+
+    // 45 out of 50 -> remains 45 normalized, rawScore is '45/50'
+    const scaled50 = normalizeMarksToScale(45, 50, 50);
+    expect(scaled50.normalizedMarks).toBe(45);
+    expect(scaled50.rawScore).toBe('45/50');
+
+    // Absent
+    const absent = normalizeMarksToScale('AB', 25, 50);
+    expect(absent.normalizedMarks).toBe('AB');
+    expect(absent.isAbsent).toBe(true);
+
+    // Unrecorded / pending
+    const pending = normalizeMarksToScale(null, 50, 50);
+    expect(pending.normalizedMarks).toBe('—');
+    expect(pending.isEvaluated).toBe(false);
+  });
+
+  test('computeScorecardSubjects in combined mode merges Botany (20/25) and Zoology (22/25) into single 50M Biology', () => {
+    const student = {
+      name: 'Sahil Ahmad Bhat',
+      className: '11th',
+      stream: 'Science',
+      boardRegNo: '2501010000610001'
+    };
+
+    const sections = [
+      {
+        id: 'sec-bo',
+        subjectCode: 'BO',
+        subjectName: 'Botany',
+        maxMarks: 25,
+        records: [
+          { regNo: '2501010000610001', name: 'Sahil Ahmad Bhat', totalMarks: 20 }
+        ]
+      },
+      {
+        id: 'sec-zo',
+        subjectCode: 'ZO',
+        subjectName: 'Zoology',
+        maxMarks: 25,
+        records: [
+          { regNo: '2501010000610001', name: 'Sahil Ahmad Bhat', totalMarks: 22 }
+        ]
+      }
+    ];
+
+    const matchRecord = (rec) => rec.regNo === '2501010000610001';
+
+    const result = computeScorecardSubjects({
+      matchedStudent: student,
+      streamName: 'Science',
+      matchingSections: sections,
+      matchRecord,
+      biologyDisplayMode: 'combined'
+    });
+
+    expect(result.hasBiologySubjects).toBe(true);
+
+    const bioSubject = result.subjects.find(s => s.subjectCode === 'BI');
+    expect(bioSubject).toBeDefined();
+    expect(bioSubject.subjectName).toContain('Biology');
+    expect(bioSubject.maxMarks).toBe(50);
+    expect(bioSubject.marksObtained).toBe(42); // 20 + 22 = 42/50
+    expect(bioSubject.isPass).toBe(true);
+    expect(bioSubject.componentNote).toBe('BO: 20/25 • ZO: 22/25');
+
+    // Individual BO and ZO rows should NOT exist in combined mode
+    expect(result.subjects.some(s => s.subjectCode === 'BO')).toBe(false);
+    expect(result.subjects.some(s => s.subjectCode === 'ZO')).toBe(false);
+  });
+
+  test('computeScorecardSubjects in separate mode presents Botany and Zoology as individual 50M normalized subjects', () => {
+    const student = {
+      name: 'Sahil Ahmad Bhat',
+      className: '11th',
+      stream: 'Science',
+      boardRegNo: '2501010000610001'
+    };
+
+    const sections = [
+      {
+        id: 'sec-bo',
+        subjectCode: 'BO',
+        subjectName: 'Botany',
+        maxMarks: 25,
+        records: [
+          { regNo: '2501010000610001', name: 'Sahil Ahmad Bhat', totalMarks: 20 }
+        ]
+      },
+      {
+        id: 'sec-zo',
+        subjectCode: 'ZO',
+        subjectName: 'Zoology',
+        maxMarks: 25,
+        records: [
+          { regNo: '2501010000610001', name: 'Sahil Ahmad Bhat', totalMarks: 22 }
+        ]
+      }
+    ];
+
+    const matchRecord = (rec) => rec.regNo === '2501010000610001';
+
+    const result = computeScorecardSubjects({
+      matchedStudent: student,
+      streamName: 'Science',
+      matchingSections: sections,
+      matchRecord,
+      biologyDisplayMode: 'separate'
+    });
+
+    expect(result.hasBiologySubjects).toBe(true);
+
+    // Combined BI should NOT exist
+    expect(result.subjects.some(s => s.subjectCode === 'BI')).toBe(false);
+
+    const boSubject = result.subjects.find(s => s.subjectCode === 'BO');
+    expect(boSubject).toBeDefined();
+    expect(boSubject.maxMarks).toBe(50);
+    expect(boSubject.marksObtained).toBe(40); // (20/25)*50 = 40
+    expect(boSubject.componentNote).toContain('Raw Paper: 20/25');
+
+    const zoSubject = result.subjects.find(s => s.subjectCode === 'ZO');
+    expect(zoSubject).toBeDefined();
+    expect(zoSubject.maxMarks).toBe(50);
+    expect(zoSubject.marksObtained).toBe(44); // (22/25)*50 = 44
+    expect(zoSubject.componentNote).toContain('Raw Paper: 22/25');
+  });
+});
+
 

@@ -28,6 +28,8 @@ const PRESET_EVALUATIONS = [
     allowedStatuses: ['approved'],
     maxMarks: 100,
     minMarks: 36,
+    biologyDisplayMode: 'combined',
+    normalizeTo50: true,
     description: 'Comprehensive mid-session preparatory assessment covering complete syllabus.'
   },
   {
@@ -38,6 +40,8 @@ const PRESET_EVALUATIONS = [
     allowedStatuses: ['approved', 'provisional'],
     maxMarks: 50,
     minMarks: 18,
+    biologyDisplayMode: 'combined',
+    normalizeTo50: true,
     description: 'Routine continuous and comprehensive unit evaluation conducted by subject teachers.'
   }
 ];
@@ -67,6 +71,8 @@ export default function SchoolAssessmentsHub({ allStudents = [], onSwitchToGazet
     allowedStatuses: ['approved'],
     maxMarks: 100,
     minMarks: 36,
+    biologyDisplayMode: 'combined',
+    normalizeTo50: true,
     isOpenForTeachers: true,
     isPublishedForStudents: true,
     description: ''
@@ -128,6 +134,8 @@ export default function SchoolAssessmentsHub({ allStudents = [], onSwitchToGazet
         allowedStatuses: preset.allowedStatuses || ['approved'],
         maxMarks: preset.maxMarks || 100,
         minMarks: preset.minMarks || 36,
+        biologyDisplayMode: preset.biologyDisplayMode || 'combined',
+        normalizeTo50: preset.normalizeTo50 !== false,
         isOpenForTeachers: true,
         isPublishedForStudents: true,
         description: preset.description || ''
@@ -141,6 +149,8 @@ export default function SchoolAssessmentsHub({ allStudents = [], onSwitchToGazet
         allowedStatuses: ['approved'],
         maxMarks: 100,
         minMarks: 36,
+        biologyDisplayMode: 'combined',
+        normalizeTo50: true,
         isOpenForTeachers: true,
         isPublishedForStudents: true,
         description: ''
@@ -159,6 +169,8 @@ export default function SchoolAssessmentsHub({ allStudents = [], onSwitchToGazet
       allowedStatuses: Array.isArray(evalItem.allowedStatuses) ? evalItem.allowedStatuses : ['approved'],
       maxMarks: evalItem.maxMarks || 100,
       minMarks: evalItem.minMarks || 36,
+      biologyDisplayMode: evalItem.biologyDisplayMode || 'combined',
+      normalizeTo50: evalItem.normalizeTo50 !== false,
       isOpenForTeachers: evalItem.isOpenForTeachers !== false,
       isPublishedForStudents: evalItem.isPublishedForStudents !== false,
       description: evalItem.description || ''
@@ -423,6 +435,16 @@ export default function SchoolAssessmentsHub({ allStudents = [], onSwitchToGazet
                   <span>Max Marks: <strong className="text-slate-800 dark:text-slate-200">{item.maxMarks || 100}</strong></span>
                   <span>Min Pass: <strong className="text-slate-800 dark:text-slate-200">{item.minMarks || 36} ({Math.round(((item.minMarks || 36)/(item.maxMarks || 100))*100)}%)</strong></span>
                 </div>
+
+                {/* Biology & Normalization indicators */}
+                <div className="flex items-center gap-1.5 flex-wrap text-[10px] pt-1">
+                  <span className="px-1.5 py-0.5 rounded font-bold bg-teal-50 dark:bg-teal-950/60 text-teal-800 dark:text-teal-300 border border-teal-200 dark:border-teal-800">
+                    Biology: {item.biologyDisplayMode === 'separate' ? 'Separate (50M each)' : 'Combined (50M)'}
+                  </span>
+                  <span className="px-1.5 py-0.5 rounded font-bold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-800 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+                    Auto-Normalized: 50M
+                  </span>
+                </div>
               </div>
 
               {/* Compact Toggle Pills Footer */}
@@ -662,6 +684,64 @@ export default function SchoolAssessmentsHub({ allStudents = [], onSwitchToGazet
                     onChange={(e) => setFormState({ ...formState, minMarks: Number(e.target.value) || 36 })}
                     className="w-full px-2.5 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-teal-600 font-mono font-bold"
                   />
+                </div>
+              </div>
+
+              {/* Botany & Zoology Handling & Normalization Config */}
+              <div className="p-2.5 rounded-xl bg-teal-50/50 dark:bg-teal-950/30 border border-teal-200 dark:border-teal-800/60 space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-[10px] font-bold text-teal-900 dark:text-teal-200 uppercase tracking-wider flex items-center gap-1">
+                    <Layers size={13} className="text-teal-700 dark:text-teal-400" />
+                    <span>Biology (Botany & Zoology) Display Mode</span>
+                  </label>
+                  <span className="text-[9.5px] font-semibold text-teal-700 dark:text-teal-300">
+                    Faculty submit separately
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setFormState({ ...formState, biologyDisplayMode: 'combined' })}
+                    className={`p-2 rounded-lg border text-left transition-all cursor-pointer ${
+                      formState.biologyDisplayMode === 'combined'
+                        ? 'bg-white dark:bg-slate-900 border-teal-600 dark:border-teal-400 text-teal-950 dark:text-teal-200 shadow-xs'
+                        : 'bg-teal-50/40 dark:bg-slate-950 border-teal-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:border-teal-400'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-0.5">
+                      <span className="text-[11px] font-black">Combined Biology (50M)</span>
+                      {formState.biologyDisplayMode === 'combined' && <CheckCircle2 size={13} className="text-teal-600" />}
+                    </div>
+                    <p className="text-[9.5px] text-slate-500 dark:text-slate-400 m-0 leading-tight">
+                      Merges Botany & Zoology into 1 row with sub-breakdown (BO: X/25 • ZO: Y/25).
+                    </p>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setFormState({ ...formState, biologyDisplayMode: 'separate' })}
+                    className={`p-2 rounded-lg border text-left transition-all cursor-pointer ${
+                      formState.biologyDisplayMode === 'separate'
+                        ? 'bg-white dark:bg-slate-900 border-teal-600 dark:border-teal-400 text-teal-950 dark:text-teal-200 shadow-xs'
+                        : 'bg-teal-50/40 dark:bg-slate-950 border-teal-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:border-teal-400'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-0.5">
+                      <span className="text-[11px] font-black">Show Separately</span>
+                      {formState.biologyDisplayMode === 'separate' && <CheckCircle2 size={13} className="text-teal-600" />}
+                    </div>
+                    <p className="text-[9.5px] text-slate-500 dark:text-slate-400 m-0 leading-tight">
+                      Displays Botany (50M) and Zoology (50M) as two individual subject rows.
+                    </p>
+                  </button>
+                </div>
+
+                <div className="text-[10px] text-teal-800 dark:text-teal-300/90 bg-white/70 dark:bg-slate-900/60 p-2 rounded-lg border border-teal-200/60 dark:border-teal-800/40 flex items-start gap-1.5 leading-snug">
+                  <Sparkles size={13} className="text-amber-500 flex-shrink-0 mt-0.5" />
+                  <span>
+                    <strong>Auto-Score Normalization:</strong> Teachers can set exam papers of any scale (e.g. 20, 25, 30, 40, 70, 100). On student scorecards and public result lookup, all subjects will be automatically normalized to <strong>50 Max Marks (Passing: 18/50)</strong>.
+                  </span>
                 </div>
               </div>
 
