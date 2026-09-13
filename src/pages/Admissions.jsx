@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { CheckCircle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import SEO from '../components/SEO';
-import { loadSiteSettings, DEFAULT_SETTINGS } from '../utils/settingsLoader';
+import { loadSiteSettings, DEFAULT_SETTINGS, getCachedSiteSettings, subscribeSiteSettings } from '../utils/settingsLoader';
 import { db } from '../firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import DynamicPageRenderer from '../components/DynamicPageRenderer';
@@ -11,7 +11,7 @@ import PublicPageSkeleton from '../components/PublicPageSkeleton';
 export default function Admissions() {
   const [docOpen, setDocOpen] = useState(false);
   const docRef = useRef(null);
-  const [settings, setSettings] = useState(DEFAULT_SETTINGS);
+  const [settings, setSettings] = useState(() => getCachedSiteSettings());
   const [dynamicData, setDynamicData] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -40,8 +40,12 @@ export default function Admissions() {
     return () => { isMounted = false; };
   }, []);
 
+  // Real-time live synchronization with Firebase Firestore settings
   useEffect(() => {
-    loadSiteSettings().then(setSettings);
+    const unsubscribe = subscribeSiteSettings((liveSettings) => {
+      setSettings(liveSettings);
+    });
+    return () => unsubscribe();
   }, []);
 
   // Listen to cross-tab data sync broadcasts
