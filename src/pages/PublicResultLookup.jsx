@@ -9,7 +9,7 @@ import { collection, getDocs } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { publicLookup } from '../services/backendEndpoint';
 import SEO from '../components/SEO';
-import { DEFAULT_SCHOOL_EVALUATIONS } from '../utils/practicalsSettingsManager';
+import { DEFAULT_SCHOOL_EVALUATIONS, SUBJECT_CONFIG_DEFS } from '../utils/practicalsSettingsManager';
 import verifiedCatalog from '../data/verifiedStudentsCatalog.json';
 import { getCachedCollection, fetchStudentPhotoOnDemand } from '../services/dbCache';
 import { identityKey, classKey, sessionKey, formatConsistentName } from '../utils/recordIdentity';
@@ -354,7 +354,8 @@ export function computeScorecardSubjects({
   streamName,
   matchingSections = [],
   matchRecord,
-  biologyDisplayMode = 'combined'
+  biologyDisplayMode = 'combined',
+  evalConfig = null
 }) {
   let botanySec = null;
   let zoologySec = null;
@@ -383,16 +384,30 @@ export function computeScorecardSubjects({
 
   const isScience = String(streamName || '').toLowerCase().includes('scien');
   const hasRegisteredBio = Array.isArray(matchedStudent?.subjects) &&
-    matchedStudent.subjects.some(s => ['BI', 'BO', 'ZO'].includes(s.code) || /biology|botany|zoology/i.test(s.name));
+    matchedStudent.subjects.some(s => {
+      const code = typeof s === 'string' ? '' : (s.code || '');
+      const name = typeof s === 'string' ? s : (s.name || '');
+      return ['BI', 'BO', 'ZO'].includes(code) || /biology|botany|zoology/i.test(name);
+    });
   const hasBioActivity = Boolean(botanyRec || zoologyRec || biologyRec || hasRegisteredBio || (isScience && !Array.isArray(matchedStudent?.subjects)));
 
   let rawTemplate = [];
   if (Array.isArray(matchedStudent?.subjects) && matchedStudent.subjects.length > 0) {
-    rawTemplate = matchedStudent.subjects.map(s => ({
-      code: s.code,
-      name: s.name,
-      defaultMax: s.defaultMax || 50
-    }));
+    rawTemplate = matchedStudent.subjects.map(s => {
+      if (typeof s === 'string') {
+        const foundDef = SUBJECT_CONFIG_DEFS.find(d => d.name.toLowerCase() === s.toLowerCase() || d.code.toLowerCase() === s.toLowerCase());
+        return {
+          code: foundDef?.code || s.substring(0, 3).toUpperCase(),
+          name: foundDef?.name || s,
+          defaultMax: 50
+        };
+      }
+      return {
+        code: s.code || (s.name ? s.name.substring(0, 3).toUpperCase() : ''),
+        name: s.name || s.code || '',
+        defaultMax: s.defaultMax || 50
+      };
+    });
   } else if (isScience) {
     rawTemplate = [
       { code: 'EN', name: 'General English', defaultMax: 50 },
@@ -438,8 +453,8 @@ export function computeScorecardSubjects({
       } else {
         const boRaw = botanyRec ? (botanyRec.totalMarks ?? botanyRec.practicalMarks) : null;
         const zoRaw = zoologyRec ? (zoologyRec.totalMarks ?? zoologyRec.practicalMarks) : null;
-        const boMax = Number(botanySec?.maxMarks) || 25;
-        const zoMax = Number(zoologySec?.maxMarks) || 25;
+        const boMax = Number(botanySec?.maxMarks) || Number(evalConfig?.subjectOverrides?.['BO']?.maxMarks) || 25;
+        const zoMax = Number(zoologySec?.maxMarks) || Number(evalConfig?.subjectOverrides?.['ZO']?.maxMarks) || 25;
 
         const boIsAb = boRaw !== null && /^(a|ab|absent)$/i.test(String(boRaw).trim());
         const zoIsAb = zoRaw !== null && /^(a|ab|absent)$/i.test(String(zoRaw).trim());
@@ -501,7 +516,7 @@ export function computeScorecardSubjects({
       // SEPARATE BOTANY & ZOOLOGY
       if (botanyRec) {
         const boRaw = botanyRec.totalMarks ?? botanyRec.practicalMarks;
-        const boMax = Number(botanySec?.maxMarks) || 25;
+        const boMax = Number(botanySec?.maxMarks) || Number(evalConfig?.subjectOverrides?.['BO']?.maxMarks) || 25;
         const norm = normalizeMarksToScale(boRaw, boMax, 50);
         const desc = getSubjectPerformanceDescriptor(norm.normalizedMarks, 50, 18, norm.isAbsent);
 
@@ -540,7 +555,7 @@ export function computeScorecardSubjects({
 
       if (zoologyRec) {
         const zoRaw = zoologyRec.totalMarks ?? zoologyRec.practicalMarks;
-        const zoMax = Number(zoologySec?.maxMarks) || 25;
+        const zoMax = Number(zoologySec?.maxMarks) || Number(evalConfig?.subjectOverrides?.['ZO']?.maxMarks) || 25;
         const norm = normalizeMarksToScale(zoRaw, zoMax, 50);
         const desc = getSubjectPerformanceDescriptor(norm.normalizedMarks, 50, 18, norm.isAbsent);
 
@@ -580,7 +595,7 @@ export function computeScorecardSubjects({
   }
 
   // Process all other non-Biology template subjects
-  const nonBioTemplate = rawTemplate.filter(t => !['BI', 'BO', 'ZO'].includes(t.code) && !/biology|botany|zoology/i.test(t.name));
+  const nonBioTemplate = rawTemplate.filter(t => !['BI', 'BO', 'ZO'].includes(t.code) && !/biology|botany|zoology/i.test(t.name || ''));
 
   nonBioTemplate.forEach(tpl => {
     let foundRec = null;
@@ -589,7 +604,8 @@ export function computeScorecardSubjects({
     for (const sec of matchingSections) {
       const c = (sec.subjectCode || '').toUpperCase().trim();
       const n = String(sec.subjectName || sec.subject || '').toLowerCase();
-      const isMatch = c === tpl.code || n === tpl.name.toLowerCase() ||
+      const tplName = (tpl.name || '').toLowerCase();
+      const isMatch = c === tpl.code || (tplName && n === tplName) ||
         (tpl.code === 'EN' && (c === 'GE' || n.includes('english'))) ||
         (tpl.code === 'PH' && (c === 'PHY' || n.includes('physics'))) ||
         (tpl.code === 'CH' && (c === 'CHEM' || n.includes('chemistry'))) ||
@@ -617,7 +633,7 @@ export function computeScorecardSubjects({
 
     if (foundRec && foundSec) {
       const rawMark = foundRec.totalMarks ?? foundRec.practicalMarks;
-      const docMax = Number(foundSec.maxMarks) || 50;
+      const docMax = Number(foundSec.maxMarks) || Number(evalConfig?.subjectOverrides?.[tpl.code]?.maxMarks) || 50;
       const norm = normalizeMarksToScale(rawMark, docMax, 50);
       const desc = getSubjectPerformanceDescriptor(norm.normalizedMarks, 50, 18, norm.isAbsent);
 
@@ -751,6 +767,12 @@ export default function PublicResultLookup() {
   const [isSearchExpandedOnMobile, setIsSearchExpandedOnMobile] = useState(false);
   const [biologyDisplayMode, setBiologyDisplayMode] = useState('combined');
 
+  // Active evaluation configuration matching selected evalType
+  const activeEvalConfig = useMemo(() => {
+    if (!evalOptions || evalOptions.length === 0) return null;
+    return evalOptions.find(e => (e.evalType || e.title) === selectedEvalType) || null;
+  }, [evalOptions, selectedEvalType]);
+
   // Reactively derive active scorecard when toggling between Combined Bio and Separate BO & ZO
   const activeScorecard = useMemo(() => {
     if (!studentResult) return null;
@@ -760,7 +782,8 @@ export default function PublicResultLookup() {
         streamName: studentResult.lookupContext.streamName,
         matchingSections: studentResult.lookupContext.matchingSections,
         matchRecord: studentResult.lookupContext.matchRecord,
-        biologyDisplayMode
+        biologyDisplayMode,
+        evalConfig: activeEvalConfig
       });
       return {
         ...studentResult,
@@ -768,7 +791,7 @@ export default function PublicResultLookup() {
       };
     }
     return studentResult;
-  }, [studentResult, biologyDisplayMode]);
+  }, [studentResult, biologyDisplayMode, activeEvalConfig]);
 
   const activeResult = activeScorecard || studentResult;
 
@@ -1247,7 +1270,8 @@ export default function PublicResultLookup() {
           streamName,
           matchingSections,
           matchRecord,
-          biologyDisplayMode
+          biologyDisplayMode,
+          evalConfig: activeEvalConfig
         });
 
         let firebasePhoto = '';
@@ -1654,26 +1678,36 @@ export default function PublicResultLookup() {
               <p className="hidden sm:block print:block text-[11px] font-bold tracking-widest text-slate-500 dark:text-slate-400 print:text-slate-600 uppercase m-0">
                 Govt. Higher Secondary School Shangus
               </p>
-              <div className="flex items-center justify-between sm:justify-center relative gap-1.5 mt-0.5 sm:mt-1">
-                <h2 className="text-xs sm:text-base font-black uppercase tracking-tight text-slate-900 dark:text-white print:text-black m-0 leading-tight">
-                  Student Evaluation Scorecard
-                </h2>
+              <div className="flex items-center justify-between sm:justify-center relative gap-1.5 mt-0.5 sm:mt-1 pb-1 sm:pb-0 border-b border-slate-100 dark:border-slate-800/80 sm:border-0">
+                <div className="min-w-0 sm:text-center">
+                  <h2 className="text-xs sm:text-base font-black uppercase tracking-tight text-slate-900 dark:text-white print:text-black m-0 leading-tight truncate">
+                    <span className="sm:hidden">Student Scorecard</span>
+                    <span className="hidden sm:inline">Student Evaluation Scorecard</span>
+                  </h2>
+                  <p className="text-[9.5px] sm:text-[10.5px] font-medium text-slate-500 dark:text-slate-400 print:text-slate-600 m-0 mt-0.5 truncate">
+                    <strong className="font-bold text-slate-800 dark:text-slate-200 print:text-black">{activeResult.evalTitle}</strong>
+                    <span className="mx-1 opacity-40">•</span>
+                    <span>Session {activeResult.session}</span>
+                    <span className="mx-1 opacity-40">•</span>
+                    <span>Class {activeResult.className}</span>
+                  </p>
+                </div>
 
                 <div className="print:hidden sm:absolute sm:right-0 sm:top-1/2 sm:-translate-y-1/2 flex items-center gap-1 shrink-0">
                   <button
                     type="button"
                     onClick={() => setIsSearchExpandedOnMobile(true)}
-                    className="sm:hidden h-5.5 px-2 rounded-md bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold text-[10px] flex items-center gap-1 border border-slate-200 dark:border-slate-700 transition-all cursor-pointer"
+                    className="sm:hidden h-6 px-2 rounded-md bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold text-[10px] flex items-center gap-1 border border-slate-200 dark:border-slate-700 transition-all cursor-pointer shadow-2xs"
                     title="Search for another candidate"
                   >
                     <RefreshCw size={9.5} />
-                    <span>Search Again</span>
+                    <span>Search</span>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => window.print()}
-                    className="h-5.5 sm:h-6 px-2 rounded-md bg-teal-800 hover:bg-teal-700 active:bg-teal-900 text-white font-bold text-[10px] sm:text-[11px] flex items-center gap-1 shadow-2xs transition-all cursor-pointer shrink-0"
+                    className="h-6 px-2.5 rounded-md bg-teal-800 hover:bg-teal-700 active:bg-teal-900 text-white font-bold text-[10px] sm:text-[11px] flex items-center gap-1 shadow-2xs transition-all cursor-pointer shrink-0"
                     title="Print / Save PDF Scorecard"
                   >
                     <Printer size={10.5} />
@@ -1681,19 +1715,12 @@ export default function PublicResultLookup() {
                   </button>
                 </div>
               </div>
-              <p className="text-[10px] sm:text-[10.5px] font-medium text-slate-500 dark:text-slate-400 print:text-slate-600 m-0 mt-0.5">
-                <strong className="font-bold text-slate-800 dark:text-slate-200 print:text-black">{activeResult.evalTitle}</strong>
-                <span className="mx-1 opacity-40">•</span>
-                <span>Session {activeResult.session}</span>
-                <span className="mx-1 opacity-40">•</span>
-                <span>Class {activeResult.className}</span>
-              </p>
             </div>
 
             {/* Candidate Identity Profile Box */}
             <div className="relative z-10 flex items-stretch gap-2.5 sm:gap-4 p-2 sm:p-3 rounded-lg sm:rounded-xl bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 print:border-slate-300 print:bg-transparent print:p-2">
               {/* Photo Box: Compact on mobile screen, standard on desktop & print */}
-              <div className="w-11 h-14 sm:w-16 sm:h-20 rounded-md sm:rounded-lg bg-slate-200 dark:bg-slate-700 flex-shrink-0 overflow-hidden border border-slate-200 dark:border-slate-600 flex items-center justify-center print:border-slate-400 print:bg-transparent shadow-2xs">
+              <div className="w-12 h-15 sm:w-16 sm:h-20 rounded-md sm:rounded-lg bg-slate-200 dark:bg-slate-700 flex-shrink-0 overflow-hidden border border-slate-200 dark:border-slate-600 flex items-center justify-center print:border-slate-400 print:bg-transparent shadow-2xs">
                 {activeResult.photoUrl && !activeResult.photoUrl.includes('drive.google.com') && !activeResult.photoUrl.includes('googleusercontent.com') ? (
                   <img
                     src={activeResult.photoUrl}
@@ -1713,28 +1740,41 @@ export default function PublicResultLookup() {
               <div className="min-w-0 flex-1 flex flex-col justify-between">
                 {/* Top Row: Candidate Name & Stream */}
                 <div>
-                  <span className="text-[8.5px] font-bold text-slate-400 print:text-slate-500 uppercase tracking-wider block">
+                  <span className="text-[8px] sm:text-[8.5px] font-bold text-slate-400 print:text-slate-500 uppercase tracking-wider block">
                     Candidate Name
                   </span>
                   <div className="flex items-center gap-1.5 flex-wrap mt-0.2">
                     <span className="text-xs sm:text-base font-black text-slate-900 dark:text-white print:text-black leading-tight">
                       {activeResult.name}
                     </span>
-                    <span className="text-[8.5px] sm:text-[9px] font-black px-1.5 py-0.2 rounded bg-teal-50 dark:bg-teal-950/80 text-teal-800 dark:text-teal-300 uppercase border border-teal-200/80 dark:border-teal-800/80 print:border-slate-400 print:text-slate-800 print:bg-transparent">
+                    <span className="text-[8px] sm:text-[9px] font-black px-1.5 py-0.2 rounded bg-teal-50 dark:bg-teal-950/80 text-teal-800 dark:text-teal-300 uppercase border border-teal-200/80 dark:border-teal-800/80 print:border-slate-400 print:text-slate-800 print:bg-transparent">
                       {activeResult.stream || 'General'}
                     </span>
                   </div>
                 </div>
 
-                {/* Mobile-Only Compact Roll Info Row (Saves ~90px of vertical space on mobile) */}
-                <div className="sm:hidden flex items-center justify-between text-[10px] font-mono pt-1 text-slate-700 dark:text-slate-300">
-                  <span>Roll: <strong className="text-teal-700 dark:text-teal-300 font-bold">{activeResult.classRollNo || '—'}</strong></span>
-                  {activeResult.boardRegNo && activeResult.boardRegNo !== '—' ? (
-                    <span>Reg: <strong className="text-slate-800 dark:text-slate-200 font-bold">{activeResult.boardRegNo}</strong></span>
-                  ) : (
-                    <span>Form: <strong className="text-slate-800 dark:text-slate-200 font-bold">{activeResult.formNo || '—'}</strong></span>
-                  )}
-                  <span className="truncate max-w-[125px] text-[9.5px] text-slate-500">S/o {activeResult.fatherName || '—'}</span>
+                {/* Mobile-Only Candidate Info: Distinct Parentage & Badges Row (Zero Overlap) */}
+                <div className="sm:hidden space-y-1 pt-0.5">
+                  <div className="text-[9.5px] text-slate-600 dark:text-slate-300 font-medium truncate">
+                    <span className="text-slate-400 font-normal">S/o</span> <strong className="font-bold text-slate-800 dark:text-slate-200">{activeResult.fatherName || '—'}</strong>
+                  </div>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-teal-50 dark:bg-teal-950/80 text-teal-900 dark:text-teal-200 border border-teal-200 dark:border-teal-800/80 font-mono text-[9.5px] font-bold">
+                      <span className="text-teal-600 dark:text-teal-400 font-sans text-[8.5px] uppercase font-semibold">Roll</span>
+                      <span>{activeResult.classRollNo || '—'}</span>
+                    </span>
+                    {activeResult.boardRegNo && activeResult.boardRegNo !== '—' ? (
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 font-mono text-[9px]">
+                        <span className="text-slate-400 font-sans text-[8px] uppercase font-semibold">Reg</span>
+                        <span className="font-bold">{activeResult.boardRegNo}</span>
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 font-mono text-[9px]">
+                        <span className="text-slate-400 font-sans text-[8px] uppercase font-semibold">Form</span>
+                        <span className="font-bold">{activeResult.formNo || '—'}</span>
+                      </span>
+                    )}
+                  </div>
                 </div>
 
                 {/* Desktop & Print: Full 2-column info & 4 Attribute Cards */}

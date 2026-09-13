@@ -287,6 +287,51 @@ describe('Score Normalization and Flexible Biology Display', () => {
     expect(zoSubject.marksObtained).toBe(44); // (22/25)*50 = 44
     expect(zoSubject.componentNote).toContain('Raw Paper: 22/25');
   });
+
+  test('computeScorecardSubjects honors evalConfig.subjectOverrides for custom paper scales (e.g. Physics 35M)', () => {
+    const student = {
+      name: 'Iqra Rashid',
+      className: '11th',
+      stream: 'Science',
+      subjects: ['General English', 'Physics', 'Chemistry', 'Botany', 'Zoology']
+    };
+
+    const sections = [
+      {
+        id: 'sec-ph',
+        subjectCode: 'PH',
+        subjectName: 'Physics',
+        records: [
+          { regNo: '2501010000610099', name: 'Iqra Rashid', totalMarks: 28 } // 28/35
+        ]
+      }
+    ];
+
+    const matchRecord = (rec) => rec.name === 'Iqra Rashid';
+
+    const evalConfig = {
+      subjectOverrides: {
+        'PH': { code: 'PH', name: 'Physics', maxMarks: 35, minMarks: 13 },
+        'BO': { code: 'BO', name: 'Botany', maxMarks: 25, minMarks: 9 }
+      }
+    };
+
+    const result = computeScorecardSubjects({
+      matchedStudent: student,
+      streamName: 'Science',
+      matchingSections: sections,
+      matchRecord,
+      biologyDisplayMode: 'combined',
+      evalConfig
+    });
+
+    const phSubject = result.subjects.find(s => s.subjectCode === 'PH');
+    expect(phSubject).toBeDefined();
+    expect(phSubject.maxMarks).toBe(50);
+    expect(phSubject.rawMax).toBe(35); // Correctly resolved from evalConfig.subjectOverrides
+    expect(phSubject.marksObtained).toBe(40); // (28/35)*50 = 40
+    expect(phSubject.componentNote).toContain('Raw Paper: 28/35');
+  });
 });
 
 

@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../../services/firebase';
-import { DEFAULT_SCHOOL_EVALUATIONS } from '../../utils/practicalsSettingsManager';
+import { DEFAULT_SCHOOL_EVALUATIONS, SUBJECT_CONFIG_DEFS } from '../../utils/practicalsSettingsManager';
 
 const PRESET_EVALUATIONS = [
   {
@@ -16,8 +16,14 @@ const PRESET_EVALUATIONS = [
     session: '2025-26',
     classes: ['10th', '11th', '12th'],
     allowedStatuses: ['approved'],
-    maxMarks: 100,
-    minMarks: 36,
+    maxMarks: 50,
+    minMarks: 18,
+    biologyDisplayMode: 'combined',
+    normalizeTo50: true,
+    subjectOverrides: {
+      'BO': { code: 'BO', name: 'Botany', maxMarks: 25, minMarks: 9 },
+      'ZO': { code: 'ZO', name: 'Zoology', maxMarks: 25, minMarks: 9 }
+    },
     description: 'Formal pre-board examination conducted in accordance with JKBOSE board pattern.'
   },
   {
@@ -26,10 +32,14 @@ const PRESET_EVALUATIONS = [
     session: '2025-26',
     classes: ['11th', '12th'],
     allowedStatuses: ['approved'],
-    maxMarks: 100,
-    minMarks: 36,
+    maxMarks: 50,
+    minMarks: 18,
     biologyDisplayMode: 'combined',
     normalizeTo50: true,
+    subjectOverrides: {
+      'BO': { code: 'BO', name: 'Botany', maxMarks: 25, minMarks: 9 },
+      'ZO': { code: 'ZO', name: 'Zoology', maxMarks: 25, minMarks: 9 }
+    },
     description: 'Comprehensive mid-session preparatory assessment covering complete syllabus.'
   },
   {
@@ -42,6 +52,7 @@ const PRESET_EVALUATIONS = [
     minMarks: 18,
     biologyDisplayMode: 'combined',
     normalizeTo50: true,
+    subjectOverrides: {},
     description: 'Routine continuous and comprehensive unit evaluation conducted by subject teachers.'
   }
 ];
@@ -63,20 +74,54 @@ export default function SchoolAssessmentsHub({ allStudents = [], onSwitchToGazet
   // Edit / Create Form Modal
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState(null);
+  const [overrideSelectCode, setOverrideSelectCode] = useState('');
+  const [overrideMaxInput, setOverrideMaxInput] = useState('');
+  const [overridePassInput, setOverridePassInput] = useState('');
+
   const [formState, setFormState] = useState({
     title: 'Pre-Board Examination 2026',
     evalType: 'Pre-Board Test',
     session: '2025-26',
     classes: ['10th', '11th', '12th'],
     allowedStatuses: ['approved'],
-    maxMarks: 100,
-    minMarks: 36,
+    maxMarks: 50,
+    minMarks: 18,
     biologyDisplayMode: 'combined',
     normalizeTo50: true,
+    subjectOverrides: {
+      'BO': { code: 'BO', name: 'Botany', maxMarks: 25, minMarks: 9 },
+      'ZO': { code: 'ZO', name: 'Zoology', maxMarks: 25, minMarks: 9 }
+    },
     isOpenForTeachers: true,
     isPublishedForStudents: true,
     description: ''
   });
+
+  const handleAddSubjectOverride = () => {
+    if (!overrideSelectCode) return;
+    const subObj = SUBJECT_CONFIG_DEFS.find(s => s.code === overrideSelectCode);
+    const max = Number(overrideMaxInput);
+    if (!max || max <= 0) {
+      alert('Please enter a valid Maximum Marks (e.g. 25, 35).');
+      return;
+    }
+    const pass = Number(overridePassInput) || Math.ceil(max * 0.36);
+    setFormState(prev => ({
+      ...prev,
+      subjectOverrides: {
+        ...(prev.subjectOverrides || {}),
+        [overrideSelectCode]: {
+          code: overrideSelectCode,
+          name: subObj?.name || overrideSelectCode,
+          maxMarks: max,
+          minMarks: pass
+        }
+      }
+    }));
+    setOverrideSelectCode('');
+    setOverrideMaxInput('');
+    setOverridePassInput('');
+  };
 
   // Load configuration from Firestore
   const loadEvaluations = useCallback(async () => {
@@ -125,6 +170,9 @@ export default function SchoolAssessmentsHub({ allStudents = [], onSwitchToGazet
   };
 
   const handleOpenAddModal = (preset = null) => {
+    setOverrideSelectCode('');
+    setOverrideMaxInput('');
+    setOverridePassInput('');
     if (preset) {
       setFormState({
         title: preset.title,
@@ -132,10 +180,11 @@ export default function SchoolAssessmentsHub({ allStudents = [], onSwitchToGazet
         session: preset.session || '2025-26',
         classes: preset.classes || ['10th', '11th', '12th'],
         allowedStatuses: preset.allowedStatuses || ['approved'],
-        maxMarks: preset.maxMarks || 100,
-        minMarks: preset.minMarks || 36,
+        maxMarks: preset.maxMarks || 50,
+        minMarks: preset.minMarks || 18,
         biologyDisplayMode: preset.biologyDisplayMode || 'combined',
         normalizeTo50: preset.normalizeTo50 !== false,
+        subjectOverrides: preset.subjectOverrides || {},
         isOpenForTeachers: true,
         isPublishedForStudents: true,
         description: preset.description || ''
@@ -147,10 +196,14 @@ export default function SchoolAssessmentsHub({ allStudents = [], onSwitchToGazet
         session: '2025-26',
         classes: ['10th', '11th', '12th'],
         allowedStatuses: ['approved'],
-        maxMarks: 100,
-        minMarks: 36,
+        maxMarks: 50,
+        minMarks: 18,
         biologyDisplayMode: 'combined',
         normalizeTo50: true,
+        subjectOverrides: {
+          'BO': { code: 'BO', name: 'Botany', maxMarks: 25, minMarks: 9 },
+          'ZO': { code: 'ZO', name: 'Zoology', maxMarks: 25, minMarks: 9 }
+        },
         isOpenForTeachers: true,
         isPublishedForStudents: true,
         description: ''
@@ -161,16 +214,20 @@ export default function SchoolAssessmentsHub({ allStudents = [], onSwitchToGazet
   };
 
   const handleOpenEditModal = (evalItem) => {
+    setOverrideSelectCode('');
+    setOverrideMaxInput('');
+    setOverridePassInput('');
     setFormState({
       title: evalItem.title || '',
       evalType: evalItem.evalType || 'Pre-Board Test',
       session: evalItem.session || '2025-26',
       classes: Array.isArray(evalItem.classes) ? evalItem.classes : ['10th', '11th', '12th'],
       allowedStatuses: Array.isArray(evalItem.allowedStatuses) ? evalItem.allowedStatuses : ['approved'],
-      maxMarks: evalItem.maxMarks || 100,
-      minMarks: evalItem.minMarks || 36,
+      maxMarks: evalItem.maxMarks || 50,
+      minMarks: evalItem.minMarks || 18,
       biologyDisplayMode: evalItem.biologyDisplayMode || 'combined',
       normalizeTo50: evalItem.normalizeTo50 !== false,
+      subjectOverrides: evalItem.subjectOverrides || {},
       isOpenForTeachers: evalItem.isOpenForTeachers !== false,
       isPublishedForStudents: evalItem.isPublishedForStudents !== false,
       description: evalItem.description || ''
@@ -263,32 +320,32 @@ export default function SchoolAssessmentsHub({ allStudents = [], onSwitchToGazet
         </div>
       )}
 
-      {/* Ultra-Compact Modern Action Header */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-2.5">
-        {/* Left: Compact Title & Active Count */}
-        <div className="flex items-center gap-2.5 min-w-0">
-          <div className="w-8 h-8 rounded-lg bg-teal-50 dark:bg-teal-950 text-teal-700 dark:text-teal-400 flex items-center justify-center font-black flex-shrink-0">
-            <Award size={16} />
-          </div>
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <h2 className="text-sm font-black text-slate-900 dark:text-white tracking-tight m-0 truncate">
-                School Assessments & Pre-Board Hub
-              </h2>
-              <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-teal-50 dark:bg-teal-950 text-teal-800 dark:text-teal-300 border border-teal-200 dark:border-teal-800/60 flex-shrink-0">
-                {evaluations.length} {evaluations.length === 1 ? 'Exam' : 'Exams'}
-              </span>
+      {/* Ultra-Compact Modern Action Header (Mobile-First) */}
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 sm:p-3 shadow-xs space-y-2">
+        <div className="flex items-center justify-between gap-2">
+          {/* Title & Active Count */}
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-teal-50 dark:bg-teal-950 text-teal-700 dark:text-teal-400 flex items-center justify-center font-black shrink-0">
+              <Award size={15} />
             </div>
-            <p className="text-[11px] text-slate-500 dark:text-slate-400 m-0 truncate">
-              Dynamic teacher award rolls with student status control & live scorecard lookup.
-            </p>
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5">
+                <h2 className="text-xs sm:text-sm font-black text-slate-900 dark:text-white tracking-tight m-0 truncate">
+                  <span className="sm:hidden">School Assessments</span>
+                  <span className="hidden sm:inline">School Assessments & Pre-Board Hub</span>
+                </h2>
+                <span className="text-[9.5px] font-extrabold px-1.5 py-0.2 rounded-full bg-teal-50 dark:bg-teal-950 text-teal-800 dark:text-teal-300 border border-teal-200 dark:border-teal-800/60 shrink-0">
+                  {evaluations.length} Active
+                </span>
+              </div>
+              <p className="text-[10px] sm:text-[11px] text-slate-500 dark:text-slate-400 m-0 truncate">
+                Dynamic teacher marks rolls & scorecards
+              </p>
+            </div>
           </div>
-        </div>
 
-        {/* Right: Quick Result Portal Link & New Test Action */}
-        <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap flex-shrink-0">
-          {/* Public Portal Pill */}
-          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs">
+          {/* Quick Result Portal Link (Desktop) */}
+          <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs">
             <span className="text-[10px] text-slate-500 dark:text-slate-400 font-bold">Portal:</span>
             <code className="text-teal-700 dark:text-teal-300 font-mono font-bold text-[11px]">/results</code>
             <button
@@ -309,11 +366,14 @@ export default function SchoolAssessmentsHub({ allStudents = [], onSwitchToGazet
               <ExternalLink size={12} />
             </a>
           </div>
+        </div>
 
+        {/* Action Buttons Toolbar: Full-width clean row on mobile */}
+        <div className="flex items-center gap-1.5 pt-1 border-t border-slate-100 dark:border-slate-800/80 sm:border-0 sm:pt-0">
           <button
             type="button"
             onClick={() => handleOpenAddModal()}
-            className="h-8 px-3 rounded-lg bg-teal-700 hover:bg-teal-600 text-white font-black text-xs flex items-center gap-1.5 shadow-xs transition-all cursor-pointer"
+            className="flex-1 sm:flex-initial h-7.5 px-3 rounded-lg bg-teal-700 hover:bg-teal-600 active:bg-teal-800 text-white font-black text-xs flex items-center justify-center gap-1.5 shadow-xs transition-all cursor-pointer"
           >
             <Plus size={14} strokeWidth={2.5} />
             <span>New Test</span>
@@ -323,18 +383,29 @@ export default function SchoolAssessmentsHub({ allStudents = [], onSwitchToGazet
             <button
               type="button"
               onClick={onSwitchToGazette}
-              className="h-8 px-3 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
+              className="h-7.5 px-2.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
             >
               <FileText size={13} className="text-orange-600 dark:text-orange-400" />
               <span>Gazette</span>
             </button>
           )}
 
+          <a
+            href="/results"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="sm:hidden h-7.5 px-2 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-teal-700 dark:text-teal-300 font-bold text-[11px] flex items-center gap-1"
+            title="Open /results"
+          >
+            <ExternalLink size={12} />
+            <span>/results</span>
+          </a>
+
           <button
             type="button"
             onClick={loadEvaluations}
             disabled={loading}
-            className="h-8 w-8 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 flex items-center justify-center transition-all cursor-pointer disabled:opacity-50"
+            className="h-7.5 w-7.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 flex items-center justify-center transition-all cursor-pointer disabled:opacity-50 ml-auto sm:ml-0"
             title="Refresh database records"
           >
             <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
@@ -441,9 +512,11 @@ export default function SchoolAssessmentsHub({ allStudents = [], onSwitchToGazet
                   <span className="px-1.5 py-0.5 rounded font-bold bg-teal-50 dark:bg-teal-950/60 text-teal-800 dark:text-teal-300 border border-teal-200 dark:border-teal-800">
                     Biology: {item.biologyDisplayMode === 'separate' ? 'Separate (50M each)' : 'Combined (50M)'}
                   </span>
-                  <span className="px-1.5 py-0.5 rounded font-bold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-800 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
-                    Auto-Normalized: 50M
-                  </span>
+                  {item.subjectOverrides && Object.keys(item.subjectOverrides).length > 0 && (
+                    <span className="px-1.5 py-0.5 rounded font-bold bg-amber-50 dark:bg-amber-950/60 text-amber-900 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
+                      Custom: {Object.entries(item.subjectOverrides).map(([c, o]) => `${c}(${o.maxMarks}M)`).join(', ')}
+                    </span>
+                  )}
                 </div>
               </div>
 
@@ -685,6 +758,141 @@ export default function SchoolAssessmentsHub({ allStudents = [], onSwitchToGazet
                     className="w-full px-2.5 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-teal-600 font-mono font-bold"
                   />
                 </div>
+              </div>
+
+              {/* Subject-Specific Custom Paper Scales (Overrides) */}
+              <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-[10px] font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider flex items-center gap-1">
+                    <BookOpen size={13} className="text-teal-700 dark:text-teal-400" />
+                    <span>Subject-Specific Paper Scales (Custom Overrides)</span>
+                  </label>
+                  <span className="text-[9.5px] text-teal-700 dark:text-teal-300 font-bold">
+                    {Object.keys(formState.subjectOverrides || {}).length} Configured
+                  </span>
+                </div>
+                <p className="text-[10px] text-slate-500 dark:text-slate-400 m-0 leading-tight">
+                  Need a different scale for specific subjects? (e.g. Botany 25M, Zoology 25M, Physics 35M, Chemistry 35M). Configured subjects will automatically use these paper scales during entry. All other subjects use the default {formState.maxMarks}M.
+                </p>
+
+                {/* Quick 1-Click Preset Shortcuts */}
+                <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
+                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Quick:</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFormState(prev => ({
+                        ...prev,
+                        subjectOverrides: {
+                          ...(prev.subjectOverrides || {}),
+                          'BO': { name: 'Botany', code: 'BO', maxMarks: 25, minMarks: 9 },
+                          'ZO': { name: 'Zoology', code: 'ZO', maxMarks: 25, minMarks: 9 }
+                        }
+                      }));
+                    }}
+                    className="px-2 py-0.5 rounded-md bg-teal-50 hover:bg-teal-100 dark:bg-teal-950 dark:hover:bg-teal-900/60 text-teal-800 dark:text-teal-300 border border-teal-200 dark:border-teal-800 text-[10px] font-bold cursor-pointer transition-colors"
+                  >
+                    + Botany & Zoology (25M each)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFormState(prev => ({
+                        ...prev,
+                        subjectOverrides: {
+                          ...(prev.subjectOverrides || {}),
+                          'PH': { name: 'Physics', code: 'PH', maxMarks: 35, minMarks: 13 },
+                          'CH': { name: 'Chemistry', code: 'CH', maxMarks: 35, minMarks: 13 }
+                        }
+                      }));
+                    }}
+                    className="px-2 py-0.5 rounded-md bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950 dark:hover:bg-indigo-900/60 text-indigo-800 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 text-[10px] font-bold cursor-pointer transition-colors"
+                  >
+                    + Science 35M (Physics & Chemistry)
+                  </button>
+                </div>
+
+                {/* Add Custom Override Row */}
+                <div className="flex items-center gap-1.5 pt-1">
+                  <select
+                    value={overrideSelectCode}
+                    onChange={(e) => setOverrideSelectCode(e.target.value)}
+                    className="flex-1 min-w-[120px] px-2 py-1 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-none focus:border-teal-600"
+                  >
+                    <option value="">Select Subject...</option>
+                    {SUBJECT_CONFIG_DEFS.map(sub => (
+                      <option key={sub.code} value={sub.code}>
+                        {sub.name} [{sub.code}]
+                      </option>
+                    ))}
+                  </select>
+                  <div className="relative w-18 shrink-0">
+                    <input
+                      type="number"
+                      min="10"
+                      max="100"
+                      placeholder="Max"
+                      value={overrideMaxInput}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setOverrideMaxInput(val);
+                        if (val && Number(val) > 0) {
+                          setOverridePassInput(String(Math.ceil(Number(val) * 0.36)));
+                        }
+                      }}
+                      className="w-full px-2 py-1 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-xs font-mono font-bold text-center text-slate-800 dark:text-slate-200 focus:outline-none focus:border-teal-600"
+                      title="Custom Max Marks"
+                    />
+                  </div>
+                  <div className="relative w-18 shrink-0">
+                    <input
+                      type="number"
+                      min="1"
+                      placeholder="Pass"
+                      value={overridePassInput}
+                      onChange={(e) => setOverridePassInput(e.target.value)}
+                      className="w-full px-2 py-1 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-xs font-mono font-bold text-center text-slate-800 dark:text-slate-200 focus:outline-none focus:border-teal-600"
+                      title="Custom Min Pass Marks"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleAddSubjectOverride}
+                    className="h-7 px-2.5 rounded-lg bg-teal-700 hover:bg-teal-600 text-white font-black text-xs cursor-pointer shrink-0 transition-colors shadow-2xs"
+                  >
+                    Add
+                  </button>
+                </div>
+
+                {/* List of Configured Subject Overrides */}
+                {Object.keys(formState.subjectOverrides || {}).length > 0 && (
+                  <div className="flex items-center gap-1.5 flex-wrap pt-1 border-t border-slate-200/80 dark:border-slate-800/80">
+                    {Object.entries(formState.subjectOverrides).map(([code, ov]) => (
+                      <span
+                        key={code}
+                        className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 text-[11px] shadow-2xs font-medium"
+                      >
+                        <strong className="font-bold text-teal-800 dark:text-teal-300">{ov.name || code} [{code}]</strong>
+                        <span className="font-mono font-black text-slate-900 dark:text-white">{ov.maxMarks}M</span>
+                        <span className="text-[9.5px] text-slate-400 font-mono">(Pass {ov.minMarks})</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setFormState(prev => {
+                              const next = { ...(prev.subjectOverrides || {}) };
+                              delete next[code];
+                              return { ...prev, subjectOverrides: next };
+                            });
+                          }}
+                          className="text-slate-400 hover:text-rose-600 cursor-pointer font-bold ml-0.5"
+                          title="Remove custom marks"
+                        >
+                          ✕
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* Botany & Zoology Handling & Normalization Config */}

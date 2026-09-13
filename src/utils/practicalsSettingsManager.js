@@ -532,8 +532,14 @@ export const DEFAULT_SCHOOL_EVALUATIONS = [
     allowedStatuses: ['approved'],
     isOpenForTeachers: true,
     isPublishedForStudents: true,
-    maxMarks: 100,
-    minMarks: 36,
+    maxMarks: 50,
+    minMarks: 18,
+    biologyDisplayMode: 'combined',
+    normalizeTo50: true,
+    subjectOverrides: {
+      'BO': { code: 'BO', name: 'Botany', maxMarks: 25, minMarks: 9 },
+      'ZO': { code: 'ZO', name: 'Zoology', maxMarks: 25, minMarks: 9 }
+    },
     description: 'Annual school-level pre-board evaluation conducted for board examinees.'
   }
 ];
