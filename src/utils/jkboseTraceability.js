@@ -1,6 +1,5 @@
 import { collection, getDocs, query, orderBy, limit } from 'firebase/firestore';
 import { db } from '../services/firebase';
-import { applyRecordPatch } from '../services/recordMutationService';
 
 /**
  * Mapping of Dashboard column keys and sub-elements to known database and overwrite keys.
@@ -243,142 +242,214 @@ export const JKBOSE_FIELD_MAPPING = {
 /**
  * Normalizes a field string for loose comparison (lowercased, alphanumeric only).
  */
-const normalizeKey = (k) => String(k || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+export const normalizeKey = (k) => String(k || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+
+/**
+ * Static Precomputed Maps (Calculated once at module load - zero runtime overhead)
+ */
+const NORMALIZED_FIELD_MAP = {};
+const REVERSE_LOOKUP_MAP = {};
+
+Object.entries(JKBOSE_FIELD_MAPPING).forEach(([colKey, aliases]) => {
+  const normAliases = aliases.map(normalizeKey);
+  NORMALIZED_FIELD_MAP[colKey] = new Set(normAliases);
+  normAliases.forEach(alias => {
+    if (!REVERSE_LOOKUP_MAP[alias]) {
+      REVERSE_LOOKUP_MAP[alias] = colKey;
+    }
+  });
+  REVERSE_LOOKUP_MAP[normalizeKey(colKey)] = colKey;
+});
+
+/**
+ * Fast O(1) Student JKBOSE Status Map Generator.
+ * Computes all changed fields for a student in a single pass.
+ * Returns null if the student has no JKBOSE updates (0 cost for unaffected students).
+ *
+ * @param {Object} student
+ * @param {Object|null} batchTraceabilityMap
+ * @returns {Object|null} Map of { [colKey]: statusObj, [subKey]: statusObj }
+ */
+export function computeStudentJkboseStatusMap(student, batchTraceabilityMap = null) {
+  if (!student) return null;
+
+  const hasDirectFields = (Array.isArray(student.jkboseUpdatedFields) && student.jkboseUpdatedFields.length > 0) ||
+    (Array.isArray(student.jkbose_updated_fields) && student.jkbose_updated_fields.length > 0);
+  const hasDirectUpdates = student.jkboseFieldUpdates && typeof student.jkboseFieldUpdates === 'object' && Object.keys(student.jkboseFieldUpdates).length > 0;
+  const hasRecentSync = Boolean(student.lastBoardSyncAt);
+
+  let batchMatch = null;
+  if (batchTraceabilityMap && typeof batchTraceabilityMap === 'object') {
+    const ids = [
+      student.id,
+      student.docId,
+      student._docId,
+      student.formNo,
+      student.boardRegNo,
+      student.regNo,
+      student.classRollNo
+    ].filter(Boolean);
+
+    for (const id of ids) {
+      if (batchTraceabilityMap[id]) {
+        batchMatch = batchTraceabilityMap[id];
+        break;
+      }
+    }
+  }
+
+  // Instant fast-exit: If student has no board sync indicators, zero work needed
+  if (!hasDirectFields && !hasDirectUpdates && !hasRecentSync && !batchMatch) {
+    return null;
+  }
+
+  const statusMap = {};
+
+  // 1. Ingest from batch traceability (covers updates done in past hours)
+  if (batchMatch && batchMatch.fields) {
+    const src = batchMatch.source || 'JKBOSE Board Overwrite';
+    const ts = batchMatch.timestamp || '';
+    batchMatch.fields.forEach(f => {
+      const detail = batchMatch.details?.[f];
+      const statusObj = {
+        isUpdated: true,
+        key: f,
+        source: src,
+        timestamp: ts,
+        oldValue: detail?.oldValue,
+        newValue: detail?.newValue,
+        label: detail?.label || f
+      };
+      statusMap[f] = statusObj;
+      const canonicalCol = REVERSE_LOOKUP_MAP[normalizeKey(f)];
+      if (canonicalCol) {
+        statusMap[canonicalCol] = statusObj;
+      }
+    });
+  }
+
+  // 2. Direct fields & updates on document (authoritative, overrides batch)
+  const fieldsList = student.jkboseUpdatedFields || student.jkbose_updated_fields || [];
+  const fieldUpdates = student.jkboseFieldUpdates || {};
+  const directSrc = student.jkboseSyncSource || student.boardSyncSource || 'JKBOSE Board Overwrite';
+  const directTs = student.jkboseLastSyncedAt || student.lastBoardSyncAt || '';
+
+  if (Array.isArray(fieldsList)) {
+    fieldsList.forEach(f => {
+      const detail = fieldUpdates[f];
+      const statusObj = {
+        isUpdated: true,
+        key: f,
+        source: detail?.source || directSrc,
+        timestamp: detail?.updatedAt || directTs,
+        oldValue: detail?.oldValue,
+        newValue: detail?.newValue,
+        label: detail?.label || f
+      };
+      statusMap[f] = statusObj;
+      const canonicalCol = REVERSE_LOOKUP_MAP[normalizeKey(f)];
+      if (canonicalCol) {
+        statusMap[canonicalCol] = statusObj;
+      }
+    });
+  }
+
+  if (fieldUpdates && typeof fieldUpdates === 'object') {
+    Object.entries(fieldUpdates).forEach(([k, detail]) => {
+      const statusObj = {
+        isUpdated: true,
+        key: k,
+        source: detail?.source || directSrc,
+        timestamp: detail?.updatedAt || directTs,
+        oldValue: detail?.oldValue,
+        newValue: detail?.newValue,
+        label: detail?.label || k
+      };
+      statusMap[k] = statusObj;
+      const canonicalCol = REVERSE_LOOKUP_MAP[normalizeKey(k)];
+      if (canonicalCol) {
+        statusMap[canonicalCol] = statusObj;
+      }
+    });
+  }
+
+  // 3. Fallback: if student has boardSyncFields list
+  if (Array.isArray(student.boardSyncFields)) {
+    student.boardSyncFields.forEach(f => {
+      const statusObj = {
+        isUpdated: true,
+        key: f,
+        source: student.boardSyncSource || directSrc,
+        timestamp: student.lastBoardSyncAt || directTs,
+        label: f
+      };
+      statusMap[f] = statusObj;
+      const canonicalCol = REVERSE_LOOKUP_MAP[normalizeKey(f)];
+      if (canonicalCol) {
+        statusMap[canonicalCol] = statusObj;
+      }
+    });
+  }
+
+  return Object.keys(statusMap).length > 0 ? statusMap : null;
+}
 
 /**
  * Checks if a particular column or sub-property was changed as per JKBOSE data.
- * Supports:
- *  1. Student document's direct `jkboseUpdatedFields` and `jkboseFieldUpdates`
- *  2. In-memory `batchTraceabilityMap` hydrated from recent `csvImportBatches` (covers updates run in the past hours)
- *  3. Fallback to `lastBoardSyncAt` indicators
+ * Optimized with fast-path lookup if student._jkboseStatusMap is precomputed.
  *
  * @param {Object} student - Student record object
  * @param {string} colKey - Column key (e.g., 'studentName', 'dob', 'fatherName', 'subs')
- * @param {string|null} subKey - Optional specific sub-field (e.g., 'father', 'mother', 'aadhaar', 'pen')
+ * @param {string|null} subKey - Optional specific sub-field (e.g., 'fatherName', 'motherName', 'aadhaarNo', 'penNo')
  * @param {Object|null} batchTraceabilityMap - Map from loadRecentJkboseBatchTraceability()
  * @returns {Object|null} - Status object { isUpdated, source, timestamp, oldValue, newValue, label } or null
  */
 export function getJkboseFieldStatus(student, colKey, subKey = null, batchTraceabilityMap = null) {
   if (!student) return null;
 
-  const targetLookupKeys = subKey
-    ? (JKBOSE_FIELD_MAPPING[subKey] || [subKey])
-    : (JKBOSE_FIELD_MAPPING[colKey] || [colKey]);
-
-  const normTargetSet = new Set(targetLookupKeys.map(normalizeKey));
-
-  // 1. Direct explicit fields array & detailed updates object on student document
-  const updatedList = Array.isArray(student.jkboseUpdatedFields)
-    ? student.jkboseUpdatedFields
-    : (Array.isArray(student.jkbose_updated_fields) ? student.jkbose_updated_fields : null);
-
-  const fieldUpdates = (student.jkboseFieldUpdates && typeof student.jkboseFieldUpdates === 'object')
-    ? student.jkboseFieldUpdates
-    : null;
-
-  if (updatedList && updatedList.length > 0) {
-    for (const rawField of updatedList) {
-      if (normTargetSet.has(normalizeKey(rawField))) {
-        const detail = fieldUpdates?.[rawField] ||
-          Object.values(fieldUpdates || {}).find(v => normalizeKey(v?.key || v?.label) === normalizeKey(rawField));
-
-        return {
-          isUpdated: true,
-          key: rawField,
-          source: detail?.source || student.jkboseSyncSource || student.boardSyncSource || 'JKBOSE Board Sync',
-          timestamp: detail?.updatedAt || student.jkboseLastSyncedAt || student.lastBoardSyncAt || '',
-          oldValue: detail?.oldValue,
-          newValue: detail?.newValue,
-          label: detail?.label || colKey
-        };
-      }
+  // Fast Path 1: Check precomputed status map on student (O(1) instant lookup)
+  if (student._jkboseStatusMap) {
+    if (subKey) {
+      return student._jkboseStatusMap[subKey] || null;
     }
+    if (colKey) {
+      return student._jkboseStatusMap[colKey] || null;
+    }
+    return null;
   }
 
-  if (fieldUpdates) {
-    for (const [k, detail] of Object.entries(fieldUpdates)) {
-      if (normTargetSet.has(normalizeKey(k)) || normTargetSet.has(normalizeKey(detail?.label))) {
-        return {
-          isUpdated: true,
-          key: k,
-          source: detail?.source || student.jkboseSyncSource || student.boardSyncSource || 'JKBOSE Board Sync',
-          timestamp: detail?.updatedAt || student.jkboseLastSyncedAt || student.lastBoardSyncAt || '',
-          oldValue: detail?.oldValue,
-          newValue: detail?.newValue,
-          label: detail?.label || colKey
-        };
-      }
-    }
-  }
+  // Fast Path 2: On-demand single-student compute
+  const map = computeStudentJkboseStatusMap(student, batchTraceabilityMap);
+  if (!map) return null;
 
-  // 2. Check batchTraceabilityMap from recent csvImportBatches (covers updates done in past hour)
-  if (batchTraceabilityMap && typeof batchTraceabilityMap === 'object') {
-    const candidateIds = [
-      student.id,
-      student.docId,
-      student._docId,
-      student.formNo,
-      student['Form Number'],
-      student.boardRegNo,
-      student.regNo,
-      student['Board Registration Number'],
-      student.classRollNo,
-      student.rollNo,
-      student['Class Roll No']
-    ].filter(Boolean).map(String);
-
-    for (const candId of candidateIds) {
-      const match = batchTraceabilityMap[candId];
-      if (match && match.fields) {
-        for (const field of match.fields) {
-          if (normTargetSet.has(normalizeKey(field))) {
-            const detail = match.details?.[field];
-            return {
-              isUpdated: true,
-              key: field,
-              source: match.source || 'JKBOSE Board Sync',
-              timestamp: match.timestamp || '',
-              oldValue: detail?.oldValue,
-              newValue: detail?.newValue,
-              label: detail?.label || colKey
-            };
-          }
-        }
-      }
-    }
-  }
-
-  // 3. Fallback: if student has recent board sync timestamp & boardSyncFields is present
-  if (student.lastBoardSyncAt && Array.isArray(student.boardSyncFields)) {
-    for (const f of student.boardSyncFields) {
-      if (normTargetSet.has(normalizeKey(f))) {
-        return {
-          isUpdated: true,
-          key: f,
-          source: student.boardSyncSource || 'JKBOSE Board Sync',
-          timestamp: student.lastBoardSyncAt || '',
-          label: colKey
-        };
-      }
-    }
-  }
-
+  if (subKey) return map[subKey] || null;
+  if (colKey) return map[colKey] || null;
   return null;
 }
 
+// In-memory memory cache for batch traceability (expires after 15 mins or on manual refresh)
+let _cachedTraceabilityMap = null;
+let _lastTraceabilityFetch = 0;
+const TRACEABILITY_CACHE_TTL = 15 * 60 * 1000;
+
 /**
  * Hydrates recent JKBOSE batch traceability from Firestore `csvImportBatches`.
- * This enables full retro-traceability for bulk overwrites executed within the past hours,
- * extracting exact before-and-after differences per candidate.
+ * Cached in-memory so subsequent calls take 0ms and never lag the UI.
  *
+ * @param {boolean} forceRefresh - If true, ignores cache and re-queries Firestore
  * @returns {Promise<Object>} Map of candidate identifier -> { fields: Set, details: {}, source, timestamp }
  */
-export async function loadRecentJkboseBatchTraceability() {
+export async function loadRecentJkboseBatchTraceability(forceRefresh = false) {
+  const now = Date.now();
+  if (!forceRefresh && _cachedTraceabilityMap && (now - _lastTraceabilityFetch < TRACEABILITY_CACHE_TTL)) {
+    return _cachedTraceabilityMap;
+  }
+
   try {
     const q = query(
       collection(db, 'csvImportBatches'),
       orderBy('timestamp', 'desc'),
-      limit(15)
+      limit(5)
     );
     const snap = await getDocs(q);
     const traceabilityMap = {};
@@ -406,7 +477,10 @@ export async function loadRecentJkboseBatchTraceability() {
       }
     });
 
-    for (const job of relevantJobs) {
+    // Limit to the most recent 3 board batches to keep network lightning-fast
+    const topJobs = relevantJobs.slice(0, 3);
+
+    await Promise.all(topJobs.map(async (job) => {
       try {
         const entriesSnap = await getDocs(collection(db, 'csvImportBatches', job.id, 'entries'));
         entriesSnap.forEach(eDoc => {
@@ -465,74 +539,13 @@ export async function loadRecentJkboseBatchTraceability() {
       } catch (entryErr) {
         console.warn(`Could not read entries for batch ${job.id}:`, entryErr);
       }
-    }
+    }));
 
+    _cachedTraceabilityMap = traceabilityMap;
+    _lastTraceabilityFetch = now;
     return traceabilityMap;
   } catch (err) {
     console.warn('Error hydrating recent JKBOSE batch traceability:', err);
-    return {};
-  }
-}
-
-/**
- * Background utility to backfill `jkboseUpdatedFields` and `jkboseFieldUpdates`
- * directly onto student Firestore documents if they were part of a recent batch
- * but do not yet have the persistent tag.
- *
- * @param {Array} studentsList - Array of student records
- * @param {Object} batchMap - Traceability map from loadRecentJkboseBatchTraceability
- */
-export async function backfillRecentJkboseBatchTraceability(studentsList, batchMap) {
-  if (!Array.isArray(studentsList) || !batchMap || Object.keys(batchMap).length === 0) return;
-
-  const toBackfill = [];
-
-  for (const st of studentsList) {
-    if (st.jkboseUpdatedFields && st.jkboseUpdatedFields.length > 0) continue;
-
-    const candidateIds = [
-      st.id,
-      st.docId,
-      st._docId,
-      st.formNo,
-      st.boardRegNo,
-      st.regNo,
-      st.classRollNo
-    ].filter(Boolean).map(String);
-
-    for (const candId of candidateIds) {
-      const match = batchMap[candId];
-      if (match && match.fields && match.fields.size > 0) {
-        toBackfill.push({
-          student: st,
-          fields: Array.from(match.fields),
-          details: match.details,
-          source: match.source,
-          timestamp: match.timestamp
-        });
-        break;
-      }
-    }
-  }
-
-  if (toBackfill.length === 0) return;
-
-  console.log(`[Traceability] Found ${toBackfill.length} recent candidates to backfill JKBOSE metadata.`);
-
-  // Process quietly in background
-  for (const item of toBackfill) {
-    try {
-      const patch = {
-        jkboseUpdatedFields: item.fields,
-        jkboseFieldUpdates: item.details || {},
-        jkboseLastSyncedAt: item.timestamp || new Date().toISOString(),
-        jkboseSyncSource: item.source || 'JKBOSE Board Overwrite',
-        lastBoardSyncAt: item.timestamp || new Date().toISOString(),
-        boardSyncSource: item.source || 'JKBOSE Board Overwrite'
-      };
-      await applyRecordPatch(item.student, patch, { force: true });
-    } catch (err) {
-      console.warn(`[Traceability] Silent backfill skipped for ${item.student?.studentName || item.student?.id}:`, err?.message);
-    }
+    return _cachedTraceabilityMap || {};
   }
 }
