@@ -117,3 +117,26 @@ test('stream and subject compatibility prevents Science subjects like Botany in 
   expect(isSubjectEnrolledByStudent('PD', 'Physical Education', farhaan)).toBe(true);
 });
 
+test('verified catalog correctly resolves 16-digit registration numbers like Salma Jan (2301010000900050)', () => {
+  const verifiedCatalog = require('../data/verifiedStudentsCatalog.json');
+  const salma = verifiedCatalog.find(s => s.boardRegNo === '2301010000900050');
+  expect(salma).toBeDefined();
+  expect(salma.name).toBe('Salma Jan');
+  expect(salma.className).toBe('12th');
+  expect(salma.stream).toBe('Humanities');
+  expect(salma.classRollNo).toBe('199');
+
+  // No scientific notation artifact in catalog
+  const anyScientific = verifiedCatalog.some(s => String(s.boardRegNo || '').includes('E+') || String(s.boardRegNo || '').includes('e+'));
+  expect(anyScientific).toBe(false);
+
+  // Subject integrity: Botany & Chemistry are not enrolled by Salma Jan
+  expect(isSubjectEnrolledByStudent('BO', 'Botany', salma)).toBe(false);
+  expect(isSubjectEnrolledByStudent('CH', 'Chemistry', salma)).toBe(false);
+  expect(isSubjectCompatibleWithStream('BO', 'Botany', salma.stream)).toBe(false);
+
+  // Humanities subjects are enrolled
+  expect(isSubjectEnrolledByStudent('HT', 'History', salma)).toBe(true);
+  expect(isSubjectEnrolledByStudent('PS', 'Political Science', salma)).toBe(true);
+});
+

@@ -1522,11 +1522,33 @@
     "fatherName": "Farooq Ahmad Ganie",
     "className": "12th",
     "classRollNo": "139",
-    "boardRegNo": "2.30101E+15",
+    "boardRegNo": "2301010000200020",
     "stream": "Humanities",
     "session": "2025-26",
     "photoUrl": "https://drive.google.com/file/d/1SH1g2YdfjNXPJB0PddvKmyyLEXl-wERb/view?usp=drivesdk",
-    "dob": "2009-08-10"
+    "dob": "2009-08-10",
+    "subjects": [
+      {
+        "code": "GE",
+        "name": "GE"
+      },
+      {
+        "code": "ED",
+        "name": "Education"
+      },
+      {
+        "code": "HT",
+        "name": "History"
+      },
+      {
+        "code": "PS",
+        "name": "Political Science"
+      },
+      {
+        "code": "HTC",
+        "name": "Healthcare"
+      }
+    ]
   },
   {
     "fNo": "250049",
@@ -1708,11 +1730,33 @@
     "fatherName": "Mohd Maqbool Sheikh",
     "className": "12th",
     "classRollNo": "72",
-    "boardRegNo": "2.301E+15",
-    "stream": "",
+    "boardRegNo": "2301000000610010",
+    "stream": "Science",
     "session": "2025-26",
     "photoUrl": "https://drive.google.com/file/d/1ZCPP8efQleyjsoyRcYDxfkZrny7NlyJu/view?usp=drivesdk",
-    "dob": "2009-12-23"
+    "dob": "2009-12-23",
+    "subjects": [
+      {
+        "code": "GE",
+        "name": "GE"
+      },
+      {
+        "code": "PH",
+        "name": "Physics"
+      },
+      {
+        "code": "CH",
+        "name": "Chemistry"
+      },
+      {
+        "code": "BI",
+        "name": "Biology"
+      },
+      {
+        "code": "ITE",
+        "name": "IT & ITeS"
+      }
+    ]
   },
   {
     "fNo": "250055",
@@ -2215,11 +2259,33 @@
     "fatherName": "Manzoor Ahmad Ganie",
     "className": "12th",
     "classRollNo": "149",
-    "boardRegNo": "2.30101E+15",
+    "boardRegNo": "2301013000200040",
     "stream": "Humanities",
     "session": "2025-26",
     "photoUrl": "https://drive.google.com/file/d/1zmYTVXNZFSXGp6pZKSF57RZZ1xe_gveu/view?usp=drivesdk",
-    "dob": "2009-10-18"
+    "dob": "2009-10-18",
+    "subjects": [
+      {
+        "code": "GE",
+        "name": "GE"
+      },
+      {
+        "code": "EC",
+        "name": "Economics"
+      },
+      {
+        "code": "HT",
+        "name": "History"
+      },
+      {
+        "code": "PS",
+        "name": "Political Science"
+      },
+      {
+        "code": "PD",
+        "name": "Physical Education"
+      }
+    ]
   },
   {
     "fNo": "250071",
@@ -3603,11 +3669,33 @@
     "fatherName": "Riyaz Ahmad Bhat",
     "className": "12th",
     "classRollNo": "42",
-    "boardRegNo": "2.30101E+15",
+    "boardRegNo": "2301010001010060",
     "stream": "Science",
     "session": "2025-26",
     "photoUrl": "https://drive.google.com/file/d/1KZMI5Rq0rnrvhW0SkuOXJ-D4oWDA-mVN/view?usp=drivesdk",
-    "dob": "2010-05-24"
+    "dob": "2010-05-24",
+    "subjects": [
+      {
+        "code": "GE",
+        "name": "GE"
+      },
+      {
+        "code": "PH",
+        "name": "Physics"
+      },
+      {
+        "code": "CH",
+        "name": "Chemistry"
+      },
+      {
+        "code": "BI",
+        "name": "Biology"
+      },
+      {
+        "code": "ITE",
+        "name": "IT & ITeS"
+      }
+    ]
   },
   {
     "fNo": "250113",
@@ -3615,11 +3703,33 @@
     "fatherName": "Shabir Ahmad Sofi",
     "className": "12th",
     "classRollNo": "",
-    "boardRegNo": "2.30101E+15",
-    "stream": "",
+    "boardRegNo": "2301010001050020",
+    "stream": "Humanities",
     "session": "2025-26",
     "photoUrl": "https://drive.google.com/file/d/1tHASdvWibL7kZsKrt7Rcl2Q8WXlkFoaC/view?usp=drivesdk",
-    "dob": "2009-11-10"
+    "dob": "2009-11-10",
+    "subjects": [
+      {
+        "code": "GE",
+        "name": "GE"
+      },
+      {
+        "code": "UR",
+        "name": "Urdu"
+      },
+      {
+        "code": "ED",
+        "name": "Education"
+      },
+      {
+        "code": "HT",
+        "name": "History"
+      },
+      {
+        "code": "HTC",
+        "name": "Healthcare"
+      }
+    ]
   },
   {
     "fNo": "250114",
@@ -4688,11 +4798,33 @@
     "fatherName": "Mohammad Ishaq Allie",
     "className": "12th",
     "classRollNo": "14",
-    "boardRegNo": "2.301E+15",
-    "stream": "",
+    "boardRegNo": "2301000001000020",
+    "stream": "Science",
     "session": "2025-26",
     "photoUrl": "https://drive.google.com/file/d/1JcGRYBQJyzJ-p3wk26YNdo35zLpBigc9/view?usp=drivesdk",
-    "dob": "2010-06-04"
+    "dob": "2010-06-04",
+    "subjects": [
+      {
+        "code": "GE",
+        "name": "GE"
+      },
+      {
+        "code": "PH",
+        "name": "Physics"
+      },
+      {
+        "code": "CH",
+        "name": "Chemistry"
+      },
+      {
+        "code": "BI",
+        "name": "Biology"
+      },
+      {
+        "code": "PD",
+        "name": "Physical Education"
+      }
+    ]
   },
   {
     "fNo": "250148",
@@ -4768,11 +4900,33 @@
     "fatherName": "Nazir Ah. Bhat",
     "className": "12th",
     "classRollNo": "99",
-    "boardRegNo": "2.30101E+15",
-    "stream": "",
+    "boardRegNo": "2301010000030030",
+    "stream": "Science",
     "session": "2025-26",
     "photoUrl": "https://drive.google.com/file/d/1fxmzMYw8uxy5Vt2VF3QT57TbEAvTJztn/view?usp=drivesdk",
-    "dob": "2010-03-25"
+    "dob": "2010-03-25",
+    "subjects": [
+      {
+        "code": "GE",
+        "name": "GE"
+      },
+      {
+        "code": "PH",
+        "name": "Physics"
+      },
+      {
+        "code": "CH",
+        "name": "Chemistry"
+      },
+      {
+        "code": "BI",
+        "name": "Biology"
+      },
+      {
+        "code": "ES",
+        "name": "Environmental Science"
+      }
+    ]
   },
   {
     "fNo": "250151",
@@ -5052,11 +5206,33 @@
     "fatherName": "Ghulam Mohammad Reshi",
     "className": "12th",
     "classRollNo": "199",
-    "boardRegNo": "2.30101E+15",
-    "stream": "",
+    "boardRegNo": "2301010000900050",
+    "stream": "Humanities",
     "session": "2025-26",
     "photoUrl": "https://drive.google.com/file/d/15fVqOGnz4B3Z2jOzIoo6w0XFKMRgPeHr/view?usp=drivesdk",
-    "dob": "2010-04-01"
+    "dob": "2010-04-01",
+    "subjects": [
+      {
+        "code": "GE",
+        "name": "GE"
+      },
+      {
+        "code": "ED",
+        "name": "Education"
+      },
+      {
+        "code": "HT",
+        "name": "History"
+      },
+      {
+        "code": "PS",
+        "name": "Political Science"
+      },
+      {
+        "code": "PD",
+        "name": "Physical Education"
+      }
+    ]
   },
   {
     "fNo": "250160",
@@ -10131,11 +10307,33 @@
     "fatherName": "Mohammad Shafi Mir",
     "className": "12th",
     "classRollNo": "18",
-    "boardRegNo": "2.301E+15",
-    "stream": "",
+    "boardRegNo": "2301000000900040",
+    "stream": "Science",
     "session": "2025-26",
     "photoUrl": "https://drive.google.com/file/d/1-hQatYEG3E69gPXPjUTc6k4zeRML7S13/view?usp=drivesdk",
-    "dob": "2010-10-03"
+    "dob": "2010-10-03",
+    "subjects": [
+      {
+        "code": "GE",
+        "name": "GE"
+      },
+      {
+        "code": "PH",
+        "name": "Physics"
+      },
+      {
+        "code": "CH",
+        "name": "Chemistry"
+      },
+      {
+        "code": "BI",
+        "name": "Biology"
+      },
+      {
+        "code": "PD",
+        "name": "Physical Education"
+      }
+    ]
   },
   {
     "fNo": "250322",
@@ -12205,8 +12403,8 @@
     "fatherName": "Manzoor ah ganaie",
     "className": "12th",
     "classRollNo": "127",
-    "boardRegNo": "2.10101E+15",
-    "stream": "",
+    "boardRegNo": "",
+    "stream": "Humanities",
     "session": "2025-26",
     "photoUrl": "https://drive.google.com/file/d/11ifx0yHX-Agmjy_zM5PhPXm2OPrxDOlo/view?usp=drivesdk",
     "dob": "2007-06-10"
@@ -12228,11 +12426,33 @@
     "fatherName": "Shabir Ahamad Sofi",
     "className": "12th",
     "classRollNo": "129",
-    "boardRegNo": "2.30101E+15",
-    "stream": "",
+    "boardRegNo": "2301010001050020",
+    "stream": "Humanities",
     "session": "2025-26",
     "photoUrl": "https://drive.google.com/file/d/1-AB5ThV9wF0Vx6Frm-gJT94-m4BZ7DeN/view?usp=drivesdk",
-    "dob": "2009-11-10"
+    "dob": "2009-11-10",
+    "subjects": [
+      {
+        "code": "GE",
+        "name": "GE"
+      },
+      {
+        "code": "UR",
+        "name": "Urdu"
+      },
+      {
+        "code": "ED",
+        "name": "Education"
+      },
+      {
+        "code": "HT",
+        "name": "History"
+      },
+      {
+        "code": "HTC",
+        "name": "Healthcare"
+      }
+    ]
   },
   {
     "fNo": "250390",
@@ -12731,11 +12951,33 @@
     "fatherName": "Mohd Maqbool Sheikh",
     "className": "12th",
     "classRollNo": "",
-    "boardRegNo": "2.301E+15",
-    "stream": "",
+    "boardRegNo": "2301000000610010",
+    "stream": "Science",
     "session": "2025-26",
     "photoUrl": "https://drive.google.com/file/d/1K-ktrhLPOkiFzpSu0P_7uVsSYlTfa5Pe/view?usp=drivesdk",
-    "dob": "2009-12-23"
+    "dob": "2009-12-23",
+    "subjects": [
+      {
+        "code": "GE",
+        "name": "GE"
+      },
+      {
+        "code": "PH",
+        "name": "Physics"
+      },
+      {
+        "code": "CH",
+        "name": "Chemistry"
+      },
+      {
+        "code": "BI",
+        "name": "Biology"
+      },
+      {
+        "code": "ITE",
+        "name": "IT & ITeS"
+      }
+    ]
   },
   {
     "fNo": "250406",
@@ -13973,8 +14215,8 @@
     "fatherName": "Wakeel Ahmad Khan",
     "className": "12th",
     "classRollNo": "154",
-    "boardRegNo": "2.101E+15",
-    "stream": "",
+    "boardRegNo": "",
+    "stream": "Humanities",
     "session": "2025-26",
     "photoUrl": "https://drive.google.com/file/d/1n-plsQgPgZ7rBRgLQCeXWyUwgKpZtzq0/view?usp=drivesdk",
     "dob": "2007-10-24"
@@ -14842,8 +15084,8 @@
     "fatherName": "Gh.nabi mochi",
     "className": "12th",
     "classRollNo": "169",
-    "boardRegNo": "2.10101E+15",
-    "stream": "",
+    "boardRegNo": "",
+    "stream": "Humanities",
     "session": "2025-26",
     "photoUrl": "https://drive.google.com/file/d/1Dt84ioq0eKQ_ewSx4RpUw1AvKUgrZwbF/view?usp=drivesdk",
     "dob": "2008-09-22"
@@ -17685,11 +17927,33 @@
     "fatherName": "Riyaz Ahmad Hajam",
     "className": "12th",
     "classRollNo": "104",
-    "boardRegNo": "2.301E+15",
-    "stream": "",
+    "boardRegNo": "2301000000970060",
+    "stream": "Science",
     "session": "2025-26",
     "photoUrl": "https://drive.google.com/file/d/1hIPErP9mTOqmg4py27Tnc0_71VdRNU9K/view?usp=drivesdk",
-    "dob": "2010-08-25"
+    "dob": "2010-08-25",
+    "subjects": [
+      {
+        "code": "GE",
+        "name": "GE"
+      },
+      {
+        "code": "PH",
+        "name": "Physics"
+      },
+      {
+        "code": "CH",
+        "name": "Chemistry"
+      },
+      {
+        "code": "BI",
+        "name": "Biology"
+      },
+      {
+        "code": "PD",
+        "name": "Physical Education"
+      }
+    ]
   },
   {
     "fNo": "250568",
