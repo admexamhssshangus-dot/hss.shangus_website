@@ -74,7 +74,7 @@
           return origConsoleError.apply(console, arguments);
         };
 
-        if (typeof MutationObserver !== 'undefined') {
+        if (typeof MutationObserver !== 'undefined' && (location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
           var observer = new MutationObserver(function(mutations) {
             for (var i = 0; i < mutations.length; i++) {
               var added = mutations[i].addedNodes;
@@ -105,9 +105,13 @@
     <link rel="dns-prefetch" href="https://identitytoolkit.googleapis.com" />
     <link rel="dns-prefetch" href="https://firestore.googleapis.com" />
     <!-- Preload the hero slide image — the single most impactful LCP resource -->
-    <link rel="preload" as="image" href="%PUBLIC_URL%/slides/1.jpg" fetchpriority="high" />
-    <!-- Google Fonts (Plus Jakarta Sans, Inter, Outfit, Playfair Display, Cinzel) -->
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@400;500;600;700;800&family=Playfair+Display:wght@600;700&family=Cinzel:wght@600;700;800&display=swap" />
+    <link rel="preload" as="image" href="%PUBLIC_URL%/slides/6.jpg" fetchpriority="high" />
+    <!-- Google Fonts (Plus Jakarta Sans, Inter, Outfit, Playfair Display, Cinzel) loaded asynchronously -->
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@400;500;600;700;800&family=Playfair+Display:wght@600;700&family=Cinzel:wght@600;700;800&display=swap" media="print" onload="this.media='all'" />
+    <noscript>
+      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@400;500;600;700;800&family=Playfair+Display:wght@600;700&family=Cinzel:wght@600;700;800&display=swap" />
+    </noscript>
+
     <meta name="application-name" content="HSS Shangus" />
     <meta name="apple-mobile-web-app-title" content="HSS Shangus" />
     
@@ -133,7 +137,6 @@
     -->
     <title>HSS Shangus</title>
     <meta name="google-site-verification" content="XjLLUaQ6VZuVap1Thy3hwSWITUxGFwbn5kCifk_0IgE" />
-    <link rel="stylesheet" href="%PUBLIC_URL%/search-overview.css" />
   </head>
   <body>
     <div id="root"><p style="padding:2rem;font-family:system-ui,sans-serif">Loading HSS Shangus…</p></div>

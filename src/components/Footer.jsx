@@ -2,8 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { BookOpen, X, Mail, Info, Lock, Unlock, Code, Terminal, Sparkles, Cpu, GraduationCap, Plane, Wallet, Zap, Globe, ExternalLink, ShieldCheck, MapPin, Layers, Building2, FileText, RefreshCw } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { loadSiteSettings, DEFAULT_SETTINGS } from '../utils/settingsLoader';
-import { db, auth } from '../firebase';
-import { collection, addDoc } from 'firebase/firestore';
 
 
 // Social Media Custom SVG Icons (since brand icons are not exported in this Lucide version)
@@ -63,11 +61,10 @@ export default function Footer() {
     loadSiteSettings().then(setSettings);
 
     const checkAdmin = () => {
-      const isAuth = sessionStorage.getItem('isAdminAuthenticated') === 'true' || !!auth?.currentUser;
-      setIsAdmin(isAuth);
+      const isAuth = sessionStorage.getItem('isAdminAuthenticated') === 'true' || localStorage.getItem('hss_auth_state');
+      setIsAdmin(Boolean(isAuth));
     };
     checkAdmin();
-    const unsub = auth?.onAuthStateChanged(() => checkAdmin());
 
     try {
       const channel = new BroadcastChannel('hss_data_sync');
@@ -78,12 +75,9 @@ export default function Footer() {
       };
       return () => {
         channel.close();
-        if (unsub) unsub();
       };
     } catch (err) {
-      return () => {
-        if (unsub) unsub();
-      };
+      // ignore
     }
   }, []);
 
@@ -720,6 +714,8 @@ function ContactForm({ onClose }) {
 
     try {
       // 1. Try to save to Firestore first (Live Database)
+      const { db } = await import('../firebase');
+      const { collection, addDoc } = await import('firebase/firestore');
       if (db) {
         await addDoc(collection(db, 'messages'), payload);
         setFormSuccess(true);

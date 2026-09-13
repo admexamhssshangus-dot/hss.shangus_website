@@ -1,9 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate, Link } from 'react-router-dom';
 import { Phone, Mail, X, Menu, Lock, LogOut, User } from 'lucide-react';
-import { doc, getDoc } from 'firebase/firestore';
-import { signOut } from 'firebase/auth';
-import { db, auth } from '../firebase';
 import { sessionManager } from '../services/sessionManager';
 import ConfirmModal from '../portal/components/ConfirmModal';
 
@@ -76,7 +73,6 @@ export default function Navbar() {
 
   useEffect(() => {
     checkAuthStatus();
-    const unsub = auth?.onAuthStateChanged(() => checkAuthStatus());
 
     const handleStorageChange = () => checkAuthStatus();
     window.addEventListener('storage', handleStorageChange);
@@ -84,7 +80,6 @@ export default function Navbar() {
     window.addEventListener('hss-auth-changed', handleStorageChange);
 
     return () => {
-      if (unsub) unsub();
       window.removeEventListener('storage', handleStorageChange);
       window.removeEventListener('hss-auth-changed', handleStorageChange);
     };
@@ -105,9 +100,13 @@ export default function Navbar() {
       sessionStorage.removeItem('adminToken');
       sessionStorage.clear();
 
-      if (auth?.currentUser) {
-        await signOut(auth);
-      }
+      try {
+        const { auth } = await import('../firebase');
+        const { signOut } = await import('firebase/auth');
+        if (auth?.currentUser) {
+          await signOut(auth);
+        }
+      } catch (_) {}
     } catch (err) {
       console.warn('Logout note:', err);
     } finally {
@@ -133,6 +132,8 @@ export default function Navbar() {
 
   const loadDynamicPages = async () => {
     try {
+      const { db } = await import('../firebase');
+      const { doc, getDoc } = await import('firebase/firestore');
       const snap = await getDoc(doc(db, 'site', 'pages'));
       if (snap.exists()) {
         const list = snap.data().list || [];
@@ -320,7 +321,7 @@ export default function Navbar() {
           {/* ROW 2: Logo and School Name (Centered in standard container width for professional alignment) */}
           <div className="w-full max-w-7xl mx-auto px-2.5 sm:px-6 md:px-8 py-1.5 md:py-2 flex items-center justify-between gap-1.5 sm:gap-4">
             <Link to="/" className="flex items-center min-w-0 flex-1 shrink mr-1 sm:mr-0">
-              <img src={schoolLogo} alt="Govt HSS Shangus Logo" className="h-8 w-8 sm:h-9 sm:w-9 md:h-11 md:w-11 mr-2 sm:mr-3.5 object-contain shrink-0" />
+              <img src={schoolLogo} alt="Govt HSS Shangus Logo" width="44" height="44" decoding="async" className="h-8 w-8 sm:h-9 sm:w-9 md:h-11 md:w-11 mr-2 sm:mr-3.5 object-contain shrink-0" />
               <div className="min-w-0 flex-1">
                 <div className="text-[13px] xs:text-[14px] sm:text-[15px] md:text-xl font-bold text-teal-800 tracking-tight leading-snug font-title" aria-label="Govt. Higher Secondary School Shangus">
                   <span className="hidden md:inline">Govt. Higher Secondary School Shangus</span>

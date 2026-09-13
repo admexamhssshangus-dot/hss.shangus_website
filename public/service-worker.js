@@ -3,7 +3,7 @@
 // Service Worker for Govt. HSS Shangus PWA
 // Provides basic caching for offline support and enables PWA installability
 
-const CACHE_NAME = 'hss-shangus-v4-private-data-cleanup';
+const CACHE_NAME = 'hss-shangus-v5-cache-refresh';
 const PRECACHE_URLS = [
   '/',
   '/app-shell.html',

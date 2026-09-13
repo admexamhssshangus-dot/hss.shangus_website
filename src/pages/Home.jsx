@@ -1,9 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Users, Award, BookOpen, GraduationCap, Megaphone, ArrowRight, Pause, Play } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { db } from '../firebase';
-import { doc, getDoc } from 'firebase/firestore';
-
 // 1. IMPORT YOUR LOCAL BACKGROUND IMAGE (Make sure the file is renamed to logo.png)
 import Slideshow from '../components/Slideshow';
 import SEO from '../components/SEO';
@@ -192,7 +189,7 @@ export default function Home() {
         if (Array.isArray(parsed) && parsed.length > 0) return parsed;
       }
     } catch (_) {}
-    return [{ image: '/slides/1.jpg', title: 'Govt. HSS Shangus', caption: 'Nurturing Minds, Shaping Futures' }];
+    return [{ image: '/slides/6.jpg', title: 'Infrastructure', caption: 'Spacious campus with open grounds' }];
   });
 
   // Hide Latest Updates ticker on desktop when user scrolls down and Latest Notices / Briefing becomes visible
@@ -230,6 +227,8 @@ export default function Home() {
       // 2. Slideshow updates
       (async () => {
         try {
+          const { db } = await import('../firebase');
+          const { doc, getDoc } = await import('firebase/firestore');
           const snap = await getDoc(doc(db, 'site', 'slideshow'));
           if (snap.exists() && active) {
             const data = snap.data();
@@ -274,6 +273,8 @@ export default function Home() {
       // 3. Faculty summary
       (async () => {
         try {
+          const { db } = await import('../firebase');
+          const { doc, getDoc } = await import('firebase/firestore');
           const snapshot = await getDoc(doc(db, 'site', 'facultySummary'));
           const principal = snapshot.data()?.principalName;
           if (typeof principal === 'string' && principal.trim() && active) {
@@ -301,6 +302,8 @@ export default function Home() {
       // 4. Latest notices
       (async () => {
         try {
+          const { db } = await import('../firebase');
+          const { doc, getDoc } = await import('firebase/firestore');
           const snap = await getDoc(doc(db, 'site', 'notices'));
           if (snap.exists() && active) {
             const data = snap.data();
@@ -409,7 +412,7 @@ export default function Home() {
     <div className="public-page w-full">
       <SEO title="Home" description="Official website of Govt. Higher Secondary School Shangus. Explore latest notices, school admissions process, ERP portals, and details from Principal." image="/slides/searchtn.jpg" />
       {/* Hidden img tag to prompt search engine snippet crawlers to prioritize the school building image */}
-      <img src="/slides/searchtn.jpg" alt="Govt. Higher Secondary School Shangus Campus" className="sr-only" aria-hidden="true" />
+      <img src="/slides/searchtn.jpg" alt="Govt. Higher Secondary School Shangus Campus" className="sr-only" aria-hidden="true" loading="lazy" decoding="async" />
       <div className="hero-container relative w-full bg-slate-900 flex items-center justify-center text-center overflow-hidden isolate">
         
         {/* Background slideshow: using dynamic config with public fallback */}

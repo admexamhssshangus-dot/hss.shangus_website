@@ -1,26 +1,18 @@
-import { auth } from '../firebase';
-
 /**
  * Checks if an Admin Gmail / Admin account is logged in
  */
 function isAdminLoggedIn() {
   if (typeof window === 'undefined') return false;
 
-  // 1. Check Admin Session Storage flags (instant synchronous check)
+  // Check Admin Session Storage flags (instant synchronous check)
   if (
     sessionStorage.getItem('isAdminAuthenticated') === 'true' ||
     sessionStorage.getItem('adminUser') ||
-    sessionStorage.getItem('hss_session')
+    sessionStorage.getItem('hss_session') ||
+    localStorage.getItem('hss_auth_state')
   ) {
     return true;
   }
-
-  // 2. Check Firebase Auth user if available
-  try {
-    if (auth?.currentUser?.email) {
-      return true;
-    }
-  } catch (_) {}
 
   return false;
 }
