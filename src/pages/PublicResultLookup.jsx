@@ -845,8 +845,8 @@ export default function PublicResultLookup() {
       `}} />
 
       <div className="max-w-3xl mx-auto space-y-2.5 print:max-w-none print:w-full print:space-y-0 print:m-0 print:p-0">
-        {/* Minimal Navigation & Verification Indicator */}
-        <div className="flex items-center justify-between gap-2 print:hidden pb-0.5">
+        {/* Minimal Navigation & Verification Indicator (Desktop & Tablet only to maximize mobile viewport) */}
+        <div className="hidden sm:flex items-center justify-between gap-2 print:hidden pb-0.5">
           <Link
             to="/"
             className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-600 dark:text-slate-400 hover:text-teal-700 dark:hover:text-teal-300 transition-colors"
@@ -880,9 +880,10 @@ export default function PublicResultLookup() {
             <button
               type="button"
               onClick={() => setIsSearchExpandedOnMobile(true)}
-              className="px-2.5 py-1 text-[10.5px] font-bold text-teal-800 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/80 hover:bg-teal-100 dark:hover:bg-teal-900/50 rounded-lg border border-teal-200 dark:border-teal-800 shrink-0 cursor-pointer transition-colors"
+              className="px-2.5 py-1 text-[10.5px] font-bold text-teal-800 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/80 hover:bg-teal-100 dark:hover:bg-teal-900/50 rounded-lg border border-teal-200 dark:border-teal-800 shrink-0 cursor-pointer transition-colors flex items-center gap-1"
             >
-              Change
+              <RefreshCw size={10.5} />
+              <span>Search Again</span>
             </button>
           </div>
         )}
@@ -994,35 +995,22 @@ export default function PublicResultLookup() {
 
             {/* Dynamic DOB Security Verification for Class Roll Numbers */}
             {isShortRollQuery && (
-              <div className="flex flex-col sm:flex-row sm:items-center gap-2 p-2 rounded-lg bg-amber-50/90 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60 text-xs animate-fadeIn">
-                <div className="flex items-center gap-1.5 font-bold text-amber-900 dark:text-amber-200 shrink-0">
-                  <ShieldCheck size={13} className="text-amber-600 dark:text-amber-400 shrink-0" />
-                  <span>DOB Required for Roll No:</span>
+              <div className="flex items-center gap-2 p-1.5 rounded-lg bg-amber-50/90 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60 text-xs animate-fadeIn">
+                <div className="flex items-center gap-1 font-bold text-amber-900 dark:text-amber-200 shrink-0 text-[11px]">
+                  <ShieldCheck size={12} className="text-amber-600 dark:text-amber-400 shrink-0" />
+                  <span>DOB:</span>
                 </div>
-                <div className="flex items-center gap-2 flex-1">
-                  <input
-                    type="date"
-                    required
-                    value={queryDob}
-                    onChange={(e) => setQueryDob(e.target.value)}
-                    aria-label="Student Date of Birth"
-                    className="h-7 px-2 text-xs font-mono font-bold rounded border border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:outline-none focus:border-amber-600"
-                  />
-                  <span className="text-[10px] text-amber-800/80 dark:text-amber-300/80 leading-tight">
-                    Required to protect student privacy and prevent sequential roll number lookups.
-                  </span>
-                </div>
+                <input
+                  type="date"
+                  required
+                  value={queryDob}
+                  onChange={(e) => setQueryDob(e.target.value)}
+                  aria-label="Student Date of Birth"
+                  className="h-7 px-2 text-xs font-mono font-bold rounded border border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:outline-none focus:border-amber-600 cursor-pointer"
+                />
               </div>
             )}
           </form>
-
-          {/* Informative Search Guide & Privacy Notice */}
-          <div className="flex items-center gap-2 pt-1 border-t border-slate-100 dark:border-slate-800/80 text-[10.5px] text-slate-500 dark:text-slate-400">
-            <ShieldCheck size={12} className="text-teal-600 dark:text-teal-400 shrink-0" />
-            <span>
-              Search with <strong>Class Roll No</strong> (with DOB), <strong>16-digit Board Reg No</strong>, or <strong>Admission Form No</strong>.
-            </span>
-          </div>
 
           {errorMsg && (
             <div className="p-2 rounded-lg bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 text-[11px] font-bold text-rose-800 dark:text-rose-300 flex items-start gap-1.5 animate-fadeIn">
