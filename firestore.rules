@@ -556,7 +556,8 @@ service cloud.firestore {
     }
 
     match /adminPracticalsSettings/{documentId} {
-      allow read: if isTeacher();
+      allow get: if documentId == 'config' || isTeacher();
+      allow list: if isTeacher();
       allow create, update: if canUse('practicals') && hasNoCredentialFields(request.resource.data);
       allow delete: if canUse('practicals');
     }

@@ -5,7 +5,9 @@ async function lookupResult(db, body) {
   if (body.action === 'config') {
     const snapshot = await db.collection('adminPracticalsSettings').doc('config').get();
     const evaluations = (snapshot.data()?.customEvaluations || []).filter(item => item.isPublishedForStudents === true)
-      .map(({ id, title, evalType, session, classes }) => ({ id, title, evalType, session, classes }));
+      .map(({ id, title, evalType, session, classes, biologyDisplayMode, maxMarks, minMarks, subjectOverrides, normalizeTo50, allowedStatuses, description }) => ({
+        id, title, evalType, session, classes, biologyDisplayMode, maxMarks, minMarks, subjectOverrides, normalizeTo50, allowedStatuses, description
+      }));
     return { evaluations };
   }
   if (!/^[a-zA-Z0-9/_.-]{1,64}$/.test(body.query || '') || !['9th', '10th', '11th', '12th'].includes(body.className) ||
@@ -38,9 +40,12 @@ async function lookupResult(db, body) {
     });
     if (matches.length > 1) throw Object.assign(new Error('A duplicate result needs school review.'), { status: 409 });
     if (!matches.length) continue;
+    const subjOverride = evaluation.subjectOverrides?.[section.subjectCode];
+    const resolvedMax = section.maxMarks ?? subjOverride?.maxMarks ?? evaluation.maxMarks ?? 50;
+    const resolvedMin = section.minMarks ?? subjOverride?.minMarks ?? evaluation.minMarks ?? Math.ceil(resolvedMax * 0.36);
     subjects.push({ subjectCode: section.subjectCode, subjectName: section.subjectName || section.subject,
       marksObtained: matches[0].totalMarks ?? matches[0].practicalMarks,
-      maxMarks: section.maxMarks ?? evaluation.maxMarks, minMarks: section.minMarks ?? evaluation.minMarks });
+      maxMarks: resolvedMax, minMarks: resolvedMin });
   }
   const grade = gradeAssessment(subjects, expectedSubjectCodes(data));
   if (!grade.hasMarks) throw Object.assign(new Error('Marks for this student are not yet available.'), { status: 404 });
