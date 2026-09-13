@@ -820,12 +820,42 @@ export default function BulkFieldOverwriteModal({
     reader.readAsArrayBuffer(file);
   };
 
-  // ─── STRICT 3-POINT STUDENT MATCHING ENGINE ───
+  // ─── STRICT AUTHORITATIVE STUDENT MATCHING & COLUMN AUTO-DETECTION ENGINE ───
   // First column is strictly parsed as Registration Number.
-  // Code strictly looks up exact student by regNo + session + class before generating preview.
+  // Automatically detects every column header in the uploaded file and selects corresponding DB fields.
   const processIncomingRows = (rows, sourceTitle = 'Spreadsheet') => {
     setRawParsedRows(rows);
     setErrorMsg(null);
+
+    // 1. Automatic Column Header Auto-Detection:
+    // Inspect headers of incoming file and automatically activate all matching database fields
+    const detectedFieldKeys = new Set();
+    if (rows.length > 0) {
+      const incomingHeaders = Object.keys(rows[0]);
+      incomingHeaders.forEach(rawH => {
+        const clnH = cleanKey(rawH);
+        if (!clnH) return;
+        allFieldDefinitions.forEach(f => {
+          const matchCandidates = [
+            cleanKey(f.label),
+            cleanKey(f.key),
+            ...(f.excelKeys || []).map(cleanKey),
+            ...(f.dbKeys || []).map(cleanKey)
+          ];
+          if (matchCandidates.includes(clnH)) {
+            detectedFieldKeys.add(f.key);
+          }
+        });
+      });
+    }
+
+    const effectiveSelectedFields = { ...selectedFields };
+    if (detectedFieldKeys.size > 0) {
+      detectedFieldKeys.forEach(k => {
+        effectiveSelectedFields[k] = true;
+      });
+      setSelectedFields(prev => ({ ...prev, ...effectiveSelectedFields }));
+    }
 
     const correlated = [];
     const initialSelectedIds = new Set();
@@ -862,14 +892,38 @@ export default function BulkFieldOverwriteModal({
       const cleanForm = cleanKey(rawForm);
       const cleanRoll = cleanKey(rawRoll);
 
-      const matchedStudent = uniqueStudentMatch(universalStudents,
+      // Authoritative multi-tier matching:
+      // Tier 1: Try strict multi-identifier match within target cohort
+      let matchedStudent = uniqueStudentMatch(universalStudents,
         { reg: rawReg, adm: rawAdm, form: rawForm, roll: rawRoll }, targetSession, targetClass);
+
+      // Tier 2: If secondary fields (form/adm) caused conflict, match strictly by Registration Number within cohort
+      if (!matchedStudent && cleanReg) {
+        matchedStudent = uniqueStudentMatch(universalStudents, { reg: rawReg }, targetSession, targetClass);
+      }
+
+      // Tier 3: Search universal student pool for exact registration match (handles session aliases e.g. 2026 APR/BIAN)
+      if (!matchedStudent && cleanReg) {
+        const regCandidates = universalStudents.filter(st => {
+          const stReg = cleanKey(st.boardRegNo || st.regNo || st['Board Registration Number'] || st['Board Reg. No.']);
+          return stReg && stReg === cleanReg;
+        });
+        if (regCandidates.length === 1) {
+          matchedStudent = regCandidates[0];
+        } else if (regCandidates.length > 1) {
+          const inTargetClass = regCandidates.find(st => {
+            const cls = cleanKey(st.selectedClass || st.className || st.Class || st.class);
+            return cls.includes(cleanKey(targetClass)) || cleanKey(targetClass).includes(cls);
+          });
+          matchedStudent = inTargetClass || regCandidates[0];
+        }
+      }
 
       // Extract all incoming fields dynamically
       const incomingFields = {};
       allFieldDefinitions.forEach(f => {
         let extracted = '';
-        for (const ek of [...new Set([cleanKey(f.label), cleanKey(f.key), ...f.excelKeys])]) {
+        for (const ek of [...new Set([cleanKey(f.label), cleanKey(f.key), ...(f.excelKeys || [])])]) {
           const val = normalizedRow[ek];
           if (val !== undefined && val !== '') {
             extracted = val;
@@ -921,25 +975,63 @@ export default function BulkFieldOverwriteModal({
         }
       }
 
-      // Compute diff against matched student
+      // Compute diff against matched student using canonical DB values
       const diffs = {};
       let hasChanges = false;
 
       if (matchedStudent) {
         allFieldDefinitions.forEach(f => {
-          if (!selectedFields[f.key]) return;
+          if (!effectiveSelectedFields[f.key]) return;
           const incVal = incomingFields[f.key];
           if (!incVal) return;
 
           let currVal = '';
-          for (const k of f.dbKeys) {
-            if (matchedStudent[k] !== undefined && String(matchedStudent[k]).trim() !== '') {
-              currVal = String(matchedStudent[k]).trim();
-              break;
+          if (f.key === 'stream') {
+            currVal = getStudentProperStream(matchedStudent);
+          } else if (f.key === 'subjects') {
+            const formatted = formatStudentSubjects(matchedStudent, targetClass);
+            currVal = (formatted && formatted !== '—') ? formatted : '';
+            if (!currVal) {
+              currVal = String(matchedStudent.subjects || matchedStudent.subs || matchedStudent.selectedSubjects || matchedStudent['Subjects'] || '').trim();
+            }
+          } else if (f.key.startsWith('subjects') || f.key.startsWith('Subjects') || f.key === 'Subject6') {
+            const matchSlot = f.key.match(/\d+/);
+            const slotIdx = matchSlot ? parseInt(matchSlot[0], 10) - 1 : -1;
+            const indiv = extractIndividualSubjectsList(matchedStudent, targetClass);
+            if (slotIdx >= 0 && indiv && indiv[slotIdx]) {
+              currVal = indiv[slotIdx];
+            } else {
+              for (const k of f.dbKeys) {
+                if (matchedStudent[k] !== undefined && String(matchedStudent[k]).trim() !== '') {
+                  currVal = String(matchedStudent[k]).trim();
+                  break;
+                }
+              }
+            }
+          } else if (f.key === 'dob') {
+            for (const k of f.dbKeys) {
+              if (matchedStudent[k] !== undefined && String(matchedStudent[k]).trim() !== '') {
+                currVal = formatDobToDisplay(matchedStudent[k]);
+                break;
+              }
+            }
+          } else {
+            for (const k of f.dbKeys) {
+              if (matchedStudent[k] !== undefined && String(matchedStudent[k]).trim() !== '') {
+                currVal = String(matchedStudent[k]).trim();
+                break;
+              }
             }
           }
 
-          if (cleanKey(currVal) !== cleanKey(incVal)) {
+          let normCurr = cleanKey(currVal);
+          let normInc = cleanKey(incVal);
+          if (f.key === 'subjects' || f.key.startsWith('subjects')) {
+            normCurr = cleanKey(expandJkboseSubjectCodes(currVal) || currVal);
+            normInc = cleanKey(expandJkboseSubjectCodes(incVal) || incVal);
+          }
+
+          if (normCurr !== normInc) {
             diffs[f.key] = {
               fieldLabel: f.label,
               currentValue: currVal || '—',
@@ -1560,69 +1652,75 @@ export default function BulkFieldOverwriteModal({
                       </div>
                     </div>
 
-                    {/* Compact Selected Summary Tags with direct 1-click removal */}
-                    <div className="flex items-center gap-1 flex-wrap text-[10px]">
+                    {/* Compact Horizontally Scrollable Selected Tags with direct 1-click removal */}
+                    <div className="flex items-center gap-1.5 overflow-x-auto py-1 px-0.5 custom-scrollbar scroll-smooth">
                       {activeFieldsList.length > 0 ? (
                         activeFieldsList.map(f => (
                           <button 
                             key={f.key} 
                             type="button"
                             onClick={() => handleToggleField(f.key)}
-                            className="px-1.5 py-0.5 rounded-md font-bold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 text-[9.5px] flex items-center gap-1 hover:bg-rose-50 hover:text-rose-700 hover:border-rose-300 transition-colors group cursor-pointer"
+                            className="px-2.5 py-1 rounded-full font-bold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 text-[10px] flex items-center gap-1.5 hover:bg-rose-50 hover:text-rose-700 hover:border-rose-300 transition-all group cursor-pointer whitespace-nowrap shrink-0 shadow-2xs"
                             title={`Click to remove ${f.label}`}
                           >
                             <span>{f.label}</span>
-                            <span className="text-slate-400 group-hover:text-rose-600 text-[10px] leading-none">✕</span>
+                            <span className="text-emerald-500 group-hover:text-rose-600 text-[11px] font-black leading-none">×</span>
                           </button>
                         ))
                       ) : (
                         <span className="text-amber-600 dark:text-amber-400 font-bold text-[10px]">
-                          ⚠️ No fields selected. Click a preset above (e.g. Exam Results).
+                          ⚠️ No fields selected. Click a preset above (e.g. Exam Results or Board Bio).
                         </span>
                       )}
                     </div>
 
-                    {/* Expandable Field Matrix (Compact) */}
+                    {/* Expandable Field Matrix (Spacious 3-Column Responsive Grid) */}
                     {showFieldMatrix && (
-                      <div className="space-y-2 pt-1.5 border-t border-slate-100 dark:border-slate-800 animate-fadeIn">
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-2">
-                          {dynamicDatabaseCategories.map(cat => (
-                            <div 
-                              key={cat.id} 
-                              className="p-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 flex flex-col justify-between"
-                            >
-                              <div className="flex items-center justify-between gap-1 pb-1 mb-1 border-b border-slate-200 dark:border-slate-800">
-                                <span className="font-bold text-[10px] text-slate-800 dark:text-slate-200 truncate" title={cat.title}>
-                                  {cat.title}
-                                </span>
-                                <span className={`text-[7.5px] font-black px-1.5 py-0.2 rounded-md border whitespace-nowrap flex-shrink-0 shrink-0 ${cat.badgeClass}`}>
-                                  {cat.badge}
-                                </span>
-                              </div>
+                      <div className="space-y-3 pt-2 border-t border-slate-100 dark:border-slate-800 animate-fadeIn">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
+                          {dynamicDatabaseCategories.map(cat => {
+                            const CatIcon = cat.icon || Database;
+                            return (
+                              <div 
+                                key={cat.id} 
+                                className="p-3 rounded-2xl border border-slate-200 dark:border-slate-800/80 bg-white/80 dark:bg-slate-900/60 shadow-xs hover:border-slate-300 dark:hover:border-slate-700 transition-all flex flex-col justify-between"
+                              >
+                                <div className="flex items-center justify-between gap-2 pb-2 mb-2 border-b border-slate-200/80 dark:border-slate-800">
+                                  <div className="flex items-center gap-2 min-w-0">
+                                    <CatIcon size={14} className="text-slate-500 dark:text-slate-400 shrink-0" />
+                                    <span className="font-extrabold text-[11.5px] text-slate-800 dark:text-slate-200 leading-tight">
+                                      {cat.title}
+                                    </span>
+                                  </div>
+                                  <span className={`text-[8.5px] font-black px-2 py-0.5 rounded-full border whitespace-nowrap shrink-0 shadow-2xs ${cat.badgeClass}`}>
+                                    {cat.badge}
+                                  </span>
+                                </div>
 
-                              <div className="space-y-0.5 overflow-y-auto max-h-32 custom-scrollbar">
-                                {cat.fields.map(field => {
-                                  const isChecked = Boolean(selectedFields[field.key]);
-                                  return (
-                                    <label
-                                      key={field.key}
-                                      className="flex items-center gap-1.5 py-0.5 px-1 rounded hover:bg-white dark:hover:bg-slate-800 cursor-pointer text-[10px] text-slate-700 dark:text-slate-300"
-                                    >
-                                      <input
-                                        type="checkbox"
-                                        checked={isChecked}
-                                        onChange={() => handleToggleField(field.key)}
-                                        className="rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer scale-90"
-                                      />
-                                      <span className={isChecked ? 'font-bold text-slate-900 dark:text-white' : 'font-normal text-slate-600'}>
-                                        {field.label}
-                                      </span>
-                                    </label>
-                                  );
-                                })}
+                                <div className="space-y-0.5 overflow-y-auto max-h-40 pr-1 custom-scrollbar">
+                                  {cat.fields.map(field => {
+                                    const isChecked = Boolean(selectedFields[field.key]);
+                                    return (
+                                      <label
+                                        key={field.key}
+                                        className={`flex items-center gap-2 py-1 px-1.5 rounded-lg transition-colors cursor-pointer text-[10.5px] ${
+                                          isChecked ? 'bg-emerald-50/60 dark:bg-emerald-950/30 font-bold text-slate-900 dark:text-white' : 'hover:bg-slate-50 dark:hover:bg-slate-800/60 font-normal text-slate-600 dark:text-slate-400'
+                                        }`}
+                                      >
+                                        <input
+                                          type="checkbox"
+                                          checked={isChecked}
+                                          onChange={() => handleToggleField(field.key)}
+                                          className="rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer scale-95"
+                                        />
+                                        <span className="truncate">{field.label}</span>
+                                      </label>
+                                    );
+                                  })}
+                                </div>
                               </div>
-                            </div>
-                          ))}
+                            );
+                          })}
                         </div>
 
                         {/* Add Custom Field Tool */}
