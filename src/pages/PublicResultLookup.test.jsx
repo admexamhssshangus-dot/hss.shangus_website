@@ -332,6 +332,87 @@ describe('Score Normalization and Flexible Biology Display', () => {
     expect(phSubject.marksObtained).toBe(40); // (28/35)*50 = 40
     expect(phSubject.componentNote).toContain('Raw Paper: 28/35');
   });
+
+  test('computeScorecardSubjects renders standard Class 10th subjects including vocational and excludes 11th/12th subjects like EVS or Education', () => {
+    const student10th = {
+      name: 'Mohmad Zia Wani',
+      className: '10th',
+      boardRegNo: '250100000610055',
+      stream: 'General'
+      // No explicit subjects array
+    };
+
+    const result = computeScorecardSubjects({
+      matchedStudent: student10th,
+      streamName: 'General',
+      matchingSections: [],
+      matchRecord: () => false,
+      biologyDisplayMode: 'combined'
+    });
+
+    const codes = result.subjects.map(s => s.subjectCode);
+    expect(codes).toEqual(['EN', 'MA', 'UR', 'SC', 'SS', 'ITE']);
+    expect(result.subjects.length).toBe(6);
+    expect(codes).not.toContain('ES');
+    expect(codes).not.toContain('ED');
+    expect(codes).not.toContain('HT');
+    expect(codes).not.toContain('PS');
+  });
+
+  test('computeScorecardSubjects honors 6-subject enrolled roster for Class 10th with vocational ITE', () => {
+    const student10thVoc = {
+      name: 'Mohmad Zia Wani',
+      className: '10th',
+      boardRegNo: '250100000610055',
+      subjects: [
+        { code: 'EN', name: 'General English' },
+        { code: 'MA', name: 'Mathematics' },
+        { code: 'SC', name: 'Science' },
+        { code: 'SS', name: 'Social Science' },
+        { code: 'UR', name: 'Urdu' },
+        { code: 'ITE', name: 'IT & ITeS' }
+      ]
+    };
+
+    const result = computeScorecardSubjects({
+      matchedStudent: student10thVoc,
+      streamName: 'General',
+      matchingSections: [],
+      matchRecord: () => false,
+      biologyDisplayMode: 'combined'
+    });
+
+    const codes = result.subjects.map(s => s.subjectCode);
+    expect(codes).toEqual(['EN', 'MA', 'UR', 'SC', 'SS', 'ITE']);
+    expect(result.subjects.length).toBe(6);
+  });
+
+  test('computeScorecardSubjects automatically injects vocational subject when Class 10th only has 5 core subjects', () => {
+    const student10th5Subs = {
+      name: 'Mohmad Zia Wani',
+      className: '10th',
+      boardRegNo: '250100000610055',
+      subjects: [
+        { code: 'EN', name: 'General English' },
+        { code: 'MA', name: 'Mathematics' },
+        { code: 'UR', name: 'Urdu' },
+        { code: 'SC', name: 'Science' },
+        { code: 'SS', name: 'Social Science' }
+      ]
+    };
+
+    const result = computeScorecardSubjects({
+      matchedStudent: student10th5Subs,
+      streamName: 'General',
+      matchingSections: [],
+      matchRecord: () => false,
+      biologyDisplayMode: 'combined'
+    });
+
+    const codes = result.subjects.map(s => s.subjectCode);
+    expect(codes).toEqual(['EN', 'MA', 'UR', 'SC', 'SS', 'ITE']);
+    expect(result.subjects.length).toBe(6);
+  });
 });
 
 

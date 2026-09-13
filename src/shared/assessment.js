@@ -11,14 +11,26 @@ function expectedSubjectCodes(student) {
     physics: 'PH', chemistry: 'CH',
     math: 'MA', maths: 'MA', mathematics: 'MA',
     environmentalscience: 'ES', evs: 'ES',
-    physicaleducation: 'PD', homescience: 'HSC', computerscience: 'CS'
+    physicaleducation: 'PD', homescience: 'HSC', computerscience: 'CS',
+    science: 'SC', sci: 'SC', generalscience: 'SC',
+    socialscience: 'SS', socialstudies: 'SS', sst: 'SS',
+    urdu: 'UR', hindi: 'HN',
+    healthcare: 'HTC', health: 'HTC',
+    it: 'ITE', ites: 'ITE', itandites: 'ITE'
   };
   const codes = subjects.map(value => {
     const normalized = key(typeof value === 'object' ? (value.code || value.name) : value);
     if (!normalized) return '';
     return aliases[normalized] || subjectDefinitions.find(subject => [key(subject.code), key(subject.name)].includes(normalized))?.code || `UNKNOWN:${normalized}`;
   }).filter(Boolean);
-  return [...new Set(codes)];
+  const distinctCodes = [...new Set(codes)];
+  if (distinctCodes.length > 0) return distinctCodes;
+
+  const normCls = key(student.className || student.Class || student.selectedClass || '');
+  if (['10th', '9th', '10', '9', 'x', 'ix'].includes(normCls)) {
+    return ['EN', 'MA', 'SC', 'SS', 'UR'];
+  }
+  return [];
 }
 function gradeAssessment(subjects, expectedCodes) {
   const expected = [...new Set(expectedCodes || [])];
