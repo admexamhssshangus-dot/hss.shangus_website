@@ -1,4 +1,4 @@
-import { uniqueStudentMatch, sameCohort, classKey, sessionKey } from '../../utils/recordIdentity';
+import { uniqueStudentMatch, sameCohort, classKey, sessionKey, formatConsistentName } from '../../utils/recordIdentity';
 import { beginMutationJob, applyRecordPatch, completeMutationJob } from '../../services/recordMutationService';
 import { 
   resolveCertificateStream, 
@@ -119,9 +119,9 @@ export const STANDARD_DB_CATEGORIES = [
     color: 'emerald',
     icon: User,
     fields: [
-      { key: 'studentName', label: "Student's Name", defaultChecked: true, dbKeys: ["Student's Name (as per school records)", "Student's Name", 'Student Name', 'studentName', 'name'], excelKeys: ['studentname', 'name', 'candidatename', 'nameofstudent', 'candidate'] },
-      { key: 'fatherName', label: "Father's Name", defaultChecked: true, dbKeys: ["Father's/Guardian's Name (as per school records)", "Father's Name", 'Father Name', 'fatherName', "Parent's Name", 'parentName', 'parentage'], excelKeys: ['fathername', 'fathersname', 'parentname', 'parentage'] },
-      { key: 'motherName', label: "Mother's Name", defaultChecked: true, dbKeys: ["Mother's Name (as per school records)", "Mother's Name", 'Mother Name', 'motherName'], excelKeys: ['mothername', 'mothersname'] },
+      { key: 'studentName', label: "Student's Name", defaultChecked: true, dbKeys: ["Student's Name (as per school records)", "Student's Name", 'Student Name', 'studentName', 'name', 'candidatename', 'Candidate Name'], excelKeys: ['studentname', 'name', 'candidatename', 'nameofstudent', 'candidate', 'nameofcandidate', 'nameofthecandidate', 'nameofthestudent', 'studentsname', 'student', 'candidatesname', 'sname', 'childname', 'student_name', 'candidate_name', 'stdname'] },
+      { key: 'fatherName', label: "Father's Name", defaultChecked: true, dbKeys: ["Father's/Guardian's Name (as per school records)", "Father's Name", 'Father Name', 'fatherName', "Parent's Name", 'parentName', 'parentage', "Father's/Guardian's Name"], excelKeys: ['fathername', 'fathersname', 'parentname', 'parentage', 'father', 'fathersguardiansname', 'guardianname', 'fatherguardian'] },
+      { key: 'motherName', label: "Mother's Name", defaultChecked: true, dbKeys: ["Mother's Name (as per school records)", "Mother's Name", 'Mother Name', 'motherName', 'Mother'], excelKeys: ['mothername', 'mothersname', 'mother'] },
       { key: 'dob', label: "Date of Birth (DoB)", defaultChecked: true, dbKeys: ['DoB (figures)', 'DoB (as per school records)', 'dob', 'DoB', 'dateOfBirth'], excelKeys: ['dob', 'dateofbirth', 'dobfigures', 'birthdate'] },
       { key: 'dobWords', label: "DoB (in words)", defaultChecked: false, dbKeys: ['DoB (words)', 'dobWords', 'dateOfBirthInWords'], excelKeys: ['dobwords', 'dateofbirthinwords'] },
       { key: 'gender', label: "Gender", defaultChecked: true, dbKeys: ['Gender', 'gender', 'Sex', 'sex'], excelKeys: ['gender', 'sex'] },
@@ -387,6 +387,35 @@ export default function BulkFieldOverwriteModal({
       .replace(/[^a-zA-Z0-9]/g, '')
       .toLowerCase()
       .trim();
+  };
+
+  // Helper to normalize names for diff comparison
+  // Preserves word spacing so unspaced strings (e.g. 'Mallkatariq' vs 'Mallka Tariq') trigger diffs
+  const normalizeNameForDiff = (name) => {
+    if (!name) return '';
+    return String(name).trim().replace(/\s+/g, ' ').toLowerCase();
+  };
+
+  // Helper to evaluate name similarity and detect critical person mismatches
+  const checkNameSimilarity = (incName, dbName) => {
+    if (!incName || !dbName) return { isMatch: true, isMismatch: false };
+    const normInc = formatConsistentName(incName).toLowerCase().replace(/[^a-z0-9]/g, '');
+    const normDb = formatConsistentName(dbName).toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (!normInc || !normDb || normInc === normDb) return { isMatch: true, isMismatch: false };
+    if (normDb.includes(normInc) || normInc.includes(normDb)) return { isMatch: true, isMismatch: false };
+
+    const incTokens = formatConsistentName(incName).toLowerCase().split(/\s+/).filter(t => t.length > 1);
+    const dbTokens = formatConsistentName(dbName).toLowerCase().split(/\s+/).filter(t => t.length > 1);
+    const matched = incTokens.filter(t => dbTokens.some(d => d === t || d.includes(t) || t.includes(d)));
+    const ratio = matched.length / Math.max(incTokens.length, dbTokens.length);
+
+    if (ratio >= 0.4) return { isMatch: true, isMismatch: false };
+
+    return {
+      isMatch: false,
+      isMismatch: true,
+      message: `File has "${incName}", but Reg No belongs to "${dbName}"`
+    };
   };
 
   // Helper to determine effective status consistent with AdvancedReports
@@ -1036,6 +1065,12 @@ export default function BulkFieldOverwriteModal({
       });
     });
 
+    // Ensure studentName is always activated if any column looks like student name or candidate name
+    const nameHeaderAliases = ['studentname', 'name', 'candidatename', 'nameofstudent', 'nameofcandidate', 'studentsname', 'student', 'candidatesname', 'sname', 'childname'];
+    if (incomingHeaders.some(h => nameHeaderAliases.includes(cleanKey(h)))) {
+      detectedFieldKeys.add('studentName');
+    }
+
     const effectiveSelectedFields = { ...selectedFields };
     if (detectedFieldKeys.size > 0) {
       detectedFieldKeys.forEach(k => {
@@ -1044,6 +1079,7 @@ export default function BulkFieldOverwriteModal({
       setSelectedFields(prev => ({ ...prev, ...effectiveSelectedFields }));
     }
 
+    const cohortStudents = (universalStudents || []).filter(st => sameCohort(st, targetSession, targetClass));
     const correlated = [];
     const initialSelectedIds = new Set();
     const total = rows.length;
@@ -1080,35 +1116,94 @@ export default function BulkFieldOverwriteModal({
         const rawRoll = row['Class Roll No.'] || row['Class Roll No'] || row['Roll No.'] || row['Roll No'] ||
                         normalizedRow['classrollno'] || normalizedRow['classroll'] || normalizedRow['rollno'] || normalizedRow['rollnumber'] || '';
 
+        const rawName = row["Student's Name (as per school records)"] || row["Student's Name"] || row["Student Name"] || 
+                        row["Name of Student"] || row["Candidate Name"] || row["Name of Candidate"] || row["Name"] || 
+                        row["Candidate"] || row["Child Name"] ||
+                        normalizedRow['studentsname'] || normalizedRow['studentname'] || normalizedRow['name'] || 
+                        normalizedRow['candidatename'] || normalizedRow['nameofstudent'] || normalizedRow['nameofcandidate'] || 
+                        normalizedRow['nameofthestudent'] || normalizedRow['nameofthecandidate'] || '';
+
+        const rawFather = row["Father's/Guardian's Name (as per school records)"] || row["Father's Name"] || row["Father Name"] || 
+                          row["Father/Guardian"] || row["Parent's Name"] || row["Parentage"] || 
+                          normalizedRow['fathersname'] || normalizedRow['fathername'] || normalizedRow['fathersguardiansname'] || 
+                          normalizedRow['parentname'] || normalizedRow['parentage'] || '';
+
         const cleanReg = cleanKey(rawReg);
         const cleanAdm = cleanKey(rawAdm);
         const cleanForm = cleanKey(rawForm);
         const cleanRoll = cleanKey(rawRoll);
 
-        // Authoritative multi-tier matching:
+        // Authoritative multi-tier matching strictly within selected cohort:
         // Tier 1: Try strict multi-identifier match within target cohort
         let matchedStudent = uniqueStudentMatch(universalStudents,
           { reg: rawReg, adm: rawAdm, form: rawForm, roll: rawRoll }, targetSession, targetClass);
 
-        // Tier 2: If secondary fields (form/adm) caused conflict, match strictly by Registration Number within cohort
+        // Tier 2: Match strictly by Registration Number within cohort
         if (!matchedStudent && cleanReg) {
           matchedStudent = uniqueStudentMatch(universalStudents, { reg: rawReg }, targetSession, targetClass);
         }
 
-        // Tier 3: Search universal student pool for exact registration match (handles session aliases e.g. 2026 APR/BIAN)
+        // Tier 3: If registration number is missing or not matched in cohort, match by Name + Father's Name or Name + Roll No within cohort
+        let matchedByName = false;
+        if (!matchedStudent && rawName) {
+          const normRawName = formatConsistentName(rawName).toLowerCase().replace(/[^a-z0-9]/g, '');
+          const normRawFather = rawFather ? formatConsistentName(rawFather).toLowerCase().replace(/[^a-z0-9]/g, '') : '';
+          const cleanRawRoll = cleanRoll ? String(cleanRoll).replace(/\D/g, '') : '';
+
+          if (normRawName && normRawName.length >= 3) {
+            // Check Name + Father
+            if (normRawFather && normRawFather.length >= 3) {
+              const nfMatches = cohortStudents.filter(st => {
+                const stName = formatConsistentName(st.studentName || st["Student's Name"] || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+                const stFather = formatConsistentName(st.fatherName || st["Father's Name"] || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+                return stName === normRawName && (stFather === normRawFather || stFather.includes(normRawFather) || normRawFather.includes(stFather));
+              });
+              if (nfMatches.length === 1) {
+                matchedStudent = nfMatches[0];
+                matchedByName = true;
+              }
+            }
+
+            // Check Name + Roll No
+            if (!matchedStudent && cleanRawRoll) {
+              const nrMatches = cohortStudents.filter(st => {
+                const stName = formatConsistentName(st.studentName || st["Student's Name"] || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+                const stRoll = String(st.classRollNo || st['Class Roll No'] || st.rollNo || '').replace(/\D/g, '');
+                return stName === normRawName && stRoll === cleanRawRoll;
+              });
+              if (nrMatches.length === 1) {
+                matchedStudent = nrMatches[0];
+                matchedByName = true;
+              }
+            }
+          }
+        }
+
+        // Check if student belongs to another cohort (outside target session / class)
+        let isOutOfCohort = false;
+        let outOfCohortNotice = '';
         if (!matchedStudent && cleanReg) {
-          const regCandidates = universalStudents.filter(st => {
+          const anyRegMatch = (universalStudents || []).find(st => {
             const stReg = cleanKey(st.boardRegNo || st.regNo || st['Board Registration Number'] || st['Board Reg. No.']);
             return stReg && stReg === cleanReg;
           });
-          if (regCandidates.length === 1) {
-            matchedStudent = regCandidates[0];
-          } else if (regCandidates.length > 1) {
-            const inTargetClass = regCandidates.find(st => {
-              const cls = cleanKey(st.selectedClass || st.className || st.Class || st.class);
-              return cls.includes(cleanKey(targetClass)) || cleanKey(targetClass).includes(cls);
-            });
-            matchedStudent = inTargetClass || regCandidates[0];
+          if (anyRegMatch) {
+            isOutOfCohort = true;
+            const stCls = anyRegMatch.selectedClass || anyRegMatch.Class || anyRegMatch.class || 'Other';
+            const stSess = anyRegMatch.selectedSession || anyRegMatch.Session || anyRegMatch.session || 'Other';
+            outOfCohortNotice = `Found in Class ${stCls} (${stSess}), outside target ${targetClass} (${targetSession})`;
+          }
+        }
+
+        // Verify Student Name against Registration Number to catch discrepancies
+        let hasNameMismatch = false;
+        let nameMismatchWarning = '';
+        if (matchedStudent && rawName) {
+          const dbStudentName = matchedStudent.studentName || matchedStudent["Student's Name"] || matchedStudent.name || '';
+          const nameCheck = checkNameSimilarity(rawName, dbStudentName);
+          if (nameCheck.isMismatch) {
+            hasNameMismatch = true;
+            nameMismatchWarning = nameCheck.message;
           }
         }
 
@@ -1122,6 +1217,12 @@ export default function BulkFieldOverwriteModal({
               extracted = val;
               break;
             }
+          }
+
+          if (f.key === 'studentName' && !extracted && rawName) {
+            extracted = rawName;
+          } else if (f.key === 'fatherName' && !extracted && rawFather) {
+            extracted = rawFather;
           }
 
           if (f.key === 'studentName' || f.key === 'fatherName' || f.key === 'motherName' || f.key === 'gender' || f.key === 'stream' || f.key === 'category' || f.key === 'address') {
@@ -1219,7 +1320,12 @@ export default function BulkFieldOverwriteModal({
 
             let normCurr = cleanKey(currVal);
             let normInc = cleanKey(incVal);
-            if (f.key === 'subjects' || f.key.startsWith('subjects') || f.key.startsWith('Subjects') || f.key === 'Subject6') {
+
+            if (f.key === 'studentName' || f.key === 'fatherName' || f.key === 'motherName') {
+              // Preserve word spacing so unspaced strings (e.g. 'Mallkatariq' vs 'Mallka Tariq') trigger diffs
+              normCurr = normalizeNameForDiff(currVal);
+              normInc = normalizeNameForDiff(incVal);
+            } else if (f.key === 'subjects' || f.key.startsWith('subjects') || f.key.startsWith('Subjects') || f.key === 'Subject6') {
               normCurr = normalizeSubjectForDiff(currVal);
               normInc = normalizeSubjectForDiff(incVal);
             }
@@ -1236,7 +1342,7 @@ export default function BulkFieldOverwriteModal({
         }
 
         const rowId = `row_${idx}_${cleanReg || cleanAdm || cleanForm || idx}`;
-        if (hasChanges) {
+        if (hasChanges && matchedStudent && !isOutOfCohort) {
           initialSelectedIds.add(rowId);
         }
 
@@ -1247,24 +1353,32 @@ export default function BulkFieldOverwriteModal({
           rawReg: rawReg || '—',
           rawAdm: rawAdm || '—',
           rawForm: rawForm || '—',
+          rawName: rawName || '—',
+          rawFather: rawFather || '—',
           incomingFields,
           diffs,
           hasChanges,
-          isUnmatched: !matchedStudent
+          isUnmatched: !matchedStudent && !isOutOfCohort,
+          isOutOfCohort,
+          outOfCohortNotice,
+          hasNameMismatch,
+          nameMismatchWarning,
+          matchedByName
         });
       }
 
       // Update non-blocking progress
       const pct = Math.min(95, 10 + Math.round((end / total) * 85));
+      const inCohortCount = correlated.filter(r => r.matchedStudent && !r.isOutOfCohort).length;
       const lastCorrelated = correlated[correlated.length - 1];
-      const name = lastCorrelated?.matchedStudent?.studentName || lastCorrelated?.matchedStudent?.["Student's Name"] || `Record #${end}`;
+      const name = lastCorrelated?.matchedStudent?.studentName || lastCorrelated?.matchedStudent?.["Student's Name"] || `Row #${end}`;
 
       setParsingProgress({
         percent: pct,
         current: end,
         total,
-        stage: `Correlated ${end} of ${total} candidate records...`,
-        candidateInfo: name ? `Matched: ${name}` : ''
+        stage: `Scanning row ${end} of ${total} (${inCohortCount} matched in Class ${targetClass})...`,
+        candidateInfo: name ? `Latest: ${name}` : ''
       });
 
       // Yield control back to the browser to paint frame and avoid freezing
@@ -1292,14 +1406,22 @@ export default function BulkFieldOverwriteModal({
     let changed = 0;
     let unmatched = 0;
     let identical = 0;
+    let nameMismatches = 0;
+    let outOfCohort = 0;
+    let inCohort = 0;
 
     previewData.forEach(r => {
-      if (r.isUnmatched) unmatched++;
-      else if (r.hasChanges) changed++;
-      else identical++;
+      if (r.hasNameMismatch) nameMismatches++;
+      if (r.isOutOfCohort) outOfCohort++;
+      else if (r.isUnmatched) unmatched++;
+      else if (r.matchedStudent) {
+        inCohort++;
+        if (r.hasChanges) changed++;
+        else identical++;
+      }
     });
 
-    return { total: previewData.length, changed, unmatched, identical };
+    return { total: previewData.length, changed, unmatched, identical, nameMismatches, outOfCohort, inCohort };
   }, [previewData]);
 
   // Sort toggle handler for Preview Diff Table
@@ -1315,9 +1437,11 @@ export default function BulkFieldOverwriteModal({
   // Filtered and Sorted preview data (Default: natural numeric Class Roll No ascending)
   const filteredPreview = useMemo(() => {
     const list = previewData.filter(r => {
-      if (previewFilter === 'changed') return r.hasChanges;
+      if (previewFilter === 'changed') return r.hasChanges && !r.isOutOfCohort;
+      if (previewFilter === 'mismatches') return r.hasNameMismatch;
+      if (previewFilter === 'outOfCohort') return r.isOutOfCohort;
       if (previewFilter === 'unmatched') return r.isUnmatched;
-      if (previewFilter === 'identical') return !r.hasChanges && !r.isUnmatched;
+      if (previewFilter === 'identical') return !r.hasChanges && !r.isUnmatched && !r.isOutOfCohort;
       return true;
     });
 
@@ -1443,6 +1567,36 @@ export default function BulkFieldOverwriteModal({
             payload[k] = incVal;
           });
         });
+
+        // Ensure student name is overwritten across all database key variations
+        if (selectedFields['studentName'] && inc['studentName']) {
+          const cleanStudentName = toTitleCase(formatConsistentName(inc['studentName']));
+          payload['studentName'] = cleanStudentName;
+          payload["Student's Name"] = cleanStudentName;
+          payload["Student's Name (as per school records)"] = cleanStudentName;
+          payload['Student Name'] = cleanStudentName;
+          payload['name'] = cleanStudentName;
+        }
+
+        // Ensure father's name is overwritten across all database key variations
+        if (selectedFields['fatherName'] && inc['fatherName']) {
+          const cleanFatherName = toTitleCase(formatConsistentName(inc['fatherName']));
+          payload['fatherName'] = cleanFatherName;
+          payload["Father's Name"] = cleanFatherName;
+          payload["Father's/Guardian's Name (as per school records)"] = cleanFatherName;
+          payload["Father's/Guardian's Name"] = cleanFatherName;
+          payload['Father Name'] = cleanFatherName;
+          payload["Parent's Name"] = cleanFatherName;
+        }
+
+        // Ensure mother's name is overwritten across all database key variations
+        if (selectedFields['motherName'] && inc['motherName']) {
+          const cleanMotherName = toTitleCase(formatConsistentName(inc['motherName']));
+          payload['motherName'] = cleanMotherName;
+          payload["Mother's Name"] = cleanMotherName;
+          payload["Mother's Name (as per school records)"] = cleanMotherName;
+          payload['Mother Name'] = cleanMotherName;
+        }
 
         // End-to-End Bidirectional Synchronize Subject Slots, Composite Strings & Tier Fields
         const hasSubjOverwrite = 
@@ -2245,16 +2399,26 @@ export default function BulkFieldOverwriteModal({
                 <div className="space-y-4 animate-fadeIn">
                   {/* Stats Toolbar */}
                   <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-between flex-wrap gap-2">
-                    <div className="flex items-center gap-2">
-                      <span className="font-black text-xs text-slate-900 dark:text-white">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="font-black text-xs text-slate-900 dark:text-white mr-1">
                         Correlated Preview:
                       </span>
                       <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-blue-100 dark:bg-blue-950 text-blue-800 dark:text-blue-300">
-                        {stats.total} Total Records
+                        {stats.total} File Rows
                       </span>
                       <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300">
                         {stats.changed} Ready for Overwrite
                       </span>
+                      {stats.nameMismatches > 0 && (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800">
+                          ⚠️ {stats.nameMismatches} Name Diff
+                        </span>
+                      )}
+                      {stats.outOfCohort > 0 && (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-purple-100 dark:bg-purple-950 text-purple-800 dark:text-purple-300 border border-purple-300 dark:border-purple-800">
+                          {stats.outOfCohort} Out of Cohort
+                        </span>
+                      )}
                       {stats.unmatched > 0 && (
                         <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-100 dark:bg-rose-950 text-rose-800 dark:text-rose-300">
                           {stats.unmatched} Unmatched
@@ -2267,21 +2431,39 @@ export default function BulkFieldOverwriteModal({
                       <button
                         type="button"
                         onClick={() => setPreviewFilter('changed')}
-                        className={`px-2 py-0.5 rounded cursor-pointer whitespace-nowrap flex-shrink-0 ${previewFilter === 'changed' ? 'bg-white dark:bg-slate-900 text-emerald-700 font-black' : 'text-slate-600'}`}
+                        className={`px-2 py-0.5 rounded cursor-pointer whitespace-nowrap flex-shrink-0 ${previewFilter === 'changed' ? 'bg-white dark:bg-slate-900 text-emerald-700 font-black shadow-2xs' : 'text-slate-600 dark:text-slate-300'}`}
                       >
                         Changes Only ({stats.changed})
                       </button>
+                      {stats.nameMismatches > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setPreviewFilter('mismatches')}
+                          className={`px-2 py-0.5 rounded cursor-pointer whitespace-nowrap flex-shrink-0 ${previewFilter === 'mismatches' ? 'bg-amber-500 text-white font-black shadow-2xs' : 'text-amber-700 dark:text-amber-300'}`}
+                        >
+                          Name Diff ({stats.nameMismatches})
+                        </button>
+                      )}
+                      {stats.outOfCohort > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setPreviewFilter('outOfCohort')}
+                          className={`px-2 py-0.5 rounded cursor-pointer whitespace-nowrap flex-shrink-0 ${previewFilter === 'outOfCohort' ? 'bg-purple-600 text-white font-black shadow-2xs' : 'text-purple-700 dark:text-purple-300'}`}
+                        >
+                          Out of Cohort ({stats.outOfCohort})
+                        </button>
+                      )}
                       <button
                         type="button"
                         onClick={() => setPreviewFilter('all')}
-                        className={`px-2 py-0.5 rounded cursor-pointer whitespace-nowrap flex-shrink-0 ${previewFilter === 'all' ? 'bg-white dark:bg-slate-900 text-blue-700 font-black' : 'text-slate-600'}`}
+                        className={`px-2 py-0.5 rounded cursor-pointer whitespace-nowrap flex-shrink-0 ${previewFilter === 'all' ? 'bg-white dark:bg-slate-900 text-blue-700 font-black shadow-2xs' : 'text-slate-600 dark:text-slate-300'}`}
                       >
                         All ({stats.total})
                       </button>
                       <button
                         type="button"
                         onClick={() => setPreviewFilter('unmatched')}
-                        className={`px-2 py-0.5 rounded cursor-pointer whitespace-nowrap flex-shrink-0 ${previewFilter === 'unmatched' ? 'bg-white dark:bg-slate-900 text-rose-700 font-black' : 'text-slate-600'}`}
+                        className={`px-2 py-0.5 rounded cursor-pointer whitespace-nowrap flex-shrink-0 ${previewFilter === 'unmatched' ? 'bg-white dark:bg-slate-900 text-rose-700 font-black shadow-2xs' : 'text-slate-600 dark:text-slate-300'}`}
                       >
                         Unmatched ({stats.unmatched})
                       </button>
@@ -2379,7 +2561,7 @@ export default function BulkFieldOverwriteModal({
                                 <button
                                   type="button"
                                   onClick={() => handleToggleRow(r.id)}
-                                  disabled={r.isUnmatched}
+                                  disabled={r.isUnmatched || r.isOutOfCohort}
                                   className="cursor-pointer text-emerald-600 disabled:opacity-30"
                                 >
                                   {isSelected ? <CheckSquare size={13} /> : <Square size={13} className="text-slate-400" />}
@@ -2391,11 +2573,30 @@ export default function BulkFieldOverwriteModal({
                               <td className="p-2">
                                 {r.matchedStudent ? (
                                   <div>
-                                    <div className="font-bold text-slate-900 dark:text-white">
-                                      {r.matchedStudent.studentName || r.matchedStudent["Student's Name"]}
+                                    <div className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5 flex-wrap">
+                                      <span>{r.matchedStudent.studentName || r.matchedStudent["Student's Name"]}</span>
+                                      {r.hasNameMismatch && (
+                                        <span className="text-[9px] font-black px-1.5 py-0.2 rounded bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700" title={r.nameMismatchWarning}>
+                                          ⚠️ Name in File: {r.rawName}
+                                        </span>
+                                      )}
+                                      {r.matchedByName && (
+                                        <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-blue-100 dark:bg-blue-950 text-blue-800 dark:text-blue-300 border border-blue-300 dark:border-blue-700">
+                                          Matched by Name
+                                        </span>
+                                      )}
                                     </div>
                                     <div className="text-[10px] text-slate-400">
                                       Class: {r.matchedStudent.selectedClass || r.matchedStudent.Class || '—'} • Form: {r.matchedStudent.formNo || '—'}
+                                    </div>
+                                  </div>
+                                ) : r.isOutOfCohort ? (
+                                  <div>
+                                    <span className="text-purple-600 dark:text-purple-400 font-bold text-[11px] flex items-center gap-1">
+                                      ⚠️ Out of Cohort
+                                    </span>
+                                    <div className="text-[10px] text-slate-400">
+                                      {r.outOfCohortNotice}
                                     </div>
                                   </div>
                                 ) : (
@@ -2620,15 +2821,15 @@ export default function BulkFieldOverwriteModal({
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
                   <h3 className="text-sm font-black text-slate-900 dark:text-white truncate">
-                    {isProcessingRows ? 'Parsing & Correlating Cohort Records' : 'Synchronizing Board Fields into Database'}
+                    {isProcessingRows ? 'Scanning & Correlating Spreadsheet Records' : 'Synchronizing Board Fields into Database'}
                   </h3>
                   <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300">
-                    {isProcessingRows ? 'Live Verification' : 'Batch Mutator'}
+                    {isProcessingRows ? 'Verification Engine' : 'Batch Mutator'}
                   </span>
                 </div>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 truncate">
                   {isProcessingRows 
-                    ? (parsingProgress.stage || 'Cross-referencing registration numbers against master database...') 
+                    ? (parsingProgress.stage || `Verifying against Class ${targetClass} • Session ${targetSession} (${matchingCohortStudents.length} students)...`) 
                     : (progressStage || 'Applying transactional patches to student documents...')}
                 </p>
               </div>
@@ -2647,7 +2848,7 @@ export default function BulkFieldOverwriteModal({
               <div className="flex items-center justify-between text-xs font-bold text-slate-600 dark:text-slate-300">
                 <span className="flex items-center gap-1.5">
                   <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
-                  <span>{isProcessingRows ? 'Processing Records...' : 'Writing Changes...'}</span>
+                  <span>{isProcessingRows ? 'Analyzing Records...' : 'Writing Changes...'}</span>
                 </span>
                 <span className="text-sm font-black text-emerald-600 dark:text-emerald-400 font-mono">
                   {isProcessingRows ? `${parsingProgress.percent}%` : `${progressPercent}%`}
@@ -2664,13 +2865,17 @@ export default function BulkFieldOverwriteModal({
             {/* Real-time Metric Cards */}
             <div className="grid grid-cols-3 gap-2 text-center">
               <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-800">
-                <div className="text-[10px] font-black uppercase text-slate-400">Total</div>
+                <div className="text-[10px] font-black uppercase text-slate-400">
+                  {isProcessingRows ? 'File Rows' : 'Total'}
+                </div>
                 <div className="text-sm font-black text-slate-800 dark:text-slate-100 font-mono">
                   {isProcessingRows ? parsingProgress.total : previewData.filter(r => selectedRowIds.has(r.id)).length}
                 </div>
               </div>
               <div className="p-2.5 rounded-xl bg-emerald-50/50 dark:bg-emerald-950/30 border border-emerald-200/60 dark:border-emerald-800/60">
-                <div className="text-[10px] font-black uppercase text-emerald-700 dark:text-emerald-400">Processed</div>
+                <div className="text-[10px] font-black uppercase text-emerald-700 dark:text-emerald-400">
+                  {isProcessingRows ? 'Scanned' : 'Overwritten'}
+                </div>
                 <div className="text-sm font-black text-emerald-600 dark:text-emerald-400 font-mono">
                   {isProcessingRows ? parsingProgress.current : Math.round((progressPercent / 100) * previewData.filter(r => selectedRowIds.has(r.id)).length)}
                 </div>
