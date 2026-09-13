@@ -213,24 +213,23 @@ export function mergeSiteSettings(parsed = {}) {
   };
 }
 
-export async function loadSiteSettings() {
-  // 1. Check local storage override first (for instant render & offline)
-  const local = localStorage.getItem('site_settings');
-  if (local) {
-    try {
-      const parsed = JSON.parse(local);
-      return mergeSiteSettings(parsed);
-    } catch (e) {
-      console.error('Error parsing site_settings from localStorage', e);
+export function getCachedSiteSettings() {
+  try {
+    const local = localStorage.getItem('site_settings');
+    if (local) {
+      return mergeSiteSettings(JSON.parse(local));
     }
-  }
+  } catch (_) {}
+  return DEFAULT_SETTINGS;
+}
 
-  // 2. Try Firestore next (remote live data) with dynamic import & timeout guard
+export async function loadSiteSettings() {
+  // 1. Primary: Always fetch fresh live settings directly from Firebase Firestore
   try {
     const { db } = await import('../firebase');
     const { doc, getDoc } = await import('firebase/firestore');
     const docPromise = getDoc(doc(db, 'site', 'settings'));
-    const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 2500));
+    const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 4000));
     const snap = await Promise.race([docPromise, timeoutPromise]);
     if (snap && snap.exists()) {
       const merged = mergeSiteSettings(snap.data());
@@ -238,10 +237,20 @@ export async function loadSiteSettings() {
       return merged;
     }
   } catch (e) {
-    console.warn('Firestore settings read failed/timed out, falling back:', e);
+    console.warn('Firestore settings fetch error, checking offline fallbacks:', e);
   }
 
-  // 3. Fetch from server static JSON with cache-busting
+  // 2. Fallback: Local storage cache (only when Firebase is unreachable/offline)
+  try {
+    const local = localStorage.getItem('site_settings');
+    if (local) {
+      return mergeSiteSettings(JSON.parse(local));
+    }
+  } catch (e) {
+    console.warn('Error reading fallback from localStorage:', e);
+  }
+
+  // 3. Fallback: Static settings.json with cache buster
   try {
     const res = await fetch('/slides/settings.json?t=' + Date.now(), { cache: 'no-cache' });
     if (res.ok) {
@@ -251,8 +260,40 @@ export async function loadSiteSettings() {
       return merged;
     }
   } catch (e) {
-    console.warn('Could not load settings.json from server', e);
+    console.warn('Could not load settings.json fallback:', e);
   }
 
   return DEFAULT_SETTINGS;
+}
+
+export function subscribeSiteSettings(callback) {
+  let unsub = () => {};
+  let isMounted = true;
+
+  (async () => {
+    try {
+      const { db } = await import('../firebase');
+      const { doc, onSnapshot } = await import('firebase/firestore');
+      if (!isMounted) return;
+      const settingsRef = doc(db, 'site', 'settings');
+      unsub = onSnapshot(settingsRef, (snap) => {
+        if (snap && snap.exists()) {
+          const merged = mergeSiteSettings(snap.data());
+          try { localStorage.setItem('site_settings', JSON.stringify(merged)); } catch (_) {}
+          callback(merged);
+        }
+      }, (err) => {
+        console.warn('Firestore onSnapshot error, falling back to loadSiteSettings:', err);
+        loadSiteSettings().then((s) => { if (isMounted) callback(s); });
+      });
+    } catch (err) {
+      console.warn('Failed to initialize Firestore subscription, falling back:', err);
+      loadSiteSettings().then((s) => { if (isMounted) callback(s); });
+    }
+  })();
+
+  return () => {
+    isMounted = false;
+    unsub();
+  };
 }
