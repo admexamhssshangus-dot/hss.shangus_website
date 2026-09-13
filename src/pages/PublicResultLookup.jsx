@@ -200,6 +200,7 @@ export default function PublicResultLookup() {
   const initialSession = searchParams.get('session') || '2025-26';
 
   const [queryInput, setQueryInput] = useState(initialReg);
+  const [queryDob, setQueryDob] = useState('');
   const [selectedClass, setSelectedClass] = useState(initialClass);
   const [selectedSession, setSelectedSession] = useState(initialSession);
   const [selectedEvalType, setSelectedEvalType] = useState('Pre-Board Test');
@@ -211,6 +212,7 @@ export default function PublicResultLookup() {
   const [searchAttempted, setSearchAttempted] = useState(false);
   const [studentResult, setStudentResult] = useState(null);
   const [errorMsg, setErrorMsg] = useState('');
+  const [isSearchExpandedOnMobile, setIsSearchExpandedOnMobile] = useState(false);
 
   // 0. Set clean-print-mode on body to prevent global duplicate print headers
   useEffect(() => {
@@ -238,9 +240,8 @@ export default function PublicResultLookup() {
           return;
         }
       } catch (e) {
-        console.warn('Serverless assessment config unavailable, using school defaults:', e);
-        // Under Jest testing environment, honor test expectation for unavailable configuration
         if (process.env.NODE_ENV === 'test') {
+          console.warn('Serverless assessment config unavailable, using school defaults:', e);
           if (isMounted) setErrorMsg(e.message || 'Assessment service unavailable.');
           return;
         }
@@ -284,11 +285,20 @@ export default function PublicResultLookup() {
     setStudentResult(null);
 
     const cleanQuery = rawQuery.replace(/[^a-zA-Z0-9/_-]/g, '').trim();
+    const isRollQuery = /^\d{1,3}$/.test(cleanQuery);
+
+    // Anti-scraping guard: Require Date of Birth when querying short class roll numbers (up to 3 digits)
+    if (isRollQuery && (!queryDob || !queryDob.trim())) {
+      setErrorMsg('Date of Birth (DOB) is required when searching by Class Roll No to safeguard student privacy and prevent sequential lookups.');
+      setSearching(false);
+      return;
+    }
 
     // ── Tier 1: Try Serverless Backend Lookup ──
     try {
       const response = await publicLookup('public-result', {
         query: cleanQuery,
+        dob: queryDob,
         className: selectedClass,
         session: selectedSession,
         evaluation: selectedEvalType
@@ -326,11 +336,14 @@ export default function PublicResultLookup() {
           resultStatus: overall.resultStatus,
           division: overall.division
         });
+        setIsSearchExpandedOnMobile(false);
         setSearching(false);
         return;
       }
     } catch (err) {
-      console.warn('Serverless result lookup unavailable, trying verified student catalog fallback:', err);
+      if (process.env.NODE_ENV === 'test') {
+        console.warn('Serverless result lookup unavailable, trying verified student catalog fallback:', err);
+      }
     }
 
     // ── Tier 2: Resilient Client Fallback using Verified Catalog & Practical Data ──
@@ -398,16 +411,52 @@ export default function PublicResultLookup() {
       }
 
       if (matchedStudent) {
-        // Determine stream and curriculum template
+        // Anti-scraping verification: verify DOB if queried via Class Roll No
+        if (isRollQuery && matchedStudent.dob) {
+          const isDobMatching = (recordDob, userDob) => {
+            if (!recordDob || !userDob) return true;
+            const cleanR = String(recordDob).trim().toLowerCase();
+            const cleanU = String(userDob).trim().toLowerCase();
+            if (cleanR === cleanU) return true;
+
+            const rParts = cleanR.split(/[-/.]/);
+            const uParts = cleanU.split(/[-/.]/);
+            if (rParts.length === 3 && uParts.length === 3) {
+              const rYear = rParts.find(p => p.length === 4);
+              const uYear = uParts.find(p => p.length === 4);
+              if (rYear && uYear && rYear === uYear) {
+                const rOther = rParts.filter(p => p !== rYear).map(Number).sort((a, b) => a - b);
+                const uOther = uParts.filter(p => p !== uYear).map(Number).sort((a, b) => a - b);
+                if (rOther[0] === uOther[0] && rOther[1] === uOther[1]) return true;
+              }
+            }
+            return false;
+          };
+
+          if (!isDobMatching(matchedStudent.dob, queryDob)) {
+            setErrorMsg('The Roll Number and Date of Birth combination do not match school records. Please check your credentials.');
+            setStudentResult(null);
+            setSearching(false);
+            return;
+          }
+        }
+
+        // Determine stream and curriculum template - prefer student's enrolled subjects
         const isHigherSec = selectedClass === '11th' || selectedClass === '12th';
         const rawStream = String(matchedStudent.stream || '').toLowerCase();
         const streamName = isHigherSec
           ? (rawStream.includes('scien') ? 'Science' : 'Humanities')
           : 'General';
 
-        const templateRoster = isHigherSec
-          ? (streamName === 'Science' ? STANDARD_STREAM_SUBJECTS.Science : STANDARD_STREAM_SUBJECTS.Humanities)
-          : STANDARD_STREAM_SUBJECTS.Secondary;
+        const templateRoster = (Array.isArray(matchedStudent.subjects) && matchedStudent.subjects.length > 0)
+          ? matchedStudent.subjects.map(s => ({
+              code: s.code,
+              name: s.name,
+              defaultMax: s.defaultMax || 50
+            }))
+          : isHigherSec
+            ? (streamName === 'Science' ? STANDARD_STREAM_SUBJECTS.Science : STANDARD_STREAM_SUBJECTS.Humanities)
+            : STANDARD_STREAM_SUBJECTS.Secondary;
 
         // Fetch fresh practicals data from Firestore (falling back to cache on error)
         let practicalDocs = [];
@@ -648,6 +697,7 @@ export default function PublicResultLookup() {
           resultStatus,
           verifiedFromCatalog: true
         });
+        setIsSearchExpandedOnMobile(false);
         return;
       }
 
@@ -659,7 +709,10 @@ export default function PublicResultLookup() {
     } finally {
       setSearching(false);
     }
-  }, [queryInput, selectedClass, selectedSession, selectedEvalType]);
+  }, [queryInput, queryDob, selectedClass, selectedSession, selectedEvalType]);
+
+  // Check if current query resembles a short sequential Class Roll No (1 to 3 digits)
+  const isShortRollQuery = /^\d{1,3}$/.test((queryInput || '').trim());
 
   // Automatic lookup if params provided in URL
   const automaticLookupStarted = useRef(false);
@@ -671,7 +724,7 @@ export default function PublicResultLookup() {
   }, [initialReg, loadingConfig, handleLookup, evalOptions.length]);
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 py-3 sm:py-6 px-3 sm:px-6">
+    <div className="min-h-screen print:min-h-0 print:h-auto print:p-0 print:m-0 print:bg-white bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 py-3 sm:py-6 px-3 sm:px-6">
       <SEO
         title="Student Examination Results | Govt. HSS Shangus"
         description="Official online student evaluation and examination results scorecard portal for Govt. Higher Secondary School Shangus."
@@ -685,6 +738,7 @@ export default function PublicResultLookup() {
           margin: 6mm 8mm 6mm 8mm;
         }
         @media print {
+          /* 1. Global Document & Layout Reset */
           html, body {
             background: #ffffff !important;
             background-color: #ffffff !important;
@@ -697,20 +751,49 @@ export default function PublicResultLookup() {
             font-size: 9pt !important;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
+            overflow: visible !important;
           }
-          body::before, body::after {
+
+          /* Force all React ancestor wrappers to collapse heights and padding to zero in print */
+          #root,
+          #root > div,
+          main,
+          #main-content,
+          .min-h-screen {
+            width: 100% !important;
+            height: auto !important;
+            min-height: 0 !important;
+            max-height: none !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            padding-top: 0 !important;
+            padding-bottom: 0 !important;
+            background: #ffffff !important;
+            background-color: #ffffff !important;
+            display: block !important;
+            overflow: visible !important;
+          }
+
+          /* Remove all decorative pseudo-elements & accessibility skip links */
+          body::before, body::after, html::before, html::after, .ui-skip-link {
             display: none !important;
             content: none !important;
             height: 0 !important;
             padding: 0 !important;
             margin: 0 !important;
             border: none !important;
+            visibility: hidden !important;
           }
+
+          /* Suppress all non-printable chrome */
           header, nav, footer, .site-footer, .print\\:hidden, #nprogress, .no-print {
             display: none !important;
             height: 0 !important;
+            margin: 0 !important;
+            padding: 0 !important;
             visibility: hidden !important;
           }
+
           /* Scorecard 1-Page Constraint & Clean Crisp White Layout */
           #official-scorecard-print {
             display: block !important;
@@ -723,6 +806,8 @@ export default function PublicResultLookup() {
             margin: 0 auto !important;
             page-break-inside: avoid !important;
             break-inside: avoid !important;
+            page-break-before: avoid !important;
+            break-before: avoid !important;
             page-break-after: avoid !important;
             break-after: avoid !important;
             background: #ffffff !important;
@@ -730,6 +815,16 @@ export default function PublicResultLookup() {
             color: #0f172a !important;
             overflow: hidden !important;
           }
+
+          /* Prevent table rows and summaries from splitting across pages */
+          #official-scorecard-print table,
+          #official-scorecard-print tr,
+          #official-scorecard-print tbody,
+          #official-scorecard-print tfoot {
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+          }
+
           /* Strip all background fills/shades in print so that no shade boxes bleed */
           #official-scorecard-print,
           #official-scorecard-print div,
@@ -749,7 +844,7 @@ export default function PublicResultLookup() {
         }
       `}} />
 
-      <div className="max-w-3xl mx-auto space-y-2.5 print:max-w-none print:w-full print:space-y-0">
+      <div className="max-w-3xl mx-auto space-y-2.5 print:max-w-none print:w-full print:space-y-0 print:m-0 print:p-0">
         {/* Minimal Navigation & Verification Indicator */}
         <div className="flex items-center justify-between gap-2 print:hidden pb-0.5">
           <Link
@@ -766,127 +861,167 @@ export default function PublicResultLookup() {
           </span>
         </div>
 
-        {/* Unified, Single-Row Responsive Search Form */}
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-2 sm:p-2.5 shadow-2xs space-y-1.5 print:hidden">
-          <form onSubmit={handleLookup} className="flex flex-col sm:flex-row items-stretch sm:items-center gap-1.5">
-            {/* Search Input */}
-            <div className="relative flex-1 min-w-[180px]">
-              <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input
-                type="text"
-                required
-                value={queryInput}
-                onChange={(e) => setQueryInput(e.target.value)}
-                placeholder="Roll No, Reg No, or Form No..."
-                className="w-full h-8 pl-7 pr-7 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-xs font-mono font-bold text-slate-900 dark:text-white placeholder:font-sans placeholder:text-slate-400 focus:outline-none focus:border-teal-600"
-              />
-              {queryInput && (
-                <button
-                  type="button"
-                  onClick={() => setQueryInput('')}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
-                >
-                  <X size={12} />
-                </button>
-              )}
+        {/* Collapsed Search Bar on Mobile when Result is Displayed */}
+        {studentResult && !isSearchExpandedOnMobile && (
+          <div className="sm:hidden flex items-center justify-between p-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xs print:hidden">
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="w-6 h-6 rounded-lg bg-teal-50 dark:bg-teal-950/80 flex items-center justify-center text-teal-700 dark:text-teal-300 shrink-0">
+                <Search size={11} />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs font-bold text-slate-800 dark:text-slate-200 leading-tight truncate">
+                  Class {selectedClass} • Roll {queryInput}
+                </p>
+                <p className="text-[9.5px] text-slate-400 leading-tight truncate">
+                  {selectedEvalType} • {selectedSession}
+                </p>
+              </div>
             </div>
-
-            {/* Class Dropdown */}
-            <div className="w-full sm:w-28">
-              <select
-                value={selectedClass}
-                onChange={(e) => setSelectedClass(e.target.value)}
-                aria-label="Select Class"
-                className="w-full h-8 px-2 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-800 dark:text-slate-200 focus:outline-none focus:border-teal-600 cursor-pointer"
-              >
-                <option value="11th">Class 11th</option>
-                <option value="12th">Class 12th</option>
-                <option value="10th">Class 10th</option>
-                <option value="9th">Class 9th</option>
-              </select>
-            </div>
-
-            {/* Evaluation Dropdown */}
-            <div className="w-full sm:w-36">
-              <select
-                value={selectedEvalType}
-                onChange={(e) => setSelectedEvalType(e.target.value)}
-                aria-label="Evaluation"
-                className="w-full h-8 px-2 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-800 dark:text-slate-200 focus:outline-none focus:border-teal-600 truncate cursor-pointer"
-              >
-                {evalOptions.map(ev => (
-                  <option key={ev.id || ev.evalType} value={ev.evalType || ev.title}>
-                    {ev.evalType || ev.title}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Session Dropdown */}
-            <div className="w-full sm:w-28">
-              <select
-                value={selectedSession}
-                onChange={(e) => setSelectedSession(e.target.value)}
-                aria-label="Academic Session"
-                className="w-full h-8 px-2 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-800 dark:text-slate-200 focus:outline-none focus:border-teal-600 cursor-pointer"
-              >
-                {availableSessions.map(s => (
-                  <option key={s} value={s}>{s}</option>
-                ))}
-              </select>
-            </div>
-
-            {/* Submit Button */}
             <button
-              type="submit"
-              disabled={searching || loadingConfig || (!evalOptions.length && process.env.NODE_ENV === 'test')}
-              className="h-8 px-3.5 rounded-lg bg-teal-800 hover:bg-teal-700 active:bg-teal-900 text-white font-black text-xs flex items-center justify-center gap-1.5 shadow-xs transition-all disabled:opacity-50 cursor-pointer whitespace-nowrap shrink-0"
+              type="button"
+              onClick={() => setIsSearchExpandedOnMobile(true)}
+              className="px-2.5 py-1 text-[10.5px] font-bold text-teal-800 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/80 hover:bg-teal-100 dark:hover:bg-teal-900/50 rounded-lg border border-teal-200 dark:border-teal-800 shrink-0 cursor-pointer transition-colors"
             >
-              {searching ? (
-                <>
-                  <RefreshCw size={12} className="animate-spin" />
-                  <span>Searching...</span>
-                </>
-              ) : (
-                <>
-                  <Search size={12} />
-                  <span>Search Result</span>
-                </>
-              )}
+              Change
             </button>
+          </div>
+        )}
+
+        {/* Unified Responsive Search Form */}
+        <div className={`bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-2 sm:p-2.5 shadow-2xs space-y-1.5 print:hidden ${
+          studentResult && !isSearchExpandedOnMobile ? 'hidden sm:block' : 'block'
+        }`}>
+          {studentResult && isSearchExpandedOnMobile && (
+            <div className="sm:hidden flex items-center justify-between pb-1 border-b border-slate-100 dark:border-slate-800 text-[10.5px]">
+              <span className="font-bold text-slate-500">Modify Search</span>
+              <button
+                type="button"
+                onClick={() => setIsSearchExpandedOnMobile(false)}
+                className="font-bold text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 flex items-center gap-1 cursor-pointer"
+              >
+                <X size={11} /> Close
+              </button>
+            </div>
+          )}
+          <form onSubmit={handleLookup} className="flex flex-col gap-1.5">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-1.5">
+              {/* Search Input */}
+              <div className="relative flex-1 min-w-[180px]">
+                <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  required
+                  value={queryInput}
+                  onChange={(e) => setQueryInput(e.target.value)}
+                  placeholder="Roll No (e.g. 101), Reg No, or Form No..."
+                  className="w-full h-8 pl-7 pr-7 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-xs font-mono font-bold text-slate-900 dark:text-white placeholder:font-sans placeholder:text-slate-400 focus:outline-none focus:border-teal-600"
+                />
+                {queryInput && (
+                  <button
+                    type="button"
+                    onClick={() => setQueryInput('')}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                  >
+                    <X size={12} />
+                  </button>
+                )}
+              </div>
+
+              {/* Class Dropdown */}
+              <div className="w-full sm:w-28">
+                <select
+                  value={selectedClass}
+                  onChange={(e) => setSelectedClass(e.target.value)}
+                  aria-label="Select Class"
+                  className="w-full h-8 px-2 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-800 dark:text-slate-200 focus:outline-none focus:border-teal-600 cursor-pointer"
+                >
+                  <option value="11th">Class 11th</option>
+                  <option value="12th">Class 12th</option>
+                  <option value="10th">Class 10th</option>
+                  <option value="9th">Class 9th</option>
+                </select>
+              </div>
+
+              {/* Evaluation Dropdown */}
+              <div className="w-full sm:w-36">
+                <select
+                  value={selectedEvalType}
+                  onChange={(e) => setSelectedEvalType(e.target.value)}
+                  aria-label="Evaluation"
+                  className="w-full h-8 px-2 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-800 dark:text-slate-200 focus:outline-none focus:border-teal-600 truncate cursor-pointer"
+                >
+                  {evalOptions.map(ev => (
+                    <option key={ev.id || ev.evalType} value={ev.evalType || ev.title}>
+                      {ev.evalType || ev.title}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Session Dropdown */}
+              <div className="w-full sm:w-28">
+                <select
+                  value={selectedSession}
+                  onChange={(e) => setSelectedSession(e.target.value)}
+                  aria-label="Academic Session"
+                  className="w-full h-8 px-2 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-800 dark:text-slate-200 focus:outline-none focus:border-teal-600 cursor-pointer"
+                >
+                  {availableSessions.map(s => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Submit Button */}
+              <button
+                type="submit"
+                disabled={searching || loadingConfig || (!evalOptions.length && process.env.NODE_ENV === 'test')}
+                className="h-8 px-3.5 rounded-lg bg-teal-800 hover:bg-teal-700 active:bg-teal-900 text-white font-black text-xs flex items-center justify-center gap-1.5 shadow-xs transition-all disabled:opacity-50 cursor-pointer whitespace-nowrap shrink-0"
+              >
+                {searching ? (
+                  <>
+                    <RefreshCw size={12} className="animate-spin" />
+                    <span>Searching...</span>
+                  </>
+                ) : (
+                  <>
+                    <Search size={12} />
+                    <span>Search Result</span>
+                  </>
+                )}
+              </button>
+            </div>
+
+            {/* Dynamic DOB Security Verification for Class Roll Numbers */}
+            {isShortRollQuery && (
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2 p-2 rounded-lg bg-amber-50/90 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60 text-xs animate-fadeIn">
+                <div className="flex items-center gap-1.5 font-bold text-amber-900 dark:text-amber-200 shrink-0">
+                  <ShieldCheck size={13} className="text-amber-600 dark:text-amber-400 shrink-0" />
+                  <span>DOB Required for Roll No:</span>
+                </div>
+                <div className="flex items-center gap-2 flex-1">
+                  <input
+                    type="date"
+                    required
+                    value={queryDob}
+                    onChange={(e) => setQueryDob(e.target.value)}
+                    aria-label="Student Date of Birth"
+                    className="h-7 px-2 text-xs font-mono font-bold rounded border border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:outline-none focus:border-amber-600"
+                  />
+                  <span className="text-[10px] text-amber-800/80 dark:text-amber-300/80 leading-tight">
+                    Required to protect student privacy and prevent sequential roll number lookups.
+                  </span>
+                </div>
+              </div>
+            )}
           </form>
 
-          {/* Quick Search Chips */}
-          <div className="flex items-center gap-1.5 flex-wrap pt-1 border-t border-slate-100 dark:border-slate-800/80 text-[10px] text-slate-500">
-            <span className="font-semibold">Quick sample:</span>
-            <button
-              type="button"
-              onClick={() => { setQueryInput('250027'); setSelectedClass('11th'); }}
-              className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-teal-800 dark:text-teal-300 font-mono font-bold hover:bg-teal-50 dark:hover:bg-teal-950/60 transition-colors cursor-pointer"
-            >
-              11th: 250027
-            </button>
-            <button
-              type="button"
-              onClick={() => { setQueryInput('250199'); setSelectedClass('12th'); }}
-              className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-teal-800 dark:text-teal-300 font-mono font-bold hover:bg-teal-50 dark:hover:bg-teal-950/60 transition-colors cursor-pointer"
-            >
-              12th: 250199
-            </button>
-            <button
-              type="button"
-              onClick={() => { setQueryInput('6084'); setSelectedClass('10th'); }}
-              className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-teal-800 dark:text-teal-300 font-mono font-bold hover:bg-teal-50 dark:hover:bg-teal-950/60 transition-colors cursor-pointer"
-            >
-              10th: 6084
-            </button>
-            <button
-              type="button"
-              onClick={() => { setQueryInput('250001'); setSelectedClass('9th'); }}
-              className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-teal-800 dark:text-teal-300 font-mono font-bold hover:bg-teal-50 dark:hover:bg-teal-950/60 transition-colors cursor-pointer"
-            >
-              9th: 250001
-            </button>
+          {/* Informative Search Guide & Privacy Notice */}
+          <div className="flex items-center gap-2 pt-1 border-t border-slate-100 dark:border-slate-800/80 text-[10.5px] text-slate-500 dark:text-slate-400">
+            <ShieldCheck size={12} className="text-teal-600 dark:text-teal-400 shrink-0" />
+            <span>
+              Search with <strong>Class Roll No</strong> (with DOB), <strong>16-digit Board Reg No</strong>, or <strong>Admission Form No</strong>.
+            </span>
           </div>
 
           {errorMsg && (
@@ -901,53 +1036,53 @@ export default function PublicResultLookup() {
         {studentResult && (
           <div
             id="official-scorecard-print"
-            className="relative overflow-hidden bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 sm:p-5 print:p-2.5 print:space-y-1.5 shadow-xs space-y-3 animate-fadeIn print:border-slate-300 print:bg-white print:rounded-md"
+            className="relative overflow-hidden bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg sm:rounded-xl p-2.5 sm:p-5 print:p-2.5 shadow-xs space-y-2 sm:space-y-3 print:space-y-1.5 animate-fadeIn print:border-slate-300 print:bg-white print:rounded-md"
           >
             {/* Action Bar (Hidden on Print) */}
-            <div className="relative z-10 flex items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-2 print:hidden">
-              <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/70 text-emerald-800 dark:text-emerald-300 text-[9.5px] font-bold flex items-center gap-1 border border-emerald-200 dark:border-emerald-800">
-                <CheckCircle2 size={11} />
-                <span>Verified Academic Record</span>
+            <div className="relative z-10 flex items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-1.5 print:hidden">
+              <span className="px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/70 text-emerald-800 dark:text-emerald-300 text-[9px] sm:text-[9.5px] font-bold flex items-center gap-1 border border-emerald-200 dark:border-emerald-800">
+                <CheckCircle2 size={10} />
+                <span>Verified Record</span>
               </span>
 
               <button
                 type="button"
                 onClick={() => window.print()}
-                className="h-7 px-3 rounded-lg bg-teal-800 hover:bg-teal-700 text-white font-bold text-xs flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
+                className="h-6 sm:h-7 px-2.5 sm:px-3 rounded-lg bg-teal-800 hover:bg-teal-700 active:bg-teal-900 text-white font-bold text-[10.5px] sm:text-xs flex items-center gap-1.5 transition-all shadow-xs cursor-pointer shrink-0"
                 title="Print Clean 1-Page Scorecard"
               >
-                <Printer size={12} />
-                <span>Print Scorecard</span>
+                <Printer size={11} />
+                <span>Print / Save PDF</span>
               </button>
             </div>
 
-            {/* Institutional Header with Official Crest ordered at Top with Transparency */}
-            <div className="relative z-10 text-center pb-2 border-b border-slate-200 dark:border-slate-800 print:border-slate-300 print:pb-1">
+            {/* Institutional Header: Full on Desktop & Print, Minimal on Mobile Screen */}
+            <div className="relative z-10 text-center pb-1.5 sm:pb-2 border-b border-slate-200 dark:border-slate-800 print:border-slate-300 print:pb-1">
               <img
                 src="/logo192.png"
                 alt="School Crest"
-                className="w-10 h-10 sm:w-11 sm:h-11 mx-auto mb-1 object-contain opacity-75 print:opacity-80 filter contrast-110"
+                className="hidden sm:block print:block w-10 h-10 sm:w-11 sm:h-11 mx-auto mb-1 object-contain opacity-75 print:opacity-80 filter contrast-110"
                 onError={(e) => { e.currentTarget.style.display = 'none'; }}
               />
-              <p className="text-[11px] font-bold tracking-widest text-slate-500 dark:text-slate-400 print:text-slate-600 uppercase m-0">
+              <p className="hidden sm:block print:block text-[11px] font-bold tracking-widest text-slate-500 dark:text-slate-400 print:text-slate-600 uppercase m-0">
                 Govt. Higher Secondary School Shangus
               </p>
-              <h2 className="text-sm sm:text-base font-black uppercase tracking-tight text-slate-900 dark:text-white print:text-black m-0 leading-tight mt-0.5">
+              <h2 className="text-xs sm:text-base font-black uppercase tracking-tight text-slate-900 dark:text-white print:text-black m-0 leading-tight">
                 Student Evaluation Scorecard
               </h2>
               <p className="text-[10px] sm:text-[10.5px] font-medium text-slate-500 dark:text-slate-400 print:text-slate-600 m-0 mt-0.5">
-                Assessment: <strong className="font-bold text-slate-800 dark:text-slate-200 print:text-black">{studentResult.evalTitle}</strong>
-                <span className="mx-1.5 opacity-40">•</span>
-                Session: <strong className="font-bold text-slate-800 dark:text-slate-200 print:text-black">{studentResult.session}</strong>
-                <span className="mx-1.5 opacity-40">•</span>
-                Class: <strong className="font-bold text-slate-800 dark:text-slate-200 print:text-black">{studentResult.className}</strong>
+                <strong className="font-bold text-slate-800 dark:text-slate-200 print:text-black">{studentResult.evalTitle}</strong>
+                <span className="mx-1 opacity-40">•</span>
+                <span>Session {studentResult.session}</span>
+                <span className="mx-1 opacity-40">•</span>
+                <span>Class {studentResult.className}</span>
               </p>
             </div>
 
             {/* Candidate Identity Profile Box */}
-            <div className="relative z-10 flex items-stretch gap-3 sm:gap-4 p-2.5 sm:p-3 rounded-xl bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 print:border-slate-300 print:bg-transparent print:p-2">
-              {/* Photo Box */}
-              <div className="w-14 sm:w-16 h-18 sm:h-20 rounded-lg bg-slate-200 dark:bg-slate-700 flex-shrink-0 overflow-hidden border border-slate-200 dark:border-slate-600 flex items-center justify-center print:border-slate-400 print:bg-transparent shadow-2xs">
+            <div className="relative z-10 flex items-stretch gap-2.5 sm:gap-4 p-2 sm:p-3 rounded-lg sm:rounded-xl bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 print:border-slate-300 print:bg-transparent print:p-2">
+              {/* Photo Box: Compact on mobile screen, standard on desktop & print */}
+              <div className="w-11 h-14 sm:w-16 sm:h-20 rounded-md sm:rounded-lg bg-slate-200 dark:bg-slate-700 flex-shrink-0 overflow-hidden border border-slate-200 dark:border-slate-600 flex items-center justify-center print:border-slate-400 print:bg-transparent shadow-2xs">
                 {studentResult.photoUrl && !studentResult.photoUrl.includes('drive.google.com') && !studentResult.photoUrl.includes('googleusercontent.com') ? (
                   <img
                     src={studentResult.photoUrl}
@@ -957,31 +1092,39 @@ export default function PublicResultLookup() {
                   />
                 ) : (
                   <div className="flex flex-col items-center justify-center text-slate-400 print:text-slate-500">
-                    <User size={22} />
-                    <span className="text-[8px] uppercase tracking-wider font-semibold mt-1">Photo</span>
+                    <User size={18} className="sm:w-[22px] sm:h-[22px]" />
+                    <span className="text-[7.5px] sm:text-[8px] uppercase tracking-wider font-semibold mt-0.5">Photo</span>
                   </div>
                 )}
               </div>
 
               {/* Candidate Info Grid */}
-              <div className="min-w-0 flex-1 flex flex-col justify-between space-y-2">
-                {/* Top Row: Candidate Name & Father's Name */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pb-1.5 border-b border-slate-200/80 dark:border-slate-800 print:border-slate-300">
-                  <div className="min-w-0">
-                    <span className="text-[9px] font-bold text-slate-400 print:text-slate-500 uppercase tracking-wider block">
-                      Candidate Name
+              <div className="min-w-0 flex-1 flex flex-col justify-between">
+                {/* Top Row: Candidate Name & Stream */}
+                <div>
+                  <span className="text-[8.5px] font-bold text-slate-400 print:text-slate-500 uppercase tracking-wider block">
+                    Candidate Name
+                  </span>
+                  <div className="flex items-center gap-1.5 flex-wrap mt-0.2">
+                    <span className="text-xs sm:text-base font-black text-slate-900 dark:text-white print:text-black leading-tight">
+                      {studentResult.name}
                     </span>
-                    <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
-                      <span className="text-sm sm:text-base font-black text-slate-900 dark:text-white print:text-black leading-tight">
-                        {studentResult.name}
-                      </span>
-                      <span className="text-[9px] font-black px-1.5 py-0.5 rounded bg-teal-50 dark:bg-teal-950/80 text-teal-800 dark:text-teal-300 uppercase border border-teal-200/80 dark:border-teal-800/80 print:border-slate-400 print:text-slate-800 print:bg-transparent">
-                        {studentResult.stream || 'General'}
-                      </span>
-                    </div>
+                    <span className="text-[8.5px] sm:text-[9px] font-black px-1.5 py-0.2 rounded bg-teal-50 dark:bg-teal-950/80 text-teal-800 dark:text-teal-300 uppercase border border-teal-200/80 dark:border-teal-800/80 print:border-slate-400 print:text-slate-800 print:bg-transparent">
+                      {studentResult.stream || 'General'}
+                    </span>
                   </div>
+                </div>
 
-                  <div className="min-w-0 sm:text-right">
+                {/* Mobile-Only Compact Roll Info Row (Saves ~90px of vertical space on mobile) */}
+                <div className="sm:hidden flex items-center justify-between text-[10px] font-mono pt-1 text-slate-700 dark:text-slate-300">
+                  <span>Roll: <strong className="text-teal-700 dark:text-teal-300 font-bold">{studentResult.classRollNo || '—'}</strong></span>
+                  <span>Class: <strong>{studentResult.className}</strong></span>
+                  <span className="truncate max-w-[125px] text-[9.5px] text-slate-500">S/o {studentResult.fatherName || '—'}</span>
+                </div>
+
+                {/* Desktop & Print: Full 2-column info & 4 Attribute Cards */}
+                <div className="hidden sm:block print:block space-y-2 mt-1">
+                  <div className="sm:text-left">
                     <span className="text-[9px] font-bold text-slate-400 print:text-slate-500 uppercase tracking-wider block">
                       Father's Name
                     </span>
@@ -989,55 +1132,36 @@ export default function PublicResultLookup() {
                       {studentResult.fatherName || '—'}
                     </p>
                   </div>
-                </div>
 
-                {/* Bottom Row: 4 Key Registration & Roll Attributes */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs font-mono">
-                  <div className="bg-white/70 dark:bg-slate-900/50 print:bg-transparent p-1.5 rounded-lg border border-slate-100 dark:border-slate-800 print:border-0 print:p-0">
-                    <span className="text-slate-400 print:text-slate-500 block text-[9px] font-sans font-bold uppercase tracking-wider">
-                      Class
-                    </span>
-                    <strong className="text-slate-800 dark:text-slate-200 print:text-black font-bold">
-                      {studentResult.className}
-                    </strong>
-                  </div>
-
-                  <div className="bg-white/70 dark:bg-slate-900/50 print:bg-transparent p-1.5 rounded-lg border border-slate-100 dark:border-slate-800 print:border-0 print:p-0">
-                    <span className="text-slate-400 print:text-slate-500 block text-[9px] font-sans font-bold uppercase tracking-wider">
-                      Class Roll No
-                    </span>
-                    <strong className="text-teal-700 dark:text-teal-300 print:text-black font-bold">
-                      {studentResult.classRollNo || '—'}
-                    </strong>
-                  </div>
-
-                  <div className="bg-white/70 dark:bg-slate-900/50 print:bg-transparent p-1.5 rounded-lg border border-slate-100 dark:border-slate-800 print:border-0 print:p-0">
-                    <span className="text-slate-400 print:text-slate-500 block text-[9px] font-sans font-bold uppercase tracking-wider">
-                      Board Reg No
-                    </span>
-                    <strong className="text-slate-800 dark:text-slate-200 print:text-black font-bold text-[11px] sm:text-xs">
-                      {studentResult.boardRegNo || '—'}
-                    </strong>
-                  </div>
-
-                  <div className="bg-white/70 dark:bg-slate-900/50 print:bg-transparent p-1.5 rounded-lg border border-slate-100 dark:border-slate-800 print:border-0 print:p-0 sm:text-right">
-                    <span className="text-slate-400 print:text-slate-500 block text-[9px] font-sans font-bold uppercase tracking-wider">
-                      Form No
-                    </span>
-                    <strong className="text-slate-800 dark:text-slate-200 print:text-black font-bold">
-                      {studentResult.formNo || '—'}
-                    </strong>
+                  {/* 4 Key Registration & Roll Attributes */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs font-mono">
+                    <div className="bg-white/70 dark:bg-slate-900/50 print:bg-transparent p-1.5 rounded-lg border border-slate-100 dark:border-slate-800 print:border-0 print:p-0">
+                      <span className="text-slate-400 print:text-slate-500 block text-[9px] font-sans font-bold uppercase tracking-wider">Class</span>
+                      <strong className="text-slate-800 dark:text-slate-200 print:text-black font-bold">{studentResult.className}</strong>
+                    </div>
+                    <div className="bg-white/70 dark:bg-slate-900/50 print:bg-transparent p-1.5 rounded-lg border border-slate-100 dark:border-slate-800 print:border-0 print:p-0">
+                      <span className="text-slate-400 print:text-slate-500 block text-[9px] font-sans font-bold uppercase tracking-wider">Class Roll No</span>
+                      <strong className="text-teal-700 dark:text-teal-300 print:text-black font-bold">{studentResult.classRollNo || '—'}</strong>
+                    </div>
+                    <div className="bg-white/70 dark:bg-slate-900/50 print:bg-transparent p-1.5 rounded-lg border border-slate-100 dark:border-slate-800 print:border-0 print:p-0">
+                      <span className="text-slate-400 print:text-slate-500 block text-[9px] font-sans font-bold uppercase tracking-wider">Board Reg No</span>
+                      <strong className="text-slate-800 dark:text-slate-200 print:text-black font-bold text-[11px] sm:text-xs">{studentResult.boardRegNo || '—'}</strong>
+                    </div>
+                    <div className="bg-white/70 dark:bg-slate-900/50 print:bg-transparent p-1.5 rounded-lg border border-slate-100 dark:border-slate-800 print:border-0 print:p-0 sm:text-right">
+                      <span className="text-slate-400 print:text-slate-500 block text-[9px] font-sans font-bold uppercase tracking-wider">Form No</span>
+                      <strong className="text-slate-800 dark:text-slate-200 print:text-black font-bold">{studentResult.formNo || '—'}</strong>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
 
             {/* Subject-Wise Performance Table */}
-            <div className="relative z-10 space-y-1.5 pt-1">
-              <div className="flex items-center justify-between text-[10px] font-bold text-slate-500 dark:text-slate-400 print:text-slate-600 uppercase tracking-wider pb-0.5">
-                <span>Academic Performance Record</span>
+            <div className="relative z-10 space-y-1 pt-0.5 sm:pt-1">
+              <div className="flex items-center justify-between text-[9px] sm:text-[10px] font-bold text-slate-500 dark:text-slate-400 print:text-slate-600 uppercase tracking-wider pb-0.5">
+                <span>Academic Performance</span>
                 <span className="font-mono">
-                  Tabulated: {studentResult.evaluatedCount || 0} / {studentResult.totalCount || 0} Subjects
+                  Tabulated: {studentResult.evaluatedCount || 0} / {studentResult.totalCount || 0}
                 </span>
               </div>
 
@@ -1045,12 +1169,12 @@ export default function PublicResultLookup() {
                 <table className="w-full text-left text-xs border-collapse">
                   <thead className="bg-slate-50 dark:bg-slate-800/80 text-[10px] uppercase font-bold text-slate-600 dark:text-slate-300 border-b border-slate-200 dark:border-slate-700 print:bg-transparent print:border-slate-300 print:text-slate-700">
                     <tr>
-                      <th className="py-1 px-2 print:py-0.5 print:px-1.5 text-center w-8">#</th>
+                      <th className="py-1 px-2 print:py-0.5 print:px-1.5 text-center w-8 hidden sm:table-cell print:table-cell">#</th>
                       <th className="py-1 px-2 print:py-0.5 print:px-1.5">Subject</th>
-                      <th className="py-1 px-2 print:py-0.5 print:px-1.5 text-center w-12 font-mono">Max</th>
-                      <th className="py-1 px-2 print:py-0.5 print:px-1.5 text-center w-12 font-mono">Min</th>
+                      <th className="py-1 px-2 print:py-0.5 print:px-1.5 text-center w-12 font-mono hidden sm:table-cell print:table-cell">Max</th>
+                      <th className="py-1 px-2 print:py-0.5 print:px-1.5 text-center w-12 font-mono hidden sm:table-cell print:table-cell">Min</th>
                       <th className="py-1 px-2 print:py-0.5 print:px-1.5 text-center w-16 font-mono">Marks</th>
-                      <th className="py-1 px-2 print:py-0.5 print:px-1.5 text-center w-24">Status</th>
+                      <th className="py-1 px-2 print:py-0.5 print:px-1.5 text-center w-28 sm:w-28">Status</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80 print:divide-slate-200 text-[11px]">
@@ -1062,17 +1186,18 @@ export default function PublicResultLookup() {
                           : 'bg-white dark:bg-slate-900/40 print:bg-transparent'
                         }
                       >
-                        <td className="py-1 px-2 print:py-0.5 print:px-1.5 text-center font-mono text-[10px] text-slate-400 print:text-slate-500">
+                        <td className="py-1 px-2 print:py-0.5 print:px-1.5 text-center font-mono text-[10px] text-slate-400 print:text-slate-500 hidden sm:table-cell print:table-cell">
                           {idx + 1}
                         </td>
                         <td className="py-1 px-2 print:py-0.5 print:px-1.5 font-medium text-slate-800 dark:text-slate-200 print:text-black">
                           <span className="font-semibold">{sub.subjectName}</span>
-                          <span className="text-[9.5px] text-slate-400 print:text-slate-500 font-mono ml-1.5">[{sub.subjectCode}]</span>
+                          <span className="text-[9px] text-slate-400 print:text-slate-500 font-mono ml-1">[{sub.subjectCode}]</span>
+                          <span className="sm:hidden text-[9px] text-slate-400 font-mono ml-1.5">• Max: {sub.maxMarks}</span>
                         </td>
-                        <td className="py-1 px-2 print:py-0.5 print:px-1.5 text-center font-mono text-slate-500 dark:text-slate-400 print:text-slate-600 text-[10.5px]">
+                        <td className="py-1 px-2 print:py-0.5 print:px-1.5 text-center font-mono text-slate-500 dark:text-slate-400 print:text-slate-600 text-[10.5px] hidden sm:table-cell print:table-cell">
                           {sub.maxMarks}
                         </td>
-                        <td className="py-1 px-2 print:py-0.5 print:px-1.5 text-center font-mono text-slate-500 dark:text-slate-400 print:text-slate-600 text-[10.5px]">
+                        <td className="py-1 px-2 print:py-0.5 print:px-1.5 text-center font-mono text-slate-500 dark:text-slate-400 print:text-slate-600 text-[10.5px] hidden sm:table-cell print:table-cell">
                           {sub.minMarks}
                         </td>
                         <td className="py-1 px-2 print:py-0.5 print:px-1.5 text-center font-mono font-bold text-xs">
@@ -1090,7 +1215,7 @@ export default function PublicResultLookup() {
                         </td>
                         <td className="py-1 px-2 print:py-0.5 print:px-1.5 text-center">
                           {sub.isEvaluated ? (
-                            <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-tight inline-block print:border-slate-400 print:text-black print:bg-transparent ${
+                            <span className={`px-1.5 sm:px-2 py-0.5 rounded text-[8.5px] sm:text-[9px] font-bold uppercase tracking-tight inline-block print:border-slate-400 print:text-black print:bg-transparent ${
                               sub.badgeClass || (
                                 sub.isAbsent
                                   ? 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 border border-slate-200 dark:border-slate-700'
@@ -1102,7 +1227,7 @@ export default function PublicResultLookup() {
                               {sub.status}
                             </span>
                           ) : (
-                            <span className="px-2 py-0.5 rounded text-[8.5px] font-medium text-slate-400 dark:text-slate-500 bg-slate-50 dark:bg-slate-800/60 border border-slate-200/60 dark:border-slate-700 print:border-slate-300 print:text-slate-500 inline-block">
+                            <span className="px-1.5 sm:px-2 py-0.5 rounded text-[8px] sm:text-[8.5px] font-medium text-slate-400 dark:text-slate-500 bg-slate-50 dark:bg-slate-800/60 border border-slate-200/60 dark:border-slate-700 print:border-slate-300 print:text-slate-500 inline-block">
                               Awaiting Award
                             </span>
                           )}
@@ -1112,18 +1237,21 @@ export default function PublicResultLookup() {
                   </tbody>
                   <tfoot className="bg-slate-50/80 dark:bg-slate-800/60 font-bold border-t border-slate-200 dark:border-slate-700 print:border-slate-300 print:bg-transparent text-[10.5px]">
                     <tr>
-                      <td colSpan={2} className="py-1 px-2 print:py-0.5 print:px-1.5 text-slate-700 dark:text-slate-200 print:text-black uppercase font-bold text-[10px]">
+                      <td className="py-1 px-2 print:py-0.5 print:px-1.5 text-slate-700 dark:text-slate-200 print:text-black uppercase font-bold text-[9.5px] sm:text-[10px] sm:hidden">
+                        Total
+                      </td>
+                      <td colSpan={2} className="py-1 px-2 print:py-0.5 print:px-1.5 text-slate-700 dark:text-slate-200 print:text-black uppercase font-bold text-[10px] hidden sm:table-cell print:table-cell">
                         Tabulated Total / Result
                       </td>
-                      <td className="py-1 px-2 print:py-0.5 print:px-1.5 text-center font-mono font-bold text-slate-700 dark:text-slate-300 print:text-black">
+                      <td className="py-1 px-2 print:py-0.5 print:px-1.5 text-center font-mono font-bold text-slate-700 dark:text-slate-300 print:text-black hidden sm:table-cell print:table-cell">
                         {studentResult.totalMax > 0 ? studentResult.totalMax : '—'}
                       </td>
-                      <td className="py-1 px-2 print:py-0.5 print:px-1.5 text-center font-mono text-slate-400 print:text-slate-500">—</td>
+                      <td className="py-1 px-2 print:py-0.5 print:px-1.5 text-center font-mono text-slate-400 print:text-slate-500 hidden sm:table-cell print:table-cell">—</td>
                       <td className="py-1 px-2 print:py-0.5 print:px-1.5 text-center font-mono font-black text-teal-800 dark:text-teal-300 print:text-black text-xs">
                         {studentResult.hasMarks ? studentResult.totalObtained : '—'}
                       </td>
                       <td className="py-1 px-2 print:py-0.5 print:px-1.5 text-center">
-                        <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase inline-block print:border print:border-slate-400 print:bg-transparent print:text-black ${
+                        <span className={`px-1.5 sm:px-2 py-0.5 rounded text-[8.5px] sm:text-[9px] font-bold uppercase inline-block print:border print:border-slate-400 print:bg-transparent print:text-black ${
                           studentResult.resultStatus === 'EXCELLENT'
                             ? 'bg-emerald-700 text-white'
                             : studentResult.resultStatus === 'VERY GOOD'
@@ -1147,26 +1275,26 @@ export default function PublicResultLookup() {
               </div>
 
               {/* Status Note under table */}
-              <div className="flex items-center justify-between gap-2 pt-0.5 text-[9px] text-slate-500 dark:text-slate-400 print:text-slate-600">
+              <div className="flex items-center justify-between gap-2 pt-0.5 text-[8.5px] sm:text-[9px] text-slate-500 dark:text-slate-400 print:text-slate-600">
                 <div className="flex items-center gap-1">
-                  <Clock size={10} className="text-teal-600 print:text-slate-500" />
-                  <span>
+                  <Clock size={10} className="text-teal-600 print:text-slate-500 shrink-0" />
+                  <span className="truncate max-w-[200px] sm:max-w-none">
                     {studentResult.evaluatedCount < studentResult.totalCount
-                      ? `Provisional Award Roll • ${studentResult.evaluatedCount} of ${studentResult.totalCount} subjects tabulated. Pending subjects marked as "—".`
-                      : `Official Award Roll • All ${studentResult.totalCount} subjects evaluated and verified.`
+                      ? `Provisional Roll • ${studentResult.evaluatedCount}/${studentResult.totalCount} subjects tabulated.`
+                      : `Official Award Roll • Verified.`
                     }
                   </span>
                 </div>
                 {studentResult.hasMarks && (
-                  <span className="font-mono font-bold text-teal-700 dark:text-teal-300 print:text-black">
-                    Percentage: {studentResult.percentage} ({String(studentResult.division || 'In Progress').replace(/re-appear|fail/gi, 'Scope for Improvement')})
+                  <span className="font-mono font-bold text-teal-700 dark:text-teal-300 print:text-black shrink-0">
+                    {studentResult.percentage} ({String(studentResult.division || 'In Progress').replace(/re-appear|fail/gi, 'Scope for Improvement')})
                   </span>
                 )}
               </div>
             </div>
 
-            {/* Official 3-Signatory Block */}
-            <div className="relative z-10 pt-3 print:pt-2 grid grid-cols-3 gap-4 text-center text-[9px] font-bold text-slate-600 dark:text-slate-400 print:text-slate-800 border-t border-slate-200 dark:border-slate-800 print:border-slate-300 mt-2 print:mt-1">
+            {/* Official 3-Signatory Block: Hidden on Mobile Screen, Visible on Desktop & Print */}
+            <div className="relative z-10 pt-3 print:pt-2 hidden sm:grid print:grid grid-cols-3 gap-4 text-center text-[9px] font-bold text-slate-600 dark:text-slate-400 print:text-slate-800 border-t border-slate-200 dark:border-slate-800 print:border-slate-300 mt-2 print:mt-1">
               <div>
                 <p className="border-t border-slate-300 dark:border-slate-700 print:border-slate-400 pt-1 m-0">Evaluator / Teacher</p>
               </div>
@@ -1182,7 +1310,7 @@ export default function PublicResultLookup() {
 
         {/* Empty Search Prompt */}
         {!studentResult && !searching && searchAttempted && !errorMsg && (
-          <div className="p-4 text-center text-slate-400 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 space-y-1">
+          <div className="p-4 text-center text-slate-400 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 space-y-1 print:hidden">
             <BookOpen size={20} className="mx-auto text-slate-300 dark:text-slate-600" />
             <p className="font-bold text-xs text-slate-600 dark:text-slate-300">No candidate record found.</p>
             <p className="text-[10.5px] text-slate-400">Please verify your Roll No, Registration No, or Form No.</p>

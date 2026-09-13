@@ -56,3 +56,23 @@ test('overall result descriptor handles partial evaluation as In Progress withou
   expect(completeFail.resultStatus).not.toBe('FAIL');
 });
 
+test('verified student catalog stores exact registered subjects and DOB for students', () => {
+  const verifiedCatalog = require('../data/verifiedStudentsCatalog.json');
+  const sujan = verifiedCatalog.find(s => s.fNo === '250574');
+  expect(sujan).toBeDefined();
+  expect(sujan.name).toBe('Sujan Ahmad Bhat');
+  expect(sujan.className).toBe('11th');
+  expect(sujan.classRollNo).toBe('183');
+  expect(sujan.dob).toBe('2010-03-08');
+  expect(Array.isArray(sujan.subjects)).toBe(true);
+  expect(sujan.subjects.length).toBe(5);
+  const codes = sujan.subjects.map(s => s.code);
+  expect(codes).toContain('EN');
+  expect(codes).toContain('ED');
+  expect(codes).toContain('HT');
+  expect(codes).toContain('PS');
+  expect(codes).toContain('ITE');
+  expect(codes).not.toContain('UR'); // Did not take Urdu
+  expect(codes).not.toContain('ES'); // Did not take EVS
+});
+

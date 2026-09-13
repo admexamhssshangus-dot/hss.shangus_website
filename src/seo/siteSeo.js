@@ -79,11 +79,20 @@ const PUBLIC_PAGES = {
     description: 'Read the HSS Shangus fee refund and cancellation policy, including guidance on duplicate payments and contacting the school for assistance.',
     paragraphs: ['The refund and cancellation policy explains when and how refunds are issued for online school fee payments. Enable JavaScript to read the complete policy, or contact the school office for assistance.'],
     links: ['/terms-and-conditions', '/contact']
+  },
+  '/results': {
+    label: 'Results Portal', title: `Examination Results & Scorecards | ${SITE_NAME}`, heading: 'Student Examination Results Portal',
+    description: 'Search and verify student examination results, academic scorecards, and performance evaluation records at Govt. Higher Secondary School Shangus.',
+    paragraphs: [
+      'Govt. Higher Secondary School Shangus provides an online examination result lookup service for students, parents, and academic evaluators.',
+      'Enter candidate details to access comprehensive marks cards, subject-wise performance descriptors, and verified academic scorecards for secondary and higher secondary sessions.'
+    ], links: ['/admissions', '/notices', '/academics', '/contact']
   }
 };
 const ALIASES = {
   '/contact-us': '/contact', '/terms': '/terms-and-conditions',
-  '/refund-and-cancellation-policy': '/refund-policy', '/verify': '/verify-student'
+  '/refund-and-cancellation-policy': '/refund-policy', '/verify': '/verify-student',
+  '/preboard-results': '/results'
 };
 const NAVIGATION = ['/', '/about', '/academics', '/admissions', '/notices', '/login', '/contact'];
 const INDEX_ROBOTS = 'index, follow, max-image-preview:large';
@@ -119,7 +128,13 @@ function getStructuredData(seo) {
         '@type': 'PostalAddress', streetAddress: 'Main Road, Shangus',
         addressLocality: 'Shangus, Anantnag', addressRegion: 'Jammu and Kashmir',
         postalCode: '192201', addressCountry: 'IN'
-      }
+      },
+      geo: {
+        '@type': 'GeoCoordinates',
+        latitude: 33.6992,
+        longitude: 75.2891
+      },
+      hasMap: 'https://maps.google.com/?q=Govt+Higher+Secondary+School+Shangus'
     },
     {
       '@type': 'WebSite', '@id': `${SITE_ORIGIN}/#website`, name: SITE_NAME,
