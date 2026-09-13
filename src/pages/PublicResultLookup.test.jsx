@@ -156,6 +156,11 @@ describe('Score Normalization and Flexible Biology Display', () => {
     expect(scaled100.normalizedMarks).toBe(35);
     expect(scaled100.rawScore).toBe('70/100');
 
+    // 28 out of 35 -> 40 out of 50
+    const scaled35 = normalizeMarksToScale(28, 35, 50);
+    expect(scaled35.normalizedMarks).toBe(40);
+    expect(scaled35.rawScore).toBe('28/35');
+
     // 45 out of 50 -> remains 45 normalized, rawScore is '45/50'
     const scaled50 = normalizeMarksToScale(45, 50, 50);
     expect(scaled50.normalizedMarks).toBe(45);

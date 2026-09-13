@@ -740,7 +740,7 @@ export default function SchoolAssessmentsHub({ allStudents = [], onSwitchToGazet
                 <div className="text-[10px] text-teal-800 dark:text-teal-300/90 bg-white/70 dark:bg-slate-900/60 p-2 rounded-lg border border-teal-200/60 dark:border-teal-800/40 flex items-start gap-1.5 leading-snug">
                   <Sparkles size={13} className="text-amber-500 flex-shrink-0 mt-0.5" />
                   <span>
-                    <strong>Auto-Score Normalization:</strong> Teachers can set exam papers of any scale (e.g. 20, 25, 30, 40, 70, 100). On student scorecards and public result lookup, all subjects will be automatically normalized to <strong>50 Max Marks (Passing: 18/50)</strong>.
+                    <strong>Auto-Score Normalization:</strong> Teachers can set exam papers of any scale (e.g. 20, 25, 30, 35, 40, 50, 70, 100). On student scorecards and public result lookup, all subjects will be automatically normalized to <strong>50 Max Marks (Passing: 18/50)</strong>.
                   </span>
                 </div>
               </div>
