@@ -15,7 +15,7 @@ import {
   ArrowRight, Sparkles, RefreshCw, Eye, EyeOff, Plus, Trash2,
   ChevronDown, ChevronUp, Database, Sliders, Download, Search,
   Phone, Landmark, Layers, Check, Terminal, ExternalLink, RotateCcw,
-  Minimize2, Maximize2, Lock
+  Minimize2, Maximize2, Lock, BookmarkCheck, Save
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { db } from '../../services/firebase';
@@ -272,8 +272,24 @@ export default function BulkFieldOverwriteModal({
   const [customFields, setCustomFields] = useState([]);
   const [customFieldInput, setCustomFieldInput] = useState('');
 
-  // Selected fields to overwrite
+  // Selected fields to overwrite (defaults loaded from admin custom saved settings or system standard)
   const [selectedFields, setSelectedFields] = useState(() => {
+    try {
+      const saved = localStorage.getItem('hss_bulk_overwrite_default_fields_v1');
+      if (saved) {
+        const parsedKeys = JSON.parse(saved);
+        if (Array.isArray(parsedKeys) && parsedKeys.length > 0) {
+          const customMap = {};
+          parsedKeys.forEach(k => { customMap[k] = true; });
+          return customMap;
+        } else if (typeof parsedKeys === 'object' && parsedKeys !== null && Object.keys(parsedKeys).length > 0) {
+          return parsedKeys;
+        }
+      }
+    } catch (err) {
+      console.warn('Failed to load custom default fields:', err);
+    }
+
     const initial = {};
     STANDARD_DB_CATEGORIES.forEach(cat => {
       cat.fields.forEach(f => {
@@ -281,6 +297,15 @@ export default function BulkFieldOverwriteModal({
       });
     });
     return initial;
+  });
+
+  // Track whether admin has saved custom default columns
+  const [hasCustomDefaults, setHasCustomDefaults] = useState(() => {
+    try {
+      return Boolean(localStorage.getItem('hss_bulk_overwrite_default_fields_v1'));
+    } catch (_) {
+      return false;
+    }
   });
 
   // Raw file & parsed data
@@ -734,7 +759,18 @@ export default function BulkFieldOverwriteModal({
   const handleSelectPreset = (presetType) => {
     const next = {};
     allFieldDefinitions.forEach(f => {
-      if (presetType === 'board_bio') {
+      if (presetType === 'my_defaults') {
+        try {
+          const saved = localStorage.getItem('hss_bulk_overwrite_default_fields_v1');
+          if (saved) {
+            const parsed = JSON.parse(saved);
+            const activeList = Array.isArray(parsed) ? parsed : Object.keys(parsed).filter(k => parsed[k]);
+            next[f.key] = activeList.includes(f.key);
+            return;
+          }
+        } catch (_) {}
+        next[f.key] = Boolean(f.defaultChecked);
+      } else if (presetType === 'board_bio') {
         const bioKeys = ['studentName', 'fatherName', 'motherName', 'dob', 'gender', 'stream', 'subjects'];
         next[f.key] = bioKeys.includes(f.key);
       } else if (presetType === 'exam_results') {
@@ -750,6 +786,37 @@ export default function BulkFieldOverwriteModal({
       }
     });
     setSelectedFields(next);
+  };
+
+  // Save current active column selections as user's persistent default
+  const handleSaveAsDefault = () => {
+    try {
+      const activeKeys = Object.keys(selectedFields).filter(k => selectedFields[k]);
+      localStorage.setItem('hss_bulk_overwrite_default_fields_v1', JSON.stringify(activeKeys));
+      setHasCustomDefaults(true);
+      showToast(`Saved ${activeKeys.length} column(s) as your default selection!`, 'success');
+    } catch (err) {
+      console.error('Failed to save default columns:', err);
+      showToast('Failed to save default columns to browser storage.', 'error');
+    }
+  };
+
+  // Reset default columns back to system factory defaults
+  const handleResetToSystemDefaults = () => {
+    try {
+      localStorage.removeItem('hss_bulk_overwrite_default_fields_v1');
+      setHasCustomDefaults(false);
+      const systemDefaults = {};
+      STANDARD_DB_CATEGORIES.forEach(cat => {
+        cat.fields.forEach(f => {
+          systemDefaults[f.key] = Boolean(f.defaultChecked);
+        });
+      });
+      setSelectedFields(systemDefaults);
+      showToast('Reset columns back to standard system defaults.', 'info');
+    } catch (err) {
+      console.error('Failed to reset default columns:', err);
+    }
   };
 
   // Add custom database field
@@ -1858,6 +1925,17 @@ export default function BulkFieldOverwriteModal({
                       <div className="flex items-center gap-1.5 flex-wrap">
                         {/* Quick Presets */}
                         <div className="flex items-center gap-0.5 bg-slate-100 dark:bg-slate-800 p-0.5 rounded-md text-[10px] font-bold">
+                          {hasCustomDefaults && (
+                            <button
+                              type="button"
+                              onClick={() => handleSelectPreset('my_defaults')}
+                              className="px-2 py-0.5 rounded hover:bg-white dark:hover:bg-slate-700 text-emerald-700 dark:text-emerald-300 cursor-pointer font-black flex items-center gap-1"
+                              title="Restore your saved default column selection"
+                            >
+                              <BookmarkCheck size={11} />
+                              <span>My Defaults</span>
+                            </button>
+                          )}
                           <button
                             type="button"
                             onClick={() => handleSelectPreset('exam_results')}
@@ -1894,6 +1972,31 @@ export default function BulkFieldOverwriteModal({
                           >
                             Clear
                           </button>
+                        </div>
+
+                        {/* Save as Default Action */}
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={handleSaveAsDefault}
+                            className="px-2 py-0.5 rounded-md bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/80 dark:hover:bg-emerald-900 border border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 text-[10px] font-bold flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
+                            title="Save current checked columns as your default selection for future sessions"
+                          >
+                            <BookmarkCheck size={11} />
+                            <span>Save as Default</span>
+                          </button>
+
+                          {hasCustomDefaults && (
+                            <button
+                              type="button"
+                              onClick={handleResetToSystemDefaults}
+                              className="px-1.5 py-0.5 rounded-md bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 text-[10px] font-bold flex items-center gap-0.5 cursor-pointer transition-colors"
+                              title="Reset back to factory system default columns"
+                            >
+                              <RotateCcw size={10} />
+                              <span>Reset</span>
+                            </button>
+                          )}
                         </div>
 
                         {/* Toggle Detailed Matrix */}
