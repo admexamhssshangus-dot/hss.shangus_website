@@ -558,6 +558,49 @@ export default function PublicResultLookup() {
             return false;
           });
         }
+
+        // Match 5: Resilient fallback to verified seed database
+        if (!matchedStudent) {
+          try {
+            const { CLEAN_PRACTICALS_SEED_DATA } = await import('../data/cleanPracticalsSeedData');
+            if (Array.isArray(CLEAN_PRACTICALS_SEED_DATA)) {
+              for (const doc of CLEAN_PRACTICALS_SEED_DATA) {
+                const docCls = classKey(doc.className || '');
+                if (targetClsKey && docCls && docCls !== targetClsKey) continue;
+                const rec = (doc.records || []).find(r => {
+                  const rReg = String(r.boardRegNo || '').replace(/[^a-z0-9]/g, '');
+                  const rForm = String(r.formNo || r.fNo || '').trim().toLowerCase();
+                  const rRoll = String(r.classRollNo || r.roll || '').trim().toLowerCase();
+                  const qClean = normQ.replace(/[^a-z0-9]/g, '');
+                  return (rReg && (rReg === qClean || (rReg.length >= 6 && qClean.length >= 6 && (rReg.endsWith(qClean.slice(-6)) || qClean.endsWith(rReg.slice(-6)))))) ||
+                         (rForm && rForm === normQ) ||
+                         (rRoll && rRoll === normQ);
+                });
+                if (rec) {
+                  const parsedSubs = rec.subjects
+                    ? String(rec.subjects).split(/[,;|+]/).map(s => {
+                        const code = s.trim();
+                        return { code, name: code };
+                      }).filter(s => s.code)
+                    : [];
+                  matchedStudent = {
+                    name: rec.name,
+                    fatherName: rec.parentName || '—',
+                    className: doc.className || selectedClass,
+                    classRollNo: rec.classRollNo || '—',
+                    examRollNo: rec.examRollNo || '—',
+                    boardRegNo: rec.boardRegNo || cleanQuery,
+                    formNo: rec.formNo || '—',
+                    stream: rec.stream || (doc.className === '11th' || doc.className === '12th' ? 'Humanities' : 'General'),
+                    session: selectedSession,
+                    subjects: parsedSubs
+                  };
+                  break;
+                }
+              }
+            }
+          } catch (_) {}
+        }
       }
 
       if (matchedStudent) {
@@ -629,6 +672,16 @@ export default function PublicResultLookup() {
           practicalDocs = cached || [];
         }
 
+        // Fallback to verified practicals seed dataset if live collection is empty/offline
+        if (practicalDocs.length === 0) {
+          try {
+            const { CLEAN_PRACTICALS_SEED_DATA } = await import('../data/cleanPracticalsSeedData');
+            if (Array.isArray(CLEAN_PRACTICALS_SEED_DATA)) {
+              practicalDocs = CLEAN_PRACTICALS_SEED_DATA;
+            }
+          } catch (_) {}
+        }
+
         // Identify matching teacher submission sections
         const targetClass = classKey(selectedClass);
         const targetSession = sessionKey(selectedSession);
@@ -642,6 +695,7 @@ export default function PublicResultLookup() {
           const rawSess = sec.sessionCanonical || sec.yearSuffix || sec.session || sec.Session || sec.docId || '';
           const docSess = sessionKey(rawSess);
           const isSessionMatched = !selectedSession || selectedSession === 'All' ||
+            !rawSess ||
             docSess === targetSession ||
             (targetSession === '2025-26' && (docSess === '2026' || String(rawSess).includes('2026') || String(rawSess).includes('2025-26'))) ||
             (targetSession === '2024-25' && (docSess === '2025' || String(rawSess).includes('2025') || String(rawSess).includes('2024-25')));
