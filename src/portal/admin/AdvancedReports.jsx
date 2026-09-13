@@ -29,6 +29,8 @@ import { getStudentRegIndex, lookupStudentByRegSync } from '../../services/stude
 import LazyStudentPhoto from '../../components/LazyStudentPhoto';
 import { expandJkboseSubjectCodes } from '../../utils/jkboseResultManager';
 import { resolveCcDcVal, extractReappearCodes, getClassTier, areClassTiersCompatible, isSecondaryOnlySubjectList } from '../../utils/certificateStudentResolution';
+import JkboseFieldBadge from './JkboseFieldBadge';
+import { getJkboseFieldStatus, loadRecentJkboseBatchTraceability, backfillRecentJkboseBatchTraceability } from '../../utils/jkboseTraceability';
 
 const BULK_FORM_ROW_BATCH_SIZE = 100;
 
@@ -4457,6 +4459,9 @@ function SubjectStreamCell({ val, student }) {
             ({streamInfo.code})
           </span>
         )}
+        {student?._getJkboseStatus?.('subs') && (
+          <JkboseFieldBadge info={student._getJkboseStatus('subs')} className="ml-1" />
+        )}
       </span>
 
       {/* Expandable Mismatch Details Portal (Fixed to Body - Never Clipped) */}
@@ -4648,6 +4653,9 @@ const COLUMN_DEFS = [
               ({gCode})
             </span>
           )}
+          {student?._getJkboseStatus?.('studentName') && (
+            <JkboseFieldBadge info={student._getJkboseStatus('studentName')} />
+          )}
         </span>
       );
     }
@@ -4660,6 +4668,8 @@ const COLUMN_DEFS = [
     render: (fatherName, student) => {
       const father = formatProperName(fatherName || '—');
       const mother = formatProperName(student?.motherName || '—');
+      const fatherJkbose = student?._getJkboseStatus?.('fatherName', 'fatherName');
+      const motherJkbose = student?._getJkboseStatus?.('fatherName', 'motherName');
       const stId = student?.id || student?.sno || 'st';
       const copyValue = (event, id, value) => {
         event.stopPropagation();
@@ -4671,7 +4681,10 @@ const COLUMN_DEFS = [
       return (
         <div className="group/parentage grid min-w-0 gap-1 py-0.5 leading-tight">
           <div className="flex min-w-0 items-center justify-between gap-1" title="Father's name">
-            <span className="min-w-0 break-words font-extrabold text-slate-700 dark:text-slate-200">{father}</span>
+            <div className="flex items-center gap-1 min-w-0 flex-wrap">
+              <span className="min-w-0 break-words font-extrabold text-slate-700 dark:text-slate-200">{father}</span>
+              {fatherJkbose && <JkboseFieldBadge info={fatherJkbose} />}
+            </div>
             {father !== '—' && <button
               type="button"
               onClick={(event) => copyValue(event, `${stId}_father`, father)}
@@ -4683,7 +4696,10 @@ const COLUMN_DEFS = [
             </button>}
           </div>
           <div className="flex min-w-0 items-center justify-between gap-1 border-t border-slate-200/70 pt-1 dark:border-slate-700/70" title="Mother's name">
-            <span className="min-w-0 break-words font-extrabold text-slate-700 dark:text-slate-200">{mother}</span>
+            <div className="flex items-center gap-1 min-w-0 flex-wrap">
+              <span className="min-w-0 break-words font-extrabold text-slate-700 dark:text-slate-200">{mother}</span>
+              {motherJkbose && <JkboseFieldBadge info={motherJkbose} />}
+            </div>
             {mother !== '—' && <button
               type="button"
               onClick={(event) => copyValue(event, `${stId}_mother`, mother)}
@@ -4698,7 +4714,17 @@ const COLUMN_DEFS = [
       );
     }
   },
-  { key: 'dob', label: 'DoB', className: 'text-slate-600 dark:text-slate-400 whitespace-nowrap text-center' },
+  {
+    key: 'dob',
+    label: 'DoB',
+    className: 'text-slate-600 dark:text-slate-400 whitespace-nowrap text-center',
+    render: (val, student) => (
+      <span className="inline-flex items-center justify-center gap-1 flex-wrap">
+        <span>{val || '—'}</span>
+        {student?._getJkboseStatus?.('dob') && <JkboseFieldBadge info={student._getJkboseStatus('dob')} />}
+      </span>
+    )
+  },
   { key: 'village', label: 'Village/Town', className: 'whitespace-normal break-words leading-tight text-slate-700 dark:text-slate-300', render: (val) => formatProperName(val) },
   { key: 'gender', label: 'Gender', className: 'font-black whitespace-nowrap text-center' },
   { key: 'category', label: 'Category', className: 'font-extrabold text-amber-800 dark:text-amber-300 whitespace-nowrap text-center' },
@@ -4817,6 +4843,8 @@ const COLUMN_DEFS = [
     render: (aadhar, student) => {
       const aadhaarValue = aadhar || '—';
       const penValue = student?.penNo || '—';
+      const aadhaarJkbose = student?._getJkboseStatus?.('aadhar', 'aadhaarNo');
+      const penJkbose = student?._getJkboseStatus?.('aadhar', 'penNo');
       const stId = student?.id || student?.sno || 'st';
       const copyValue = (event, id, value) => {
         event.stopPropagation();
@@ -4828,7 +4856,10 @@ const COLUMN_DEFS = [
       return (
         <div className="group/identifiers grid min-w-0 gap-1 py-0.5 leading-tight">
           <div className="flex min-w-0 items-center justify-between gap-1" title="Aadhaar number">
-            <span className="min-w-0 break-all font-bold text-slate-700 dark:text-slate-200">{aadhaarValue}</span>
+            <div className="flex items-center gap-1 min-w-0 flex-wrap">
+              <span className="min-w-0 break-all font-bold text-slate-700 dark:text-slate-200">{aadhaarValue}</span>
+              {aadhaarJkbose && <JkboseFieldBadge info={aadhaarJkbose} />}
+            </div>
             {aadhaarValue !== '—' && <button
               type="button"
               onClick={(event) => copyValue(event, `${stId}_aadhaar`, aadhaarValue)}
@@ -4840,7 +4871,10 @@ const COLUMN_DEFS = [
             </button>}
           </div>
           <div className="flex min-w-0 items-center justify-between gap-1 border-t border-slate-200/70 pt-1 dark:border-slate-700/70" title="PEN number">
-            <span className="min-w-0 break-all font-bold text-slate-700 dark:text-slate-200">{penValue}</span>
+            <div className="flex items-center gap-1 min-w-0 flex-wrap">
+              <span className="min-w-0 break-all font-bold text-slate-700 dark:text-slate-200">{penValue}</span>
+              {penJkbose && <JkboseFieldBadge info={penJkbose} />}
+            </div>
             {penValue !== '—' && <button
               type="button"
               onClick={(event) => copyValue(event, `${stId}_pen`, penValue)}
@@ -5598,6 +5632,41 @@ export default function AdvancedReports({
   const [hasUnseenToolsUpdate, setHasUnseenToolsUpdate] = useState(false);
   const lastSyncedInputRef = useRef(null);
   const recycleBinCount = unreadRecycleBinCount;
+  const [jkboseBatchMap, setJkboseBatchMap] = useState({});
+
+  // Hydrate recent JKBOSE batch traceability from csvImportBatches (covers updates done in past hours)
+  useEffect(() => {
+    let isCancelled = false;
+    const fetchBatchTraceability = async () => {
+      try {
+        const map = await loadRecentJkboseBatchTraceability();
+        if (!isCancelled && map && Object.keys(map).length > 0) {
+          setJkboseBatchMap(map);
+          // Background backfill if candidates are active
+          if (Array.isArray(currentAdmissions) && currentAdmissions.length > 0) {
+            backfillRecentJkboseBatchTraceability(currentAdmissions, map);
+          }
+        }
+      } catch (err) {
+        console.warn('Traceability hydration error:', err);
+      }
+    };
+    fetchBatchTraceability();
+
+    const handleBatchUpdate = () => {
+      fetchBatchTraceability();
+    };
+    window.addEventListener('hss-results-updated', handleBatchUpdate);
+    window.addEventListener('hss-master-register-updated', handleBatchUpdate);
+    window.addEventListener('hss-admissions-updated', handleBatchUpdate);
+
+    return () => {
+      isCancelled = true;
+      window.removeEventListener('hss-results-updated', handleBatchUpdate);
+      window.removeEventListener('hss-master-register-updated', handleBatchUpdate);
+      window.removeEventListener('hss-admissions-updated', handleBatchUpdate);
+    };
+  }, [currentAdmissions]);
 
   // Load site settings for annual rollover schedule
   useEffect(() => {
@@ -10364,6 +10433,8 @@ export default function AdvancedReports({
                     _onTriggerDelete: (st) => setDeletingStudentTarget(st),
                     _handleCopyCell: handleCopyCell,
                     _copiedCellId: copiedCellId,
+                    _jkboseBatchMap: jkboseBatchMap,
+                    _getJkboseStatus: (colKey, subKey) => getJkboseFieldStatus(s, colKey, subKey, jkboseBatchMap)
                   };
                   const dynamicSNo = pageSize === 'All' ? idx + 1 : (currentPage - 1) * (parseInt(pageSize, 10) || 50) + idx + 1;
                   const exactDocId = getExactAdmissionDocId(s);
@@ -10445,6 +10516,10 @@ export default function AdvancedReports({
                                 <div className="flex-1 min-w-0 whitespace-normal break-words">
                                   {col.render ? col.render(val, studentWithModal) : val}
                                 </div>
+                                {(!['studentName', 'fatherName', 'subs', 'aadhar', 'dob', 'sno'].includes(col.key)) &&
+                                  studentWithModal._getJkboseStatus?.(col.key) && (
+                                    <JkboseFieldBadge info={studentWithModal._getJkboseStatus(col.key)} className="ml-1" />
+                                  )}
                               </div>
                             )}
 
