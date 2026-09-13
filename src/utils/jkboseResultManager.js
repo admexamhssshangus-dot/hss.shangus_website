@@ -75,6 +75,8 @@ export const JKBOSE_SUBJECT_CODES = [
   { code: 'PE', name: 'Physical Education', category: 'Arts/General' },
   { code: 'PES', name: 'Physical Education & Sports', category: 'Arts/General' },
   { code: 'HE', name: 'Home Science', category: 'Arts/Humanities' },
+  { code: 'HTC', name: 'Healthcare', category: 'Vocational' },
+  { code: 'HC', name: 'Healthcare', category: 'Vocational' },
   { code: 'ITE', name: 'IT & ITeS', category: 'Vocational' },
   { code: 'IT', name: 'IT & ITeS', category: 'Vocational' },
   { code: 'CS', name: 'Computer Science', category: 'Science' },
@@ -85,7 +87,11 @@ export const JKBOSE_SUBJECT_CODES = [
   { code: 'AP', name: 'Automotive', category: 'Vocational' },
   { code: 'BW', name: 'Beauty & Wellness', category: 'Vocational' },
   { code: 'SC', name: 'Science', category: 'General' },
-  { code: 'SS', name: 'Social Science', category: 'General' }
+  { code: 'SCI', name: 'Science', category: 'General' },
+  { code: 'SS', name: 'Social Science', category: 'General' },
+  { code: 'SST', name: 'Social Studies', category: 'General' },
+  { code: 'URD', name: 'Urdu', category: 'Language' },
+  { code: 'HND', name: 'Hindi', category: 'Language' }
 ];
 
 /**
@@ -139,6 +145,14 @@ export function expandJkboseSubjectCodes(codeStr) {
       name = 'Physical Education & Sports';
     } else if (upper === 'PA' || upper === 'PAD') {
       name = 'Public Administration';
+    } else if (upper === 'HTC' || upper === 'HC') {
+      name = 'Healthcare';
+    } else if (upper === 'UR' || upper === 'UD' || upper === 'URD') {
+      name = 'Urdu';
+    } else if (upper === 'SST') {
+      name = 'Social Studies';
+    } else if (upper === 'SCI' || upper === 'SC') {
+      name = 'Science';
     } else {
       const found = JKBOSE_SUBJECT_CODES.find(c => c.code.toUpperCase() === upper);
       if (found) name = found.name;

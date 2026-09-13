@@ -7,13 +7,14 @@ import {
   normalizeRegistrationKey 
 } from '../../utils/certificateStudentResolution';
 import { parseJkboseMarks, calculateDivision } from '../../utils/jkboseMarksParser';
+import { expandJkboseSubjectCodes } from '../../utils/jkboseResultManager';
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { 
   X, AlertTriangle, CheckSquare, Square, FileSpreadsheet, 
   Upload, Copy, CheckCircle2, User, BookOpen, Award, Hash,
   ArrowRight, Sparkles, RefreshCw, Eye, EyeOff, Plus, Trash2,
   ChevronDown, ChevronUp, Database, Sliders, Download, Search,
-  Phone, Landmark, Layers, Check, Terminal, ExternalLink
+  Phone, Landmark, Layers, Check, Terminal, ExternalLink, RotateCcw
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { db } from '../../services/firebase';
@@ -22,7 +23,7 @@ import { updateCachedItem, getCachedCollectionSync, getCachedCollection } from '
 import { logAdminActivity } from '../../services/adminActivityLogger';
 import { saveCsvImportBatch } from '../../services/csvBatchManager';
 import { toTitleCase } from '../../utils/textFormatting';
-import { cleanRawSubjectTokens, formatDobToDisplay } from './AdvancedReports';
+import { cleanRawSubjectTokens, formatDobToDisplay, extractIndividualSubjectsList, formatStudentSubjects } from './AdvancedReports';
 
 import ExcelSpreadsheetGrid from './bulkOverwrite/ExcelSpreadsheetGrid';
 import ExpressDirectIngestionTab from './bulkOverwrite/ExpressDirectIngestionTab';
@@ -120,7 +121,13 @@ export const STANDARD_DB_CATEGORIES = [
     icon: BookOpen,
     fields: [
       { key: 'stream', label: "Stream", defaultChecked: true, dbKeys: ['Stream', 'stream', 'Stream for Class 11th', 'Stream opted in Class 11th', 'Stream & Subjects for Class 12th', 'faculty'], excelKeys: ['stream', 'faculty'] },
-      { key: 'subjects', label: "Subjects (Auto-Expand)", defaultChecked: true, dbKeys: ['Subjects', 'subjects', 'selectedSubjects', 'Subjects to be taken in Class 12th', 'Subjects to be taken in Class 11th', 'subs', 'Subs', 'Subjects Offered'], excelKeys: ['subjects', 'subs', 'subjectsoffered', 'subjectcomb', 'subjectcombination'] },
+      { key: 'subjects', label: "Subjects (Auto-Expand)", defaultChecked: true, dbKeys: ['Subjects', 'subjects', 'selectedSubjects', 'Subjects to be taken in Class 12th', 'Subjects to be taken in Class 11th', 'Subjects to be taken in Class 10th', 'Subjects to be taken in Class 9th', 'Subjects Studied in Class 10th', 'Subjects Studied in Class 9th', 'subs', 'Subs', 'Subjects Offered'], excelKeys: ['subjects', 'subs', 'subjectsoffered', 'subjectcomb', 'subjectcombination'] },
+      { key: 'subjects1', label: "Subject 1", defaultChecked: false, dbKeys: ['Subjects1', 'subjects1', 'Subject 1', 'Subject1', 'sub1', 'Sub1', 'subject1'], excelKeys: ['subjects1', 'subject1', 'sub1', 'subject_1', 'subjects_1'] },
+      { key: 'subjects2', label: "Subject 2", defaultChecked: false, dbKeys: ['Subjects2', 'subjects2', 'Subject 2', 'Subject2', 'sub2', 'Sub2', 'subject2'], excelKeys: ['subjects2', 'subject2', 'sub2', 'subject_2', 'subjects_2'] },
+      { key: 'subjects3', label: "Subject 3", defaultChecked: false, dbKeys: ['Subjects3', 'subjects3', 'Subject 3', 'Subject3', 'sub3', 'Sub3', 'subject3'], excelKeys: ['subjects3', 'subject3', 'sub3', 'subject_3', 'subjects_3'] },
+      { key: 'subjects4', label: "Subject 4", defaultChecked: false, dbKeys: ['Subjects4', 'subjects4', 'Subject 4', 'Subject4', 'sub4', 'Sub4', 'subject4'], excelKeys: ['subjects4', 'subject4', 'sub4', 'subject_4', 'subjects_4'] },
+      { key: 'subjects5', label: "Subject 5", defaultChecked: false, dbKeys: ['Subjects5', 'subjects5', 'Subject 5', 'Subject5', 'sub5', 'Sub5', 'subject5'], excelKeys: ['subjects5', 'subject5', 'sub5', 'subject_5', 'subjects_5'] },
+      { key: 'subjects6', label: "Subject 6 (Voc / Addl)", defaultChecked: false, dbKeys: ['Subject6', 'Subjects6', 'subjects6', 'Subject 6', 'sub6', 'Sub6', 'subject6'], excelKeys: ['subjects6', 'subject6', 'sub6', 'subject_6', 'subjects_6', 'additionalsubject', 'vocational'] },
       { key: 'classRollNo', label: "Class Roll No.", defaultChecked: false, dbKeys: ['Class Roll No', 'Class Roll No.', 'rollNo', 'classRollNo', 'RL. NO.', 'RL. NO', 'Class R.No.', 'Class R.No'], excelKeys: ['classrollno', 'classroll', 'rno'] },
       { key: 'className', label: "Class", defaultChecked: false, dbKeys: ['Admission sought for class', 'Class', 'class', 'className'], excelKeys: ['class', 'classname', 'admissionsoughtforclass'] },
       { key: 'session', label: "Session", defaultChecked: false, dbKeys: ['Session', 'session'], excelKeys: ['session', 'academicsession'] },
@@ -272,6 +279,34 @@ export default function BulkFieldOverwriteModal({
   const [progressPercent, setProgressPercent] = useState(0);
   const [executionStats, setExecutionStats] = useState(null);
   const [errorMsg, setErrorMsg] = useState(null);
+
+  // Reset workflow back to initial upload step (enables immediate overwrite for another cohort/class)
+  const handleResetToUpload = useCallback(() => {
+    setStep('upload');
+    setPreviewData([]);
+    setFileName('');
+    setRawParsedRows([]);
+    setExecutionStats(null);
+    setErrorMsg(null);
+    setProgressPercent(0);
+    setProgressStage('');
+    setSelectedRowIds(new Set());
+  }, []);
+
+  // Safe modal close handler that cleans up state so reopening always starts fresh
+  const handleClose = useCallback(() => {
+    handleResetToUpload();
+    if (onClose) onClose();
+  }, [handleResetToUpload, onClose]);
+
+  // If modal reopens after completion or execution, reset to upload step
+  useEffect(() => {
+    if (isOpen) {
+      if (step === 'completed' || step === 'executing') {
+        handleResetToUpload();
+      }
+    }
+  }, [isOpen]);
 
   // Helper to normalize alphanumeric keys
   const cleanKey = (val) => String(val || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase().trim();
@@ -686,21 +721,40 @@ export default function BulkFieldOverwriteModal({
           if (f.key === 'stream') {
             val = getStudentProperStream(st);
           } else if (f.key === 'subjects') {
-            const currentSubs = st.subjects || st.subs || st.selectedSubjects || st['Subjects'] || '';
-            if (currentSubs && currentSubs.trim() && currentSubs.trim().length > 5 && !/^(—|-|n\/?a)$/i.test(currentSubs.trim())) {
-              val = currentSubs.trim();
+            const formatted = formatStudentSubjects(st, targetClass);
+            if (formatted && formatted !== '—') {
+              val = formatted;
             } else {
-              const reg = normalizeRegistrationKey(st.boardRegNo || st.regNo || st['Board Registration Number'] || st['Board Reg. No.']);
-              const history = reg ? (studentsByRegMap.get(reg) || []) : [];
-              let historySubs = '';
-              for (const h of history) {
-                const hSubs = h.subjects || h.subs || h.selectedSubjects || h['Subjects to be taken in Class 11th'] || h['Subjects to be taken in Class 12th'] || h['Subjects Studied in Class 11th'] || h['Subjects Offered'] || h['Subjects'] || '';
-                if (hSubs && String(hSubs).trim() && String(hSubs).trim().length > 5) {
-                  historySubs = String(hSubs).trim();
+              const currentSubs = st.subjects || st.subs || st.selectedSubjects || st['Subjects'] || '';
+              if (currentSubs && currentSubs.trim() && currentSubs.trim().length > 5 && !/^(—|-|n\/?a)$/i.test(currentSubs.trim())) {
+                val = currentSubs.trim();
+              } else {
+                const reg = normalizeRegistrationKey(st.boardRegNo || st.regNo || st['Board Registration Number'] || st['Board Reg. No.']);
+                const history = reg ? (studentsByRegMap.get(reg) || []) : [];
+                let historySubs = '';
+                for (const h of history) {
+                  const hSubs = h.subjects || h.subs || h.selectedSubjects || h['Subjects to be taken in Class 11th'] || h['Subjects to be taken in Class 12th'] || h['Subjects Studied in Class 11th'] || h['Subjects Offered'] || h['Subjects'] || '';
+                  if (hSubs && String(hSubs).trim() && String(hSubs).trim().length > 5) {
+                    historySubs = String(hSubs).trim();
+                    break;
+                  }
+                }
+                val = historySubs || currentSubs || '';
+              }
+            }
+          } else if (f.key.startsWith('subjects') || f.key.startsWith('Subjects') || f.key === 'Subject6') {
+            const matchSlot = f.key.match(/\d+/);
+            const slotIdx = matchSlot ? parseInt(matchSlot[0], 10) - 1 : -1;
+            const indiv = extractIndividualSubjectsList(st, targetClass);
+            if (slotIdx >= 0 && indiv && indiv[slotIdx]) {
+              val = indiv[slotIdx];
+            } else {
+              for (const k of f.dbKeys) {
+                if (st[k] !== undefined && String(st[k]).trim() !== '') {
+                  val = String(st[k]).trim();
                   break;
                 }
               }
-              val = historySubs || currentSubs || '';
             }
           } else {
             for (const k of f.dbKeys) {
@@ -829,6 +883,8 @@ export default function BulkFieldOverwriteModal({
           extracted = formatDobToDisplay(extracted);
         } else if (f.key === 'subjects' && extracted) {
           extracted = cleanRawSubjectTokens(extracted).join(', ');
+        } else if ((f.key.startsWith('subjects') || f.key.startsWith('Subjects') || f.key === 'Subject6') && extracted) {
+          extracted = expandJkboseSubjectCodes(extracted) || extracted;
         } else if (f.key === 'boardRollNo' && extracted) {
           extracted = String(extracted).replace(/\.0+$/, '').trim();
         } else if (f.key === 'marks' && extracted) {
@@ -1058,6 +1114,103 @@ export default function BulkFieldOverwriteModal({
           });
         });
 
+        // End-to-End Bidirectional Synchronize Subject Slots, Composite Strings & Tier Fields
+        const hasSubjOverwrite = 
+          selectedFields['subjects'] || selectedFields['Subjects'] ||
+          selectedFields['subjects1'] || selectedFields['Subjects1'] || selectedFields['subject1'] ||
+          selectedFields['subjects2'] || selectedFields['Subjects2'] || selectedFields['subject2'] ||
+          selectedFields['subjects3'] || selectedFields['Subjects3'] || selectedFields['subject3'] ||
+          selectedFields['subjects4'] || selectedFields['Subjects4'] || selectedFields['subject4'] ||
+          selectedFields['subjects5'] || selectedFields['Subjects5'] || selectedFields['subject5'] ||
+          selectedFields['subjects6'] || selectedFields['Subjects6'] || selectedFields['subject6'] || selectedFields['Subject6'];
+
+        if (hasSubjOverwrite) {
+          const existingIndiv = extractIndividualSubjectsList(st, targetClass);
+          let s1 = inc['subjects1'] || inc['Subjects1'] || inc['subject1'] || payload['subjects1'] || payload['Subjects1'] || existingIndiv[0] || '';
+          let s2 = inc['subjects2'] || inc['Subjects2'] || inc['subject2'] || payload['subjects2'] || payload['Subjects2'] || existingIndiv[1] || '';
+          let s3 = inc['subjects3'] || inc['Subjects3'] || inc['subject3'] || payload['subjects3'] || payload['Subjects3'] || existingIndiv[2] || '';
+          let s4 = inc['subjects4'] || inc['Subjects4'] || inc['subject4'] || payload['subjects4'] || payload['Subjects4'] || existingIndiv[3] || '';
+          let s5 = inc['subjects5'] || inc['Subjects5'] || inc['subject5'] || payload['subjects5'] || payload['Subjects5'] || existingIndiv[4] || '';
+          let s6 = inc['subjects6'] || inc['Subjects6'] || inc['Subject6'] || inc['subject6'] || payload['subjects6'] || payload['Subjects6'] || payload['Subject6'] || existingIndiv[5] || '';
+
+          // If composite subjects field was provided, split into individual slots if slots were not all explicit
+          const incComposite = inc['subjects'] || inc['Subjects'] || payload['Subjects'] || payload['subjects'];
+          if (incComposite && (selectedFields['subjects'] || selectedFields['Subjects'])) {
+            const parsedSlots = cleanRawSubjectTokens(incComposite);
+            if (parsedSlots[0]) s1 = parsedSlots[0];
+            if (parsedSlots[1]) s2 = parsedSlots[1];
+            if (parsedSlots[2]) s3 = parsedSlots[2];
+            if (parsedSlots[3]) s4 = parsedSlots[3];
+            if (parsedSlots[4]) s5 = parsedSlots[4];
+            if (parsedSlots[5]) s6 = parsedSlots[5];
+          }
+
+          // Expand short codes
+          s1 = expandJkboseSubjectCodes(s1) || s1;
+          s2 = expandJkboseSubjectCodes(s2) || s2;
+          s3 = expandJkboseSubjectCodes(s3) || s3;
+          s4 = expandJkboseSubjectCodes(s4) || s4;
+          s5 = expandJkboseSubjectCodes(s5) || s5;
+          s6 = expandJkboseSubjectCodes(s6) || s6;
+
+          const activeSubList = [s1, s2, s3, s4, s5, s6].map(s => String(s || '').trim()).filter(s => s && s !== '—' && s !== '-');
+          const finalSubStr = activeSubList.join(', ');
+
+          if (activeSubList.length > 0) {
+            // Write all casing variants for individual slots
+            payload['subjects1'] = s1; payload['Subjects1'] = s1; payload['subject1'] = s1; payload['Subject 1'] = s1;
+            payload['subjects2'] = s2; payload['Subjects2'] = s2; payload['subject2'] = s2; payload['Subject 2'] = s2;
+            payload['subjects3'] = s3; payload['Subjects3'] = s3; payload['subject3'] = s3; payload['Subject 3'] = s3;
+            payload['subjects4'] = s4; payload['Subjects4'] = s4; payload['subject4'] = s4; payload['Subject 4'] = s4;
+            payload['subjects5'] = s5; payload['Subjects5'] = s5; payload['subject5'] = s5; payload['Subject 5'] = s5;
+            payload['subjects6'] = s6; payload['Subjects6'] = s6; payload['Subject6'] = s6; payload['subject6'] = s6; payload['Subject 6'] = s6;
+
+            // Write composite strings
+            payload['Subjects'] = finalSubStr;
+            payload['subjects'] = finalSubStr;
+            payload['Subs'] = finalSubStr;
+            payload['subs'] = finalSubStr;
+            payload['selectedSubjects'] = activeSubList;
+
+            // Write class tier specific subject fields
+            const stCls = payload['class'] || payload['Class'] || st.class || st.Class || targetClass;
+            const isSenior = String(stCls).includes('11') || String(stCls).includes('12');
+            if (!isSenior) {
+              payload['Subjects to be taken in Class 10th'] = finalSubStr;
+              payload['Subjects to be taken in Class 9th'] = finalSubStr;
+              payload['Subjects Studied in Class 10th'] = finalSubStr;
+              payload['Subjects Studied in Class 9th'] = finalSubStr;
+              if (!payload['Stream'] && !payload['stream']) {
+                payload['Stream'] = 'General';
+                payload['stream'] = 'General';
+              }
+            } else {
+              if (String(stCls).includes('12')) {
+                payload['Subjects to be taken in Class 12th'] = finalSubStr;
+                payload['Stream & Subjects for Class 12th'] = finalSubStr;
+              } else {
+                payload['Subjects to be taken in Class 11th'] = finalSubStr;
+                payload['Stream & Subjects for Class 11th'] = finalSubStr;
+                payload['Subjects Studied in Class 11th'] = finalSubStr;
+              }
+              // Auto resolve stream if not present
+              if (!payload['Stream'] && !payload['stream']) {
+                const subStrLower = finalSubStr.toLowerCase();
+                let autoStream = 'Arts';
+                if (subStrLower.includes('biology') || subStrLower.includes('botany') || subStrLower.includes('zoology')) {
+                  autoStream = 'Medical';
+                } else if (subStrLower.includes('mathematics') && (subStrLower.includes('physics') || subStrLower.includes('chemistry'))) {
+                  autoStream = 'Non-Medical';
+                } else if (subStrLower.includes('accountancy') || subStrLower.includes('business studies')) {
+                  autoStream = 'Commerce';
+                }
+                payload['Stream'] = autoStream;
+                payload['stream'] = autoStream;
+              }
+            }
+          }
+        }
+
         // Auto-calculate Percentage and Division if marks and maxMarks are available
         const finalMarks = payload['Marks Obtained'] || payload['marks'] || st.marks || st['Marks Obtained'] || st['Marks/Reapp (Current)'];
         const finalMax = payload['Max Marks'] || payload['maxMarks'] || st.maxMarks || st['Max Marks'] || '500';
@@ -1152,7 +1305,7 @@ export default function BulkFieldOverwriteModal({
             </div>
           </div>
           <button
-            onClick={onClose}
+            onClick={handleClose}
             className="p-1 rounded-md text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-slate-800 transition-colors cursor-pointer flex-shrink-0"
             aria-label="Close"
           >
@@ -1407,16 +1560,20 @@ export default function BulkFieldOverwriteModal({
                       </div>
                     </div>
 
-                    {/* Compact Selected Summary Tags */}
+                    {/* Compact Selected Summary Tags with direct 1-click removal */}
                     <div className="flex items-center gap-1 flex-wrap text-[10px]">
                       {activeFieldsList.length > 0 ? (
                         activeFieldsList.map(f => (
-                          <span 
+                          <button 
                             key={f.key} 
-                            className="px-1.5 py-0.2 rounded font-bold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 text-[9.5px]"
+                            type="button"
+                            onClick={() => handleToggleField(f.key)}
+                            className="px-1.5 py-0.5 rounded-md font-bold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 text-[9.5px] flex items-center gap-1 hover:bg-rose-50 hover:text-rose-700 hover:border-rose-300 transition-colors group cursor-pointer"
+                            title={`Click to remove ${f.label}`}
                           >
-                            {f.label}
-                          </span>
+                            <span>{f.label}</span>
+                            <span className="text-slate-400 group-hover:text-rose-600 text-[10px] leading-none">✕</span>
+                          </button>
                         ))
                       ) : (
                         <span className="text-amber-600 dark:text-amber-400 font-bold text-[10px]">
@@ -1428,17 +1585,17 @@ export default function BulkFieldOverwriteModal({
                     {/* Expandable Field Matrix (Compact) */}
                     {showFieldMatrix && (
                       <div className="space-y-2 pt-1.5 border-t border-slate-100 dark:border-slate-800 animate-fadeIn">
-                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-2">
                           {dynamicDatabaseCategories.map(cat => (
                             <div 
                               key={cat.id} 
-                              className="p-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 flex flex-col"
+                              className="p-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 flex flex-col justify-between"
                             >
-                              <div className="flex items-center justify-between pb-1 mb-1 border-b border-slate-200 dark:border-slate-800">
-                                <span className="font-bold text-[10px] text-slate-800 dark:text-slate-200 truncate">
+                              <div className="flex items-center justify-between gap-1 pb-1 mb-1 border-b border-slate-200 dark:border-slate-800">
+                                <span className="font-bold text-[10px] text-slate-800 dark:text-slate-200 truncate" title={cat.title}>
                                   {cat.title}
                                 </span>
-                                <span className={`text-[7.5px] font-black px-1 py-0.2 rounded border ${cat.badgeClass}`}>
+                                <span className={`text-[7.5px] font-black px-1.5 py-0.2 rounded-md border whitespace-nowrap flex-shrink-0 shrink-0 ${cat.badgeClass}`}>
                                   {cat.badge}
                                 </span>
                               </div>
@@ -1826,13 +1983,23 @@ export default function BulkFieldOverwriteModal({
                       Successfully updated {executionStats?.updatedCount || 0} student record(s) in Firebase Firestore and created a 30-day rollback point.
                     </p>
                   </div>
-                  <button
-                    type="button"
-                    onClick={onClose}
-                    className="px-6 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white font-black text-xs shadow-md cursor-pointer"
-                  >
-                    Done & Close Hub
-                  </button>
+                  <div className="flex items-center justify-center gap-3 pt-2">
+                    <button
+                      type="button"
+                      onClick={handleResetToUpload}
+                      className="px-5 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white font-black text-xs shadow-md cursor-pointer flex items-center gap-2 transition-all hover:scale-[1.02]"
+                    >
+                      <RotateCcw size={14} />
+                      <span>Ingest / Overwrite Another Class</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleClose}
+                      className="px-5 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs border border-slate-300 dark:border-slate-700 cursor-pointer transition-colors"
+                    >
+                      Done & Close Hub
+                    </button>
+                  </div>
                 </div>
               )}
             </>
@@ -1848,7 +2015,7 @@ export default function BulkFieldOverwriteModal({
             </div>
             <button
               type="button"
-              onClick={onClose}
+              onClick={handleClose}
               className="px-3 py-1 rounded-lg border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 font-bold text-[11px] cursor-pointer transition-colors"
             >
               Cancel

@@ -129,7 +129,27 @@ export function formatStudentSubjects(rec, targetClass = '') {
   const cls = targetClass || rec['Admission sought for class'] || rec['Class'] || rec.class || rec.className || '';
   const tier = getClassTier(cls);
 
-  // 1. Candidate subject fields restricted strictly by academic tier:
+  // 1. Explicit individual subjects (subjects1..6) - Authoritative structured breakdown
+  const explicitSubs = [
+    rec['Subjects1'] || rec['subjects1'] || rec['Subject 1'] || rec['Subject1'] || rec['Sub1'] || rec['sub1'] || rec['subject1'],
+    rec['Subjects2'] || rec['subjects2'] || rec['Subject 2'] || rec['Subject2'] || rec['Sub2'] || rec['sub2'] || rec['subject2'],
+    rec['Subjects3'] || rec['subjects3'] || rec['Subject 3'] || rec['Subject3'] || rec['Sub3'] || rec['sub3'] || rec['subject3'],
+    rec['Subjects4'] || rec['subjects4'] || rec['Subject 4'] || rec['Subject4'] || rec['Sub4'] || rec['sub4'] || rec['subject4'],
+    rec['Subjects5'] || rec['subjects5'] || rec['Subject 5'] || rec['Subject5'] || rec['Sub5'] || rec['sub5'] || rec['subject5'],
+    rec['Subject6'] || rec['Subjects6'] || rec['subjects6'] || rec['Subject 6'] || rec['Subject6'] || rec['Sub6'] || rec['sub6'] || rec['subject6']
+  ].filter(s => s && String(s).trim() !== '—' && String(s).trim() !== '-');
+
+  let cleanedExplicit = [];
+  if (explicitSubs.length > 0) {
+    if (!(tier === 'higher' && isSecondaryOnlySubjectList(explicitSubs.join(', ')))) {
+      cleanedExplicit = cleanRawSubjectTokens(explicitSubs);
+      if (tier === 'higher' && isSecondaryOnlySubjectList(cleanedExplicit.join(', '))) {
+        cleanedExplicit = [];
+      }
+    }
+  }
+
+  // 2. Candidate subject fields restricted strictly by academic tier:
   // - 11th/12th (Higher Secondary): Must NEVER include 10th/9th subjects (SST, General Science, etc.)
   // - 9th/10th (Secondary): Must NEVER include 11th/12th streams/subjects
   let rawCandidates = [];
@@ -177,6 +197,7 @@ export function formatStudentSubjects(rec, targetClass = '') {
     ];
   }
 
+  let rawBestTokens = [];
   for (const item of rawCandidates) {
     if (!item) continue;
     if (typeof item === 'string' && item.toLowerCase().includes('same as')) continue;
@@ -185,24 +206,22 @@ export function formatStudentSubjects(rec, targetClass = '') {
     const cleaned = cleanRawSubjectTokens(item);
     if (cleaned.length > 0) {
       if (tier === 'higher' && isSecondaryOnlySubjectList(cleaned.join(', '))) continue;
-      return cleaned.join(', ');
+      rawBestTokens = cleaned;
+      break;
     }
   }
 
-  // 2. Individual subjects1..6 fields (Subjects1, Subjects2, Subjects3, etc.)
-  const subjKeys = [
-    'Subjects1', 'Subjects2', 'Subjects3', 'Subjects4', 'Subjects5', 'Subjects6', 'Subject6',
-    'subject1', 'subject2', 'subject3', 'subject4', 'subject5', 'subject6'
-  ];
+  // If explicit individual subject breakdown has >= 4 subjects, or is more complete than composite string, use it!
+  if (cleanedExplicit.length >= 4 || (cleanedExplicit.length > 0 && cleanedExplicit.length >= rawBestTokens.length)) {
+    return cleanedExplicit.join(', ');
+  }
 
-  const rawIndividual = subjKeys.map(k => rec[k]).filter(Boolean);
-  if (rawIndividual.length > 0) {
-    if (!(tier === 'higher' && isSecondaryOnlySubjectList(rawIndividual.join(', ')))) {
-      const cleanedIndiv = cleanRawSubjectTokens(rawIndividual);
-      if (cleanedIndiv.length > 0 && !(tier === 'higher' && isSecondaryOnlySubjectList(cleanedIndiv.join(', ')))) {
-        return cleanedIndiv.join(', ');
-      }
-    }
+  if (rawBestTokens.length > 0) {
+    return rawBestTokens.join(', ');
+  }
+
+  if (cleanedExplicit.length > 0) {
+    return cleanedExplicit.join(', ');
   }
 
   return '—';
@@ -7184,8 +7203,8 @@ export default function AdvancedReports({
       const recName = getStudentName(rec);
       const recFather = getFatherName(rec);
 
-      const recCls = normalizeClassVal(rec['Admission sought for class'] || rec['Class']);
-      const recSess = normalizeSessionVal(rec['Session']);
+      const recCls = normalizeClassVal(rec['Admission sought for class'] || rec['Class'] || rec['class'] || rec['className'] || rec.className || rec.class);
+      const recSess = normalizeSessionVal(rec['Session'] || rec['session'] || rec['Academic Session'] || rec.session);
 
       const rawOldAdm = cleanAdmNoVal(
         rec['Old Admission No.'] || rec['Old Adm. No.'] || rec['oldAdmNo'] || rec['Previous Adm. No.']
@@ -7476,8 +7495,8 @@ export default function AdvancedReports({
       const aStatus = String(a['Status'] || a['status'] || '').trim().toLowerCase();
       if (aStatus === 'deleted' || a._deleted === true || aStatus === 'archived') return;
 
-      const targetClass = normalizeClassVal(a['Admission sought for class'] || a['Class'] || '11th');
-      const targetSession = normalizeSessionVal(a['Session'] || '2025-26');
+      const targetClass = normalizeClassVal(a['Admission sought for class'] || a['Class'] || a['class'] || a['className'] || a.className || a.class || '11th');
+      const targetSession = normalizeSessionVal(a['Session'] || a['session'] || a['Academic Session'] || a.session || '2025-26');
       const activeClassRoll = extractClassRoll(a);
 
       const cleanFNo = extractStudentFormNo(a);
@@ -7785,17 +7804,17 @@ export default function AdvancedReports({
       if (cleanFNo && cleanFNo !== '—') {
         seenActiveKeys.add(`fno_${sess}_${cleanFNo}`);
         seenActiveKeys.add(`fno_${normSess}_${cleanFNo}`);
-        seenActiveFormNos.add(cleanFNo);
+        seenActiveFormNos.add(`${cls}_${cleanFNo}`);
       }
       if (cleanReg && cleanReg.length > 5 && !cleanReg.endsWith('00000000')) {
         seenActiveKeys.add(`reg_${cls}_${sess}_${cleanReg}`);
         seenActiveKeys.add(`reg_${cls}_${normSess}_${cleanReg}`);
-        seenActiveRegs.add(cleanReg);
+        seenActiveRegs.add(`${cls}_${cleanReg}`);
       }
       if (cleanAdm && cleanAdm !== '—') {
         seenActiveKeys.add(`adm_${cls}_${sess}_${cleanAdm}`);
         seenActiveKeys.add(`adm_${cls}_${normSess}_${cleanAdm}`);
-        seenActiveAdmNos.add(cleanAdm);
+        seenActiveAdmNos.add(`${cls}_${cleanAdm}`);
       }
       if (sName && sName !== 'student') {
         seenActiveKeys.add(`name_${cls}_${sess}_${sName}_${fName.slice(0, 8)}`);
@@ -7810,8 +7829,8 @@ export default function AdvancedReports({
       const rawReg = extractRegNo(m);
       const rawRoll = extractClassRoll(m);
       const finalAdmNo = resolveAdmNo(m) || cleanAdmNoVal(m['Admission No.'] || m['Adm. No.'] || m.admNo) || '—';
-      const targetClass = normalizeClassVal(m['Admission sought for class'] || m['Class'] || m.class || '11th');
-      const targetSession = normalizeSessionVal(m['Session'] || m.session || '2024-25');
+      const targetClass = normalizeClassVal(m['Admission sought for class'] || m['Class'] || m['class'] || m['className'] || m.className || m.class || '11th');
+      const targetSession = normalizeSessionVal(m['Session'] || m['session'] || m['Academic Session'] || m.session || '2024-25');
 
       const sName = m["Student's Name (as per school records)"] || m["Student's Name"] || m['Student Name'] || m['Name of Student'] || m['Account Name'] || m.studentName || m.name || 'Student';
       const fName = m["Father's/Guardian's Name (as per school records)"] || m["Father's Name"] || m['Father Name'] || m.fatherName || '—';
@@ -7835,12 +7854,12 @@ export default function AdvancedReports({
 
       // Guard 2: Active Session Living Workspace Deduplication Guard (2025-26)
       // Active admissions is the single source of truth for the active 2025-26 session until the October 15th rollover.
-      // Any premature historical chunk entry matching on regNo, formNo, admNo, or student name must be suppressed.
+      // Any premature historical chunk entry matching on regNo, formNo, admNo, or student name must be suppressed only within the same class!
       const isHistoricalCurrentSession = targetSessLower.includes('2025-26') || targetNormSess.includes('2025-26');
       if (isHistoricalCurrentSession) {
-        if (checkReg && checkReg.length > 5 && !checkReg.endsWith('00000000') && seenActiveRegs.has(checkReg)) return;
-        if (checkFNo && checkFNo !== '—' && seenActiveFormNos.has(checkFNo)) return;
-        if (checkAdm && checkAdm !== '—' && seenActiveAdmNos.has(checkAdm)) return;
+        if (checkReg && checkReg.length > 5 && !checkReg.endsWith('00000000') && seenActiveRegs.has(`${targetClsLower}_${checkReg}`)) return;
+        if (checkFNo && checkFNo !== '—' && seenActiveFormNos.has(`${targetClsLower}_${checkFNo}`)) return;
+        if (checkAdm && checkAdm !== '—' && seenActiveAdmNos.has(`${targetClsLower}_${checkAdm}`)) return;
         if (sName && sName !== 'student' && seenActiveNames.has(`${targetClsLower}_${sName.toLowerCase().trim()}_${fName.toLowerCase().trim().slice(0, 8)}`)) return;
       }
 
