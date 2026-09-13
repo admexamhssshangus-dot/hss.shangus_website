@@ -482,9 +482,9 @@ export default function AdminToolsDropdown({
         </div>
 
         {/* Minimal Compact Search Bar */}
-        <div className="py-1 sm:py-1.5 shrink-0">
+        <div className="py-0.5 sm:py-1.5 shrink-0">
           <div className="relative">
-            <Search size={11} className="sm:hidden absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+            <Search size={10} className="sm:hidden absolute left-1.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
             <Search size={13} className="hidden sm:block absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
             <input
               ref={searchInputRef}
@@ -492,15 +492,15 @@ export default function AdminToolsDropdown({
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder={isMobile ? `Search ${totalAvailableCount} tools...` : `Search all ${totalAvailableCount} administrative modules & tools...`}
-              className="w-full h-7 sm:h-8 pl-6 sm:pl-8 pr-6 sm:pr-8 bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/60 rounded-md sm:rounded-xl text-[10px] sm:text-xs placeholder:text-[9.5px] sm:placeholder:text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-hidden focus:ring-1 focus:ring-teal-500 transition-all"
+              className="w-full h-[22px] sm:h-8 pl-5 sm:pl-8 pr-5 sm:pr-8 py-0 leading-none bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/60 rounded sm:rounded-xl text-[9px] sm:text-xs placeholder:text-[8.5px] sm:placeholder:text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-teal-500 transition-all"
             />
             {searchQuery && (
               <button
                 type="button"
                 onClick={() => setSearchQuery('')}
-                className="absolute right-1.5 sm:right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-0.5 rounded"
+                className="absolute right-1 sm:right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-0.5 rounded"
               >
-                <X size={10} className="sm:hidden" />
+                <X size={9} className="sm:hidden" />
                 <X size={12} className="hidden sm:block" />
               </button>
             )}
