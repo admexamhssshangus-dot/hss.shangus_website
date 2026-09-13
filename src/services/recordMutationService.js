@@ -59,7 +59,10 @@ export async function applyRecordPatch(student, patch, { jobId, entryId = '0', f
 
     if (!force) {
       for (const key of Object.keys(patch)) {
-        if (['updatedAt', 'lastBoardSyncAt', 'boardSyncSource', 'lastEditedBy'].includes(key)) continue;
+        if ([
+          'updatedAt', 'lastBoardSyncAt', 'boardSyncSource', 'lastEditedBy',
+          'jkboseUpdatedFields', 'jkboseLastSyncedAt', 'jkboseSyncSource', 'jkboseFieldUpdates'
+        ].includes(key)) continue;
         // Only evaluate conflict if the field actually exists in the database document/record (current)
         // AND was present in the preview object. Synthetic, client-only, or missing db fields are not conflicts.
         if (present(current, key) && current[key] !== undefined && present(preview, key) && preview[key] !== undefined) {

@@ -1721,9 +1721,39 @@ export default function BulkFieldOverwriteModal({
           }
         }
 
-        payload.updatedAt = new Date().toISOString();
-        payload.lastBoardSyncAt = new Date().toISOString();
-        payload.boardSyncSource = fileName || 'Bulk Overwrite';
+        const fieldsChangedKeys = Object.keys(item.diffs || {});
+        const syncTimestamp = new Date().toISOString();
+        const syncSource = fileName || 'JKBOSE Board Overwrite';
+
+        const existingJkboseFields = Array.isArray(st.jkboseUpdatedFields)
+          ? st.jkboseUpdatedFields
+          : (Array.isArray(st.jkbose_updated_fields) ? st.jkbose_updated_fields : []);
+
+        const existingFieldUpdates = (st.jkboseFieldUpdates && typeof st.jkboseFieldUpdates === 'object')
+          ? st.jkboseFieldUpdates
+          : {};
+
+        const mergedUpdates = { ...existingFieldUpdates };
+        fieldsChangedKeys.forEach(k => {
+          const diffItem = item.diffs[k];
+          mergedUpdates[k] = {
+            updatedAt: syncTimestamp,
+            source: syncSource,
+            label: diffItem?.fieldLabel || k,
+            oldValue: String(diffItem?.currentValue ?? ''),
+            newValue: String(diffItem?.incomingValue ?? '')
+          };
+        });
+
+        const mergedJkboseFields = Array.from(new Set([...existingJkboseFields, ...fieldsChangedKeys]));
+
+        payload.jkboseUpdatedFields = mergedJkboseFields;
+        payload.jkboseFieldUpdates = mergedUpdates;
+        payload.jkboseLastSyncedAt = syncTimestamp;
+        payload.jkboseSyncSource = syncSource;
+        payload.updatedAt = syncTimestamp;
+        payload.lastBoardSyncAt = syncTimestamp;
+        payload.boardSyncSource = syncSource;
 
         await applyRecordPatch(st, payload, { jobId, entryId: String(i), force: true });
 
