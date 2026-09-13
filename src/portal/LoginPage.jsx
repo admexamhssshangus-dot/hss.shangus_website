@@ -638,9 +638,9 @@ export default function LoginPage() {
       
       // 2. Resolve account profile from Firestore (configured strictly by Super Admin)
       const staffProfile = await resolveStaffRoleAndPerms(cleanEmail);
-      const isSuper = staffProfile?.role === 'SuperAdmin' || isBootstrapSuperAdminEmail(cleanEmail);
-      const isAdmin = isSuper || staffProfile?.role === 'Admin';
-      const isTeacher = staffProfile?.role === 'Teacher' || staffProfile?.role === 'Faculty';
+      const isSuper = staffProfile?.isSuperAdmin || staffProfile?.role === 'SuperAdmin' || isBootstrapSuperAdminEmail(cleanEmail);
+      const isAdmin = isSuper || staffProfile?.isAdmin || String(staffProfile?.role || '').toLowerCase() === 'admin';
+      const isTeacher = staffProfile?.isTeacher || ['teacher', 'faculty'].includes(String(staffProfile?.role || '').toLowerCase());
 
       if (await beginAdminLogin(userCred.user, staffProfile)) return;
 

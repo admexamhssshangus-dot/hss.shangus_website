@@ -200,7 +200,10 @@ export default function PortalLayout() {
             perms: userPerms,
             uid: fbUser.uid,
           };
-          sessionManager.saveSession({ user: defaultSession, token: verifiedToken }, localStorage.getItem('hss_persistent_login') !== 'false');
+          const existingSessionId = sessionManager.getSessionId() || sessionManager.generateSessionId();
+          sessionManager.setSessionId(existingSessionId);
+          sessionManager.saveSession({ user: defaultSession, token: verifiedToken, sessionId: existingSessionId }, localStorage.getItem('hss_persistent_login') !== 'false');
+          sessionManager.registerActiveSessionInCloud(defaultSession, sessionManager.getDeviceId(), existingSessionId).catch(() => {});
           setSessionStateStable({ loading: false, user: defaultSession, isAuthenticated: true });
         } catch (error) {
           sessionManager.clearSession();
@@ -304,7 +307,7 @@ export default function PortalLayout() {
   // ---------------------------------------------------------------------------
   // Handle login success (called from LoginPage)
   // ---------------------------------------------------------------------------
-  const handleLoginSuccess = useCallback((loginResult, keepLoggedIn) => {
+  const handleLoginSuccess = useCallback(async (loginResult, keepLoggedIn) => {
     try {
       sessionStorage.removeItem('hss_explicit_logout');
       localStorage.removeItem('hss_explicit_logout');
@@ -323,7 +326,7 @@ export default function PortalLayout() {
     sessionManager.setSessionId(sessionId);
     sessionManager.saveSession({ user, token, sessionId }, keepLoggedIn);
     if (user.uid) {
-      sessionManager.registerActiveSessionInCloud(user, sessionManager.getDeviceId(), sessionId);
+      await sessionManager.registerActiveSessionInCloud(user, sessionManager.getDeviceId(), sessionId);
     }
     setSessionStateStable({ loading: false, user, isAuthenticated: true });
     _redirectToDashboard(user);

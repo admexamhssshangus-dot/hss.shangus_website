@@ -16,6 +16,7 @@ const STORAGE_KEYS = {
   TOKEN: 'hss_session_token',
   DEVICE_ID: 'hss_device_id',
   SESSION_ID: 'hss_session_id',
+  SESSION_CREATED_AT: 'hss_session_created_at',
   USER: 'hss_session_user',
   PERSISTENT: 'hss_persistent_login',
   LAST_HEARTBEAT: 'hss_last_heartbeat',
@@ -84,6 +85,24 @@ function setSessionId(sessionId) {
   } catch (_) {}
 }
 
+/**
+ * Get the timestamp when the current session was created or validated locally.
+ */
+function getSessionCreatedAt() {
+  const val = sessionStorage.getItem(STORAGE_KEYS.SESSION_CREATED_AT) || localStorage.getItem(STORAGE_KEYS.SESSION_CREATED_AT);
+  return val ? parseInt(val, 10) : 0;
+}
+
+/**
+ * Set the timestamp when the current session was created locally.
+ */
+function setSessionCreatedAt(ts = Date.now()) {
+  try {
+    sessionStorage.setItem(STORAGE_KEYS.SESSION_CREATED_AT, String(ts));
+    localStorage.setItem(STORAGE_KEYS.SESSION_CREATED_AT, String(ts));
+  } catch (_) {}
+}
+
 // ---------------------------------------------------------------------------
 // Cloud Active Session Management (Firestore userSessions collection)
 // ---------------------------------------------------------------------------
@@ -111,10 +130,14 @@ async function registerActiveSessionInCloud(user, deviceId, sessionId) {
     else if (/linux/i.test(ua)) platform = 'Linux';
   }
 
+  const now = Date.now();
+  setSessionCreatedAt(now);
+
   const payload = {
     sessionId: String(sessionId),
     deviceId: String(deviceId || getDeviceId()),
-    updatedAt: new Date().toISOString(),
+    updatedAt: new Date(now).toISOString(),
+    timestamp: now,
     email: cleanEmail,
     role: user.role || 'Student',
     deviceInfo: `${platform} (${typeof navigator !== 'undefined' ? (navigator.platform || 'Web') : 'Web'})`.slice(0, 100),
@@ -139,7 +162,6 @@ function listenForSessionRevocation(uid, currentSessionId, onRevoked) {
   if (!uid || !currentSessionId || !db) return () => {};
 
   const sessionDocRef = doc(db, 'userSessions', uid);
-  let isInitial = true;
 
   const unsubscribe = onSnapshot(sessionDocRef, (docSnap) => {
     if (!docSnap.exists()) return;
@@ -147,29 +169,34 @@ function listenForSessionRevocation(uid, currentSessionId, onRevoked) {
     const data = docSnap.data();
     const remoteSessionId = data?.sessionId;
     const remoteDeviceId = data?.deviceId;
+    const remoteUpdatedAtStr = data?.updatedAt;
+    const remoteTimestamp = Number(data?.timestamp) || (remoteUpdatedAtStr ? new Date(remoteUpdatedAtStr).getTime() : 0);
     const myDeviceId = getDeviceId();
+    const mySessionCreatedAt = getSessionCreatedAt() || Date.now();
 
-    // On initial snapshot: if another session was registered on another device while offline
-    if (isInitial) {
-      isInitial = false;
-      if (remoteSessionId && remoteSessionId !== currentSessionId && remoteDeviceId !== myDeviceId) {
-        onRevoked({ remoteSessionId, remoteDeviceId, deviceInfo: data.deviceInfo });
+    // 1. If remoteSessionId matches our local currentSessionId, this snapshot is for our own session
+    if (remoteSessionId === currentSessionId) {
+      return;
+    }
+
+    // 2. If remoteDeviceId matches our deviceId, it's this same physical device/browser (e.g. another tab)
+    if (remoteDeviceId === myDeviceId) {
+      if (remoteSessionId && remoteSessionId !== currentSessionId) {
+        setSessionId(remoteSessionId);
       }
       return;
     }
 
-    // Live update when another device writes to userSessions/{uid}
-    if (remoteSessionId && remoteSessionId !== currentSessionId) {
-      // Same physical browser/device (e.g., another tab of same device):
-      if (remoteDeviceId === myDeviceId) {
-        // Synchronize local session ID so this tab stays alive
-        setSessionId(remoteSessionId);
-        return;
-      }
-
-      // DIFFERENT physical device! Terminate this old session immediately!
-      onRevoked({ remoteSessionId, remoteDeviceId, deviceInfo: data.deviceInfo });
+    // 3. Different physical device! Check if this remote record is stale (created before or during our login)
+    // Clock skew / propagation window of 2500ms prevents self-termination on fresh login or page reload
+    if (remoteTimestamp <= mySessionCreatedAt + 2500) {
+      // Remote record in Firestore is an older session from before this device logged in.
+      // Do NOT terminate this active session.
+      return;
     }
+
+    // 4. Remote record was registered strictly AFTER this session started, from a DIFFERENT device!
+    onRevoked({ remoteSessionId, remoteDeviceId, deviceInfo: data.deviceInfo });
   }, (err) => {
     console.warn('Session revocation listener note:', err);
   });
@@ -204,17 +231,21 @@ function saveSession(data, keepLoggedIn = true) {
 
   const userStr = JSON.stringify(data.user || {});
   const tokenStr = data.token || '';
-  const nowStr = Date.now().toString();
+  const now = Date.now();
+  const nowStr = now.toString();
 
-  // Ensure sessionId is recorded
+  // Ensure sessionId and sessionCreatedAt are recorded
   const sessionId = data.sessionId || getSessionId() || generateSessionId();
   setSessionId(sessionId);
+  const sessionCreatedAt = data.sessionCreatedAt || getSessionCreatedAt() || now;
+  setSessionCreatedAt(sessionCreatedAt);
 
   [localStorage, sessionStorage].forEach(storage => {
     try {
       storage.setItem(STORAGE_KEYS.TOKEN, tokenStr);
       storage.setItem(STORAGE_KEYS.USER, userStr);
       storage.setItem(STORAGE_KEYS.SESSION_ID, sessionId);
+      storage.setItem(STORAGE_KEYS.SESSION_CREATED_AT, String(sessionCreatedAt));
       storage.setItem(STORAGE_KEYS.LAST_HEARTBEAT, nowStr);
       storage.removeItem('hss_explicit_logout');
     } catch (_) {}
@@ -307,6 +338,7 @@ function clearSession() {
       storage.removeItem(STORAGE_KEYS.TOKEN);
       storage.removeItem(STORAGE_KEYS.USER);
       storage.removeItem(STORAGE_KEYS.SESSION_ID);
+      storage.removeItem(STORAGE_KEYS.SESSION_CREATED_AT);
       storage.removeItem(STORAGE_KEYS.LAST_HEARTBEAT);
       storage.removeItem('hss_explicit_logout');
       storage.removeItem('hss_pending_admin_login');
@@ -399,6 +431,8 @@ export const sessionManager = {
   getSessionId,
   setSessionId,
   generateSessionId,
+  getSessionCreatedAt,
+  setSessionCreatedAt,
 
   // Cloud Active Session
   registerActiveSessionInCloud,

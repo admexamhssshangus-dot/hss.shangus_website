@@ -70,7 +70,8 @@ export async function resolveStaffRoleAndPerms(emailOrUser) {
       const uidSnap = await getDoc(doc(db, 'users', user.uid));
       if (uidSnap.exists()) {
         const data = uidSnap.data();
-        if (data.role && ['Teacher', 'Faculty', 'Admin', 'SuperAdmin'].includes(data.role)) {
+        const rLower = String(data.role || '').toLowerCase().trim();
+        if (rLower && ['teacher', 'faculty', 'admin', 'superadmin'].includes(rLower)) {
           profile = data;
         }
       }
@@ -85,7 +86,8 @@ export async function resolveStaffRoleAndPerms(emailOrUser) {
       const emailSnap = await getDoc(doc(db, 'users', email));
       if (emailSnap.exists()) {
         const data = emailSnap.data();
-        if (data.role && ['Teacher', 'Faculty', 'Admin', 'SuperAdmin'].includes(data.role)) {
+        const rLower = String(data.role || '').toLowerCase().trim();
+        if (rLower && ['teacher', 'faculty', 'admin', 'superadmin'].includes(rLower)) {
           profile = data;
         }
       }
@@ -140,12 +142,14 @@ export async function resolveStaffRoleAndPerms(emailOrUser) {
   if (!profile) return null;
   if (profile.active === false) throw new Error('This staff account is inactive.');
 
-  const role = profile.role || 'Admin';
-  if (!['Teacher', 'Faculty', 'Admin', 'SuperAdmin'].includes(role)) return null;
+  const rawRole = String(profile.role || 'Admin').trim();
+  const normalizedRole = rawRole.toLowerCase();
+  if (!['teacher', 'faculty', 'admin', 'superadmin'].includes(normalizedRole)) return null;
 
-  const isSuper = role === 'SuperAdmin' || isSuperAdminEmail(email);
-  const isAdmin = isSuper || role === 'Admin';
-  const isTeacher = role === 'Teacher' || role === 'Faculty';
+  const isSuper = normalizedRole === 'superadmin' || isSuperAdminEmail(email);
+  const isAdmin = isSuper || normalizedRole === 'admin';
+  const isTeacher = normalizedRole === 'teacher' || normalizedRole === 'faculty';
+  const role = isSuper ? 'SuperAdmin' : (normalizedRole === 'admin' ? 'Admin' : (normalizedRole === 'faculty' ? 'Faculty' : 'Teacher'));
 
   const resolved = {
     ...profile,
