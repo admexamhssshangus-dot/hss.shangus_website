@@ -47,6 +47,7 @@ service cloud.firestore {
     function isAdmin() {
       return isAuthenticated() && (
         isBootstrapAdmin() ||
+        normalizedRole() in ['admin', 'superadmin'] ||
         staffProfile().get('role', '') in ['Admin', 'SuperAdmin', 'admin', 'superadmin'] ||
         (authEmail() != '' && exists(/databases/$(database)/documents/users/$(authEmail())) &&
          get(/databases/$(database)/documents/users/$(authEmail())).data.get('role', '') in ['Admin', 'SuperAdmin', 'admin', 'superadmin'])
@@ -55,6 +56,7 @@ service cloud.firestore {
     function isSuperAdmin() {
       return isAuthenticated() && (
         isBootstrapAdmin() ||
+        normalizedRole() in ['superadmin'] ||
         staffProfile().get('role', '') in ['SuperAdmin', 'superadmin'] ||
         (authEmail() != '' && exists(/databases/$(database)/documents/users/$(authEmail())) &&
          get(/databases/$(database)/documents/users/$(authEmail())).data.get('role', '') in ['SuperAdmin', 'superadmin'])
@@ -72,9 +74,10 @@ service cloud.firestore {
     function canUse(module) { return canUseAny([module]); }
     function isFaculty() {
       return isAuthenticated() && (
-        staffProfile().get('role', '') in ['Teacher', 'Faculty'] ||
+        normalizedRole() in ['teacher', 'faculty'] ||
+        staffProfile().get('role', '') in ['Teacher', 'Faculty', 'teacher', 'faculty'] ||
         (authEmail() != '' && exists(/databases/$(database)/documents/users/$(authEmail())) &&
-         get(/databases/$(database)/documents/users/$(authEmail())).data.get('role', '') in ['Teacher', 'Faculty'])
+         get(/databases/$(database)/documents/users/$(authEmail())).data.get('role', '') in ['Teacher', 'Faculty', 'teacher', 'faculty'])
       );
     }
     function isTeacher() { return isFaculty() || isAdmin(); }
