@@ -252,7 +252,7 @@ export default function Admissions() {
                     </tr>
                     <tr className="bg-slate-50/30 hover:bg-slate-50/70 transition-colors">
                       <td className="p-3 font-extrabold border-t border-r border-slate-200 text-slate-800">10th</td>
-                      <td className="p-3 border-t border-slate-200 text-slate-600 font-semibold">{getFee('10th', 'Rs. 1700')}</td>
+                      <td className="p-3 border-t border-slate-200 text-slate-600 font-semibold">{getFee('10th', 'Rs. 1100')}</td>
                     </tr>
                   </tbody>
                 </table>
@@ -332,7 +332,7 @@ export default function Admissions() {
                   <div className="space-y-3">
                     {[
                       { label: '9th Class Subjects', fee: getFee('9th', 'Rs. 1700') },
-                      { label: '10th Class Subjects', fee: getFee('10th', 'Rs. 1700') }
+                      { label: '10th Class Subjects', fee: getFee('10th', 'Rs. 1100') }
                     ].map(r => (
                       <div key={r.label} className="flex justify-between items-center text-sm">
                         <span className="text-slate-600 font-medium">{r.label}</span>

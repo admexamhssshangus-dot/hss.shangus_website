@@ -9,9 +9,6 @@
 // Admin, and Super Admin roles.
 // =================================================================
 
-import { doc, setDoc, onSnapshot } from 'firebase/firestore';
-import { db } from './firebase';
-
 const STORAGE_KEYS = {
   TOKEN: 'hss_session_token',
   DEVICE_ID: 'hss_device_id',
@@ -115,10 +112,8 @@ function setSessionCreatedAt(ts = Date.now()) {
  * @param {string} sessionId - Session identifier
  */
 async function registerActiveSessionInCloud(user, deviceId, sessionId) {
-  if (!user?.uid || !db) return;
   const uid = user.uid;
   const cleanEmail = String(user.email || '').toLowerCase().trim();
-  const sessionDocRef = doc(db, 'userSessions', uid);
 
   let platform = 'Web';
   if (typeof navigator !== 'undefined') {
@@ -144,6 +139,10 @@ async function registerActiveSessionInCloud(user, deviceId, sessionId) {
   };
 
   try {
+    const { db } = await import('./firebase');
+    const { doc, setDoc } = await import('firebase/firestore');
+    if (!db) return;
+    const sessionDocRef = doc(db, 'userSessions', uid);
     await setDoc(sessionDocRef, payload, { merge: true });
   } catch (err) {
     console.warn('Active session cloud registration note:', err);
@@ -159,57 +158,58 @@ async function registerActiveSessionInCloud(user, deviceId, sessionId) {
  * @returns {function} Unsubscribe function
  */
 function listenForSessionRevocation(uid, currentSessionId, onRevoked) {
-  if (!uid || !currentSessionId || !db) return () => {};
+  if (!uid || !currentSessionId) return () => {};
+  let active = true;
+  let unsub = null;
 
-  const sessionDocRef = doc(db, 'userSessions', uid);
+  import('./firebase').then(({ db }) => {
+    if (!active || !db) return;
+    return import('firebase/firestore').then(({ doc, onSnapshot }) => {
+      if (!active) return;
+      const sessionDocRef = doc(db, 'userSessions', uid);
+      unsub = onSnapshot(sessionDocRef, (docSnap) => {
+        if (!docSnap.exists() || !active) return;
 
-  const unsubscribe = onSnapshot(sessionDocRef, (docSnap) => {
-    if (!docSnap.exists()) return;
+        const data = docSnap.data();
+        const remoteSessionId = data?.sessionId;
+        const remoteDeviceId = data?.deviceId;
+        const remoteUpdatedAtStr = data?.updatedAt;
+        const remoteTimestamp = Number(data?.timestamp) || (remoteUpdatedAtStr ? new Date(remoteUpdatedAtStr).getTime() : 0);
+        const myDeviceId = getDeviceId();
+        const mySessionCreatedAt = getSessionCreatedAt() || Date.now();
 
-    const data = docSnap.data();
-    const remoteSessionId = data?.sessionId;
-    const remoteDeviceId = data?.deviceId;
-    const remoteUpdatedAtStr = data?.updatedAt;
-    const remoteTimestamp = Number(data?.timestamp) || (remoteUpdatedAtStr ? new Date(remoteUpdatedAtStr).getTime() : 0);
-    const myDeviceId = getDeviceId();
-    const mySessionCreatedAt = getSessionCreatedAt() || Date.now();
-
-    // 1. If remoteSessionId matches our local currentSessionId, this snapshot is for our own session
-    if (remoteSessionId === currentSessionId) {
-      return;
-    }
-
-    // 2. If remoteDeviceId matches our deviceId, it's this same physical device/browser (e.g. another tab)
-    if (remoteDeviceId === myDeviceId) {
-      if (remoteSessionId && remoteSessionId !== currentSessionId) {
-        setSessionId(remoteSessionId);
-      }
-      return;
-    }
-
-    // 3. Different physical device! Check if this remote record is stale (created before or during our login)
-    // Clock skew / propagation window of 2500ms prevents self-termination on fresh login or page reload
-    if (remoteTimestamp <= mySessionCreatedAt + 2500) {
-      // Remote record in Firestore is an older session from before this device logged in.
-      // Do NOT terminate this active session.
-      return;
-    }
-
-    // 4. Remote record was registered strictly AFTER this session started, from a DIFFERENT device!
-    onRevoked({ remoteSessionId, remoteDeviceId, deviceInfo: data.deviceInfo });
-  }, (err) => {
-    console.warn('Session revocation listener note:', err);
+        if (remoteSessionId === currentSessionId) return;
+        if (remoteDeviceId === myDeviceId) {
+          if (remoteSessionId && remoteSessionId !== currentSessionId) {
+            setSessionId(remoteSessionId);
+          }
+          return;
+        }
+        if (remoteTimestamp <= mySessionCreatedAt + 2500) return;
+        onRevoked({ remoteSessionId, remoteDeviceId, deviceInfo: data.deviceInfo });
+      }, (err) => {
+        console.warn('Session revocation listener note:', err);
+      });
+    });
+  }).catch((err) => {
+    console.warn('Session listener load note:', err);
   });
 
-  return unsubscribe;
+  return () => {
+    active = false;
+    if (unsub) unsub();
+  };
 }
 
 /**
  * Clear the cloud active session record on explicit logout.
  */
 async function clearActiveSessionInCloud(uid) {
-  if (!uid || !db) return;
+  if (!uid) return;
   try {
+    const { db } = await import('./firebase');
+    const { doc, setDoc } = await import('firebase/firestore');
+    if (!db) return;
     const sessionDocRef = doc(db, 'userSessions', uid);
     await setDoc(sessionDocRef, { sessionId: '', updatedAt: new Date().toISOString() }, { merge: true }).catch(() => {});
   } catch (_) {}

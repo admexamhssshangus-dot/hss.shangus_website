@@ -1,6 +1,3 @@
-import { doc, getDoc } from 'firebase/firestore';
-import { db } from '../firebase';
-
 // Default settings fallback
 const DEFAULT_TAX_CONFIG = {
   financialYearLabel: '2025-26',
@@ -117,7 +114,7 @@ export const DEFAULT_SETTINGS = {
     "12th_humanities_boys": 1550,
     "12th_humanities_girls": 1550,
     "9th": 1700,
-    "10th": 1700
+    "10th": 1100
   },
   socialLinks: {
     facebook: 'https://www.facebook.com/p/Govt-Higher-Secondary-School-Shangus-100083269956258/',
@@ -217,7 +214,7 @@ export function mergeSiteSettings(parsed = {}) {
 }
 
 export async function loadSiteSettings() {
-  // 1. Check local storage override first (for admin instant testing / avoiding reload loss)
+  // 1. Check local storage override first (for instant render & offline)
   const local = localStorage.getItem('site_settings');
   if (local) {
     try {
@@ -228,22 +225,30 @@ export async function loadSiteSettings() {
     }
   }
 
-  // 2. Try Firestore next (remote live data)
+  // 2. Try Firestore next (remote live data) with dynamic import & timeout guard
   try {
-    const snap = await getDoc(doc(db, 'site', 'settings'));
-    if (snap.exists()) {
-      return mergeSiteSettings(snap.data());
+    const { db } = await import('../firebase');
+    const { doc, getDoc } = await import('firebase/firestore');
+    const docPromise = getDoc(doc(db, 'site', 'settings'));
+    const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 2500));
+    const snap = await Promise.race([docPromise, timeoutPromise]);
+    if (snap && snap.exists()) {
+      const merged = mergeSiteSettings(snap.data());
+      try { localStorage.setItem('site_settings', JSON.stringify(merged)); } catch (_) {}
+      return merged;
     }
   } catch (e) {
-    console.warn('Firestore settings read failed:', e);
+    console.warn('Firestore settings read failed/timed out, falling back:', e);
   }
 
-  // 3. Fetch from server
+  // 3. Fetch from server static JSON with cache-busting
   try {
     const res = await fetch('/slides/settings.json?t=' + Date.now(), { cache: 'no-cache' });
     if (res.ok) {
       const data = await res.json();
-      return mergeSiteSettings(data);
+      const merged = mergeSiteSettings(data);
+      try { localStorage.setItem('site_settings', JSON.stringify(merged)); } catch (_) {}
+      return merged;
     }
   } catch (e) {
     console.warn('Could not load settings.json from server', e);
