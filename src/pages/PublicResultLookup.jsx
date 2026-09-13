@@ -61,10 +61,9 @@ const STANDARD_STREAM_SUBJECTS = {
   Secondary: [
     { code: 'EN', name: 'General English', defaultMax: 50 },
     { code: 'MA', name: 'Mathematics', defaultMax: 50 },
+    { code: 'UR', name: 'Urdu', defaultMax: 50 },
     { code: 'SC', name: 'Science', defaultMax: 50 },
     { code: 'SS', name: 'Social Science', defaultMax: 50 },
-    { code: 'UR', name: 'Urdu', defaultMax: 50 },
-    { code: 'HTC', name: 'Healthcare', defaultMax: 50 },
     { code: 'ITE', name: 'IT & ITeS', defaultMax: 50 },
   ],
 };
@@ -346,6 +345,57 @@ export function normalizeMarksToScale(rawMarks, rawMax = 50, targetMax = 50) {
 }
 
 /**
+ * Extracts and canonicalizes enrolled subjects from a student record across
+ * schema variations (subjects array, subs string, selectedSubjects, subjects1..6, Subject 1..6, etc.)
+ */
+export function extractEnrolledSubjects(student) {
+  if (!student || typeof student !== 'object') return [];
+
+  // 1. Direct array of objects or strings
+  if (Array.isArray(student.subjects) && student.subjects.length > 0) {
+    return student.subjects;
+  }
+  if (Array.isArray(student.selectedSubjects) && student.selectedSubjects.length > 0) {
+    return student.selectedSubjects;
+  }
+  if (Array.isArray(student.expectedSubjectCodes) && student.expectedSubjectCodes.length > 0) {
+    return student.expectedSubjectCodes;
+  }
+
+  // 2. Individual numbered slots (subjects1..subjects6, subject1..subject6, Subject 1..Subject 6, etc.)
+  const slotValues = [];
+  for (let i = 1; i <= 6; i++) {
+    const val = student[`subjects${i}`] || student[`Subjects${i}`] ||
+                student[`subject${i}`] || student[`Subject${i}`] ||
+                student[`Subject ${i}`] || student[`sub${i}`] || student[`Sub${i}`] ||
+                student[`subject_${i}`] || student[`subjects_${i}`];
+    if (val && typeof val === 'string' && val.trim() && val.trim() !== '-' && val.trim() !== '—') {
+      slotValues.push(val.trim());
+    }
+  }
+  if (slotValues.length > 0) {
+    return slotValues;
+  }
+
+  // 3. Delimited string fields: subjects, subs, 'Subjects to be taken in Class 10th', etc.
+  const combinedRaw = student.subjects || student.Subjects || student.subs || student.Subs ||
+                      student.selectedSubjects || student.subjectList ||
+                      student['Subjects to be taken in Class 10th'] ||
+                      student['Subjects to be taken in Class 11th'] ||
+                      student['Subjects to be taken in Class 12th'] ||
+                      student['Subjects Studied in Class 10th'] ||
+                      student['Subjects Offered'] || '';
+  if (typeof combinedRaw === 'string' && combinedRaw.trim()) {
+    const parts = combinedRaw.split(/[,;|+]/).map(s => s.trim()).filter(Boolean);
+    if (parts.length > 0) {
+      return parts;
+    }
+  }
+
+  return [];
+}
+
+/**
  * Computes the complete scorecard subject roster with automatic normalization to 50M
  * and flexible Botany & Zoology combined (50M) vs separate (50M each) display.
  */
@@ -382,23 +432,39 @@ export function computeScorecardSubjects({
     }
   }
 
-  const isScience = String(streamName || '').toLowerCase().includes('scien');
-  const hasRegisteredBio = Array.isArray(matchedStudent?.subjects) &&
-    matchedStudent.subjects.some(s => {
+  const normClass = String(matchedStudent?.className || '').toLowerCase().trim();
+  const isSecondary = ['10th', '9th', '10', '9', 'x', 'ix'].includes(classKey(normClass)) || normClass.includes('10') || normClass.includes('9');
+  const isScience = !isSecondary && String(streamName || '').toLowerCase().includes('scien');
+  const enrolledSubs = extractEnrolledSubjects(matchedStudent);
+
+  const hasRegisteredBio = !isSecondary && Array.isArray(enrolledSubs) &&
+    enrolledSubs.some(s => {
       const code = typeof s === 'string' ? '' : (s.code || '');
       const name = typeof s === 'string' ? s : (s.name || '');
       return ['BI', 'BO', 'ZO'].includes(code) || /biology|botany|zoology/i.test(name);
     });
-  const hasBioActivity = Boolean(botanyRec || zoologyRec || biologyRec || hasRegisteredBio || (isScience && !Array.isArray(matchedStudent?.subjects)));
+  const hasBioActivity = !isSecondary && Boolean(botanyRec || zoologyRec || biologyRec || hasRegisteredBio || (isScience && enrolledSubs.length === 0));
 
   let rawTemplate = [];
-  if (Array.isArray(matchedStudent?.subjects) && matchedStudent.subjects.length > 0) {
-    rawTemplate = matchedStudent.subjects.map(s => {
+  if (enrolledSubs.length > 0) {
+    rawTemplate = enrolledSubs.map(s => {
       if (typeof s === 'string') {
-        const foundDef = SUBJECT_CONFIG_DEFS.find(d => d.name.toLowerCase() === s.toLowerCase() || d.code.toLowerCase() === s.toLowerCase());
+        const sClean = s.trim();
+        const sLower = sClean.toLowerCase();
+        const foundDef = SUBJECT_CONFIG_DEFS.find(d => 
+          d.code.toLowerCase() === sLower || 
+          d.name.toLowerCase() === sLower ||
+          (d.code === 'SC' && /^(science|sci|general science)$/i.test(sLower)) ||
+          (d.code === 'SS' && /^(social science|social studies|sst|soc)$/i.test(sLower)) ||
+          (d.code === 'MA' && /^(math|maths|mathematics)$/i.test(sLower)) ||
+          (d.code === 'EN' && /^(english|general english|gen eng|ge)$/i.test(sLower)) ||
+          (d.code === 'UR' && /^(urdu)$/i.test(sLower)) ||
+          (d.code === 'HTC' && /^(healthcare|health care|hc)$/i.test(sLower)) ||
+          (d.code === 'ITE' && /^(it and ites|it & ites|ites|it)$/i.test(sLower))
+        );
         return {
-          code: foundDef?.code || s.substring(0, 3).toUpperCase(),
-          name: foundDef?.name || s,
+          code: foundDef?.code || (sClean.length <= 4 ? sClean.toUpperCase() : sClean.substring(0, 3).toUpperCase()),
+          name: foundDef?.name || sClean,
           defaultMax: 50
         };
       }
@@ -408,6 +474,50 @@ export function computeScorecardSubjects({
         defaultMax: s.defaultMax || 50
       };
     });
+
+    if (isSecondary) {
+      const hasVocational = rawTemplate.some(t =>
+        ['HTC', 'ITE', 'IT', 'HC'].includes(String(t.code || '').toUpperCase()) ||
+        /vocational|healthcare|health care|it & ites|it and ites|information technology/i.test(t.name || '')
+      );
+      if (!hasVocational) {
+        let vocSub = null;
+        for (const sec of matchingSections) {
+          const c = (sec.subjectCode || '').toUpperCase().trim();
+          const n = String(sec.subjectName || sec.subject || '').toLowerCase();
+          if (c === 'HTC' || c === 'HC' || n.includes('health')) {
+            vocSub = { code: 'HTC', name: 'Healthcare', defaultMax: 50 };
+            break;
+          }
+          if (c === 'ITE' || c === 'IT' || n.includes('it & ites') || n.includes('information')) {
+            vocSub = { code: 'ITE', name: 'IT & ITeS', defaultMax: 50 };
+            break;
+          }
+        }
+        if (!vocSub && matchedStudent) {
+          const vocField = String(
+            matchedStudent.vocational ||
+            matchedStudent.Vocational ||
+            matchedStudent['Vocational subject'] ||
+            matchedStudent['Vocational Subject'] ||
+            matchedStudent.vocationalSubject ||
+            matchedStudent.trade ||
+            matchedStudent.Trade || ''
+          ).toLowerCase();
+          if (vocField.includes('health') || vocField.includes('htc')) {
+            vocSub = { code: 'HTC', name: 'Healthcare', defaultMax: 50 };
+          } else if (vocField.includes('it') || vocField.includes('ite')) {
+            vocSub = { code: 'ITE', name: 'IT & ITeS', defaultMax: 50 };
+          }
+        }
+        if (!vocSub) {
+          vocSub = { code: 'ITE', name: 'IT & ITeS', defaultMax: 50 };
+        }
+        rawTemplate.push(vocSub);
+      }
+    }
+  } else if (isSecondary) {
+    rawTemplate = (STANDARD_STREAM_SUBJECTS.Secondary || []).map(s => ({ ...s }));
   } else if (isScience) {
     rawTemplate = [
       { code: 'EN', name: 'General English', defaultMax: 50 },
@@ -713,8 +823,14 @@ export function computeScorecardSubjects({
     }
   });
 
+  const secondaryWeight = { EN: 1, MA: 2, UR: 3, HN: 3, SC: 4, SS: 5, ITE: 6, HTC: 6, HC: 6, IT: 6 };
   const codeWeight = { EN: 1, PH: 2, CH: 3, BI: 4, BO: 4, ZO: 5, MA: 6, ES: 7, ED: 8, HT: 9, PS: 10, UR: 11, SC: 12, SS: 13 };
-  finalSubjectsList.sort((a, b) => (codeWeight[a.subjectCode] || 30) - (codeWeight[b.subjectCode] || 30));
+  finalSubjectsList.sort((a, b) => {
+    if (isSecondary) {
+      return (secondaryWeight[a.subjectCode] || 30) - (secondaryWeight[b.subjectCode] || 30);
+    }
+    return (codeWeight[a.subjectCode] || 30) - (codeWeight[b.subjectCode] || 30);
+  });
 
   const evaluatedSubjects = finalSubjectsList.filter(s => s.isEvaluated);
   const evaluatedCount = evaluatedSubjects.length;
@@ -1096,12 +1212,12 @@ export default function PublicResultLookup() {
         }
 
         // Match 4: Robust Registration Suffix or JKBOSE Reg Typo/Fuzzy Match (e.g. '2501010000610001' vs '2501100020610001' or suffix '610001')
-        if (!matchedStudent && cleanDigitsOnly.length >= 6) {
+        if (!matchedStudent && cleanDigitsOnly.length >= 5) {
           matchedStudent = candidateMatches(s => {
             const rDigits = String(s.boardRegNo || '').replace(/\D/g, '');
-            if (!rDigits || rDigits.length < 6) return false;
+            if (!rDigits || rDigits.length < 5) return false;
             // Query is suffix of registration, or registration ends with query
-            if (rDigits.endsWith(cleanDigitsOnly) || cleanDigitsOnly.endsWith(rDigits.slice(-6))) {
+            if (rDigits.endsWith(cleanDigitsOnly) || cleanDigitsOnly.endsWith(rDigits) || (rDigits.length >= 6 && cleanDigitsOnly.endsWith(rDigits.slice(-6)))) {
               return !targetClsKey || classKey(s.className) === targetClsKey;
             }
             // 14-16 digit JKBOSE pattern: matching session prefix (first 4) & roll suffix (last 6)
@@ -1185,6 +1301,7 @@ export default function PublicResultLookup() {
                 return isRegMatch || isFormMatch || isRollMatch;
               });
               if (rec) {
+                const enrolled = extractEnrolledSubjects(rec);
                 matchedStudent = {
                   name: rec.name || rec.studentName,
                   fatherName: rec.parentName || rec.fatherName || '—',
@@ -1195,7 +1312,8 @@ export default function PublicResultLookup() {
                   formNo: rec.formNo || '—',
                   stream: rec.stream || (['11th', '12th'].includes(sec.className) ? 'Humanities' : 'General'),
                   session: sec.session || selectedSession,
-                  subjects: []
+                  dob: rec.dob || '',
+                  subjects: enrolled
                 };
                 break;
               }
@@ -1224,6 +1342,32 @@ export default function PublicResultLookup() {
                 return isRegMatch || isFormMatch || isRollMatch;
               });
               if (found) {
+                let enrolled = extractEnrolledSubjects(found);
+                const isFoundSecondary = ['10th', '9th', '10', '9', 'x', 'ix'].includes(classKey(found.selectedClass || found.className || found.Class || selectedClass));
+                const lacksVocational = isFoundSecondary && !enrolled.some(s => {
+                  const code = typeof s === 'string' ? s : (s.code || '');
+                  const name = typeof s === 'string' ? s : (s.name || '');
+                  return ['HTC', 'ITE', 'IT', 'HC'].includes(String(code).toUpperCase()) || /vocational|healthcare|it & ites|information/i.test(name);
+                });
+                if ((enrolled.length === 0 || lacksVocational) && Array.isArray(verifiedCatalog)) {
+                  const catMatch = verifiedCatalog.find(c => {
+                    const cForm = String(c.fNo || '').trim().toLowerCase();
+                    const fForm = String(found.formNo || found['Form Number'] || '').trim().toLowerCase();
+                    if (cForm && fForm && cForm === fForm) return true;
+                    const cReg = String(c.boardRegNo || '').replace(/[^a-z0-9]/g, '');
+                    const fReg = String(found.boardRegNo || found.regNo || found['Board Registration Number'] || '').replace(/[^a-z0-9]/g, '');
+                    if (cReg && fReg && (cReg === fReg || (cReg.length >= 5 && fReg.length >= 5 && (cReg.endsWith(fReg.slice(-5)) || fReg.endsWith(cReg.slice(-5)))))) return true;
+                    const cName = String(c.name || '').trim().toLowerCase().replace(/[^a-z]/g, '');
+                    const fName = String(found.name || found.studentName || found["Student's Name (as per school records)"] || found["Student's Name"] || '').trim().toLowerCase().replace(/[^a-z]/g, '');
+                    const cDad = String(c.fatherName || '').trim().toLowerCase().replace(/[^a-z]/g, '');
+                    const fDad = String(found.fatherName || found["Father's/Guardian's Name (as per school records)"] || found["Father's Name"] || '').trim().toLowerCase().replace(/[^a-z]/g, '');
+                    return Boolean(cName && fName && (cName === fName || cName.includes(fName) || fName.includes(cName)) && cDad && fDad && (cDad === fDad || cDad.includes(fDad) || fDad.includes(cDad)));
+                  });
+                  if (catMatch && Array.isArray(catMatch.subjects) && catMatch.subjects.length > 0) {
+                    enrolled = catMatch.subjects;
+                  }
+                }
+
                 matchedStudent = {
                   name: found.name || found.studentName || found["Student's Name (as per school records)"] || found["Student's Name"],
                   fatherName: found.fatherName || found["Father's/Guardian's Name (as per school records)"] || found["Father's Name"] || '—',
@@ -1232,9 +1376,10 @@ export default function PublicResultLookup() {
                   examRollNo: found.examRollNo || '—',
                   boardRegNo: found.boardRegNo || found.regNo || found['Board Registration Number'] || cleanQuery,
                   formNo: found.formNo || found['Form Number'] || '—',
-                  stream: found.stream || found.Stream || 'General',
+                  stream: found.stream || found.Stream || (['11th', '12th'].includes(selectedClass) ? 'Humanities' : 'General'),
                   session: found.selectedSession || found.Session || selectedSession,
-                  subjects: []
+                  dob: found.dob || found['DoB (figures)'] || found['Date of Birth'] || found.dateOfBirth || '',
+                  subjects: enrolled
                 };
               }
             }
