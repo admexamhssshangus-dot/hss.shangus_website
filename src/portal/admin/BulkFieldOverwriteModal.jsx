@@ -337,6 +337,7 @@ export default function BulkFieldOverwriteModal({
   const [isAborting, setIsAborting] = useState(false);
   const [executionLogs, setExecutionLogs] = useState([]);
   const [isMinimized, setIsMinimized] = useState(false);
+  const [isImportExpanded, setIsImportExpanded] = useState(false);
 
   // Reset workflow back to initial upload step (enables immediate overwrite for another cohort/class)
   const handleResetToUpload = useCallback(() => {
@@ -352,6 +353,7 @@ export default function BulkFieldOverwriteModal({
     setIsProcessingRows(false);
     setIsAborting(false);
     setIsMinimized(false);
+    setIsImportExpanded(false);
     setExecutionLogs([]);
     abortExecutionRef.current = false;
   }, []);
@@ -1898,15 +1900,43 @@ export default function BulkFieldOverwriteModal({
                       </span>
                     </div>
 
-                    <button
-                      type="button"
-                      onClick={handleDownloadExcelTemplate}
-                      className="px-2.5 py-1 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white font-bold text-[11px] shadow-2xs flex items-center gap-1.5 cursor-pointer transition-colors shrink-0"
-                      title="Download pre-filled Excel spreadsheet for this cohort"
-                    >
-                      <Download size={12} />
-                      <span>Download Template ({matchingCohortStudents.length > 0 ? matchingCohortStudents.length : '.xlsx'})</span>
-                    </button>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <button
+                        type="button"
+                        onClick={handleDownloadExcelTemplate}
+                        className="px-2.5 py-1 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white font-bold text-[11px] shadow-2xs flex items-center gap-1.5 cursor-pointer transition-colors shrink-0"
+                        title="Download pre-filled Excel spreadsheet for this cohort"
+                      >
+                        <Download size={12} />
+                        <span>Download Template ({matchingCohortStudents.length > 0 ? matchingCohortStudents.length : '.xlsx'})</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsImportExpanded(prev => {
+                            const next = !prev;
+                            if (next) {
+                              setTimeout(() => {
+                                const el = document.getElementById('hss-import-section');
+                                if (el) el.scrollIntoView({ behavior: 'smooth' });
+                              }, 60);
+                            }
+                            return next;
+                          });
+                        }}
+                        className={`px-2.5 py-1 rounded-lg font-bold text-[11px] shadow-2xs flex items-center gap-1.5 cursor-pointer transition-all shrink-0 ${
+                          isImportExpanded
+                            ? 'bg-slate-800 text-white dark:bg-slate-200 dark:text-slate-900 font-black'
+                            : 'bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-200 dark:hover:bg-emerald-900 border border-emerald-300 dark:border-emerald-800'
+                        }`}
+                        title="Expand or collapse the Import & Ingestion section"
+                      >
+                        <Upload size={12} />
+                        <span>Import Data</span>
+                        {isImportExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                      </button>
+                    </div>
                   </div>
 
                   {/* Minimal Field Selection & Presets Bar */}
@@ -2105,75 +2135,105 @@ export default function BulkFieldOverwriteModal({
                     )}
                   </div>
 
-                  {/* INGESTION METHOD SELECTOR & DROPZONE */}
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-1.5">
-                      <button
-                        type="button"
-                        onClick={() => setIngestMethod('upload')}
-                        className={`px-3 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1.5 cursor-pointer transition-all ${
-                          ingestMethod === 'upload'
-                            ? 'bg-emerald-700 text-white font-black shadow-2xs'
-                            : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200'
-                        }`}
-                      >
-                        <Upload size={12} />
-                        <span>Upload Spreadsheet (.xlsx / .csv)</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => setIngestMethod('grid')}
-                        className={`px-3 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1.5 cursor-pointer transition-all ${
-                          ingestMethod === 'grid'
-                            ? 'bg-emerald-700 text-white font-black shadow-2xs'
-                            : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200'
-                        }`}
-                      >
-                        <Copy size={12} />
-                        <span>Direct Copy-Paste Grid</span>
-                      </button>
-                    </div>
-
-                    {/* METHOD A: SPREADSHEET FILE UPLOAD */}
-                    {ingestMethod === 'upload' && (
-                      <div className="p-4 rounded-xl border border-dashed border-emerald-400/80 dark:border-emerald-700/80 bg-emerald-50/40 dark:bg-emerald-950/20 text-center space-y-2 animate-fadeIn">
-                        <div className="w-8 h-8 rounded-xl bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 flex items-center justify-center mx-auto shadow-2xs">
-                          <Upload size={16} />
+                  {/* EXPANDABLE INGESTION METHOD SELECTOR & DROPZONE */}
+                  <div id="hss-import-section" className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs overflow-hidden transition-all">
+                    <button
+                      type="button"
+                      onClick={() => setIsImportExpanded(prev => !prev)}
+                      className="w-full px-3.5 py-2.5 bg-slate-50/80 dark:bg-slate-800/40 hover:bg-slate-100 dark:hover:bg-slate-800/80 flex items-center justify-between gap-3 text-left transition-colors cursor-pointer"
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div className="w-6 h-6 rounded-lg bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 flex items-center justify-center shrink-0">
+                          <Upload size={13} />
                         </div>
-                        <div>
-                          <h4 className="font-black text-xs text-slate-900 dark:text-white">
-                            Drop Updated Board Spreadsheet Here (.xlsx / .csv)
-                          </h4>
-                          <p className="text-[10px] text-slate-500 font-medium">
-                            Column 1 must be <strong>Board Registration Number</strong> for 100% authoritative matching.
-                          </p>
+                        <div className="min-w-0">
+                          <h3 className="text-xs font-black text-slate-900 dark:text-white flex items-center gap-2 truncate">
+                            <span>Import & Ingest Data</span>
+                            <span className="text-[10px] font-bold text-slate-400">
+                              • {ingestMethod === 'upload' ? 'Upload Spreadsheet' : 'Direct Copy-Paste Grid'}
+                            </span>
+                          </h3>
                         </div>
-                        <label className="inline-block px-4 py-1.5 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white font-bold text-xs shadow-2xs cursor-pointer transition-all active:scale-98">
-                          <span>Browse Spreadsheet File</span>
-                          <input
-                            type="file"
-                            accept=".xlsx,.xls,.csv"
-                            onChange={handleFileUpload}
-                            className="hidden"
-                          />
-                        </label>
                       </div>
-                    )}
+                      <div className="flex items-center gap-1.5 shrink-0 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 text-xs font-bold">
+                        <span className="text-[11px] text-emerald-700 dark:text-emerald-400 font-black">
+                          {isImportExpanded ? 'Collapse' : 'Expand'}
+                        </span>
+                        {isImportExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                      </div>
+                    </button>
 
-                    {/* METHOD B: EXCEL TABULAR SPREADSHEET GRID */}
-                    {ingestMethod === 'grid' && (
-                      <div className="animate-fadeIn">
-                        <ExcelSpreadsheetGrid
-                          activeFields={activeFieldsList}
-                          onParseData={processIncomingRows}
-                          allStudents={universalStudents}
-                          targetClass={targetClass}
-                          targetSession={targetSession}
-                          targetStream={targetStream}
-                          targetStatus={targetStatus}
-                          showToast={showToast}
-                        />
+                    {isImportExpanded && (
+                      <div className="p-3.5 pt-2 border-t border-slate-100 dark:border-slate-800 space-y-3 animate-fadeIn">
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => setIngestMethod('upload')}
+                            className={`px-3 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1.5 cursor-pointer transition-all ${
+                              ingestMethod === 'upload'
+                                ? 'bg-emerald-700 text-white font-black shadow-2xs'
+                                : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200'
+                            }`}
+                          >
+                            <Upload size={12} />
+                            <span>Upload Spreadsheet (.xlsx / .csv)</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => setIngestMethod('grid')}
+                            className={`px-3 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1.5 cursor-pointer transition-all ${
+                              ingestMethod === 'grid'
+                                ? 'bg-emerald-700 text-white font-black shadow-2xs'
+                                : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200'
+                            }`}
+                          >
+                            <Copy size={12} />
+                            <span>Direct Copy-Paste Grid</span>
+                          </button>
+                        </div>
+
+                        {/* METHOD A: SPREADSHEET FILE UPLOAD */}
+                        {ingestMethod === 'upload' && (
+                          <div className="p-4 rounded-xl border border-dashed border-emerald-400/80 dark:border-emerald-700/80 bg-emerald-50/40 dark:bg-emerald-950/20 text-center space-y-2 animate-fadeIn">
+                            <div className="w-8 h-8 rounded-xl bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 flex items-center justify-center mx-auto shadow-2xs">
+                              <Upload size={16} />
+                            </div>
+                            <div>
+                              <h4 className="font-black text-xs text-slate-900 dark:text-white">
+                                Drop Updated Board Spreadsheet Here (.xlsx / .csv)
+                              </h4>
+                              <p className="text-[10px] text-slate-500 font-medium">
+                                Column 1 must be <strong>Board Registration Number</strong> for 100% authoritative matching.
+                              </p>
+                            </div>
+                            <label className="inline-block px-4 py-1.5 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white font-bold text-xs shadow-2xs cursor-pointer transition-all active:scale-98">
+                              <span>Browse Spreadsheet File</span>
+                              <input
+                                type="file"
+                                accept=".xlsx,.xls,.csv"
+                                onChange={handleFileUpload}
+                                className="hidden"
+                              />
+                            </label>
+                          </div>
+                        )}
+
+                        {/* METHOD B: EXCEL TABULAR SPREADSHEET GRID */}
+                        {ingestMethod === 'grid' && (
+                          <div className="animate-fadeIn">
+                            <ExcelSpreadsheetGrid
+                              activeFields={activeFieldsList}
+                              onParseData={processIncomingRows}
+                              allStudents={universalStudents}
+                              targetClass={targetClass}
+                              targetSession={targetSession}
+                              targetStream={targetStream}
+                              targetStatus={targetStatus}
+                              showToast={showToast}
+                            />
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
