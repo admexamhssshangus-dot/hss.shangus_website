@@ -1443,38 +1443,11 @@ export default function PublicResultLookup() {
             <span>School Home</span>
           </Link>
 
-          <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-teal-50 dark:bg-teal-950 text-teal-800 dark:text-teal-300 border border-teal-200/80 dark:border-teal-800/80 flex items-center gap-1">
+          <span className="hidden sm:flex text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-teal-50 dark:bg-teal-950 text-teal-800 dark:text-teal-300 border border-teal-200/80 dark:border-teal-800/80 items-center gap-1">
             <ShieldCheck size={11} className="text-teal-600 dark:text-teal-400" />
             <span>Examination Results Portal • Session {selectedSession}</span>
           </span>
         </div>
-
-        {/* Collapsed Search Bar on Mobile when Result is Displayed */}
-        {studentResult && !isSearchExpandedOnMobile && (
-          <div className="sm:hidden flex items-center justify-between p-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xs print:hidden">
-            <div className="flex items-center gap-2 min-w-0">
-              <div className="w-6 h-6 rounded-lg bg-teal-50 dark:bg-teal-950/80 flex items-center justify-center text-teal-700 dark:text-teal-300 shrink-0">
-                <Search size={11} />
-              </div>
-              <div className="min-w-0">
-                <p className="text-xs font-bold text-slate-800 dark:text-slate-200 leading-tight truncate">
-                  Class {selectedClass} • Roll {queryInput}
-                </p>
-                <p className="text-[9.5px] text-slate-400 leading-tight truncate">
-                  {selectedEvalType} • {selectedSession}
-                </p>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => setIsSearchExpandedOnMobile(true)}
-              className="px-2.5 py-1 text-[10.5px] font-bold text-teal-800 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/80 hover:bg-teal-100 dark:hover:bg-teal-900/50 rounded-lg border border-teal-200 dark:border-teal-800 shrink-0 cursor-pointer transition-colors flex items-center gap-1"
-            >
-              <RefreshCw size={10.5} />
-              <span>Search Again</span>
-            </button>
-          </div>
-        )}
 
         {/* Unified Responsive Search Form */}
         <div className={`bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-2 sm:p-2.5 shadow-2xs space-y-1.5 print:hidden ${
@@ -1686,15 +1659,27 @@ export default function PublicResultLookup() {
                   Student Evaluation Scorecard
                 </h2>
 
-                <button
-                  type="button"
-                  onClick={() => window.print()}
-                  className="print:hidden sm:absolute sm:right-0 sm:top-1/2 sm:-translate-y-1/2 h-5.5 sm:h-6 px-2 rounded-md bg-teal-800 hover:bg-teal-700 active:bg-teal-900 text-white font-bold text-[10px] sm:text-[11px] flex items-center gap-1 shadow-2xs transition-all cursor-pointer shrink-0"
-                  title="Print / Save PDF Scorecard"
-                >
-                  <Printer size={10.5} />
-                  <span>Print</span>
-                </button>
+                <div className="print:hidden sm:absolute sm:right-0 sm:top-1/2 sm:-translate-y-1/2 flex items-center gap-1 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setIsSearchExpandedOnMobile(true)}
+                    className="sm:hidden h-5.5 px-2 rounded-md bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold text-[10px] flex items-center gap-1 border border-slate-200 dark:border-slate-700 transition-all cursor-pointer"
+                    title="Search for another candidate"
+                  >
+                    <RefreshCw size={9.5} />
+                    <span>Search Again</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => window.print()}
+                    className="h-5.5 sm:h-6 px-2 rounded-md bg-teal-800 hover:bg-teal-700 active:bg-teal-900 text-white font-bold text-[10px] sm:text-[11px] flex items-center gap-1 shadow-2xs transition-all cursor-pointer shrink-0"
+                    title="Print / Save PDF Scorecard"
+                  >
+                    <Printer size={10.5} />
+                    <span>Print</span>
+                  </button>
+                </div>
               </div>
               <p className="text-[10px] sm:text-[10.5px] font-medium text-slate-500 dark:text-slate-400 print:text-slate-600 m-0 mt-0.5">
                 <strong className="font-bold text-slate-800 dark:text-slate-200 print:text-black">{activeResult.evalTitle}</strong>
@@ -1744,7 +1729,11 @@ export default function PublicResultLookup() {
                 {/* Mobile-Only Compact Roll Info Row (Saves ~90px of vertical space on mobile) */}
                 <div className="sm:hidden flex items-center justify-between text-[10px] font-mono pt-1 text-slate-700 dark:text-slate-300">
                   <span>Roll: <strong className="text-teal-700 dark:text-teal-300 font-bold">{activeResult.classRollNo || '—'}</strong></span>
-                  <span>Class: <strong>{activeResult.className}</strong></span>
+                  {activeResult.boardRegNo && activeResult.boardRegNo !== '—' ? (
+                    <span>Reg: <strong className="text-slate-800 dark:text-slate-200 font-bold">{activeResult.boardRegNo}</strong></span>
+                  ) : (
+                    <span>Form: <strong className="text-slate-800 dark:text-slate-200 font-bold">{activeResult.formNo || '—'}</strong></span>
+                  )}
                   <span className="truncate max-w-[125px] text-[9.5px] text-slate-500">S/o {activeResult.fatherName || '—'}</span>
                 </div>
 
@@ -1829,7 +1818,10 @@ export default function PublicResultLookup() {
                       <th className="py-1 px-2 print:py-0.5 print:px-1.5">Subject</th>
                       <th className="py-1 px-2 print:py-0.5 print:px-1.5 text-center w-12 font-mono hidden sm:table-cell print:table-cell">Max</th>
                       <th className="py-1 px-2 print:py-0.5 print:px-1.5 text-center w-12 font-mono hidden sm:table-cell print:table-cell">Min</th>
-                      <th className="py-1 px-2 print:py-0.5 print:px-1.5 text-center w-16 font-mono">Marks</th>
+                      <th className="py-1 px-2 print:py-0.5 print:px-1.5 text-center w-16 sm:w-14 font-mono">
+                        <span className="sm:hidden">Marks (50M)</span>
+                        <span className="hidden sm:inline">Marks</span>
+                      </th>
                       <th className="py-1 px-2 print:py-0.5 print:px-1.5 text-center w-28 sm:w-28">Status</th>
                     </tr>
                   </thead>
@@ -1848,7 +1840,6 @@ export default function PublicResultLookup() {
                         <td className="py-1 px-2 print:py-0.5 print:px-1.5 font-medium text-slate-800 dark:text-slate-200 print:text-black">
                           <span className="font-semibold">{sub.subjectName}</span>
                           <span className="text-[9px] text-slate-400 print:text-slate-500 font-mono ml-1">[{sub.subjectCode}]</span>
-                          <span className="sm:hidden text-[9px] text-slate-400 font-mono ml-1.5">• Max: {sub.maxMarks}</span>
                           {sub.componentNote && (
                             <div className="text-[8.5px] sm:text-[9px] text-teal-700 dark:text-teal-400 font-mono font-medium print:text-slate-600 leading-tight">
                               {sub.componentNote}
@@ -1941,8 +1932,8 @@ export default function PublicResultLookup() {
                   <Clock size={10} className="text-teal-600 print:text-slate-500 shrink-0" />
                   <span className="truncate max-w-[200px] sm:max-w-none">
                     {activeResult.evaluatedCount < activeResult.totalCount
-                      ? `Provisional Roll • ${activeResult.evaluatedCount}/${activeResult.totalCount} subjects tabulated.`
-                      : `Official Award Roll • Verified.`
+                      ? 'Provisional Award Roll • Under Evaluation'
+                      : 'Official Award Roll • Verified'
                     }
                   </span>
                 </div>
