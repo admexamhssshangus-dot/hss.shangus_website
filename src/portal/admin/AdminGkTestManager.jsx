@@ -18,9 +18,9 @@ import SchoolAssessmentsHub from './SchoolAssessmentsHub';
 import ConsolidatedGazetteView from './ConsolidatedGazetteView';
 
 const HUB_TABS = [
-  { id: 'school', label: 'School Assessments & Pre-Board Hub', icon: Award },
-  { id: 'gazette', label: 'Consolidated Gazette & Analytics', icon: FileText },
-  { id: 'competitive', label: 'Competitive Exams & OMR', icon: Sparkles }
+  { id: 'school', label: 'School Assessments & Pre-Board Hub', mobileLabel: 'Assessments', icon: Award },
+  { id: 'gazette', label: 'Consolidated Gazette & Analytics', mobileLabel: 'Gazette', icon: FileText },
+  { id: 'competitive', label: 'Competitive Exams & OMR', mobileLabel: 'Competitive', icon: Sparkles }
 ];
 
 const EXAM_PRESETS = [
@@ -642,8 +642,8 @@ export default function AdminGkTestManager({ allStudents = [], onRefresh }) {
 
   return (
     <div className="space-y-3 sm:space-y-4">
-      {/* Sub-Navigation Bar */}
-      <div className="flex items-center gap-1 p-1 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-x-auto custom-scrollbar no-print">
+      {/* Sub-Navigation Bar: Responsive Grid on Mobile, Scrollable on Desktop */}
+      <div className="grid grid-cols-3 sm:flex sm:items-center gap-1 p-1 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl sm:overflow-x-auto no-print shadow-2xs">
         {HUB_TABS.map(tab => {
           const Icon = tab.icon;
           const isActive = activeHubTab === tab.id;
@@ -659,14 +659,16 @@ export default function AdminGkTestManager({ allStudents = [], onRefresh }) {
                   window.history.replaceState({}, '', url.toString());
                 } catch (_) {}
               }}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black transition-all whitespace-nowrap cursor-pointer ${
+              className={`flex items-center justify-center sm:justify-start gap-1 sm:gap-1.5 px-2 sm:px-3 py-2 sm:py-1.5 rounded-lg text-[11px] sm:text-xs font-black transition-all cursor-pointer truncate ${
                 isActive
                   ? 'bg-teal-700 dark:bg-teal-600 text-white shadow-xs'
                   : 'text-slate-600 dark:text-slate-300 hover:text-slate-950 dark:hover:text-white hover:bg-white/80 dark:hover:bg-slate-800/80'
               }`}
+              title={tab.label}
             >
-              <Icon size={13} className={isActive ? 'text-white' : 'text-teal-600 dark:text-teal-400'} />
-              <span>{tab.label}</span>
+              <Icon size={13} className={`shrink-0 ${isActive ? 'text-white' : 'text-teal-600 dark:text-teal-400'}`} />
+              <span className="sm:hidden truncate">{tab.mobileLabel || tab.label}</span>
+              <span className="hidden sm:inline whitespace-nowrap">{tab.label}</span>
             </button>
           );
         })}

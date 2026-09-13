@@ -1074,17 +1074,28 @@ export default function PracticalsPage() {
   const currentSubjectObj = SUBJECT_MAP.find(s => s.name === selectedSubject) || SUBJECT_MAP[1];
   const evalTypeNorm = String(practicalType || '').toLowerCase().includes('ext') ? 'external' : 'internal';
   const currentMarksConfig = getSubjectMarksConfig(practicalsSettings, selectedClass, evalTypeNorm, currentSubjectObj.code);
-  const baseEvalMax = isCustomEval && activeEvalOption?.evalConfig?.maxMarks
-    ? Number(activeEvalOption.evalConfig.maxMarks)
-    : currentMarksConfig.max;
+  const customSubjOverride = activeEvalOption?.evalConfig?.subjectOverrides?.[currentSubjectObj.code];
+  const baseEvalMax = customSubjOverride?.maxMarks
+    ? Number(customSubjOverride.maxMarks)
+    : (isCustomEval && activeEvalOption?.evalConfig?.maxMarks
+        ? Number(activeEvalOption.evalConfig.maxMarks)
+        : currentMarksConfig.max);
   const isBioSubj = ['BO', 'ZO'].includes(currentSubjectObj.code);
-  const defaultSubjectPaperMax = isBioSubj && isCustomEval && baseEvalMax === 50 ? 25 : baseEvalMax;
+  const defaultSubjectPaperMax = customSubjOverride?.maxMarks
+    ? Number(customSubjOverride.maxMarks)
+    : (isBioSubj && isCustomEval && baseEvalMax === 50 ? 25 : baseEvalMax);
   const subjectMaxMarks = Number(teacherCustomMax) > 0 ? Number(teacherCustomMax) : defaultSubjectPaperMax;
-  const minPassMarks = Math.ceil(subjectMaxMarks * 0.36);
+  const minPassMarks = customSubjOverride?.minMarks && !teacherCustomMax
+    ? Number(customSubjOverride.minMarks)
+    : Math.ceil(subjectMaxMarks * 0.36);
 
   const getSubjectMax = useCallback((code) => {
     if (code === currentSubjectObj.code && Number(teacherCustomMax) > 0) {
       return Number(teacherCustomMax);
+    }
+    const override = activeEvalOption?.evalConfig?.subjectOverrides?.[code];
+    if (override?.maxMarks) {
+      return Number(override.maxMarks);
     }
     if (['BO', 'ZO'].includes(code) && isCustomEval && Number(activeEvalOption?.evalConfig?.maxMarks) === 50) {
       return 25;
