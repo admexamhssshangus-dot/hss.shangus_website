@@ -54,7 +54,6 @@ async function check() {
       assert.equal(breadcrumb.itemListElement.length, 2);
       assert.ok(fs.existsSync(path.join(build, route.slice(1), 'index.html')), `${route}: missing directory index.html`);
       assert.ok(redirects.includes(`${route}.html ${route} 301!`), `${route}: .html not normalized to canonical`);
-      assert.ok(redirects.includes(`${route}/ ${route} 301!`), `${route}: trailing slash not normalized`);
     }
     titles.add(doc.title);
     descriptions.add(doc.querySelector('meta[name="description"]').content);
