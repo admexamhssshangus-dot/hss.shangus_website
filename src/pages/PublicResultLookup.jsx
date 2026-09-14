@@ -1261,7 +1261,8 @@ export default function PublicResultLookup() {
                     classRollNo: rec.classRollNo || '—',
                     examRollNo: rec.examRollNo || '—',
                     boardRegNo: rec.boardRegNo || cleanQuery,
-                    formNo: rec.formNo || '—',
+                    formNo: rec.formNo || rec.fNo || '—',
+                    fNo: rec.formNo || rec.fNo || '—',
                     stream: rec.stream || (doc.className === '11th' || doc.className === '12th' ? 'Humanities' : 'General'),
                     session: selectedSession,
                     subjects: parsedSubs
@@ -1309,7 +1310,8 @@ export default function PublicResultLookup() {
                   classRollNo: rec.classRollNo || rec.rollNo || '—',
                   examRollNo: rec.examRollNo || '—',
                   boardRegNo: rec.regNo || rec.boardRegNo || cleanQuery,
-                  formNo: rec.formNo || '—',
+                  formNo: rec.formNo || rec.fNo || '—',
+                  fNo: rec.formNo || rec.fNo || '—',
                   stream: rec.stream || (['11th', '12th'].includes(sec.className) ? 'Humanities' : 'General'),
                   session: sec.session || selectedSession,
                   dob: rec.dob || '',
@@ -1464,8 +1466,11 @@ export default function PublicResultLookup() {
         const targetSession = sessionKey(selectedSession);
         const targetEval = identityKey(selectedEvalType);
 
-        const matchingSections = practicalDocs.filter(sec => {
+        const matchingSectionsRaw = practicalDocs.filter(sec => {
           if (!Array.isArray(sec.records) || sec.records.length === 0) return false;
+          if (sec.id?.startsWith('history_') || sec.docId?.startsWith('history_')) return false;
+          if (sec.isDraft === true || sec.status === 'draft' || sec.status === 'rejected') return false;
+
           const docCls = classKey(sec.className || sec.class || sec.selectedClass || sec.docId || '');
           if (docCls !== targetClass) return false;
 
@@ -1490,35 +1495,53 @@ export default function PublicResultLookup() {
           return true;
         });
 
+        // Deduplicate sections by subject: prioritize latest pending_ or newer submission
+        const sectionsBySubj = new Map();
+        for (const sec of matchingSectionsRaw) {
+          const sKey = (sec.subjectCode || sec.subject || '').toUpperCase().trim();
+          if (!sKey) continue;
+          const existing = sectionsBySubj.get(sKey);
+          if (!existing) {
+            sectionsBySubj.set(sKey, sec);
+          } else {
+            const isPending = (sec.id && sec.id.startsWith('pending_')) || sec.status === 'pending_approval';
+            const existPending = (existing.id && existing.id.startsWith('pending_')) || existing.status === 'pending_approval';
+            const secTime = Date.parse(sec.updatedAt || sec.submittedAt || sec.timestamp || 0) || 0;
+            const existTime = Date.parse(existing.updatedAt || existing.submittedAt || existing.timestamp || 0) || 0;
+            if ((isPending && !existPending) || secTime > existTime) {
+              sectionsBySubj.set(sKey, sec);
+            }
+          }
+        }
+        const matchingSections = Array.from(sectionsBySubj.values());
+
         // Multi-tier student record matcher against a teacher's section sheet
         const matchRecord = (rec) => {
           if (!rec) return false;
           const rReg = identityKey(rec.regNo || rec.boardRegNo || rec.reg);
-          const sReg = identityKey(matchedStudent.boardRegNo);
-          // If both registration numbers exist, they must be consistent
+          const sReg = identityKey(matchedStudent.boardRegNo || matchedStudent.regNo);
+          // If both registration numbers exist and match
           if (rReg && sReg) {
             const isRegMatched = rReg === sReg || (rReg.length >= 6 && sReg.length >= 6 && (rReg.endsWith(sReg.slice(-6)) || sReg.endsWith(rReg.slice(-6))));
-            if (!isRegMatched) return false;
-            return true;
+            if (isRegMatched) return true;
           }
 
           const rForm = identityKey(rec.formNo || rec.fNo || rec.id);
-          const sForm = identityKey(matchedStudent.fNo);
-          // If both form numbers exist, they must be consistent
-          if (rForm && sForm) {
-            if (rForm !== sForm) return false;
+          const sForm = identityKey(matchedStudent.fNo || matchedStudent.formNo);
+          // If both form numbers exist and match
+          if (rForm && sForm && rForm === sForm) {
             return true;
           }
-
-          const rName = String(rec.name || rec.studentName || '').toLowerCase().trim().replace(/[^a-z0-9]/g, '');
-          const sName = String(matchedStudent.name || '').toLowerCase().trim().replace(/[^a-z0-9]/g, '');
-          const isNameMatch = rName && sName && rName.length > 3 && (rName === sName || rName.includes(sName) || sName.includes(rName));
 
           const rRoll = identityKey(rec.rollNo || rec.classRollNo || rec.roll || rec.examRollNo);
           const sRoll = identityKey(matchedStudent.classRollNo);
           const sExamRoll = identityKey(matchedStudent.examRollNo);
           const isRollMatch = (rRoll && sRoll && rRoll === sRoll && rRoll !== '-' && rRoll !== '—' && rRoll !== 'n/a') ||
                               (rRoll && sExamRoll && rRoll === sExamRoll && rRoll !== '-' && rRoll !== '—' && rRoll !== 'n/a');
+
+          const rName = String(rec.name || rec.studentName || '').toLowerCase().trim().replace(/[^a-z0-9]/g, '');
+          const sName = String(matchedStudent.name || '').toLowerCase().trim().replace(/[^a-z0-9]/g, '');
+          const isNameMatch = rName && sName && rName.length > 3 && (rName === sName || rName.includes(sName) || sName.includes(rName));
 
           // Prevent cross-stream / different student roll number collisions
           if (isRollMatch) {
