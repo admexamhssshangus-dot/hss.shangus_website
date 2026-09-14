@@ -413,6 +413,83 @@ describe('Score Normalization and Flexible Biology Display', () => {
     expect(codes).toEqual(['EN', 'MA', 'UR', 'SC', 'SS', 'ITE']);
     expect(result.subjects.length).toBe(6);
   });
+
+  test('computeScorecardSubjects reflects live teacher submissions including Chemistry marks and Biology combination', () => {
+    const studentScience = {
+      name: 'Umais Manzoor',
+      className: '11th',
+      boardRegNo: '2401003000470030',
+      formNo: '250176',
+      classRollNo: '1',
+      stream: 'Science',
+      subjects: [
+        { code: 'EN', name: 'General English' },
+        { code: 'PH', name: 'Physics' },
+        { code: 'CH', name: 'Chemistry' },
+        { code: 'BI', name: 'Biology' },
+        { code: 'ES', name: 'Environmental Science' }
+      ]
+    };
+
+    const liveSections = [
+      {
+        id: 'pending_11th_Chemistry_Pre-Board Test_2025-26',
+        subjectCode: 'CH',
+        subjectName: 'Chemistry',
+        maxMarks: 50,
+        minMarks: 18,
+        records: [
+          { formNo: '250176', regNo: '2401003000470030', rollNo: '1', name: 'Umais Manzoor', totalMarks: 6 }
+        ]
+      },
+      {
+        id: 'pending_11th_Botany_Pre-Board Test_2025-26',
+        subjectCode: 'BO',
+        subjectName: 'Botany',
+        maxMarks: 25,
+        minMarks: 9,
+        records: [
+          { formNo: '250176', regNo: '2401003000470030', rollNo: '1', name: 'Umais Manzoor', totalMarks: 16 }
+        ]
+      },
+      {
+        id: 'pending_11th_Zoology_Pre-Board Test_2025-26',
+        subjectCode: 'ZO',
+        subjectName: 'Zoology',
+        maxMarks: 25,
+        minMarks: 9,
+        records: [
+          { formNo: '250176', regNo: '2401003000470030', rollNo: '1', name: 'Umais Manzoor', totalMarks: 17 }
+        ]
+      }
+    ];
+
+    const matchRecord = (rec) => rec.formNo === '250176' || rec.regNo === '2401003000470030';
+
+    const result = computeScorecardSubjects({
+      matchedStudent: studentScience,
+      streamName: 'Science',
+      matchingSections: liveSections,
+      matchRecord,
+      biologyDisplayMode: 'combined'
+    });
+
+    const chem = result.subjects.find(s => s.subjectCode === 'CH');
+    expect(chem).toBeDefined();
+    expect(chem.marksObtained).toBe(6);
+    expect(chem.maxMarks).toBe(50);
+    expect(chem.isPass).toBe(false);
+    expect(chem.status).toBe('Needs Improvement');
+
+    const bio = result.subjects.find(s => s.subjectCode === 'BI');
+    expect(bio).toBeDefined();
+    expect(bio.marksObtained).toBe(33);
+    expect(bio.maxMarks).toBe(50);
+    expect(bio.isPass).toBe(true);
+    expect(bio.componentNote).toContain('BO: 16/25');
+    expect(bio.componentNote).toContain('ZO: 17/25');
+  });
 });
+
 
 
