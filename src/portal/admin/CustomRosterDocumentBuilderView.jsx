@@ -1572,7 +1572,7 @@ function CohortCheckboxDropdown({
       <button
         type="button"
         onClick={() => setIsOpen(prev => !prev)}
-        className={`w-full px-1.5 py-1 rounded-lg border font-extrabold text-[10px] flex items-center justify-between gap-1 shadow-2xs transition-colors cursor-pointer text-left ${
+        className={`w-full px-1.5 py-0.5 sm:py-1 h-7 rounded-md sm:rounded-lg border font-extrabold text-[9.5px] sm:text-[10px] flex items-center justify-between gap-1 shadow-2xs transition-colors cursor-pointer text-left ${
           isFiltered
             ? 'bg-amber-500/10 border-amber-500 text-amber-800 dark:text-amber-300'
             : 'bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 hover:border-slate-400'
@@ -1581,11 +1581,11 @@ function CohortCheckboxDropdown({
       >
         <span className="truncate flex-1 min-w-0">{displayText}</span>
         {selected.length > 1 && (
-          <span className="shrink-0 px-1 py-0.2 rounded-full text-[8.5px] font-black bg-amber-600 text-white leading-tight">
+          <span className="shrink-0 px-1 py-0.2 rounded-full text-[8px] font-black bg-amber-600 text-white leading-tight">
             {selected.length}
           </span>
         )}
-        <ChevronDown size={11} className={`shrink-0 transition-transform duration-200 opacity-60 ${isOpen ? 'rotate-180' : ''}`} />
+        <ChevronDown size={10} className={`shrink-0 transition-transform duration-200 opacity-60 ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 
       {isOpen && (
@@ -1822,7 +1822,7 @@ function GroupedCohortCheckboxDropdown({
       <button
         type="button"
         onClick={() => setIsOpen(prev => !prev)}
-        className={`w-full px-1.5 py-1 rounded-lg border font-extrabold text-[10px] flex items-center justify-between gap-1 shadow-2xs transition-colors cursor-pointer text-left ${
+        className={`w-full px-1.5 py-0.5 sm:py-1 h-7 rounded-md sm:rounded-lg border font-extrabold text-[9.5px] sm:text-[10px] flex items-center justify-between gap-1 shadow-2xs transition-colors cursor-pointer text-left ${
           isFiltered
             ? 'bg-amber-500/10 border-amber-500 text-amber-800 dark:text-amber-300'
             : 'bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 hover:border-slate-400'
@@ -1831,11 +1831,11 @@ function GroupedCohortCheckboxDropdown({
       >
         <span className="truncate flex-1 min-w-0">{displayText}</span>
         {totalSelectedCount > 0 && (
-          <span className="shrink-0 px-1 py-0.2 rounded-full text-[8.5px] font-black bg-amber-600 text-white leading-tight">
+          <span className="shrink-0 px-1 py-0.2 rounded-full text-[8px] font-black bg-amber-600 text-white leading-tight">
             {totalSelectedCount}
           </span>
         )}
-        <ChevronDown size={11} className={`shrink-0 transition-transform duration-200 opacity-60 ${isOpen ? 'rotate-180' : ''}`} />
+        <ChevronDown size={10} className={`shrink-0 transition-transform duration-200 opacity-60 ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 
       {isOpen && (
@@ -2018,12 +2018,12 @@ function RosterExportDropdown({
         type="button"
         disabled={disabled}
         onClick={() => setIsOpen(prev => !prev)}
-        className="px-2.5 py-1 rounded-lg bg-emerald-700 hover:bg-emerald-600 active:bg-emerald-800 text-white font-extrabold text-[10px] sm:text-[10.5px] flex items-center gap-1 shadow-2xs cursor-pointer disabled:opacity-50 transition-all shrink-0"
+        className="px-2 sm:px-2.5 py-0.5 sm:py-1 h-7 rounded-md sm:rounded-lg bg-emerald-700 hover:bg-emerald-600 active:bg-emerald-800 text-white font-extrabold text-[9px] sm:text-[10.5px] flex items-center gap-1 shadow-2xs cursor-pointer disabled:opacity-50 transition-all shrink-0"
         title="Export options: Excel (.xlsx) or Word (.docx)"
       >
-        <Download size={11} className="shrink-0" />
+        <Download size={10} className="shrink-0" />
         <span>Export</span>
-        <ChevronDown size={10} className={`shrink-0 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+        <ChevronDown size={9} className={`shrink-0 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 
       {isOpen && (
@@ -2102,19 +2102,19 @@ function RosterPageSetupDropdown({
       <button
         type="button"
         onClick={() => setIsOpen(prev => !prev)}
-        className={`px-2 py-1 rounded-lg border font-extrabold text-[10px] flex items-center gap-1 shadow-2xs transition-all cursor-pointer ${
+        className={`px-1.5 sm:px-2 py-0.5 sm:py-1 h-7 rounded-md sm:rounded-lg border font-extrabold text-[9px] sm:text-[10px] flex items-center gap-1 shadow-2xs transition-all cursor-pointer ${
           isOpen
             ? 'bg-indigo-600 text-white border-indigo-700'
             : 'bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 hover:border-slate-400'
         }`}
         title="Document Layout, Orientation & Row Height Setup"
       >
-        <SlidersHorizontal size={11} className="shrink-0 text-indigo-500" />
+        <SlidersHorizontal size={10} className="shrink-0 text-indigo-500" />
         <span>Layout</span>
-        <span className="px-1 py-0.2 rounded text-[8.5px] font-black bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+        <span className="px-1 py-0.2 rounded text-[8px] sm:text-[8.5px] font-black bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
           {layoutMode === 'standard' ? 'Std' : '2-Col'} • {orientation === 'portrait' ? 'P' : 'L'} • {currentPreset?.px}px
         </span>
-        <ChevronDown size={10} className={`shrink-0 transition-transform duration-200 opacity-60 ${isOpen ? 'rotate-180' : ''}`} />
+        <ChevronDown size={9} className={`shrink-0 transition-transform duration-200 opacity-60 ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 
       {isOpen && (
@@ -2261,21 +2261,21 @@ function RosterColumnsDropdown({
       <button
         type="button"
         onClick={() => setIsOpen(prev => !prev)}
-        className={`px-2 py-1 rounded-lg border font-extrabold text-[10px] sm:text-[10.5px] flex items-center gap-1.5 shadow-2xs transition-all cursor-pointer ${
+        className={`px-1.5 sm:px-2 py-0.5 sm:py-1 h-6.5 rounded-md sm:rounded-lg border font-extrabold text-[9px] sm:text-[10.5px] flex items-center gap-1 shadow-2xs transition-all cursor-pointer ${
           isOpen
             ? 'bg-indigo-600 text-white border-indigo-700'
             : 'bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 hover:border-slate-400'
         }`}
         title="Select and configure table columns"
       >
-        <Layers size={11} className={isOpen ? 'text-white' : 'text-indigo-600 dark:text-indigo-400'} />
+        <Layers size={10} className={isOpen ? 'text-white' : 'text-indigo-600 dark:text-indigo-400'} />
         <span>Columns</span>
-        <span className={`px-1.5 py-0.2 rounded-full text-[8.5px] font-black leading-tight ${
+        <span className={`px-1 py-0.2 rounded-full text-[8px] font-black leading-tight ${
           isOpen ? 'bg-indigo-700 text-white' : 'bg-indigo-100 dark:bg-indigo-950/80 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800'
         }`}>
           {activeColumns.length} Active
         </span>
-        <ChevronDown size={10} className={`shrink-0 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+        <ChevronDown size={9} className={`shrink-0 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 
       {isOpen && (
@@ -2692,6 +2692,7 @@ export default function CustomRosterDocumentBuilderView({
   const [selectedStatuses, setSelectedStatuses] = useState([]);
   const [useAbbreviatedSubjects, setUseAbbreviatedSubjects] = useState(true);
   const [showMoreFields, setShowMoreFields] = useState(false);
+  const [isMobileFiltersCollapsed, setIsMobileFiltersCollapsed] = useState(false);
 
   // ─── Row-Level Inclusion/Exclusion (Skipping Specific Rows) ───
   const [deselectedRowKeys, setDeselectedRowKeys] = useState(() => new Set());
@@ -3636,7 +3637,7 @@ export default function CustomRosterDocumentBuilderView({
       
       {/* ── SLEEK CONTROL BAR WITH EXPORT ACTIONS & DOCUMENT SETTINGS ── */}
       <div 
-        className="px-1.5 sm:px-2 py-1.5 rounded-xl border shadow-2xs space-y-1.5 md:space-y-0 md:flex md:items-center md:justify-between md:gap-2 text-xs font-extrabold"
+        className="px-1.5 sm:px-2 py-1 sm:py-1.5 rounded-lg sm:rounded-xl border shadow-2xs space-y-1 md:space-y-0 md:flex md:items-center md:justify-between md:gap-2 text-xs font-extrabold"
         style={{ backgroundColor: 'var(--bg-card, #ffffff)', borderColor: 'var(--border-ui, #cbd5e1)' }}
       >
         {/* Left Side: Document Title & Desktop Inline Config */}
@@ -3647,7 +3648,7 @@ export default function CustomRosterDocumentBuilderView({
               value={docTitle}
               onChange={(e) => setDocTitle(e.target.value)}
               placeholder="DOCUMENT TITLE (PRINTED ON REGISTER)"
-              className="w-full px-2 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-black text-[10.5px] uppercase shadow-2xs text-slate-900 dark:text-slate-100"
+              className="w-full px-2 py-0.5 sm:py-1 h-7 rounded-md sm:rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-black text-[9.5px] sm:text-[10.5px] uppercase shadow-2xs text-slate-900 dark:text-slate-100"
             />
           </div>
 
@@ -3753,10 +3754,10 @@ export default function CustomRosterDocumentBuilderView({
               type="button"
               onClick={handlePrint}
               disabled={processedRows.length === 0}
-              className="px-2.5 sm:px-3 py-1 rounded-lg bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white font-black text-[10px] sm:text-[10.5px] flex items-center gap-1 shadow-md cursor-pointer disabled:opacity-50 transition-all active:scale-95 shrink-0"
+              className="px-2 sm:px-3 py-0.5 sm:py-1 h-7 rounded-md sm:rounded-lg bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white font-black text-[9.5px] sm:text-[10.5px] flex items-center gap-1 shadow-md cursor-pointer disabled:opacity-50 transition-all active:scale-95 shrink-0"
               title="Print Official Institutional Register / Save PDF"
             >
-              <Printer size={12} className="shrink-0" />
+              <Printer size={11} className="shrink-0" />
               <span>Print / PDF</span>
             </button>
           </div>
@@ -3769,25 +3770,53 @@ export default function CustomRosterDocumentBuilderView({
         {/* ════════ LEFT HALF: COMPACT UNIFIED CONTROL PALETTE ════════ */}
         <div
           style={{ width: isDesktop ? `${leftSplitPct}%` : '100%' }}
-          className="w-full lg:w-auto shrink-0 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs p-2.5 space-y-2 text-xs overflow-visible"
+          className="w-full lg:w-auto shrink-0 bg-white dark:bg-slate-900 rounded-lg sm:rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs p-1.5 sm:p-2.5 space-y-1 sm:space-y-2 text-xs overflow-visible"
         >
           {/* COHORT & DEMOGRAPHIC FILTERS */}
-          <div className="space-y-1 pb-1.5 border-b border-slate-200 dark:border-slate-800">
-            <div className="flex items-center justify-between text-[9px] uppercase font-black tracking-wider text-slate-500">
-              <span className="flex items-center gap-1">
-                <Sliders size={10} className="text-amber-600 dark:text-amber-400" />
+          <div className="space-y-1 pb-1 sm:pb-1.5 border-b border-slate-200 dark:border-slate-800">
+            <div className="flex items-center justify-between text-[9px] uppercase font-black tracking-wider text-slate-500 py-0.5">
+              <button
+                type="button"
+                onClick={() => setIsMobileFiltersCollapsed(p => !p)}
+                className="flex items-center gap-1 cursor-pointer sm:cursor-default hover:text-slate-800 dark:hover:text-slate-200"
+                title="Click to toggle cohort filters on mobile"
+              >
+                <Sliders size={10} className="text-amber-600 dark:text-amber-400 shrink-0" />
                 <span>Cohort Filters</span>
-              </span>
-              <span className="font-mono font-black text-[9px] text-emerald-600 dark:text-emerald-400">
-                {filteredStudents.length} of {unifiedStudentPool.length} Matched
-              </span>
+                {metaBadges.length > 3 && (
+                  <span className="px-1 py-0.2 rounded-full text-[7.5px] bg-amber-500/20 text-amber-700 dark:text-amber-300 font-bold">
+                    Active
+                  </span>
+                )}
+                <ChevronDown size={9} className={`sm:hidden transition-transform duration-200 shrink-0 ${isMobileFiltersCollapsed ? '-rotate-90' : ''}`} />
+              </button>
+              <div className="flex items-center gap-1.5">
+                <span className="font-mono font-black text-[8.5px] text-emerald-600 dark:text-emerald-400">
+                  {filteredStudents.length}/{unifiedStudentPool.length} Matched
+                </span>
+                {(selectedSessions.length > 0 || selectedClasses.length > 0 || selectedStreams.length > 0 || selectedSubjects.length > 0 || selectedGenders.length > 0 || selectedStatuses.length > 0) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedSessions([]);
+                      setSelectedClasses([]);
+                      setSelectedStreams([]);
+                      setSelectedSubjects([]);
+                      setSelectedGenders([]);
+                      setSelectedStatuses([]);
+                    }}
+                    className="text-[8px] font-bold text-amber-700 dark:text-amber-400 hover:underline cursor-pointer"
+                    title="Reset all cohort filters to default"
+                  >
+                    Reset
+                  </button>
+                )}
+              </div>
             </div>
 
-            {/* MOBILE COMPACT FILTERS (2 rows of 2 grouped filters on < sm) */}
-            <div className="grid grid-cols-2 gap-1 sm:hidden">
-              {/* Session */}
-              <div>
-                <label className="block text-[8.5px] font-extrabold text-slate-400 uppercase tracking-tight">Session</label>
+            {/* MOBILE COMPACT FILTERS (2 rows of 2 grouped filters without redundant labels on < sm) */}
+            {!isMobileFiltersCollapsed && (
+              <div className="grid grid-cols-2 gap-1 sm:hidden">
                 <CohortCheckboxDropdown
                   label="Session"
                   pluralLabel="Sessions"
@@ -3797,11 +3826,7 @@ export default function CustomRosterDocumentBuilderView({
                   totalCount={unifiedStudentPool.length}
                   align="left"
                 />
-              </div>
 
-              {/* Class & Stream (Grouped) */}
-              <div>
-                <label className="block text-[8.5px] font-extrabold text-slate-400 uppercase tracking-tight">Class & Stream</label>
                 <GroupedCohortCheckboxDropdown
                   label="Class & Stream"
                   groups={[
@@ -3826,11 +3851,7 @@ export default function CustomRosterDocumentBuilderView({
                   ]}
                   align="right"
                 />
-              </div>
 
-              {/* Subject */}
-              <div>
-                <label className="block text-[8.5px] font-extrabold text-slate-400 uppercase tracking-tight">Subject</label>
                 <CohortCheckboxDropdown
                   label="Subject"
                   pluralLabel="Subjects"
@@ -3841,11 +3862,7 @@ export default function CustomRosterDocumentBuilderView({
                   searchable={true}
                   align="left"
                 />
-              </div>
 
-              {/* Gender & Status (Grouped) */}
-              <div>
-                <label className="block text-[8.5px] font-extrabold text-slate-400 uppercase tracking-tight">Gender & Status</label>
                 <GroupedCohortCheckboxDropdown
                   label="Gender & Status"
                   groups={[
@@ -3874,7 +3891,7 @@ export default function CustomRosterDocumentBuilderView({
                   align="right"
                 />
               </div>
-            </div>
+            )}
 
             {/* DESKTOP & TABLET FILTERS (Individual columns on sm+) */}
             <div className="hidden sm:grid sm:grid-cols-3 lg:grid-cols-6 gap-1">
@@ -3971,7 +3988,7 @@ export default function CustomRosterDocumentBuilderView({
           {/* COLUMN CONFIGURATION MATRIX */}
           <div className="space-y-1.5">
             {/* Mobile Column Bar: Ultra-Compact Dropdown + Controls (sm:hidden) */}
-            <div className="flex flex-wrap items-center justify-between gap-1 sm:hidden">
+            <div className="flex items-center justify-between gap-1 sm:hidden">
               <RosterColumnsDropdown
                 activeColumns={activeColumns}
                 toggleDbColumn={toggleDbColumn}
@@ -3983,8 +4000,8 @@ export default function CustomRosterDocumentBuilderView({
                 handleRemoveColumn={handleRemoveColumn}
               />
 
-              <div className="flex items-center gap-1">
-                <div className="inline-flex rounded-md border border-slate-300 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 p-0.5 text-[8.5px] font-extrabold">
+              <div className="flex items-center gap-1 shrink-0">
+                <div className="inline-flex rounded-md border border-slate-300 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 p-0.5 text-[8px] font-extrabold h-6.5 items-center">
                   <button
                     type="button"
                     onClick={() => setUseAbbreviatedSubjects(true)}
@@ -4014,14 +4031,14 @@ export default function CustomRosterDocumentBuilderView({
                 <button
                   type="button"
                   onClick={handleSaveAsDefaultColumns}
-                  className={`px-1.5 py-0.5 rounded font-black text-[9px] flex items-center gap-0.5 cursor-pointer transition-all border shadow-2xs ${
+                  className={`px-1.5 py-0.5 h-6.5 rounded font-black text-[8.5px] flex items-center gap-0.5 cursor-pointer transition-all border shadow-2xs shrink-0 ${
                     saveDefaultToast
                       ? 'bg-emerald-600 text-white border-emerald-700'
                       : 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-800 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800 hover:bg-emerald-100'
                   }`}
                   title="Save current column order as default"
                 >
-                  {saveDefaultToast ? <Check size={9} /> : <Save size={9} className="text-emerald-600 dark:text-emerald-400" />}
+                  {saveDefaultToast ? <Check size={8.5} /> : <Save size={8.5} className="text-emerald-600 dark:text-emerald-400" />}
                   <span>{saveDefaultToast ? 'Saved' : 'Save'}</span>
                 </button>
 
@@ -4029,10 +4046,10 @@ export default function CustomRosterDocumentBuilderView({
                   <button
                     type="button"
                     onClick={handleResetToSystemDefault}
-                    className="p-1 rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-600 dark:text-slate-400 font-bold text-[8.5px] border border-slate-300 dark:border-slate-700 cursor-pointer"
+                    className="p-1 h-6.5 rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-600 dark:text-slate-400 font-bold text-[8px] border border-slate-300 dark:border-slate-700 cursor-pointer flex items-center justify-center shrink-0"
                     title="Reset to system default column order"
                   >
-                    <RotateCcw size={8.5} />
+                    <RotateCcw size={8} />
                   </button>
                 )}
               </div>
@@ -4163,22 +4180,22 @@ export default function CustomRosterDocumentBuilderView({
               })}
             </div>
 
-          {/* Custom Field Tags (Minimal) */}
+          {/* Custom Field Tags (Minimal Single Scrollable Row on Mobile, Wrap on sm+) */}
           {activeColumns.some(c => c.isCustom) && (
-            <div className="pt-1 border-t border-slate-200 dark:border-slate-800 flex items-center gap-1.5 flex-wrap">
-              <span className="text-[8.5px] font-bold text-amber-700 dark:text-amber-400 uppercase">Custom:</span>
+            <div className="pt-1 border-t border-slate-200 dark:border-slate-800 flex items-center gap-1 overflow-x-auto no-scrollbar py-0.5 whitespace-nowrap sm:flex-wrap">
+              <span className="text-[8px] font-bold text-amber-700 dark:text-amber-400 uppercase shrink-0">Custom ({activeColumns.filter(c => c.isCustom).length}):</span>
               {activeColumns.filter(c => c.isCustom).map((c) => (
                 <span
                   key={c.key}
-                  className="px-2 py-0.5 rounded-md bg-amber-100 dark:bg-amber-950/80 border border-amber-300 dark:border-amber-700 text-amber-950 dark:text-amber-200 text-[9.5px] font-bold inline-flex items-center gap-1.5 shadow-2xs"
+                  className="shrink-0 px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-950/80 border border-amber-300 dark:border-amber-700 text-amber-950 dark:text-amber-200 text-[8.5px] font-bold inline-flex items-center gap-1 shadow-2xs"
                 >
                   <span
                     onClick={() => handleOpenEditModal(c)}
                     title="Click to edit formula and rates"
-                    className="cursor-pointer hover:underline flex items-center gap-1"
+                    className="cursor-pointer hover:underline flex items-center gap-0.5"
                   >
                     {c.calcType === 'fee_with_subject_surcharge' && (
-                      <span className="text-[8.5px] font-black text-amber-700 dark:text-amber-300 bg-amber-200/80 dark:bg-amber-900/60 px-1 py-0.2 rounded">⚡ Fee+Lab</span>
+                      <span className="text-[7.5px] font-black text-amber-700 dark:text-amber-300 bg-amber-200/80 dark:bg-amber-900/60 px-0.5 rounded">⚡ Fee</span>
                     )}
                     <span>{c.label}</span>
                   </span>
@@ -4188,7 +4205,7 @@ export default function CustomRosterDocumentBuilderView({
                     title="Edit Column Formula & Rates"
                     className="text-amber-700 hover:text-amber-950 dark:text-amber-300 dark:hover:text-white cursor-pointer"
                   >
-                    <Edit3 size={10} />
+                    <Edit3 size={8.5} />
                   </button>
                   <button
                     type="button"
@@ -4196,7 +4213,7 @@ export default function CustomRosterDocumentBuilderView({
                     title="Remove Custom Column"
                     className="text-rose-600 hover:text-rose-800 cursor-pointer"
                   >
-                    <X size={10} />
+                    <X size={8.5} />
                   </button>
                 </span>
               ))}
@@ -4317,7 +4334,7 @@ export default function CustomRosterDocumentBuilderView({
           )}
 
           {/* Paper Sheet Preview Container (Independent Scrollable Window) */}
-          <div className="bg-white text-slate-900 border border-slate-300 rounded-xl p-3 sm:p-5 shadow-sm overflow-x-auto max-h-[calc(100vh-100px)] overflow-y-auto">
+          <div className="bg-white text-slate-900 border border-slate-300 rounded-lg sm:rounded-xl p-1.5 sm:p-5 shadow-sm overflow-x-auto max-h-[calc(100vh-100px)] overflow-y-auto">
             {layoutMode === 'two_column_attendance' ? (
               /* ── 2-COLUMN EXAMINATION ATTENDANCE PREVIEW ── */
               <div>
