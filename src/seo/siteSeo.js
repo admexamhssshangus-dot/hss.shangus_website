@@ -2,7 +2,7 @@
 const SITE_ORIGIN = 'https://hssshangus.netlify.app';
 const SITE_NAME = 'HSS Shangus';
 const SCHOOL_NAME = 'Govt. Higher Secondary School Shangus';
-const DEFAULT_IMAGE = `${SITE_ORIGIN}/slides/searchtn.jpg`;
+const DEFAULT_IMAGE = `${SITE_ORIGIN}/slides/og-card.jpg`;
 const PUBLIC_PAGES = {
   '/': {
     label: 'Home', title: `HSS Shangus | ${SCHOOL_NAME}`, heading: SCHOOL_NAME,
@@ -87,6 +87,14 @@ const PUBLIC_PAGES = {
       'Govt. Higher Secondary School Shangus provides an online examination result lookup service for students, parents, and academic evaluators.',
       'Enter candidate details to access comprehensive marks cards, subject-wise performance descriptors, and verified academic scorecards for secondary and higher secondary sessions.'
     ], links: ['/admissions', '/notices', '/academics', '/contact']
+  },
+  '/gk-test': {
+    label: 'GK Test', title: `General Knowledge Test Registration | ${SITE_NAME}`, heading: 'General Knowledge Test Registration',
+    description: 'Register for the General Knowledge test at Govt. Higher Secondary School Shangus. Open to students across classes with online registration and results.',
+    paragraphs: [
+      'Govt. Higher Secondary School Shangus organises a General Knowledge test for students. The online registration portal allows participants to sign up and receive their results digitally.',
+      'Check eligibility, registration deadlines and test details on this page. Contact the school office for any queries regarding the GK test.'
+    ], links: ['/admissions', '/academics', '/notices', '/contact']
   }
 };
 const ALIASES = {
@@ -124,6 +132,7 @@ function getStructuredData(seo) {
       url: `${SITE_ORIGIN}/`, logo: `${SITE_ORIGIN}/logo.png`, image: DEFAULT_IMAGE,
       description: PUBLIC_PAGES['/'].description, foundingDate: '1917',
       email: 'adm.exam.hss.shangus@gmail.com', telephone: '+91-7006034501',
+      sameAs: ['https://maps.google.com/?q=Govt+Higher+Secondary+School+Shangus'],
       address: {
         '@type': 'PostalAddress', streetAddress: 'Main Road, Shangus',
         addressLocality: 'Shangus, Anantnag', addressRegion: 'Jammu and Kashmir',
@@ -133,6 +142,10 @@ function getStructuredData(seo) {
         '@type': 'GeoCoordinates',
         latitude: 33.6992,
         longitude: 75.2891
+      },
+      contactPoint: {
+        '@type': 'ContactPoint', telephone: '+91-7006034501',
+        contactType: 'admissions', availableLanguage: ['English', 'Urdu', 'Hindi']
       },
       hasMap: 'https://maps.google.com/?q=Govt+Higher+Secondary+School+Shangus'
     },
