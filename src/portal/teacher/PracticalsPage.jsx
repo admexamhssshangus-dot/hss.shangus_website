@@ -1068,7 +1068,9 @@ export default function PracticalsPage() {
   const [studentMarks, setStudentMarks] = useState([]);
   const masterRosterCacheRef = useRef({});
   const [saving, setSaving] = useState(false);
+  const [savingAction, setSavingAction] = useState('draft'); // 'draft' | 'final'
   const [alert, setAlert] = useState(null);
+  const [popupModal, setPopupModal] = useState(null);
   const [showFailOnly, setShowFailOnly] = useState(false);
 
   // Bulk Fill & Multi-Select State
@@ -1101,6 +1103,39 @@ export default function PracticalsPage() {
       cancelText,
       type,
       onConfirm,
+    });
+  }, []);
+
+  // Universal High-Visibility Message / Error / Success Popup Trigger
+  const triggerNotification = useCallback((opts) => {
+    if (!opts) {
+      setPopupModal(null);
+      setAlert(null);
+      return;
+    }
+    const type = opts.type || 'info';
+    const text = opts.text || opts.message || '';
+    const title = opts.title || (
+      type === 'success' ? 'Operation Successful' :
+      type === 'error' ? 'Notice / Action Required' :
+      type === 'warning' ? 'Important Warning' : 'Information'
+    );
+    setAlert({ type, text });
+    setPopupModal({
+      isOpen: true,
+      type,
+      title,
+      badge: opts.badge || (
+        type === 'success' ? 'Success' :
+        type === 'error' ? 'Error' :
+        type === 'warning' ? 'Attention' : 'Notice'
+      ),
+      message: text,
+      details: opts.details || null,
+      primaryButtonText: opts.primaryButtonText || 'Understood',
+      onPrimaryClick: opts.onPrimaryClick || null,
+      secondaryButtonText: opts.secondaryButtonText || null,
+      onSecondaryClick: opts.onSecondaryClick || null,
     });
   }, []);
 
@@ -1794,6 +1829,13 @@ export default function PracticalsPage() {
       console.error('Failed to fetch practical roster:', err);
       setStudentMarks([]);
       setSelectedKeys(new Set());
+      triggerNotification({
+        type: 'error',
+        title: 'Unable to Load Roster',
+        badge: 'Connection Error',
+        text: 'Failed to retrieve the practical evaluation roster from database. Please check your internet connection.',
+        primaryButtonText: 'Dismiss'
+      });
     } finally {
       setLoading(false);
     }
@@ -1864,9 +1906,16 @@ export default function PracticalsPage() {
   // 1. Save Evaluation Draft (Cloud Database + LocalStorage fallback)
   const handleSaveDraft = async () => {
     if (!studentMarks || studentMarks.length === 0) {
-      setAlert({ type: 'error', text: 'No student roster available to save as draft.' });
+      triggerNotification({
+        type: 'error',
+        title: 'Cannot Save Draft',
+        badge: 'Empty Roster',
+        text: 'No student roster available to save as draft.',
+        primaryButtonText: 'Dismiss'
+      });
       return;
     }
+    setSavingAction('draft');
     setSaving(true);
     setAlert(null);
     try {
@@ -1965,14 +2014,31 @@ export default function PracticalsPage() {
       await saveAcademicRecord('practicalsData', pendingDocId, submissionPayload);
       setExistingAwardInfo(prev => ({ ...prev, pending: submissionPayload }));
       setDraftSavedAt(timeStr);
-      setAlert({
+      triggerNotification({
         type: 'success',
-        text: `Draft saved to database at ${timeStr}! Entered marks are preserved and empty entries remain blank for editing.`
+        title: 'Evaluation Draft Saved!',
+        badge: 'Draft in Progress',
+        text: `Draft saved to database at ${timeStr}! Entered marks and absent records are safely stored; unfilled entries remain blank for editing.`,
+        details: [
+          { label: 'Class & Stream', value: selectedClass },
+          { label: 'Subject', value: `${selectedSubject} (${currentSubjectObj.code})` },
+          { label: 'Evaluation Type', value: practicalType },
+          { label: 'Academic Session', value: yearSuffix },
+          { label: 'Draft Time', value: timeStr },
+          { label: 'Cloud Status', value: 'Saved to Firestore' }
+        ],
+        primaryButtonText: 'Continue Editing'
       });
     } catch (err) {
       console.error('Save draft error:', err);
       setDraftSavedAt(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
-      setAlert({ type: 'warning', text: 'Draft saved to local storage (cloud sync pending).' });
+      triggerNotification({
+        type: 'warning',
+        title: 'Draft Saved Locally',
+        badge: 'Local Storage Fallback',
+        text: 'Draft saved to local storage (cloud sync pending). You can continue entering marks.',
+        primaryButtonText: 'Understood'
+      });
     } finally {
       setSaving(false);
     }
@@ -1981,7 +2047,13 @@ export default function PracticalsPage() {
   // 2. Data Validation & Initiate Final Submit
   const handleInitiateFinalSubmit = () => {
     if (!studentMarks || studentMarks.length === 0) {
-      setAlert({ type: 'error', text: 'No student roster available for final submission.' });
+      triggerNotification({
+        type: 'error',
+        title: 'Cannot Submit Award',
+        badge: 'Empty Roster',
+        text: 'No student roster available for final submission.',
+        primaryButtonText: 'Dismiss'
+      });
       return;
     }
 
@@ -2017,6 +2089,7 @@ export default function PracticalsPage() {
 
   // 3. Execute Final Submission to Firestore
   const executeFinalSubmit = async (autoMarkAbsentForUnfilled = true) => {
+    setSavingAction('final');
     setSaving(true);
     setShowValidationModal(false);
     setAlert(null);
@@ -2129,17 +2202,38 @@ export default function PracticalsPage() {
         console.warn('Activity log note:', logErr);
       }
 
-      setAlert({
+      triggerNotification({
         type: 'success',
+        title: 'Evaluation Award List Submitted!',
+        badge: 'Staged for Administrator Review & Approval',
         text: isCrossSubject
-          ? `✨ Cross-subject evaluation award list submitted for ${selectedSubject} (${selectedClass})! Sent to Administrator for review & approval.`
+          ? `✨ Cross-subject evaluation award list submitted for ${selectedSubject} (${selectedClass})! Staged for Administrator review & approval.`
           : isOverwrite
-          ? `✨ Overwrite revision submitted for ${selectedSubject} (${selectedClass})! Staged for Administrator approval (previous award is safely archived).`
+          ? `✨ Overwrite revision submitted for ${selectedSubject} (${selectedClass})! Staged for Administrator review & approval (previous award safely archived).`
           : `✨ Evaluation award list submitted for ${selectedSubject} (${selectedClass})! Staged for Administrator review & approval.`,
+        details: [
+          { label: 'Class & Stream', value: selectedClass },
+          { label: 'Subject', value: `${selectedSubject} (${currentSubjectObj.code})` },
+          { label: 'Evaluation Type', value: practicalType },
+          { label: 'Academic Session', value: yearSuffix },
+          { label: 'Evaluated Roster', value: `${records.length} Students Total` },
+          { label: 'Submission Status', value: 'Pending Administrator Approval' }
+        ],
+        primaryButtonText: 'Return to Roster',
+        secondaryButtonText: 'View Submission History',
+        onSecondaryClick: () => {
+          setShowHistoryModal(true);
+        }
       });
     } catch (err) {
       console.error('Final submit error:', err);
-      setAlert({ type: 'error', text: 'Failed to complete practical award submission.' });
+      triggerNotification({
+        type: 'error',
+        title: 'Submission Failed',
+        badge: 'Action Required',
+        text: err?.message || 'Failed to complete practical award submission. Please check your network and try again.',
+        primaryButtonText: 'Close & Retry'
+      });
     } finally {
       setSaving(false);
     }
@@ -2147,7 +2241,13 @@ export default function PracticalsPage() {
 
   const handlePrintReport = () => {
     if (!studentMarks || studentMarks.length === 0) {
-      setAlert({ type: 'error', text: 'No student records available to print.' });
+      triggerNotification({
+        type: 'error',
+        title: 'Cannot Print Award Roll',
+        badge: 'Empty Award List',
+        text: 'No student records available to print.',
+        primaryButtonText: 'Dismiss'
+      });
       return;
     }
 
@@ -2279,15 +2379,24 @@ export default function PracticalsPage() {
 
     if (targetScope !== 'clear') {
       if (!rawVal) {
-        setAlert({ type: 'error', text: 'Please enter a marks value (e.g. 10 or A) to fill.' });
+        triggerNotification({
+          type: 'error',
+          title: 'Input Value Missing',
+          badge: 'Quick Fill',
+          text: 'Please enter a marks value (e.g. 10 or A) to fill.',
+          primaryButtonText: 'Enter Marks'
+        });
         return;
       }
       if (rawVal !== 'A' && rawVal !== 'AB' && rawVal !== 'ABSENT') {
         const num = Number(rawVal);
         if (isNaN(num) || num < 0 || num > subjectMaxMarks) {
-          setAlert({ 
-            type: 'error', 
-            text: `Invalid marks "${rawVal}". Must be between 0 and ${subjectMaxMarks}, or "A" for Absent.` 
+          triggerNotification({
+            type: 'error',
+            title: 'Invalid Marks Value',
+            badge: 'Validation Check',
+            text: `Invalid marks "${rawVal}". Must be between 0 and ${subjectMaxMarks}, or "A" for Absent.`,
+            primaryButtonText: 'Correct Value'
           });
           return;
         }
@@ -2330,27 +2439,52 @@ export default function PracticalsPage() {
 
     if (targetScope === 'clear') {
       if (updatedCount > 0) {
-        setAlert({ type: 'info', text: `Cleared practical marks for ${updatedCount} student(s).` });
+        triggerNotification({
+          type: 'info',
+          title: 'Marks Reset',
+          badge: 'Batch Clear',
+          text: `Cleared practical marks for ${updatedCount} student(s).`,
+          primaryButtonText: 'Understood'
+        });
       } else {
-        setAlert({ type: 'info', text: 'No marks to clear (all selected/displayed cells are already empty).' });
+        triggerNotification({
+          type: 'info',
+          title: 'Nothing to Clear',
+          badge: 'Roster Notice',
+          text: 'No marks to clear (all selected/displayed cells are already empty).',
+          primaryButtonText: 'Understood'
+        });
       }
     } else {
       if (updatedCount > 0) {
-        setAlert({ 
-          type: 'success', 
-          text: `⚡ Successfully filled mark "${rawVal}" for ${updatedCount} student(s)!` 
+        triggerNotification({
+          type: 'success',
+          title: 'Marks Filled Successfully',
+          badge: 'Batch Fill Complete',
+          text: `⚡ Successfully filled mark "${rawVal}" for ${updatedCount} student(s)!`,
+          primaryButtonText: 'Continue'
         });
       } else {
-        setAlert({ 
-          type: 'info', 
-          text: 'No students matched the selected fill scope.' 
+        triggerNotification({
+          type: 'info',
+          title: 'No Matching Students',
+          badge: 'Selection Notice',
+          text: 'No students matched the selected fill scope.',
+          primaryButtonText: 'Understood'
         });
       }
     }
-  }, [quickFillMark, subjectMaxMarks, selectedKeys, displayedStudents, getStudentKey]);
+  }, [quickFillMark, subjectMaxMarks, selectedKeys, displayedStudents, getStudentKey, triggerNotification]);
 
   return (
     <div className="portal-page w-full min-h-[90vh] py-3 sm:py-4 px-2 sm:px-4 transition-colors duration-300" style={{ backgroundColor: 'var(--bg-page, #f8fafc)' }}>
+      {/* Top subtle progress bar during asynchronous roster loading */}
+      {loading && (
+        <div className="fixed top-0 left-0 right-0 z-50 h-1 bg-teal-500/20 overflow-hidden pointer-events-none">
+          <div className="h-full bg-teal-500 w-1/3 animate-pulse rounded-full" />
+        </div>
+      )}
+
       <SEO
         title="Practical Evaluation Portal"
         description="Upload practical evaluation & lab marks, and generate official award lists."
@@ -3288,9 +3422,9 @@ export default function PracticalsPage() {
           {loading ? (
             <ModernLoader
               moduleKey="practicals"
-              text="Loading Practicals Roster..."
-              subtext="Loading student records…"
-              className="py-10"
+              text={`Loading ${selectedSubject} Roster (${selectedClass})…`}
+              subtext={`Connecting to official database & preloading ${selectedSubject} records for ${yearSuffix}…`}
+              className="py-14"
             />
           ) : displayedStudents.length > 0 ? (
             <>
@@ -3872,6 +4006,141 @@ export default function PracticalsPage() {
         cancelText={confirmModal.cancelText}
         type={confirmModal.type}
       />
+
+      {/* High-Tech Fullscreen Loading Screen for Saving Draft / Submitting */}
+      {saving && (
+        <ModernLoader
+          moduleKey="practicals"
+          title="Govt. Higher Secondary School Shangus"
+          badge={savingAction === 'draft' ? 'Cloud Draft Sync' : 'Official Submission'}
+          text={savingAction === 'draft' ? 'Saving Draft to Database...' : 'Submitting Practical Award List...'}
+          subtext={
+            savingAction === 'draft'
+              ? `Preserving entered scores and syncing ${selectedSubject} (${selectedClass}) records…`
+              : `Auto-marking unfilled entries as Absent and staging ${selectedSubject} (${selectedClass}) for Administrator approval…`
+          }
+          fullScreen={true}
+          inverted={true}
+        />
+      )}
+
+      {/* Universal Message / Error / Success Popup Modal */}
+      {popupModal && popupModal.isOpen && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/75 backdrop-blur-sm animate-fadeIn"
+          onClick={() => {
+            if (popupModal.onClose) popupModal.onClose();
+            setPopupModal(null);
+          }}
+        >
+          <div 
+            className="w-full max-w-md bg-white dark:bg-slate-900 rounded-3xl p-5 sm:p-6 border border-slate-200/80 dark:border-slate-800 shadow-2xl space-y-4 relative text-center animate-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Close button */}
+            <button
+              type="button"
+              onClick={() => {
+                if (popupModal.onClose) popupModal.onClose();
+                setPopupModal(null);
+              }}
+              className="absolute top-4 right-4 p-1.5 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+              title="Close"
+            >
+              <X size={18} />
+            </button>
+
+            {/* Status Icon with glow */}
+            <div className="flex justify-center pt-2">
+              <div className={`w-16 h-16 rounded-2xl flex items-center justify-center shadow-md relative ${
+                popupModal.type === 'success'
+                  ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20'
+                  : popupModal.type === 'error'
+                  ? 'bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/20'
+                  : popupModal.type === 'warning'
+                  ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/20'
+                  : 'bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20'
+              }`}>
+                {popupModal.type === 'success' ? (
+                  <CheckCircle2 size={32} className="animate-in zoom-in duration-300" />
+                ) : popupModal.type === 'error' ? (
+                  <AlertCircle size={32} className="animate-in zoom-in duration-300" />
+                ) : popupModal.type === 'warning' ? (
+                  <AlertTriangle size={32} className="animate-in zoom-in duration-300" />
+                ) : (
+                  <Info size={32} className="animate-in zoom-in duration-300" />
+                )}
+              </div>
+            </div>
+
+            {/* Badge & Title */}
+            <div className="space-y-1">
+              {popupModal.badge && (
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider mb-1" style={{
+                  backgroundColor: popupModal.type === 'success' ? 'rgba(16, 185, 129, 0.12)' :
+                                   popupModal.type === 'error' ? 'rgba(244, 63, 94, 0.12)' :
+                                   popupModal.type === 'warning' ? 'rgba(245, 158, 11, 0.12)' : 'rgba(99, 102, 241, 0.12)',
+                  color: popupModal.type === 'success' ? '#059669' :
+                         popupModal.type === 'error' ? '#e11d48' :
+                         popupModal.type === 'warning' ? '#d97706' : '#4f46e5'
+                }}>
+                  {popupModal.badge}
+                </div>
+              )}
+              <h3 className="text-lg font-black text-slate-900 dark:text-white leading-snug">
+                {popupModal.title}
+              </h3>
+              <p className="text-xs text-slate-600 dark:text-slate-300 font-medium leading-relaxed max-w-sm mx-auto">
+                {popupModal.message}
+              </p>
+            </div>
+
+            {/* Details Box if provided */}
+            {Array.isArray(popupModal.details) && popupModal.details.length > 0 && (
+              <div className="bg-slate-50 dark:bg-slate-800/60 rounded-2xl p-3 border border-slate-200/80 dark:border-slate-800 text-left space-y-1.5 text-xs">
+                {popupModal.details.map((item, idx) => (
+                  <div key={idx} className="flex items-center justify-between gap-2">
+                    <span className="text-slate-500 dark:text-slate-400 font-medium text-[11px]">{item.label}</span>
+                    <span className="font-bold text-slate-800 dark:text-slate-200 text-[11.5px] text-right truncate max-w-[220px]">{item.value}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Actions */}
+            <div className="pt-2 flex flex-col sm:flex-row items-center gap-2">
+              {popupModal.secondaryButtonText && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (popupModal.onSecondaryClick) popupModal.onSecondaryClick();
+                    setPopupModal(null);
+                  }}
+                  className="w-full sm:flex-1 py-2.5 px-4 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors cursor-pointer"
+                >
+                  {popupModal.secondaryButtonText}
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => {
+                  if (popupModal.onPrimaryClick) popupModal.onPrimaryClick();
+                  setPopupModal(null);
+                }}
+                className={`w-full sm:flex-1 py-2.5 px-4 rounded-xl text-xs font-bold text-white shadow-md transition-all cursor-pointer ${
+                  popupModal.type === 'error'
+                    ? 'bg-rose-600 hover:bg-rose-700 shadow-rose-600/20'
+                    : popupModal.type === 'warning'
+                    ? 'bg-amber-600 hover:bg-amber-700 shadow-amber-600/20'
+                    : 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/20'
+                }`}
+              >
+                {popupModal.primaryButtonText || 'Understood'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
