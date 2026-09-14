@@ -1381,11 +1381,11 @@ export async function fetchStudentPhotoOnDemand(student) {
   // 1. Extract the canonical Board Registration Number first.
   const rawRegCandidate = extractUniversalRegNo(student);
   const reg = isValidPhotoKey(rawRegCandidate) ? rawRegCandidate : '';
-  const rawFormNo = String(student.formNo || student['Form Number'] || student['Form No.'] || student.form_no || '').replace(/^'/, '').trim();
+  const rawFormNo = String(student.formNo || student['Form Number'] || student['Form No.'] || student.form_no || student.fNo || student['Form No'] || '').replace(/^'/, '').trim();
   const fNo = isValidPhotoKey(rawFormNo) ? rawFormNo : '';
   const candidateDocId = String(student.docId || student._docId || student.id || '').trim();
   const rawId = isValidPhotoKey(candidateDocId) ? candidateDocId : '';
-  const targetClass = normalizeCanonicalClass(student.class || student.Class || student['Admission sought for class'] || '');
+  const targetClass = normalizeCanonicalClass(student.class || student.Class || student['Admission sought for class'] || student.className || '');
 
   // Registration-based cache entries are safe; form/document identifiers are
   // only fallbacks for records which genuinely have no registration number.
@@ -1405,18 +1405,17 @@ export async function fetchStudentPhotoOnDemand(student) {
     docCandidates.push(`photo_${reg.toLowerCase()}`);
     docCandidates.push(reg.toLowerCase());
     docCandidates.push(`reg_${reg}`);
-  } else {
-    // Only search by Form No or DocId if student genuinely has no registration number
-    if (fNo) {
-      docCandidates.push(`photo_form_${fNo}`);
-      docCandidates.push(`photo_${fNo}`);
-      docCandidates.push(`form_${fNo}`);
-      docCandidates.push(fNo);
-    }
-    if (rawId) {
-      docCandidates.push(`photo_${rawId}`);
-      docCandidates.push(rawId);
-    }
+  }
+  // Also search by Form No or DocId as secondary fallback if photo is keyed by form number
+  if (fNo) {
+    docCandidates.push(`photo_form_${fNo}`);
+    docCandidates.push(`photo_${fNo}`);
+    docCandidates.push(`form_${fNo}`);
+    docCandidates.push(fNo);
+  }
+  if (rawId) {
+    docCandidates.push(`photo_${rawId}`);
+    docCandidates.push(rawId);
   }
 
   const cacheKey = reg || fNo || rawId;
