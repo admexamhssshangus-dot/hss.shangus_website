@@ -2221,6 +2221,191 @@ function RosterPageSetupDropdown({
   );
 }
 
+// ─── Reusable Compact Columns Group Dropdown for Mobile Field Selection ───
+function RosterColumnsDropdown({
+  activeColumns,
+  toggleDbColumn,
+  dbColumnGroups,
+  showMoreFields,
+  setShowMoreFields,
+  handleOpenAddModal,
+  handleOpenEditModal,
+  handleRemoveColumn
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const dropdownRef = useRef(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleMousedown = (e) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        setIsOpen(false);
+      }
+    };
+    const handleKeydown = (e) => {
+      if (e.key === 'Escape') setIsOpen(false);
+    };
+    document.addEventListener('mousedown', handleMousedown);
+    document.addEventListener('keydown', handleKeydown);
+    return () => {
+      document.removeEventListener('mousedown', handleMousedown);
+      document.removeEventListener('keydown', handleKeydown);
+    };
+  }, [isOpen]);
+
+  const term = searchTerm.toLowerCase().trim();
+
+  return (
+    <div className="relative inline-block text-left" ref={dropdownRef}>
+      <button
+        type="button"
+        onClick={() => setIsOpen(prev => !prev)}
+        className={`px-2 py-1 rounded-lg border font-extrabold text-[10px] sm:text-[10.5px] flex items-center gap-1.5 shadow-2xs transition-all cursor-pointer ${
+          isOpen
+            ? 'bg-indigo-600 text-white border-indigo-700'
+            : 'bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 hover:border-slate-400'
+        }`}
+        title="Select and configure table columns"
+      >
+        <Layers size={11} className={isOpen ? 'text-white' : 'text-indigo-600 dark:text-indigo-400'} />
+        <span>Columns</span>
+        <span className={`px-1.5 py-0.2 rounded-full text-[8.5px] font-black leading-tight ${
+          isOpen ? 'bg-indigo-700 text-white' : 'bg-indigo-100 dark:bg-indigo-950/80 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800'
+        }`}>
+          {activeColumns.length} Active
+        </span>
+        <ChevronDown size={10} className={`shrink-0 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+      </button>
+
+      {isOpen && (
+        <div className="absolute left-0 mt-1 w-72 sm:w-80 max-w-[calc(100vw-24px)] rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl p-2 z-[9999] animate-fadeIn text-slate-900 dark:text-slate-100 max-h-96 overflow-y-auto space-y-2">
+          {/* Header */}
+          <div className="flex items-center justify-between pb-1 border-b border-slate-200 dark:border-slate-800 text-[9.5px] font-black uppercase tracking-wider text-slate-500">
+            <span className="flex items-center gap-1 text-indigo-600 dark:text-indigo-400">
+              <Layers size={11} />
+              <span>Configure Columns ({activeColumns.length} Active)</span>
+            </span>
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => setShowMoreFields(prev => !prev)}
+                className="px-1.5 py-0.5 rounded bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 text-[8.5px] font-bold cursor-pointer"
+              >
+                {showMoreFields ? 'Less' : '+ All 33'}
+              </button>
+              <button
+                type="button"
+                onClick={() => handleOpenAddModal()}
+                className="px-1.5 py-0.5 rounded bg-amber-600 text-white text-[8.5px] font-bold cursor-pointer"
+              >
+                + Custom
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsOpen(false)}
+                className="text-slate-400 hover:text-slate-600 cursor-pointer ml-1"
+              >
+                <X size={12} />
+              </button>
+            </div>
+          </div>
+
+          {/* Search Box */}
+          <div className="relative">
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search column fields..."
+              className="w-full px-2 py-1 pl-6 rounded-md border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-[10px] font-bold text-slate-900 dark:text-slate-100 focus:outline-hidden"
+            />
+            <Search size={10} className="absolute left-2 top-2 text-slate-400" />
+            {searchTerm && (
+              <button
+                type="button"
+                onClick={() => setSearchTerm('')}
+                className="absolute right-2 top-1.5 text-slate-400 hover:text-slate-600"
+              >
+                <X size={10} />
+              </button>
+            )}
+          </div>
+
+          {/* Category Groups with Checkboxes */}
+          <div className="space-y-2">
+            {dbColumnGroups.map((grp) => {
+              const visibleCols = showMoreFields
+                ? grp.columns
+                : grp.columns.filter(c => c.isPrimary || activeColumns.some(ac => ac.key === c.key));
+
+              const filteredCols = term
+                ? visibleCols.filter(c => c.label.toLowerCase().includes(term) || c.key.toLowerCase().includes(term))
+                : visibleCols;
+
+              if (filteredCols.length === 0) return null;
+
+              return (
+                <div key={grp.category} className="space-y-1">
+                  <div className="text-[8.5px] uppercase font-black text-slate-400 tracking-wider px-0.5">
+                    {grp.category}
+                  </div>
+                  <div className="grid grid-cols-2 gap-1">
+                    {filteredCols.map((col) => {
+                      const isSelected = activeColumns.some(c => c.key === col.key);
+                      return (
+                        <button
+                          key={col.key}
+                          type="button"
+                          onClick={() => toggleDbColumn(col)}
+                          className={`w-full px-1.5 py-1 rounded-md text-[9.5px] font-bold flex items-center justify-between border cursor-pointer transition-all text-left ${
+                            isSelected
+                              ? 'bg-indigo-50 dark:bg-indigo-950/60 border-indigo-400 dark:border-indigo-700 text-indigo-950 dark:text-indigo-200'
+                              : 'bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:border-slate-400'
+                          }`}
+                        >
+                          <span className="truncate min-w-0 pr-1">{col.label}</span>
+                          {isSelected ? (
+                            <CheckSquare size={12} className="text-indigo-600 dark:text-indigo-400 shrink-0" />
+                          ) : (
+                            <Square size={12} className="text-slate-400 shrink-0" />
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Custom Column Tags inside dropdown */}
+          {activeColumns.some(c => c.isCustom) && (
+            <div className="pt-1.5 border-t border-slate-200 dark:border-slate-800 space-y-1">
+              <div className="text-[8.5px] uppercase font-black text-amber-600 dark:text-amber-400">Custom Columns:</div>
+              <div className="flex flex-wrap gap-1">
+                {activeColumns.filter(c => c.isCustom).map((c) => (
+                  <span
+                    key={c.key}
+                    className="px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-950/80 border border-amber-300 dark:border-amber-700 text-amber-950 dark:text-amber-200 text-[9px] font-bold inline-flex items-center gap-1"
+                  >
+                    <span onClick={() => handleOpenEditModal(c)} className="cursor-pointer hover:underline truncate max-w-[120px]">
+                      {c.label}
+                    </span>
+                    <button type="button" onClick={() => handleRemoveColumn(c.key)} className="text-rose-600 cursor-pointer">
+                      <X size={9} />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function CustomRosterDocumentBuilderView({
   allStudents = [],
   onClose,
@@ -3785,7 +3970,76 @@ export default function CustomRosterDocumentBuilderView({
 
           {/* COLUMN CONFIGURATION MATRIX */}
           <div className="space-y-1.5">
-            <div className="flex flex-wrap items-center justify-between gap-1 text-[9px] uppercase font-black tracking-wider text-slate-500">
+            {/* Mobile Column Bar: Ultra-Compact Dropdown + Controls (sm:hidden) */}
+            <div className="flex flex-wrap items-center justify-between gap-1 sm:hidden">
+              <RosterColumnsDropdown
+                activeColumns={activeColumns}
+                toggleDbColumn={toggleDbColumn}
+                dbColumnGroups={DB_COLUMN_GROUPS}
+                showMoreFields={showMoreFields}
+                setShowMoreFields={setShowMoreFields}
+                handleOpenAddModal={handleOpenAddModal}
+                handleOpenEditModal={handleOpenEditModal}
+                handleRemoveColumn={handleRemoveColumn}
+              />
+
+              <div className="flex items-center gap-1">
+                <div className="inline-flex rounded-md border border-slate-300 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 p-0.5 text-[8.5px] font-extrabold">
+                  <button
+                    type="button"
+                    onClick={() => setUseAbbreviatedSubjects(true)}
+                    className={`px-1.5 py-0.5 rounded cursor-pointer transition-all ${
+                      useAbbreviatedSubjects
+                        ? 'bg-indigo-600 text-white shadow-2xs'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                    }`}
+                    title="Abbreviate subjects to standard codes (GE, PH)"
+                  >
+                    ⚡ Abbr
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setUseAbbreviatedSubjects(false)}
+                    className={`px-1.5 py-0.5 rounded cursor-pointer transition-all ${
+                      !useAbbreviatedSubjects
+                        ? 'bg-indigo-600 text-white shadow-2xs'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                    }`}
+                    title="Display full subject names"
+                  >
+                    📝 Full
+                  </button>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleSaveAsDefaultColumns}
+                  className={`px-1.5 py-0.5 rounded font-black text-[9px] flex items-center gap-0.5 cursor-pointer transition-all border shadow-2xs ${
+                    saveDefaultToast
+                      ? 'bg-emerald-600 text-white border-emerald-700'
+                      : 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-800 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800 hover:bg-emerald-100'
+                  }`}
+                  title="Save current column order as default"
+                >
+                  {saveDefaultToast ? <Check size={9} /> : <Save size={9} className="text-emerald-600 dark:text-emerald-400" />}
+                  <span>{saveDefaultToast ? 'Saved' : 'Save'}</span>
+                </button>
+
+                {hasSavedDefault && (
+                  <button
+                    type="button"
+                    onClick={handleResetToSystemDefault}
+                    className="p-1 rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-600 dark:text-slate-400 font-bold text-[8.5px] border border-slate-300 dark:border-slate-700 cursor-pointer"
+                    title="Reset to system default column order"
+                  >
+                    <RotateCcw size={8.5} />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Desktop Column Header Bar (hidden on sm:hidden) */}
+            <div className="hidden sm:flex flex-wrap items-center justify-between gap-1 text-[9px] uppercase font-black tracking-wider text-slate-500">
               <span className="flex items-center gap-1 shrink-0">
                 <Layers size={10} className="text-indigo-600 dark:text-indigo-400" />
                 <span>Columns ({activeTableColumns.length} Active)</span>
@@ -3870,8 +4124,8 @@ export default function CustomRosterDocumentBuilderView({
               </div>
             </div>
 
-            {/* Categorized Database Field Matrix (Curated Primary vs Full 33 Fields) */}
-            <div className={`grid gap-1.5 ${showMoreFields ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-4' : 'grid-cols-1 sm:grid-cols-3'}`}>
+            {/* Categorized Database Field Matrix (Hidden on mobile to focus letter preview; visible on sm+) */}
+            <div className={`hidden sm:grid gap-1.5 ${showMoreFields ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-4' : 'grid-cols-1 sm:grid-cols-3'}`}>
               {DB_COLUMN_GROUPS.map((grp) => {
                 const visibleCols = showMoreFields
                   ? grp.columns

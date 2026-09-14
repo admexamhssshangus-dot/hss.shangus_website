@@ -415,9 +415,9 @@ export default function AdminToolsDropdown({
 
   return (
     <>
-      {/* Mobile Backdrop Overlay */}
+      {/* Full Backdrop Overlay (All Screen Sizes) */}
       <div
-        className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs z-[99998] sm:hidden animate-fadeIn"
+        className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs z-[99998] animate-fadeIn"
         onClick={() => setIsOpen(false)}
       />
 
@@ -427,9 +427,9 @@ export default function AdminToolsDropdown({
         role="dialog"
         aria-modal="true"
         aria-label="Administrative modules"
-        className={`fixed inset-x-2.5 sm:inset-x-auto top-10 sm:top-auto bottom-2.5 sm:bottom-auto sm:mt-2.5 sm:absolute ${
-          align === 'right' ? 'sm:right-0 sm:left-auto' : 'sm:left-0 sm:right-auto'
-        } w-auto sm:w-[680px] md:w-[720px] max-w-[calc(100vw-20px)] max-h-[90vh] sm:max-h-[520px] sm:h-[490px] flex flex-col rounded-2xl sm:rounded-3xl border border-slate-200/90 dark:border-slate-800/90 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl shadow-2xl z-[99999] p-2.5 sm:p-4 text-xs overflow-hidden animate-fadeIn`}
+        className={`fixed inset-x-2.5 sm:inset-x-auto top-10 sm:top-14 bottom-2.5 sm:bottom-auto sm:mt-0 ${
+          align === 'right' ? 'sm:right-4 sm:left-auto' : 'sm:left-4 sm:right-auto'
+        } w-auto sm:w-[680px] md:w-[720px] max-w-[calc(100vw-20px)] max-h-[90vh] sm:max-h-[520px] sm:h-[490px] flex flex-col rounded-2xl sm:rounded-3xl border border-slate-200/90 dark:border-slate-800/90 bg-white dark:bg-slate-900 shadow-2xl z-[99999] p-2.5 sm:p-4 text-xs overflow-hidden animate-fadeIn`}
       >
         {/* Modal Header */}
         <div className="pb-1 sm:pb-2 border-b border-slate-100 dark:border-slate-800/80 flex items-center justify-between gap-2 shrink-0">

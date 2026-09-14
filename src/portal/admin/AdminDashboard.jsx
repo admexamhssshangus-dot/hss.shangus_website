@@ -482,7 +482,7 @@ export default function AdminDashboard() {
             const CurrentIcon = currentModule.icon;
             const displayLabel = currentModule.shortLabel || currentModule.label;
             return (
-              <div className="no-print flex items-center justify-between gap-1 sm:gap-2 px-1.5 sm:px-2.5 py-1 sm:py-1.5 rounded-lg sm:rounded-xl border border-slate-200/90 dark:border-slate-800/90 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm text-xs font-bold shadow-2xs w-full min-w-0 flex-nowrap">
+              <div className={`no-print flex items-center justify-between gap-1 sm:gap-2 px-1.5 sm:px-2.5 py-1 sm:py-1.5 rounded-lg sm:rounded-xl border border-slate-200/90 dark:border-slate-800/90 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm text-xs font-bold shadow-2xs w-full min-w-0 flex-nowrap relative ${isToolsOpen ? 'z-[99999]' : 'z-20'}`}>
                 
                 {/* Left Slot: Navigation Back to Records + Active Module Title */}
                 <div className="flex min-w-0 items-center gap-1 sm:gap-2 flex-1 mr-1">
