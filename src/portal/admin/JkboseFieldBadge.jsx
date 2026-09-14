@@ -1,14 +1,14 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { ShieldCheck, CheckCircle2, ArrowRight, FileSpreadsheet, Clock, X } from 'lucide-react';
+import { CheckCircle2 } from 'lucide-react';
 
 /**
- * JkboseFieldBadge: A visual indicator badge displayed beside table column values
- * or in field headers indicating that student data was overwritten/verified as per
- * official JKBOSE Board records.
+ * JkboseFieldBadge: A compact, minimal visual indicator badge displayed beside
+ * table column values or in field headers indicating that student data was
+ * verified / overwritten as per official JKBOSE Board records.
  *
- * Renders an interactive, floating portal tooltip on hover or mobile tap showing
- * full audit details, original student value, verified Board value, source sheet, and timestamp.
+ * Renders an ultra-clean, window-responsive floating portal tooltip with a dynamic
+ * arrow pointer that cleanly adapts to window edges, mobile screens, and scroll positions.
  *
  * @param {Object} props
  * @param {Object} [props.info] - Status object from getJkboseFieldStatus()
@@ -23,36 +23,43 @@ export default function JkboseFieldBadge({
   minimal = false
 }) {
   const [isOpen, setIsOpen] = useState(false);
-  const [coords, setCoords] = useState({ top: 0, left: 0, placeAbove: true });
+  const [coords, setCoords] = useState({ top: 0, left: 0, width: 280, placeAbove: true, arrowLeft: 24 });
   const badgeRef = useRef(null);
   const tooltipRef = useRef(null);
   const closeTimerRef = useRef(null);
 
-  // Dynamic viewport coordinate calculation
+  // Dynamic window-responsive coordinate calculation
   const updatePosition = useCallback(() => {
     if (!badgeRef.current) return;
     const rect = badgeRef.current.getBoundingClientRect();
     const tooltipEl = tooltipRef.current;
-    const tooltipWidth = tooltipEl ? tooltipEl.offsetWidth : 300;
-    const tooltipHeight = tooltipEl ? tooltipEl.offsetHeight : 160;
 
-    // Horizontal centering with screen edge padding
-    let left = rect.left + rect.width / 2 - tooltipWidth / 2;
-    left = Math.max(10, Math.min(left, window.innerWidth - tooltipWidth - 10));
+    // Window-responsive width: caps at 280px or screen width minus margins
+    const tooltipWidth = Math.min(280, Math.max(220, window.innerWidth - 24));
+    const tooltipHeight = tooltipEl ? tooltipEl.offsetHeight : 115;
 
-    // Vertical placement (prefer above if space exists)
+    // Center tooltip horizontally over badge
+    const badgeCenterX = rect.left + rect.width / 2;
+    let left = badgeCenterX - tooltipWidth / 2;
+    // Keep at least 12px from left and right window edges
+    left = Math.max(12, Math.min(left, window.innerWidth - tooltipWidth - 12));
+
+    // Calculate caret arrow offset relative to the tooltip box
+    const arrowLeft = Math.max(14, Math.min(badgeCenterX - left - 5, tooltipWidth - 22));
+
+    // Vertical placement (prefer above if space exists; otherwise place below)
     const spaceAbove = rect.top;
     const spaceBelow = window.innerHeight - rect.bottom;
-    const placeAbove = spaceAbove >= tooltipHeight + 8 || spaceAbove > spaceBelow;
+    const placeAbove = spaceAbove >= tooltipHeight + 10 || spaceAbove > spaceBelow;
 
     let top;
     if (placeAbove) {
-      top = Math.max(10, rect.top - tooltipHeight - 6);
+      top = Math.max(8, rect.top - tooltipHeight - 7);
     } else {
-      top = Math.min(window.innerHeight - tooltipHeight - 10, rect.bottom + 6);
+      top = Math.min(window.innerHeight - tooltipHeight - 8, rect.bottom + 7);
     }
 
-    setCoords({ top, left, placeAbove });
+    setCoords({ top, left, width: tooltipWidth, placeAbove, arrowLeft });
   }, []);
 
   useEffect(() => {
@@ -88,7 +95,7 @@ export default function JkboseFieldBadge({
     return null;
   }
 
-  // Safe timestamp resolution (supports ISO string, timestamp number, or Firestore timestamp)
+  // Safe timestamp resolution
   let dateObj = null;
   if (info.timestamp) {
     if (typeof info.timestamp.toDate === 'function') {
@@ -104,11 +111,6 @@ export default function JkboseFieldBadge({
     day: '2-digit',
     month: 'short',
     year: 'numeric'
-  }) : '';
-
-  const timeStr = dateObj && !isNaN(dateObj) ? dateObj.toLocaleTimeString([], {
-    hour: '2-digit',
-    minute: '2-digit'
   }) : '';
 
   const displayOld = info.oldValue !== undefined && info.oldValue !== null ? String(info.oldValue).trim() || '(blank)' : '';
@@ -141,9 +143,11 @@ export default function JkboseFieldBadge({
     setIsOpen(prev => !prev);
   };
 
-  // Render rich floating tooltip portal
+  // Render ultra-clean, minimal, window-responsive tooltip portal
   const renderTooltip = () => {
     if (!isOpen || typeof document === 'undefined') return null;
+
+    const sourceFilename = info.source ? String(info.source).split(/[/\\]/).pop() : '';
 
     return createPortal(
       <div
@@ -152,90 +156,77 @@ export default function JkboseFieldBadge({
           position: 'fixed',
           top: `${coords.top}px`,
           left: `${coords.left}px`,
+          width: `${coords.width}px`,
           zIndex: 999999,
         }}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
         onClick={(e) => e.stopPropagation()}
-        className="w-[300px] max-w-[92vw] p-3 rounded-2xl bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-emerald-500/30 dark:border-emerald-500/40 shadow-2xl text-slate-800 dark:text-slate-100 animate-in fade-in zoom-in-95 duration-100 font-sans pointer-events-auto select-text space-y-2 text-left"
+        className="max-w-[calc(100vw-24px)] p-2.5 rounded-xl bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-slate-200/90 dark:border-slate-800 shadow-xl text-slate-800 dark:text-slate-100 animate-in fade-in zoom-in-95 duration-100 font-sans pointer-events-auto select-text text-left relative"
       >
-        {/* Tooltip Header */}
-        <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800/80 pb-1.5">
-          <div className="flex items-center gap-1.5">
-            <span className="w-5 h-5 rounded-md bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
-              <ShieldCheck size={12} />
+        {/* Dynamic Pointer Caret */}
+        <div
+          style={{ left: `${coords.arrowLeft || 24}px` }}
+          className={`absolute w-2.5 h-2.5 bg-white dark:bg-slate-900 border-slate-200/90 dark:border-slate-800 transform rotate-45 pointer-events-none ${
+            coords.placeAbove
+              ? '-bottom-[5.5px] border-b border-r'
+              : '-top-[5.5px] border-t border-l'
+          }`}
+        />
+
+        {/* Minimal Header */}
+        <div className="flex items-center justify-between gap-1.5 pb-1.5 border-b border-slate-100 dark:border-slate-800/80">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0 animate-pulse" />
+            <span className="font-extrabold text-[11px] text-slate-900 dark:text-white truncate">
+              JKBOSE Verified
             </span>
-            <span className="font-black text-xs text-slate-900 dark:text-white">
-              JKBOSE Board Verification
+            <span className="text-[10px] text-slate-400 font-medium truncate">
+              • {fieldLabel}
             </span>
           </div>
-          <div className="flex items-center gap-1">
-            <span className="px-1.5 py-0.2 rounded text-[8.5px] font-black uppercase tracking-wider bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
-              Master Record
-            </span>
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                setIsOpen(false);
-              }}
-              className="w-4 h-4 rounded flex items-center justify-center text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 cursor-pointer sm:hidden ml-1"
-              title="Close"
-            >
-              <X size={12} />
-            </button>
-          </div>
+          <span className="shrink-0 px-1.5 py-0.2 rounded text-[8px] font-black uppercase tracking-wider bg-emerald-50 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 border border-emerald-200/80 dark:border-emerald-800/80">
+            Board Sync
+          </span>
         </div>
 
-        {/* Diff Box (if changes present) */}
+        {/* Minimal Diff Section */}
         {hasDiff ? (
-          <div className="p-2 rounded-xl bg-slate-50/90 dark:bg-slate-950/70 border border-slate-200/80 dark:border-slate-800/80 space-y-1">
-            <div className="flex items-center justify-between text-[10px] font-bold text-slate-400">
-              <span>Field: <strong className="text-slate-700 dark:text-slate-300">{fieldLabel}</strong></span>
-              <span className="text-emerald-600 dark:text-emerald-400 font-extrabold flex items-center gap-0.5">
-                <CheckCircle2 size={10} /> Overwritten
+          <div className="py-1.5 space-y-1">
+            <div className="flex items-baseline justify-between gap-2 text-[11px]">
+              <span className="text-[9.5px] font-bold uppercase tracking-wider text-slate-400 shrink-0">
+                Previous
+              </span>
+              <span className="font-mono text-rose-500/90 line-through truncate text-right font-medium max-w-[190px]" title={displayOld}>
+                {displayOld}
               </span>
             </div>
-            <div className="space-y-1 pt-0.5 font-mono text-xs">
-              <div className="flex items-center justify-between gap-1.5 bg-rose-50 dark:bg-rose-950/40 p-1.5 rounded-lg border border-rose-200/70 dark:border-rose-900/50">
-                <span className="text-[9px] font-bold text-rose-500 uppercase tracking-wide shrink-0">Previous</span>
-                <span className="line-through text-rose-700 dark:text-rose-300 font-semibold truncate text-right" title={displayOld}>
-                  {displayOld}
-                </span>
-              </div>
-              <div className="flex items-center justify-between gap-1.5 bg-emerald-50 dark:bg-emerald-950/40 p-1.5 rounded-lg border border-emerald-200/70 dark:border-emerald-800/50">
-                <span className="text-[9px] font-black text-emerald-600 uppercase tracking-wide flex items-center gap-0.5 shrink-0">
-                  <CheckCircle2 size={10} className="text-emerald-500" /> JKBOSE
-                </span>
-                <span className="text-emerald-800 dark:text-emerald-200 font-black truncate text-right" title={displayNew}>
-                  {displayNew}
-                </span>
-              </div>
+            <div className="flex items-baseline justify-between gap-2 text-[11.5px]">
+              <span className="text-[9.5px] font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400 shrink-0 flex items-center gap-1">
+                <CheckCircle2 size={10} /> Master
+              </span>
+              <span className="font-mono font-black text-slate-900 dark:text-white truncate text-right max-w-[190px]" title={displayNew}>
+                {displayNew}
+              </span>
             </div>
           </div>
         ) : (
-          <div className="text-[11px] font-bold text-slate-700 dark:text-slate-300 py-0.5">
-            {customTitle || 'Field verified directly against official JKBOSE Board master records.'}
+          <div className="py-1 text-[11px] font-semibold text-slate-700 dark:text-slate-300">
+            {customTitle || 'Matched with official JKBOSE Board master records.'}
           </div>
         )}
 
-        {/* Source & Timestamp Footer */}
-        <div className="space-y-1 text-[10px] font-medium text-slate-500 dark:text-slate-400 border-t border-slate-100 dark:border-slate-800/80 pt-1.5">
-          {info.source && (
-            <div className="flex items-center gap-1.5 truncate" title={info.source}>
-              <FileSpreadsheet size={12} className="text-indigo-600 dark:text-indigo-400 shrink-0" />
-              <span className="truncate">
-                Source: <strong className="font-mono text-slate-700 dark:text-slate-300">{info.source}</strong>
-              </span>
-            </div>
-          )}
-          {(dateStr || timeStr) && (
-            <div className="flex items-center gap-1.5">
-              <Clock size={11} className="text-slate-400 shrink-0" />
-              <span>
-                Synced: <strong className="text-slate-700 dark:text-slate-300">{dateStr}{timeStr ? ` • ${timeStr}` : ''}</strong>
-              </span>
-            </div>
+        {/* Minimal Source & Timestamp Footer */}
+        <div className="pt-1.5 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-[9.5px] text-slate-500 dark:text-slate-400 font-medium gap-2">
+          {sourceFilename ? (
+            <span className="truncate max-w-[170px]" title={info.source}>
+              📁 <span className="font-mono text-slate-700 dark:text-slate-300">{sourceFilename}</span>
+            </span>
+          ) : <span />}
+          {dateStr && (
+            <span className="shrink-0 text-slate-400">
+              {dateStr}
+            </span>
           )}
         </div>
       </div>,
