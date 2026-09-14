@@ -565,7 +565,7 @@ export default function LoginPage() {
       // If SuperAdmin or Admin, direct them to verified session
       if (staffProfile?.isAdmin) {
         // Direct Super Admin bypass when signing in with master institutional credentials
-        if (isSuperAdminEmail(cleanEmail) || selectedRole === 'superadmin') {
+        if (isSuperAdminEmail(cleanEmail)) {
           const verifiedSession = await createVerifiedSession(fbUser, cleanEmail, staffProfile);
           setAlert({ type: 'success', text: 'Welcome back, Super Admin! Unlocking dashboard...' });
           onLoginSuccess(verifiedSession, keepLoggedIn);

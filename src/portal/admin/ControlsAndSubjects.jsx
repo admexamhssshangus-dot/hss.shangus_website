@@ -49,7 +49,7 @@ const DEFAULT_ADMIN_USERS = [
   {
     name: 'Sheikh Gulfam',
     email: 'e.educational.24@gmail.com',
-    role: 'SuperAdmin',
+    role: 'Admin',
     perms: ALL_ADMIN_MODULES.map(m => m.code),
   },
   {
@@ -480,18 +480,19 @@ export default function ControlsAndSubjects() {
               email: 'shahnawaz13678@gmail.com',
             };
           }
-          if (clean === 'e.educational.24@gmail.com') {
-            return {
-              ...u,
-              role: 'Admin',
-              perms: Array.isArray(u.perms) && u.perms.length > 0 ? u.perms : ['reports'],
-            };
-          }
           if (clean === 'adm.exam.hss.shangus@gmail.com') {
             return {
               ...u,
               role: 'SuperAdmin',
               perms: ALL_ADMIN_MODULES.map(m => m.code),
+            };
+          }
+          // Strictly only adm.exam.hss.shangus@gmail.com is SuperAdmin; all others are Admin or Teacher
+          if (u.role === 'SuperAdmin') {
+            return {
+              ...u,
+              role: 'Admin',
+              perms: Array.isArray(u.perms) && u.perms.length > 0 ? u.perms : ['reports'],
             };
           }
           return u;
@@ -691,18 +692,30 @@ export default function ControlsAndSubjects() {
     setSaving(true);
     setAlert(null);
     try {
+      // Sanitize list so strictly only adm.exam.hss.shangus@gmail.com is SuperAdmin
+      const sanitizedList = listToSave.map((account) => {
+        const clean = String(account.email || '').trim().toLowerCase();
+        if (clean === 'adm.exam.hss.shangus@gmail.com') {
+          return { ...account, role: 'SuperAdmin', perms: ALL_ADMIN_MODULES.map(m => m.code) };
+        }
+        return {
+          ...account,
+          role: account.role === 'SuperAdmin' ? 'Admin' : (account.role || 'Admin'),
+        };
+      });
+
       // 1. Directly save all accounts to adminSettings/permissions in Firestore
       const permDocRef = doc(db, 'adminSettings', 'permissions');
-      await setDoc(permDocRef, { users: listToSave, updatedAt: new Date().toISOString() }, { merge: true });
+      await setDoc(permDocRef, { users: sanitizedList, updatedAt: new Date().toISOString() }, { merge: true });
       try {
-        localStorage.setItem('hss_admin_users_permissions_v1', JSON.stringify(listToSave));
+        localStorage.setItem('hss_admin_users_permissions_v1', JSON.stringify(sanitizedList));
       } catch (_) {}
 
       // 2. Synchronize each staff user document in users/{cleanEmail}
-      await Promise.all(listToSave.map(async (account) => {
+      await Promise.all(sanitizedList.map(async (account) => {
         const cleanEmail = String(account.email || '').trim().toLowerCase();
         if (!cleanEmail) return;
-        const isSuper = isSuperAdminEmail(cleanEmail) || account.role === 'SuperAdmin';
+        const isSuper = cleanEmail === 'adm.exam.hss.shangus@gmail.com';
         const cleanClasses = Array.isArray(account.assignedClasses)
           ? account.assignedClasses.filter(Boolean)
           : (account.assignedClasses ? [account.assignedClasses] : []);
@@ -757,12 +770,12 @@ export default function ControlsAndSubjects() {
   // Modal Action: Open Edit Staff Modal
   const handleOpenEditAdmin = (user) => {
     const cleanEmail = String(user.email || '').trim().toLowerCase();
-    const isSuperTarget = isSuperAdminEmail(cleanEmail);
+    const isSuperTarget = cleanEmail === 'adm.exam.hss.shangus@gmail.com';
     setEditingAdminEmail(user.email);
     setAdminForm({ 
       name: user.name || '', 
       email: user.email || '', 
-      role: isSuperTarget ? 'SuperAdmin' : (cleanEmail === 'e.educational.24@gmail.com' ? 'Admin' : (user.role || 'Admin')), 
+      role: isSuperTarget ? 'SuperAdmin' : (user.role === 'Teacher' ? 'Teacher' : 'Admin'), 
       perms: Array.isArray(user.perms) ? [...user.perms] : ['reports'],
       subject: user.subject || '',
       assignedClasses: user.assignedClasses || [],
@@ -811,8 +824,9 @@ export default function ControlsAndSubjects() {
 
     try {
       if (editingAdminEmail) {
-        const isTargetSuper = isSuperAdminEmail(cleanEmail);
-        const resolvedRole = isTargetSuper ? 'SuperAdmin' : (cleanEmail === 'e.educational.24@gmail.com' ? 'Admin' : adminForm.role);
+        const resolvedRole = cleanEmail === 'adm.exam.hss.shangus@gmail.com' 
+          ? 'SuperAdmin' 
+          : (adminForm.role === 'Teacher' ? 'Teacher' : 'Admin');
 
         // Update existing staff profile and email address
         await updateStaffAccount({
@@ -856,10 +870,14 @@ export default function ControlsAndSubjects() {
           return;
         }
 
+        const resolvedRole = cleanEmail === 'adm.exam.hss.shangus@gmail.com' 
+          ? 'SuperAdmin' 
+          : (adminForm.role === 'Teacher' ? 'Teacher' : 'Admin');
+
         const res = await createStaffAccount({
           name: adminForm.name,
           email: cleanEmail,
-          role: adminForm.role,
+          role: resolvedRole,
           perms: adminForm.perms,
           subject: adminForm.subject,
           assignedClasses: adminForm.assignedClasses || [],
@@ -873,10 +891,10 @@ export default function ControlsAndSubjects() {
           { 
             name: adminForm.name.trim(), 
             email: cleanEmail, 
-            role: adminForm.role, 
+            role: resolvedRole, 
             perms: adminForm.perms,
             subject: adminForm.subject,
-          assignedClasses: adminForm.assignedClasses || [],
+            assignedClasses: adminForm.assignedClasses || [],
             mobile: adminForm.mobile
           }
         ];
@@ -898,8 +916,8 @@ export default function ControlsAndSubjects() {
   // Revoke / Delete Admin or Teacher Account
   const handleDeleteAdmin = async (email) => {
     const cleanEmail = email.toLowerCase();
-    if (cleanEmail === 'adm.exam.hss.shangus@gmail.com' || cleanEmail === 'e.educational.24@gmail.com' || cleanEmail === 'socialshiftz@gmail.com') {
-      setAlert({ type: 'error', text: 'Security Protection: Core Institutional Administrator accounts cannot be revoked.' });
+    if (cleanEmail === 'adm.exam.hss.shangus@gmail.com') {
+      setAlert({ type: 'error', text: 'Security Protection: Master Super Administrator account cannot be revoked.' });
       return;
     }
     setSaving(true);
@@ -1944,7 +1962,7 @@ export default function ControlsAndSubjects() {
                 {filteredStaff.map((user, idx) => {
                   const cleanEmail = String(user.email || '').trim().toLowerCase();
                   const roleStr = String(user.role || '').toLowerCase();
-                  const isSuper = isSuperAdminEmail(cleanEmail) || (roleStr === 'superadmin' && cleanEmail !== 'e.educational.24@gmail.com');
+                  const isSuper = cleanEmail === 'adm.exam.hss.shangus@gmail.com';
                   const isTeacher = roleStr === 'teacher' || roleStr === 'faculty' || roleStr === 'staff';
                   const userPerms = Array.isArray(user.perms) ? user.perms : [];
                   const allSelected = ALL_ADMIN_MODULES.every((m) => userPerms.includes(m.code));
@@ -2028,7 +2046,7 @@ export default function ControlsAndSubjects() {
                             <Edit3 size={12} />
                           </button>
                           
-                          {!isSuper && cleanEmail !== 'e.educational.24@gmail.com' && cleanEmail !== 'socialshiftz@gmail.com' && (
+                          {!isSuper && (
                             <button
                               type="button"
                               onClick={() => setUserToDelete(user)}
@@ -2185,7 +2203,9 @@ export default function ControlsAndSubjects() {
                       className="w-full px-3 py-2 rounded-xl text-xs font-bold border border-slate-200 dark:border-slate-700/80 bg-slate-50/60 dark:bg-slate-950/60 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all cursor-pointer"
                     >
                       <option value="Admin">Standard Admin</option>
-                      <option value="SuperAdmin">Super Admin (Full System Access)</option>
+                      {adminForm.email.trim().toLowerCase() === 'adm.exam.hss.shangus@gmail.com' && (
+                        <option value="SuperAdmin">Super Admin (Sole Master Authority)</option>
+                      )}
                       <option value="Teacher">Teaching Faculty / Subject Teacher</option>
                     </select>
                   </div>

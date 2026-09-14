@@ -7,7 +7,6 @@
 export const SUPERADMIN_EMAIL = 'adm.exam.hss.shangus@gmail.com';
 export const SUPERADMIN_EMAILS = [
   'adm.exam.hss.shangus@gmail.com',
-  'e.educational.24@gmail.com',
 ];
 
 export const BOOTSTRAP_ADMINS = [
@@ -23,14 +22,14 @@ export const BOOTSTRAP_ADMINS = [
 export function isSuperAdminEmail(email) {
   if (!email || typeof email !== 'string') return false;
   const clean = email.trim().toLowerCase();
-  return clean === SUPERADMIN_EMAIL || SUPERADMIN_EMAILS.includes(clean);
+  return clean === SUPERADMIN_EMAIL;
 }
 
 export function isBootstrapAdminEmail(email) {
   if (!email || typeof email !== 'string') return false;
   const clean = email.trim().toLowerCase();
-  return clean === SUPERADMIN_EMAIL || SUPERADMIN_EMAILS.includes(clean) || BOOTSTRAP_ADMINS.includes(clean);
+  return clean === SUPERADMIN_EMAIL || BOOTSTRAP_ADMINS.includes(clean);
 }
 
 // Backward-compat alias for components expecting isBootstrapSuperAdminEmail
-export const isBootstrapSuperAdminEmail = isBootstrapAdminEmail;
+export const isBootstrapSuperAdminEmail = isSuperAdminEmail;

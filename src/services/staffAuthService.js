@@ -22,7 +22,7 @@ export {
 // Fallback staff directory to ensure foundational admins are always recognized
 const FALLBACK_STAFF_PROFILES = {
   'adm.exam.hss.shangus@gmail.com': { name: 'Sheikh Gulfam (SuperAdmin)', role: 'SuperAdmin', perms: ['*'] },
-  'e.educational.24@gmail.com': { name: 'Sheikh Gulfam (SuperAdmin)', role: 'SuperAdmin', perms: ['*'] },
+  'e.educational.24@gmail.com': { name: 'Sheikh Gulfam', role: 'Admin', perms: ['*'] },
   'ghssshangus74@gmail.com': { name: 'GHSS Shangus (Admin)', role: 'Admin', perms: ['*'] },
   'socialshiftz@gmail.com': { name: 'Technical Admin', role: 'Admin', perms: ['*'] },
   'shahnawaz13678@gmail.com': { name: 'Nawaz Ahmad Shah (Admin)', role: 'Admin', perms: ['*'] },
@@ -153,10 +153,10 @@ export async function resolveStaffRoleAndPerms(emailOrUser) {
   if (!['teacher', 'faculty', 'admin', 'superadmin'].includes(normalizedRole)) return null;
 
   const isBootstrap = isBootstrapAdminEmail(email);
-  const isSuper = normalizedRole === 'superadmin' || isSuperAdminEmail(email);
-  const isAdmin = isSuper || isBootstrap || normalizedRole === 'admin';
+  const isSuper = isSuperAdminEmail(email);
+  const isAdmin = isSuper || isBootstrap || normalizedRole === 'admin' || normalizedRole === 'superadmin';
   const isTeacher = normalizedRole === 'teacher' || normalizedRole === 'faculty';
-  const role = isSuper ? 'SuperAdmin' : (normalizedRole === 'admin' || isBootstrap ? 'Admin' : (normalizedRole === 'faculty' ? 'Faculty' : 'Teacher'));
+  const role = isSuper ? 'SuperAdmin' : (normalizedRole === 'faculty' ? 'Faculty' : (isTeacher ? 'Teacher' : 'Admin'));
 
   const resolved = {
     ...profile,
