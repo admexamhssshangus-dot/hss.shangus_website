@@ -983,10 +983,11 @@ export default function PracticalsPage() {
 
   // Resolve teacher's officially assigned teaching subject
   const teacherRegisteredSubject = useMemo(() => {
-    if (!user?.subject) return '';
-    const norm = normalizeSubjectIdentity(user.subject);
-    return norm ? norm.name : String(user.subject).trim();
-  }, [user?.subject]);
+    const rawSubj = user?.subject || user?.teachingSubject || '';
+    if (!rawSubj) return '';
+    const norm = normalizeSubjectIdentity(rawSubj);
+    return norm ? norm.name : String(rawSubj).trim();
+  }, [user?.subject, user?.teachingSubject]);
 
   // Initial subject defaulting: if navigated from history with state, use that;
   // otherwise, default to the teacher's registered subject; fallback to Physics.

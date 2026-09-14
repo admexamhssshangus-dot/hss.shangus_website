@@ -67,11 +67,21 @@ export default function TeacherDashboard() {
                 <h1 className="text-xs sm:text-sm font-black tracking-tight truncate leading-tight" style={{ color: 'var(--text-main, #0f172a)' }}>
                   {userName}
                 </h1>
-                <div className="flex items-center mt-0.5">
+                <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
                   <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold leading-none bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 inline-flex items-center gap-1">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
                     Educator
                   </span>
+                  {(user?.subject || user?.teachingSubject) && (
+                    <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold leading-none bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">
+                      {user?.subject || user?.teachingSubject}
+                    </span>
+                  )}
+                  {Array.isArray(user?.assignedClasses) && user.assignedClasses.length > 0 && (
+                    <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold leading-none bg-teal-500/10 text-teal-600 dark:text-teal-400 border border-teal-500/20">
+                      Class {user.assignedClasses.join(', ')}
+                    </span>
+                  )}
                 </div>
               </div>
             </div>
@@ -80,19 +90,8 @@ export default function TeacherDashboard() {
               <button
                 type="button"
                 onClick={handleLogoutRequest}
-                className="portal-compact-btn rounded-lg font-black text-[11px] flex items-center gap-1 cursor-pointer transition-all duration-200 shadow-2xs"
-                style={{ backgroundColor: '#ffffff', color: '#000000', border: '1px solid #cbd5e1' }}
+                className="portal-compact-btn rounded-lg font-black text-[11px] flex items-center gap-1 cursor-pointer transition-all duration-200 shadow-2xs border bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-300 dark:border-slate-700 hover:bg-rose-600 hover:text-white dark:hover:bg-rose-600 dark:hover:text-white hover:border-rose-600"
                 title="Sign out"
-                onMouseEnter={e => {
-                  e.currentTarget.style.backgroundColor = '#dc2626';
-                  e.currentTarget.style.color = '#ffffff';
-                  e.currentTarget.style.borderColor = '#dc2626';
-                }}
-                onMouseLeave={e => {
-                  e.currentTarget.style.backgroundColor = '#ffffff';
-                  e.currentTarget.style.color = '#000000';
-                  e.currentTarget.style.borderColor = '#cbd5e1';
-                }}
               >
                 <LogOut size={11} />
                 <span>Logout</span>
