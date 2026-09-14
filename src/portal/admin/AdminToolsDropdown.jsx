@@ -1,4 +1,5 @@
 import React, { useRef, useEffect, useMemo, useState, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   BarChart2, Contact, ShieldCheck, Settings, ClipboardCheck, 
   CalendarCheck, Hash, Layers, Mail, CreditCard, Edit3, PlusCircle, 
@@ -269,6 +270,17 @@ export default function AdminToolsDropdown({
     }
   }, [isOpen]);
 
+  // Lock body scroll when modal is open
+  useEffect(() => {
+    if (isOpen) {
+      const prevOverflow = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+      return () => {
+        document.body.style.overflow = prevOverflow;
+      };
+    }
+  }, [isOpen]);
+
   // Default category to active tab's category only when menu is opened
   const wasOpenRef = useRef(false);
   useEffect(() => {
@@ -291,6 +303,7 @@ export default function AdminToolsDropdown({
   }, [isOpen, visibleCategories, activeCategoryKey]);
 
   if (!isOpen) return null;
+  if (typeof document === 'undefined') return null;
 
   const currentCategoryItems = allItems.filter(m => m.category === activeCategoryKey);
 
@@ -413,12 +426,13 @@ export default function AdminToolsDropdown({
     );
   };
 
-  return (
-    <>
+  return createPortal(
+    <div className="admin-tools-modal-portal fixed inset-0 z-[999999] overflow-hidden">
       {/* Full Backdrop Overlay (All Screen Sizes) */}
       <div
-        className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs z-[99998] animate-fadeIn"
+        className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs transition-opacity animate-fadeIn cursor-pointer"
         onClick={() => setIsOpen(false)}
+        aria-hidden="true"
       />
 
       <div
@@ -427,9 +441,9 @@ export default function AdminToolsDropdown({
         role="dialog"
         aria-modal="true"
         aria-label="Administrative modules"
-        className={`fixed inset-x-2.5 sm:inset-x-auto top-10 sm:top-14 bottom-2.5 sm:bottom-auto sm:mt-0 ${
+        className={`fixed inset-x-2.5 sm:inset-x-auto top-3 sm:top-14 bottom-3 sm:bottom-auto ${
           align === 'right' ? 'sm:right-4 sm:left-auto' : 'sm:left-4 sm:right-auto'
-        } w-auto sm:w-[680px] md:w-[720px] max-w-[calc(100vw-20px)] max-h-[90vh] sm:max-h-[520px] sm:h-[490px] flex flex-col rounded-2xl sm:rounded-3xl border border-slate-200/90 dark:border-slate-800/90 bg-white dark:bg-slate-900 shadow-2xl z-[99999] p-2.5 sm:p-4 text-xs overflow-hidden animate-fadeIn`}
+        } w-auto sm:w-[680px] md:w-[720px] max-w-[calc(100vw-20px)] sm:max-w-[calc(100vw-32px)] max-h-[calc(100vh-24px)] sm:max-h-[540px] sm:h-[500px] flex flex-col rounded-2xl sm:rounded-3xl border border-slate-200/90 dark:border-slate-800/90 bg-white dark:bg-slate-900 shadow-2xl z-[1000000] p-2.5 sm:p-4 text-xs overflow-hidden animate-fadeIn`}
       >
         {/* Modal Header */}
         <div className="pb-1 sm:pb-2 border-b border-slate-100 dark:border-slate-800/80 flex items-center justify-between gap-2 shrink-0">
@@ -468,9 +482,9 @@ export default function AdminToolsDropdown({
         </div>
 
         {/* Minimal Compact Search Bar */}
-        <div className="py-0.5 sm:py-1.5 shrink-0">
+        <div className="py-1 sm:py-1.5 shrink-0">
           <div className="relative">
-            <Search size={10} className="sm:hidden absolute left-1.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+            <Search size={11} className="sm:hidden absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
             <Search size={13} className="hidden sm:block absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
             <input
               ref={searchInputRef}
@@ -478,7 +492,7 @@ export default function AdminToolsDropdown({
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder={isMobile ? `Search ${totalAvailableCount} tools...` : `Search all ${totalAvailableCount} administrative modules & tools...`}
-              className="w-full h-[22px] sm:h-8 pl-5 sm:pl-8 pr-5 sm:pr-8 py-0 leading-none bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/60 rounded sm:rounded-xl text-[9px] sm:text-xs placeholder:text-[8.5px] sm:placeholder:text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-teal-500 transition-all"
+              className="w-full h-7 sm:h-8 pl-6 sm:pl-8 pr-6 sm:pr-8 py-0 leading-none bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/60 rounded-lg sm:rounded-xl text-[10px] sm:text-xs placeholder:text-[9px] sm:placeholder:text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-teal-500 transition-all"
             />
             {searchQuery && (
               <button
@@ -495,7 +509,7 @@ export default function AdminToolsDropdown({
 
         {/* Category Horizontal Bar for Mobile Only (Hidden when searching) */}
         {!searchQuery && (
-          <div className="flex sm:hidden items-center gap-1 overflow-x-auto no-scrollbar scroll-smooth py-0.5 border-b border-slate-100 dark:border-slate-800 shrink-0">
+          <div className="flex sm:hidden items-center gap-1 overflow-x-auto no-scrollbar scroll-smooth py-1 border-b border-slate-100 dark:border-slate-800 shrink-0">
             {visibleCategories.map((cat) => {
               const CatIcon = cat.icon;
               const isSelected = activeCategoryKey === cat.key;
@@ -506,16 +520,16 @@ export default function AdminToolsDropdown({
                   key={cat.key}
                   type="button"
                   onClick={() => setActiveCategoryKey(cat.key)}
-                  className={`shrink-0 flex items-center gap-1 px-2 py-0.5 rounded-md text-[9.5px] transition-all cursor-pointer ${
+                  className={`shrink-0 flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] transition-all cursor-pointer ${
                     isSelected
                       ? 'bg-teal-600 text-white font-bold shadow-xs'
                       : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-750 font-medium'
                   }`}
                 >
-                  <CatIcon size={10} className={isSelected ? 'text-white' : cat.color} />
+                  <CatIcon size={11} className={isSelected ? 'text-white' : cat.color} />
                   <span className="whitespace-nowrap">{cat.title}</span>
                   <span
-                    className={`text-[8px] font-mono font-bold px-1 py-0 rounded ${
+                    className={`text-[8.5px] font-mono font-bold px-1 py-0 rounded ${
                       isSelected
                         ? 'bg-white/20 text-white'
                         : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
@@ -620,6 +634,7 @@ export default function AdminToolsDropdown({
           </div>
         </div>
       </div>
-    </>
+    </div>,
+    document.body
   );
 }
