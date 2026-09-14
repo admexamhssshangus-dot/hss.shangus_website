@@ -102,12 +102,11 @@ export default function AdminToolsDropdown({
         (setEnableQuickCellEdit !== undefined ? 1 : 0) +
         (canReports ? 1 : 0) +
         (canDirectEntry ? 1 : 0) +
-        (canBulk ? 1 : 0) +
-        (onOpenBoardSync ? 1 : 0)
+        (canBulk ? 1 : 0)
       );
     }
     return permittedModules.filter(m => m.category === catKey).length;
-  }, [setEnableQuickCellEdit, canReports, canDirectEntry, canBulk, onOpenBoardSync, permittedModules]);
+  }, [setEnableQuickCellEdit, canReports, canDirectEntry, canBulk, permittedModules]);
 
   const visibleCategories = useMemo(() => {
     const activeList = categories.filter(cat => getCategoryCount(cat.key) > 0);
@@ -202,20 +201,6 @@ export default function AdminToolsDropdown({
         onClick: () => {
           if (onOpenBulkTools) onOpenBulkTools();
           else if (setActiveTab) setActiveTab('reports');
-          setIsOpen(false);
-        },
-      });
-    }
-    if (onOpenBoardSync) {
-      items.push({
-        type: 'action',
-        id: 'boardSyncAction',
-        label: 'Board Data Sync (JKBOSE)',
-        desc: 'Bulk overwrite student fields with verified board data',
-        category: 'Quick Actions',
-        icon: FileSpreadsheet,
-        onClick: () => {
-          onOpenBoardSync();
           setIsOpen(false);
         },
       });
