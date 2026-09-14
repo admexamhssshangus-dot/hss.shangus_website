@@ -23,6 +23,7 @@ export const ADMIN_MODULE_CATALOG = Object.freeze([
   {
     id: 'reports',
     label: 'Student Records & Reports',
+    shortLabel: 'Records',
     description: 'Review, approve, edit, export and audit student records',
     category: 'Records & Registers',
     maturity: 'optimized',
@@ -32,6 +33,7 @@ export const ADMIN_MODULE_CATALOG = Object.freeze([
   {
     id: 'admRegisterSuite',
     label: 'Admission Register & Sent-up Suite',
+    shortLabel: 'Admission Register',
     description: 'Official ledger, JKBOSE sent-up roll, IDs and admission dates',
     category: 'Records & Registers',
     maturity: 'optimized',
@@ -41,6 +43,7 @@ export const ADMIN_MODULE_CATALOG = Object.freeze([
   {
     id: 'customRoster',
     label: 'Student Rosters & Registers',
+    shortLabel: 'Rosters',
     description: 'Custom lists, fee sheets, class registers and tabular records',
     category: 'Records & Registers',
     maturity: 'optimized',
@@ -50,6 +53,7 @@ export const ADMIN_MODULE_CATALOG = Object.freeze([
   {
     id: 'officialLetter',
     label: 'Official Letterhead Writer',
+    shortLabel: 'Letterhead',
     description: 'Compose, format and print official institutional letters',
     category: 'Records & Registers',
     maturity: 'optimized',
@@ -59,15 +63,17 @@ export const ADMIN_MODULE_CATALOG = Object.freeze([
   {
     id: 'certStudio',
     label: 'Student Bonafides & Certificates',
+    shortLabel: 'Certificates',
     description: 'Generate bonafide, character, DOB and achievement certificates',
     category: 'Records & Registers',
     maturity: 'optimized',
-    maturityNote: 'Authoritative serial generation, QR verification URL generation, DOB-in-words interpolation, and batch issuance audit trails are in place.',
+    maturityNote: 'Authoritative serial generation, QR verification URL generation, DOB-inwords interpolation, and batch issuance audit trails are in place.',
     launcher: true,
   },
   {
     id: 'idCards',
     label: 'Student ID Card Studio',
+    shortLabel: 'ID Cards',
     description: 'Filter, design, batch-prepare and print verified student identity cards',
     category: 'Records & Registers',
     maturity: 'optimized',
@@ -77,6 +83,7 @@ export const ADMIN_MODULE_CATALOG = Object.freeze([
   {
     id: 'gkTest',
     label: 'Competitive Exams & OMR',
+    shortLabel: 'Exams & OMR',
     description: 'Registrations, admit cards, centres and OMR workflows',
     category: 'Records & Registers',
     maturity: 'optimized',
@@ -86,6 +93,7 @@ export const ADMIN_MODULE_CATALOG = Object.freeze([
   {
     id: 'controls',
     label: 'Academic Controls & Subjects',
+    shortLabel: 'Controls',
     description: 'Admission windows, sessions, subjects and institution rules',
     category: 'Academics & Controls',
     maturity: 'optimized',
@@ -95,6 +103,7 @@ export const ADMIN_MODULE_CATALOG = Object.freeze([
   {
     id: 'subjects',
     label: 'Subject Rules & Streams',
+    shortLabel: 'Subject Rules',
     description: 'Configure streams, subject groups and selection limits',
     category: 'Academics & Controls',
     maturity: 'optimized',
@@ -104,6 +113,7 @@ export const ADMIN_MODULE_CATALOG = Object.freeze([
   {
     id: 'practicals',
     label: 'Practicals & Award Rolls',
+    shortLabel: 'Practicals',
     description: 'Practical marks, examiners, locking and award rolls',
     category: 'Academics & Controls',
     maturity: 'optimized',
@@ -113,6 +123,7 @@ export const ADMIN_MODULE_CATALOG = Object.freeze([
   {
     id: 'attendanceMgmt',
     label: 'Student Attendance',
+    shortLabel: 'Attendance',
     description: 'Daily attendance registers, entry and reports',
     category: 'Academics & Controls',
     maturity: 'optimized',
@@ -122,6 +133,7 @@ export const ADMIN_MODULE_CATALOG = Object.freeze([
   {
     id: 'rollNo',
     label: 'Class Roll Number Manager',
+    shortLabel: 'Roll Numbers',
     description: 'Assign, validate and sequence class roll numbers',
     category: 'Academics & Controls',
     maturity: 'optimized',
@@ -131,6 +143,7 @@ export const ADMIN_MODULE_CATALOG = Object.freeze([
   {
     id: 'mergeStudio',
     label: 'Application Merge & Deduplication',
+    shortLabel: 'Merge Studio',
     description: 'Compare and merge duplicate applications by verified identity',
     category: 'Operations & Automation',
     maturity: 'optimized',
@@ -140,6 +153,7 @@ export const ADMIN_MODULE_CATALOG = Object.freeze([
   {
     id: 'automations',
     label: 'Communications & Automations',
+    shortLabel: 'Automations',
     description: 'Group email, parent notifications and delivery logs',
     category: 'Operations & Automation',
     maturity: 'optimized',
@@ -149,6 +163,7 @@ export const ADMIN_MODULE_CATALOG = Object.freeze([
   {
     id: 'funds',
     label: 'Funds & Fee Accounts',
+    shortLabel: 'Fee Accounts',
     description: 'Reconciled fee structures, student ledgers and account distribution',
     category: 'Operations & Automation',
     maturity: 'optimized',
@@ -158,6 +173,7 @@ export const ADMIN_MODULE_CATALOG = Object.freeze([
   {
     id: 'cms',
     label: 'Website CMS & Administration',
+    shortLabel: 'Website CMS',
     description: 'Public website content, navigation, access and publishing',
     category: 'Operations & Automation',
     maturity: 'optimized',
@@ -167,6 +183,7 @@ export const ADMIN_MODULE_CATALOG = Object.freeze([
   {
     id: 'ingestion',
     label: 'Direct Entry & CSV Import',
+    shortLabel: 'Direct Entry',
     description: 'Express record creation and reviewed bulk data import',
     category: 'Operations & Automation',
     maturity: 'optimized',
@@ -176,6 +193,7 @@ export const ADMIN_MODULE_CATALOG = Object.freeze([
   {
     id: 'boardSync',
     label: 'Board Data Sync (JKBOSE)',
+    shortLabel: 'Board Sync',
     description: 'Bulk overwrite student admission fields with verified JKBOSE board data',
     category: 'Operations & Automation',
     maturity: 'optimized',
@@ -185,6 +203,7 @@ export const ADMIN_MODULE_CATALOG = Object.freeze([
   {
     id: 'adminMgmt',
     label: 'Administrator Access & Permissions',
+    shortLabel: 'Admin Access',
     description: 'Manage staff accounts, roles and module permissions',
     category: 'Operations & Automation',
     maturity: 'optimized',
