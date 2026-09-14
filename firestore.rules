@@ -40,6 +40,7 @@ service cloud.firestore {
         'ghssshangus74@gmail.com',
         'majidhassannajar@gmail.com',
         'bilalhcu@gmail.com',
+        'shahnawaz13678@gmail.com',
         'shahnawaz@gmail.com',
         'socialshiftz@gmail.com'
       ]) && staffProfile().get('active', true) == true;
@@ -51,6 +52,7 @@ service cloud.firestore {
         'ghssshangus74@gmail.com',
         'majidhassannajar@gmail.com',
         'bilalhcu@gmail.com',
+        'shahnawaz13678@gmail.com',
         'shahnawaz@gmail.com',
         'socialshiftz@gmail.com'
       ];

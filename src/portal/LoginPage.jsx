@@ -205,7 +205,11 @@ export default function LoginPage() {
       name: staffProfile?.name || activeUser?.displayName || emailLower.split('@')[0],
       role,
       perms,
-      subject: staffProfile?.subject || '',
+      subject: staffProfile?.subject || staffProfile?.teachingSubject || '',
+      teachingSubject: staffProfile?.teachingSubject || staffProfile?.subject || '',
+      assignedClasses: Array.isArray(staffProfile?.assignedClasses)
+        ? staffProfile.assignedClasses
+        : (staffProfile?.assignedClass ? [staffProfile.assignedClass] : []),
       mobile: staffProfile?.mobile || '',
       photoURL: activeUser?.photoURL || null,
       uid: activeUser?.uid || 'admin_handshake_auth',
@@ -541,9 +545,14 @@ export default function LoginPage() {
           uid: fbUser.uid,
           email: cleanEmail,
           name: displayName,
-          mobile: fbUser.phoneNumber || '',
+          mobile: fbUser.phoneNumber || staffProfile?.mobile || '',
           role: assignedRole,
           perms: assignedPerms,
+          subject: staffProfile?.subject || staffProfile?.teachingSubject || '',
+          teachingSubject: staffProfile?.teachingSubject || staffProfile?.subject || '',
+          assignedClasses: Array.isArray(staffProfile?.assignedClasses)
+            ? staffProfile.assignedClasses
+            : (staffProfile?.assignedClass ? [staffProfile.assignedClass] : []),
           isStaff,
           requestedRole: assignedRole,
           updatedAt: new Date().toISOString(),

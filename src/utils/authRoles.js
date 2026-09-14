@@ -16,6 +16,7 @@ export const BOOTSTRAP_ADMINS = [
   'socialshiftz@gmail.com',
   'majidhassannajar@gmail.com',
   'bilalhcu@gmail.com',
+  'shahnawaz13678@gmail.com',
   'shahnawaz@gmail.com',
 ];
 

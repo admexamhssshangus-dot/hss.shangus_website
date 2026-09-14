@@ -999,8 +999,23 @@ export default function PracticalsPage() {
     return 'Physics';
   }, [location.state?.selectedSubject, teacherRegisteredSubject]);
 
+  // Resolve teacher's officially assigned teaching classes
+  const teacherAssignedClasses = useMemo(() => {
+    if (Array.isArray(user?.assignedClasses) && user.assignedClasses.length > 0) {
+      return user.assignedClasses;
+    }
+    return [];
+  }, [user?.assignedClasses]);
+
+  // Initial class defaulting: location state > first assigned class > '11th'
+  const initialClass = useMemo(() => {
+    if (location.state?.selectedClass) return location.state.selectedClass;
+    if (teacherAssignedClasses.length > 0) return teacherAssignedClasses[0];
+    return '11th';
+  }, [location.state?.selectedClass, teacherAssignedClasses]);
+
   // Filter States
-  const [selectedClass, setSelectedClass] = useState(location.state?.selectedClass || '11th');
+  const [selectedClass, setSelectedClass] = useState(initialClass);
   const [practicalType, setPracticalType] = useState(location.state?.practicalType || 'Internal Assessment');
   const [selectedSubject, setSelectedSubject] = useState(initialSubject);
   const [yearSuffix, setYearSuffix] = useState(location.state?.yearSuffix || CURRENT_SESSION);
@@ -1010,13 +1025,16 @@ export default function PracticalsPage() {
   const [crossSubjectSwitchModal, setCrossSubjectSwitchModal] = useState({ isOpen: false, targetSubject: '' });
   const [existingAwardInfo, setExistingAwardInfo] = useState({ canonical: null, pending: null });
 
-  // Default subject to teacher's registered subject if not specified in location.state
+  // Default subject and class to teacher's registered values if not specified in location.state
   useEffect(() => {
     if (!location.state?.selectedSubject && teacherRegisteredSubject) {
       const match = SUBJECT_MAP.find(s => s.name.toLowerCase() === teacherRegisteredSubject.toLowerCase());
       if (match) setSelectedSubject(match.name);
     }
-  }, [teacherRegisteredSubject, location.state]);
+    if (!location.state?.selectedClass && teacherAssignedClasses.length > 0) {
+      setSelectedClass(teacherAssignedClasses[0]);
+    }
+  }, [teacherRegisteredSubject, teacherAssignedClasses, location.state]);
 
   // Synchronize filter states if user navigates with state (e.g. from Dashboard Submission History)
   useEffect(() => {

@@ -35,12 +35,21 @@ async function resolveUserProfile(firebaseUser) {
         ? claims.permissions
         : [];
 
+  const userSubject = staffProfile?.subject || staffProfile?.teachingSubject || '';
+  const userTeachingSubject = staffProfile?.teachingSubject || staffProfile?.subject || '';
+  const userAssignedClasses = Array.isArray(staffProfile?.assignedClasses)
+    ? staffProfile.assignedClasses
+    : (staffProfile?.assignedClass ? [staffProfile.assignedClass] : []);
+  const userMobile = staffProfile?.mobile || '';
+
   return {
     role,
     name: staffProfile?.name || firebaseUser.displayName || emailLower.split('@')[0],
     perms,
-    subject: staffProfile?.subject || '',
-    mobile: staffProfile?.mobile || '',
+    subject: userSubject,
+    teachingSubject: userTeachingSubject,
+    assignedClasses: userAssignedClasses,
+    mobile: userMobile,
     token: tokenResult.token,
   };
 }
@@ -171,13 +180,17 @@ export default function PortalLayout() {
         
         // If session is already authenticated and active for this email, refresh claims silently in background without blocking UI
         if (sessionStateRef.current.isAuthenticated && sessionStateRef.current.user?.email === cleanEmail) {
-          resolveUserProfile(fbUser).then(({ role: userRole, name: displayName, perms: userPerms, token: verifiedToken }) => {
+          resolveUserProfile(fbUser).then(({ role: userRole, name: displayName, perms: userPerms, subject: userSubj, teachingSubject: userTeachSubj, assignedClasses: userClasses, mobile: userMob, token: verifiedToken }) => {
             if (auth.currentUser?.uid !== fbUser.uid) return;
             const updatedSession = {
               email: cleanEmail,
               name: displayName,
               role: userRole,
               perms: userPerms,
+              subject: userSubj || '',
+              teachingSubject: userTeachSubj || userSubj || '',
+              assignedClasses: userClasses || [],
+              mobile: userMob || '',
               uid: fbUser.uid,
             };
             sessionManager.saveSession({ user: updatedSession, token: verifiedToken }, localStorage.getItem('hss_persistent_login') !== 'false');
@@ -191,13 +204,17 @@ export default function PortalLayout() {
 
         // Full session restore on cold start / page refresh
         try {
-          const { role: userRole, name: displayName, perms: userPerms, token: verifiedToken } = await resolveUserProfile(fbUser);
+          const { role: userRole, name: displayName, perms: userPerms, subject: userSubj, teachingSubject: userTeachSubj, assignedClasses: userClasses, mobile: userMob, token: verifiedToken } = await resolveUserProfile(fbUser);
           if (auth.currentUser?.uid !== fbUser.uid) return;
           const defaultSession = {
             email: cleanEmail,
             name: displayName,
             role: userRole,
             perms: userPerms,
+            subject: userSubj || '',
+            teachingSubject: userTeachSubj || userSubj || '',
+            assignedClasses: userClasses || [],
+            mobile: userMob || '',
             uid: fbUser.uid,
           };
           const existingSessionId = sessionManager.getSessionId() || sessionManager.generateSessionId();
