@@ -583,3 +583,83 @@ export function getEvaluationTypesForTeacher(settings, cls = '11th', session = '
 
   return [...standardTypes, ...additionalTypes];
 }
+
+/**
+ * Normalizes subject identifier to canonical JKBOSE subject definition
+ */
+export function normalizeSubjectIdentity(subjInput) {
+  if (!subjInput) return null;
+  const raw = String(subjInput).trim();
+  const lower = raw.toLowerCase();
+  
+  // Exact code match
+  const codeMatch = SUBJECT_CONFIG_DEFS.find(s => s.code.toLowerCase() === lower);
+  if (codeMatch) return codeMatch;
+  
+  // Exact name match
+  const nameMatch = SUBJECT_CONFIG_DEFS.find(s => s.name.toLowerCase() === lower);
+  if (nameMatch) return nameMatch;
+  
+  // Known alias mapping
+  if (lower.includes('physic') || lower === 'phy') return SUBJECT_CONFIG_DEFS.find(s => s.code === 'PH');
+  if (lower.includes('chem') || lower === 'ch') return SUBJECT_CONFIG_DEFS.find(s => s.code === 'CH');
+  if (lower.includes('botan') || lower === 'bo') return SUBJECT_CONFIG_DEFS.find(s => s.code === 'BO');
+  if (lower.includes('zool') || lower === 'zo') return SUBJECT_CONFIG_DEFS.find(s => s.code === 'ZO');
+  if (lower.includes('bio') || lower === 'bi') return SUBJECT_CONFIG_DEFS.find(s => s.code === 'BI');
+  if (lower.includes('math') || lower === 'ma') return SUBJECT_CONFIG_DEFS.find(s => s.code === 'MA');
+  if (lower.includes('english') || lower.includes('eng') || lower === 'en' || lower === 'ge') return SUBJECT_CONFIG_DEFS.find(s => s.code === 'EN');
+  if (lower.includes('urdu') || lower === 'ur') return SUBJECT_CONFIG_DEFS.find(s => s.code === 'UR');
+  if (lower.includes('computer') || lower.includes('cs') || lower.includes('comp')) return SUBJECT_CONFIG_DEFS.find(s => s.code === 'CS');
+  if (lower.includes('environ') || lower.includes('evs') || lower === 'es') return SUBJECT_CONFIG_DEFS.find(s => s.code === 'ES');
+  if (lower.includes('physical') || lower.includes('ped') || lower === 'pd') return SUBJECT_CONFIG_DEFS.find(s => s.code === 'PD');
+  if (lower.includes('polit') || lower.includes('pol') || lower === 'ps') return SUBJECT_CONFIG_DEFS.find(s => s.code === 'PS');
+  if (lower.includes('hist') || lower === 'ht') return SUBJECT_CONFIG_DEFS.find(s => s.code === 'HT');
+  if (lower.includes('econ') || lower === 'ec') return SUBJECT_CONFIG_DEFS.find(s => s.code === 'EC');
+  if (lower.includes('educ') || lower === 'ed') return SUBJECT_CONFIG_DEFS.find(s => s.code === 'ED');
+  if (lower.includes('soci') || lower === 'so') return SUBJECT_CONFIG_DEFS.find(s => s.code === 'SO');
+  if (lower.includes('acc') || lower === 'ay') return SUBJECT_CONFIG_DEFS.find(s => s.code === 'AY');
+  if (lower.includes('busi') || lower === 'bs') return SUBJECT_CONFIG_DEFS.find(s => s.code === 'BS');
+
+  // Substring match against name
+  const fuzzy = SUBJECT_CONFIG_DEFS.find(s => s.name.toLowerCase().includes(lower) || lower.includes(s.name.toLowerCase()));
+  if (fuzzy) return fuzzy;
+
+  return null;
+}
+
+/**
+ * Checks whether the selected subject matches the teacher's registered subject.
+ * If teacher has no registered subject, returns true (no restriction).
+ */
+export function isTeacherSubjectMatch(teacherSubject, selectedSubject) {
+  if (!teacherSubject || !String(teacherSubject).trim()) return true;
+  if (!selectedSubject || !String(selectedSubject).trim()) return true;
+
+  const tNorm = normalizeSubjectIdentity(teacherSubject);
+  const sNorm = normalizeSubjectIdentity(selectedSubject);
+
+  if (tNorm && sNorm) {
+    if (tNorm.code === sNorm.code) return true;
+    // Biology equivalence (Botany / Zoology / Biology)
+    const bioCodes = new Set(['BI', 'BO', 'ZO']);
+    if (bioCodes.has(tNorm.code) && bioCodes.has(sNorm.code)) return true;
+    return false;
+  }
+
+  // Fallback simple string comparison
+  const tStr = String(teacherSubject).toLowerCase().trim();
+  const sStr = String(selectedSubject).toLowerCase().trim();
+  return tStr === sStr || tStr.includes(sStr) || sStr.includes(tStr);
+}
+
+/**
+ * Canonical Document ID Generator for Practicals & Evaluations
+ */
+export function formatPracticalDocId(cls, subject, practicalType, yearSuffix) {
+  const clsNorm = String(cls || '').replace(/class/i, '').trim();
+  const subjClean = String(subject || '').trim();
+  const typeClean = String(practicalType || '').trim();
+  const sessClean = String(yearSuffix || '').trim();
+  return `${clsNorm}_${subjClean}_${typeClean}_${sessClean}`;
+}
+

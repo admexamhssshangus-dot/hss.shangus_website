@@ -7,8 +7,8 @@ import {
   Download, Upload, FileSpreadsheet, FileText, Trash2, Eye, Save, Shield, ShieldAlert,
   ChevronDown, BookOpen, SlidersHorizontal, Filter, Layers, Plus, Minus, RotateCcw, Sparkles
 } from 'lucide-react';
-import { db } from '../../services/firebase';
-import { collection, getDocs, doc, setDoc, deleteDoc } from 'firebase/firestore';
+import { db, auth } from '../../services/firebase';
+import { collection, getDocs, doc, setDoc, deleteDoc, getDoc } from 'firebase/firestore';
 import { staffCallable } from '../../services/staffCommand';
 import ModernLoader from '../../components/ModernLoader';
 import { getCachedCollection } from '../../services/dbCache';
@@ -453,6 +453,8 @@ export default function AdminPracticals() {
   const [alertMsg, setAlertMsg] = useState(null);
 
   const [submissions, setSubmissions] = useState([]);
+  const [pendingApprovals, setPendingApprovals] = useState([]);
+  const [rejectReasonModal, setRejectReasonModal] = useState({ isOpen: false, pendingDoc: null, reason: '' });
   const [students, setStudents] = useState([]);
   const [teachers, setTeachers] = useState([]);
   const [settings, setSettings] = useState({
@@ -665,7 +667,7 @@ export default function AdminPracticals() {
         }
       };
 
-      const parsedSubmissions = ssRaw.docs
+      const allSubmissions = ssRaw.docs
         .map(d => {
           const data = d.data();
           const cleanRecs = (data.records || []).filter(r => {
@@ -683,9 +685,13 @@ export default function AdminPracticals() {
             records: cleanRecs
           };
         })
-        .filter(sub => sub.records && sub.records.length > 0);
+        .filter(sub => !sub.id.startsWith('history_') && sub.records && sub.records.length > 0);
 
-      setSubmissions(parsedSubmissions);
+      const canonicalSubmissions = allSubmissions.filter(sub => !sub.id.startsWith('pending_') && sub.status !== 'pending_approval');
+      const pendingSubmissions = allSubmissions.filter(sub => sub.id.startsWith('pending_') || sub.status === 'pending_approval');
+
+      setSubmissions(canonicalSubmissions);
+      setPendingApprovals(pendingSubmissions);
 
       // 1. Ingest Master Registers (Canonical School Historical Registers across Sessions)
       (masterRegistersData || []).forEach(d => {
@@ -738,7 +744,7 @@ export default function AdminPracticals() {
       });
 
       // 3. Enrich existing students with Exam Rolls and Registration Numbers from Practical Submissions (NO duplicate student injections)
-      parsedSubmissions.forEach(sub => {
+      canonicalSubmissions.forEach(sub => {
         const subCls = sub.className || (String(sub.id).startsWith('12') ? '12th' : '11th');
         const subSess = normalizePracticalSession(sub.sessionText || sub.session || '2024-25 (Oct-Nov)');
 
@@ -933,6 +939,131 @@ export default function AdminPracticals() {
     });
   };
 
+  const handleApproveSubmission = (pendingDoc) => {
+    if (!pendingDoc) return;
+    const targetDocId = pendingDoc.targetDocId || pendingDoc.id.replace(/^pending_/, '');
+    const subjectName = pendingDoc.subject || 'Subject';
+    const className = pendingDoc.className || 'Class';
+    const submittedBy = pendingDoc.submittedBy || 'Teacher';
+
+    setGeneralConfirmModal({
+      isOpen: true,
+      title: 'Approve & Integrate Awards into DB?',
+      subtitle: `Approve award submission for ${subjectName} (${className}) submitted by ${submittedBy} (${pendingDoc.records?.length || 0} students). If an existing award roll is already live, it will be automatically archived into historical backups before updating.`,
+      badgeText: 'Approval & Integration',
+      confirmText: 'Approve & Integrate',
+      cancelText: 'Cancel',
+      confirmBtnStyle: 'success',
+      icon: CheckCircle2,
+      onConfirm: async () => {
+        setGeneralConfirmModal(p => ({ ...p, isOpen: false }));
+        setSaving(true);
+        try {
+          // 1. Check if canonical doc exists in practicalsData
+          const canonicalRef = doc(db, 'practicalsData', targetDocId);
+          const canonicalSnap = await getDoc(canonicalRef);
+
+          if (canonicalSnap.exists()) {
+            const canonicalData = canonicalSnap.data();
+            if (canonicalData && Array.isArray(canonicalData.records) && canonicalData.records.length > 0) {
+              // Archive previous canonical doc to history_ with zero loss
+              const archiveDocId = `history_${targetDocId}_${Date.now()}`;
+              await setDoc(doc(db, 'practicalsData', archiveDocId), {
+                ...canonicalData,
+                archivedAt: new Date().toISOString(),
+                archivedReason: 'overwritten_by_approved_revision',
+                supersededBySubmissionId: pendingDoc.id,
+                supersededByTeacher: submittedBy
+              });
+            }
+          }
+
+          // 2. Prepare clean canonical document
+          const { id: _ignoreId, ...pendingData } = pendingDoc;
+          const canonicalRecord = {
+            ...pendingData,
+            id: targetDocId,
+            status: 'approved',
+            isPendingApproval: false,
+            approvedAt: new Date().toISOString(),
+            approvedBy: auth.currentUser?.email || 'Administrator',
+            lastIntegratedAt: new Date().toISOString()
+          };
+
+          // 3. Write canonical document
+          await setDoc(canonicalRef, canonicalRecord);
+
+          // 4. Remove pending staging document
+          await deleteDoc(doc(db, 'practicalsData', pendingDoc.id));
+
+          // 5. Update local states
+          setPendingApprovals(prev => prev.filter(p => p.id !== pendingDoc.id));
+          setSubmissions(prev => {
+            const filtered = prev.filter(s => s.id !== targetDocId);
+            return [canonicalRecord, ...filtered];
+          });
+
+          logAdminActivity({
+            actionType: 'approve',
+            actionTitle: 'Approved Practical Award Submission',
+            details: `Approved and integrated ${subjectName} (${className}) submitted by ${submittedBy} (${canonicalRecord.records?.length || 0} students)`,
+            metadata: { targetDocId, pendingId: pendingDoc.id, submittedBy }
+          });
+
+          showAlert('success', `Awards for ${subjectName} (${className}) approved and successfully integrated into live database!`);
+        } catch (err) {
+          console.error('Error approving submission:', err);
+          showAlert('error', `Failed to approve submission: ${err.message || err}`);
+        } finally {
+          setSaving(false);
+        }
+      }
+    });
+  };
+
+  const handleRejectSubmission = (pendingDoc, reason = '') => {
+    if (!pendingDoc) return;
+    const subjectName = pendingDoc.subject || 'Subject';
+    const className = pendingDoc.className || 'Class';
+
+    setSaving(true);
+    (async () => {
+      try {
+        await setDoc(doc(db, 'practicalsData', pendingDoc.id), {
+          status: 'rejected',
+          rejectionReason: reason || 'Please review and re-verify awards list.',
+          rejectedAt: new Date().toISOString(),
+          rejectedBy: auth.currentUser?.email || 'Administrator'
+        }, { merge: true });
+
+        setPendingApprovals(prev => prev.map(p => {
+          if (p.id === pendingDoc.id) {
+            return {
+              ...p,
+              status: 'rejected',
+              rejectionReason: reason || 'Please review and re-verify awards list.'
+            };
+          }
+          return p;
+        }));
+
+        logAdminActivity({
+          actionType: 'reject',
+          actionTitle: 'Rejected / Requested Revision for Awards',
+          details: `Requested revision for ${subjectName} (${className}) submitted by ${pendingDoc.submittedBy || 'Teacher'}: "${reason || 'No reason specified'}"`,
+          metadata: { pendingId: pendingDoc.id, reason }
+        });
+
+        showAlert('success', `Revision requested from teacher for ${subjectName} (${className}).`);
+      } catch (err) {
+        console.error('Error rejecting submission:', err);
+        showAlert('error', `Failed to reject submission: ${err.message || err}`);
+      } finally {
+        setSaving(false);
+      }
+    })();
+  };
+
   const grantPerm = async (e) => {
     e.preventDefault();
     if (!grantEmail.trim()) { showAlert('error', 'Teacher email required.'); return; }
@@ -1125,6 +1256,11 @@ export default function AdminPracticals() {
                 }`}
               >
                 <Users size={13} /> Faculty & Submissions ({submissions.length})
+                {pendingApprovals.length > 0 && (
+                  <span className="ml-1 px-1.5 py-0.2 text-[9px] font-black rounded-full bg-amber-500 text-white animate-pulse">
+                    {pendingApprovals.length} Pending
+                  </span>
+                )}
               </button>
               <button
                 type="button"
@@ -1191,6 +1327,9 @@ export default function AdminPracticals() {
             <FacultySubmissionsView
               teachers={teachers}
               submissions={submissions}
+              pendingApprovals={pendingApprovals}
+              onApproveSubmission={handleApproveSubmission}
+              onRejectSubmission={(pendingDoc) => setRejectReasonModal({ isOpen: true, pendingDoc, reason: '' })}
               sendEmail={sendEmail}
               emailSt={emailSt}
               handleWhatsAppShare={handleWhatsAppShare}
@@ -1229,7 +1368,62 @@ export default function AdminPracticals() {
             onClose={() => setSelSub(null)}
             absentMarker={settings.absentMarker}
             allStudents={students}
+            onApprove={handleApproveSubmission}
+            onReject={(doc) => setRejectReasonModal({ isOpen: true, pendingDoc: doc, reason: '' })}
           />
+        )}
+
+        {/* Reject / Request Revision Modal */}
+        {rejectReasonModal.isOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
+            <div className="w-full max-w-md bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-200 dark:border-slate-800 shadow-2xl space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2.5">
+                <div className="flex items-center gap-2">
+                  <AlertTriangle size={18} className="text-rose-500" />
+                  <h3 className="font-black text-sm text-slate-900 dark:text-white">Request Revision / Reject Submission</h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setRejectReasonModal({ isOpen: false, pendingDoc: null, reason: '' })}
+                  className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="text-xs text-slate-600 dark:text-slate-300">
+                Provide instructions or feedback to <strong>{rejectReasonModal.pendingDoc?.submittedBy || 'Teacher'}</strong> explaining what needs revision in the award list for <strong>{rejectReasonModal.pendingDoc?.subject} ({rejectReasonModal.pendingDoc?.className})</strong>:
+              </div>
+
+              <textarea
+                rows={3}
+                value={rejectReasonModal.reason}
+                onChange={(e) => setRejectReasonModal(prev => ({ ...prev, reason: e.target.value }))}
+                placeholder="e.g. Please re-check roll numbers 21-25 or verify marks against official attendance."
+                className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-xs font-semibold outline-none focus:ring-2 focus:ring-rose-500"
+              />
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setRejectReasonModal({ isOpen: false, pendingDoc: null, reason: '' })}
+                  className="px-3.5 py-2 rounded-xl text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleRejectSubmission(rejectReasonModal.pendingDoc, rejectReasonModal.reason);
+                    setRejectReasonModal({ isOpen: false, pendingDoc: null, reason: '' });
+                  }}
+                  className="px-4 py-2 rounded-xl text-xs font-black bg-rose-600 hover:bg-rose-500 text-white shadow-md cursor-pointer flex items-center gap-1.5"
+                >
+                  Send Revision Request
+                </button>
+              </div>
+            </div>
+          </div>
         )}
 
         {/* Excel / CSV Import Modal */}
@@ -2583,7 +2777,7 @@ function CsvImportModal({ onClose, onSuccess }) {
 // ─────────────────────────────────────────────────────────────
 // SELECTED SUBMISSION RECORDS MODAL
 // ─────────────────────────────────────────────────────────────
-function SelectedSubmissionModal({ selSub, onClose, absentMarker, allStudents = [] }) {
+function SelectedSubmissionModal({ selSub, onClose, absentMarker, allStudents = [], onApprove, onReject }) {
   const [modalSearch, setModalSearch] = useState('');
 
   // Build high-performance lookup maps from database for full student enrichment (Hooks called unconditionally)
@@ -2647,6 +2841,16 @@ function SelectedSubmissionModal({ selSub, onClose, absentMarker, allStudents = 
               <span className="px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 font-bold text-[10.5px] border border-emerald-200 dark:border-emerald-800">
                 {evaluationType} Practical
               </span>
+              {selSub.isCrossSubject && (
+                <span className="px-2 py-0.5 rounded-full bg-purple-50 dark:bg-purple-950/50 text-purple-700 dark:text-purple-300 font-extrabold text-[10.5px] border border-purple-200 dark:border-purple-800">
+                  Cross-Subject (Assigned: {selSub.teacherRegisteredSubject || 'Other'})
+                </span>
+              )}
+              {selSub.isOverwrite && (
+                <span className="px-2 py-0.5 rounded-full bg-rose-50 dark:bg-rose-950/50 text-rose-700 dark:text-rose-300 font-extrabold text-[10.5px] border border-rose-200 dark:border-rose-800">
+                  Overwrite Revision
+                </span>
+              )}
             </div>
             <div className="text-xs font-semibold text-slate-500 mt-1 flex items-center gap-2 flex-wrap">
               <span>Submitted by: <strong className="text-slate-800 dark:text-slate-200">{selSub.teacherName || selSub['Teacher Name'] || selSub.teacherEmail || 'Faculty'}</strong> {selSub.teacherEmail && <span className="font-mono text-slate-400">({selSub.teacherEmail})</span>}</span>
@@ -2798,6 +3002,37 @@ function SelectedSubmissionModal({ selSub, onClose, absentMarker, allStudents = 
             </tbody>
           </table>
         </div>
+
+        {(selSub.id?.startsWith('pending_') || selSub.status === 'pending_approval' || selSub.isPendingApproval) && (
+          <div className="flex flex-col sm:flex-row items-center justify-between border-t border-slate-100 dark:border-slate-800 pt-3 gap-2">
+            <div className="text-xs font-bold text-amber-700 dark:text-amber-300 flex items-center gap-1.5">
+              <ShieldAlert size={16} />
+              <span>Pending Administrator Verification & Approval</span>
+            </div>
+            <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  if (onReject) onReject(selSub);
+                }}
+                className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-rose-50 dark:bg-rose-950/50 text-rose-600 dark:text-rose-400 hover:bg-rose-100 border border-rose-200 dark:border-rose-900 cursor-pointer"
+              >
+                Request Revision / Reject
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  if (onApprove) onApprove(selSub);
+                }}
+                className="px-4 py-1.5 rounded-xl text-xs font-black bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm cursor-pointer flex items-center gap-1.5"
+              >
+                <CheckCircle2 size={14} /> Approve & Integrate into DB
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -2809,6 +3044,9 @@ function SelectedSubmissionModal({ selSub, onClose, absentMarker, allStudents = 
 function FacultySubmissionsView({
   teachers,
   submissions,
+  pendingApprovals = [],
+  onApproveSubmission,
+  onRejectSubmission,
   sendEmail,
   emailSt,
   handleWhatsAppShare,
@@ -2949,6 +3187,116 @@ function FacultySubmissionsView({
 
   return (
     <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-xs p-3 sm:p-4 space-y-3">
+      {/* PENDING AWARD APPROVALS TRAY */}
+      {pendingApprovals && pendingApprovals.length > 0 && (
+        <div className="rounded-2xl border-2 border-amber-300 dark:border-amber-700/60 bg-amber-50/40 dark:bg-amber-950/20 p-3 sm:p-4 space-y-3 shadow-xs animate-fadeIn">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-amber-200/80 dark:border-amber-800/60 pb-2.5">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-700 dark:text-amber-400 shrink-0">
+                <ShieldAlert size={18} />
+              </div>
+              <div>
+                <h4 className="text-sm font-black text-amber-950 dark:text-amber-200 flex items-center gap-2">
+                  Pending Award Approvals ({pendingApprovals.length})
+                  <span className="px-2 py-0.5 text-[9px] font-extrabold uppercase rounded-full bg-amber-500 text-white animate-pulse">
+                    Action Required
+                  </span>
+                </h4>
+                <p className="text-[11px] font-semibold text-amber-800/80 dark:text-amber-300/80">
+                  Submissions requiring admin verification due to cross-subject submissions or award list revisions.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {pendingApprovals.map((pendingDoc) => {
+              const isRejected = pendingDoc.status === 'rejected';
+              return (
+                <div
+                  key={pendingDoc.id}
+                  className={`p-3 rounded-xl border bg-white dark:bg-slate-900 flex flex-col justify-between gap-2.5 shadow-xs ${
+                    isRejected
+                      ? 'border-rose-200 dark:border-rose-900/60 bg-rose-50/30'
+                      : 'border-amber-200 dark:border-amber-800/70 hover:border-amber-400 transition-colors'
+                  }`}
+                >
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between gap-1">
+                      <span className="font-extrabold text-xs text-slate-900 dark:text-white truncate">
+                        {pendingDoc.subject} • {pendingDoc.className}
+                      </span>
+                      <div className="flex items-center gap-1 shrink-0">
+                        {pendingDoc.isCrossSubject && (
+                          <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-purple-500/10 text-purple-700 dark:text-purple-300 border border-purple-500/20">
+                            Cross-Subject
+                          </span>
+                        )}
+                        {pendingDoc.isOverwrite && (
+                          <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-rose-500/10 text-rose-700 dark:text-rose-300 border border-rose-500/20">
+                            Overwrite
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="text-[11px] text-slate-600 dark:text-slate-300 space-y-0.5">
+                      <div>
+                        Submitted by: <strong className="text-slate-900 dark:text-white">{pendingDoc.submittedBy || 'Faculty'}</strong>
+                      </div>
+                      {pendingDoc.teacherRegisteredSubject && pendingDoc.isCrossSubject && (
+                        <div className="text-[10px] text-purple-700 dark:text-purple-300 font-semibold">
+                          Assigned Subject: <strong>{pendingDoc.teacherRegisteredSubject}</strong>
+                        </div>
+                      )}
+                      <div className="text-[10.5px] text-slate-400 flex items-center gap-2">
+                        <span>{pendingDoc.records?.length || 0} Students</span>
+                        <span>•</span>
+                        <span>{pendingDoc.submittedAt ? new Date(pendingDoc.submittedAt).toLocaleDateString() : 'Recent'}</span>
+                      </div>
+                    </div>
+
+                    {isRejected && (
+                      <div className="p-2 rounded-lg bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 text-[10px] text-rose-700 dark:text-rose-300 font-bold">
+                        Revision Requested: {pendingDoc.rejectionReason || 'Under review'}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex items-center justify-between gap-1.5 pt-2 border-t border-slate-100 dark:border-slate-800">
+                    <button
+                      type="button"
+                      onClick={() => setSelSub(pendingDoc)}
+                      className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 cursor-pointer flex items-center gap-1"
+                    >
+                      <Eye size={12} /> Inspect
+                    </button>
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => onRejectSubmission && onRejectSubmission(pendingDoc)}
+                        className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-rose-50 dark:bg-rose-950/50 text-rose-600 dark:text-rose-400 hover:bg-rose-100 border border-rose-200 dark:border-rose-900 cursor-pointer"
+                        title="Request revision or reject"
+                      >
+                        Reject
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onApproveSubmission && onApproveSubmission(pendingDoc)}
+                        className="px-3 py-1 rounded-lg text-[11px] font-black bg-emerald-600 hover:bg-emerald-500 text-white shadow-2xs cursor-pointer flex items-center gap-1"
+                        title="Integrate into official database"
+                      >
+                        <CheckCircle2 size={12} /> Approve
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Top Header Strip with Controls & View Mode Toggle */}
       <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-2.5 border-b border-slate-100 dark:border-slate-800 pb-3">
         <div>

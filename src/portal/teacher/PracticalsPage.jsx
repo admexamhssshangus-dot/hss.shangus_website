@@ -1,10 +1,11 @@
 import { saveAcademicRecord } from '../../services/academicRecordService';
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useOutletContext } from 'react-router-dom';
 import { 
   ArrowLeft, RefreshCw, AlertCircle, 
   CheckCircle2, Printer, ShieldCheck, History, Clock,
-  Bookmark, Send, ChevronDown, Check, SlidersHorizontal, Zap, X, Info, Sparkles
+  Bookmark, Send, ChevronDown, Check, SlidersHorizontal, Zap, X, Info, Sparkles, Award,
+  AlertTriangle, ShieldAlert
 } from 'lucide-react';
 import ConfirmModal from '../components/ConfirmModal';
 import SEO from '../../components/SEO';
@@ -17,7 +18,10 @@ import {
   getSubjectMarksConfig,
   getAdminPracticalsSettings,
   getEvaluationTypesForTeacher,
-  SUBJECT_CONFIG_DEFS
+  SUBJECT_CONFIG_DEFS,
+  isTeacherSubjectMatch,
+  normalizeSubjectIdentity,
+  formatPracticalDocId
 } from '../../utils/practicalsSettingsManager';
 import ModernLoader from '../../components/ModernLoader';
 
@@ -835,7 +839,17 @@ function isSubjectMatch(student, targetSubjectCode) {
 }
 
 // Custom Subject Dropdown (prevents native Chrome select popovers from shooting up to header)
-function CustomSubjectSelect({ selectedSubject, setSelectedSubject, subjectMap, currentSubjectObj, getSubjectMax, subjectMaxMarks, minPassMarks }) {
+function CustomSubjectSelect({ 
+  selectedSubject, 
+  setSelectedSubject, 
+  subjectMap, 
+  currentSubjectObj, 
+  getSubjectMax, 
+  subjectMaxMarks, 
+  minPassMarks,
+  teacherRegisteredSubject,
+  onAttemptCrossSubject
+}) {
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState('');
   const containerRef = useRef(null);
@@ -856,11 +870,35 @@ function CustomSubjectSelect({ selectedSubject, setSelectedSubject, subjectMap, 
   );
 
   const selectedItem = subjectMap.find(s => s.name === selectedSubject) || subjectMap[0];
+  const isCurrentlyCrossSubject = Boolean(
+    teacherRegisteredSubject && !isTeacherSubjectMatch(teacherRegisteredSubject, selectedSubject)
+  );
+
+  const handleSelect = (subName) => {
+    if (teacherRegisteredSubject && !isTeacherSubjectMatch(teacherRegisteredSubject, subName)) {
+      if (onAttemptCrossSubject) {
+        onAttemptCrossSubject(subName);
+      } else {
+        setSelectedSubject(subName);
+      }
+    } else {
+      setSelectedSubject(subName);
+    }
+    setIsOpen(false);
+    setSearch('');
+  };
 
   return (
     <div className="space-y-0.5 relative" ref={containerRef}>
       <div className="flex items-center justify-between gap-1 text-[9.5px] font-bold uppercase text-slate-500 dark:text-slate-400">
-        <span className="truncate">Subject</span>
+        <span className="truncate flex items-center gap-1">
+          <span>Subject</span>
+          {isCurrentlyCrossSubject && (
+            <span className="text-[8.5px] px-1 py-0.2 rounded bg-amber-500/15 text-amber-600 dark:text-amber-400 font-extrabold normal-case">
+              Cross-Subject
+            </span>
+          )}
+        </span>
         <span className="font-mono text-[9px] text-indigo-600 dark:text-indigo-400 font-bold shrink-0">
           {subjectMaxMarks}M (P:{minPassMarks})
         </span>
@@ -868,14 +906,25 @@ function CustomSubjectSelect({ selectedSubject, setSelectedSubject, subjectMap, 
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="practicals-control w-full px-2 py-1 rounded-lg text-xs font-semibold h-8.5 border flex items-center justify-between gap-1 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 shadow-2xs cursor-pointer focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-colors"
+        className={`practicals-control w-full px-2 py-1 rounded-lg text-xs font-semibold h-8.5 border flex items-center justify-between gap-1 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-2xs cursor-pointer focus:outline-none focus:ring-1 transition-colors ${
+          isCurrentlyCrossSubject
+            ? 'border-amber-400 dark:border-amber-700/80 focus:ring-amber-500 bg-amber-50/20'
+            : 'border-slate-200 dark:border-slate-700 focus:ring-indigo-500'
+        }`}
       >
-        <span className="truncate">{selectedItem.name} ({selectedItem.code})</span>
+        <span className="truncate flex items-center gap-1">
+          <span>{selectedItem.name} ({selectedItem.code})</span>
+          {teacherRegisteredSubject && isTeacherSubjectMatch(teacherRegisteredSubject, selectedItem.name) && (
+            <span className="text-[9px] font-extrabold text-emerald-600 dark:text-emerald-400 shrink-0">
+              (Assigned)
+            </span>
+          )}
+        </span>
         <ChevronDown size={12} className={`text-slate-400 shrink-0 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 
       {isOpen && (
-        <div className="absolute top-full left-0 right-0 mt-1 z-[999] rounded-xl border shadow-2xl p-1.5 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 space-y-1 min-w-[230px] max-h-60 flex flex-col animate-in fade-in slide-in-from-top-1 duration-150">
+        <div className="absolute top-full left-0 right-0 mt-1 z-[999] rounded-xl border shadow-2xl p-1.5 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 space-y-1 min-w-[240px] max-h-60 flex flex-col animate-in fade-in slide-in-from-top-1 duration-150">
           <input
             type="text"
             placeholder="Search subject..."
@@ -888,22 +937,29 @@ function CustomSubjectSelect({ selectedSubject, setSelectedSubject, subjectMap, 
             {filtered.map((s) => {
               const isSelected = s.name === selectedSubject;
               const sMax = getSubjectMax ? getSubjectMax(s.code) : s.defaultMax;
+              const isTeacherAssigned = teacherRegisteredSubject && isTeacherSubjectMatch(teacherRegisteredSubject, s.name);
+
               return (
                 <button
                   key={s.code}
                   type="button"
-                  onClick={() => {
-                    setSelectedSubject(s.name);
-                    setIsOpen(false);
-                    setSearch('');
-                  }}
+                  onClick={() => handleSelect(s.name)}
                   className={`w-full px-2 py-1.5 rounded-lg text-xs font-bold text-left flex items-center justify-between transition-colors cursor-pointer ${
                     isSelected
                       ? 'bg-indigo-600 text-white font-black'
                       : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
                   }`}
                 >
-                  <span className="truncate">{s.name} ({s.code}) - {sMax}M</span>
+                  <span className="truncate flex items-center gap-1.5 min-w-0">
+                    <span className="truncate">{s.name} ({s.code}) - {sMax}M</span>
+                    {isTeacherAssigned && (
+                      <span className={`text-[9px] px-1 py-0.2 rounded font-extrabold shrink-0 ${
+                        isSelected ? 'bg-white/20 text-white' : 'bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300'
+                      }`}>
+                        Assigned
+                      </span>
+                    )}
+                  </span>
                   {isSelected && <Check size={12} className="shrink-0 ml-1" />}
                 </button>
               );
@@ -922,12 +978,45 @@ const CURRENT_SESSION = '2025-26';
 
 export default function PracticalsPage() {
   const location = useLocation();
-  // Filter States (initialized from location.state if navigated from history modal)
+  const outletContext = useOutletContext() || {};
+  const user = outletContext.user || null;
+
+  // Resolve teacher's officially assigned teaching subject
+  const teacherRegisteredSubject = useMemo(() => {
+    if (!user?.subject) return '';
+    const norm = normalizeSubjectIdentity(user.subject);
+    return norm ? norm.name : String(user.subject).trim();
+  }, [user?.subject]);
+
+  // Initial subject defaulting: if navigated from history with state, use that;
+  // otherwise, default to the teacher's registered subject; fallback to Physics.
+  const initialSubject = useMemo(() => {
+    if (location.state?.selectedSubject) return location.state.selectedSubject;
+    if (teacherRegisteredSubject) {
+      const match = SUBJECT_MAP.find(s => s.name.toLowerCase() === teacherRegisteredSubject.toLowerCase());
+      if (match) return match.name;
+    }
+    return 'Physics';
+  }, [location.state?.selectedSubject, teacherRegisteredSubject]);
+
+  // Filter States
   const [selectedClass, setSelectedClass] = useState(location.state?.selectedClass || '11th');
   const [practicalType, setPracticalType] = useState(location.state?.practicalType || 'Internal Assessment');
-  const [selectedSubject, setSelectedSubject] = useState(location.state?.selectedSubject || 'Physics');
+  const [selectedSubject, setSelectedSubject] = useState(initialSubject);
   const [yearSuffix, setYearSuffix] = useState(location.state?.yearSuffix || CURRENT_SESSION);
   const [availableSessions, setAvailableSessions] = useState([CURRENT_SESSION]);
+
+  // State for Cross-Subject switch confirmation modal & Existing award detection
+  const [crossSubjectSwitchModal, setCrossSubjectSwitchModal] = useState({ isOpen: false, targetSubject: '' });
+  const [existingAwardInfo, setExistingAwardInfo] = useState({ canonical: null, pending: null });
+
+  // Default subject to teacher's registered subject if not specified in location.state
+  useEffect(() => {
+    if (!location.state?.selectedSubject && teacherRegisteredSubject) {
+      const match = SUBJECT_MAP.find(s => s.name.toLowerCase() === teacherRegisteredSubject.toLowerCase());
+      if (match) setSelectedSubject(match.name);
+    }
+  }, [teacherRegisteredSubject, location.state]);
 
   // Synchronize filter states if user navigates with state (e.g. from Dashboard Submission History)
   useEffect(() => {
@@ -1011,6 +1100,20 @@ export default function PracticalsPage() {
     absentCount: 0,
     incompleteList: []
   });
+
+  const isCrossSubject = useMemo(() => {
+    if (!teacherRegisteredSubject) return false;
+    return !isTeacherSubjectMatch(teacherRegisteredSubject, selectedSubject);
+  }, [teacherRegisteredSubject, selectedSubject]);
+
+  const isOverwrite = useMemo(() => {
+    return Boolean(
+      existingAwardInfo?.canonical &&
+      Array.isArray(existingAwardInfo.canonical.records) &&
+      existingAwardInfo.canonical.records.length > 0
+    );
+  }, [existingAwardInfo?.canonical]);
+
 
   // Detect past session years from masterRegisters and practicalsData records
   useEffect(() => {
@@ -1114,12 +1217,16 @@ export default function PracticalsPage() {
       const clsNorm = String(selectedClass).replace(/class/i, '').trim();
       const targetSubjCode = currentSubjectObj.code;
       const targetSubjName = currentSubjectObj.name;
-      const docId = `${clsNorm}_${selectedSubject}_${practicalType}_${yearSuffix}`;
+      const docId = formatPracticalDocId(selectedClass, selectedSubject, practicalType, yearSuffix);
+      const pendingDocId = `pending_${docId}`;
 
       // 1. Fetch collections concurrently in parallel for high performance
       let savedMarksMap = {};
       let masterDocs = [];
       let admDocs = [];
+      let foundCanonical = null;
+      let foundPending = null;
+
       try {
         const [rawDocs, masterRes, admRes] = await Promise.all([
           getCachedCollection('practicalsData', false, 15 * 60 * 1000).catch(() => []),
@@ -1134,10 +1241,19 @@ export default function PracticalsPage() {
         docItems.forEach(data => {
           const dId = data.id || data.docId || '';
 
+          // Track pending or rejected submission for this exact class, subject, evalType, session
+          if (dId === pendingDocId || (data.canonicalDocId === docId && (data.status === 'pending_approval' || data.status === 'rejected'))) {
+            foundPending = { id: dId, ...data };
+          }
+          // Track canonical integrated submission
+          if ((dId === docId || (data.docId === docId && !dId.startsWith('pending_') && !dId.startsWith('history_'))) && Array.isArray(data.records) && data.records.length > 0) {
+            foundCanonical = { id: dId, ...data };
+          }
+
           // Class Match
           const docClass = String(data.className || data.Class || dId).toLowerCase();
           const matchClass = docClass.includes(clsNorm.toLowerCase()) || dId.toLowerCase().includes(clsNorm.toLowerCase());
-          if (!matchClass && dId !== docId) return;
+          if (!matchClass && dId !== docId && dId !== pendingDocId) return;
 
           // Year Match — normalize old yearSuffix keys before comparing
           const normalizeYr = (y) => {
@@ -1154,7 +1270,7 @@ export default function PracticalsPage() {
           const docYr = String(data.yearSuffix || data.Session || data.session || dId.split('_').pop() || '').trim();
           const docYrNorm = normalizeYr(docYr);
           const targetNorm = normalizeYr(String(yearSuffix).trim());
-          const matchYr = (docYrNorm === targetNorm) || dId === docId || (targetNorm === '2025-26' && (docYr === '2026' || docYrNorm === '2025-26'));
+          const matchYr = (docYrNorm === targetNorm) || dId === docId || dId === pendingDocId || (targetNorm === '2025-26' && (docYr === '2026' || docYrNorm === '2025-26'));
           if (!matchYr) return;
 
           // Subject Match (supporting codes, full names, and Botany/Zoology/Biology splits)
@@ -1164,16 +1280,16 @@ export default function PracticalsPage() {
                             (targetSubjCode === 'BO' && (docSubj.includes('BOTANY') || docSubj.includes('BO') || docSubj.includes('BI'))) ||
                             (targetSubjCode === 'ZO' && (docSubj.includes('ZOOLOGY') || docSubj.includes('ZO') || docSubj.includes('BI'))) ||
                             (targetSubjCode === 'BI' && (docSubj.includes('BIOLOGY') || docSubj.includes('BOTANY') || docSubj.includes('ZOOLOGY'))) ||
-                            dId === docId;
+                            dId === docId || dId === pendingDocId;
           
-          if (!matchSubj && dId !== docId) return;
+          if (!matchSubj && dId !== docId && dId !== pendingDocId) return;
 
           if (data.maxMarks && Number(data.maxMarks) > 0) {
             setTeacherCustomMax(Number(data.maxMarks));
           }
 
-          // Parse records array if present
-          if (Array.isArray(data.records)) {
+          // Parse records array if present (skip history backups)
+          if (Array.isArray(data.records) && !dId.startsWith('history_')) {
             data.records.forEach(r => {
               const rRoll = String(r.rollNo || r.classRollNo || '').trim();
               const rBoard = String(r.boardRollNo || r.boardRoll || '').trim();
@@ -1226,6 +1342,12 @@ export default function PracticalsPage() {
               if (studentName) savedMarksMap[studentName.toLowerCase()] = recObj;
             }
           });
+        });
+
+        // Set existing award info for UI indicators & safe overwrite workflow
+        setExistingAwardInfo({
+          canonical: foundCanonical,
+          pending: foundPending
         });
       } catch (e) {
         console.warn('Practicals read note:', e);
@@ -1769,8 +1891,8 @@ export default function PracticalsPage() {
       if (!auth.currentUser) {
         throw new Error('Active authenticated faculty session required to submit practical marks.');
       }
-      const clsNorm = String(selectedClass).replace(/class/i, '').trim();
-      const docId = `${clsNorm}_${selectedSubject}_${practicalType}_${yearSuffix}`;
+      const docId = formatPracticalDocId(selectedClass, selectedSubject, practicalType, yearSuffix);
+      const pendingDocId = `pending_${docId}`;
 
       const records = studentMarks.map((s) => {
         let pMarks = String(s.practicalMarks !== undefined && s.practicalMarks !== null ? s.practicalMarks : '').trim().toUpperCase();
@@ -1804,8 +1926,9 @@ export default function PracticalsPage() {
         };
       });
 
-      await saveAcademicRecord('practicalsData', docId, {
-        docId,
+      const submissionPayload = {
+        docId: pendingDocId,
+        canonicalDocId: docId,
         className: selectedClass,
         subject: selectedSubject,
         subjectCode: currentSubjectObj.code,
@@ -1813,11 +1936,27 @@ export default function PracticalsPage() {
         evaluationType: practicalType,
         yearSuffix,
         records,
-        status: 'submitted',
+        status: 'pending_approval',
         isDraft: false,
-        maxMarks: subjectMaxMarks, minMarks: minPassMarks,
+        maxMarks: subjectMaxMarks,
+        minMarks: minPassMarks,
+        submittedByEmail: auth.currentUser?.email || user?.email || '',
+        submittedByName: user?.name || auth.currentUser?.displayName || 'Faculty Member',
+        teacherRegisteredSubject: teacherRegisteredSubject || '',
+        isCrossSubject,
+        isOverwrite,
+        previousAwardSummary: existingAwardInfo?.canonical ? {
+          submittedByName: existingAwardInfo.canonical.submittedByName || existingAwardInfo.canonical.submittedByEmail || 'Faculty Member',
+          submittedAt: existingAwardInfo.canonical.submittedAt || existingAwardInfo.canonical.updatedAt || '',
+          recordsCount: existingAwardInfo.canonical.records?.length || 0,
+          maxMarks: existingAwardInfo.canonical.maxMarks || subjectMaxMarks,
+        } : null,
+        submittedAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
-      });
+      };
+
+      await saveAcademicRecord('practicalsData', pendingDocId, submissionPayload);
+      setExistingAwardInfo(prev => ({ ...prev, pending: submissionPayload }));
 
       // Clear local draft after successful final submission
       const clsNormKey = String(selectedClass).replace(/class/i, '').trim();
@@ -1827,12 +1966,17 @@ export default function PracticalsPage() {
 
       try {
         await addDoc(collection(db, 'activityLogs'), {
-          activityType: 'practical_final_submission',
+          activityType: isCrossSubject 
+            ? 'practical_cross_subject_submission' 
+            : (isOverwrite ? 'practical_overwrite_submission' : 'practical_submission'),
           className: selectedClass,
           subject: selectedSubject,
           practicalType,
           yearSuffix,
           recordsCount: records.length,
+          isCrossSubject,
+          isOverwrite,
+          submittedBy: auth.currentUser?.email || '',
           timestamp: new Date().toISOString(),
         });
       } catch (logErr) {
@@ -1841,11 +1985,15 @@ export default function PracticalsPage() {
 
       setAlert({
         type: 'success',
-        text: `Final evaluation award list submitted & locked for ${selectedSubject} (${selectedClass}).`,
+        text: isCrossSubject
+          ? `✨ Cross-subject evaluation award list submitted for ${selectedSubject} (${selectedClass})! Sent to Administrator for review & approval.`
+          : isOverwrite
+          ? `✨ Overwrite revision submitted for ${selectedSubject} (${selectedClass})! Staged for Administrator approval (previous award is safely archived).`
+          : `✨ Evaluation award list submitted for ${selectedSubject} (${selectedClass})! Staged for Administrator review & approval.`,
       });
     } catch (err) {
       console.error('Final submit error:', err);
-      setAlert({ type: 'error', text: 'Failed to complete final practical submission.' });
+      setAlert({ type: 'error', text: 'Failed to complete practical award submission.' });
     } finally {
       setSaving(false);
     }
@@ -2088,6 +2236,12 @@ export default function PracticalsPage() {
             </div>
 
             <div className="flex items-center gap-1.5 shrink-0">
+              {teacherRegisteredSubject && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-black bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20" title={`Your officially assigned teaching subject is ${teacherRegisteredSubject}`}>
+                  <Award size={11} className="text-emerald-600" />
+                  <span className="hidden xs:inline">Assigned:</span> {teacherRegisteredSubject}
+                </span>
+              )}
               <div className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">
                 <ShieldCheck size={10} /> LAB EVALUATION
               </div>
@@ -2138,6 +2292,98 @@ export default function PracticalsPage() {
               </button>
             </div>
           )}
+
+          {/* Cross-Subject Warning Banner */}
+          {isCrossSubject && (
+            <div className="p-3 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800/60 flex items-start justify-between gap-3 text-amber-900 dark:text-amber-200 animate-in fade-in duration-200 shadow-xs">
+              <div className="flex items-start gap-2.5 min-w-0">
+                <span className="w-7 h-7 rounded-xl bg-amber-500/15 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0 mt-0.5">
+                  <AlertCircle size={16} />
+                </span>
+                <div className="text-xs space-y-0.5">
+                  <div className="font-black flex items-center gap-1.5 flex-wrap">
+                    <span>Cross-Subject Mode Active</span>
+                    <span className="px-1.5 py-0.2 bg-amber-200 dark:bg-amber-800/80 text-amber-900 dark:text-amber-100 rounded text-[9.5px] uppercase font-black tracking-wide">
+                      Admin Approval Required
+                    </span>
+                  </div>
+                  <p className="text-[11px] font-medium leading-relaxed">
+                    You are officially registered for <strong>{teacherRegisteredSubject}</strong>, but are currently evaluating <strong>{selectedSubject}</strong>. You may submit awards, but this submission will be flagged as a Cross-Subject Award and will require Administrator Approval before final integration.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedSubject(teacherRegisteredSubject)}
+                className="shrink-0 px-2.5 py-1 rounded-lg text-[10.5px] font-black bg-white dark:bg-slate-900 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700 hover:bg-amber-100 dark:hover:bg-amber-900/40 transition-all cursor-pointer shadow-2xs active:scale-95"
+                title={`Switch back to ${teacherRegisteredSubject}`}
+              >
+                Revert to {teacherRegisteredSubject}
+              </button>
+            </div>
+          )}
+
+          {/* Existing Award / Pending Review Status Banner */}
+          {existingAwardInfo?.pending?.status === 'rejected' ? (
+            <div className="p-3 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-300 dark:border-rose-800/60 flex items-start gap-2.5 text-rose-900 dark:text-rose-200 animate-in fade-in duration-200 shadow-xs">
+              <span className="w-7 h-7 rounded-xl bg-rose-500/15 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0 mt-0.5">
+                <AlertCircle size={16} />
+              </span>
+              <div className="text-xs space-y-0.5 flex-1 min-w-0">
+                <div className="font-black text-rose-800 dark:text-rose-300">
+                  Revision Requested by Administrator
+                </div>
+                <p className="text-[11px] font-semibold text-rose-700 dark:text-rose-300/90 leading-relaxed">
+                  Administrator Feedback: <span className="italic font-bold">"{existingAwardInfo.pending.rejectionReason || 'Please review and adjust student marks.'}"</span>
+                </p>
+                <p className="text-[10px] text-rose-600/80 dark:text-rose-400/80 font-medium">
+                  Please correct the entries in the roster below and re-submit your revision for approval.
+                </p>
+              </div>
+            </div>
+          ) : existingAwardInfo?.pending ? (
+            <div className="p-3 rounded-2xl bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800/60 flex items-start gap-2.5 text-indigo-900 dark:text-indigo-200 animate-in fade-in duration-200 shadow-xs">
+              <span className="w-7 h-7 rounded-xl bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0 mt-0.5">
+                <Clock size={16} />
+              </span>
+              <div className="text-xs space-y-0.5 flex-1 min-w-0">
+                <div className="font-black text-indigo-950 dark:text-indigo-200 flex items-center gap-1.5 flex-wrap">
+                  <span>Submission Pending Administrator Approval</span>
+                  <span className="px-1.5 py-0.2 bg-indigo-200 dark:bg-indigo-800/80 text-indigo-900 dark:text-indigo-100 rounded text-[9.5px] uppercase font-black">
+                    Under Review
+                  </span>
+                </div>
+                <p className="text-[11px] font-medium text-indigo-800 dark:text-indigo-300 leading-relaxed">
+                  An award list for <strong>{selectedClass} • {selectedSubject} ({practicalType})</strong> was submitted by <strong>{existingAwardInfo.pending.submittedByName || 'Faculty Member'}</strong> on <strong>{new Date(existingAwardInfo.pending.submittedAt || existingAwardInfo.pending.updatedAt).toLocaleString()}</strong> ({existingAwardInfo.pending.records?.length || 0} students).
+                </p>
+                <p className="text-[10px] text-indigo-600 dark:text-indigo-400 font-semibold">
+                  This submission is awaiting Administrator review. You can make adjustments and submit an updated revision at any time.
+                </p>
+              </div>
+            </div>
+          ) : existingAwardInfo?.canonical ? (
+            <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 flex items-start justify-between gap-3 text-slate-800 dark:text-slate-200 animate-in fade-in duration-200 shadow-xs">
+              <div className="flex items-start gap-2.5 min-w-0">
+                <span className="w-7 h-7 rounded-xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 mt-0.5">
+                  <CheckCircle2 size={16} />
+                </span>
+                <div className="text-xs space-y-0.5">
+                  <div className="font-black text-slate-900 dark:text-white flex items-center gap-1.5 flex-wrap">
+                    <span>Award Already Submitted & Integrated</span>
+                    <span className="px-1.5 py-0.2 bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 rounded text-[9.5px] uppercase font-black">
+                      Live in Database
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-600 dark:text-slate-400 font-medium leading-relaxed">
+                    An official award list for <strong>{selectedClass} • {selectedSubject} ({practicalType})</strong> is already integrated in the database, submitted by <strong>{existingAwardInfo.canonical.submittedByName || existingAwardInfo.canonical.submittedByEmail || 'Faculty'}</strong> on <strong>{new Date(existingAwardInfo.canonical.submittedAt || existingAwardInfo.canonical.updatedAt).toLocaleDateString()}</strong> ({existingAwardInfo.canonical.records?.length || 0} students).
+                  </p>
+                  <p className="text-[10.5px] text-amber-700 dark:text-amber-400 font-bold">
+                    ⚠️ Notice: Any edits submitted now will stage an <em>Overwrite Revision</em> requiring Administrator Approval. Previous awards will be preserved in the revision history.
+                  </p>
+                </div>
+              </div>
+            </div>
+          ) : null}
 
           {/* Master Control Row: Select-All, Student Count, Sort, Filters, Quick Fill, and Print in ONE Single Row (Guaranteed Print Visible on Mobile) */}
           <div className="flex items-center justify-between gap-1 sm:gap-1.5 pt-0.5">
@@ -2251,6 +2497,8 @@ export default function PracticalsPage() {
                   getSubjectMax={getSubjectMax}
                   subjectMaxMarks={subjectMaxMarks}
                   minPassMarks={minPassMarks}
+                  teacherRegisteredSubject={teacherRegisteredSubject}
+                  onAttemptCrossSubject={(subName) => setCrossSubjectSwitchModal({ isOpen: true, targetSubject: subName })}
                 />
 
                 <div className="space-y-0.5">
@@ -2399,6 +2647,8 @@ export default function PracticalsPage() {
                         getSubjectMax={getSubjectMax}
                         subjectMaxMarks={subjectMaxMarks}
                         minPassMarks={minPassMarks}
+                        teacherRegisteredSubject={teacherRegisteredSubject}
+                        onAttemptCrossSubject={(subName) => setCrossSubjectSwitchModal({ isOpen: true, targetSubject: subName })}
                       />
                     </div>
 
@@ -3152,10 +3402,22 @@ export default function PracticalsPage() {
                 type="button"
                 onClick={handleInitiateFinalSubmit}
                 disabled={saving || studentMarks.length === 0}
-                className="flex-1 sm:flex-initial px-4 py-1.5 sm:py-1 rounded-lg font-bold text-xs text-white bg-indigo-600 hover:bg-indigo-500 shadow-xs transition-all flex items-center justify-center gap-1 cursor-pointer disabled:opacity-50 active:scale-95"
+                className={`flex-1 sm:flex-initial px-4 py-1.5 sm:py-1 rounded-lg font-bold text-xs text-white shadow-xs transition-all flex items-center justify-center gap-1 cursor-pointer disabled:opacity-50 active:scale-95 ${
+                  isOverwrite
+                    ? 'bg-amber-600 hover:bg-amber-500'
+                    : isCrossSubject
+                    ? 'bg-indigo-600 hover:bg-indigo-500 ring-1 ring-amber-400'
+                    : 'bg-indigo-600 hover:bg-indigo-500'
+                }`}
               >
                 {saving ? <RefreshCw size={13} className="animate-spin" /> : <Send size={13} />}
-                <span>Final Submit</span>
+                <span>
+                  {isOverwrite
+                    ? 'Submit Revision'
+                    : isCrossSubject
+                    ? 'Submit Cross-Subject Award'
+                    : 'Final Submit'}
+                </span>
               </button>
             </div>
           </div>
@@ -3183,6 +3445,41 @@ export default function PracticalsPage() {
                 ✕
               </button>
             </div>
+
+            {/* Warning Callouts for Cross-Subject or Overwrite Staging */}
+            {isCrossSubject && (
+              <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/25 text-amber-900 dark:text-amber-200 text-xs flex items-start gap-2.5">
+                <AlertTriangle size={18} className="shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" />
+                <div className="space-y-1">
+                  <div className="font-black flex items-center gap-1.5">
+                    <span>Cross-Subject Award Submission</span>
+                    <span className="text-[10px] px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-700 dark:text-amber-300 font-extrabold uppercase">
+                      Admin Approval Required
+                    </span>
+                  </div>
+                  <p className="text-[11.5px] leading-relaxed text-slate-700 dark:text-slate-300">
+                    Your assigned subject in school records is <strong className="text-indigo-600 dark:text-indigo-400">{teacherRegisteredSubject}</strong>, while this award list is for <strong className="text-amber-600 dark:text-amber-400">{selectedSubject}</strong>. Your submission will be staged safely as a pending request and integrated into official database records upon administrative approval.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {isOverwrite && (
+              <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/25 text-rose-900 dark:text-rose-200 text-xs flex items-start gap-2.5">
+                <ShieldAlert size={18} className="shrink-0 mt-0.5 text-rose-600 dark:text-rose-400" />
+                <div className="space-y-1">
+                  <div className="font-black flex items-center gap-1.5">
+                    <span>Award Overwrite Warning (Zero-Loss Archive)</span>
+                    <span className="text-[10px] px-1.5 py-0.2 rounded bg-rose-500/20 text-rose-700 dark:text-rose-300 font-extrabold uppercase">
+                      Pending Approval
+                    </span>
+                  </div>
+                  <p className="text-[11.5px] leading-relaxed text-slate-700 dark:text-slate-300">
+                    An official award record is already integrated for <strong>{selectedSubject} ({selectedClass})</strong>, submitted by <span className="font-bold text-slate-900 dark:text-white">{existingAwardInfo?.canonical?.submittedBy || 'Faculty'}</span>. Submitting now will stage an overwrite revision. The active live record will remain intact until an administrator reviews and approves this revision, at which point the previous record will be automatically preserved in history archives.
+                  </p>
+                </div>
+              </div>
+            )}
 
             {/* Validation Metrics Grid */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
@@ -3264,9 +3561,16 @@ export default function PracticalsPage() {
                 <button
                   type="button"
                   onClick={() => executeFinalSubmit(false)}
-                  className="px-5 py-2 rounded-xl text-xs font-black bg-indigo-600 hover:bg-indigo-500 text-white shadow-md cursor-pointer flex items-center gap-1.5"
+                  className={`px-5 py-2 rounded-xl text-xs font-black text-white shadow-md cursor-pointer flex items-center gap-1.5 ${
+                    isOverwrite ? 'bg-amber-600 hover:bg-amber-500' : 'bg-indigo-600 hover:bg-indigo-500'
+                  }`}
                 >
-                  <CheckCircle2 size={14} /> Confirm & Lock Final Submission
+                  <CheckCircle2 size={14} />
+                  {isOverwrite
+                    ? 'Confirm Overwrite Revision'
+                    : isCrossSubject
+                    ? 'Confirm Cross-Subject Submission'
+                    : 'Confirm & Lock Final Submission'}
                 </button>
               )}
             </div>
@@ -3334,6 +3638,57 @@ export default function PracticalsPage() {
                 No past practical submission records found.
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Cross-Subject Switch Warning Modal */}
+      {crossSubjectSwitchModal.isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
+          <div className="w-full max-w-md bg-white dark:bg-slate-900 rounded-2xl p-5 border border-amber-300 dark:border-amber-700/60 shadow-2xl space-y-4">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-600 dark:text-amber-400 shrink-0">
+                <AlertTriangle size={22} />
+              </div>
+              <div className="space-y-1">
+                <h3 className="font-black text-sm text-slate-900 dark:text-white">
+                  Cross-Subject Award Submission
+                </h3>
+                <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                  You are registered under <strong className="text-indigo-600 dark:text-indigo-400">{teacherRegisteredSubject}</strong>, but you are switching to enter awards for <strong className="text-amber-600 dark:text-amber-400">{crossSubjectSwitchModal.targetSubject}</strong>.
+                </p>
+              </div>
+            </div>
+
+            <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/50 text-[11.5px] text-amber-900 dark:text-amber-200 space-y-1 leading-relaxed">
+              <div className="font-extrabold flex items-center gap-1.5 text-amber-700 dark:text-amber-300">
+                <ShieldAlert size={14} className="shrink-0" />
+                Administrative Approval Required
+              </div>
+              <div>
+                You are permitted to submit this award list, but it will be submitted in <strong>Cross-Subject Staging Mode</strong> and will require review and approval from the administrator before final integration into the school database.
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+              <button
+                type="button"
+                onClick={() => setCrossSubjectSwitchModal({ isOpen: false, targetSubject: '' })}
+                className="px-3.5 py-2 rounded-xl text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 cursor-pointer"
+              >
+                Cancel & Keep {teacherRegisteredSubject}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedSubject(crossSubjectSwitchModal.targetSubject);
+                  setCrossSubjectSwitchModal({ isOpen: false, targetSubject: '' });
+                }}
+                className="px-4 py-2 rounded-xl text-xs font-black bg-amber-600 hover:bg-amber-500 text-white shadow-md cursor-pointer flex items-center gap-1.5"
+              >
+                Continue to {crossSubjectSwitchModal.targetSubject}
+              </button>
+            </div>
           </div>
         </div>
       )}

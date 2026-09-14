@@ -25,7 +25,9 @@ export default function TeacherDashboard() {
     try {
       const docs = await getCachedCollection('practicalsData', false, 15 * 60 * 1000);
       if (Array.isArray(docs) && docs.length > 0) {
-        const list = [...docs].sort((a, b) => new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0));
+        const list = docs
+          .filter(d => !String(d.id || '').startsWith('history_'))
+          .sort((a, b) => new Date(b.updatedAt || b.submittedAt || 0) - new Date(a.updatedAt || a.submittedAt || 0));
         setSubmissionHistory(list);
       } else {
         setSubmissionHistory([]);
@@ -202,12 +204,34 @@ export default function TeacherDashboard() {
                 {submissionHistory.map((item, i) => (
                   <div key={i} className="p-2.5 rounded-xl border bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2 text-xs">
                     <div className="min-w-0 flex-1">
-                      <div className="font-extrabold text-xs text-slate-900 dark:text-slate-100 truncate">
-                        {item.className} • {item.subject} ({item.practicalType || 'Internal'})
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="font-extrabold text-xs text-slate-900 dark:text-slate-100 truncate">
+                          {item.className} • {item.subject} ({item.practicalType || 'Internal'})
+                        </span>
+                        {item.id?.startsWith('pending_') || item.status === 'pending_approval' ? (
+                          item.status === 'rejected' ? (
+                            <span className="px-1.5 py-0.2 rounded text-[8.5px] font-extrabold bg-rose-500/15 text-rose-600 dark:text-rose-400">
+                              Revision Requested
+                            </span>
+                          ) : (
+                            <span className="px-1.5 py-0.2 rounded text-[8.5px] font-extrabold bg-amber-500/15 text-amber-600 dark:text-amber-400">
+                              Pending Approval
+                            </span>
+                          )
+                        ) : (
+                          <span className="px-1.5 py-0.2 rounded text-[8.5px] font-extrabold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
+                            Approved & Live
+                          </span>
+                        )}
+                        {item.isCrossSubject && (
+                          <span className="px-1.5 py-0.2 rounded text-[8.5px] font-extrabold bg-purple-500/15 text-purple-600 dark:text-purple-400">
+                            Cross-Subject
+                          </span>
+                        )}
                       </div>
                       <div className="text-[9.5px] text-slate-400 flex items-center gap-1.5 mt-0.5 flex-wrap">
                         <Clock size={10} className="shrink-0" />
-                        <span>{item.updatedAt ? new Date(item.updatedAt).toLocaleString() : 'N/A'}</span>
+                        <span>{item.updatedAt || item.submittedAt ? new Date(item.updatedAt || item.submittedAt).toLocaleString() : 'N/A'}</span>
                         <span className="text-indigo-600 dark:text-indigo-400 font-bold shrink-0">• {item.records?.length || 0} Students</span>
                       </div>
                     </div>
