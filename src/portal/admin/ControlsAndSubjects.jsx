@@ -49,26 +49,26 @@ const DEFAULT_ADMIN_USERS = [
   {
     name: 'Sheikh Gulfam',
     email: 'e.educational.24@gmail.com',
-    role: 'Admin',
-    perms: ['reports'],
+    role: 'SuperAdmin',
+    perms: ALL_ADMIN_MODULES.map(m => m.code),
   },
   {
     name: 'Nawaz Ahmad Shah (Admin)',
     email: 'shahnawaz@gmail.com',
     role: 'Admin',
-    perms: ['reports'],
+    perms: ALL_ADMIN_MODULES.map(m => m.code),
   },
   {
     name: 'Bilal Ahmad Khandy',
     email: 'bilalhcu@gmail.com',
     role: 'Admin',
-    perms: ['reports'],
+    perms: ALL_ADMIN_MODULES.map(m => m.code),
   },
   {
     name: 'Majid Hassan Najar',
     email: 'majidhassannajar@gmail.com',
     role: 'Admin',
-    perms: ['reports'],
+    perms: ALL_ADMIN_MODULES.map(m => m.code),
   },
 ];
 

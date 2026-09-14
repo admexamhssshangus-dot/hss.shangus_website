@@ -5,7 +5,7 @@ import ModernLoader from '../../components/ModernLoader';
 
 import { auth } from '../../services/firebase';
 import { getIdTokenResult, onAuthStateChanged, signOut } from 'firebase/auth';
-import { resolveStaffRoleAndPerms, requireVerifiedAdminSession, isBootstrapSuperAdminEmail } from '../../services/staffAuthService';
+import { resolveStaffRoleAndPerms, requireVerifiedAdminSession, isBootstrapSuperAdminEmail, isBootstrapAdminEmail } from '../../services/staffAuthService';
 
 // ---------------------------------------------------------------------------
 // Shared helper: resolve user profile from Firestore by email
@@ -16,7 +16,7 @@ async function resolveUserProfile(firebaseUser) {
   const tokenResult = await getIdTokenResult(firebaseUser, false);
   const claims = tokenResult.claims || {};
   const emailLower = String(firebaseUser.email || '').toLowerCase().trim();
-  const isBootstrapAdmin = isBootstrapSuperAdminEmail(emailLower);
+  const isBootstrapAdmin = isBootstrapAdminEmail(emailLower) || isBootstrapSuperAdminEmail(emailLower);
   
   // Resolve role from Firestore permissions & users collection & bootstrap
   const staffProfile = await resolveStaffRoleAndPerms(emailLower);

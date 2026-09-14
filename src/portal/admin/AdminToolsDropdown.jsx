@@ -9,7 +9,7 @@ import {
   ADMIN_MODULE_CATALOG,
   getModuleMaturity,
 } from './adminModuleCatalog';
-import { isBootstrapSuperAdminEmail } from '../../services/staffAuthService';
+import { isBootstrapSuperAdminEmail, isBootstrapAdminEmail } from '../../services/staffAuthService';
 
 const MODULE_ICONS = {
   reports: BarChart2,
@@ -41,7 +41,8 @@ export const isUserPermittedForModule = (user, moduleId) => {
 
   if (
     role === 'superadmin' ||
-    isBootstrapSuperAdminEmail(email)
+    isBootstrapSuperAdminEmail(email) ||
+    isBootstrapAdminEmail(email)
   ) {
     return true;
   }
@@ -82,7 +83,7 @@ export default function AdminToolsDropdown({
     [user],
   );
 
-  const isSuper = user?.role?.toLowerCase() === 'superadmin' || isBootstrapSuperAdminEmail(user?.email);
+  const isSuper = user?.role?.toLowerCase() === 'superadmin' || isBootstrapSuperAdminEmail(user?.email) || isBootstrapAdminEmail(user?.email);
   const perms = Array.isArray(user?.perms) ? user.perms : [];
   const canReports = isUserPermittedForModule(user, 'reports');
   const canDirectEntry = isSuper || perms.includes('*') || perms.includes('directEntry') || perms.includes('ingestion');

@@ -18,13 +18,15 @@ export {
   isBootstrapSuperAdminEmail 
 };
 
-// Fallback staff directory to ensure foundational admins (like bilalhcu@gmail.com) are always recognized
+// Fallback staff directory to ensure foundational admins (like majidhassannajar@gmail.com, bilalhcu@gmail.com) are always recognized
 const FALLBACK_STAFF_PROFILES = {
   'adm.exam.hss.shangus@gmail.com': { name: 'Sheikh Gulfam (SuperAdmin)', role: 'SuperAdmin', perms: ['*'] },
   'e.educational.24@gmail.com': { name: 'Sheikh Gulfam (SuperAdmin)', role: 'SuperAdmin', perms: ['*'] },
-  'shahnawaz@gmail.com': { name: 'Nawaz Ahmad Shah (Admin)', role: 'Admin', perms: ['reports'] },
-  'bilalhcu@gmail.com': { name: 'Bilal Ahmad Khandy', role: 'Admin', perms: ['reports'] },
-  'majidhassannajar@gmail.com': { name: 'Majid Hassan Najar', role: 'Admin', perms: ['reports'] },
+  'ghssshangus74@gmail.com': { name: 'GHSS Shangus (Admin)', role: 'Admin', perms: ['*'] },
+  'socialshiftz@gmail.com': { name: 'Technical Admin', role: 'Admin', perms: ['*'] },
+  'shahnawaz@gmail.com': { name: 'Nawaz Ahmad Shah (Admin)', role: 'Admin', perms: ['*'] },
+  'bilalhcu@gmail.com': { name: 'Bilal Ahmad Khandy (Admin)', role: 'Admin', perms: ['*'] },
+  'majidhassannajar@gmail.com': { name: 'Majid Hassan Najar (Admin)', role: 'Admin', perms: ['*'] },
 };
 
 /**
@@ -134,9 +136,11 @@ export async function resolveStaffRoleAndPerms(emailOrUser) {
     }
   }
 
-  // 6. Check hardcoded fallback staff profiles (e.g. bilalhcu@gmail.com)
+  // 6. Check hardcoded fallback staff profiles or bootstrap admin status
   if (!profile && FALLBACK_STAFF_PROFILES[email]) {
     profile = FALLBACK_STAFF_PROFILES[email];
+  } else if (!profile && isBootstrapAdminEmail(email)) {
+    profile = { name: email.split('@')[0], role: 'Admin', perms: ['*'] };
   }
 
   if (!profile) return null;
@@ -146,17 +150,18 @@ export async function resolveStaffRoleAndPerms(emailOrUser) {
   const normalizedRole = rawRole.toLowerCase();
   if (!['teacher', 'faculty', 'admin', 'superadmin'].includes(normalizedRole)) return null;
 
+  const isBootstrap = isBootstrapAdminEmail(email);
   const isSuper = normalizedRole === 'superadmin' || isSuperAdminEmail(email);
-  const isAdmin = isSuper || normalizedRole === 'admin';
+  const isAdmin = isSuper || isBootstrap || normalizedRole === 'admin';
   const isTeacher = normalizedRole === 'teacher' || normalizedRole === 'faculty';
-  const role = isSuper ? 'SuperAdmin' : (normalizedRole === 'admin' ? 'Admin' : (normalizedRole === 'faculty' ? 'Faculty' : 'Teacher'));
+  const role = isSuper ? 'SuperAdmin' : (normalizedRole === 'admin' || isBootstrap ? 'Admin' : (normalizedRole === 'faculty' ? 'Faculty' : 'Teacher'));
 
   const resolved = {
     ...profile,
     uid: user?.uid || profile.uid || null,
     email,
     role: isSuper ? 'SuperAdmin' : role,
-    perms: isSuper ? ['*'] : (profile.perms || ['reports']),
+    perms: (isSuper || isBootstrap) ? ['*'] : (profile.perms || ['reports']),
     isSuperAdmin: isSuper,
     isAdmin,
     isTeacher,
