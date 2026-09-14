@@ -3692,9 +3692,9 @@ export default function PracticalsPage() {
                 type="button"
                 onClick={handleSaveDraft}
                 disabled={saving || studentMarks.length === 0}
-                className="flex-1 sm:flex-initial px-3 py-1.5 sm:py-1 rounded-lg font-bold text-xs bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-700 transition-all flex items-center justify-center gap-1 cursor-pointer disabled:opacity-50 active:scale-95"
+                className="flex-1 sm:flex-initial px-3 py-2 sm:py-1 min-h-[40px] sm:min-h-[34px] rounded-xl font-bold text-xs bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-700 active:scale-98 transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
               >
-                <Bookmark size={13} className="text-amber-500" />
+                <Bookmark size={14} className="text-amber-500 shrink-0" />
                 <span>Save Draft</span>
               </button>
 
@@ -3702,7 +3702,7 @@ export default function PracticalsPage() {
                 type="button"
                 onClick={handleInitiateFinalSubmit}
                 disabled={saving || studentMarks.length === 0}
-                className={`flex-1 sm:flex-initial px-4 py-1.5 sm:py-1 rounded-lg font-bold text-xs text-white shadow-xs transition-all flex items-center justify-center gap-1 cursor-pointer disabled:opacity-50 active:scale-95 ${
+                className={`flex-1 sm:flex-initial px-4 py-2 sm:py-1 min-h-[40px] sm:min-h-[34px] rounded-xl font-black text-xs text-white shadow-xs active:scale-98 transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 ${
                   isOverwrite
                     ? 'bg-amber-600 hover:bg-amber-500'
                     : isCrossSubject
@@ -3710,7 +3710,7 @@ export default function PracticalsPage() {
                     : 'bg-indigo-600 hover:bg-indigo-500'
                 }`}
               >
-                {saving ? <RefreshCw size={13} className="animate-spin" /> : <Send size={13} />}
+                {saving ? <RefreshCw size={14} className="animate-spin shrink-0" /> : <Send size={14} className="shrink-0" />}
                 <span>
                   {isOverwrite
                     ? 'Submit Revision'
@@ -3726,21 +3726,21 @@ export default function PracticalsPage() {
 
       {/* Final Submission Validation & Confirmation Modal */}
       {showValidationModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
-          <div className="w-full max-w-lg bg-white dark:bg-slate-900 rounded-2xl p-4 sm:p-5 border shadow-2xl space-y-4 border-slate-200 dark:border-slate-800">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn overflow-y-auto">
+          <div className="w-full max-w-lg bg-white dark:bg-slate-900 rounded-2xl p-4 sm:p-5 border shadow-2xl space-y-3.5 sm:space-y-4 border-slate-200 dark:border-slate-800 my-auto max-h-[92vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-9 h-9 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-600 dark:text-indigo-400 shrink-0">
                   <ShieldCheck size={20} />
                 </div>
-                <div>
-                  <h3 className="font-black text-sm text-slate-900 dark:text-white">Final Practical Submission Check</h3>
-                  <p className="text-[11px] font-bold text-slate-500">{selectedSubject} • {selectedClass} • {practicalType}</p>
+                <div className="min-w-0">
+                  <h3 className="font-black text-xs sm:text-sm text-slate-900 dark:text-white truncate">Final Practical Submission Check</h3>
+                  <p className="text-[10.5px] sm:text-[11px] font-bold text-slate-500 truncate">{selectedSubject} • {selectedClass} • {practicalType}</p>
                 </div>
               </div>
               <button
                 onClick={() => setShowValidationModal(false)}
-                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer shrink-0 transition-colors"
               >
                 ✕
               </button>
@@ -3750,14 +3750,14 @@ export default function PracticalsPage() {
             {isCrossSubject && (
               <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/25 text-amber-900 dark:text-amber-200 text-xs flex items-start gap-2.5">
                 <AlertTriangle size={18} className="shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" />
-                <div className="space-y-1">
-                  <div className="font-black flex items-center gap-1.5">
+                <div className="space-y-1 min-w-0">
+                  <div className="font-black flex items-center gap-1.5 flex-wrap">
                     <span>Cross-Subject Award Submission</span>
                     <span className="text-[10px] px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-700 dark:text-amber-300 font-extrabold uppercase">
                       Admin Approval Required
                     </span>
                   </div>
-                  <p className="text-[11.5px] leading-relaxed text-slate-700 dark:text-slate-300">
+                  <p className="text-[11px] sm:text-[11.5px] leading-relaxed text-slate-700 dark:text-slate-300">
                     Your assigned subject in school records is <strong className="text-indigo-600 dark:text-indigo-400">{teacherRegisteredSubject}</strong>, while this award list is for <strong className="text-amber-600 dark:text-amber-400">{selectedSubject}</strong>. Your submission will be staged safely as a pending request and integrated into official database records upon administrative approval.
                   </p>
                 </div>
@@ -3767,14 +3767,14 @@ export default function PracticalsPage() {
             {isOverwrite && (
               <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/25 text-rose-900 dark:text-rose-200 text-xs flex items-start gap-2.5">
                 <ShieldAlert size={18} className="shrink-0 mt-0.5 text-rose-600 dark:text-rose-400" />
-                <div className="space-y-1">
-                  <div className="font-black flex items-center gap-1.5">
+                <div className="space-y-1 min-w-0">
+                  <div className="font-black flex items-center gap-1.5 flex-wrap">
                     <span>Award Overwrite Warning (Zero-Loss Archive)</span>
                     <span className="text-[10px] px-1.5 py-0.2 rounded bg-rose-500/20 text-rose-700 dark:text-rose-300 font-extrabold uppercase">
                       Pending Approval
                     </span>
                   </div>
-                  <p className="text-[11.5px] leading-relaxed text-slate-700 dark:text-slate-300">
+                  <p className="text-[11px] sm:text-[11.5px] leading-relaxed text-slate-700 dark:text-slate-300">
                     An official award record is already integrated for <strong>{selectedSubject} ({selectedClass})</strong>, submitted by <span className="font-bold text-slate-900 dark:text-white">{existingAwardInfo?.canonical?.submittedBy || 'Faculty'}</span>. Submitting now will stage an overwrite revision. The active live record will remain intact until an administrator reviews and approves this revision, at which point the previous record will be automatically preserved in history archives.
                   </p>
                 </div>
@@ -3783,43 +3783,43 @@ export default function PracticalsPage() {
 
             {/* Validation Metrics Grid */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              <div className="p-2.5 rounded-xl border bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-center">
-                <div className="text-[10px] font-black text-slate-400">TOTAL</div>
-                <div className="text-base font-black text-slate-900 dark:text-white">{validationData.totalCount}</div>
+              <div className="p-2 sm:p-2.5 rounded-xl border bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-center">
+                <div className="text-[9.5px] sm:text-[10px] font-black text-slate-400">TOTAL</div>
+                <div className="text-sm sm:text-base font-black text-slate-900 dark:text-white">{validationData.totalCount}</div>
               </div>
-              <div className="p-2.5 rounded-xl border bg-emerald-500/10 border-emerald-500/20 text-center">
-                <div className="text-[10px] font-black text-emerald-600 dark:text-emerald-400">COMPLETE</div>
-                <div className="text-base font-black text-emerald-600 dark:text-emerald-400">{validationData.completedCount}</div>
+              <div className="p-2 sm:p-2.5 rounded-xl border bg-emerald-500/10 border-emerald-500/20 text-center">
+                <div className="text-[9.5px] sm:text-[10px] font-black text-emerald-600 dark:text-emerald-400">COMPLETE</div>
+                <div className="text-sm sm:text-base font-black text-emerald-600 dark:text-emerald-400">{validationData.completedCount}</div>
               </div>
-              <div className="p-2.5 rounded-xl border bg-amber-500/10 border-amber-500/20 text-center">
-                <div className="text-[10px] font-black text-amber-600 dark:text-amber-400">ABSENT</div>
-                <div className="text-base font-black text-amber-600 dark:text-amber-400">{validationData.absentCount}</div>
+              <div className="p-2 sm:p-2.5 rounded-xl border bg-amber-500/10 border-amber-500/20 text-center">
+                <div className="text-[9.5px] sm:text-[10px] font-black text-amber-600 dark:text-amber-400">ABSENT</div>
+                <div className="text-sm sm:text-base font-black text-amber-600 dark:text-amber-400">{validationData.absentCount}</div>
               </div>
-              <div className={`p-2.5 rounded-xl border text-center ${validationData.incompleteCount > 0 ? 'bg-rose-500/10 border-rose-500/20 text-rose-600 dark:text-rose-400' : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-400'}`}>
-                <div className="text-[10px] font-black">INCOMPLETE</div>
-                <div className="text-base font-black">{validationData.incompleteCount}</div>
+              <div className={`p-2 sm:p-2.5 rounded-xl border text-center ${validationData.incompleteCount > 0 ? 'bg-rose-500/10 border-rose-500/20 text-rose-600 dark:text-rose-400' : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-400'}`}>
+                <div className="text-[9.5px] sm:text-[10px] font-black">INCOMPLETE</div>
+                <div className="text-sm sm:text-base font-black">{validationData.incompleteCount}</div>
               </div>
             </div>
 
             {/* Incomplete Warning or Complete Banner */}
             {validationData.incompleteCount > 0 ? (
               <div className="space-y-2">
-                <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-700 dark:text-rose-400 text-xs font-bold flex items-start gap-2">
+                <div className="p-2.5 sm:p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-700 dark:text-rose-400 text-xs font-bold flex items-start gap-2">
                   <AlertCircle size={16} className="shrink-0 mt-0.5" />
                   <div>
                     <div className="font-black">Unentered Student Marks Found ({validationData.incompleteCount})</div>
-                    <div className="text-[11px] mt-0.5">Please review the incomplete student list below. You can return to edit or auto-mark unfilled entries as Absent.</div>
+                    <div className="text-[10.5px] sm:text-[11px] mt-0.5">Please review the incomplete student list below. You can return to edit or auto-mark unfilled entries as Absent.</div>
                   </div>
                 </div>
 
                 <div className="max-h-36 overflow-y-auto border border-slate-200 dark:border-slate-800 rounded-xl p-2 divide-y divide-slate-100 dark:divide-slate-800 text-xs space-y-1">
                   {validationData.incompleteList.map((st, idx) => (
-                    <div key={idx} className="flex items-center justify-between py-1 px-1.5">
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono font-black text-indigo-600 text-xs">#{st.rollNo}</span>
-                        <span className="font-bold text-slate-800 dark:text-slate-200">{st.name}</span>
+                    <div key={idx} className="flex items-center justify-between py-1 px-1.5 gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="font-mono font-black text-indigo-600 text-xs shrink-0">#{st.rollNo}</span>
+                        <span className="font-bold text-slate-800 dark:text-slate-200 truncate text-[11.5px]">{st.name}</span>
                       </div>
-                      <span className="text-[10px] font-black text-rose-500 bg-rose-500/10 px-1.5 py-0.5 rounded border border-rose-500/20">Empty Marks</span>
+                      <span className="text-[9.5px] sm:text-[10px] font-black text-rose-500 bg-rose-500/10 px-1.5 py-0.5 rounded border border-rose-500/20 shrink-0">Empty Marks</span>
                     </div>
                   ))}
                 </div>
@@ -3835,7 +3835,7 @@ export default function PracticalsPage() {
             )}
 
             {/* Modal Actions */}
-            <div className="flex flex-wrap items-center justify-end gap-2 pt-2 border-t border-slate-200 dark:border-slate-800">
+            <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2 pt-2 border-t border-slate-200 dark:border-slate-800">
               <button
                 type="button"
                 onClick={() => {
@@ -3844,7 +3844,7 @@ export default function PracticalsPage() {
                     setShowFailOnly(true);
                   }
                 }}
-                className="px-3.5 py-2 rounded-xl text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-700 cursor-pointer"
+                className="w-full sm:w-auto px-4 py-2.5 sm:py-2 min-h-[42px] sm:min-h-[36px] rounded-xl text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-700 cursor-pointer active:scale-98 transition-all flex items-center justify-center"
               >
                 {validationData.incompleteCount > 0 ? 'Return & Edit Entries' : 'Cancel'}
               </button>
@@ -3853,7 +3853,7 @@ export default function PracticalsPage() {
                 <button
                   type="button"
                   onClick={() => executeFinalSubmit(true)}
-                  className="px-4 py-2 rounded-xl text-xs font-black bg-amber-600 hover:bg-amber-500 text-white shadow-md cursor-pointer flex items-center gap-1.5"
+                  className="w-full sm:w-auto px-4 py-2.5 sm:py-2 min-h-[42px] sm:min-h-[36px] rounded-xl text-xs font-black bg-amber-600 hover:bg-amber-500 text-white shadow-md cursor-pointer flex items-center justify-center gap-1.5 active:scale-98 transition-all"
                 >
                   <AlertCircle size={14} /> Submit & Auto-Mark Unfilled as Absent
                 </button>
@@ -3861,7 +3861,7 @@ export default function PracticalsPage() {
                 <button
                   type="button"
                   onClick={() => executeFinalSubmit(false)}
-                  className={`px-5 py-2 rounded-xl text-xs font-black text-white shadow-md cursor-pointer flex items-center gap-1.5 ${
+                  className={`w-full sm:w-auto px-5 py-2.5 sm:py-2 min-h-[42px] sm:min-h-[36px] rounded-xl text-xs font-black text-white shadow-md cursor-pointer flex items-center justify-center gap-1.5 active:scale-98 transition-all ${
                     isOverwrite ? 'bg-amber-600 hover:bg-amber-500' : 'bg-indigo-600 hover:bg-indigo-500'
                   }`}
                 >
@@ -3880,8 +3880,8 @@ export default function PracticalsPage() {
 
       {/* Submission History Drawer/Modal */}
       {showHistoryModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
-          <div className="w-full max-w-xl bg-white dark:bg-slate-900 rounded-2xl p-4 border shadow-xl space-y-3 border-slate-200 dark:border-slate-800">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn overflow-y-auto">
+          <div className="w-full max-w-xl bg-white dark:bg-slate-900 rounded-2xl p-4 sm:p-5 border shadow-xl space-y-3 border-slate-200 dark:border-slate-800 my-auto max-h-[92vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2 gap-2">
               <div className="flex items-center gap-2 min-w-0 flex-1">
                 <History className="text-indigo-600 dark:text-indigo-400 shrink-0" size={18} />
@@ -3890,7 +3890,7 @@ export default function PracticalsPage() {
               <button
                 type="button"
                 onClick={() => setShowHistoryModal(false)}
-                className="p-1 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer shrink-0 transition-colors"
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer shrink-0 transition-colors"
                 title="Close"
               >
                 <X size={18} />
@@ -3907,13 +3907,13 @@ export default function PracticalsPage() {
             ) : submissionHistory.length > 0 ? (
               <div className="max-h-80 overflow-y-auto space-y-1.5 pr-1">
                 {submissionHistory.map((item, i) => (
-                  <div key={i} className="p-2.5 rounded-xl border bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs">
-                    <div>
-                      <div className="font-extrabold text-xs text-slate-900 dark:text-slate-100">
+                  <div key={i} className="p-2.5 rounded-xl border bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs gap-2">
+                    <div className="min-w-0 flex-1">
+                      <div className="font-extrabold text-xs text-slate-900 dark:text-slate-100 truncate">
                         {item.className} • {item.subject} ({item.practicalType || 'Internal'})
                       </div>
-                      <div className="text-[9.5px] text-slate-400 flex items-center gap-1.5 mt-0.5">
-                        <Clock size={10} /> {item.updatedAt ? new Date(item.updatedAt).toLocaleString() : 'N/A'}
+                      <div className="text-[9.5px] text-slate-400 flex items-center gap-1.5 mt-0.5 flex-wrap">
+                        <span className="inline-flex items-center gap-1"><Clock size={10} /> {item.updatedAt ? new Date(item.updatedAt).toLocaleString() : 'N/A'}</span>
                         <span className="text-indigo-600 dark:text-indigo-400 font-bold">• {item.records?.length || 0} Students</span>
                       </div>
                     </div>
@@ -3926,7 +3926,7 @@ export default function PracticalsPage() {
                         if (item.yearSuffix) setYearSuffix(item.yearSuffix);
                         setShowHistoryModal(false);
                       }}
-                      className="px-2.5 py-1 rounded-lg text-[9.5px] font-black bg-indigo-600/10 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-600/20 border border-indigo-500/20 cursor-pointer"
+                      className="px-2.5 py-1.5 rounded-lg text-[10px] font-black bg-indigo-600/10 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-600/20 border border-indigo-500/20 cursor-pointer shrink-0 active:scale-95 transition-all"
                     >
                       Load Record
                     </button>
@@ -3944,13 +3944,13 @@ export default function PracticalsPage() {
 
       {/* Cross-Subject Switch Warning Modal */}
       {crossSubjectSwitchModal.isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
-          <div className="w-full max-w-md bg-white dark:bg-slate-900 rounded-2xl p-5 border border-amber-300 dark:border-amber-700/60 shadow-2xl space-y-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn overflow-y-auto">
+          <div className="w-full max-w-md bg-white dark:bg-slate-900 rounded-2xl p-4 sm:p-5 border border-amber-300 dark:border-amber-700/60 shadow-2xl space-y-3.5 sm:space-y-4 my-auto max-h-[92vh] overflow-y-auto">
             <div className="flex items-start gap-3">
               <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-600 dark:text-amber-400 shrink-0">
                 <AlertTriangle size={22} />
               </div>
-              <div className="space-y-1">
+              <div className="space-y-1 min-w-0">
                 <h3 className="font-black text-sm text-slate-900 dark:text-white">
                   Cross-Subject Award Submission
                 </h3>
@@ -3960,7 +3960,7 @@ export default function PracticalsPage() {
               </div>
             </div>
 
-            <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/50 text-[11.5px] text-amber-900 dark:text-amber-200 space-y-1 leading-relaxed">
+            <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/50 text-[11px] sm:text-[11.5px] text-amber-900 dark:text-amber-200 space-y-1 leading-relaxed">
               <div className="font-extrabold flex items-center gap-1.5 text-amber-700 dark:text-amber-300">
                 <ShieldAlert size={14} className="shrink-0" />
                 Administrative Approval Required
@@ -3970,11 +3970,11 @@ export default function PracticalsPage() {
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+            <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
               <button
                 type="button"
                 onClick={() => setCrossSubjectSwitchModal({ isOpen: false, targetSubject: '' })}
-                className="px-3.5 py-2 rounded-xl text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 cursor-pointer"
+                className="w-full sm:w-auto px-4 py-2.5 sm:py-2 min-h-[42px] sm:min-h-[36px] rounded-xl text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 cursor-pointer active:scale-98 transition-all flex items-center justify-center"
               >
                 Cancel & Keep {teacherRegisteredSubject}
               </button>
@@ -3984,7 +3984,7 @@ export default function PracticalsPage() {
                   setSelectedSubject(crossSubjectSwitchModal.targetSubject);
                   setCrossSubjectSwitchModal({ isOpen: false, targetSubject: '' });
                 }}
-                className="px-4 py-2 rounded-xl text-xs font-black bg-amber-600 hover:bg-amber-500 text-white shadow-md cursor-pointer flex items-center gap-1.5"
+                className="w-full sm:w-auto px-4 py-2.5 sm:py-2 min-h-[42px] sm:min-h-[36px] rounded-xl text-xs font-black bg-amber-600 hover:bg-amber-500 text-white shadow-md cursor-pointer flex items-center justify-center gap-1.5 active:scale-98 transition-all"
               >
                 Continue to {crossSubjectSwitchModal.targetSubject}
               </button>
@@ -4027,14 +4027,14 @@ export default function PracticalsPage() {
       {/* Universal Message / Error / Success Popup Modal */}
       {popupModal && popupModal.isOpen && (
         <div 
-          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/75 backdrop-blur-sm animate-fadeIn"
+          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-sm animate-fadeIn overflow-y-auto"
           onClick={() => {
             if (popupModal.onClose) popupModal.onClose();
             setPopupModal(null);
           }}
         >
           <div 
-            className="w-full max-w-md bg-white dark:bg-slate-900 rounded-3xl p-5 sm:p-6 border border-slate-200/80 dark:border-slate-800 shadow-2xl space-y-4 relative text-center animate-in zoom-in-95 duration-200"
+            className="w-full max-w-md bg-white dark:bg-slate-900 rounded-3xl p-4 sm:p-6 border border-slate-200/80 dark:border-slate-800 shadow-2xl space-y-3 sm:space-y-4 relative text-center animate-in zoom-in-95 duration-200 my-auto max-h-[92vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Close button */}
@@ -4044,15 +4044,15 @@ export default function PracticalsPage() {
                 if (popupModal.onClose) popupModal.onClose();
                 setPopupModal(null);
               }}
-              className="absolute top-4 right-4 p-1.5 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+              className="absolute top-3 right-3 sm:top-4 sm:right-4 p-2 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer min-w-[36px] min-h-[36px] flex items-center justify-center"
               title="Close"
             >
               <X size={18} />
             </button>
 
             {/* Status Icon with glow */}
-            <div className="flex justify-center pt-2">
-              <div className={`w-16 h-16 rounded-2xl flex items-center justify-center shadow-md relative ${
+            <div className="flex justify-center pt-1 sm:pt-2">
+              <div className={`w-14 h-14 sm:w-16 sm:h-16 rounded-2xl flex items-center justify-center shadow-md relative ${
                 popupModal.type === 'success'
                   ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20'
                   : popupModal.type === 'error'
@@ -4062,13 +4062,13 @@ export default function PracticalsPage() {
                   : 'bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20'
               }`}>
                 {popupModal.type === 'success' ? (
-                  <CheckCircle2 size={32} className="animate-in zoom-in duration-300" />
+                  <CheckCircle2 className="w-7 h-7 sm:w-8 sm:h-8 animate-in zoom-in duration-300" />
                 ) : popupModal.type === 'error' ? (
-                  <AlertCircle size={32} className="animate-in zoom-in duration-300" />
+                  <AlertCircle className="w-7 h-7 sm:w-8 sm:h-8 animate-in zoom-in duration-300" />
                 ) : popupModal.type === 'warning' ? (
-                  <AlertTriangle size={32} className="animate-in zoom-in duration-300" />
+                  <AlertTriangle className="w-7 h-7 sm:w-8 sm:h-8 animate-in zoom-in duration-300" />
                 ) : (
-                  <Info size={32} className="animate-in zoom-in duration-300" />
+                  <Info className="w-7 h-7 sm:w-8 sm:h-8 animate-in zoom-in duration-300" />
                 )}
               </div>
             </div>
@@ -4076,7 +4076,7 @@ export default function PracticalsPage() {
             {/* Badge & Title */}
             <div className="space-y-1">
               {popupModal.badge && (
-                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider mb-1" style={{
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[9.5px] sm:text-[10px] font-extrabold uppercase tracking-wider mb-1" style={{
                   backgroundColor: popupModal.type === 'success' ? 'rgba(16, 185, 129, 0.12)' :
                                    popupModal.type === 'error' ? 'rgba(244, 63, 94, 0.12)' :
                                    popupModal.type === 'warning' ? 'rgba(245, 158, 11, 0.12)' : 'rgba(99, 102, 241, 0.12)',
@@ -4087,28 +4087,28 @@ export default function PracticalsPage() {
                   {popupModal.badge}
                 </div>
               )}
-              <h3 className="text-lg font-black text-slate-900 dark:text-white leading-snug">
+              <h3 className="text-base sm:text-lg font-black text-slate-900 dark:text-white leading-snug px-2">
                 {popupModal.title}
               </h3>
-              <p className="text-xs text-slate-600 dark:text-slate-300 font-medium leading-relaxed max-w-sm mx-auto">
+              <p className="text-xs text-slate-600 dark:text-slate-300 font-medium leading-relaxed max-w-sm mx-auto px-1">
                 {popupModal.message}
               </p>
             </div>
 
             {/* Details Box if provided */}
             {Array.isArray(popupModal.details) && popupModal.details.length > 0 && (
-              <div className="bg-slate-50 dark:bg-slate-800/60 rounded-2xl p-3 border border-slate-200/80 dark:border-slate-800 text-left space-y-1.5 text-xs">
+              <div className="bg-slate-50 dark:bg-slate-800/60 rounded-2xl p-2.5 sm:p-3 border border-slate-200/80 dark:border-slate-800 text-left space-y-1 text-xs">
                 {popupModal.details.map((item, idx) => (
-                  <div key={idx} className="flex items-center justify-between gap-2">
-                    <span className="text-slate-500 dark:text-slate-400 font-medium text-[11px]">{item.label}</span>
-                    <span className="font-bold text-slate-800 dark:text-slate-200 text-[11.5px] text-right truncate max-w-[220px]">{item.value}</span>
+                  <div key={idx} className="flex items-center justify-between gap-2 py-0.5">
+                    <span className="text-slate-500 dark:text-slate-400 font-medium text-[10.5px] sm:text-[11px] shrink-0">{item.label}</span>
+                    <span className="font-bold text-slate-800 dark:text-slate-200 text-[11px] sm:text-[11.5px] text-right truncate min-w-0 flex-1">{item.value}</span>
                   </div>
                 ))}
               </div>
             )}
 
             {/* Actions */}
-            <div className="pt-2 flex flex-col sm:flex-row items-center gap-2">
+            <div className="pt-2 flex flex-col-reverse sm:flex-row items-center gap-2">
               {popupModal.secondaryButtonText && (
                 <button
                   type="button"
@@ -4116,7 +4116,7 @@ export default function PracticalsPage() {
                     if (popupModal.onSecondaryClick) popupModal.onSecondaryClick();
                     setPopupModal(null);
                   }}
-                  className="w-full sm:flex-1 py-2.5 px-4 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors cursor-pointer"
+                  className="w-full sm:flex-1 py-2.5 sm:py-2 px-3 sm:px-4 min-h-[42px] sm:min-h-[38px] rounded-xl text-xs font-bold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 active:scale-98 transition-all cursor-pointer flex items-center justify-center"
                 >
                   {popupModal.secondaryButtonText}
                 </button>
@@ -4127,7 +4127,7 @@ export default function PracticalsPage() {
                   if (popupModal.onPrimaryClick) popupModal.onPrimaryClick();
                   setPopupModal(null);
                 }}
-                className={`w-full sm:flex-1 py-2.5 px-4 rounded-xl text-xs font-bold text-white shadow-md transition-all cursor-pointer ${
+                className={`w-full sm:flex-1 py-2.5 sm:py-2 px-3 sm:px-4 min-h-[42px] sm:min-h-[38px] rounded-xl text-xs font-black text-white shadow-md active:scale-98 transition-all cursor-pointer flex items-center justify-center ${
                   popupModal.type === 'error'
                     ? 'bg-rose-600 hover:bg-rose-700 shadow-rose-600/20'
                     : popupModal.type === 'warning'

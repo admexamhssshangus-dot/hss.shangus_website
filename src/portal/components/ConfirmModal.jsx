@@ -48,8 +48,8 @@ export default function ConfirmModal({
   const config = typeConfig[type] || typeConfig.danger;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
-      <div className="w-full max-w-sm bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-200 dark:border-slate-800 shadow-2xl space-y-4 text-center relative">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn overflow-y-auto">
+      <div className="w-full max-w-sm bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-200 dark:border-slate-800 shadow-2xl space-y-4 text-center relative my-auto max-h-[92vh] overflow-y-auto">
         <button
           onClick={onClose}
           className="absolute top-3 right-3 p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
@@ -75,7 +75,7 @@ export default function ConfirmModal({
             type="button"
             onClick={onClose}
             disabled={loading}
-            className="flex-1 py-2 px-3 rounded-xl text-xs font-extrabold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition-all cursor-pointer disabled:opacity-50"
+            className="flex-1 py-2.5 sm:py-2 px-3 min-h-[40px] sm:min-h-[36px] rounded-xl text-xs font-extrabold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 active:scale-98 transition-all cursor-pointer disabled:opacity-50 flex items-center justify-center"
           >
             {cancelText}
           </button>
@@ -83,7 +83,7 @@ export default function ConfirmModal({
             type="button"
             onClick={onConfirm}
             disabled={loading}
-            className={`flex-1 py-2 px-3 rounded-xl text-xs font-extrabold shadow-md transition-all cursor-pointer disabled:opacity-50 ${config.btn}`}
+            className={`flex-1 py-2.5 sm:py-2 px-3 min-h-[40px] sm:min-h-[36px] rounded-xl text-xs font-extrabold shadow-md active:scale-98 transition-all cursor-pointer disabled:opacity-50 flex items-center justify-center ${config.btn}`}
           >
             {loading ? 'Processing...' : confirmText}
           </button>
