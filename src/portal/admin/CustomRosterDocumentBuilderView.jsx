@@ -23,6 +23,7 @@ import {
   exportCustomRosterCsv
 } from '../../utils/customRosterExportUtils';
 import { getStudentPhotoUrl, formatPhotoDisplayUrl } from '../../utils/imageCompressor';
+import { showToast } from '../../components/common/GlobalToast';
 import { getCachedCollection, getCachedCollectionSync, getPhotoUrlFromCache, resolveStudentPhoto, fetchStudentPhotoOnDemand } from '../../services/dbCache';
 import { getStudentRegIndex, lookupStudentByRegSync } from '../../services/studentIndexService';
 import { db } from '../../services/firebase';
@@ -2241,7 +2242,7 @@ export default function CustomRosterDocumentBuilderView({
       }, { merge: true });
     } catch (e) {
       console.error(e);
-      alert('Failed to save default column order: ' + e.message);
+      showToast('Failed to save default column order: ' + e.message, 'error');
     }
   };
 
@@ -2393,7 +2394,7 @@ export default function CustomRosterDocumentBuilderView({
       setTimeout(() => setCloudFeeSaveToast(false), 3500);
     } catch (err) {
       console.error('Firebase fee rules save error:', err);
-      alert('Updated locally. Note: Cloud sync had a network note: ' + err.message);
+      showToast('Updated locally. Cloud sync network note: ' + err.message, 'warning');
     } finally {
       setIsSavingCustomToCloud(false);
       setShowAddCustomModal(false);
@@ -2858,7 +2859,7 @@ export default function CustomRosterDocumentBuilderView({
       });
     } catch (err) {
       console.error('Word export error:', err);
-      alert('Failed to generate Word document.');
+      showToast('Failed to generate Word document: ' + (err.message || 'Unknown error'), 'error');
     } finally {
       setIsExporting(false);
     }

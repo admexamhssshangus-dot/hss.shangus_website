@@ -5,6 +5,7 @@ import { moveToRecycleBin } from '../../services/recycleBinService';
 import { extractRegNoClean, getStudentName, getFatherName } from './AdvancedReports';
 import { logAdminActivity } from '../../services/adminActivityLogger';
 import ModernLoader from '../../components/ModernLoader';
+import { showToast } from '../../components/common/GlobalToast';
 
 export default function DeleteApplicationModal({
   isOpen,
@@ -111,7 +112,7 @@ export default function DeleteApplicationModal({
         : matchedRecords.filter(m => selectedDocIds.has(m.id || m.docId || m.formNo));
 
       if (recordsToDelete.length === 0) {
-        alert('Please select at least 1 record to delete.');
+        showToast('Please select at least 1 record to delete.', 'warning');
         setDeleting(false);
         setArchiveStep('');
         return;
@@ -140,6 +141,8 @@ export default function DeleteApplicationModal({
         onDeleteSuccess(recordsToDelete);
       }
 
+      showToast(`Moved ${recordsToDelete.length} student record(s) to 90-day Recycle Bin.`, 'success');
+
       setTimeout(() => {
         setArchiveStep('');
         setDeleting(false);
@@ -149,7 +152,7 @@ export default function DeleteApplicationModal({
       console.error('Delete execution error:', err);
       setArchiveStep('');
       setDeleting(false);
-      alert(`Delete failed: ${err.message}`);
+      showToast(`Delete failed: ${err.message}`, 'error');
     }
   };
 

@@ -10,6 +10,7 @@ import { db } from '../../services/firebase';
 import { DEFAULT_SCHOOL_EVALUATIONS } from '../../utils/practicalsSettingsManager';
 import { sameCohort, recordIdentity, identityKey, sessionKey, classKey, formatConsistentName } from '../../utils/recordIdentity';
 import verifiedCatalog from '../../data/verifiedStudentsCatalog.json';
+import { showToast } from '../../components/common/GlobalToast';
 
 const SESSIONS = ['2025-26', '2024-25', '2023-24'];
 const CLASSES = ['12th', '11th', '10th'];
@@ -705,7 +706,7 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
   // Export to Excel (.xlsx) with all 15 separate subject columns
   const handleExportExcel = () => {
     if (filteredRows.length === 0) {
-      alert('No candidate records available to export.');
+      showToast('No candidate records available to export.', 'warning');
       return;
     }
 
@@ -824,7 +825,7 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
   // Dedicated End-to-End Multi-Page Landscape Print Generator with 15 Abbreviations
   const handlePrint = () => {
     if (filteredRows.length === 0) {
-      alert('No candidate records available to print.');
+      showToast('No candidate records available to print.', 'warning');
       return;
     }
 

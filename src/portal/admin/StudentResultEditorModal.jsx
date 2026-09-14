@@ -24,6 +24,8 @@ import {
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import { updateCachedItem } from '../../services/dbCache';
+import ConfirmModal from '../components/ConfirmModal';
+import { showToast } from '../../components/common/GlobalToast';
 import {
   JKBOSE_SUBJECT_CODES,
   calculateDivision,
@@ -58,6 +60,7 @@ export default function StudentResultEditorModal({
   const [admDate, setAdmDate] = useState('');
   const [remarks, setRemarks] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
 
   // Initialize form when student changes
   useEffect(() => {
@@ -502,11 +505,7 @@ export default function StudentResultEditorModal({
                 {ccDcNo && (
                   <button
                     type="button"
-                    onClick={() => {
-                      if (window.confirm('Clear/Revoke the TC/DC Certificate Number for this student?')) {
-                        setCcDcNo('');
-                      }
-                    }}
+                    onClick={() => setShowClearConfirm(true)}
                     className="text-[10px] font-black text-rose-600 hover:text-rose-700 dark:text-rose-400 flex items-center gap-0.5 cursor-pointer"
                   >
                     <Unlock size={10} />
@@ -568,6 +567,22 @@ export default function StudentResultEditorModal({
           </div>
 
         </form>
+
+        {showClearConfirm && (
+          <ConfirmModal
+            isOpen={showClearConfirm}
+            onClose={() => setShowClearConfirm(false)}
+            onConfirm={() => {
+              setCcDcNo('');
+              setShowClearConfirm(false);
+              showToast('TC/DC Certificate Number cleared from draft.', 'info');
+            }}
+            title="Clear TC/DC Certificate Number?"
+            message="Are you sure you want to clear/revoke the TC/DC Certificate Number for this student in this edit session?"
+            confirmText="Clear Number"
+            type="warning"
+          />
+        )}
 
       </div>
     </div>,

@@ -37,6 +37,7 @@ import { compressImageFile } from '../../utils/imageCompressor';
 import { fetchStudentPhotoOnDemand, getCachedCollectionSync, resolveStudentPhoto as resolveCanonicalStudentPhoto } from '../../services/dbCache';
 import { db } from '../../services/firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { showToast } from '../../components/common/GlobalToast';
 
 function preloadPhotoWithTimeout(photoUrl, timeoutMs = 6000) {
   return new Promise(resolve => {
@@ -395,9 +396,9 @@ export default function StudentIdCardManager({ students = [], onClose }) {
       }, 1200);
     } catch (e) {
       console.error('Failed to save ID card settings:', e);
-      alert(savedLocally
+      showToast(savedLocally
         ? `Settings were saved locally, but cloud synchronization failed: ${e.message}`
-        : `Settings could not be saved: ${e.message}`);
+        : `Settings could not be saved: ${e.message}`, 'warning');
     } finally {
       setIsSavingSealConfig(false);
     }
@@ -407,7 +408,7 @@ export default function StudentIdCardManager({ students = [], onClose }) {
   const handleUploadImage = async (field, file) => {
     if (!file) return;
     if (!String(file.type || '').startsWith('image/')) {
-      alert('Please choose a valid image file.');
+      showToast('Please choose a valid image file.', 'warning');
       return;
     }
     try {
@@ -438,9 +439,10 @@ export default function StudentIdCardManager({ students = [], onClose }) {
       if (kb > 15) throw new Error(`Compressed image is still ${kb} KB; the limit is 15 KB.`);
 
       setSealConfig(prev => ({ ...prev, [field]: base64 }));
+      showToast(`Uploaded and compressed image for ${field} (${kb} KB).`, 'success');
     } catch (e) {
       console.warn('Image compression note:', e);
-      alert(`Could not prepare this image: ${e.message}`);
+      showToast(`Could not prepare this image: ${e.message}`, 'error');
     }
   };
 

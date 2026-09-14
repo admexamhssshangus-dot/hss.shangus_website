@@ -13,6 +13,7 @@ import { staffCallable } from '../../services/staffCommand';
 import ModernLoader from '../../components/ModernLoader';
 import { getCachedCollection } from '../../services/dbCache';
 import { logAdminActivity } from '../../services/adminActivityLogger';
+import { showToast } from '../../components/common/GlobalToast';
 import {
   printIndividualAwardRoll,
   printIndividualWorkSheet,
@@ -1105,7 +1106,7 @@ export default function AdminPracticals() {
       cleanPhone = cleanPhone.slice(2);
     }
     if (cleanPhone && cleanPhone.length !== 10) {
-      alert('Please enter a valid 10-digit Indian mobile number.');
+      showToast('Please enter a valid 10-digit Indian mobile number.', 'warning');
       return false;
     }
 
@@ -1967,7 +1968,7 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings }) {
                       setShowAwardsMenu(false);
                       const listToPrint = selectedStudentsList.length > 0 ? selectedStudentsList : sortedStudents;
                       if (!listToPrint || listToPrint.length === 0) {
-                        alert(`No student records available to print for Class ${cls}.`);
+                        showToast(`No student records available to print for Class ${cls}.`, 'warning');
                         return;
                       }
                       printConsolidatedAwardRoll({
@@ -1997,7 +1998,7 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings }) {
                       setShowAwardsMenu(false);
                       const listToPrint = selectedStudentsList.length > 0 ? selectedStudentsList : sortedStudents;
                       if (!listToPrint || listToPrint.length === 0) {
-                        alert(`No student records available to print for Class ${cls}.`);
+                        showToast(`No student records available to print for Class ${cls}.`, 'warning');
                         return;
                       }
                       printAllIndividualAwardRolls({
@@ -2029,7 +2030,7 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings }) {
                       setShowAwardsMenu(false);
                       const listToPrint = selectedStudentsList.length > 0 ? selectedStudentsList : sortedStudents;
                       if (!listToPrint || listToPrint.length === 0) {
-                        alert(`No student records available to export for Class ${cls}.`);
+                        showToast(`No student records available to export for Class ${cls}.`, 'warning');
                         return;
                       }
                       exportConsolidatedAwardsToExcel({
@@ -2059,7 +2060,7 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings }) {
                       setShowAwardsMenu(false);
                       const listToPrint = selectedStudentsList.length > 0 ? selectedStudentsList : sortedStudents;
                       if (!listToPrint || listToPrint.length === 0) {
-                        alert(`No student records available to export for Class ${cls}.`);
+                        showToast(`No student records available to export for Class ${cls}.`, 'warning');
                         return;
                       }
                       exportConsolidatedAwardsToWord({
@@ -2113,7 +2114,7 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings }) {
               onClick={() => {
                 const listToPrint = selectedStudentsList.length > 0 ? selectedStudentsList : sortedStudents;
                 if (!listToPrint || listToPrint.length === 0) {
-                  alert(`No student records available to print for Class ${cls}.`);
+                  showToast(`No student records available to print for Class ${cls}.`, 'warning');
                   return;
                 }
                 printAttendanceSheet({
@@ -2135,7 +2136,7 @@ function AwardsSummaryView({ cls, students, submissions, getPD, settings }) {
               onClick={() => {
                 const listToPrint = selectedStudentsList.length > 0 ? selectedStudentsList : sortedStudents;
                 if (!listToPrint || listToPrint.length === 0) {
-                  alert(`No student records available to print for Class ${cls}.`);
+                  showToast(`No student records available to print for Class ${cls}.`, 'warning');
                   return;
                 }
                 printFailList({

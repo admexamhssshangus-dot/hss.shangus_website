@@ -16,6 +16,7 @@ import ModernLoader from '../../components/ModernLoader';
 import { logAdminActivity } from '../../services/adminActivityLogger';
 import SchoolAssessmentsHub from './SchoolAssessmentsHub';
 import ConsolidatedGazetteView from './ConsolidatedGazetteView';
+import { showToast } from '../../components/common/GlobalToast';
 
 const HUB_TABS = [
   { id: 'school', label: 'School Assessments & Pre-Board Hub', mobileLabel: 'Assessments', icon: Award },
@@ -460,10 +461,11 @@ export default function AdminGkTestManager({ allStudents = [], onRefresh }) {
         metadata: { examTitle: payload.examTitle, examDate: payload.examDate, isOpen: payload.isOpen }
       });
       setSettingsMsg('Competitive exam configuration saved and published successfully!');
+      showToast('Competitive exam configuration saved and published successfully!', 'success');
       setTimeout(() => setSettingsMsg(''), 4000);
     } catch (err) {
       console.error('Error saving settings:', err);
-      alert('Failed to save settings: ' + err.message);
+      showToast('Failed to save settings: ' + err.message, 'error');
     } finally {
       setSavingSettings(false);
     }
@@ -529,9 +531,10 @@ export default function AdminGkTestManager({ allStudents = [], onRefresh }) {
         metadata: { id: revokingDoc.id, examNumber: revokingDoc.examNumber, name: revokingDoc.name, className: revokingDoc.className }
       });
       setRevokingDoc(null);
+      showToast('Candidate registration revoked successfully.', 'success');
     } catch (err) {
       console.error('Error revoking registration:', err);
-      alert(`Failed to revoke registration: ${err.message}`);
+      showToast(`Failed to revoke registration: ${err.message}`, 'error');
     } finally {
       setIsDeleting(false);
     }
@@ -540,7 +543,7 @@ export default function AdminGkTestManager({ allStudents = [], onRefresh }) {
   // Export to CSV
   const handleExportCsv = () => {
     if (registrations.length === 0) {
-      alert('No candidates to export.');
+      showToast('No candidates to export.', 'warning');
       return;
     }
     const headers = ['Exam Roll No', 'Candidate Name', "Father's Name", 'Class', 'Class Roll No', 'Reg / Form No', 'Mobile', 'Type', 'Registration Date'];
@@ -613,7 +616,7 @@ export default function AdminGkTestManager({ allStudents = [], onRefresh }) {
       : filtered.filter(r => selectedIds.has(r.id));
 
     if (listToPrint.length === 0) {
-      alert('Please select at least one candidate to print admit cards.');
+      showToast('Please select at least one candidate to print admit cards.', 'warning');
       return;
     }
     generateBatchGkTestAdmitCardsPdf(listToPrint, examConfig);
@@ -1411,7 +1414,7 @@ function AddCandidateModal({ allStudents = [], onClose, onCandidateAdded }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!formData.name.trim()) {
-      alert('Please provide candidate name.');
+      showToast('Please provide candidate name.', 'warning');
       return;
     }
 
@@ -1436,10 +1439,11 @@ function AddCandidateModal({ allStudents = [], onClose, onCandidateAdded }) {
       };
 
       await setDoc(doc(db, 'omr_registrations', finalExamNo), payload);
+      showToast(`Candidate ${formData.name.trim()} enrolled successfully!`, 'success');
       onCandidateAdded({ id: finalExamNo, ...payload, submittedAt: { seconds: Math.floor(Date.now() / 1000) } });
     } catch (err) {
       console.error('Error adding candidate:', err);
-      alert('Failed to add candidate: ' + err.message);
+      showToast('Failed to add candidate: ' + err.message, 'error');
     } finally {
       setSubmitting(false);
     }
@@ -1723,7 +1727,7 @@ function BulkImportCandidatesModal({ allStudents = [], existingRegistrations = [
     });
 
     if (studentsToImport.length === 0) {
-      alert('Please select at least one available student to enroll.');
+      showToast('Please select at least one available student to enroll.', 'warning');
       return;
     }
 
@@ -1767,11 +1771,11 @@ function BulkImportCandidatesModal({ allStudents = [], existingRegistrations = [
         setImportProgress(Math.round((processed / studentsToImport.length) * 100));
       }
 
-      alert(`Successfully enrolled ${importedDocs.length} candidates from School Directory!`);
+      showToast(`Successfully enrolled ${importedDocs.length} candidates from School Directory!`, 'success');
       onImportComplete(importedDocs);
     } catch (err) {
       console.error('Bulk import error:', err);
-      alert('Bulk import failed: ' + err.message);
+      showToast('Bulk import failed: ' + err.message, 'error');
     } finally {
       setIsImporting(false);
     }
@@ -1985,10 +1989,11 @@ function EditCandidateModal({ candidate, onClose, onCandidateUpdated }) {
       };
 
       await updateDoc(doc(db, 'omr_registrations', candidate.id), payload);
+      showToast(`Candidate ${formData.name.trim()} updated successfully!`, 'success');
       onCandidateUpdated({ ...candidate, ...payload });
     } catch (err) {
       console.error('Error updating candidate:', err);
-      alert('Failed to update candidate: ' + err.message);
+      showToast('Failed to update candidate: ' + err.message, 'error');
     } finally {
       setSaving(false);
     }

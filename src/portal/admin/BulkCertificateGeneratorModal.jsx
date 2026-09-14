@@ -26,6 +26,8 @@ import {
   interpolateCertificateTemplate,
   printBatchStudentCertificates
 } from '../../utils/certificateExportUtils';
+import ConfirmModal from '../components/ConfirmModal';
+import { showToast } from '../../components/common/GlobalToast';
 import {
   extractStudentAdmissionNumber,
   extractStudentAdmissionDate,
@@ -199,6 +201,7 @@ export default function BulkCertificateGeneratorModal({
   const [isSavingFields, setIsSavingFields] = useState(false);
   const [localStudentOverrides, setLocalStudentOverrides] = useState({});
   const [duplicateStudentIds, setDuplicateStudentIds] = useState(new Set());
+  const [bulkConfirmConfig, setBulkConfirmConfig] = useState(null);
 
   // ─── Table Pagination State ───
   const [currentPage, setCurrentPage] = useState(1);
@@ -702,12 +705,17 @@ export default function BulkCertificateGeneratorModal({
       });
       return;
     }
-    const confirmed = window.confirm(
-      `Prepare a DUPLICATE TC/CC for ${student.studentName}?\n\nExisting certificate #${student.certificateNo} remains permanently locked to registration ${student.regNo}. A new certificate number will be issued and linked to the same registration number.`
-    );
-    if (!confirmed) return;
-    setDuplicateStudentIds(previous => new Set(previous).add(student.id));
-    setSelectedStudentIds(previous => new Set(previous).add(student.id));
+    setBulkConfirmConfig({
+      title: 'Prepare Duplicate TC/CC',
+      message: `Prepare a DUPLICATE TC/CC for ${student.studentName}? Existing certificate #${student.certificateNo} remains permanently locked to registration ${student.regNo}. A new certificate number will be issued and linked to the same registration number.`,
+      confirmText: 'Prepare Duplicate',
+      type: 'warning',
+      onConfirm: () => {
+        setBulkConfirmConfig(null);
+        setDuplicateStudentIds(previous => new Set(previous).add(student.id));
+        setSelectedStudentIds(previous => new Set(previous).add(student.id));
+      }
+    });
   };
 
   // Compile batch student certificate packages with sequential numbering
@@ -853,19 +861,7 @@ export default function BulkCertificateGeneratorModal({
   };
 
   // Revoke & Release Certificate Numbers for Selected Students (Batch Revocation)
-  const handleRevokeCertificateNumbers = async () => {
-    const targetStudents = selectedStudentIds.size > 0
-      ? filteredStudents.filter(s => selectedStudentIds.has(s.id) && s.certificateNo)
-      : filteredStudents.filter(s => s.certificateNo);
-
-    if (targetStudents.length === 0) {
-      showToast('No students with issued certificate numbers are selected for revocation.', 'warning');
-      return;
-    }
-
-    const confirmMsg = `Revoke the TC/DC assignment for ${targetStudents.length} student(s)?\n\nThe student assignments will be cleared in Firestore. Revoked serials remain retired in the registry and are not reused.`;
-    if (!window.confirm(confirmMsg)) return;
-
+  const executeRevokeCertificateNumbers = async (targetStudents) => {
     setIsRevokingCertNo(true);
     try {
       const revocationTargets = targetStudents.map(student => ({
@@ -894,13 +890,31 @@ export default function BulkCertificateGeneratorModal({
     }
   };
 
-  // Revoke & Release Certificate Number for a single student
-  const handleRevokeSingleStudent = async (st, e) => {
-    if (e) e.stopPropagation();
-    if (!st.certificateNo) return;
-    const confirmMsg = `Revoke TC/DC Certificate No. #${st.certificateNo} for ${st.studentName}?\n\nThis will clear the certificate number and mark status as Revoked.`;
-    if (!window.confirm(confirmMsg)) return;
+  const handleRevokeCertificateNumbers = () => {
+    const targetStudents = selectedStudentIds.size > 0
+      ? filteredStudents.filter(s => selectedStudentIds.has(s.id) && s.certificateNo)
+      : filteredStudents.filter(s => s.certificateNo);
 
+    if (targetStudents.length === 0) {
+      showToast('No students with issued certificate numbers are selected for revocation.', 'warning');
+      return;
+    }
+
+    setBulkConfirmConfig({
+      title: 'Revoke Certificate Numbers',
+      message: `Revoke the TC/DC assignment for ${targetStudents.length} student(s)? The student assignments will be cleared in Firestore.`,
+      consequence: 'Revoked serials remain retired in the official school registry and are not reused.',
+      confirmText: `Revoke ${targetStudents.length} Certificate(s)`,
+      type: 'danger',
+      onConfirm: () => {
+        setBulkConfirmConfig(null);
+        executeRevokeCertificateNumbers(targetStudents);
+      }
+    });
+  };
+
+  // Revoke & Release Certificate Number for a single student
+  const executeRevokeSingleStudent = async (st) => {
     setIsRevokingCertNo(true);
     try {
       const revocationTarget = {
@@ -921,6 +935,23 @@ export default function BulkCertificateGeneratorModal({
     } finally {
       setIsRevokingCertNo(false);
     }
+  };
+
+  const handleRevokeSingleStudent = (st, e) => {
+    if (e) e.stopPropagation();
+    if (!st.certificateNo) return;
+
+    setBulkConfirmConfig({
+      title: 'Revoke Certificate Number',
+      message: `Revoke TC/DC Certificate No. #${st.certificateNo} for ${st.studentName}? This will clear the certificate number and mark status as Revoked.`,
+      confirmText: 'Revoke Certificate',
+      type: 'danger',
+      consequence: 'The revoked serial remains retired in the school registry.',
+      onConfirm: () => {
+        setBulkConfirmConfig(null);
+        executeRevokeSingleStudent(st);
+      }
+    });
   };
 
   // ─── Print already-assigned certificates as often as required ───
@@ -1031,11 +1062,7 @@ export default function BulkCertificateGeneratorModal({
       setEditingStudent(null);
     } catch (error) {
       console.error('Failed to save certificate fields:', error);
-      if (typeof showToast === 'function') {
-        showToast(`Failed to save fields: ${error.message}`, 'error');
-      } else {
-        alert(`Failed to save fields: ${error.message}`);
-      }
+      showToast(`Failed to save fields: ${error.message}`, 'error');
     } finally {
       setIsSavingFields(false);
     }
@@ -1779,6 +1806,20 @@ export default function BulkCertificateGeneratorModal({
           </div>
         </div>
       </div>
+    )}
+
+    {bulkConfirmConfig && (
+      <ConfirmModal
+        isOpen={Boolean(bulkConfirmConfig)}
+        onClose={() => setBulkConfirmConfig(null)}
+        onConfirm={bulkConfirmConfig.onConfirm}
+        title={bulkConfirmConfig.title}
+        message={bulkConfirmConfig.message}
+        confirmText={bulkConfirmConfig.confirmText}
+        type={bulkConfirmConfig.type}
+        consequence={bulkConfirmConfig.consequence}
+        loading={isRevokingCertNo}
+      />
     )}
     </>,
     document.body

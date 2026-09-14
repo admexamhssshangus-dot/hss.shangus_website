@@ -1596,17 +1596,12 @@ export default function StudentCertificateStudioView({
   };
 
   const [isRevokingSingleCert, setIsRevokingSingleCert] = useState(false);
+  const [revokeConfirmConfig, setRevokeConfirmConfig] = useState(null);
 
-  // Revoke issued certificate number for currently active student
-  const handleRevokeStudentCertificateNumber = async () => {
+  const executeRevokeStudentCertificateNumber = async () => {
     if (!selectedStudent) return;
     const raw = selectedStudent.raw || selectedStudent;
     const currentCertNo = refNo || extractStudentCertificateNumber(raw);
-    const displayName = studentName || selectedStudent.name || 'this student';
-
-    if (!window.confirm(`Revoke TC/DC Certificate Number #${currentCertNo || ''} for ${displayName}?\n\nThe student's assignment will be cleared in Firestore. The revoked serial remains retired and will not be reused.`)) {
-      return;
-    }
 
     setIsRevokingSingleCert(true);
     try {
@@ -1634,6 +1629,25 @@ export default function StudentCertificateStudioView({
     } finally {
       setIsRevokingSingleCert(false);
     }
+  };
+
+  // Revoke issued certificate number for currently active student
+  const handleRevokeStudentCertificateNumber = () => {
+    if (!selectedStudent) return;
+    const raw = selectedStudent.raw || selectedStudent;
+    const currentCertNo = refNo || extractStudentCertificateNumber(raw);
+    const displayName = studentName || selectedStudent.name || 'this student';
+
+    setRevokeConfirmConfig({
+      title: 'Revoke Certificate Serial',
+      message: `Revoke TC/DC Certificate Number #${currentCertNo || ''} for ${displayName}? The student's assignment will be cleared in Firestore.`,
+      consequence: 'The revoked serial remains retired in the school registry and will not be re-issued.',
+      confirmText: 'Revoke Certificate',
+      onConfirm: () => {
+        setRevokeConfirmConfig(null);
+        executeRevokeStudentCertificateNumber();
+      }
+    });
   };
 
   // ─── Select Template Handler ───
@@ -6614,6 +6628,20 @@ export default function StudentCertificateStudioView({
         type="danger"
         loading={isDeletingTemplate}
       />
+
+      {revokeConfirmConfig && (
+        <ConfirmModal
+          isOpen={Boolean(revokeConfirmConfig)}
+          onClose={() => setRevokeConfirmConfig(null)}
+          onConfirm={revokeConfirmConfig.onConfirm}
+          title={revokeConfirmConfig.title}
+          message={revokeConfirmConfig.message}
+          confirmText={revokeConfirmConfig.confirmText}
+          type="danger"
+          consequence={revokeConfirmConfig.consequence}
+          loading={isRevokingSingleCert}
+        />
+      )}
 
     </div>
   );

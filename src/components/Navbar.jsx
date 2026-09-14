@@ -3,6 +3,7 @@ import { useLocation, useNavigate, Link } from 'react-router-dom';
 import { Phone, Mail, X, Menu, Lock, LogOut, User } from 'lucide-react';
 import { sessionManager } from '../services/sessionManager';
 import ConfirmModal from '../portal/components/ConfirmModal';
+import { showToast } from './common/GlobalToast';
 
 // 1. IMPORT YOUR LOCAL LOGO HERE 
 import schoolLogo from '../images/logo.png';
@@ -272,7 +273,7 @@ export default function Navbar() {
         }
         const finalSizeBytes = Math.round(dataUrl.length * (3 / 4));
         if (finalSizeBytes > 10 * 1024) {
-          alert('Selected photo is too large even after compression. Please choose a smaller image (max 10KB).');
+          showToast('Selected photo is too large even after compression. Please choose a smaller image (max 10KB).', 'warning');
           return;
         }
 

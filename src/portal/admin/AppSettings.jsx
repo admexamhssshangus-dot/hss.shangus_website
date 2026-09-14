@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Settings, Save, RefreshCw, CheckCircle2, Hash, RotateCcw, Trash2, ShieldCheck, AlertCircle, ListFilter } from 'lucide-react';
 import appsScriptApi from '../../services/appsScriptApi';
 import { getFormNumberConfig, saveFormNumberConfig, getNextAvailableFormNumber, getDeletedFormsHistory } from '../../services/formNumberService';
+import { showToast } from '../../components/common/GlobalToast';
 
 export default function AppSettings() {
   const [session, setSession] = useState('2025-26');
@@ -98,9 +99,10 @@ export default function AppSettings() {
       setNextPreview(previewNext);
 
       setMessage('✨ Super Admin Form Number & System Settings saved successfully!');
+      showToast('Super Admin Form Number & System Settings saved successfully!', 'success');
     } catch (err) {
       console.error('Save settings error:', err);
-      alert('Failed to save settings: ' + err.message);
+      showToast('Failed to save settings: ' + err.message, 'error');
     } finally {
       setSaving(false);
     }
@@ -113,9 +115,11 @@ export default function AppSettings() {
       const freshNext = await getNextAvailableFormNumber();
       setNextFormNumber(freshNext);
       setNextPreview(freshNext);
-      setMessage(`✅ Counter recalculated! Next assigned form number will be #${freshNext}`);
+      const msg = `Counter recalculated! Next assigned form number will be #${freshNext}`;
+      setMessage(`✅ ${msg}`);
+      showToast(msg, 'success');
     } catch (e) {
-      alert('Failed to recalculate counter.');
+      showToast('Failed to recalculate counter.', 'error');
     } finally {
       setRecalculating(false);
     }

@@ -11,6 +11,7 @@ import { compressImageFile, parsePhotoFilename, getStudentPhotoUrl } from '../..
 import ApplicationReviewModal from './ApplicationReviewModal';
 import ConfirmDialogModal from '../components/ConfirmDialogModal';
 import ConfirmModal from '../components/ConfirmModal';
+import { showToast } from '../../components/common/GlobalToast';
 import AnalyticsSuiteModal from './AnalyticsSuiteModal';
 import DeleteApplicationModal from './DeleteApplicationModal';
 import RecycleBinModal from './RecycleBinModal';
@@ -6967,11 +6968,11 @@ export default function AdvancedReports({
       if (folderUrl) {
         window.open(folderUrl, '_blank', 'noopener,noreferrer');
       } else {
-        alert('PDF backup task initialized successfully on Google Drive!');
+        showToast('PDF backup task initialized successfully on Google Drive!', 'success');
       }
     } catch (err) {
       console.error('PDF backup error:', err);
-      alert('Failed to initialize Google Drive PDF backup: ' + (err.message || 'Server error'));
+      showToast('Failed to initialize Google Drive PDF backup: ' + (err.message || 'Server error'), 'error');
     } finally {
       setIsBackingUpPdfs(false);
     }
@@ -9207,7 +9208,7 @@ export default function AdvancedReports({
   const handleRunAssignDates = async () => {
     setToolExecuting(true);
     try {
-      alert(`Bulk assigned ${assignDateField === 'admDate' ? 'Admission Date' : 'Online Submission Date'} (${assignDateValue}) to ${filteredStudents.length} selected student records!`);
+      showToast(`Bulk assigned ${assignDateField === 'admDate' ? 'Admission Date' : 'Online Submission Date'} (${assignDateValue}) to ${filteredStudents.length} selected student records!`, 'success');
     } finally {
       setToolExecuting(false);
     }
@@ -9559,15 +9560,7 @@ export default function AdvancedReports({
     setPhotoMatchResults(matches);
   };
 
-  const handleRunBatchPhotoSync = async () => {
-    const matchedItems = photoMatchResults.filter(m => m.matchedStudent);
-    if (!matchedItems.length) {
-      alert('No matched student records found in the selected files.');
-      return;
-    }
-
-    if (!window.confirm(`Sync & compress photos for ${matchedItems.length} matched student records in School Database?`)) return;
-
+  const executeBatchPhotoSync = async (matchedItems) => {
     setBatchSyncingPhotos(true);
     let successCount = 0;
 
@@ -9607,26 +9600,38 @@ export default function AdvancedReports({
         successCount++;
       }
 
-      alert(`Successfully compressed & synced ${successCount} student photos to Firebase School Database!`);
+      showToast(`Successfully compressed & synced ${successCount} student photos to Firebase School Database!`, 'success');
       loadReportsData();
       setPhotoBatchFiles([]);
       setPhotoMatchResults([]);
     } catch (err) {
       console.error('Batch photo sync error:', err);
-      alert('Error during batch photo sync.');
+      showToast('Error during batch photo sync.', 'error');
     } finally {
       setBatchSyncingPhotos(false);
     }
   };
 
-  const handleRunPhotoReconciliation = async () => {
-    if (!allStudents || allStudents.length === 0) {
-      alert('No student records loaded to reconcile.');
+  const handleRunBatchPhotoSync = () => {
+    const matchedItems = photoMatchResults.filter(m => m.matchedStudent);
+    if (!matchedItems.length) {
+      showToast('No matched student records found in the selected files.', 'warning');
       return;
     }
 
-    if (!window.confirm(`Run Photo Database Reconciliation for all ${allStudents.length} student records?\n\nThis will:\n1. Match records against processed studentPhotos in Firebase\n2. Overwrite stale raw uploads with official passport photos\n3. Purge deprecated Google Drive URLs & redundant fields\n4. Synchronize 100% to Cloud Firestore`)) return;
+    setConfirmModalConfig({
+      title: 'Batch Sync & Compress Photos',
+      message: `Sync & compress photos for ${matchedItems.length} matched student records in School Database?`,
+      type: 'info',
+      confirmText: 'Sync Photos',
+      onConfirm: () => {
+        setConfirmModalConfig(null);
+        executeBatchPhotoSync(matchedItems);
+      }
+    });
+  };
 
+  const executePhotoReconciliation = async () => {
     setReconcilingPhotos(true);
     setReconcileProgress({ active: true, current: 0, total: allStudents.length, percent: 0, stats: null });
 
@@ -9644,24 +9649,42 @@ export default function AdvancedReports({
         }
       });
 
-      alert(`✅ Photo Database Reconciliation Completed Successfully!\n\n• Total Scanned: ${stats.totalScanned}\n• Processed Photos Matched: ${stats.matchedCount}\n• Records Updated in Firestore: ${stats.updatedCount}\n• Already Clean: ${stats.alreadyCleanCount}\n• No Photos Found: ${stats.noPhotoCount}`);
+      showToast(`Photo Database Reconciliation Completed! Total: ${stats.totalScanned}, Matched: ${stats.matchedCount}, Updated: ${stats.updatedCount}`, 'success');
       
       logAdminActivity('Photo Database Reconciled', `Reconciled ${stats.totalScanned} student records. Updated ${stats.updatedCount} records to official passport photos from studentPhotos.`);
       
       loadReportsData();
     } catch (err) {
       console.error('Photo reconciliation error:', err);
-      alert(`Error during photo reconciliation: ${err.message}`);
+      showToast(`Error during photo reconciliation: ${err.message}`, 'error');
     } finally {
       setReconcilingPhotos(false);
       setReconcileProgress(prev => ({ ...prev, active: false }));
     }
   };
 
+  const handleRunPhotoReconciliation = () => {
+    if (!allStudents || allStudents.length === 0) {
+      showToast('No student records loaded to reconcile.', 'warning');
+      return;
+    }
+
+    setConfirmModalConfig({
+      title: 'Photo Database Reconciliation',
+      message: `Run Photo Database Reconciliation for all ${allStudents.length} student records? This will match records against processed studentPhotos, overwrite stale uploads with official passport photos, and sync to Cloud Firestore.`,
+      type: 'warning',
+      confirmText: 'Start Reconciliation',
+      onConfirm: () => {
+        setConfirmModalConfig(null);
+        executePhotoReconciliation();
+      }
+    });
+  };
+
   const handleDownloadMissingPhotosReport = () => {
     const missing = filteredStudents.filter(s => !s.photoId || s.photoId === '—' || s.photoId === '');
     if (!missing.length) {
-      alert('Great news! All students in the current filtered view already have photos.');
+      showToast('Great news! All students in the current filtered view already have photos.', 'info');
       return;
     }
 
@@ -9824,7 +9847,7 @@ export default function AdvancedReports({
     }
 
     if (!targetList || targetList.length === 0) {
-      alert('No student photos found matching the selected export parameters.');
+      showToast('No student photos found matching the selected export parameters.', 'warning');
       return;
     }
 
@@ -9979,7 +10002,7 @@ export default function AdvancedReports({
       setTimeout(() => setToast(null), 6000);
     } catch (err) {
       console.error('ZIP Export error:', err);
-      alert('Photo export failed: ' + err.message);
+      showToast('Photo export failed: ' + err.message, 'error');
     } finally {
       setPhotoExporting(false);
       setPhotoExportProgress({ active: false, current: 0, total: 0, percent: 0, currentName: '', successCount: 0, skippedCount: 0 });
