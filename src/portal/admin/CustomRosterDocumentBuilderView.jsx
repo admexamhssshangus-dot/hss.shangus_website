@@ -9,7 +9,7 @@
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import {
   Printer, FileText, FileSpreadsheet, Download, Plus, Minus, Trash2,
-  Sliders, CheckSquare, Square, Eye, Layers, Sparkles,
+  Sliders, SlidersHorizontal, CheckSquare, Square, Eye, Layers, Sparkles,
   Settings2, RefreshCw, X, UserCheck, BookOpen, User,
   ChevronDown, ChevronUp, ArrowLeft, ArrowRight, GripVertical,
   ArrowUpDown, ArrowUp, ArrowDown, Edit3, Save, RotateCcw, Check, Bookmark, Award,
@@ -1710,6 +1710,517 @@ function CohortCheckboxDropdown({
   );
 }
 
+// ─── Reusable Multi-Category Grouped Checkbox Dropdown for Cohort Filters ───
+function GroupedCohortCheckboxDropdown({
+  label,
+  groups = [], // [{ id, title, pluralLabel, options, selected, onChange, totalCount, searchable }]
+  align = 'left'
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchTerms, setSearchTerms] = useState({});
+  const dropdownRef = useRef(null);
+
+  // Close when clicking outside or pressing Escape
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleMousedown = (e) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        setIsOpen(false);
+      }
+    };
+    const handleKeydown = (e) => {
+      if (e.key === 'Escape') setIsOpen(false);
+    };
+    document.addEventListener('mousedown', handleMousedown);
+    document.addEventListener('keydown', handleKeydown);
+    return () => {
+      document.removeEventListener('mousedown', handleMousedown);
+      document.removeEventListener('keydown', handleKeydown);
+    };
+  }, [isOpen]);
+
+  // Normalize options for each group
+  const normalizedGroups = useMemo(() => {
+    return groups.map(grp => {
+      const normOpts = (grp.options || []).map(opt => {
+        if (typeof opt === 'string') {
+          return { value: opt, label: opt, count: null };
+        }
+        return {
+          value: opt.value,
+          label: opt.label || opt.value,
+          count: opt.count !== undefined ? opt.count : null
+        };
+      });
+      return {
+        ...grp,
+        normalizedOptions: normOpts
+      };
+    });
+  }, [groups]);
+
+  // Check if any group has active filters
+  const isFiltered = useMemo(() => {
+    return normalizedGroups.some(g => (g.selected || []).length > 0);
+  }, [normalizedGroups]);
+
+  // Total count of selected items across all groups
+  const totalSelectedCount = useMemo(() => {
+    return normalizedGroups.reduce((acc, g) => acc + (g.selected || []).length, 0);
+  }, [normalizedGroups]);
+
+  // Summary display text for trigger button
+  const displayText = useMemo(() => {
+    if (!isFiltered) {
+      return `All ${label}`;
+    }
+
+    const parts = [];
+    normalizedGroups.forEach(grp => {
+      const sel = grp.selected || [];
+      if (sel.length === 1) {
+        const match = grp.normalizedOptions.find(o => o.value === sel[0]);
+        parts.push(match ? (match.label || match.value) : sel[0]);
+      } else if (sel.length > 1) {
+        parts.push(`${sel.length} ${grp.pluralLabel || grp.title}`);
+      }
+    });
+
+    const joined = parts.join(' • ');
+    if (joined.length > 20) {
+      return parts[0] ? `${parts[0]} (+${totalSelectedCount - 1})` : `${totalSelectedCount} active`;
+    }
+    return joined || `${totalSelectedCount} active`;
+  }, [isFiltered, normalizedGroups, label, totalSelectedCount]);
+
+  const toggleOption = (grp, val) => {
+    const sel = grp.selected || [];
+    let next;
+    if (sel.length === 0) {
+      next = [val];
+    } else if (sel.includes(val)) {
+      next = sel.filter(v => v !== val);
+    } else {
+      next = [...sel, val];
+      if (next.length >= grp.normalizedOptions.length && grp.normalizedOptions.length > 0) {
+        next = [];
+      }
+    }
+    grp.onChange(next);
+  };
+
+  const handleSelectAllGroup = (grp) => {
+    grp.onChange([]);
+  };
+
+  const handleResetAll = () => {
+    normalizedGroups.forEach(grp => grp.onChange([]));
+  };
+
+  return (
+    <div className="relative w-full text-left" ref={dropdownRef}>
+      <button
+        type="button"
+        onClick={() => setIsOpen(prev => !prev)}
+        className={`w-full px-1.5 py-1 rounded-lg border font-extrabold text-[10px] flex items-center justify-between gap-1 shadow-2xs transition-colors cursor-pointer text-left ${
+          isFiltered
+            ? 'bg-amber-500/10 border-amber-500 text-amber-800 dark:text-amber-300'
+            : 'bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 hover:border-slate-400'
+        }`}
+        title={displayText}
+      >
+        <span className="truncate flex-1 min-w-0">{displayText}</span>
+        {totalSelectedCount > 0 && (
+          <span className="shrink-0 px-1 py-0.2 rounded-full text-[8.5px] font-black bg-amber-600 text-white leading-tight">
+            {totalSelectedCount}
+          </span>
+        )}
+        <ChevronDown size={11} className={`shrink-0 transition-transform duration-200 opacity-60 ${isOpen ? 'rotate-180' : ''}`} />
+      </button>
+
+      {isOpen && (
+        <div
+          className={`absolute ${align === 'right' ? 'right-0' : 'left-0'} mt-1 w-64 sm:w-72 max-w-[calc(100vw-24px)] rounded-xl border border-slate-300 dark:border-slate-700 shadow-2xl z-[9999] p-1.5 space-y-2 animate-fadeIn bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 max-h-80 overflow-y-auto`}
+        >
+          {/* Main Popover Header */}
+          <div className="flex items-center justify-between px-1 py-0.5 border-b border-slate-200 dark:border-slate-800 text-[9px] font-black uppercase text-slate-500">
+            <span className="truncate font-extrabold text-slate-700 dark:text-slate-300">{label} Filter</span>
+            {isFiltered && (
+              <button
+                type="button"
+                onClick={handleResetAll}
+                className="px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-950/60 hover:bg-amber-200 text-amber-800 dark:text-amber-300 font-bold text-[8.5px] cursor-pointer transition-colors"
+                title="Reset all filters in this group"
+              >
+                Reset All
+              </button>
+            )}
+          </div>
+
+          {/* Group Sections */}
+          {normalizedGroups.map((grp, gIdx) => {
+            const sel = grp.selected || [];
+            const isGroupAll = sel.length === 0;
+            const term = (searchTerms[grp.id] || '').toLowerCase().trim();
+            const filteredOpts = term
+              ? grp.normalizedOptions.filter(o => o.label.toLowerCase().includes(term) || o.value.toLowerCase().includes(term))
+              : grp.normalizedOptions;
+
+            return (
+              <div key={grp.id || gIdx} className={`space-y-1 ${gIdx > 0 ? 'pt-1.5 border-t border-slate-200 dark:border-slate-800' : ''}`}>
+                {/* Section Header */}
+                <div className="flex items-center justify-between px-1 text-[8.5px] font-black uppercase text-slate-400">
+                  <span className="flex items-center gap-1">
+                    <span className="text-slate-600 dark:text-slate-300 font-extrabold">{grp.title}</span>
+                    {sel.length > 0 && (
+                      <span className="px-1 rounded bg-amber-500/20 text-amber-700 dark:text-amber-300 font-bold">
+                        {sel.length} active
+                      </span>
+                    )}
+                  </span>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => handleSelectAllGroup(grp)}
+                      className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-[8px] cursor-pointer transition-colors"
+                    >
+                      All
+                    </button>
+                    {sel.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => grp.onChange([])}
+                        className="px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-950/60 hover:bg-amber-200 text-amber-800 dark:text-amber-300 font-bold text-[8px] cursor-pointer transition-colors"
+                      >
+                        Reset
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Optional Search */}
+                {grp.searchable && (
+                  <div className="relative px-0.5">
+                    <input
+                      type="text"
+                      value={searchTerms[grp.id] || ''}
+                      onChange={(e) => setSearchTerms(prev => ({ ...prev, [grp.id]: e.target.value }))}
+                      placeholder={`Search ${grp.title.toLowerCase()}...`}
+                      className="w-full px-2 py-0.5 pl-6 rounded-md border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-[9.5px] font-bold text-slate-900 dark:text-slate-100 focus:outline-hidden"
+                    />
+                    <Search size={9} className="absolute left-2 top-1.5 text-slate-400" />
+                  </div>
+                )}
+
+                {/* Options List */}
+                <div className="max-h-36 overflow-y-auto space-y-0.5 pr-0.5">
+                  {/* All option */}
+                  {!term && (
+                    <button
+                      type="button"
+                      onClick={() => handleSelectAllGroup(grp)}
+                      className={`w-full flex items-center justify-between gap-1.5 px-1.5 py-0.5 rounded-md text-[9.5px] font-bold text-left cursor-pointer transition-colors ${
+                        isGroupAll
+                          ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-900 dark:text-indigo-200'
+                          : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'
+                      }`}
+                    >
+                      <span className="flex items-center gap-1.5 min-w-0">
+                        {isGroupAll ? (
+                          <CheckSquare size={12} className="text-indigo-600 dark:text-indigo-400 shrink-0" />
+                        ) : (
+                          <Square size={12} className="text-slate-400 shrink-0" />
+                        )}
+                        <span className="truncate">All {grp.pluralLabel || `${grp.title}s`}</span>
+                      </span>
+                      {grp.totalCount !== undefined && (
+                        <span className="text-[8.5px] font-mono font-bold text-slate-400 shrink-0">
+                          ({grp.totalCount})
+                        </span>
+                      )}
+                    </button>
+                  )}
+
+                  {filteredOpts.length === 0 ? (
+                    <div className="py-1 text-center text-slate-400 text-[8.5px]">No options</div>
+                  ) : (
+                    filteredOpts.map((opt) => {
+                      const checked = sel.includes(opt.value);
+                      return (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          onClick={() => toggleOption(grp, opt.value)}
+                          className={`w-full flex items-center justify-between gap-1.5 px-1.5 py-0.5 rounded-md text-[9.5px] font-medium text-left cursor-pointer transition-colors ${
+                            checked
+                              ? 'bg-amber-50 dark:bg-amber-950/60 text-amber-950 dark:text-amber-200 font-bold'
+                              : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200'
+                          }`}
+                        >
+                          <span className="flex items-center gap-1.5 min-w-0">
+                            {checked ? (
+                              <CheckSquare size={12} className="text-amber-600 dark:text-amber-400 shrink-0" />
+                            ) : (
+                              <Square size={12} className="text-slate-400 shrink-0" />
+                            )}
+                            <span className="truncate">{opt.label}</span>
+                          </span>
+                          {opt.count !== null && (
+                            <span className="text-[8.5px] font-mono text-slate-400 shrink-0">
+                              ({opt.count})
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Reusable Compact Export Dropdown for Excel & Word ───
+function RosterExportDropdown({
+  onExportExcel,
+  onExportDocx,
+  disabled = false,
+  isExporting = false
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleMousedown = (e) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        setIsOpen(false);
+      }
+    };
+    const handleKeydown = (e) => {
+      if (e.key === 'Escape') setIsOpen(false);
+    };
+    document.addEventListener('mousedown', handleMousedown);
+    document.addEventListener('keydown', handleKeydown);
+    return () => {
+      document.removeEventListener('mousedown', handleMousedown);
+      document.removeEventListener('keydown', handleKeydown);
+    };
+  }, [isOpen]);
+
+  return (
+    <div className="relative inline-block text-left shrink-0" ref={dropdownRef}>
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => setIsOpen(prev => !prev)}
+        className="px-2.5 py-1 rounded-lg bg-emerald-700 hover:bg-emerald-600 active:bg-emerald-800 text-white font-extrabold text-[10px] sm:text-[10.5px] flex items-center gap-1 shadow-2xs cursor-pointer disabled:opacity-50 transition-all shrink-0"
+        title="Export options: Excel (.xlsx) or Word (.docx)"
+      >
+        <Download size={11} className="shrink-0" />
+        <span>Export</span>
+        <ChevronDown size={10} className={`shrink-0 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+      </button>
+
+      {isOpen && (
+        <div className="absolute right-0 mt-1 w-44 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xl p-1 z-[9999] animate-fadeIn text-slate-800 dark:text-slate-200 space-y-0.5">
+          <button
+            type="button"
+            onClick={() => {
+              setIsOpen(false);
+              onExportExcel();
+            }}
+            className="w-full px-2.5 py-1.5 rounded-lg text-left text-[10.5px] font-bold flex items-center gap-2 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 text-slate-800 dark:text-slate-200 hover:text-emerald-700 dark:hover:text-emerald-300 transition-colors cursor-pointer"
+          >
+            <FileSpreadsheet size={13} className="text-emerald-600 shrink-0" />
+            <div className="flex flex-col min-w-0">
+              <span className="font-black">Excel (.xlsx)</span>
+              <span className="text-[8.5px] text-slate-500 font-normal">Spreadsheet data</span>
+            </div>
+          </button>
+
+          <button
+            type="button"
+            disabled={isExporting}
+            onClick={() => {
+              setIsOpen(false);
+              onExportDocx();
+            }}
+            className="w-full px-2.5 py-1.5 rounded-lg text-left text-[10.5px] font-bold flex items-center gap-2 hover:bg-blue-50 dark:hover:bg-blue-950/40 text-slate-800 dark:text-slate-200 hover:text-blue-700 dark:hover:text-blue-300 transition-colors cursor-pointer disabled:opacity-50"
+          >
+            {isExporting ? <RefreshCw size={13} className="animate-spin text-blue-600 shrink-0" /> : <FileText size={13} className="text-blue-600 shrink-0" />}
+            <div className="flex flex-col min-w-0">
+              <span className="font-black">Word (.docx)</span>
+              <span className="text-[8.5px] text-slate-500 font-normal">Printable document</span>
+            </div>
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Reusable Layout & Page Setup Popover for Mobile/Compact Viewports ───
+function RosterPageSetupDropdown({
+  layoutMode,
+  onLayoutModeChange,
+  orientation,
+  onOrientationChange,
+  selectedRowHeightIdx,
+  onRowHeightChange,
+  rowHeightPresets = ROW_HEIGHT_PRESETS
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const popoverRef = useRef(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleMousedown = (e) => {
+      if (popoverRef.current && !popoverRef.current.contains(e.target)) {
+        setIsOpen(false);
+      }
+    };
+    const handleKeydown = (e) => {
+      if (e.key === 'Escape') setIsOpen(false);
+    };
+    document.addEventListener('mousedown', handleMousedown);
+    document.addEventListener('keydown', handleKeydown);
+    return () => {
+      document.removeEventListener('mousedown', handleMousedown);
+      document.removeEventListener('keydown', handleKeydown);
+    };
+  }, [isOpen]);
+
+  const currentPreset = rowHeightPresets[selectedRowHeightIdx] || rowHeightPresets[1];
+
+  return (
+    <div className="relative inline-block text-left shrink-0" ref={popoverRef}>
+      <button
+        type="button"
+        onClick={() => setIsOpen(prev => !prev)}
+        className={`px-2 py-1 rounded-lg border font-extrabold text-[10px] flex items-center gap-1 shadow-2xs transition-all cursor-pointer ${
+          isOpen
+            ? 'bg-indigo-600 text-white border-indigo-700'
+            : 'bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 hover:border-slate-400'
+        }`}
+        title="Document Layout, Orientation & Row Height Setup"
+      >
+        <SlidersHorizontal size={11} className="shrink-0 text-indigo-500" />
+        <span>Layout</span>
+        <span className="px-1 py-0.2 rounded text-[8.5px] font-black bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+          {layoutMode === 'standard' ? 'Std' : '2-Col'} • {orientation === 'portrait' ? 'P' : 'L'} • {currentPreset?.px}px
+        </span>
+        <ChevronDown size={10} className={`shrink-0 transition-transform duration-200 opacity-60 ${isOpen ? 'rotate-180' : ''}`} />
+      </button>
+
+      {isOpen && (
+        <div className="absolute left-0 mt-1 w-64 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl p-2 z-[9999] animate-fadeIn text-slate-900 dark:text-slate-100 space-y-2">
+          {/* Popover Header */}
+          <div className="flex items-center justify-between pb-1 border-b border-slate-200 dark:border-slate-800 text-[9px] font-black uppercase tracking-wider text-slate-500">
+            <span className="flex items-center gap-1 text-indigo-600 dark:text-indigo-400">
+              <SlidersHorizontal size={11} />
+              <span>Layout & Page Setup</span>
+            </span>
+            <button
+              type="button"
+              onClick={() => setIsOpen(false)}
+              className="text-slate-400 hover:text-slate-600 cursor-pointer"
+            >
+              <X size={12} />
+            </button>
+          </div>
+
+          {/* 1. Table Layout Mode */}
+          <div className="space-y-1">
+            <label className="block text-[8px] font-black uppercase text-slate-400">Table Structure</label>
+            <div className="grid grid-cols-2 gap-1 text-[9px] font-black">
+              <button
+                type="button"
+                onClick={() => onLayoutModeChange('standard')}
+                className={`px-1.5 py-1 rounded-lg border text-left flex items-center gap-1 cursor-pointer transition-all ${
+                  layoutMode === 'standard'
+                    ? 'bg-indigo-600 text-white border-indigo-700 shadow-2xs'
+                    : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:border-slate-400'
+                }`}
+              >
+                <Columns size={10} />
+                <span>Standard</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => onLayoutModeChange('two_column_attendance')}
+                className={`px-1.5 py-1 rounded-lg border text-left flex items-center gap-1 cursor-pointer transition-all ${
+                  layoutMode === 'two_column_attendance'
+                    ? 'bg-amber-600 text-white border-amber-700 shadow-2xs'
+                    : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:border-slate-400'
+                }`}
+              >
+                <ClipboardList size={10} />
+                <span>2-Col Attend</span>
+              </button>
+            </div>
+          </div>
+
+          {/* 2. Orientation */}
+          <div className="space-y-1">
+            <label className="block text-[8px] font-black uppercase text-slate-400">Orientation</label>
+            <div className="grid grid-cols-2 gap-1 text-[9px] font-black">
+              <button
+                type="button"
+                onClick={() => onOrientationChange('portrait')}
+                className={`px-1.5 py-1 rounded-lg border text-center cursor-pointer transition-all ${
+                  orientation === 'portrait'
+                    ? 'bg-indigo-600 text-white border-indigo-700 shadow-2xs'
+                    : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:border-slate-400'
+                }`}
+              >
+                Portrait
+              </button>
+              <button
+                type="button"
+                onClick={() => onOrientationChange('landscape')}
+                className={`px-1.5 py-1 rounded-lg border text-center cursor-pointer transition-all ${
+                  orientation === 'landscape'
+                    ? 'bg-indigo-600 text-white border-indigo-700 shadow-2xs'
+                    : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:border-slate-400'
+                }`}
+              >
+                Landscape
+              </button>
+            </div>
+          </div>
+
+          {/* 3. Row Height */}
+          <div className="space-y-1">
+            <label className="block text-[8px] font-black uppercase text-slate-400">Row Height</label>
+            <div className="grid grid-cols-2 gap-1 text-[8.5px]">
+              {rowHeightPresets.map((p, idx) => (
+                <button
+                  key={p.label}
+                  type="button"
+                  onClick={() => onRowHeightChange(idx)}
+                  className={`px-1.5 py-1 rounded-lg border text-left transition-all cursor-pointer ${
+                    selectedRowHeightIdx === idx
+                      ? 'bg-indigo-600 text-white border-indigo-700 shadow-2xs font-extrabold'
+                      : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:border-slate-400 font-bold'
+                  }`}
+                >
+                  <div>{p.label.split(' ')[0]} ({p.px}px)</div>
+                  <div className={`text-[7px] ${selectedRowHeightIdx === idx ? 'text-indigo-100' : 'text-slate-400'}`}>{p.desc}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function CustomRosterDocumentBuilderView({
   allStudents = [],
   onClose,
@@ -2940,12 +3451,12 @@ export default function CustomRosterDocumentBuilderView({
       
       {/* ── SLEEK CONTROL BAR WITH EXPORT ACTIONS & DOCUMENT SETTINGS ── */}
       <div 
-        className="px-1.5 py-1 rounded-xl border shadow-2xs space-y-1 sm:space-y-0 sm:flex sm:items-center sm:justify-between sm:gap-1.5 text-xs font-extrabold"
+        className="px-1.5 sm:px-2 py-1.5 rounded-xl border shadow-2xs space-y-1.5 md:space-y-0 md:flex md:items-center md:justify-between md:gap-2 text-xs font-extrabold"
         style={{ backgroundColor: 'var(--bg-card, #ffffff)', borderColor: 'var(--border-ui, #cbd5e1)' }}
       >
-        {/* Left Side: Document Title & Quick Config */}
-        <div className="flex items-center gap-1.5 flex-1 min-w-0 flex-wrap">
-          <div className="flex-1 min-w-[180px] max-w-[340px]">
+        {/* Left Side: Document Title & Desktop Inline Config */}
+        <div className="flex items-center gap-1.5 flex-1 min-w-0">
+          <div className="w-full md:w-auto flex-1 md:min-w-[180px] md:max-w-[320px]">
             <input
               type="text"
               value={docTitle}
@@ -2955,110 +3466,115 @@ export default function CustomRosterDocumentBuilderView({
             />
           </div>
 
-          {/* Layout Structure Toggle (Standard Table vs 2-Column Attendance Sheet) */}
-          <div className="inline-flex rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 p-0.5 text-[9.5px] font-black">
-            <button
-              type="button"
-              onClick={() => handleLayoutModeChange('standard')}
-              className={`px-2 py-0.5 rounded cursor-pointer transition-all flex items-center gap-1 ${
-                layoutMode === 'standard'
-                  ? 'bg-indigo-600 text-white shadow-2xs'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-              }`}
-              title="Standard multi-column cohort roster"
-            >
-              <Columns size={10} />
-              <span>Standard</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => handleLayoutModeChange('two_column_attendance')}
-              className={`px-2 py-0.5 rounded cursor-pointer transition-all flex items-center gap-1 ${
-                layoutMode === 'two_column_attendance'
-                  ? 'bg-amber-600 text-white shadow-2xs'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-              }`}
-              title="Official two-column examination daily attendance sheet"
-            >
-              <ClipboardList size={10} />
-              <span>2-Col Attendance</span>
-            </button>
-          </div>
+          {/* Desktop inline toggles (visible on md+) */}
+          <div className="hidden md:flex items-center gap-1.5 shrink-0">
+            {/* Layout Structure Toggle */}
+            <div className="inline-flex rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 p-0.5 text-[9.5px] font-black">
+              <button
+                type="button"
+                onClick={() => handleLayoutModeChange('standard')}
+                className={`px-2 py-0.5 rounded cursor-pointer transition-all flex items-center gap-1 ${
+                  layoutMode === 'standard'
+                    ? 'bg-indigo-600 text-white shadow-2xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+                title="Standard multi-column cohort roster"
+              >
+                <Columns size={10} />
+                <span>Standard</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleLayoutModeChange('two_column_attendance')}
+                className={`px-2 py-0.5 rounded cursor-pointer transition-all flex items-center gap-1 ${
+                  layoutMode === 'two_column_attendance'
+                    ? 'bg-amber-600 text-white shadow-2xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+                title="Official two-column examination daily attendance sheet"
+              >
+                <ClipboardList size={10} />
+                <span>2-Col Attendance</span>
+              </button>
+            </div>
 
-          {/* Orientation Toggle */}
-          <div className="inline-flex rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 p-0.5 text-[9.5px] font-black">
-            <button
-              type="button"
-              onClick={() => setOrientation('portrait')}
-              className={`px-2 py-0.5 rounded cursor-pointer transition-all ${
-                orientation === 'portrait'
-                  ? 'bg-indigo-600 text-white shadow-2xs'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-              }`}
-            >
-              Portrait
-            </button>
-            <button
-              type="button"
-              onClick={() => setOrientation('landscape')}
-              className={`px-2 py-0.5 rounded cursor-pointer transition-all ${
-                orientation === 'landscape'
-                  ? 'bg-indigo-600 text-white shadow-2xs'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-              }`}
-            >
-              Landscape
-            </button>
-          </div>
+            {/* Orientation Toggle */}
+            <div className="inline-flex rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 p-0.5 text-[9.5px] font-black">
+              <button
+                type="button"
+                onClick={() => setOrientation('portrait')}
+                className={`px-2 py-0.5 rounded cursor-pointer transition-all ${
+                  orientation === 'portrait'
+                    ? 'bg-indigo-600 text-white shadow-2xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                Portrait
+              </button>
+              <button
+                type="button"
+                onClick={() => setOrientation('landscape')}
+                className={`px-2 py-0.5 rounded cursor-pointer transition-all ${
+                  orientation === 'landscape'
+                    ? 'bg-indigo-600 text-white shadow-2xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                Landscape
+              </button>
+            </div>
 
-          {/* Row Height Preset */}
-          <select
-            value={selectedRowHeightIdx}
-            onChange={(e) => setSelectedRowHeightIdx(Number(e.target.value))}
-            className="px-2 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-extrabold text-[10px] text-slate-800 dark:text-slate-200"
-          >
-            {ROW_HEIGHT_PRESETS.map((p, idx) => (
-              <option key={p.label} value={idx}>
-                {p.label}
-              </option>
-            ))}
-          </select>
+            {/* Row Height Preset */}
+            <select
+              value={selectedRowHeightIdx}
+              onChange={(e) => setSelectedRowHeightIdx(Number(e.target.value))}
+              className="px-2 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-extrabold text-[10px] text-slate-800 dark:text-slate-200"
+            >
+              {ROW_HEIGHT_PRESETS.map((p, idx) => (
+                <option key={p.label} value={idx}>
+                  {p.label}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
 
-        {/* Right Side: Export Action Buttons */}
-        <div className="flex items-center gap-1 sm:gap-1.5 flex-wrap shrink-0 justify-end">
-          <button
-            type="button"
-            onClick={handleExportExcel}
-            disabled={processedRows.length === 0}
-            className="px-2.5 py-1 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white font-extrabold text-[10.5px] flex items-center gap-1 shadow-xs cursor-pointer disabled:opacity-50 transition-all"
-            title="Export Roster table to Microsoft Excel spreadsheet"
-          >
-            <FileSpreadsheet size={12} />
-            <span>Excel (.xlsx)</span>
-          </button>
+        {/* Right Side: Actions (On mobile, includes Layout Popover + Export Dropdown + Print) */}
+        <div className="flex items-center justify-between md:justify-end gap-1.5 shrink-0">
+          {/* Mobile Layout & Page Setup Popover (visible on < md) */}
+          <div className="md:hidden">
+            <RosterPageSetupDropdown
+              layoutMode={layoutMode}
+              onLayoutModeChange={handleLayoutModeChange}
+              orientation={orientation}
+              onOrientationChange={setOrientation}
+              selectedRowHeightIdx={selectedRowHeightIdx}
+              onRowHeightChange={setSelectedRowHeightIdx}
+              rowHeightPresets={ROW_HEIGHT_PRESETS}
+            />
+          </div>
 
-          <button
-            type="button"
-            onClick={handleExportDocx}
-            disabled={processedRows.length === 0 || isExporting}
-            className="px-2.5 py-1 rounded-lg bg-blue-700 hover:bg-blue-600 text-white font-black text-[10.5px] flex items-center gap-1 shadow-xs cursor-pointer disabled:opacity-50 transition-all"
-            title="Export Roster table to Microsoft Word document"
-          >
-            {isExporting ? <RefreshCw size={11} className="animate-spin" /> : <FileText size={12} />}
-            <span>Word (.docx)</span>
-          </button>
+          <div className="flex items-center gap-1.5 ml-auto md:ml-0">
+            {/* Unified Export Dropdown (Excel & Word) */}
+            <RosterExportDropdown
+              onExportExcel={handleExportExcel}
+              onExportDocx={handleExportDocx}
+              disabled={processedRows.length === 0}
+              isExporting={isExporting}
+            />
 
-          <button
-            type="button"
-            onClick={handlePrint}
-            disabled={processedRows.length === 0}
-            className="px-3 py-1 rounded-lg bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white font-black text-[10.5px] flex items-center gap-1 shadow-md cursor-pointer disabled:opacity-50 transition-all active:scale-95"
-            title="Print Official Institutional Register / Save PDF"
-          >
-            <Printer size={12} />
-            <span>Print / PDF</span>
-          </button>
+            {/* Primary Print / PDF Button */}
+            <button
+              type="button"
+              onClick={handlePrint}
+              disabled={processedRows.length === 0}
+              className="px-2.5 sm:px-3 py-1 rounded-lg bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white font-black text-[10px] sm:text-[10.5px] flex items-center gap-1 shadow-md cursor-pointer disabled:opacity-50 transition-all active:scale-95 shrink-0"
+              title="Print Official Institutional Register / Save PDF"
+            >
+              <Printer size={12} className="shrink-0" />
+              <span>Print / PDF</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -3082,7 +3598,101 @@ export default function CustomRosterDocumentBuilderView({
               </span>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-1">
+            {/* MOBILE COMPACT FILTERS (2 rows of 2 grouped filters on < sm) */}
+            <div className="grid grid-cols-2 gap-1 sm:hidden">
+              {/* Session */}
+              <div>
+                <label className="block text-[8.5px] font-extrabold text-slate-400 uppercase tracking-tight">Session</label>
+                <CohortCheckboxDropdown
+                  label="Session"
+                  pluralLabel="Sessions"
+                  options={dynamicSessions}
+                  selected={selectedSessions}
+                  onChange={setSelectedSessions}
+                  totalCount={unifiedStudentPool.length}
+                  align="left"
+                />
+              </div>
+
+              {/* Class & Stream (Grouped) */}
+              <div>
+                <label className="block text-[8.5px] font-extrabold text-slate-400 uppercase tracking-tight">Class & Stream</label>
+                <GroupedCohortCheckboxDropdown
+                  label="Class & Stream"
+                  groups={[
+                    {
+                      id: 'class',
+                      title: 'Class',
+                      pluralLabel: 'Classes',
+                      options: dynamicClasses,
+                      selected: selectedClasses,
+                      onChange: setSelectedClasses,
+                      totalCount: sessionStudents.length
+                    },
+                    {
+                      id: 'stream',
+                      title: 'Stream',
+                      pluralLabel: 'Streams',
+                      options: dynamicStreams,
+                      selected: selectedStreams,
+                      onChange: setSelectedStreams,
+                      totalCount: sessionClassStudents.length
+                    }
+                  ]}
+                  align="right"
+                />
+              </div>
+
+              {/* Subject */}
+              <div>
+                <label className="block text-[8.5px] font-extrabold text-slate-400 uppercase tracking-tight">Subject</label>
+                <CohortCheckboxDropdown
+                  label="Subject"
+                  pluralLabel="Subjects"
+                  options={dynamicRosterSubjects}
+                  selected={selectedSubjects}
+                  onChange={handleSubjectsChange}
+                  totalCount={sessionClassStreamStudents.length}
+                  searchable={true}
+                  align="left"
+                />
+              </div>
+
+              {/* Gender & Status (Grouped) */}
+              <div>
+                <label className="block text-[8.5px] font-extrabold text-slate-400 uppercase tracking-tight">Gender & Status</label>
+                <GroupedCohortCheckboxDropdown
+                  label="Gender & Status"
+                  groups={[
+                    {
+                      id: 'gender',
+                      title: 'Gender',
+                      pluralLabel: 'Genders',
+                      options: [
+                        { value: 'M', label: 'Male (M)' },
+                        { value: 'F', label: 'Female (F)' }
+                      ],
+                      selected: selectedGenders,
+                      onChange: setSelectedGenders,
+                      totalCount: sessionClassStreamStudents.length
+                    },
+                    {
+                      id: 'status',
+                      title: 'Status',
+                      pluralLabel: 'Statuses',
+                      options: dynamicStatuses,
+                      selected: selectedStatuses,
+                      onChange: setSelectedStatuses,
+                      totalCount: sessionClassStreamStudents.length
+                    }
+                  ]}
+                  align="right"
+                />
+              </div>
+            </div>
+
+            {/* DESKTOP & TABLET FILTERS (Individual columns on sm+) */}
+            <div className="hidden sm:grid sm:grid-cols-3 lg:grid-cols-6 gap-1">
               {/* Session */}
               <div>
                 <label className="block text-[8.5px] font-extrabold text-slate-400 uppercase tracking-tight">Session</label>
