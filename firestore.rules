@@ -104,7 +104,7 @@ service cloud.firestore {
     }
     function settingsModule(documentId) {
       return documentId == 'certificateRegistry' ? 'certStudio' :
-        documentId == 'attendanceConfig' ? 'attendanceMgmt' :
+        documentId in ['attendanceConfig', 'attendanceSummary'] ? 'attendanceMgmt' :
         documentId == 'admission_register_layout' ? 'admRegisterSuite' :
         documentId == 'rosterFeeRules' ? 'customRoster' :
         documentId == 'idCardConfig' ? 'idCards' : 'controls';
