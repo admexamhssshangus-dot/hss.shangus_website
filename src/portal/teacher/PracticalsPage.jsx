@@ -1202,10 +1202,9 @@ export default function PracticalsPage() {
     : (isCustomEval && activeEvalOption?.evalConfig?.maxMarks
         ? Number(activeEvalOption.evalConfig.maxMarks)
         : currentMarksConfig.max);
-  const isBioSubj = ['BO', 'ZO'].includes(currentSubjectObj.code);
   const defaultSubjectPaperMax = customSubjOverride?.maxMarks
     ? Number(customSubjOverride.maxMarks)
-    : (isBioSubj && isCustomEval && baseEvalMax === 50 ? 25 : baseEvalMax);
+    : baseEvalMax;
   const subjectMaxMarks = Number(teacherCustomMax) > 0 ? Number(teacherCustomMax) : defaultSubjectPaperMax;
   const minPassMarks = customSubjOverride?.minMarks && !teacherCustomMax
     ? Number(customSubjOverride.minMarks)
@@ -1218,9 +1217,6 @@ export default function PracticalsPage() {
     const override = activeEvalOption?.evalConfig?.subjectOverrides?.[code];
     if (override?.maxMarks) {
       return Number(override.maxMarks);
-    }
-    if (['BO', 'ZO'].includes(code) && isCustomEval && Number(activeEvalOption?.evalConfig?.maxMarks) === 50) {
-      return 25;
     }
     if (isCustomEval && activeEvalOption?.evalConfig?.maxMarks) {
       return Number(activeEvalOption.evalConfig.maxMarks);
@@ -1260,8 +1256,8 @@ export default function PracticalsPage() {
         docItems.forEach(data => {
           const dId = data.id || data.docId || '';
 
-          // Track pending or rejected submission for this exact class, subject, evalType, session
-          if (dId === pendingDocId || (data.canonicalDocId === docId && (data.status === 'pending_approval' || data.status === 'rejected'))) {
+          // Track pending, draft or rejected submission for this exact class, subject, evalType, session
+          if (dId === pendingDocId || (data.canonicalDocId === docId && (data.status === 'pending_approval' || data.status === 'rejected' || data.status === 'draft' || data.isDraft === true))) {
             foundPending = { id: dId, ...data };
           }
           // Track canonical integrated submission
@@ -1362,6 +1358,38 @@ export default function PracticalsPage() {
             }
           });
         });
+
+        // Ensure pending / draft document records always take priority over older canonical records
+        if (foundPending && Array.isArray(foundPending.records)) {
+          foundPending.records.forEach(r => {
+            const rRoll = String(r.rollNo || r.classRollNo || '').trim();
+            const rBoard = String(r.boardRollNo || r.boardRoll || '').trim();
+            const rForm = String(r.formNo || '').trim();
+            const rName = String(r.name || r.studentName || '').toLowerCase().trim();
+
+            const recObj = {
+              rollNo: rRoll || rBoard,
+              classRollNo: rRoll || rBoard,
+              boardRoll: rBoard,
+              boardRollNo: rBoard,
+              name: r.name || r.studentName,
+              studentName: r.name || r.studentName,
+              parentName: r.parentName || '',
+              formNo: rForm || rRoll,
+              practicalMarks: r.practicalMarks !== undefined && r.practicalMarks !== null ? r.practicalMarks : '',
+              vivaMarks: r.vivaMarks || '',
+              totalMarks: r.totalMarks !== undefined && r.totalMarks !== null ? r.totalMarks : (r.practicalMarks || '')
+            };
+
+            if (rRoll) savedMarksMap[rRoll] = recObj;
+            if (rBoard) savedMarksMap[rBoard] = recObj;
+            if (rForm) savedMarksMap[rForm] = recObj;
+            if (rName) savedMarksMap[rName] = recObj;
+          });
+          if (foundPending.maxMarks && Number(foundPending.maxMarks) > 0) {
+            setTeacherCustomMax(Number(foundPending.maxMarks));
+          }
+        }
 
         // Set existing award info for UI indicators & safe overwrite workflow
         setExistingAwardInfo({
@@ -1736,6 +1764,9 @@ export default function PracticalsPage() {
                         {};
           const draft = draftMap[key] || {};
 
+          const pMarkVal = draft.practicalMarks !== undefined ? draft.practicalMarks : (saved.practicalMarks !== undefined ? saved.practicalMarks : '');
+          const vMarkVal = draft.vivaMarks !== undefined ? draft.vivaMarks : (saved.vivaMarks !== undefined ? saved.vivaMarks : '');
+
           return {
             rollNo: roll,
             name: name,
@@ -1746,12 +1777,17 @@ export default function PracticalsPage() {
               ? st.formNo
               : (st['Form No.'] || st['Form No'] || st['Form Number'] || st.form_no || ''),
             regNo: getRegNo(st) || st.regNo || '',
-            practicalMarks: draft.practicalMarks ?? saved.practicalMarks ?? '',
-            vivaMarks: draft.vivaMarks ?? saved.vivaMarks ?? '',
+            practicalMarks: pMarkVal,
+            vivaMarks: vMarkVal,
           };
         });
 
-      setDraftSavedAt(localDraftSavedTime || null);
+      if (foundPending?.isDraft === true || foundPending?.status === 'draft') {
+        const cloudDraftTime = new Date(foundPending.updatedAt || foundPending.submittedAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        setDraftSavedAt(cloudDraftTime);
+      } else {
+        setDraftSavedAt(localDraftSavedTime || null);
+      }
       setStudentMarks(formatted);
       setSelectedKeys(new Set());
     } catch (err) {
@@ -1825,12 +1861,14 @@ export default function PracticalsPage() {
     });
   };
 
-  // 1. Save Evaluation Draft (LocalStorage + State)
-  const handleSaveDraft = () => {
+  // 1. Save Evaluation Draft (Cloud Database + LocalStorage fallback)
+  const handleSaveDraft = async () => {
     if (!studentMarks || studentMarks.length === 0) {
       setAlert({ type: 'error', text: 'No student roster available to save as draft.' });
       return;
     }
+    setSaving(true);
+    setAlert(null);
     try {
       const clsNormKey = String(selectedClass).replace(/class/i, '').trim();
       const draftKey = `draft_prac_${clsNormKey}_${selectedSubject}_${practicalType}_${yearSuffix}`;
@@ -1844,7 +1882,7 @@ export default function PracticalsPage() {
       });
 
       const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      const draftPayload = {
+      const draftPayloadLocal = {
         className: selectedClass,
         subject: selectedSubject,
         practicalType,
@@ -1852,15 +1890,91 @@ export default function PracticalsPage() {
         savedAt: timeStr,
         marksMap
       };
-      localStorage.setItem(draftKey, JSON.stringify(draftPayload));
+      try {
+        localStorage.setItem(draftKey, JSON.stringify(draftPayloadLocal));
+      } catch (_) {}
+
+      // Write draft to Firestore database: only students with marks or absent are stored with values;
+      // for other students, marks obtained will be empty string.
+      const docId = formatPracticalDocId(selectedClass, selectedSubject, practicalType, yearSuffix);
+      const pendingDocId = `pending_${docId}`;
+
+      const records = studentMarks.map((s) => {
+        const pRaw = String(s.practicalMarks !== undefined && s.practicalMarks !== null ? s.practicalMarks : '').trim().toUpperCase();
+        const vRaw = String(s.vivaMarks !== undefined && s.vivaMarks !== null ? s.vivaMarks : '').trim().toUpperCase();
+
+        const isAbsent = pRaw === 'A' || vRaw === 'A' || pRaw === 'AB' || vRaw === 'AB';
+        const isFilled = pRaw !== '' || vRaw !== '';
+
+        let pMarks = '';
+        let vMarks = '';
+        let totalMarks = '';
+
+        if (isAbsent) {
+          pMarks = 'AB';
+          vMarks = 'AB';
+          totalMarks = 'AB';
+        } else if (isFilled) {
+          let pVal = isNaN(Number(pRaw)) ? 0 : Number(pRaw);
+          let vVal = isNaN(Number(vRaw)) ? 0 : Number(vRaw);
+          if (pVal < 0) pVal = 0;
+          if (pVal > subjectMaxMarks) pVal = subjectMaxMarks;
+          if (vVal < 0) vVal = 0;
+          if (vVal > subjectMaxMarks) vVal = subjectMaxMarks;
+          pMarks = pRaw;
+          vMarks = vRaw;
+          totalMarks = Math.min(subjectMaxMarks, pVal + vVal);
+        }
+
+        return {
+          rollNo: String(s.rollNo || '').trim(),
+          name: String(s.name || '').trim().slice(0, 120),
+          formNo: String(s.formNo || '').trim().slice(0, 50),
+          regNo: String(s.regNo || s.boardRegNo || '').trim().slice(0, 50),
+          examRollNo: String(s.examRollNo || '').trim().slice(0, 50),
+          practicalMarks: pMarks,
+          vivaMarks: vMarks,
+          totalMarks: totalMarks,
+          marksInWords: totalMarks === '' ? '' : (totalMarks === 'AB' ? 'Absent' : numberToWords(totalMarks)),
+        };
+      });
+
+      const submissionPayload = {
+        docId: pendingDocId,
+        canonicalDocId: docId,
+        className: selectedClass,
+        subject: selectedSubject,
+        subjectCode: currentSubjectObj.code,
+        practicalType,
+        evaluationType: practicalType,
+        yearSuffix,
+        records,
+        status: 'draft',
+        isDraft: true,
+        maxMarks: subjectMaxMarks,
+        minMarks: minPassMarks,
+        submittedByEmail: auth.currentUser?.email || user?.email || '',
+        submittedByName: user?.name || auth.currentUser?.displayName || 'Faculty Member',
+        teacherRegisteredSubject: teacherRegisteredSubject || '',
+        isCrossSubject,
+        isOverwrite,
+        submittedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+
+      await saveAcademicRecord('practicalsData', pendingDocId, submissionPayload);
+      setExistingAwardInfo(prev => ({ ...prev, pending: submissionPayload }));
       setDraftSavedAt(timeStr);
       setAlert({
         type: 'success',
-        text: `Draft saved locally at ${timeStr}! You can safely return anytime before final submission.`
+        text: `Draft saved to database at ${timeStr}! Entered marks are preserved and empty entries remain blank for editing.`
       });
     } catch (err) {
       console.error('Save draft error:', err);
-      setAlert({ type: 'error', text: 'Failed to save draft locally.' });
+      setDraftSavedAt(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+      setAlert({ type: 'warning', text: 'Draft saved to local storage (cloud sync pending).' });
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -1902,7 +2016,7 @@ export default function PracticalsPage() {
   };
 
   // 3. Execute Final Submission to Firestore
-  const executeFinalSubmit = async (autoMarkAbsentForUnfilled = false) => {
+  const executeFinalSubmit = async (autoMarkAbsentForUnfilled = true) => {
     setSaving(true);
     setShowValidationModal(false);
     setAlert(null);
@@ -1917,7 +2031,8 @@ export default function PracticalsPage() {
         let pMarks = String(s.practicalMarks !== undefined && s.practicalMarks !== null ? s.practicalMarks : '').trim().toUpperCase();
         let vMarks = String(s.vivaMarks !== undefined && s.vivaMarks !== null ? s.vivaMarks : '').trim().toUpperCase();
 
-        if (autoMarkAbsentForUnfilled && pMarks === '' && vMarks === '') {
+        // On final submission, any unfilled student MUST be treated as Absent (AB)
+        if (pMarks === '' && vMarks === '') {
           pMarks = 'AB';
           vMarks = 'AB';
         }
@@ -1941,7 +2056,7 @@ export default function PracticalsPage() {
           practicalMarks: isAbsent ? 'AB' : pMarks,
           vivaMarks: isAbsent ? 'AB' : vMarks,
           totalMarks: total,
-          marksInWords: numberToWords(total),
+          marksInWords: isAbsent ? 'Absent' : numberToWords(total),
         };
       });
 
@@ -1977,10 +2092,22 @@ export default function PracticalsPage() {
       await saveAcademicRecord('practicalsData', pendingDocId, submissionPayload);
       setExistingAwardInfo(prev => ({ ...prev, pending: submissionPayload }));
 
+      // Update studentMarks in state so the table immediately displays 'AB' for any previously unfilled students
+      setStudentMarks(prev => prev.map(st => {
+        const p = String(st.practicalMarks !== undefined && st.practicalMarks !== null ? st.practicalMarks : '').trim().toUpperCase();
+        const v = String(st.vivaMarks !== undefined && st.vivaMarks !== null ? st.vivaMarks : '').trim().toUpperCase();
+        if (p === '' && v === '') {
+          return { ...st, practicalMarks: 'AB', vivaMarks: 'AB' };
+        }
+        return st;
+      }));
+
       // Clear local draft after successful final submission
       const clsNormKey = String(selectedClass).replace(/class/i, '').trim();
       const draftKey = `draft_prac_${clsNormKey}_${selectedSubject}_${practicalType}_${yearSuffix}`;
-      localStorage.removeItem(draftKey);
+      try {
+        localStorage.removeItem(draftKey);
+      } catch (_) {}
       setDraftSavedAt(null);
 
       try {
@@ -2360,6 +2487,26 @@ export default function PracticalsPage() {
                 </p>
               </div>
             </div>
+          ) : existingAwardInfo?.pending?.isDraft === true || existingAwardInfo?.pending?.status === 'draft' ? (
+            <div className="p-3 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 flex items-start gap-2.5 text-amber-900 dark:text-amber-200 animate-in fade-in duration-200 shadow-xs">
+              <span className="w-7 h-7 rounded-xl bg-amber-500/15 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0 mt-0.5">
+                <Bookmark size={16} />
+              </span>
+              <div className="text-xs space-y-0.5 flex-1 min-w-0">
+                <div className="font-black text-amber-950 dark:text-amber-200 flex items-center gap-1.5 flex-wrap">
+                  <span>Saved Draft Loaded</span>
+                  <span className="px-1.5 py-0.2 bg-amber-200 dark:bg-amber-800/80 text-amber-900 dark:text-amber-100 rounded text-[9.5px] uppercase font-black">
+                    Draft In Progress
+                  </span>
+                </div>
+                <p className="text-[11px] font-medium text-amber-800 dark:text-amber-300 leading-relaxed">
+                  An active evaluation draft for <strong>{selectedClass} • {selectedSubject} ({practicalType})</strong> was preloaded from the database. Only students with entered marks or absent are stored; remaining entries are empty so you can continue entering them.
+                </p>
+                <p className="text-[10px] text-amber-600 dark:text-amber-400 font-semibold">
+                  You can edit any entries and click <strong>Save Draft</strong> to update progress, or click <strong>Final Submit</strong> when evaluation is finished.
+                </p>
+              </div>
+            </div>
           ) : existingAwardInfo?.pending ? (
             <div className="p-3 rounded-2xl bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800/60 flex items-start gap-2.5 text-indigo-900 dark:text-indigo-200 animate-in fade-in duration-200 shadow-xs">
               <span className="w-7 h-7 rounded-xl bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0 mt-0.5">
@@ -2376,7 +2523,7 @@ export default function PracticalsPage() {
                   An award list for <strong>{selectedClass} • {selectedSubject} ({practicalType})</strong> was submitted by <strong>{existingAwardInfo.pending.submittedByName || 'Faculty Member'}</strong> on <strong>{new Date(existingAwardInfo.pending.submittedAt || existingAwardInfo.pending.updatedAt).toLocaleString()}</strong> ({existingAwardInfo.pending.records?.length || 0} students).
                 </p>
                 <p className="text-[10px] text-indigo-600 dark:text-indigo-400 font-semibold">
-                  This submission is awaiting Administrator review. You can make adjustments and submit an updated revision at any time.
+                  This submission is awaiting Administrator review. All entries are preloaded below and can be edited and re-submitted or saved as draft at any time.
                 </p>
               </div>
             </div>
