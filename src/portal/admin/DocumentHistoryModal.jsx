@@ -16,6 +16,7 @@ import {
   deleteGeneratedDocFromHistory,
   deleteMultipleGeneratedDocsFromHistory
 } from '../../services/docHistoryService';
+import { showToast } from '../../components/common/GlobalToast';
 import {
   printOfficialLetter,
   generateOfficialLetterDocx
@@ -245,7 +246,7 @@ export default function DocumentHistoryModal({
       if (previewDoc && selectedDocIds.has(previewDoc.id)) setPreviewDoc(null);
     } catch (err) {
       console.error('Bulk delete error:', err);
-      alert('Failed to delete selected history records.');
+      showToast('Failed to delete selected history records.', 'error');
     } finally {
       setIsBulkDeleting(false);
     }
@@ -375,7 +376,7 @@ export default function DocumentHistoryModal({
       }
     } catch (err) {
       console.error('Word download error:', err);
-      alert('Failed to download Word document.');
+      showToast('Failed to download Word document.', 'error');
     }
   };
 
@@ -397,9 +398,10 @@ export default function DocumentHistoryModal({
       setHistoryRecords(prev => prev.filter(r => r.id !== deleteConfirmDoc.id));
       setDeleteConfirmDoc(null);
       if (previewDoc?.id === deleteConfirmDoc.id) setPreviewDoc(null);
+      showToast('History document deleted.', 'info');
     } catch (err) {
       console.error('Delete error:', err);
-      alert('Could not delete history document.');
+      showToast('Could not delete history document.', 'error');
     } finally {
       setIsDeleting(false);
     }

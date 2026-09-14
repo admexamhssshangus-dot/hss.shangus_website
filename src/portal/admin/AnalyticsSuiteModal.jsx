@@ -7,6 +7,7 @@ import {
   getAssignedClassRollNumber,
   resolveStudentAdmissionStatus
 } from '../../utils/studentApprovalStatus';
+import { showToast } from '../../components/common/GlobalToast';
 
 // ─── Reusable Multi-Select Checkbox Dropdown Component for Analytics Suite ───
 function MultiSelectDropdown({ label, options = [], selected = [], onChange, align = 'left', customAllLabel }) {
@@ -866,7 +867,7 @@ export default function AnalyticsSuiteModal({ isOpen, onClose, students = [] }) 
   const handlePrintPDF = () => {
     const printWindow = window.open('', '_blank', 'width=1100,height=850');
     if (!printWindow) {
-      alert('Please allow popups to generate the PDF print report.');
+      showToast('Please allow popups in your browser to generate the PDF print report.', 'warning');
       return;
     }
 
@@ -1147,7 +1148,7 @@ export default function AnalyticsSuiteModal({ isOpen, onClose, students = [] }) 
   const handleBatchPDFPrint = () => {
     const printWindow = window.open('', '_blank', 'width=1100,height=850');
     if (!printWindow) {
-      alert('Please allow popups to generate the batch PDF packet.');
+      showToast('Please allow popups in your browser to generate the batch PDF packet.', 'warning');
       return;
     }
 

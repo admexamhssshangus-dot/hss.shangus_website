@@ -12,6 +12,7 @@ import { doc, getDoc, setDoc, collection, getDocs } from 'firebase/firestore';
 import { loadSiteSettings } from '../../utils/settingsLoader';
 import SessionArchivalModal from './SessionArchivalModal';
 import BulkFieldOverwriteModal from './BulkFieldOverwriteModal';
+import ConfirmModal from '../components/ConfirmModal';
 import { 
   createStaffAccount, 
   updateStaffAccount, 
@@ -362,6 +363,7 @@ export default function ControlsAndSubjects() {
   // General Loading & Notification States
   const [saving, setSaving] = useState(false);
   const [alert, setAlert] = useState(null);
+  const [confirmModalConfig, setConfirmModalConfig] = useState(null);
 
   // Load existing subject config, app settings, and Firestore permissions
   useEffect(() => {
@@ -1017,11 +1019,19 @@ export default function ControlsAndSubjects() {
   };
 
   const handleDeleteSchool = (index, name) => {
-    if (!window.confirm(`Remove "${name}" from the feeder schools list?`)) return;
-    const updated = feederSchools.filter((_, idx) => idx !== index);
-    setFeederSchools(updated);
-    saveFeederSchools(updated);
-    setAlert({ type: 'success', text: `Removed "${name}" from feeder schools.` });
+    setConfirmModalConfig({
+      type: 'danger',
+      title: 'Remove Feeder School',
+      message: `Remove "${name}" from the feeder schools list?`,
+      confirmText: 'Remove School',
+      onConfirm: () => {
+        setConfirmModalConfig(null);
+        const updated = feederSchools.filter((_, idx) => idx !== index);
+        setFeederSchools(updated);
+        saveFeederSchools(updated);
+        setAlert({ type: 'success', text: `Removed "${name}" from feeder schools.` });
+      }
+    });
   };
 
   const handleSortSchools = () => {
@@ -1032,10 +1042,18 @@ export default function ControlsAndSubjects() {
   };
 
   const handleResetDefaultSchools = () => {
-    if (!window.confirm('Reset the feeder schools list to the standard 44 valley schools? Any custom additions will be restored to defaults.')) return;
-    setFeederSchools(DEFAULT_FEEDER_SCHOOLS);
-    saveFeederSchools(DEFAULT_FEEDER_SCHOOLS);
-    setAlert({ type: 'success', text: 'Feeder schools list reset to standard defaults (44 schools)!' });
+    setConfirmModalConfig({
+      type: 'warning',
+      title: 'Reset Feeder Schools',
+      message: 'Reset the feeder schools list to the standard 44 valley schools? Any custom additions will be restored to defaults.',
+      confirmText: 'Reset to Defaults',
+      onConfirm: () => {
+        setConfirmModalConfig(null);
+        setFeederSchools(DEFAULT_FEEDER_SCHOOLS);
+        saveFeederSchools(DEFAULT_FEEDER_SCHOOLS);
+        setAlert({ type: 'success', text: 'Feeder schools list reset to standard defaults (44 schools)!' });
+      }
+    });
   };
 
   const handleSyncSchoolsToCloud = async () => {
@@ -1058,38 +1076,54 @@ export default function ControlsAndSubjects() {
   }, [feederSchools, schoolSearchTerm]);
 
   // Generate Test Data
-  const handleGenerateTestData = async () => {
-    if (!window.confirm(`Generate ${testGenSize} test student admission records?`)) return;
-    setSaving(true);
-    setAlert(null);
-    try {
-      const res = await appsScriptApi.call('generateTestApplications', { count: parseInt(testGenSize, 10) });
-      if (res && res.success !== false) {
-        setAlert({ type: 'success', text: `Generated ${testGenSize} test student records! Refresh dashboard to view.` });
-      } else {
-        setAlert({ type: 'error', text: 'Failed to generate test data.' });
+  const handleGenerateTestData = () => {
+    setConfirmModalConfig({
+      type: 'info',
+      title: 'Generate Test Applications',
+      message: `Generate ${testGenSize} test student admission records?`,
+      confirmText: 'Generate Data',
+      onConfirm: async () => {
+        setConfirmModalConfig(null);
+        setSaving(true);
+        setAlert(null);
+        try {
+          const res = await appsScriptApi.call('generateTestApplications', { count: parseInt(testGenSize, 10) });
+          if (res && res.success !== false) {
+            setAlert({ type: 'success', text: `Generated ${testGenSize} test student records! Refresh dashboard to view.` });
+          } else {
+            setAlert({ type: 'error', text: 'Failed to generate test data.' });
+          }
+        } catch (err) {
+          setAlert({ type: 'error', text: 'Failed to generate test data.' });
+        } finally {
+          setSaving(false);
+        }
       }
-    } catch (err) {
-      setAlert({ type: 'error', text: 'Failed to generate test data.' });
-    } finally {
-      setSaving(false);
-    }
+    });
   };
 
   // Clear Log
-  const handleClearLog = async (clsToken) => {
-    if (!window.confirm(`Are you sure you want to purge logs for ${clsToken}? This action is permanent.`)) return;
-    setSaving(true);
-    try {
-      const res = await appsScriptApi.call('clearAdmissionLogs', { classToken: clsToken });
-      if (res && res.success !== false) {
-        setAlert({ type: 'success', text: `Logs purged for ${clsToken}!` });
+  const handleClearLog = (clsToken) => {
+    setConfirmModalConfig({
+      type: 'danger',
+      title: 'Purge Admission Logs',
+      message: `Are you sure you want to purge logs for ${clsToken}? This action is permanent and cannot be undone.`,
+      confirmText: 'Purge Logs',
+      onConfirm: async () => {
+        setConfirmModalConfig(null);
+        setSaving(true);
+        try {
+          const res = await appsScriptApi.call('clearAdmissionLogs', { classToken: clsToken });
+          if (res && res.success !== false) {
+            setAlert({ type: 'success', text: `Logs purged for ${clsToken}!` });
+          }
+        } catch (err) {
+          setAlert({ type: 'error', text: 'Failed to clear logs.' });
+        } finally {
+          setSaving(false);
+        }
       }
-    } catch (err) {
-      setAlert({ type: 'error', text: 'Failed to clear logs.' });
-    } finally {
-      setSaving(false);
-    }
+    });
   };
 
   return (
@@ -2649,6 +2683,15 @@ export default function ControlsAndSubjects() {
           });
         }}
       />
+
+      {confirmModalConfig && (
+        <ConfirmModal
+          isOpen={true}
+          onClose={() => setConfirmModalConfig(null)}
+          onCancel={() => setConfirmModalConfig(null)}
+          {...confirmModalConfig}
+        />
+      )}
     </div>
   );
 }

@@ -7,6 +7,7 @@ import {
 import { db } from '../../services/firebase';
 import { doc, setDoc } from 'firebase/firestore';
 import { DEFAULT_HERO_BUTTONS } from '../../utils/settingsLoader';
+import ConfirmModal from '../components/ConfirmModal';
 
 const BUTTON_STYLES = [
   { id: 'primary', name: 'Brand Primary', desc: 'Teal/Cyan base, School Red on hover', previewColor: 'bg-teal-600 text-white' },
@@ -57,6 +58,7 @@ export default function HeroButtonsManager({
   const [formErrors, setFormErrors] = useState({});
   const [showAddForm, setShowAddForm] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState(null);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [simulateClosed, setSimulateClosed] = useState(Boolean(settings?.globalAdmissionsClosed));
   const [feedback, setFeedback] = useState(null);
   const [savingLive, setSavingLive] = useState(false);
@@ -234,11 +236,14 @@ export default function HeroButtonsManager({
 
   // Reset to default buttons
   const handleResetDefaults = () => {
-    if (window.confirm('Reset hero buttons back to standard defaults ("Admissions Open" and "Learn More")?')) {
-      handleCommitButtons(DEFAULT_HERO_BUTTONS);
-      handleCancelForm();
-      showFeedback('success', 'Reset buttons to standard defaults.');
-    }
+    setShowResetConfirm(true);
+  };
+
+  const executeResetDefaults = () => {
+    setShowResetConfirm(false);
+    handleCommitButtons(DEFAULT_HERO_BUTTONS);
+    handleCancelForm();
+    showFeedback('success', 'Reset buttons to standard defaults.');
   };
 
   // Apply Preset
@@ -811,6 +816,17 @@ export default function HeroButtonsManager({
           </div>
         )}
       </div>
+
+      <ConfirmModal
+        isOpen={showResetConfirm}
+        onClose={() => setShowResetConfirm(false)}
+        onConfirm={executeResetDefaults}
+        type="warning"
+        title="Reset Hero Action Buttons"
+        message="Reset homepage hero action buttons back to the standard institutional defaults ('Admissions Open' and 'Learn More')?"
+        consequence="Any custom action buttons, custom external links, or special styling presets will be replaced with the standard defaults."
+        confirmText="Reset to Defaults"
+      />
     </div>
   );
 }

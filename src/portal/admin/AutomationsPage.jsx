@@ -10,6 +10,8 @@ import appsScriptApi from '../../services/appsScriptApi';
 import { getCachedCollectionSync } from '../../services/dbCache';
 import { sanitizeRichHtml } from '../../utils/sanitizeRichHtml';
 import { logAdminActivity } from '../../services/adminActivityLogger';
+import ConfirmModal from '../components/ConfirmModal';
+import { showToast } from '../../components/common/GlobalToast';
 
 const DEFAULT_FOOTER = 'Best regards, Admission & Examination Cell, Govt. Higher Secondary School Shangus';
 
@@ -147,6 +149,7 @@ export default function AutomationsPage({ applications: propApps = [], user = nu
   const [customFooter, setCustomFooter] = useState(DEFAULT_FOOTER);
   const [isCustomFooter, setIsCustomFooter] = useState(false);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
+  const [confirmDispatchConfig, setConfirmDispatchConfig] = useState(null);
 
   // ---------------------------------------------------------------------------
   // Sending & Log State
@@ -327,81 +330,97 @@ export default function AutomationsPage({ applications: propApps = [], user = nu
 
     const effectiveFooter = isCustomFooter ? customFooter.trim() : DEFAULT_FOOTER;
 
-    // Safety Confirmation
-    const confirmMsg = testMode 
-      ? `Send Test Email to ${adminEmail}?`
-      : `Are you sure you want to dispatch this email to ${finalRecipients.length} recipients?`;
+    const executeSendBulkEmail = async () => {
+      setSendingEmail(true);
+      setAlert(null);
+      setLastDispatchLog(null);
 
-    if (!window.confirm(confirmMsg)) return;
+      try {
+        const recipientEmails = finalRecipients.map(r => r.email);
 
-    setSendingEmail(true);
-    setAlert(null);
-    setLastDispatchLog(null);
-
-    try {
-      const recipientEmails = finalRecipients.map(r => r.email);
-
-      const payload = {
-        subject: cleanSubject,
-        body: cleanBody,
-        htmlBody: cleanBody,
-        className: targetClass,
-        session: targetSession,
-        status: targetStatus,
-        recipients: recipientEmails,
-        testMode: testMode,
-        testEmail: adminEmail,
-        customFooter: effectiveFooter,
-      };
-
-      const res = await appsScriptApi.call('sendBulkEmail', payload);
-
-      if (res && res.success !== false) {
-        setAlert({ 
-          type: 'success', 
-          text: testMode 
-            ? `Test email sent successfully to ${adminEmail}!` 
-            : `Bulk email successfully dispatched to ${finalRecipients.length} recipients!`
-        });
-
-        setLastDispatchLog({
-          timestamp: new Date().toLocaleTimeString(),
-          count: finalRecipients.length,
+        const payload = {
           subject: cleanSubject,
-          testMode,
-          status: 'Dispatched Successfully'
-        });
+          body: cleanBody,
+          htmlBody: cleanBody,
+          className: targetClass,
+          session: targetSession,
+          status: targetStatus,
+          recipients: recipientEmails,
+          testMode: testMode,
+          testEmail: adminEmail,
+          customFooter: effectiveFooter,
+        };
 
-        logAdminActivity({
-          actionType: 'export',
-          actionTitle: testMode ? 'Dispatched Test Flight Email' : 'Dispatched Bulk Group Email',
-          details: testMode 
-            ? `Test email "${cleanSubject}" dispatched to admin (${adminEmail})`
-            : `Bulk email "${cleanSubject}" dispatched to ${finalRecipients.length} recipients (${targetClass}, ${targetSession})`,
-          metadata: {
+        const res = await appsScriptApi.call('sendBulkEmail', payload);
+
+        if (res && res.success !== false) {
+          const successMsg = testMode 
+            ? `Test email sent successfully to ${adminEmail}!` 
+            : `Bulk email successfully dispatched to ${finalRecipients.length} recipients!`;
+          setAlert({ 
+            type: 'success', 
+            text: successMsg
+          });
+          showToast(successMsg, 'success');
+
+          setLastDispatchLog({
+            timestamp: new Date().toLocaleTimeString(),
+            count: finalRecipients.length,
             subject: cleanSubject,
-            recipientCount: finalRecipients.length,
-            targetClass,
-            targetSession,
-            testMode
-          }
-        });
+            testMode,
+            status: 'Dispatched Successfully'
+          });
 
-        // Reset composer if not in test mode
-        if (!testMode) {
-          setEmailSubject('');
-          setEmailBodyHtml('');
-          if (editorRef.current) editorRef.current.innerHTML = '';
+          logAdminActivity({
+            actionType: 'export',
+            actionTitle: testMode ? 'Dispatched Test Flight Email' : 'Dispatched Bulk Group Email',
+            details: testMode 
+              ? `Test email "${cleanSubject}" dispatched to admin (${adminEmail})`
+              : `Bulk email "${cleanSubject}" dispatched to ${finalRecipients.length} recipients (${targetClass}, ${targetSession})`,
+            metadata: {
+              subject: cleanSubject,
+              recipientCount: finalRecipients.length,
+              targetClass,
+              targetSession,
+              testMode
+            }
+          });
+
+          // Reset composer if not in test mode
+          if (!testMode) {
+            setEmailSubject('');
+            setEmailBodyHtml('');
+            if (editorRef.current) editorRef.current.innerHTML = '';
+          }
+        } else {
+          const errMsg = res?.message || 'Failed to dispatch bulk email.';
+          setAlert({ type: 'error', text: errMsg });
+          showToast(errMsg, 'error');
         }
-      } else {
-        setAlert({ type: 'error', text: res?.message || 'Failed to dispatch bulk email.' });
+      } catch (err) {
+        console.error('Bulk email dispatch error:', err);
+        const errMsg = err.userMessage || err.message || 'Failed to send bulk email. Check connection or SMTP.';
+        setAlert({ type: 'error', text: errMsg });
+        showToast(errMsg, 'error');
+      } finally {
+        setSendingEmail(false);
       }
-    } catch (err) {
-      console.error('Bulk email dispatch error:', err);
-      setAlert({ type: 'error', text: err.userMessage || err.message || 'Failed to send bulk email. Check connection or SMTP.' });
-    } finally {
-      setSendingEmail(false);
-    }
+    };
+
+    // Safety Confirmation via glassmorphic ConfirmModal
+    setConfirmDispatchConfig({
+      title: testMode ? 'Send Test Flight Email' : 'Confirm Bulk Email Dispatch',
+      message: testMode 
+        ? `Send test email with current layout to ${adminEmail}?` 
+        : `Are you sure you want to dispatch this email to ${finalRecipients.length} recipients?`,
+      confirmText: testMode ? 'Send Test' : `Dispatch (${finalRecipients.length})`,
+      type: testMode ? 'info' : 'warning',
+      consequence: testMode ? undefined : 'Recipients will receive this message in their email inbox immediately.',
+      onConfirm: () => {
+        setConfirmDispatchConfig(null);
+        executeSendBulkEmail();
+      }
+    });
   };
 
   // ---------------------------------------------------------------------------
@@ -1112,6 +1131,20 @@ export default function AutomationsPage({ applications: propApps = [], user = nu
 
           </div>
         </div>
+      )}
+
+      {confirmDispatchConfig && (
+        <ConfirmModal
+          isOpen={Boolean(confirmDispatchConfig)}
+          onClose={() => setConfirmDispatchConfig(null)}
+          onConfirm={confirmDispatchConfig.onConfirm}
+          title={confirmDispatchConfig.title}
+          message={confirmDispatchConfig.message}
+          confirmText={confirmDispatchConfig.confirmText}
+          type={confirmDispatchConfig.type}
+          consequence={confirmDispatchConfig.consequence}
+          loading={sendingEmail}
+        />
       )}
 
     </div>

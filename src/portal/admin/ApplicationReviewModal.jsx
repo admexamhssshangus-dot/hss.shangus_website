@@ -5,8 +5,10 @@ import appsScriptApi from '../../services/appsScriptApi';
 import { db } from '../../services/firebase';
 import { doc, updateDoc, serverTimestamp, Timestamp, deleteField } from 'firebase/firestore';
 import { compressImageFile, getStudentPhotoUrl } from '../../utils/imageCompressor';
-import { generateStudentAdmissionPdf, downloadStudentAdmissionPdf } from '../../utils/pdfGenerator';
 import { savePhotoUrlToCache, syncStudentPhotoOnRegUpdate } from '../../services/dbCache';
+import ConfirmModal from '../components/ConfirmModal';
+import { showToast } from '../../components/common/GlobalToast';
+import { generateStudentAdmissionPdf } from '../../utils/pdfGenerator';
 
 const DEFAULT_PRESET_REASONS = [
   'Documents incomplete / verification pending',
@@ -26,6 +28,7 @@ export default function ApplicationReviewModal({ app, onClose, onRefresh }) {
   const [unlocking, setUnlocking] = useState(false);
   const [unlockHours, setUnlockHours] = useState('24');
   const [actionLoading, setActionLoading] = useState(false);
+  const [showApproveConfirm, setShowApproveConfirm] = useState(false);
   const [customReasons, setCustomReasons] = useState(() => {
     try {
       const saved = localStorage.getItem('hss_custom_rejection_reasons');
@@ -134,12 +137,12 @@ export default function ApplicationReviewModal({ app, onClose, onRefresh }) {
         photoData: compressedDataUrl
       });
 
-      alert('Student photo updated in the admission record.');
+      showToast('Student photo updated in the admission record.', 'success');
       if (appsScriptApi.invalidateAdminCache) appsScriptApi.invalidateAdminCache();
       if (onRefresh) onRefresh();
     } catch (err) {
       console.error('Photo upload error:', err);
-      alert('Failed to compress/upload photo: ' + err.message);
+      showToast('Failed to compress/upload photo: ' + err.message, 'error');
     } finally {
       setPhotoUploading(false);
     }
@@ -149,22 +152,26 @@ export default function ApplicationReviewModal({ app, onClose, onRefresh }) {
     ? ((parseFloat(marksObtained) / parseFloat(totalMaxMarks)) * 100).toFixed(1)
     : '0.0';
 
-  // Approve Application
-  const handleApprove = async () => {
-    if (!window.confirm(`Approve application #${formNo} for ${name}?`)) return;
+  // Approve Application Trigger
+  const handleApprove = () => {
+    setShowApproveConfirm(true);
+  };
+
+  const executeApprove = async () => {
+    setShowApproveConfirm(false);
     setActionLoading(true);
     try {
       await updateDoc(doc(db, 'admissions', admissionDocId), {
         Status: 'Approved', approvedAt: serverTimestamp(), updatedAt: serverTimestamp(),
         editableUntil: null, rejectionReason: null,
       });
-      alert('Application approved successfully!');
+      showToast(`Application #${formNo} approved successfully!`, 'success');
       if (appsScriptApi.invalidateAdminCache) appsScriptApi.invalidateAdminCache();
       onRefresh();
       onClose();
     } catch (err) {
       console.error('Approve error:', err);
-      alert('Failed to approve application.');
+      showToast('Failed to approve application: ' + err.message, 'error');
     } finally {
       setActionLoading(false);
     }
@@ -174,7 +181,7 @@ export default function ApplicationReviewModal({ app, onClose, onRefresh }) {
   const handleRejectSubmit = async (e) => {
     e.preventDefault();
     if (!rejectionReason.trim()) {
-      alert('Please enter a rejection reason.');
+      showToast('Please enter a rejection reason.', 'warning');
       return;
     }
     setActionLoading(true);
@@ -186,13 +193,13 @@ export default function ApplicationReviewModal({ app, onClose, onRefresh }) {
       });
       appsScriptApi.call('rejectApplication', { formNumber: formNo, reason: rejectionReason.trim() })
         .catch(error => console.warn('Legacy rejection sync pending:', error));
-      alert('Application returned for correction for 72 hours.');
+      showToast('Application returned for correction for 72 hours.', 'info');
       if (appsScriptApi.invalidateAdminCache) appsScriptApi.invalidateAdminCache();
       onRefresh();
       onClose();
     } catch (err) {
       console.error('Reject error:', err);
-      alert(err.message || 'Failed to reject application.');
+      showToast(err.message || 'Failed to reject application.', 'error');
     } finally {
       setActionLoading(false);
     }
@@ -211,13 +218,13 @@ export default function ApplicationReviewModal({ app, onClose, onRefresh }) {
       });
       appsScriptApi.call('unlockWithExpiry', { formNumber: formNo, expiryStr })
         .catch(error => console.warn('Legacy unlock sync pending:', error));
-      alert(`Application #${formNo} unlocked for editing (${expiryStr}).`);
+      showToast(`Application #${formNo} unlocked for editing (${expiryStr}).`, 'info');
       if (appsScriptApi.invalidateAdminCache) appsScriptApi.invalidateAdminCache();
       onRefresh();
       onClose();
     } catch (err) {
       console.error('Unlock error:', err);
-      alert('Failed to unlock application.');
+      showToast('Failed to unlock application.', 'error');
     } finally {
       setActionLoading(false);
     }
@@ -237,11 +244,11 @@ export default function ApplicationReviewModal({ app, onClose, onRefresh }) {
       if (pdfUrl) {
         window.open(pdfUrl, '_blank', 'noopener,noreferrer');
       } else {
-        alert('PDF generated successfully!');
+        showToast('PDF generated successfully!', 'success');
       }
     } catch (err) {
       console.error('Download PDF error:', err);
-      alert('Failed to generate PDF copy.');
+      showToast('Failed to generate PDF copy.', 'error');
     } finally {
       setActionLoading(false);
     }
@@ -595,6 +602,17 @@ export default function ApplicationReviewModal({ app, onClose, onRefresh }) {
           </div>
         </div>
       </div>
+
+      <ConfirmModal
+        isOpen={showApproveConfirm}
+        onClose={() => setShowApproveConfirm(false)}
+        onConfirm={executeApprove}
+        type="success"
+        title="Approve Admission Application"
+        message={`Are you sure you want to approve application #${formNo} for ${name}?`}
+        consequence="This student will be formally enrolled and marked as Approved in institutional registers."
+        confirmText="Yes, Approve Application"
+      />
     </div>,
     document.body
   );

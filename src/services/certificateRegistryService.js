@@ -2,6 +2,7 @@ import { doc, getDoc, setDoc, writeBatch, collection, addDoc, serverTimestamp, g
 import { db } from './firebase';
 import { updateCachedItem } from './dbCache';
 import * as XLSX from 'xlsx';
+import { showToast } from '../components/common/GlobalToast';
 
 const REGISTRY_DOC_PATH = 'systemSettings';
 const REGISTRY_DOC_ID = 'certificateRegistry';
@@ -653,7 +654,7 @@ export async function persistCertificateStudentFields(student, values = {}) {
  */
 export function exportCertificateRegistryXlsx(issuedStudents = [], filename = 'TC_DC_Discharge_Certificate_Registry.xlsx') {
   if (!issuedStudents || issuedStudents.length === 0) {
-    alert('No student records selected for Excel export.');
+    showToast('No student records selected for Excel export.', 'warning');
     return;
   }
 

@@ -7,6 +7,7 @@ import ThemeSelector from './components/ThemeSelector';
 import PublicPageSkeleton from './components/PublicPageSkeleton';
 import SEOHead from './components/SEOHead';
 import Home from './pages/Home';
+import GlobalToast from './components/common/GlobalToast';
 import { initSecurityGuardrails } from './utils/securityGuardrails';
 import { isBootstrapSuperAdminEmail } from './utils/authRoles';
 import './portal/portal.css';
@@ -193,6 +194,9 @@ function App() {
         
         {/* Floating Theme Selector Toggle */}
         <ThemeSelector />
+
+        {/* Universal Application Toast / Alert Container */}
+        <GlobalToast />
       </div>
     </>
   );

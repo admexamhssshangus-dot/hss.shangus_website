@@ -7,6 +7,8 @@ import { signInAnonymously } from 'firebase/auth';
 import { ShieldAlert, Lock, Shield } from 'lucide-react';
 import SEO from '../components/SEO';
 import { generateGkTestAdmitCardPdf } from '../utils/pdfGenerator';
+import { showToast } from '../components/common/GlobalToast';
+import ConfirmModal from '../portal/components/ConfirmModal';
 
 const APPS_SCRIPT_URL = process.env.REACT_APP_APPS_SCRIPT_URL;
 const DRIVE_FOLDER_ID = '15YOPlfh2WHmXn7HEAoZEpSJbRCNZYaOF';
@@ -185,6 +187,7 @@ export default function GkTestRegistration() {
   const [submitting, setSubmitting] = useState(false);
   const [examNumber, setExamNumber] = useState('');
   const [alreadyRegistered, setAlreadyRegistered] = useState(false);
+  const [deleteConfirmConfig, setDeleteConfirmConfig] = useState(null);
   // Anti-scraping: rate limit searches per session
   const [rateLocked, setRateLocked] = useState(false);
   const [rateLockUntil, setRateLockUntil] = useState(0);
@@ -600,7 +603,7 @@ export default function GkTestRegistration() {
       setStep(4);
     } catch (err) {
       console.error('Submit error:', err);
-      alert('Registration failed. Please try again.');
+      showToast('Registration failed. Please try again.', 'error');
     } finally {
       setSubmitting(false);
     }
@@ -741,10 +744,7 @@ export default function GkTestRegistration() {
     }
   }, []);
 
-  const handleDeleteOmrPhoto = useCallback(async (studentId, studentName) => {
-    if (!window.confirm(`Are you sure you want to delete the scanned OMR photo for ${studentName || studentId}?`)) {
-      return;
-    }
+  const executeDeleteOmrPhoto = useCallback(async (studentId) => {
     setInvDeletingId(studentId);
     try {
       await ensureAuth();
@@ -757,13 +757,21 @@ export default function GkTestRegistration() {
       if (invStudent?.id === studentId) {
         setInvStudent(prev => prev ? { ...prev, omrPhotoUrl: null } : null);
       }
+      showToast('Scanned OMR photo deleted successfully.', 'success');
     } catch (e) {
       console.error('Delete OMR error:', e);
-      alert('Failed to delete OMR photo. Check internet connection.');
+      showToast('Failed to delete OMR photo. Check internet connection.', 'error');
     } finally {
       setInvDeletingId(null);
     }
   }, [invStudent]);
+
+  const handleDeleteOmrPhoto = useCallback((studentId, studentName) => {
+    setDeleteConfirmConfig({
+      studentId,
+      studentName: studentName || studentId,
+    });
+  }, []);
 
   const handleInvUpload = useCallback(async () => {
     if (!invPhoto || !invStudent) return;
@@ -1052,7 +1060,8 @@ export default function GkTestRegistration() {
                   <button onClick={() => {
                     const { name, fatherName, className, classRollNo } = manualData;
                     if (!name.trim() || !fatherName.trim() || !className.trim() || !classRollNo.trim()) {
-                      alert('Please fill in all fields.'); return;
+                      showToast('Please fill in all required fields.', 'warning');
+                      return;
                     }
                     setStep(3);
                   }}
@@ -1618,6 +1627,23 @@ export default function GkTestRegistration() {
           </div>
         )}
 
+
+        {deleteConfirmConfig && (
+          <ConfirmModal
+            isOpen={Boolean(deleteConfirmConfig)}
+            onClose={() => setDeleteConfirmConfig(null)}
+            onConfirm={() => {
+              const id = deleteConfirmConfig.studentId;
+              setDeleteConfirmConfig(null);
+              executeDeleteOmrPhoto(id);
+            }}
+            title="Delete Scanned OMR Photo"
+            message={`Are you sure you want to delete the scanned OMR photo for ${deleteConfirmConfig.studentName}? This will remove the photo from the database and allow re-uploading.`}
+            confirmText="Delete Photo"
+            type="danger"
+            consequence="This action permanently removes the uploaded OMR sheet scan."
+          />
+        )}
 
         {/* Global Print Stylesheet to hide site layout when printing */}
         <style>{`

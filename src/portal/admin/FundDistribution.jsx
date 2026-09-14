@@ -74,6 +74,7 @@ import {
   validateFundAccountsConfig,
   validateFundDistributionEntry,
 } from '../../utils/fundDistributionValidation';
+import ConfirmModal from '../components/ConfirmModal';
 
 /**
  * Reusable Live Report Preview Card for both Entry and History views
@@ -449,6 +450,7 @@ export default function FundDistribution() {
   const [isUpdating, setIsUpdating] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [statusMessage, setStatusMessage] = useState({ text: '', type: '' });
+  const [confirmModalConfig, setConfirmModalConfig] = useState(null);
 
   // Rate Settings & Accounts Modal State
   const [isRatesModalOpen, setIsRatesModalOpen] = useState(false);
@@ -1054,22 +1056,29 @@ export default function FundDistribution() {
       return;
     }
     const targetAcc = tempAccounts.find(a => a.key === accKey);
-    const confirmed = window.confirm(`Remove "${targetAcc?.name || accKey}" from the institutional accounts list?`);
-    if (!confirmed) return;
-
-    setTempAccounts(prev => prev.filter(a => a.key !== accKey));
-    setTempRates(prev => {
-      const updated = { ...prev };
-      ['9th', '10th', '11th', '12th'].forEach(cls => {
-        if (updated[cls]) {
-          const cObj = { ...updated[cls] };
-          delete cObj[accKey];
-          updated[cls] = cObj;
-        }
-      });
-      return updated;
+    setConfirmModalConfig({
+      type: 'danger',
+      title: 'Remove Subsidiary Account',
+      message: `Remove "${targetAcc?.name || accKey}" from the institutional accounts list?`,
+      consequence: 'This account will be removed from all class fee rate structures upon saving.',
+      confirmText: 'Remove Account',
+      onConfirm: () => {
+        setConfirmModalConfig(null);
+        setTempAccounts(prev => prev.filter(a => a.key !== accKey));
+        setTempRates(prev => {
+          const updated = { ...prev };
+          ['9th', '10th', '11th', '12th'].forEach(cls => {
+            if (updated[cls]) {
+              const cObj = { ...updated[cls] };
+              delete cObj[accKey];
+              updated[cls] = cObj;
+            }
+          });
+          return updated;
+        });
+        showNotification('Removed account. Remember to click "Save & Update All" to confirm.', 'success');
+      }
     });
-    showNotification(`Removed account. Remember to click "Save & Update All" to confirm.`, 'success');
   };
 
   const handleUpdateAccountField = (accKey, field, val) => {
@@ -1082,11 +1091,19 @@ export default function FundDistribution() {
   };
 
   const handleResetToDefaults = () => {
-    const confirmed = window.confirm('Reset all accounts and rates back to the original 13 institutional defaults?');
-    if (!confirmed) return;
-    setTempAccounts(DEFAULT_SUBSIDIARY_ACCOUNTS);
-    setTempRates(DEFAULT_RATES);
-    showNotification('Reset to defaults. Click "Save & Update All" to persist.', 'success');
+    setConfirmModalConfig({
+      type: 'warning',
+      title: 'Reset Fee Accounts & Rates',
+      message: 'Reset all accounts and rates back to the original 13 institutional defaults?',
+      consequence: 'Any customized subsidiary fee accounts or special class rates will be restored to defaults.',
+      confirmText: 'Reset to Defaults',
+      onConfirm: () => {
+        setConfirmModalConfig(null);
+        setTempAccounts(DEFAULT_SUBSIDIARY_ACCOUNTS);
+        setTempRates(DEFAULT_RATES);
+        showNotification('Reset to defaults. Click "Save & Update All" to persist.', 'success');
+      }
+    });
   };
 
   // Save Rate Table & Custom Subsidiary Accounts Updates to Firestore
@@ -4404,6 +4421,15 @@ export default function FundDistribution() {
             </div>
           </div>
         </div>
+      )}
+
+      {confirmModalConfig && (
+        <ConfirmModal
+          isOpen={true}
+          onClose={() => setConfirmModalConfig(null)}
+          onCancel={() => setConfirmModalConfig(null)}
+          {...confirmModalConfig}
+        />
       )}
     </div>
   );

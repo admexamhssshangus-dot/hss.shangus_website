@@ -9,6 +9,8 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import { invalidateCache } from '../../services/dbCache';
 import { DEFAULT_SCHOOL_EVALUATIONS, SUBJECT_CONFIG_DEFS } from '../../utils/practicalsSettingsManager';
+import ConfirmModal from '../components/ConfirmModal';
+import { showToast } from '../../components/common/GlobalToast';
 
 const PRESET_EVALUATIONS = [
   {
@@ -71,6 +73,7 @@ export default function SchoolAssessmentsHub({ allStudents = [], onSwitchToGazet
   const [saving, setSaving] = useState(false);
   const [alertMsg, setAlertMsg] = useState(null);
   const [copiedLink, setCopiedLink] = useState(false);
+  const [deleteConfirmId, setDeleteConfirmId] = useState(null);
 
   // Edit / Create Form Modal
   const [showModal, setShowModal] = useState(false);
@@ -103,7 +106,7 @@ export default function SchoolAssessmentsHub({ allStudents = [], onSwitchToGazet
     const subObj = SUBJECT_CONFIG_DEFS.find(s => s.code === overrideSelectCode);
     const max = Number(overrideMaxInput);
     if (!max || max <= 0) {
-      alert('Please enter a valid Maximum Marks (e.g. 25, 35).');
+      showToast('Please enter a valid Maximum Marks (e.g. 25, 35).', 'warning');
       return;
     }
     const pass = Number(overridePassInput) || Math.ceil(max * 0.36);
@@ -244,19 +247,19 @@ export default function SchoolAssessmentsHub({ allStudents = [], onSwitchToGazet
   const handleSaveModal = async (e) => {
     e.preventDefault();
     if (!formState.title.trim()) {
-      alert('Please enter an assessment title.');
+      showToast('Please enter an assessment title.', 'warning');
       return;
     }
     if (!formState.evalType.trim()) {
-      alert('Please enter an evaluation type name.');
+      showToast('Please enter an evaluation type name.', 'warning');
       return;
     }
     if (formState.classes.length === 0) {
-      alert('Please select at least one class.');
+      showToast('Please select at least one class.', 'warning');
       return;
     }
     if (formState.allowedStatuses.length === 0) {
-      alert('Please select at least one eligible student status.');
+      showToast('Please select at least one eligible student status.', 'warning');
       return;
     }
 
@@ -269,15 +272,21 @@ export default function SchoolAssessmentsHub({ allStudents = [], onSwitchToGazet
     }
 
     await saveEvaluationsToFirestore(updatedList);
+    showToast(`Assessment "${formState.title}" saved successfully!`, 'success');
     setShowModal(false);
   };
 
-  const handleDeleteEvaluation = async (id) => {
-    if (!window.confirm('Are you sure you want to remove this assessment configuration? Existing marks in practicalsData will not be deleted.')) {
-      return;
-    }
+  const handleDeleteEvaluation = (id) => {
+    setDeleteConfirmId(id);
+  };
+
+  const executeDeleteEvaluation = async () => {
+    if (!deleteConfirmId) return;
+    const id = deleteConfirmId;
+    setDeleteConfirmId(null);
     const updatedList = evaluations.filter(item => item.id !== id);
     await saveEvaluationsToFirestore(updatedList);
+    showToast('Assessment configuration removed.', 'info');
   };
 
   const handleToggleTeacherPortal = async (evalItem) => {
@@ -1109,6 +1118,17 @@ export default function SchoolAssessmentsHub({ allStudents = [], onSwitchToGazet
           </div>
         </div>
       )}
+
+      <ConfirmModal
+        isOpen={Boolean(deleteConfirmId)}
+        onClose={() => setDeleteConfirmId(null)}
+        onConfirm={executeDeleteEvaluation}
+        type="danger"
+        title="Remove Assessment Configuration"
+        message="Are you sure you want to remove this assessment configuration?"
+        consequence="Existing student marks in practicalsData will remain intact, but this assessment will no longer appear in active teacher or student tabs."
+        confirmText="Yes, Remove Assessment"
+      />
     </div>
   );
 }
