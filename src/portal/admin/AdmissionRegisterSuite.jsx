@@ -6226,10 +6226,10 @@ export default function AdmissionRegisterSuite({
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-900 text-slate-900">
-                              {chunk.map((s) => {
+                              {chunk.map((s, idx) => {
                                 const photoSrc = getResolvedStudentPhoto(s);
                                 return (
-                                  <ResizableDataRow key={s.id} rowHeight={rowHeight} onResize={handleRowHeightChange} className="hover:bg-slate-50 group">
+                                  <ResizableDataRow key={`chunk_row_p1_${s.id || ''}_${idx}`} rowHeight={rowHeight} onResize={handleRowHeightChange} className="hover:bg-slate-50 group">
                                     <td className="border border-slate-900 px-1 py-0.5 text-center font-bold ledger-mono-font">{s.sno}</td>
                                     <td className="register-photo-cell border border-slate-900 p-0 text-center overflow-hidden bg-slate-50 print:bg-transparent" style={{ width: columnWidths.photo ? `${columnWidths.photo}px` : undefined, height: `${rowHeight}px` }}>
                                       {photoSrc ? (
@@ -6389,8 +6389,8 @@ export default function AdmissionRegisterSuite({
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-900 text-slate-900">
-                              {chunk.map((s) => (
-                                <ResizableDataRow key={s.id} rowHeight={rowHeight} onResize={handleRowHeightChange} className="hover:bg-slate-50">
+                              {chunk.map((s, idx) => (
+                                <ResizableDataRow key={`chunk_row_p2_${s.id || ''}_${idx}`} rowHeight={rowHeight} onResize={handleRowHeightChange} className="hover:bg-slate-50">
                                   <td className="border border-slate-900 px-1 py-0.5 text-center"><StreamLabel value={s.stream} /></td>
                                   <td className="border border-slate-900 px-1 py-0.5 text-left text-[7px] leading-tight font-medium overflow-hidden">
                                     <div className="line-clamp-2 leading-tight">{s.subs}</div>
@@ -6725,9 +6725,9 @@ export default function AdmissionRegisterSuite({
                     <span>Skipped Candidates (Omitted from Print Pages & Excel Export) — Click to Re-Include:</span>
                   </div>
                   <div className="flex flex-wrap gap-1.5">
-                    {filteredStudents.filter(s => skippedRowIds.has(s.id)).map(s => (
+                    {filteredStudents.filter(s => skippedRowIds.has(s.id)).map((s, idx) => (
                       <button
-                        key={s.id}
+                        key={`skip_${s.id || ''}_${idx}`}
                         type="button"
                         onClick={() => toggleRowSkip(s.id)}
                         className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-white dark:bg-slate-900 border border-amber-300 dark:border-amber-700 text-[10px] font-bold text-slate-800 dark:text-slate-200 hover:bg-emerald-50 hover:border-emerald-400 hover:text-emerald-800 transition-colors cursor-pointer shadow-2xs"
@@ -7137,11 +7137,11 @@ export default function AdmissionRegisterSuite({
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-900 text-slate-900">
-                          {chunk.map((s) => {
+                          {chunk.map((s, idx) => {
                             const photoSrc = getResolvedStudentPhoto(s);
                             const isSkipped = skippedRowIds.has(s.id);
                             return (
-                              <ResizableDataRow key={s.id} rowHeight={rowHeight} onResize={handleRowHeightChange} className={`hover:bg-slate-50 ${isSkipped ? 'opacity-50 bg-slate-100 dark:bg-slate-800/50' : ''}`}>
+                              <ResizableDataRow key={`chunk_sentup_${s.id || ''}_${idx}`} rowHeight={rowHeight} onResize={handleRowHeightChange} className={`hover:bg-slate-50 ${isSkipped ? 'opacity-50 bg-slate-100 dark:bg-slate-800/50' : ''}`}>
                                 <td className="border border-slate-900 px-0.5 py-0.5 text-center select-none w-7 print:hidden">
                                   <button
                                     type="button"
@@ -7515,7 +7515,7 @@ export default function AdmissionRegisterSuite({
                         {candidateIdPreviewList.map((item, idx) => {
                           const { student, currentAdm, prevInfo, strat, proposed } = item;
                           return (
-                            <tr key={student.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors">
+                            <tr key={`cand_preview_${student.id || idx}_${idx}`} className="hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors">
                               <td className="py-1 px-2 text-center font-bold text-slate-400 ledger-mono-font">{idx + 1}</td>
                               <td className="py-1 px-2">
                                 <div className="font-extrabold text-slate-900 dark:text-white leading-tight">{student.name}</div>
@@ -7698,7 +7698,7 @@ export default function AdmissionRegisterSuite({
                       </thead>
                       <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium text-slate-800 dark:text-slate-200 text-[11px]">
                         {dateTargetStudents.map((st, idx) => (
-                          <tr key={st.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors">
+                          <tr key={`date_target_${st.id || idx}_${idx}`} className="hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors">
                             <td className="py-1 px-2 text-center font-bold text-slate-400 ledger-mono-font">{idx + 1}</td>
                             <td className="py-1 px-2 font-bold">{st.name}</td>
                             <td className="py-1 px-2 text-slate-500">{st.father}</td>

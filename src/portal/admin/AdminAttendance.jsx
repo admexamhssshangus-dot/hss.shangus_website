@@ -1,13 +1,12 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { 
   Settings, CalendarCheck, RefreshCw, Save, CheckCircle2, AlertCircle, 
-  Search, Filter, BookOpen, Users, Calendar, ChevronDown, ChevronUp, 
-  ChevronRight, Eye, Sparkles, Check, X, Clock, BarChart3, Layers
+  Search, BookOpen, Users, Calendar, ChevronDown, ChevronUp, 
+  Eye, X, BarChart3, Database, Layers, Check, Clock, User
 } from 'lucide-react';
 import { db } from '../../services/firebase';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, collection, getDocs } from 'firebase/firestore';
 import ModernLoader from '../../components/ModernLoader';
-import { getCachedCollection } from '../../services/dbCache';
 import { logAdminActivity } from '../../services/adminActivityLogger';
 
 const MASTER_SUBJECT_NAMES = {
@@ -36,7 +35,7 @@ const MASTER_SUBJECT_NAMES = {
   'GENERAL': 'General / Morning Roll Call'
 };
 
-function formatSubjectName(sub) {
+export function formatSubjectName(sub) {
   if (!sub) return 'General Attendance';
   const clean = String(sub).trim().toUpperCase();
   return MASTER_SUBJECT_NAMES[clean] || sub;
@@ -64,6 +63,9 @@ export const resolveRecordSubject = (r) => {
   const idParts = String(r.id || r.docId || '').split('_');
   return r.subject || r.subjectName || r.subjectCode || (idParts.length >= 3 ? idParts[2] : '') || 'General';
 };
+
+const CACHE_KEY = 'hss_admin_attendance_summary_v1';
+const CACHE_TTL = 2 * 60 * 60 * 1000; // 2 hours
 
 export default function AdminAttendance() {
   const getInitialAttendanceSubTab = () => {
@@ -94,29 +96,216 @@ export default function AdminAttendance() {
   };
 
   const [loading, setLoading] = useState(true);
+  const [reaggregating, setReaggregating] = useState(false);
   const [saving, setSaving] = useState(false);
   const [alert, setAlert] = useState(null);
 
-  // Settings State
+  // Portal Controls Settings State
   const [attendanceConfig, setAttendanceConfig] = useState({
     '11th': { enabled: true, mode: 'daily' },
     '12th': { enabled: true, mode: 'daily' }
   });
 
-  const [attendanceRecords, setAttendanceRecords] = useState([]);
+  // Compact Aggregated Summary State
+  const [summaryData, setSummaryData] = useState({
+    totalLogs: 0,
+    totalSessions: 0,
+    distinctDays: 0,
+    classCounts: { '11th': 0, '12th': 0, other: 0 },
+    totalPresent: 0,
+    overallPresentRate: 0,
+    subjectGroups: [],
+    dateGroups: [],
+    updatedAt: null
+  });
 
   // UI Filtering & Grouping State
-  const [groupByMode, setGroupByMode] = useState('subject'); // 'subject' | 'date' | 'flat'
+  const [groupByMode, setGroupByMode] = useState('subject'); // 'subject' | 'date'
   const [searchQuery, setSearchQuery] = useState('');
   const [classFilter, setClassFilter] = useState('all'); // 'all' | '11th' | '12th'
   const [subjectFilter, setSubjectFilter] = useState('all');
   const [expandedGroups, setExpandedGroups] = useState({});
-  const [selectedRecordForModal, setSelectedRecordForModal] = useState(null);
-  const loadedSubTabsRef = useRef(new Set());
+  const [datePageSize, setDatePageSize] = useState(30);
 
-  // Each sub-tab loads only the Firestore data it renders.
+  // On-demand session modal state
+  const [selectedSessionSummary, setSelectedSessionSummary] = useState(null);
+  const [modalSessionData, setModalSessionData] = useState(null);
+  const [loadingModalData, setLoadingModalData] = useState(false);
+  const sessionRosterCacheRef = useRef({});
+
+  // Helper: compute summary from raw collection on demand (used for fallback or cloud sync)
+  const computeAndSaveSummary = useCallback(async () => {
+    setReaggregating(true);
+    try {
+      const snap = await getDocs(collection(db, 'attendance'));
+      let totalLogs = 0;
+      let totalPresent = 0;
+      const distinctDates = new Set();
+      const classCounts = { '11th': 0, '12th': 0, other: 0 };
+      const subjectGroupsMap = {};
+      const dateGroupsMap = {};
+
+      snap.forEach(docSnap => {
+        const data = docSnap.data();
+        const docId = docSnap.id;
+        const cls = resolveRecordClass({ ...data, docId });
+        const dt = resolveRecordDate({ ...data, docId });
+        const sub = resolveRecordSubject({ ...data, docId });
+        const subKey = `${cls}_${sub.toUpperCase()}`;
+
+        if (dt) distinctDates.add(dt);
+
+        let sessionTotal = 0;
+        let sessionPresent = 0;
+
+        if (Array.isArray(data.records)) {
+          data.records.forEach(st => {
+            sessionTotal++;
+            totalLogs++;
+            if (cls === '11th' || cls === '12th') {
+              classCounts[cls] = (classCounts[cls] || 0) + 1;
+            } else {
+              classCounts.other = (classCounts.other || 0) + 1;
+            }
+            const s = String(st.status || '').toUpperCase();
+            if (s === 'P' || s === 'PRESENT') {
+              sessionPresent++;
+              totalPresent++;
+            }
+          });
+        } else if (data.status) {
+          sessionTotal++;
+          totalLogs++;
+          if (cls === '11th' || cls === '12th') {
+            classCounts[cls] = (classCounts[cls] || 0) + 1;
+          } else {
+            classCounts.other = (classCounts.other || 0) + 1;
+          }
+          const s = String(data.status || '').toUpperCase();
+          if (s === 'P' || s === 'PRESENT') {
+            sessionPresent++;
+            totalPresent++;
+          }
+        }
+
+        // Subject grouping
+        if (!subjectGroupsMap[subKey]) {
+          subjectGroupsMap[subKey] = {
+            id: subKey,
+            className: cls,
+            subjectCode: sub,
+            subjectFullName: formatSubjectName(sub),
+            sessionsCount: 0,
+            totalStudentsCount: 0,
+            totalPresentCount: 0,
+            earliestDate: dt,
+            latestDate: dt,
+            sessions: []
+          };
+        }
+        const sg = subjectGroupsMap[subKey];
+        sg.sessionsCount++;
+        sg.totalStudentsCount += sessionTotal;
+        sg.totalPresentCount += sessionPresent;
+        if (dt) {
+          if (!sg.earliestDate || dt < sg.earliestDate) sg.earliestDate = dt;
+          if (!sg.latestDate || dt > sg.latestDate) sg.latestDate = dt;
+        }
+        sg.sessions.push({
+          docId,
+          date: dt,
+          totalStudents: sessionTotal,
+          presentStudents: sessionPresent,
+          presentRate: sessionTotal > 0 ? Math.round((sessionPresent / sessionTotal) * 100) : 0,
+          teacher: data.teacher || data.teacherName || data.teacherEmail || 'Faculty'
+        });
+
+        // Date grouping
+        if (dt) {
+          if (!dateGroupsMap[dt]) {
+            dateGroupsMap[dt] = {
+              date: dt,
+              sessionsCount: 0,
+              totalStudentsCount: 0,
+              totalPresentCount: 0,
+              classes: new Set(),
+              subjects: new Set(),
+              sessionSummaries: []
+            };
+          }
+          const dg = dateGroupsMap[dt];
+          dg.sessionsCount++;
+          dg.totalStudentsCount += sessionTotal;
+          dg.totalPresentCount += sessionPresent;
+          dg.classes.add(cls);
+          dg.subjects.add(`${formatSubjectName(sub)} (${cls})`);
+          dg.sessionSummaries.push({
+            docId,
+            className: cls,
+            subject: formatSubjectName(sub),
+            subjectCode: sub,
+            totalStudents: sessionTotal,
+            presentStudents: sessionPresent,
+            rate: sessionTotal > 0 ? Math.round((sessionPresent / sessionTotal) * 100) : 0
+          });
+        }
+      });
+
+      const subjectGroups = Object.values(subjectGroupsMap).map(sg => {
+        sg.avgPresentRate = sg.totalStudentsCount > 0 ? Math.round((sg.totalPresentCount / sg.totalStudentsCount) * 100) : 0;
+        sg.sessions.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+        return sg;
+      }).sort((a, b) => b.totalStudentsCount - a.totalStudentsCount);
+
+      const dateGroups = Object.values(dateGroupsMap).map(dg => ({
+        date: dg.date,
+        sessionsCount: dg.sessionsCount,
+        totalStudentsCount: dg.totalStudentsCount,
+        totalPresentCount: dg.totalPresentCount,
+        avgPresentRate: dg.totalStudentsCount > 0 ? Math.round((dg.totalPresentCount / dg.totalStudentsCount) * 100) : 0,
+        classes: Array.from(dg.classes).sort(),
+        subjects: Array.from(dg.subjects).sort(),
+        sessionSummaries: dg.sessionSummaries
+      })).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+
+      const overallPresentRate = totalLogs > 0 ? Math.round((totalPresent / totalLogs) * 100) : 0;
+
+      const payload = {
+        totalLogs,
+        totalSessions: snap.size,
+        distinctDays: distinctDates.size,
+        classCounts,
+        totalPresent,
+        overallPresentRate,
+        subjectGroups,
+        dateGroups,
+        updatedAt: new Date().toISOString(),
+        isCompactSummary: true
+      };
+
+      setSummaryData(payload);
+      try {
+        localStorage.setItem(CACHE_KEY, JSON.stringify({ data: payload, timestamp: Date.now() }));
+      } catch (_) {}
+
+      // Save summary in systemSettings
+      try {
+        await setDoc(doc(db, 'systemSettings', 'attendanceSummary'), payload, { merge: true });
+      } catch (err) {
+        console.warn('Could not persist attendanceSummary doc:', err);
+      }
+
+      setAlert({ type: 'success', text: `Successfully re-aggregated all ${totalLogs} attendance logs across ${distinctDates.size} days!` });
+    } catch (err) {
+      console.error('Failed to re-aggregate attendance:', err);
+      setAlert({ type: 'error', text: 'Failed to re-aggregate attendance records from cloud.' });
+    } finally {
+      setReaggregating(false);
+    }
+  }, []);
+
+  // Intelligent Demand-Basis Loader: 1 read or 0 reads
   const loadData = useCallback(async (targetTab = activeSubTab, force = false) => {
-    if (!force && loadedSubTabsRef.current.has(targetTab)) return;
     setLoading(true);
     setAlert(null);
 
@@ -132,18 +321,43 @@ export default function AdminAttendance() {
     }
 
     if (targetTab === 'overview') {
-      try {
-        const records = await getCachedCollection('attendance', force, 3 * 60 * 1000);
-        setAttendanceRecords(Array.isArray(records) ? records : []);
-      } catch (e) {
-        console.warn('[AdminAttendance] Attendance data fetch note:', e);
-        setAttendanceRecords([]);
+      // 1. Check local cache if not forced (0 reads)
+      if (!force) {
+        try {
+          const cached = localStorage.getItem(CACHE_KEY);
+          if (cached) {
+            const parsed = JSON.parse(cached);
+            if (parsed && parsed.data && Date.now() - (parsed.timestamp || 0) < CACHE_TTL) {
+              setSummaryData(parsed.data);
+              setLoading(false);
+              return;
+            }
+          }
+        } catch (_) {}
       }
+
+      // 2. Fetch single compact summary document from Firestore (1 read)
+      try {
+        const summaryDoc = await getDoc(doc(db, 'systemSettings', 'attendanceSummary'));
+        if (summaryDoc.exists() && summaryDoc.data()?.isCompactSummary) {
+          const data = summaryDoc.data();
+          setSummaryData(data);
+          try {
+            localStorage.setItem(CACHE_KEY, JSON.stringify({ data, timestamp: Date.now() }));
+          } catch (_) {}
+          setLoading(false);
+          return;
+        }
+      } catch (e) {
+        console.warn('[AdminAttendance] Summary doc note:', e);
+      }
+
+      // 3. If summary document doesn't exist yet, compute from collection
+      await computeAndSaveSummary();
     }
 
-    loadedSubTabsRef.current.add(targetTab);
     setLoading(false);
-  }, [activeSubTab]);
+  }, [activeSubTab, computeAndSaveSummary]);
 
   useEffect(() => {
     loadData(activeSubTab);
@@ -177,164 +391,104 @@ export default function AdminAttendance() {
     }));
   };
 
-  // High-Level Analytics & Metric Calculations
-  const analytics = useMemo(() => {
-    let totalPresent = 0;
-    let totalMarked = 0;
-    const distinctDates = new Set();
-    const classCount = { '11th': 0, '12th': 0, other: 0 };
-    const subjectCount = {};
+  // On-demand session roster modal fetch (Demand-basis read of a single session document)
+  const handleOpenSessionModal = async (sessionSummary) => {
+    setSelectedSessionSummary(sessionSummary);
+    const docId = sessionSummary.docId;
+    if (!docId) {
+      setModalSessionData(sessionSummary);
+      return;
+    }
 
-    attendanceRecords.forEach(r => {
-      const cls = resolveRecordClass(r);
-      if (cls === '11th' || cls === '12th') {
-        classCount[cls] = (classCount[cls] || 0) + 1;
+    // Check in-memory session cache
+    if (sessionRosterCacheRef.current[docId]) {
+      setModalSessionData(sessionRosterCacheRef.current[docId]);
+      return;
+    }
+
+    setLoadingModalData(true);
+    try {
+      const snap = await getDoc(doc(db, 'attendance', docId));
+      if (snap.exists()) {
+        const fullData = { ...snap.data(), docId: snap.id };
+        sessionRosterCacheRef.current[docId] = fullData;
+        setModalSessionData(fullData);
       } else {
-        classCount.other = (classCount.other || 0) + 1;
+        setModalSessionData(sessionSummary);
       }
+    } catch (err) {
+      console.warn('Could not fetch single session doc:', err);
+      setModalSessionData(sessionSummary);
+    } finally {
+      setLoadingModalData(false);
+    }
+  };
 
-      const rawSub = resolveRecordSubject(r);
-      const subKey = formatSubjectName(rawSub);
-      subjectCount[subKey] = (subjectCount[subKey] || 0) + 1;
+  const handleCloseModal = () => {
+    setSelectedSessionSummary(null);
+    setModalSessionData(null);
+  };
 
-      const dt = resolveRecordDate(r);
-      if (dt) distinctDates.add(dt);
-
-      if (Array.isArray(r.records)) {
-        r.records.forEach(st => {
-          totalMarked++;
-          const s = String(st.status || '').toUpperCase();
-          if (s === 'P' || s === 'PRESENT') totalPresent++;
-        });
-      } else if (r.status) {
-        totalMarked++;
-        const s = String(r.status || '').toUpperCase();
-        if (s === 'P' || s === 'PRESENT') totalPresent++;
-      }
-    });
-
-    const avgRate = totalMarked > 0 ? Math.round((totalPresent / totalMarked) * 100) : 0;
-
-    return {
-      totalRecords: attendanceRecords.length,
-      distinctDays: distinctDates.size,
-      classCount,
-      subjectCount,
-      avgRate
-    };
-  }, [attendanceRecords]);
-
-  // Distinct subjects list for filtering
-  const distinctSubjects = useMemo(() => {
-    const subs = new Set();
-    attendanceRecords.forEach(r => {
-      const sub = resolveRecordSubject(r);
-      if (sub && sub !== 'General') subs.add(sub);
-    });
-    return Array.from(subs).sort();
-  }, [attendanceRecords]);
-
-  // Filtered Records based on Class, Subject & Search
-  const filteredRecords = useMemo(() => {
-    return attendanceRecords.filter(r => {
-      const cls = resolveRecordClass(r);
+  // Filtered Subject Groups
+  const filteredSubjectGroups = useMemo(() => {
+    return (summaryData.subjectGroups || []).filter(group => {
       if (classFilter !== 'all') {
-        if (classFilter === '11th' && cls !== '11th') return false;
-        if (classFilter === '12th' && cls !== '12th') return false;
+        if (classFilter === '11th' && !group.className.includes('11')) return false;
+        if (classFilter === '12th' && !group.className.includes('12')) return false;
       }
-      const sub = resolveRecordSubject(r);
-      if (subjectFilter !== 'all' && sub !== subjectFilter && formatSubjectName(sub) !== subjectFilter) {
-        return false;
+      if (subjectFilter !== 'all') {
+        if (group.subjectCode !== subjectFilter && group.subjectFullName !== subjectFilter) {
+          return false;
+        }
       }
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim();
-        const dateStr = String(resolveRecordDate(r)).toLowerCase();
-        const subStr = String(sub).toLowerCase();
-        const fullSub = formatSubjectName(sub).toLowerCase();
-        const clsStr = String(cls).toLowerCase();
-        const nameStr = String(r.studentName || r.name || '').toLowerCase();
-        const rollStr = String(r.rollNo || r.classRollNo || '').toLowerCase();
-        if (!dateStr.includes(q) && !subStr.includes(q) && !fullSub.includes(q) && !clsStr.includes(q) && !nameStr.includes(q) && !rollStr.includes(q)) {
+        const code = String(group.subjectCode || '').toLowerCase();
+        const name = String(group.subjectFullName || '').toLowerCase();
+        const cls = String(group.className || '').toLowerCase();
+        const hasMatchingSession = (group.sessions || []).some(s => (s.date || '').includes(q));
+        if (!code.includes(q) && !name.includes(q) && !cls.includes(q) && !hasMatchingSession) {
           return false;
         }
       }
       return true;
     });
-  }, [attendanceRecords, classFilter, subjectFilter, searchQuery]);
+  }, [summaryData.subjectGroups, classFilter, subjectFilter, searchQuery]);
 
-  // Grouped by Subject & Class
-  const groupedBySubject = useMemo(() => {
-    const groups = {};
-    filteredRecords.forEach(r => {
-      const cls = resolveRecordClass(r);
-      const rawSub = resolveRecordSubject(r);
-      const key = `${cls}_${rawSub}`;
-      if (!groups[key]) {
-        groups[key] = {
-          id: key,
-          className: cls,
-          subjectCode: rawSub,
-          subjectFullName: formatSubjectName(rawSub),
-          records: [],
-          totalStudentsCount: 0,
-          totalPresentCount: 0
-        };
+  // Filtered Date Groups
+  const filteredDateGroups = useMemo(() => {
+    return (summaryData.dateGroups || []).filter(group => {
+      if (classFilter !== 'all') {
+        const hasClass = (group.classes || []).some(c => c.includes(classFilter));
+        if (!hasClass) return false;
       }
-      groups[key].records.push(r);
-
-      // Aggregate attendance rates
-      if (Array.isArray(r.records)) {
-        r.records.forEach(st => {
-          groups[key].totalStudentsCount++;
-          const s = String(st.status || '').toUpperCase();
-          if (s === 'P' || s === 'PRESENT') {
-            groups[key].totalPresentCount++;
-          }
-        });
-      } else if (r.status) {
-        groups[key].totalStudentsCount++;
-        const s = String(r.status || '').toUpperCase();
-        if (s === 'P' || s === 'PRESENT') {
-          groups[key].totalPresentCount++;
-        }
+      if (subjectFilter !== 'all') {
+        const hasSubject = (group.sessionSummaries || []).some(
+          s => s.subjectCode === subjectFilter || s.subject === subjectFilter
+        );
+        if (!hasSubject) return false;
       }
-    });
-
-    // Sort records inside each group by date descending
-    Object.values(groups).forEach(g => {
-      g.records.sort((a, b) => {
-        const dateA = resolveRecordDate(a) || a.updatedAt || '';
-        const dateB = resolveRecordDate(b) || b.updatedAt || '';
-        return new Date(dateB) - new Date(dateA);
-      });
-      g.latestDate = resolveRecordDate(g.records[0]) || '—';
-      g.avgPresentRate = g.totalStudentsCount > 0 
-        ? Math.round((g.totalPresentCount / g.totalStudentsCount) * 100) 
-        : 0;
-    });
-
-    return Object.values(groups).sort((a, b) => b.records.length - a.records.length);
-  }, [filteredRecords]);
-
-  // Grouped by Date
-  const groupedByDate = useMemo(() => {
-    const groups = {};
-    filteredRecords.forEach(r => {
-      const dt = resolveRecordDate(r) || 'Unknown Date';
-      if (!groups[dt]) {
-        groups[dt] = {
-          date: dt,
-          records: []
-        };
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase().trim();
+        const dateMatch = (group.date || '').toLowerCase().includes(q);
+        const subMatch = (group.subjects || []).some(s => s.toLowerCase().includes(q));
+        if (!dateMatch && !subMatch) return false;
       }
-      groups[dt].records.push(r);
+      return true;
     });
+  }, [summaryData.dateGroups, classFilter, subjectFilter, searchQuery]);
 
-    return Object.values(groups).sort((a, b) => new Date(b.date) - new Date(a.date));
-  }, [filteredRecords]);
+  // Distinct subjects list for filtering
+  const distinctSubjects = useMemo(() => {
+    const subs = new Set();
+    (summaryData.subjectGroups || []).forEach(g => {
+      if (g.subjectCode) subs.add(g.subjectCode);
+    });
+    return Array.from(subs).sort();
+  }, [summaryData.subjectGroups]);
 
   if (loading) {
-    return <ModernLoader moduleKey="attendance" text="Loading attendance…" subtext="Please wait." />;
+    return <ModernLoader moduleKey="attendance" text="Loading compact attendance…" subtext="Retrieving aggregated institutional figures." />;
   }
 
   return (
@@ -368,13 +522,28 @@ export default function AdminAttendance() {
           </button>
         </div>
         
-        <button
-          onClick={() => loadData(activeSubTab, true)}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800/60 rounded-xl text-xs font-black hover:bg-indigo-100 dark:hover:bg-indigo-900/60 transition-colors cursor-pointer"
-        >
-          <RefreshCw size={13} />
-          <span>Refresh</span>
-        </button>
+        <div className="flex items-center gap-1.5">
+          <button
+            onClick={() => loadData(activeSubTab, true)}
+            title="Refresh summary (1 Firestore read)"
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800/60 rounded-xl text-xs font-black hover:bg-indigo-100 dark:hover:bg-indigo-900/60 transition-colors cursor-pointer"
+          >
+            <RefreshCw size={13} />
+            <span>Refresh</span>
+          </button>
+
+          {activeSubTab === 'overview' && (
+            <button
+              onClick={computeAndSaveSummary}
+              disabled={reaggregating}
+              title="Full Re-aggregation of Cloud Attendance"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-black hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors cursor-pointer disabled:opacity-50"
+            >
+              <Database size={13} className={reaggregating ? 'animate-spin text-amber-500' : ''} />
+              <span>{reaggregating ? 'Aggregating...' : 'Sync Cloud Aggregates'}</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {alert && (
@@ -440,7 +609,7 @@ export default function AdminAttendance() {
         </div>
       )}
 
-      {/* VIEW 2: COMPACT MODERN ATTENDANCE OVERVIEW */}
+      {/* VIEW 2: COMPACT MODERN ATTENDANCE OVERVIEW (GROUPED & NO UNNECESSARY READS) */}
       {activeSubTab === 'overview' && (
         <div className="space-y-3">
           
@@ -450,34 +619,34 @@ export default function AdminAttendance() {
               <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 block">Total Logs Logged</span>
               <div className="text-lg font-black text-slate-900 dark:text-white flex items-center gap-1.5">
                 <CalendarCheck size={16} className="text-amber-600" />
-                <span>{analytics.totalRecords}</span>
+                <span>{summaryData.totalLogs}</span>
               </div>
-              <span className="text-[10px] font-bold text-slate-400 block">{analytics.distinctDays} Unique Days</span>
+              <span className="text-[10px] font-bold text-slate-400 block">{summaryData.distinctDays} Unique Days • {summaryData.totalSessions} Registers</span>
             </div>
 
             <div className="p-2.5 rounded-xl border border-teal-200 dark:border-teal-900/50 bg-teal-50/30 dark:bg-teal-950/20 shadow-2xs space-y-0.5">
               <span className="text-[10px] font-black uppercase tracking-wider text-teal-700 dark:text-teal-400 block">Class 11th Submissions</span>
               <div className="text-lg font-black text-teal-700 dark:text-teal-300 flex items-center gap-1.5">
                 <Users size={16} />
-                <span>{analytics.classCount['11th']}</span>
+                <span>{summaryData.classCounts['11th'] || 0}</span>
               </div>
-              <span className="text-[10px] font-bold text-teal-600/80 dark:text-teal-400/80 block">Active 11th Registers</span>
+              <span className="text-[10px] font-bold text-teal-600/80 dark:text-teal-400/80 block">Active 11th Records</span>
             </div>
 
             <div className="p-2.5 rounded-xl border border-blue-200 dark:border-blue-900/50 bg-blue-50/30 dark:bg-blue-950/20 shadow-2xs space-y-0.5">
               <span className="text-[10px] font-black uppercase tracking-wider text-blue-700 dark:text-blue-400 block">Class 12th Submissions</span>
               <div className="text-lg font-black text-blue-700 dark:text-blue-300 flex items-center gap-1.5">
                 <Users size={16} />
-                <span>{analytics.classCount['12th']}</span>
+                <span>{summaryData.classCounts['12th'] || 0}</span>
               </div>
-              <span className="text-[10px] font-bold text-blue-600/80 dark:text-blue-400/80 block">Active 12th Registers</span>
+              <span className="text-[10px] font-bold text-blue-600/80 dark:text-blue-400/80 block">Active 12th Records</span>
             </div>
 
             <div className="p-2.5 rounded-xl border border-emerald-200 dark:border-emerald-900/50 bg-emerald-50/30 dark:bg-emerald-950/20 shadow-2xs space-y-0.5">
               <span className="text-[10px] font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-400 block">Overall Present Rate</span>
               <div className="text-lg font-black text-emerald-700 dark:text-emerald-300 flex items-center gap-1.5">
                 <BarChart3 size={16} />
-                <span>{analytics.avgRate}%</span>
+                <span>{summaryData.overallPresentRate}%</span>
               </div>
               <span className="text-[10px] font-bold text-emerald-600/80 dark:text-emerald-400/80 block">Average Attendance</span>
             </div>
@@ -499,7 +668,7 @@ export default function AdminAttendance() {
                   }`}
                 >
                   <BookOpen size={12} />
-                  <span>Group by Subject & Class</span>
+                  <span>Group by Subject & Class ({filteredSubjectGroups.length})</span>
                 </button>
 
                 <button
@@ -512,20 +681,7 @@ export default function AdminAttendance() {
                   }`}
                 >
                   <Calendar size={12} />
-                  <span>Group by Date</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setGroupByMode('flat')}
-                  className={`px-2.5 py-1 rounded-lg transition-all flex items-center gap-1 cursor-pointer ${
-                    groupByMode === 'flat'
-                      ? 'bg-amber-600 text-white shadow-2xs'
-                      : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
-                  }`}
-                >
-                  <Layers size={12} />
-                  <span>All Entries ({filteredRecords.length})</span>
+                  <span>Group by Date ({filteredDateGroups.length} Days)</span>
                 </button>
               </div>
 
@@ -561,23 +717,25 @@ export default function AdminAttendance() {
                 />
               </div>
 
-              <select
-                value={subjectFilter}
-                onChange={(e) => setSubjectFilter(e.target.value)}
-                className="px-2.5 py-1.5 rounded-xl text-xs font-black border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 cursor-pointer shadow-2xs"
-              >
-                <option value="all">All Subjects ({distinctSubjects.length})</option>
-                {distinctSubjects.map(s => (
-                  <option key={s} value={s}>{s} — {formatSubjectName(s)}</option>
-                ))}
-              </select>
+              {distinctSubjects.length > 0 && (
+                <select
+                  value={subjectFilter}
+                  onChange={(e) => setSubjectFilter(e.target.value)}
+                  className="px-2.5 py-1.5 rounded-xl text-xs font-black border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 cursor-pointer shadow-2xs"
+                >
+                  <option value="all">All Subjects ({distinctSubjects.length})</option>
+                  {distinctSubjects.map(s => (
+                    <option key={s} value={s}>{s} — {formatSubjectName(s)}</option>
+                  ))}
+                </select>
+              )}
             </div>
           </div>
 
-          {/* MODE 1: GROUP BY SUBJECT & CLASS (DEFAULT - ULTRA MODERN ACCORDION CARDS) */}
+          {/* MODE 1: GROUP BY SUBJECT & CLASS (HIGH-LEVEL COMPACT SUMMARY ACCORDIONS) */}
           {groupByMode === 'subject' && (
             <div className="space-y-2.5">
-              {groupedBySubject.map((group) => {
+              {filteredSubjectGroups.map((group) => {
                 const isExpanded = expandedGroups[group.id];
                 const is11th = group.className.includes('11');
 
@@ -611,7 +769,7 @@ export default function AdminAttendance() {
                             </span>
                           </div>
                           <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 block">
-                            Latest Log: <strong className="text-slate-700 dark:text-slate-300">{group.latestDate}</strong> • {group.records.length} Submissions Logged
+                            Latest Log: <strong className="text-slate-700 dark:text-slate-300">{group.latestDate || '—'}</strong> • {group.sessionsCount} Registers Logged • {group.totalStudentsCount} Marked Records
                           </span>
                         </div>
                       </div>
@@ -629,57 +787,53 @@ export default function AdminAttendance() {
                       </div>
                     </div>
 
-                    {/* Expandable Session Log Table */}
+                    {/* Expandable Session Log Table (Compact figures, no student spam) */}
                     {isExpanded && (
                       <div className="border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/50 p-2.5 space-y-1.5">
                         <table className="w-full text-left text-xs whitespace-nowrap">
                           <thead>
                             <tr className="text-[10px] font-black uppercase text-slate-400 border-b border-slate-200 dark:border-slate-800 pb-1">
                               <th className="pb-1 px-2">Attendance Date</th>
-                              <th className="pb-1 px-2">Submitted Time</th>
+                              <th className="pb-1 px-2">Teacher / In-Charge</th>
                               <th className="pb-1 px-2">Students Marked</th>
                               <th className="pb-1 px-2">Present Rate</th>
-                              <th className="pb-1 px-2 text-right">Actions</th>
+                              <th className="pb-1 px-2 text-right">Register Action</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-bold">
-                            {group.records.map((rec, rIdx) => {
-                              const total = Array.isArray(rec.records) ? rec.records.length : (rec.status ? 1 : 0);
-                              const present = Array.isArray(rec.records) 
-                                ? rec.records.filter(s => String(s.status || '').toUpperCase() === 'P' || String(s.status || '').toUpperCase() === 'PRESENT').length 
-                                : (String(rec.status || '').toUpperCase() === 'P' || String(rec.status || '').toUpperCase() === 'PRESENT' ? 1 : 0);
-                              const rate = total > 0 ? Math.round((present / total) * 100) : 0;
-                              const dt = resolveRecordDate(rec);
-
-                              return (
-                                <tr key={rIdx} className="hover:bg-white dark:hover:bg-slate-900/80">
-                                  <td className="py-1.5 px-2 font-black text-indigo-700 dark:text-indigo-400 font-mono">
-                                    {dt || '—'}
-                                  </td>
-                                  <td className="py-1.5 px-2 text-slate-500 text-[11px]">
-                                    {rec.updatedAt ? `${new Date(rec.updatedAt).toLocaleDateString()} ${new Date(rec.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : (dt || '—')}
-                                  </td>
-                                  <td className="py-1.5 px-2 font-black text-slate-800 dark:text-slate-200">
-                                    {total} Students
-                                  </td>
-                                  <td className="py-1.5 px-2">
-                                    <span className="inline-flex items-center gap-1 text-[11px] font-black text-emerald-600 dark:text-emerald-400">
-                                      {present}/{total} ({rate}%)
-                                    </span>
-                                  </td>
-                                  <td className="py-1.5 px-2 text-right">
-                                    <button
-                                      type="button"
-                                      onClick={() => setSelectedRecordForModal(rec)}
-                                      className="px-2.5 py-1 rounded-lg bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 font-black text-[11px] border border-indigo-200 dark:border-indigo-800/50 cursor-pointer inline-flex items-center gap-1"
-                                    >
-                                      <Eye size={11} />
-                                      <span>View Register</span>
-                                    </button>
-                                  </td>
-                                </tr>
-                              );
-                            })}
+                            {(group.sessions || []).map((session, sIdx) => (
+                              <tr key={session.docId || sIdx} className="hover:bg-white dark:hover:bg-slate-900/80">
+                                <td className="py-1.5 px-2 font-black text-indigo-700 dark:text-indigo-400 font-mono">
+                                  {session.date || '—'}
+                                </td>
+                                <td className="py-1.5 px-2 text-slate-600 dark:text-slate-300 text-[11px]">
+                                  {session.teacher || 'Faculty Member'}
+                                </td>
+                                <td className="py-1.5 px-2 font-black text-slate-800 dark:text-slate-200">
+                                  {session.totalStudents} Students
+                                </td>
+                                <td className="py-1.5 px-2">
+                                  <span className="inline-flex items-center gap-1 text-[11px] font-black text-emerald-600 dark:text-emerald-400">
+                                    {session.presentStudents}/{session.totalStudents} ({session.presentRate}%)
+                                  </span>
+                                </td>
+                                <td className="py-1.5 px-2 text-right">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenSessionModal({
+                                      ...session,
+                                      className: group.className,
+                                      subject: group.subjectFullName,
+                                      subjectCode: group.subjectCode
+                                    })}
+                                    className="px-2.5 py-1 rounded-lg bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 font-black text-[11px] border border-indigo-200 dark:border-indigo-800/50 cursor-pointer inline-flex items-center gap-1"
+                                  >
+                                    <Eye size={11} />
+                                    <span>View Register</span>
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
                           </tbody>
                         </table>
                       </div>
@@ -688,18 +842,18 @@ export default function AdminAttendance() {
                 );
               })}
 
-              {groupedBySubject.length === 0 && (
+              {filteredSubjectGroups.length === 0 && (
                 <div className="p-8 text-center text-slate-400 text-xs font-bold bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800">
-                  No attendance records found matching filters.
+                  No attendance subject groups found matching your filter criteria.
                 </div>
               )}
             </div>
           )}
 
-          {/* MODE 2: GROUP BY DATE (CALENDAR STREAM) */}
+          {/* MODE 2: GROUP BY DATE (COMPACT TIMELINE) */}
           {groupByMode === 'date' && (
             <div className="space-y-2.5">
-              {groupedByDate.map((group) => (
+              {filteredDateGroups.slice(0, datePageSize).map((group) => (
                 <div
                   key={group.date}
                   className="p-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xs space-y-2"
@@ -712,119 +866,65 @@ export default function AdminAttendance() {
                       <strong className="font-mono text-xs font-black text-slate-900 dark:text-white">
                         {group.date}
                       </strong>
+                      <span className="text-[10px] font-black px-2 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/50">
+                        {group.avgPresentRate}% Overall Present
+                      </span>
                     </div>
                     <span className="text-[10px] font-black text-slate-500">
-                      {group.records.length} Registers Submitted
+                      {group.sessionsCount} Registers • {group.totalStudentsCount} Students
                     </span>
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-1.5">
-                    {group.records.map((rec, rIdx) => {
-                      const total = Array.isArray(rec.records) ? rec.records.length : (rec.status ? 1 : 0);
-                      const present = Array.isArray(rec.records) 
-                        ? rec.records.filter(s => String(s.status || '').toUpperCase() === 'P' || String(s.status || '').toUpperCase() === 'PRESENT').length 
-                        : (String(rec.status || '').toUpperCase() === 'P' || String(rec.status || '').toUpperCase() === 'PRESENT' ? 1 : 0);
-                      const rate = total > 0 ? Math.round((present / total) * 100) : 0;
-                      const sub = resolveRecordSubject(rec);
-                      const cls = resolveRecordClass(rec);
-
-                      return (
-                        <div
-                          key={rIdx}
-                          onClick={() => setSelectedRecordForModal(rec)}
-                          className="p-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-950/60 flex items-center justify-between cursor-pointer hover:border-amber-500/50 transition-all text-xs"
-                        >
-                          <div>
-                            <span className="font-black text-slate-900 dark:text-white block text-[11px]">
-                              {formatSubjectName(sub)} ({sub})
-                            </span>
-                            <span className="text-[10px] font-bold text-slate-500">
-                              Class {cls} • {present}/{total} ({rate}%)
-                            </span>
-                          </div>
-                          <Eye size={13} className="text-slate-400 hover:text-indigo-600" />
+                    {(group.sessionSummaries || []).map((session, rIdx) => (
+                      <div
+                        key={session.docId || rIdx}
+                        onClick={() => handleOpenSessionModal({
+                          ...session,
+                          date: group.date
+                        })}
+                        className="p-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-950/60 flex items-center justify-between cursor-pointer hover:border-amber-500/50 transition-all text-xs"
+                      >
+                        <div>
+                          <span className="font-black text-slate-900 dark:text-white block text-[11px]">
+                            {session.subject} ({session.subjectCode})
+                          </span>
+                          <span className="text-[10px] font-bold text-slate-500">
+                            Class {session.className} • {session.presentStudents}/{session.totalStudents} ({session.rate}%)
+                          </span>
                         </div>
-                      );
-                    })}
+                        <Eye size={13} className="text-slate-400 hover:text-indigo-600" />
+                      </div>
+                    ))}
                   </div>
                 </div>
               ))}
+
+              {filteredDateGroups.length > datePageSize && (
+                <div className="text-center pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setDatePageSize(prev => prev + 30)}
+                    className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-xs font-black text-slate-700 dark:text-slate-300 transition-colors cursor-pointer"
+                  >
+                    Load More Dates ({filteredDateGroups.length - datePageSize} remaining)
+                  </button>
+                </div>
+              )}
+
+              {filteredDateGroups.length === 0 && (
+                <div className="p-8 text-center text-slate-400 text-xs font-bold bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800">
+                  No attendance records found for the selected date criteria.
+                </div>
+              )}
             </div>
           )}
 
-          {/* MODE 3: HIGH-DENSITY FLAT TABLE */}
-          {groupByMode === 'flat' && (
-            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-2xs">
-              <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
-                <table className="w-full text-left text-xs whitespace-nowrap">
-                  <thead className="bg-slate-50 dark:bg-slate-950 text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800 sticky top-0 font-black text-[10px] uppercase">
-                    <tr>
-                      <th className="px-3 py-2">S.No</th>
-                      <th className="px-3 py-2">Attendance Date</th>
-                      <th className="px-3 py-2">Class</th>
-                      <th className="px-3 py-2">Subject</th>
-                      <th className="px-3 py-2">Students</th>
-                      <th className="px-3 py-2">Present Rate</th>
-                      <th className="px-3 py-2">Submission Timestamp</th>
-                      <th className="px-3 py-2 text-right">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-bold">
-                    {filteredRecords.map((rec, idx) => {
-                      const total = Array.isArray(rec.records) ? rec.records.length : (rec.status ? 1 : 0);
-                      const present = Array.isArray(rec.records) 
-                        ? rec.records.filter(s => String(s.status || '').toUpperCase() === 'P' || String(s.status || '').toUpperCase() === 'PRESENT').length 
-                        : (String(rec.status || '').toUpperCase() === 'P' || String(rec.status || '').toUpperCase() === 'PRESENT' ? 1 : 0);
-                      const rate = total > 0 ? Math.round((present / total) * 100) : 0;
-                      const dt = resolveRecordDate(rec);
-                      const cls = resolveRecordClass(rec);
-                      const sub = resolveRecordSubject(rec);
-
-                      return (
-                        <tr key={rec.id || idx} className="hover:bg-slate-50/70 dark:hover:bg-slate-800/40">
-                          <td className="px-3 py-2 font-mono text-slate-400 font-black">{idx + 1}</td>
-                          <td className="px-3 py-2 font-mono font-black text-indigo-700 dark:text-indigo-400">{dt || '—'}</td>
-                          <td className="px-3 py-2 font-black text-slate-900 dark:text-white">Class {cls}</td>
-                          <td className="px-3 py-2 font-black">
-                            {formatSubjectName(sub)} <span className="font-mono text-slate-400 text-[10px]">({sub})</span>
-                          </td>
-                          <td className="px-3 py-2 text-slate-700 dark:text-slate-300 font-black">{total}</td>
-                          <td className="px-3 py-2">
-                            <span className="inline-flex items-center gap-1 text-[11px] font-black text-emerald-600 dark:text-emerald-400">
-                              {present}/{total} ({rate}%)
-                            </span>
-                          </td>
-                          <td className="px-3 py-2 text-[11px] text-slate-500 font-mono">
-                            {rec.updatedAt ? `${new Date(rec.updatedAt).toLocaleDateString()} ${new Date(rec.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : (dt || '—')}
-                          </td>
-                          <td className="px-3 py-2 text-right">
-                            <button
-                              type="button"
-                              onClick={() => setSelectedRecordForModal(rec)}
-                              className="px-2.5 py-1 bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 rounded-lg font-black text-[11px] border border-indigo-200 dark:border-indigo-800/50 cursor-pointer inline-flex items-center gap-1"
-                            >
-                              <Eye size={11} />
-                              <span>View</span>
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                    {filteredRecords.length === 0 && (
-                      <tr>
-                        <td colSpan="8" className="px-3 py-8 text-center text-slate-400 font-bold">No attendance records found.</td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
         </div>
       )}
 
-      {/* DETAIL MODAL: VIEW STUDENT ATTENDANCE ROSTER */}
-      {selectedRecordForModal && (
+      {/* DETAIL MODAL: ON-DEMAND FETCH OF STUDENT ATTENDANCE ROSTER */}
+      {selectedSessionSummary && (
         <div className="fixed inset-0 z-[9999] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-3 animate-fadeIn">
           <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-2xl w-full max-h-[85vh] flex flex-col shadow-2xl border border-slate-300 dark:border-slate-800 overflow-hidden text-slate-900 dark:text-white">
             
@@ -836,30 +936,35 @@ export default function AdminAttendance() {
                 </div>
                 <div>
                   <h3 className="font-black text-xs sm:text-sm leading-tight">
-                    {formatSubjectName(resolveRecordSubject(selectedRecordForModal))} — Class {resolveRecordClass(selectedRecordForModal)}
+                    {formatSubjectName(selectedSessionSummary.subject || selectedSessionSummary.subjectCode)} — Class {selectedSessionSummary.className}
                   </h3>
                   <p className="text-[11px] font-mono text-indigo-600 dark:text-indigo-400 font-black">
-                    Date: {resolveRecordDate(selectedRecordForModal) || '—'} • Logged: {selectedRecordForModal.updatedAt ? new Date(selectedRecordForModal.updatedAt).toLocaleTimeString() : 'Recorded'}
+                    Date: {selectedSessionSummary.date || '—'} • Teacher: {selectedSessionSummary.teacher || 'Faculty'}
                   </p>
                 </div>
               </div>
 
               <button
                 type="button"
-                onClick={() => setSelectedRecordForModal(null)}
+                onClick={handleCloseModal}
                 className="p-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-900 dark:hover:text-white cursor-pointer"
               >
                 <X size={16} />
               </button>
             </div>
 
-            {(() => {
-              const modalRecords = Array.isArray(selectedRecordForModal.records) && selectedRecordForModal.records.length > 0
-                ? selectedRecordForModal.records
+            {loadingModalData ? (
+              <div className="p-12 text-center space-y-2">
+                <RefreshCw size={24} className="animate-spin text-indigo-600 mx-auto" />
+                <p className="text-xs font-bold text-slate-500">Fetching session student roster on demand...</p>
+              </div>
+            ) : (() => {
+              const modalRecords = Array.isArray(modalSessionData?.records) && modalSessionData.records.length > 0
+                ? modalSessionData.records
                 : [{
-                    rollNo: selectedRecordForModal.rollNo || selectedRecordForModal.classRollNo || '—',
-                    name: selectedRecordForModal.studentName || selectedRecordForModal.name || 'Student Candidate',
-                    status: selectedRecordForModal.status || 'P'
+                    rollNo: modalSessionData?.rollNo || modalSessionData?.classRollNo || '—',
+                    name: modalSessionData?.studentName || modalSessionData?.name || 'Class Student',
+                    status: modalSessionData?.status || 'P'
                   }];
               const totalMarked = modalRecords.length;
               const totalPresent = modalRecords.filter(s => String(s.status || '').toUpperCase() === 'P' || String(s.status || '').toUpperCase() === 'PRESENT').length;
@@ -932,7 +1037,7 @@ export default function AdminAttendance() {
             <div className="p-3 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 flex justify-end">
               <button
                 type="button"
-                onClick={() => setSelectedRecordForModal(null)}
+                onClick={handleCloseModal}
                 className="px-4 py-1.5 rounded-xl text-xs font-black bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-300 cursor-pointer"
               >
                 Close

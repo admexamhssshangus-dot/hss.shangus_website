@@ -11366,12 +11366,12 @@ export default function AdvancedReports({
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                      {bulkFormRows.map((st) => {
-                        const stId = st.id || st.formNo || st['Form Number'];
-                        const isChecked = selectedBulkFormIds.has(stId);
+                      {bulkFormRows.map((st, idx) => {
+                        const stId = st.id || st.docId || `${st.formNo || st['Form Number'] || 'st'}_${idx}`;
+                        const isChecked = selectedBulkFormIds.has(stId) || selectedBulkFormIds.has(st.id) || (st.formNo && selectedBulkFormIds.has(st.formNo));
                         return (
                           <tr
-                            key={stId}
+                            key={`bulk_form_row_${st.id || st.docId || ''}_${st.formNo || ''}_${idx}`}
                             onClick={() => {
                               const next = new Set(selectedBulkFormIds);
                               if (isChecked) next.delete(stId); else next.add(stId);
@@ -11593,7 +11593,7 @@ export default function AdvancedReports({
 
                             return (
                               <tr
-                                key={idKey}
+                                key={`bulk_cand_row_${st.id || st.docId || ''}_${st.formNo || ''}_${idx}`}
                                 className={`transition-colors cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-850 ${
                                   isChecked ? 'bg-amber-500/10 dark:bg-amber-950/20 font-extrabold' : ''
                                 }`}
