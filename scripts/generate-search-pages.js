@@ -82,9 +82,7 @@ const publicRules = [
   ...Object.entries(ALIASES).flatMap(([alias, canonical]) => [
     `${alias} ${canonical} 301!`, `${alias}/ ${canonical} 301!`
   ]),
-  ...routes.filter((route) => route !== '/').flatMap((route) => [
-    `${route}.html ${route} 301!`, `${route}/ ${route} 301!`
-  ])
+  ...routes.filter((route) => route !== '/').map((route) => `${route}.html ${route} 301!`)
 ];
 fs.writeFileSync(redirectsPath, redirects.replace(catchAll, `${publicRules.join('\n')}\n/* /app-shell.html 200\n`));
 
