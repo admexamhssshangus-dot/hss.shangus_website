@@ -602,6 +602,27 @@ export async function updateStudentDocument(student, updates) {
     }
   }
 
+  // Synchronize all Date of Birth (DoB) aliases if any DoB field is updated
+  const rawUpdatedDob =
+    updates.dob ||
+    updates.DoB ||
+    updates['DoB (as per school records)'] ||
+    updates['DoB (figures)'] ||
+    updates['Date of Birth'] ||
+    updates.dateOfBirth;
+
+  if (rawUpdatedDob !== undefined && rawUpdatedDob !== null) {
+    const formattedDob = formatDobToDisplay(rawUpdatedDob);
+    if (formattedDob && formattedDob !== '—' && formattedDob !== '-') {
+      updates.dob = formattedDob;
+      updates.DoB = formattedDob;
+      updates['DoB (as per school records)'] = formattedDob;
+      updates['DoB (figures)'] = formattedDob;
+      updates['Date of Birth'] = formattedDob;
+      updates.dateOfBirth = formattedDob;
+    }
+  }
+
   // Synchronize all Subject aliases if any subject field is updated
   const rawUpdatedSubs =
     updates.subs ||
@@ -1417,7 +1438,7 @@ function yearToWords(yearNum) {
  * Standardize DOB strings to DD-MM-YYYY format for consistent table display across all records.
  */
 export function formatDobToDisplay(dobRaw) {
-  if (!dobRaw || dobRaw === '—' || dobRaw === 'N/A' || dobRaw === 'null' || dobRaw === 'undefined') return '—';
+  if (!dobRaw || dobRaw === '—' || dobRaw === '-' || dobRaw === 'N/A' || dobRaw === 'null' || dobRaw === 'undefined') return '—';
   const str = String(dobRaw).trim();
   // 1. Match DD-MM-YYYY or DD/MM/YYYY or DD.MM.YYYY
   const dmyMatch = str.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})$/);
@@ -4732,12 +4753,18 @@ const COLUMN_DEFS = [
     key: 'dob',
     label: 'DoB',
     className: 'text-slate-600 dark:text-slate-400 whitespace-nowrap text-center',
-    render: (val, student) => (
-      <span className="inline-flex items-center justify-center gap-1 flex-wrap">
-        <span>{val || '—'}</span>
-        {student?._getJkboseStatus?.('dob') && <JkboseFieldBadge info={student._getJkboseStatus('dob')} />}
-      </span>
-    )
+    render: (val, student) => {
+      const status = student?._getJkboseStatus?.('dob');
+      const directVal = status?.newValue || student?.directEditHistory?.dob?.newValue || student?.directEditHistory?.['DoB (as per school records)']?.newValue || student?.fieldEditHistory?.dob?.newValue || student?.fieldEditHistory?.['DoB (as per school records)']?.newValue;
+      const rawVal = directVal || (val && val !== '-' && val !== '—' ? val : (student?.dob && student?.dob !== '-' && student?.dob !== '—' ? student.dob : (student?.['DoB (as per school records)'] && student?.['DoB (as per school records)'] !== '-' ? student['DoB (as per school records)'] : (student?.['DoB (figures)'] || '—'))));
+      const displayVal = formatDobToDisplay(rawVal);
+      return (
+        <span className="inline-flex items-center justify-center gap-1 flex-wrap">
+          <span className="font-semibold text-slate-800 dark:text-slate-200">{displayVal}</span>
+          {status && <JkboseFieldBadge info={status} />}
+        </span>
+      );
+    }
   },
   { key: 'village', label: 'Village/Town', className: 'whitespace-normal break-words leading-tight text-slate-700 dark:text-slate-300', render: (val) => formatProperName(val) },
   { key: 'gender', label: 'Gender', className: 'font-black whitespace-nowrap text-center' },
@@ -6203,8 +6230,17 @@ export default function AdvancedReports({
         [targetFieldName]: directEditRecord
       };
 
+      const isDob = colKey === 'dob' || targetFieldName === 'DoB (as per school records)';
+      const formattedNewDob = isDob ? (formatDobToDisplay(newValue) || newValue) : null;
+
       const payload = {
-        [targetFieldName]: newValue,
+        [targetFieldName]: isDob ? formattedNewDob : newValue,
+        ...(isDob ? {
+          dob: formattedNewDob,
+          'DoB (as per school records)': formattedNewDob,
+          'DoB (figures)': formattedNewDob,
+          DoB: formattedNewDob
+        } : {}),
         directEditHistory: updatedDirectHistory,
         fieldEditHistory: updatedDirectHistory,
         ...subjectPayload,
@@ -6238,8 +6274,14 @@ export default function AdvancedReports({
           };
           return {
             ...st,
-            [colKey]: newValue,
-            [targetFieldName]: newValue,
+            [colKey]: isDob ? formattedNewDob : newValue,
+            [targetFieldName]: isDob ? formattedNewDob : newValue,
+            ...(isDob ? {
+              dob: formattedNewDob,
+              'DoB (as per school records)': formattedNewDob,
+              'DoB (figures)': formattedNewDob,
+              DoB: formattedNewDob
+            } : {}),
             directEditHistory: nextHistory,
             fieldEditHistory: nextHistory,
             ...subjectPayload,
@@ -6259,8 +6301,14 @@ export default function AdvancedReports({
           };
           return {
             ...st,
-            [colKey]: newValue,
-            [targetFieldName]: newValue,
+            [colKey]: isDob ? formattedNewDob : newValue,
+            [targetFieldName]: isDob ? formattedNewDob : newValue,
+            ...(isDob ? {
+              dob: formattedNewDob,
+              'DoB (as per school records)': formattedNewDob,
+              'DoB (figures)': formattedNewDob,
+              DoB: formattedNewDob
+            } : {}),
             directEditHistory: nextHistory,
             fieldEditHistory: nextHistory,
             ...subjectPayload,
@@ -7161,6 +7209,11 @@ export default function AdvancedReports({
   const allStudents = useMemo(() => {
     const combined = [];
 
+    const getCleanDobVal = (v) => {
+      if (!v || v === '—' || v === '-' || v === 'N/A' || v === 'null' || v === 'undefined') return '';
+      return String(v).trim();
+    };
+
     const cleanRegNoVal = (val) => {
       if (isPlaceholderRegNo(val)) return '';
       let s = String(val).trim();
@@ -7755,7 +7808,10 @@ export default function AdvancedReports({
       const sName = masterMatch?.["Student's Name"] || a["Student's Name (as per school records)"] || a["Student's Name"] || a['Account Name'] || 'Student';
       const fName = masterMatch?.["Father's Name"] || a["Father's/Guardian's Name (as per school records)"] || a["Father's Name"] || '—';
       const mName = masterMatch?.["Mother's Name"] || a["Mother's Name (as per school records)"] || a["Mother's Name"] || '—';
-      const sDob = formatDobToDisplay(masterMatch?.["DoB (figures)"] || a["DoB (as per school records)"] || a['DoB (figures)'] || a['dob'] || '—');
+      const directDobVal = a?.directEditHistory?.dob?.newValue || a?.directEditHistory?.['DoB (as per school records)']?.newValue || a?.fieldEditHistory?.dob?.newValue || a?.fieldEditHistory?.['DoB (as per school records)']?.newValue;
+      const activeDobVal = directDobVal || getCleanDobVal(a.dob) || getCleanDobVal(a["DoB (as per school records)"]) || getCleanDobVal(a['DoB (figures)']) || getCleanDobVal(a.dateOfBirth) || getCleanDobVal(a.DoB);
+      const masterDobVal = getCleanDobVal(masterMatch?.["DoB (figures)"]) || getCleanDobVal(masterMatch?.["DoB (as per school records)"]) || getCleanDobVal(masterMatch?.dob);
+      const sDob = formatDobToDisplay(activeDobVal || masterDobVal || '—');
       const sVillage = a['Name of your village'] || a['Village/Town'] || 'Shangus';
       const sGender = a['Gender'] || '—';
       const sCategory = a['Cat._JKBOSE'] || a['Category'] || a['Social Category'] || 'General';
@@ -7886,6 +7942,9 @@ export default function AdvancedReports({
         fatherName: fName,
         motherName: mName,
         dob: sDob,
+        DoB: sDob,
+        'DoB (as per school records)': sDob,
+        'DoB (figures)': sDob,
         village: sVillage,
         gender: sGender,
         category: sCategory,
@@ -8045,8 +8104,9 @@ export default function AdvancedReports({
       const admKey = cleanAdmNoVal(finalAdmNo);
       const nameKey = sName && sName !== 'student' && sName !== '—' ? `${sName.toLowerCase()}_${(fName || '').toLowerCase().slice(0, 8)}` : '';
       const demo = (regKey && masterDemographicProfileMap.get(regKey)) || (nameKey && masterDemographicProfileMap.get(nameKey)) || (admKey && masterDemographicProfileMap.get(admKey)) || {};
-
-      const sDob = formatDobToDisplay(m["DoB (figures)"] || m["DoB (as per school records)"] || m['DoB (figures)'] || m['dob'] || demo.dob || '—');
+      const directHistDobVal = m?.directEditHistory?.dob?.newValue || m?.directEditHistory?.['DoB (as per school records)']?.newValue || m?.fieldEditHistory?.dob?.newValue || m?.fieldEditHistory?.['DoB (as per school records)']?.newValue;
+      const cleanMDobVal = directHistDobVal || getCleanDobVal(m["DoB (figures)"]) || getCleanDobVal(m["DoB (as per school records)"]) || getCleanDobVal(m['DoB (figures)']) || getCleanDobVal(m['dob']) || getCleanDobVal(demo.dob);
+      const sDob = formatDobToDisplay(cleanMDobVal || '—');
       const sVillage = m['Permanent Address'] || m['Name of your village'] || m['Village/Town'] || m['Address'] || m.village || demo.village || 'Shangus';
       const sGender = m['Gender'] || m.gender || demo.gender || '—';
       const sCategory = m['Cat._JKBOSE'] || m['Category'] || m['Social Category'] || m.category || demo.category || 'General';
@@ -8171,6 +8231,9 @@ export default function AdvancedReports({
         fatherName: fName,
         motherName: mName,
         dob: sDob,
+        DoB: sDob,
+        'DoB (as per school records)': sDob,
+        'DoB (figures)': sDob,
         village: sVillage,
         gender: sGender,
         category: sCategory,
