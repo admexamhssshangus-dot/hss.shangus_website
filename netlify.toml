@@ -104,6 +104,18 @@
     Cache-Control = "no-store"
 
 [[headers]]
+  for = "/gk-test"
+  [headers.values]
+    X-Robots-Tag = "noindex, follow"
+    Cache-Control = "no-store"
+
+[[headers]]
+  for = "/gk-test/*"
+  [headers.values]
+    X-Robots-Tag = "noindex, follow"
+    Cache-Control = "no-store"
+
+[[headers]]
   for = "/slides/settings.json"
   [headers.values]
     Cache-Control = "public, max-age=0, must-revalidate"
