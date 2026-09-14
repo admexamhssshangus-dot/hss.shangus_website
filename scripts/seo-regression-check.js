@@ -39,6 +39,14 @@ async function check() {
     const graph = JSON.parse(doc.querySelector('#hss-structured-data').textContent)['@graph'];
     assert.equal(graph.find((item) => item['@type'] === 'WebSite').name, 'HSS Shangus');
     assert.equal(graph.find((item) => item['@type'] === 'WebPage').url, url);
+    const school = graph.find((item) => item['@type'] === 'HighSchool');
+    assert.ok(Array.isArray(school.sameAs) && school.sameAs.length > 0, 'HighSchool must have sameAs');
+    assert.ok(school.contactPoint && school.contactPoint.telephone, 'HighSchool must have contactPoint');
+    assert.equal(doc.querySelector('meta[property="og:image:width"]').content, '1200', `${route}: og:image:width`);
+    assert.equal(doc.querySelector('meta[property="og:image:height"]').content, '630', `${route}: og:image:height`);
+    assert.equal(doc.querySelector('meta[property="og:image:type"]').content, 'image/jpeg', `${route}: og:image:type`);
+    assert.equal(doc.querySelector('meta[property="og:locale"]').content, 'en_IN', `${route}: og:locale`);
+    assert.ok(doc.querySelector('meta[property="og:image:alt"]')?.content, `${route}: og:image:alt`);
     assert.ok(!html.includes('search_term_string'), 'Do not advertise a nonexistent site search');
     const breadcrumb = graph.find((item) => item['@type'] === 'BreadcrumbList');
     if (route === '/') assert.equal(breadcrumb, undefined);

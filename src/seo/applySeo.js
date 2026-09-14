@@ -21,6 +21,11 @@ export default function applySeo(seo) {
   setMeta('property', 'og:description', seo.description);
   setMeta('property', 'og:url', seo.canonical);
   setMeta('property', 'og:image', seo.image);
+  setMeta('property', 'og:image:width', '1200');
+  setMeta('property', 'og:image:height', '630');
+  setMeta('property', 'og:image:type', 'image/jpeg');
+  setMeta('property', 'og:image:alt', seo.title);
+  setMeta('property', 'og:locale', 'en_IN');
   setMeta('name', 'twitter:card', 'summary_large_image');
   setMeta('name', 'twitter:title', seo.title);
   setMeta('name', 'twitter:description', seo.description);
