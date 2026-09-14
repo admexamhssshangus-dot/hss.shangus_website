@@ -175,8 +175,8 @@ export const ADMIN_MODULE_CATALOG = Object.freeze([
   },
   {
     id: 'boardSync',
-    label: 'Board Data Sync & Overwriter',
-    description: 'Bulk overwrite student admission fields with verified JKBOSE Excel data',
+    label: 'Board Data Sync (JKBOSE)',
+    description: 'Bulk overwrite student admission fields with verified JKBOSE board data',
     category: 'Operations & Automation',
     maturity: 'optimized',
     maturityNote: 'End-to-end optimized with 100% authoritative Board Reg matching, protected class roll numbers, and 30-day rollback memory.',
