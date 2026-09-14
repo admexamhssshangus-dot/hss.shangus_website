@@ -538,6 +538,9 @@ export default function LoginPage() {
       const isStaff = !!staffProfile;
       const assignedRole = staffProfile ? staffProfile.role : 'Student';
       const assignedPerms = staffProfile ? (staffProfile.perms || []) : [];
+      const isSuper = staffProfile?.isSuperAdmin || staffProfile?.role === 'SuperAdmin' || isBootstrapSuperAdminEmail(cleanEmail);
+      const isAdmin = isSuper || staffProfile?.isAdmin || isBootstrapAdminEmail(cleanEmail) || String(staffProfile?.role || '').toLowerCase() === 'admin';
+      const isTeacher = staffProfile?.isTeacher || ['teacher', 'faculty'].includes(String(staffProfile?.role || '').toLowerCase());
 
       // Save demographic profile using UID as document ID without erasing staff roles
       try {
@@ -562,11 +565,32 @@ export default function LoginPage() {
         console.warn('Firestore profile sync note:', fsErr);
       }
 
-      // If SuperAdmin or Admin, direct them to verified session
+      // --- 1. TEACHER TAB ACCESS (DIRECT LOGIN, NO ADMIN 2SV) ---
+      if (selectedRole === 'teacher') {
+        if (!isTeacher && !isAdmin) {
+          await signOut(auth).catch(() => {});
+          setAlert({
+            type: 'error',
+            text: 'Access Denied: Unauthorized account for Faculty Portal.'
+          });
+          setIsLoading(false);
+          return;
+        }
+
+        incrementTeacherLoginCount(cleanEmail).catch(() => {});
+        const verifiedSession = await createVerifiedSession(fbUser, cleanEmail, staffProfile);
+        verifiedSession.redirectPath = '/portal/teacher';
+        setAlert({ type: 'success', text: `Welcome back, ${verifiedSession.user.name}! Redirecting to Teacher Portal...` });
+        onLoginSuccess(verifiedSession, keepLoggedIn);
+        return;
+      }
+
+      // --- 2. ADMIN TAB / ROLES ---
       if (staffProfile?.isAdmin) {
         // Direct Super Admin bypass when signing in with master institutional credentials
         if (isSuperAdminEmail(cleanEmail)) {
           const verifiedSession = await createVerifiedSession(fbUser, cleanEmail, staffProfile);
+          verifiedSession.redirectPath = '/portal/admin';
           setAlert({ type: 'success', text: 'Welcome back, Super Admin! Unlocking dashboard...' });
           onLoginSuccess(verifiedSession, keepLoggedIn);
           return;
@@ -575,7 +599,9 @@ export default function LoginPage() {
         if (await beginAdminLogin(fbUser, staffProfile)) return;
       }
 
+      // --- 3. STUDENT TAB (DEFAULT) ---
       const verifiedSession = await createVerifiedSession(fbUser, cleanEmail, staffProfile);
+      setAlert({ type: 'success', text: 'Login successful! Redirecting to Portal...' });
       onLoginSuccess(verifiedSession, keepLoggedIn);
     } catch (err) {
       console.error('Google Sign-In failed:', err);
@@ -652,11 +678,9 @@ export default function LoginPage() {
       const isAdmin = isSuper || staffProfile?.isAdmin || isBootstrapAdminEmail(cleanEmail) || String(staffProfile?.role || '').toLowerCase() === 'admin';
       const isTeacher = staffProfile?.isTeacher || ['teacher', 'faculty'].includes(String(staffProfile?.role || '').toLowerCase());
 
-      if (await beginAdminLogin(userCred.user, staffProfile)) return;
-
       // 3. STRICT TAB & ROLE ACCESS CONTROL
 
-      // --- TEACHER TAB ACCESS ---
+      // --- TEACHER TAB ACCESS (PRIORITIZED BEFORE ADMIN 2SV) ---
       if (selectedRole === 'teacher') {
         if (!isTeacher && !isAdmin) {
           await signOut(auth).catch(() => {});
@@ -671,10 +695,14 @@ export default function LoginPage() {
         // Direct Teacher Login (Non-blocking login count update, immediate redirect)
         incrementTeacherLoginCount(cleanEmail).catch(() => {});
         const verifiedSession = await createVerifiedSession(userCred.user, cleanEmail, staffProfile);
+        verifiedSession.redirectPath = '/portal/teacher';
         setAlert({ type: 'success', text: `Welcome back, ${verifiedSession.user.name}! Redirecting to Teacher Portal...` });
         onLoginSuccess(verifiedSession, keepLoggedIn);
         return;
       }
+
+      // --- ADMIN 2-STEP VERIFICATION INTERCEPTION ---
+      if (await beginAdminLogin(userCred.user, staffProfile)) return;
 
       // --- ADMIN TAB ACCESS (Fallback if not intercepted by beginAdminLogin) ---
       if (selectedRole === 'admin' || selectedRole === 'superadmin') {

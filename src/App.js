@@ -70,9 +70,9 @@ function RoleGuard({ allowedRoles, children }) {
   const emailLower = String(user.email || '').toLowerCase().trim();
   const isSuper = isBootstrapSuperAdminEmail(emailLower);
 
-  // Bootstrap SuperAdmins are unconditionally permitted in Admin Portal
+  // Bootstrap SuperAdmins are unconditionally permitted in Admin & Teacher Portals
   if (isSuper) {
-    if (allowedRoles.includes('admin')) {
+    if (allowedRoles.includes('admin') || allowedRoles.includes('teacher')) {
       return children;
     }
     // If a superadmin wanders into a student-only route, redirect to admin
@@ -87,7 +87,7 @@ function RoleGuard({ allowedRoles, children }) {
   const allowed = allowedRoles.some((r) => {
     const normR = String(r).toLowerCase().trim();
     if (normR === 'admin') return portalArea(role) === 'admin' || isSuper;
-    if (normR === 'teacher') return portalArea(role) === 'teacher';
+    if (normR === 'teacher') return portalArea(role) === 'teacher' || portalArea(role) === 'admin' || isSuper;
     if (normR === 'student') return portalArea(role) === 'student';
     return role === normR;
   });

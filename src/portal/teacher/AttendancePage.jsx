@@ -11,6 +11,7 @@ import { getCachedCollection } from '../../services/dbCache';
 import { loadSiteSettings } from '../../utils/settingsLoader';
 import ModernLoader from '../../components/ModernLoader';
 import { toLocalDateKey, toLocalMonthKey } from '../../utils/localDate';
+import { isBootstrapAdminEmail, isBootstrapSuperAdminEmail } from '../../utils/authRoles';
 
 // Master List of Official School Subjects with Codes
 const MASTER_SUBJECTS = [
@@ -1051,8 +1052,8 @@ export default function AttendancePage() {
           });
         } catch (e) { console.warn('masterRegisters (current) lookup note:', e); }
 
-        // C. Fallback: users collection
-        if (allDiscoveredStudents.length === 0) {
+        // C. Fallback: users collection (only if SuperAdmin to avoid permission-denied console noise)
+        if (allDiscoveredStudents.length === 0 && (user?.role === 'SuperAdmin' || isBootstrapSuperAdminEmail(user?.email || ''))) {
           try {
             const userDocs = await getCachedCollection('users', false, 30 * 60 * 1000);
             userDocs.forEach(data => {
@@ -1506,7 +1507,7 @@ export default function AttendancePage() {
 
     const currentEmail = (user?.email || auth.currentUser?.email || '').toLowerCase();
     const currentName = user?.name || user?.displayName || currentEmail || 'Teacher';
-    const isUserAdmin = user?.role === 'Admin' || user?.role === 'SuperAdmin' || currentEmail === 'adm.exam.hss.shangus@gmail.com' || currentEmail === 'shahnawaz@gmail.com';
+    const isUserAdmin = user?.role === 'Admin' || user?.role === 'SuperAdmin' || isBootstrapAdminEmail(currentEmail) || isBootstrapSuperAdminEmail(currentEmail);
 
     // 1. Teacher Subject Assignment Check (e.g. Political Science teacher cannot mark Botany)
     const teacherSubject = (user?.subject || user?.assignedSubject || user?.teachingSubject || '').trim();
@@ -1564,7 +1565,7 @@ export default function AttendancePage() {
 
       const currentEmail = (user?.email || auth.currentUser?.email || '').toLowerCase();
       const currentName = user?.name || user?.displayName || currentEmail || 'Faculty';
-      const isUserAdmin = user?.role === 'Admin' || user?.role === 'SuperAdmin' || currentEmail === 'adm.exam.hss.shangus@gmail.com' || currentEmail === 'shahnawaz@gmail.com';
+      const isUserAdmin = user?.role === 'Admin' || user?.role === 'SuperAdmin' || isBootstrapAdminEmail(currentEmail) || isBootstrapSuperAdminEmail(currentEmail);
       const clsNorm = String(selectedClass).replace(/class/i, '').trim();
       const docId = `${clsNorm}_${selectedDate}_${selectedSubject || 'general'}`;
 

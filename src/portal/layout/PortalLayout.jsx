@@ -346,8 +346,12 @@ export default function PortalLayout() {
       await sessionManager.registerActiveSessionInCloud(user, sessionManager.getDeviceId(), sessionId);
     }
     setSessionStateStable({ loading: false, user, isAuthenticated: true });
-    _redirectToDashboard(user);
-  }, [_redirectToDashboard, setSessionStateStable]);
+    if (loginResult.redirectPath) {
+      navigate(loginResult.redirectPath, { replace: true });
+    } else {
+      _redirectToDashboard(user);
+    }
+  }, [_redirectToDashboard, navigate, setSessionStateStable]);
 
   // ---------------------------------------------------------------------------
   // Handle logout

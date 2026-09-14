@@ -129,7 +129,7 @@ service cloud.firestore {
     }
 
     function ownsEmailDocument(documentId) {
-      return isAuthenticated() && request.auth.token.email_verified == true && documentId.lower() == authEmail();
+      return isAuthenticated() && authEmail() != '' && documentId.lower() == authEmail();
     }
 
     function ownsAdmission(data) {
