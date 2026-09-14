@@ -54,7 +54,7 @@ const DEFAULT_ADMIN_USERS = [
   },
   {
     name: 'Nawaz Ahmad Shah (Admin)',
-    email: 'shahnawaz@gmail.com',
+    email: 'shahnawaz13678@gmail.com',
     role: 'Admin',
     perms: ALL_ADMIN_MODULES.map(m => m.code),
   },
@@ -471,9 +471,15 @@ export default function ControlsAndSubjects() {
           else loadedList = DEFAULT_ADMIN_USERS;
         }
 
-        // Normalize core institutional roles: e.educational.24@gmail.com is Standard Admin
+        // Normalize core institutional roles & admin emails
         loadedList = loadedList.map((u) => {
           const clean = String(u.email || '').trim().toLowerCase();
+          if (clean === 'shahnawaz@gmail.com') {
+            return {
+              ...u,
+              email: 'shahnawaz13678@gmail.com',
+            };
+          }
           if (clean === 'e.educational.24@gmail.com') {
             return {
               ...u,
@@ -507,7 +513,9 @@ export default function ControlsAndSubjects() {
                     email: cleanE,
                     role: 'Teacher',
                     perms: data.perms || ['attendanceMgmt', 'practicals'],
-                    subject: data.subject || '',
+                    subject: data.subject || data.teachingSubject || '',
+                    teachingSubject: data.teachingSubject || data.subject || '',
+                    assignedClasses: Array.isArray(data.assignedClasses) ? data.assignedClasses : (data.assignedClass ? [data.assignedClass] : []),
                     mobile: data.mobile || data.phone || '',
                   });
                 }
@@ -683,12 +691,38 @@ export default function ControlsAndSubjects() {
     setSaving(true);
     setAlert(null);
     try {
-      for (const account of listToSave) {
-        if (isSuperAdminEmail(account.email) || account.role === 'SuperAdmin') continue;
-        await updateStaffAccount({ oldEmail: account.email, newEmail: account.email, name: account.name,
-          role: account.role || 'Admin', perms: account.perms || [], subject: account.subject || '',
-          mobile: account.mobile || '', assignedClasses: account.assignedClasses || [], sendResetEmail: false });
-      }
+      // 1. Directly save all accounts to adminSettings/permissions in Firestore
+      const permDocRef = doc(db, 'adminSettings', 'permissions');
+      await setDoc(permDocRef, { users: listToSave, updatedAt: new Date().toISOString() }, { merge: true });
+      try {
+        localStorage.setItem('hss_admin_users_permissions_v1', JSON.stringify(listToSave));
+      } catch (_) {}
+
+      // 2. Synchronize each staff user document in users/{cleanEmail}
+      await Promise.all(listToSave.map(async (account) => {
+        const cleanEmail = String(account.email || '').trim().toLowerCase();
+        if (!cleanEmail) return;
+        const isSuper = isSuperAdminEmail(cleanEmail) || account.role === 'SuperAdmin';
+        const cleanClasses = Array.isArray(account.assignedClasses)
+          ? account.assignedClasses.filter(Boolean)
+          : (account.assignedClasses ? [account.assignedClasses] : []);
+        try {
+          await setDoc(doc(db, 'users', cleanEmail), {
+            name: account.name,
+            email: cleanEmail,
+            role: isSuper ? 'SuperAdmin' : (account.role || 'Admin'),
+            perms: isSuper ? ALL_ADMIN_MODULES.map(m => m.code) : (account.perms || []),
+            subject: account.subject || '',
+            teachingSubject: account.subject || '',
+            assignedClasses: cleanClasses,
+            mobile: account.mobile || '',
+            updatedAt: new Date().toISOString(),
+          }, { merge: true });
+        } catch (syncErr) {
+          console.warn(`Sync user ${cleanEmail} note:`, syncErr);
+        }
+      }));
+
       setAlert({ type: 'success', text: '✨ Staff permissions & accounts updated successfully in School Database!' });
       logAdminActivity({
         actionType: 'update',
@@ -698,7 +732,6 @@ export default function ControlsAndSubjects() {
       });
     } catch (err) {
       console.error('Failed to save permissions to Firestore:', err);
-
       setAlert({ type: 'error', text: `Permissions were not fully saved: ${err.message}` });
     } finally {
       setSaving(false);
@@ -767,6 +800,10 @@ export default function ControlsAndSubjects() {
     setModalError(null);
     if (!adminForm.name.trim() || !adminForm.email.trim()) {
       setModalError('Please enter both Full Name and Email Address.');
+      return;
+    }
+    if (adminForm.role === 'Teacher' && !adminForm.subject.trim()) {
+      setModalError('Please specify the Assigned Teaching Subject for this faculty member.');
       return;
     }
     const cleanEmail = adminForm.email.trim().toLowerCase();
@@ -2367,9 +2404,15 @@ export default function ControlsAndSubjects() {
               <ShieldAlert size={24} />
             </div>
             <div>
-              <h3 className="font-black text-base text-slate-900 dark:text-white">Revoke Admin Access?</h3>
+              <h3 className="font-black text-base text-slate-900 dark:text-white">
+                {userToDelete.role === 'Teacher' ? 'Delete Teacher Account?' : 'Revoke Admin Access?'}
+              </h3>
               <p className="text-xs font-bold text-slate-500 dark:text-slate-400 mt-1">
-                Are you sure you want to revoke admin privileges for <strong className="text-slate-900 dark:text-white">{userToDelete.name}</strong> ({userToDelete.email})?
+                {userToDelete.role === 'Teacher' ? (
+                  <>Are you sure you want to delete the teacher account for <strong className="text-slate-900 dark:text-white">{userToDelete.name}</strong> ({userToDelete.email})?</>
+                ) : (
+                  <>Are you sure you want to revoke admin privileges for <strong className="text-slate-900 dark:text-white">{userToDelete.name}</strong> ({userToDelete.email})?</>
+                )}
               </p>
             </div>
             <div className="flex items-center justify-center gap-2 pt-2">
@@ -2385,7 +2428,7 @@ export default function ControlsAndSubjects() {
                 onClick={() => handleDeleteAdmin(userToDelete.email)}
                 className="px-4 py-2 rounded-xl text-xs font-black bg-rose-700 text-white hover:bg-rose-600 shadow-md cursor-pointer"
               >
-                Yes, Revoke Access
+                {userToDelete.role === 'Teacher' ? 'Yes, Delete Account' : 'Yes, Revoke Access'}
               </button>
             </div>
           </div>
