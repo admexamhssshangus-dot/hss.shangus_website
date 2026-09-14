@@ -10879,96 +10879,113 @@ export default function AdvancedReports({
 
       {/* MODAL 1: Column Manager & Presets (☰ Cols) */}
       {showColumnManager && createPortal(
-        <div className="fixed inset-0 z-[99999] flex items-center justify-center p-2.5 sm:p-5 bg-slate-950/80 backdrop-blur-md animate-fadeIn overflow-y-auto">
-          <div className="w-full max-w-4xl lg:max-w-5xl p-3.5 sm:p-6 rounded-2xl sm:rounded-3xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-2xl space-y-4 max-h-[94vh] sm:max-h-[92vh] flex flex-col my-auto">
-            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3 flex-shrink-0">
-              <h3 className="font-black text-base flex items-center gap-2 text-slate-900 dark:text-white">
-                <Columns size={18} className="text-amber-600" /> Manage Table Columns & Layout Presets
-              </h3>
-              <button type="button" onClick={() => setShowColumnManager(false)} className="p-1 hover:opacity-70 cursor-pointer">
-                <X size={18} />
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center p-2 sm:p-4 bg-slate-950/80 backdrop-blur-md animate-fadeIn overflow-y-auto">
+          <div className="w-full max-w-4xl lg:max-w-5xl p-2.5 sm:p-5 rounded-2xl border border-slate-200/90 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 text-slate-900 dark:text-slate-100 shadow-2xl space-y-2 sm:space-y-3 max-h-[94vh] sm:max-h-[92vh] flex flex-col my-auto">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-slate-200/80 dark:border-slate-800 pb-2 sm:pb-2.5 flex-shrink-0">
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                <Columns size={16} className="text-amber-600 sm:w-[18px] sm:h-[18px] flex-shrink-0" />
+                <h3 className="font-bold text-xs sm:text-base text-slate-900 dark:text-white leading-tight">
+                  Columns & Layout Presets
+                </h3>
+                <span className="text-[9px] sm:text-[11px] font-semibold px-1.5 sm:px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-500/30">
+                  {Object.values(visibleCols).filter(Boolean).length} Active
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowColumnManager(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                aria-label="Close modal"
+              >
+                <X size={16} />
               </button>
             </div>
 
-            {/* Unified Single Row Header: Tabs & Quick Presets */}
-            <div className="flex flex-wrap items-center justify-between gap-2 p-1.5 rounded-2xl bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-xs font-black flex-shrink-0">
-              {/* Tab Buttons */}
-              <div className="flex items-center gap-1 bg-slate-200/70 dark:bg-slate-900/60 p-1 rounded-xl">
-                <button
-                  type="button"
-                  onClick={() => setColManagerTab('visibility')}
-                  className={`px-3 py-1 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 text-[11px] ${colManagerTab === 'visibility'
-                    ? 'bg-amber-700 text-white shadow-xs'
-                    : 'text-slate-700 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-800'
-                    }`}
-                >
-                  <Eye size={13} /> <span>Column Display Visibility</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setColManagerTab('restrictions')}
-                  className={`px-3 py-1 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 text-[11px] ${colManagerTab === 'restrictions'
-                    ? 'bg-amber-700 text-white shadow-xs'
-                    : 'text-slate-700 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-800'
-                    }`}
-                >
-                  <ShieldCheck size={13} /> <span>🔒 Lock Fields</span>
-                </button>
-              </div>
-
-              {/* Quick Presets & Dynamic Presets Manager in Same Row */}
-              {colManagerTab === 'visibility' && (
-                <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
-                  <span className="text-slate-700 dark:text-slate-300 font-extrabold">Quick Presets:</span>
+            {/* Controls Toolbar: Tab Switcher & Presets */}
+            <div className="flex flex-col gap-1.5 sm:gap-2 p-1 sm:p-1.5 rounded-xl bg-slate-100/90 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/60 flex-shrink-0">
+              {/* Top Row: Segmented Switcher & Search (on Desktop) or Presets */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
+                {/* Segmented Tab Switcher */}
+                <div className="grid grid-cols-2 gap-1 p-0.5 bg-slate-200/80 dark:bg-slate-900/70 rounded-lg text-[10.5px] sm:text-[11px] font-bold sm:w-auto w-full">
                   <button
                     type="button"
-                    onClick={() => applyPreset('fit')}
-                    className="px-2.5 py-1 rounded-lg bg-amber-700 hover:bg-amber-600 text-white shadow-xs cursor-pointer"
+                    onClick={() => setColManagerTab('visibility')}
+                    className={`px-2 sm:px-3 py-1 rounded-md transition-all cursor-pointer flex items-center justify-center gap-1.5 ${colManagerTab === 'visibility'
+                      ? 'bg-amber-700 text-white shadow-2xs font-bold'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                      }`}
                   >
-                    ⚡ Fit Screen Width
+                    <Eye size={12} /> <span>Columns Visibility</span>
                   </button>
                   <button
                     type="button"
-                    onClick={() => applyPreset('essential')}
-                    className="px-2.5 py-1 rounded-lg bg-teal-700 hover:bg-teal-600 text-white shadow-xs cursor-pointer"
+                    onClick={() => setColManagerTab('restrictions')}
+                    className={`px-2 sm:px-3 py-1 rounded-md transition-all cursor-pointer flex items-center justify-center gap-1.5 ${colManagerTab === 'restrictions'
+                      ? 'bg-amber-700 text-white shadow-2xs font-bold'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                      }`}
                   >
-                    📋 Essential
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => applyPreset('all')}
-                    className="px-2.5 py-1 rounded-lg bg-indigo-700 hover:bg-indigo-600 text-white shadow-xs cursor-pointer"
-                  >
-                    🌐 Show All
-                  </button>
-
-                  {/* Custom Presets */}
-                  {customPresets.map(preset => (
-                    <div key={preset.name} className="flex items-center gap-1 bg-purple-700 hover:bg-purple-600 text-white px-2.5 py-1 rounded-lg font-bold shadow-xs">
-                      <button type="button" onClick={() => applyCustomPreset(preset)} className="cursor-pointer">
-                        ✨ {preset.name}
-                      </button>
-                      <button type="button" onClick={() => deleteCustomPreset(preset.name)} className="hover:text-rose-300 ml-1 cursor-pointer">
-                        <X size={12} />
-                      </button>
-                    </div>
-                  ))}
-
-                  <button
-                    type="button"
-                    onClick={handleSaveCustomPreset}
-                    className="px-2.5 py-1 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white shadow-xs cursor-pointer flex items-center gap-1 font-black"
-                    title="Save currently selected columns as a custom layout preset"
-                  >
-                    <PlusCircle size={13} /> <span>Save Preset</span>
+                    <ShieldCheck size={12} /> <span>Lock Fields</span>
                   </button>
                 </div>
-              )}
+
+                {/* Quick Presets Strip (Horizontal scroll on mobile, zero awkward wrapping) */}
+                {colManagerTab === 'visibility' && (
+                  <div className="flex items-center gap-1 overflow-x-auto no-scrollbar py-0.5 text-[10px] sm:text-[11px]">
+                    <span className="text-[9.5px] uppercase font-bold text-slate-500 dark:text-slate-400 flex-shrink-0 tracking-wider">Presets:</span>
+                    <button
+                      type="button"
+                      onClick={() => applyPreset('fit')}
+                      className="px-2 py-0.5 rounded-md bg-amber-500/15 hover:bg-amber-500/25 text-amber-900 dark:text-amber-200 border border-amber-500/30 font-bold whitespace-nowrap flex-shrink-0 cursor-pointer transition-colors"
+                      title="Fit to standard screen width"
+                    >
+                      ⚡ Fit Width
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => applyPreset('essential')}
+                      className="px-2 py-0.5 rounded-md bg-teal-500/15 hover:bg-teal-500/25 text-teal-900 dark:text-teal-200 border border-teal-500/30 font-bold whitespace-nowrap flex-shrink-0 cursor-pointer transition-colors"
+                      title="Show essential columns only"
+                    >
+                      📋 Essential
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => applyPreset('all')}
+                      className="px-2 py-0.5 rounded-md bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-900 dark:text-indigo-200 border border-indigo-500/30 font-bold whitespace-nowrap flex-shrink-0 cursor-pointer transition-colors"
+                      title="Show all available columns"
+                    >
+                      🌐 Show All
+                    </button>
+
+                    {/* Custom Presets */}
+                    {customPresets.map(preset => (
+                      <div key={preset.name} className="flex items-center gap-1 bg-purple-500/15 text-purple-900 dark:text-purple-200 border border-purple-500/30 px-2 py-0.5 rounded-md font-bold whitespace-nowrap flex-shrink-0">
+                        <button type="button" onClick={() => applyCustomPreset(preset)} className="cursor-pointer">
+                          ✨ {preset.name}
+                        </button>
+                        <button type="button" onClick={() => deleteCustomPreset(preset.name)} className="hover:text-rose-500 ml-0.5 cursor-pointer" title="Delete preset">
+                          <X size={10} />
+                        </button>
+                      </div>
+                    ))}
+
+                    <button
+                      type="button"
+                      onClick={handleSaveCustomPreset}
+                      className="px-2 py-0.5 rounded-md bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-900 dark:text-emerald-200 border border-emerald-500/30 font-bold whitespace-nowrap flex-shrink-0 cursor-pointer flex items-center gap-1 transition-colors"
+                      title="Save currently selected columns as a custom layout preset"
+                    >
+                      <PlusCircle size={11} /> <span>Save</span>
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
 
             {colManagerTab === 'visibility' ? (
               <>
-
                 {/* Search Input for Columns */}
                 <div className="relative flex-shrink-0">
                   <input
@@ -10976,18 +10993,18 @@ export default function AdvancedReports({
                     placeholder="Search columns by name..."
                     value={colSearchQuery}
                     onChange={(e) => setColSearchQuery(e.target.value)}
-                    className="w-full px-2.5 py-1.5 pl-8 rounded-lg border border-slate-300 dark:border-slate-700 font-bold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-amber-500 text-[11px] bg-slate-50 dark:bg-slate-950"
+                    className="w-full px-2.5 py-1 pl-7 sm:pl-8 rounded-lg border border-slate-200 dark:border-slate-800 font-medium text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1.5 focus:ring-amber-500 text-[11px] bg-slate-50/70 dark:bg-slate-950/60 placeholder-slate-400 transition-all"
                   />
-                  <Search size={12} className="absolute left-2.5 top-2.5 text-slate-500 dark:text-slate-400" />
+                  <Search size={12} className="absolute left-2.5 top-2 text-slate-400" />
                   {colSearchQuery && (
-                    <button onClick={() => setColSearchQuery('')} className="absolute right-2.5 top-1.5 text-slate-500 hover:text-slate-700">
-                      <X size={13} />
+                    <button onClick={() => setColSearchQuery('')} className="absolute right-2 top-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-0.5">
+                      <X size={12} />
                     </button>
                   )}
                 </div>
 
                 {/* Classified Columns List */}
-                <div className="space-y-2 overflow-y-auto p-2 border border-slate-200 dark:border-slate-800 rounded-xl flex-1 max-h-[60vh]">
+                <div className="space-y-2 overflow-y-auto p-1.5 sm:p-2.5 border border-slate-200/90 dark:border-slate-800 rounded-xl flex-1 min-h-0">
                   {[
                     {
                       category: "👤 Personal Details",
@@ -11097,23 +11114,54 @@ export default function AdvancedReports({
 
                     if (filteredCols.length === 0) return null;
 
+                    const activeInGroup = filteredCols.filter(c => visibleCols[c.key]).length;
+                    const allGroupActive = activeInGroup === filteredCols.length;
+
                     return (
-                      <div key={group.category} className="space-y-1.5">
-                        <h4 className="text-[10px] font-black text-amber-700 dark:text-amber-400 border-b border-slate-200 dark:border-slate-800 pb-0.5 uppercase tracking-wide">
-                          {group.category}
-                        </h4>
+                      <div key={group.category} className="space-y-1">
+                        <div className="flex items-center justify-between border-b border-slate-200/70 dark:border-slate-800 pb-0.5">
+                          <h4 className="text-[10px] font-bold text-amber-700 dark:text-amber-400 uppercase tracking-wide flex items-center gap-1.5">
+                            <span>{group.category}</span>
+                            <span className="text-[9px] font-semibold text-slate-400 dark:text-slate-500 font-mono">({activeInGroup}/{filteredCols.length})</span>
+                          </h4>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setVisibleCols(prev => {
+                                const next = { ...prev };
+                                filteredCols.forEach(c => {
+                                  next[c.key] = !allGroupActive;
+                                });
+                                return next;
+                              });
+                            }}
+                            className="text-[9px] text-amber-600 dark:text-amber-400 hover:underline font-bold cursor-pointer"
+                          >
+                            {allGroupActive ? 'Deselect all' : 'Select all'}
+                          </button>
+                        </div>
                         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-1">
-                          {filteredCols.map((c) => (
-                            <label key={`${group.category}_${c.key}`} className="flex items-center gap-1.5 px-2 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 hover:border-amber-500 cursor-pointer font-bold text-[10.5px] sm:text-[11px] text-slate-900 dark:text-slate-100 transition-colors shadow-2xs">
-                              <input
-                                type="checkbox"
-                                checked={visibleCols[c.key]}
-                                onChange={() => toggleCol(c.key)}
-                                className="w-3.5 h-3.5 rounded text-amber-600 focus:ring-amber-500 cursor-pointer flex-shrink-0"
-                              />
-                              <span className="truncate" title={c.label}>{c.label}</span>
-                            </label>
-                          ))}
+                          {filteredCols.map((c) => {
+                            const isChecked = !!visibleCols[c.key];
+                            return (
+                              <label
+                                key={`${group.category}_${c.key}`}
+                                className={`flex items-center gap-1.5 px-2 py-0.5 sm:py-1 rounded-md border transition-all cursor-pointer text-[10px] sm:text-[11px] select-none ${
+                                  isChecked
+                                    ? 'bg-amber-500/10 dark:bg-amber-950/35 border-amber-500/40 text-amber-950 dark:text-amber-100 font-semibold shadow-2xs'
+                                    : 'bg-slate-50/50 dark:bg-slate-900/30 border-slate-200/70 dark:border-slate-800/80 text-slate-600 dark:text-slate-400 font-normal hover:bg-slate-100/60 dark:hover:bg-slate-800/50'
+                                }`}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  onChange={() => toggleCol(c.key)}
+                                  className="w-3 h-3 rounded text-amber-600 focus:ring-amber-500 cursor-pointer flex-shrink-0 accent-amber-600"
+                                />
+                                <span className="truncate leading-tight" title={c.label}>{c.label}</span>
+                              </label>
+                            );
+                          })}
                         </div>
                       </div>
                     );
@@ -11121,41 +11169,38 @@ export default function AdvancedReports({
                 </div>
               </>
             ) : (
-              <div className="space-y-3 overflow-y-auto pr-1 flex-1 max-h-[60vh]">
-                <div className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-900 dark:text-amber-300 text-xs font-bold space-y-1">
-                  <div className="font-black text-sm flex items-center gap-1.5">
-                    <ShieldCheck size={16} /> Restricted Fields Manager
+              <div className="space-y-2 overflow-y-auto p-1.5 sm:p-2 border border-slate-200/80 dark:border-slate-800 rounded-xl flex-1 min-h-0">
+                <div className="p-2 sm:p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/25 text-amber-900 dark:text-amber-300 text-[11px] font-medium space-y-0.5">
+                  <div className="font-bold text-xs flex items-center gap-1 text-amber-800 dark:text-amber-200">
+                    <ShieldCheck size={14} /> <span>Restricted Fields Manager</span>
                   </div>
-                  <p>
-                    Check fields below to <strong>LOCK</strong> them from editing. Checked fields will not allow quick cell edit or modal editing. Unchecked fields are <strong>automatically editable</strong>.
-                  </p>
-                  <p className="text-[11px] text-amber-700 dark:text-amber-400 font-black pt-1">
-                    📌 Note: <strong>Class</strong> field is locked by default as requested.
+                  <p className="text-[10px] sm:text-[11px] opacity-90 leading-tight">
+                    Checked fields are <strong>LOCKED</strong> from quick or modal editing. Unchecked fields are <strong>automatically editable</strong>.
                   </p>
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-1 sm:gap-1.5">
                   {COLUMN_DEFS.map((c) => {
                     const isRestricted = !!restrictedCols[c.key];
                     return (
                       <label
                         key={`lock_${c.key}`}
-                        className={`flex items-center justify-between p-2 rounded-xl border font-black text-xs cursor-pointer transition-all ${isRestricted
-                          ? 'bg-rose-50 dark:bg-rose-950/40 border-rose-300 dark:border-rose-800 text-rose-900 dark:text-rose-300'
-                          : 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800 text-emerald-900 dark:text-emerald-300'
+                        className={`flex items-center justify-between p-1.5 rounded-lg border font-bold text-[10px] sm:text-[11px] cursor-pointer transition-all select-none ${isRestricted
+                          ? 'bg-rose-500/10 dark:bg-rose-950/30 border-rose-400/40 text-rose-900 dark:text-rose-200'
+                          : 'bg-emerald-500/10 dark:bg-emerald-950/30 border-emerald-400/40 text-emerald-900 dark:text-emerald-200'
                           }`}
                       >
-                        <div className="flex items-center gap-2 truncate">
+                        <div className="flex items-center gap-1.5 truncate min-w-0">
                           <input
                             type="checkbox"
                             checked={isRestricted}
                             onChange={() => toggleRestrictedCol(c.key)}
-                            className="w-4 h-4 rounded text-rose-600 focus:ring-rose-500 cursor-pointer flex-shrink-0"
+                            className="w-3 h-3 rounded text-rose-600 focus:ring-rose-500 cursor-pointer flex-shrink-0 accent-rose-600"
                           />
                           <span className="truncate">{c.label}</span>
                         </div>
-                        <span className="text-[10px] font-black flex-shrink-0 ml-1">
-                          {isRestricted ? '🔒 Locked' : '✏️ Editable'}
+                        <span className="text-[9px] font-bold flex-shrink-0 ml-1 opacity-85">
+                          {isRestricted ? '🔒 Locked' : '✏️ Edit'}
                         </span>
                       </label>
                     );
@@ -11164,9 +11209,8 @@ export default function AdvancedReports({
               </div>
             )}
 
-
             {layoutNotice && (
-              <div className={`p-2 rounded-xl font-extrabold text-xs text-center border ${layoutNotice.type === 'success'
+              <div className={`p-1.5 rounded-lg font-bold text-[11px] text-center border ${layoutNotice.type === 'success'
                 ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-300'
                 : 'bg-amber-500/10 border-amber-500/30 text-amber-700 dark:text-amber-300'
                 }`}>
@@ -11174,23 +11218,30 @@ export default function AdvancedReports({
               </div>
             )}
 
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 pt-2 border-t border-slate-200 dark:border-slate-800 flex-shrink-0">
-              <div className="flex items-center gap-1.5 w-full sm:w-auto">
+            {/* Modal Footer (Compact single-row on mobile) */}
+            <div className="flex items-center justify-between gap-1.5 sm:gap-2 pt-1.5 sm:pt-2 border-t border-slate-200 dark:border-slate-800 flex-shrink-0">
+              <div className="flex items-center gap-1 sm:gap-1.5">
                 <button
                   type="button"
                   onClick={saveAsDefault2}
-                  className="flex-1 sm:flex-none px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-xl font-extrabold text-[11px] sm:text-xs text-emerald-800 dark:text-emerald-300 bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 shadow-xs cursor-pointer flex items-center justify-center gap-1 transition-colors"
+                  className="px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg font-bold text-[10px] sm:text-xs text-emerald-800 dark:text-emerald-300 bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 shadow-2xs transition-colors flex items-center gap-1 cursor-pointer"
                   title="Save active column widths and visibility as Default 2 preset"
                 >
-                  <Save size={13} /> <span>Save Widths (Default 2)</span>
+                  <Save size={12} className="flex-shrink-0" />
+                  <span className="hidden sm:inline">Save Widths</span>
+                  <span className="sm:hidden">Save</span>
+                  <span className="text-[9px] opacity-80">(Def 2)</span>
                 </button>
                 <button
                   type="button"
                   onClick={resetToDefault1}
-                  className="flex-1 sm:flex-none px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-xl font-extrabold text-[11px] sm:text-xs text-slate-700 dark:text-slate-300 bg-slate-200/70 dark:bg-slate-800/80 hover:bg-slate-300 dark:hover:bg-slate-700 shadow-xs cursor-pointer flex items-center justify-center gap-1 transition-colors"
+                  className="px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg font-bold text-[10px] sm:text-xs text-slate-700 dark:text-slate-300 bg-slate-200/70 dark:bg-slate-800/80 hover:bg-slate-300 dark:hover:bg-slate-700 border border-slate-300/60 dark:border-slate-700 shadow-2xs transition-colors flex items-center gap-1 cursor-pointer"
                   title="Reset column widths and visibility to System Default 1"
                 >
-                  <RotateCcw size={13} /> <span>Reset Widths (Default 1)</span>
+                  <RotateCcw size={12} className="flex-shrink-0" />
+                  <span className="hidden sm:inline">Reset Widths</span>
+                  <span className="sm:hidden">Reset</span>
+                  <span className="text-[9px] opacity-80">(Def 1)</span>
                 </button>
               </div>
 
@@ -11204,9 +11255,10 @@ export default function AdvancedReports({
                   } catch (e) { }
                   setShowColumnManager(false);
                 }}
-                className="w-full sm:w-auto px-5 py-2 rounded-xl font-black text-white bg-amber-700 hover:bg-amber-600 shadow-md cursor-pointer text-xs"
+                className="px-3 sm:px-5 py-1 sm:py-1.5 rounded-lg font-bold text-white bg-amber-700 hover:bg-amber-600 shadow-xs cursor-pointer text-[11px] sm:text-xs transition-colors flex items-center gap-1"
               >
-                Apply Column Changes
+                <span>Apply</span>
+                <span className="hidden sm:inline">Column Changes</span>
               </button>
             </div>
           </div>
