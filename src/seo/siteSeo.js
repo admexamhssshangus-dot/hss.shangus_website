@@ -87,14 +87,6 @@ const PUBLIC_PAGES = {
       'Govt. Higher Secondary School Shangus provides an online examination result lookup service for students, parents, and academic evaluators.',
       'Enter candidate details to access comprehensive marks cards, subject-wise performance descriptors, and verified academic scorecards for secondary and higher secondary sessions.'
     ], links: ['/admissions', '/notices', '/academics', '/contact']
-  },
-  '/gk-test': {
-    label: 'GK Test', title: `General Knowledge Test Registration | ${SITE_NAME}`, heading: 'General Knowledge Test Registration',
-    description: 'Register for the General Knowledge test at Govt. Higher Secondary School Shangus. Open to students across classes with online registration and results.',
-    paragraphs: [
-      'Govt. Higher Secondary School Shangus organises a General Knowledge test for students. The online registration portal allows participants to sign up and receive their results digitally.',
-      'Check eligibility, registration deadlines and test details on this page. Contact the school office for any queries regarding the GK test.'
-    ], links: ['/admissions', '/academics', '/notices', '/contact']
   }
 };
 const ALIASES = {
@@ -111,7 +103,7 @@ function normalizePath(pathname) {
 function getPageSeo(pathname, overrides = {}) {
   const path = normalizePath(pathname);
   const canonicalPath = ALIASES[path] || path;
-  const privatePage = /^\/(portal|admin)(\/|$)/.test(path) || canonicalPath === '/verify-student';
+  const privatePage = /^\/(portal|admin)(\/|$)/.test(path) || canonicalPath === '/verify-student' || canonicalPath === '/gk-test';
   const fallback = {
     title: `${privatePage ? 'Online Services' : 'School Information'} | ${SITE_NAME}`,
     description: `Official ${SCHOOL_NAME} website and online services.`,

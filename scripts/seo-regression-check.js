@@ -74,7 +74,7 @@ async function check() {
   assert.ok(robots.includes(`Sitemap: ${SITE_ORIGIN}/sitemap.xml`));
   assert.ok(!urls.some((url) => /\/portal|\/admin|\/verify/.test(url)), 'Private and verification pages stay out of sitemap');
   const config = fs.readFileSync(path.resolve(__dirname, '../netlify.toml'), 'utf8');
-  for (const route of ['/portal', '/portal/*', '/admin', '/admin/*', '/verify-student', '/verify-student/*']) {
+  for (const route of ['/portal', '/portal/*', '/admin', '/admin/*', '/verify-student', '/verify-student/*', '/gk-test', '/gk-test/*']) {
     const block = config.split('[[headers]]').find((item) => item.includes(`for = "${route}"`));
     assert.ok(block?.includes('X-Robots-Tag = "noindex, follow"'), `${route}: missing HTTP noindex`);
   }
