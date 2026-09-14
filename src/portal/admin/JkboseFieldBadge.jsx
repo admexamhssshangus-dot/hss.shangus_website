@@ -113,9 +113,20 @@ export default function JkboseFieldBadge({
     year: 'numeric'
   }) : '';
 
+  const formattedDateTime = dateObj && !isNaN(dateObj) ? dateObj.toLocaleString([], {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  }) : dateStr;
+
   const displayOld = info.oldValue !== undefined && info.oldValue !== null ? String(info.oldValue).trim() || '(blank)' : '';
   const displayNew = info.newValue !== undefined && info.newValue !== null ? String(info.newValue).trim() || '(blank)' : '';
   const hasDiff = displayOld && displayNew && displayOld !== displayNew;
+
+  const isDirectEdit = Boolean(info.isDirectEdit);
+  const hasBoardSync = Boolean(info.boardSync);
 
   const fieldLabel = info.label || info.key ? (
     String(info.label || info.key)
@@ -177,16 +188,22 @@ export default function JkboseFieldBadge({
         {/* Minimal Header */}
         <div className="flex items-center justify-between gap-1.5 pb-1.5 border-b border-slate-100 dark:border-slate-800/80">
           <div className="flex items-center gap-1.5 min-w-0">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0 animate-pulse" />
+            <span className={`w-1.5 h-1.5 rounded-full shrink-0 animate-pulse ${
+              isDirectEdit ? 'bg-amber-500' : 'bg-emerald-500'
+            }`} />
             <span className="font-extrabold text-[11px] text-slate-900 dark:text-white truncate">
-              JKBOSE Verified
+              {isDirectEdit ? 'Direct Edit History' : 'JKBOSE Verified'}
             </span>
             <span className="text-[10px] text-slate-400 font-medium truncate">
               • {fieldLabel}
             </span>
           </div>
-          <span className="shrink-0 px-1.5 py-0.2 rounded text-[8px] font-black uppercase tracking-wider bg-emerald-50 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 border border-emerald-200/80 dark:border-emerald-800/80">
-            Board Sync
+          <span className={`shrink-0 px-1.5 py-0.2 rounded text-[8px] font-black uppercase tracking-wider ${
+            isDirectEdit
+              ? 'bg-amber-50 dark:bg-amber-950/80 text-amber-700 dark:text-amber-300 border border-amber-200/80 dark:border-amber-800/80'
+              : 'bg-emerald-50 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 border border-emerald-200/80 dark:border-emerald-800/80'
+          }`}>
+            {isDirectEdit ? 'Admin Edit' : 'Board Sync'}
           </span>
         </div>
 
@@ -202,8 +219,10 @@ export default function JkboseFieldBadge({
               </span>
             </div>
             <div className="flex items-baseline justify-between gap-2 text-[11.5px]">
-              <span className="text-[9.5px] font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400 shrink-0 flex items-center gap-1">
-                <CheckCircle2 size={10} /> Master
+              <span className={`text-[9.5px] font-black uppercase tracking-wider shrink-0 flex items-center gap-1 ${
+                isDirectEdit ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400'
+              }`}>
+                <CheckCircle2 size={10} /> {isDirectEdit ? 'Updated' : 'Master'}
               </span>
               <span className="font-mono font-black text-slate-900 dark:text-white truncate text-right max-w-[190px]" title={displayNew}>
                 {displayNew}
@@ -212,23 +231,59 @@ export default function JkboseFieldBadge({
           </div>
         ) : (
           <div className="py-1 text-[11px] font-semibold text-slate-700 dark:text-slate-300">
-            {customTitle || 'Matched with official JKBOSE Board master records.'}
+            {displayNew ? `Current: "${displayNew}"` : (customTitle || (isDirectEdit ? 'Manually updated by administrator.' : 'Matched with official JKBOSE Board master records.'))}
           </div>
         )}
 
-        {/* Minimal Source & Timestamp Footer */}
-        <div className="pt-1.5 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-[9.5px] text-slate-500 dark:text-slate-400 font-medium gap-2">
-          {sourceFilename ? (
-            <span className="truncate max-w-[170px]" title={info.source}>
-              📁 <span className="font-mono text-slate-700 dark:text-slate-300">{sourceFilename}</span>
-            </span>
-          ) : <span />}
-          {dateStr && (
-            <span className="shrink-0 text-slate-400">
-              {dateStr}
-            </span>
-          )}
-        </div>
+        {/* Footer: Direct Edit Audit or Board Sync Source */}
+        {isDirectEdit ? (
+          <div className="pt-1.5 border-t border-slate-100 dark:border-slate-800/80 space-y-1">
+            <div className="flex items-center justify-between text-[9.5px] text-slate-500 dark:text-slate-400 font-medium gap-2">
+              <span className="flex items-center gap-1 truncate max-w-[170px]" title={info.userEmail || info.updatedBy}>
+                <span className="opacity-70">👤</span>
+                <span className="font-bold text-slate-800 dark:text-slate-200 truncate">
+                  {info.updatedBy || 'Admin'}
+                </span>
+              </span>
+              {formattedDateTime && (
+                <span className="shrink-0 text-slate-400 font-mono text-[9px]">
+                  {formattedDateTime}
+                </span>
+              )}
+            </div>
+            {info.reason && (
+              <div className="text-[9px] text-slate-600 dark:text-slate-300 bg-amber-50/50 dark:bg-amber-950/30 px-1.5 py-0.5 rounded border border-amber-200/50 dark:border-amber-900/40 truncate" title={info.reason}>
+                <span className="text-amber-700 dark:text-amber-400 font-bold uppercase text-[8px] tracking-wide mr-1">Reason:</span>
+                <span>{info.reason}</span>
+              </div>
+            )}
+            {hasBoardSync && info.boardSync && (
+              <div className="pt-1 border-t border-dashed border-slate-200 dark:border-slate-800 flex items-center justify-between text-[9px] text-emerald-700 dark:text-emerald-400 font-medium">
+                <span className="truncate max-w-[180px]" title={info.boardSync.source}>
+                  🏛️ Prior Board Sync: <span className="font-mono text-slate-700 dark:text-slate-300">{info.boardSync.source ? String(info.boardSync.source).split(/[/\\]/).pop() : 'JKBOSE'}</span>
+                </span>
+                {info.boardSync.timestamp && (
+                  <span className="text-slate-400 shrink-0">
+                    {new Date(info.boardSync.timestamp).toLocaleDateString([], { day: '2-digit', month: 'short', year: 'numeric' })}
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="pt-1.5 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-[9.5px] text-slate-500 dark:text-slate-400 font-medium gap-2">
+            {sourceFilename ? (
+              <span className="truncate max-w-[170px]" title={info.source}>
+                📁 <span className="font-mono text-slate-700 dark:text-slate-300">{sourceFilename}</span>
+              </span>
+            ) : <span />}
+            {dateStr && (
+              <span className="shrink-0 text-slate-400 font-mono text-[9px]">
+                {dateStr}
+              </span>
+            )}
+          </div>
+        )}
       </div>,
       document.body
     );
@@ -242,10 +297,36 @@ export default function JkboseFieldBadge({
           onMouseEnter={handleMouseEnter}
           onMouseLeave={handleMouseLeave}
           onClick={handleClick}
-          className={`inline-flex items-center justify-center w-2 h-2 rounded-full bg-emerald-500 ring-2 ring-emerald-200 dark:ring-emerald-950 cursor-pointer select-none shrink-0 ${className}`}
-          aria-label="Updated as per JKBOSE record"
+          className={`inline-flex items-center justify-center w-2 h-2 rounded-full cursor-pointer select-none shrink-0 ${
+            isDirectEdit
+              ? 'bg-amber-500 ring-2 ring-amber-200 dark:ring-amber-950'
+              : 'bg-emerald-500 ring-2 ring-emerald-200 dark:ring-emerald-950'
+          } ${className}`}
+          aria-label={isDirectEdit ? 'Directly edited by Admin' : 'Updated as per JKBOSE record'}
         >
           <span className="w-1 h-1 rounded-full bg-white dark:bg-slate-900 animate-pulse" />
+        </span>
+        {renderTooltip()}
+      </>
+    );
+  }
+
+  if (isDirectEdit) {
+    return (
+      <>
+        <span
+          ref={badgeRef}
+          onMouseEnter={handleMouseEnter}
+          onMouseLeave={handleMouseLeave}
+          onClick={handleClick}
+          className={`inline-flex items-center gap-0.5 px-1 py-0.2 rounded-[3px] text-[7.5px] font-black uppercase tracking-wider bg-amber-50/95 dark:bg-amber-950/80 text-amber-700 dark:text-amber-300 border border-amber-300/80 dark:border-amber-700/80 leading-none select-none cursor-pointer shadow-2xs hover:bg-amber-100 dark:hover:bg-amber-900/60 hover:scale-105 transition-all shrink-0 align-middle ${className}`}
+          aria-label="Directly edited by Admin"
+        >
+          <span className="w-1 h-1 rounded-full bg-amber-500 animate-pulse" />
+          EDITED
+          {hasBoardSync && (
+            <span className="ml-0.5 text-emerald-600 dark:text-emerald-400 font-extrabold" title="Also verified with JKBOSE Board">+BOARD</span>
+          )}
         </span>
         {renderTooltip()}
       </>
