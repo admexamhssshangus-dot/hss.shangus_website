@@ -126,14 +126,20 @@ export default function JkboseFieldBadge({
   const hasDiff = displayOld && displayNew && displayOld !== displayNew;
 
   const isDirectEdit = Boolean(info.isDirectEdit);
-  const hasBoardSync = Boolean(info.boardSync);
 
-  const fieldLabel = info.label || info.key ? (
-    String(info.label || info.key)
-      .replace(/([A-Z])/g, ' $1')
-      .replace(/^./, str => str.toUpperCase())
-      .trim()
-  ) : 'Record';
+  const cleanFieldLabel = (rawLabel) => {
+    const str = String(rawLabel || '').trim();
+    if (/^dob/i.test(str) || str.toLowerCase().includes('date of birth') || str.toLowerCase().includes('dob')) return 'DoB';
+    if (str.toLowerCase().includes('student') && str.toLowerCase().includes('name')) return "Student's Name";
+    if (str.toLowerCase().includes('father') || str.toLowerCase().includes('parent')) return "Father's Name";
+    if (str.toLowerCase().includes('mother')) return "Mother's Name";
+    if (str.toLowerCase().includes('roll')) return "Roll No";
+    if (str.toLowerCase().includes('reg')) return "Board Reg No";
+    if (str.toLowerCase().includes('subs') || str.toLowerCase().includes('subject')) return "Subjects";
+    return str.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase()).trim();
+  };
+
+  const fieldLabel = cleanFieldLabel(info.label || info.key || 'Record');
 
   const handleMouseEnter = () => {
     if (closeTimerRef.current) {
@@ -187,12 +193,12 @@ export default function JkboseFieldBadge({
 
         {/* Minimal Header */}
         <div className="flex items-center justify-between gap-1.5 pb-1.5 border-b border-slate-100 dark:border-slate-800/80">
-          <div className="flex items-center gap-1.5 min-w-0">
+          <div className="flex items-center gap-1.5 min-w-0 flex-1">
             <span className={`w-1.5 h-1.5 rounded-full shrink-0 animate-pulse ${
               isDirectEdit ? 'bg-amber-500' : 'bg-emerald-500'
             }`} />
-            <span className="font-extrabold text-[11px] text-slate-900 dark:text-white truncate">
-              {isDirectEdit ? 'Direct Edit History' : 'JKBOSE Verified'}
+            <span className="font-extrabold text-[11px] text-slate-900 dark:text-white shrink-0">
+              {isDirectEdit ? 'Direct Edit' : 'JKBOSE Verified'}
             </span>
             <span className="text-[10px] text-slate-400 font-medium truncate">
               • {fieldLabel}
@@ -257,18 +263,6 @@ export default function JkboseFieldBadge({
                 <span>{info.reason}</span>
               </div>
             )}
-            {hasBoardSync && info.boardSync && (
-              <div className="pt-1 border-t border-dashed border-slate-200 dark:border-slate-800 flex items-center justify-between text-[9px] text-emerald-700 dark:text-emerald-400 font-medium">
-                <span className="truncate max-w-[180px]" title={info.boardSync.source}>
-                  🏛️ Prior Board Sync: <span className="font-mono text-slate-700 dark:text-slate-300">{info.boardSync.source ? String(info.boardSync.source).split(/[/\\]/).pop() : 'JKBOSE'}</span>
-                </span>
-                {info.boardSync.timestamp && (
-                  <span className="text-slate-400 shrink-0">
-                    {new Date(info.boardSync.timestamp).toLocaleDateString([], { day: '2-digit', month: 'short', year: 'numeric' })}
-                  </span>
-                )}
-              </div>
-            )}
           </div>
         ) : (
           <div className="pt-1.5 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-[9.5px] text-slate-500 dark:text-slate-400 font-medium gap-2">
@@ -324,9 +318,6 @@ export default function JkboseFieldBadge({
         >
           <span className="w-1 h-1 rounded-full bg-amber-500 animate-pulse" />
           EDITED
-          {hasBoardSync && (
-            <span className="ml-0.5 text-emerald-600 dark:text-emerald-400 font-extrabold" title="Also verified with JKBOSE Board">+BOARD</span>
-          )}
         </span>
         {renderTooltip()}
       </>
