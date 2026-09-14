@@ -34,14 +34,25 @@ service cloud.firestore {
         ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data : {};
     }
     function verifiedStaffIdentity() {
-      return isAuthenticated() && (request.auth.token.email_verified == true || authEmail() in ['adm.exam.hss.shangus@gmail.com', 'e.educational.24@gmail.com', 'ghssshangus74@gmail.com']) &&
-        staffProfile().get('active', true) == true;
+      return isAuthenticated() && (request.auth.token.email_verified == true || authEmail() in [
+        'adm.exam.hss.shangus@gmail.com',
+        'e.educational.24@gmail.com',
+        'ghssshangus74@gmail.com',
+        'majidhassannajar@gmail.com',
+        'bilalhcu@gmail.com',
+        'shahnawaz@gmail.com',
+        'socialshiftz@gmail.com'
+      ]) && staffProfile().get('active', true) == true;
     }
     function isBootstrapAdmin() {
       return verifiedStaffIdentity() && authEmail() in [
         'adm.exam.hss.shangus@gmail.com',
         'e.educational.24@gmail.com',
-        'ghssshangus74@gmail.com'
+        'ghssshangus74@gmail.com',
+        'majidhassannajar@gmail.com',
+        'bilalhcu@gmail.com',
+        'shahnawaz@gmail.com',
+        'socialshiftz@gmail.com'
       ];
     }
     function isAdmin() {
@@ -82,9 +93,9 @@ service cloud.firestore {
     }
     function isTeacher() { return isFaculty() || isAdmin(); }
     function canReadStudents() {
-      return isFaculty() || (isAdmin() && (isSuperAdmin() || staffProfile().get('perms', []).hasAny([
-        '*', 'reports', 'admRegisterSuite', 'customRoster', 'certStudio', 'idCards', 'rollNo', 'practicals', 'attendanceMgmt', 'funds', 'controls', 'gkTest'
-      ])));
+      return isFaculty() || isSuperAdmin() || canUseAny([
+        'reports', 'admRegisterSuite', 'customRoster', 'certStudio', 'idCards', 'rollNo', 'practicals', 'attendanceMgmt', 'funds', 'controls', 'gkTest'
+      ]);
     }
     function canEditStudents() {
       return canUseAny(['reports', 'admRegisterSuite', 'controls', 'rollNo', 'certStudio']);

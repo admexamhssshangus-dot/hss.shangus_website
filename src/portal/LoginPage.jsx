@@ -32,6 +32,7 @@ import {
   incrementTeacherLoginCount,
   recordTeacher2StepVerification,
   isBootstrapSuperAdminEmail,
+  isBootstrapAdminEmail,
   isSuperAdminEmail
 } from '../services/staffAuthService';
 import { sessionManager } from '../services/sessionManager';
@@ -179,7 +180,7 @@ export default function LoginPage() {
     const emailLower = String(activeUser?.email || overrideEmail || '').toLowerCase().trim();
     
     // Resolve role from Firestore permissions & users collection & bootstrap (use cached if available)
-    const isBootstrapAdmin = activeUser.emailVerified && isBootstrapSuperAdminEmail(emailLower);
+    const isBootstrapAdmin = (activeUser.emailVerified && isBootstrapSuperAdminEmail(emailLower)) || isBootstrapAdminEmail(emailLower);
     const staffProfile = cachedStaffProfile || await resolveStaffRoleAndPerms(emailLower);
 
     const rawRole = staffProfile?.role || 'Student';
@@ -639,7 +640,7 @@ export default function LoginPage() {
       // 2. Resolve account profile from Firestore (configured strictly by Super Admin)
       const staffProfile = await resolveStaffRoleAndPerms(cleanEmail);
       const isSuper = staffProfile?.isSuperAdmin || staffProfile?.role === 'SuperAdmin' || isBootstrapSuperAdminEmail(cleanEmail);
-      const isAdmin = isSuper || staffProfile?.isAdmin || String(staffProfile?.role || '').toLowerCase() === 'admin';
+      const isAdmin = isSuper || staffProfile?.isAdmin || isBootstrapAdminEmail(cleanEmail) || String(staffProfile?.role || '').toLowerCase() === 'admin';
       const isTeacher = staffProfile?.isTeacher || ['teacher', 'faculty'].includes(String(staffProfile?.role || '').toLowerCase());
 
       if (await beginAdminLogin(userCred.user, staffProfile)) return;
