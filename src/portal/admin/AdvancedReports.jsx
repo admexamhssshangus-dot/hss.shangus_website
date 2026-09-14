@@ -30,7 +30,7 @@ import LazyStudentPhoto from '../../components/LazyStudentPhoto';
 import { expandJkboseSubjectCodes } from '../../utils/jkboseResultManager';
 import { resolveCcDcVal, extractReappearCodes, getClassTier, areClassTiersCompatible, isSecondaryOnlySubjectList } from '../../utils/certificateStudentResolution';
 import JkboseFieldBadge from './JkboseFieldBadge';
-import { getJkboseFieldStatus, computeStudentJkboseStatusMap, loadRecentJkboseBatchTraceability } from '../../utils/jkboseTraceability';
+import { getJkboseFieldStatus, computeStudentJkboseStatusMap, loadRecentJkboseBatchTraceability, normalizeKey } from '../../utils/jkboseTraceability';
 
 const BULK_FORM_ROW_BATCH_SIZE = 100;
 
@@ -661,66 +661,80 @@ export async function updateStudentDocument(student, updates) {
     }
   }
 
+  const withTimeout = (promise, ms = 4000) =>
+    Promise.race([
+      promise,
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Firestore operation timeout')), ms))
+    ]);
+
+  const cleanCid = (id) => String(id || '').replace(/^(admissions|masterRegisters)\//, '').trim();
+
   const idCandidates = Array.from(new Set([
-    rawId,
-    student._docId,
-    student.docId,
-    student.id,
+    cleanCid(rawId),
+    cleanCid(student._docId),
+    cleanCid(student.docId),
+    cleanCid(student.id),
     formNo ? `adm_${formNo}` : '',
     formNo ? `active_${formNo}` : '',
-    rawId.replace(/^active_/, ''),
-    rawId.replace(/^hist_/, ''),
+    cleanCid(rawId).replace(/^active_/, ''),
+    cleanCid(rawId).replace(/^hist_/, ''),
     formNo
   ].filter(Boolean)));
+
+  const isMasterRegister = Boolean(
+    student._isHistorical ||
+    student._sourceCollection === 'masterRegisters' ||
+    String(student._docId || student.id || '').includes('masterRegisters')
+  );
+  const collsToTry = isMasterRegister ? ['masterRegisters', 'admissions'] : ['admissions', 'masterRegisters'];
 
   let updated = false;
 
   for (const cid of idCandidates) {
-    if (!cid || cid.includes('/')) continue;
-    try {
-      await updateDoc(doc(db, 'admissions', cid), updates);
-      updated = true;
-      break;
-    } catch (e) {
-      try {
-        await setDoc(doc(db, 'admissions', cid), updates, { merge: true });
-        updated = true;
-        break;
-      } catch (err2) {}
-    }
+    const sanitized = cleanCid(cid);
+    if (!sanitized || sanitized.includes('/')) continue;
 
-    try {
-      await updateDoc(doc(db, 'masterRegisters', cid), updates);
-      updated = true;
-      break;
-    } catch (e) {
+    for (const coll of collsToTry) {
       try {
-        await setDoc(doc(db, 'masterRegisters', cid), updates, { merge: true });
+        await withTimeout(updateDoc(doc(db, coll, sanitized), updates));
         updated = true;
         break;
-      } catch (err2) {}
+      } catch (e) {
+        try {
+          await withTimeout(setDoc(doc(db, coll, sanitized), updates, { merge: true }));
+          updated = true;
+          break;
+        } catch (err2) {}
+      }
     }
+    if (updated) break;
   }
 
   if (!updated && formNo && formNo !== '—') {
-    for (const field of ['Form Number', 'Form No.', 'formNo', 'id']) {
-      try {
-        const qSnap = await getDocs(query(collection(db, 'admissions'), where(field, '==', formNo)));
-        if (!qSnap.empty) {
-          for (const dSnap of qSnap.docs) {
-            await setDoc(doc(db, 'admissions', dSnap.id), updates, { merge: true });
-            updated = true;
+    for (const coll of collsToTry) {
+      for (const field of ['Form Number', 'Form No.', 'formNo', 'id']) {
+        try {
+          const qSnap = await withTimeout(getDocs(query(collection(db, coll), where(field, '==', formNo))));
+          if (qSnap && !qSnap.empty) {
+            for (const dSnap of qSnap.docs) {
+              await withTimeout(setDoc(doc(db, coll, dSnap.id), updates, { merge: true }));
+              updated = true;
+            }
+            break;
           }
-          break;
-        }
-      } catch (e) {}
+        } catch (e) {}
+      }
+      if (updated) break;
     }
   }
 
   // Update ONLY single item in cache (no full refetch)
   idCandidates.forEach(cid => {
-    updateCachedItem('admissions', cid, updates);
-    updateCachedItem('masterRegisters', cid, updates);
+    const sanitized = cleanCid(cid);
+    if (sanitized) {
+      updateCachedItem('admissions', sanitized, updates);
+      updateCachedItem('masterRegisters', sanitized, updates);
+    }
   });
 
   // Automatically synchronize centralized student photo when registration number or photo updates
@@ -5938,6 +5952,39 @@ export default function AdvancedReports({
         lastEditedBy: `Admin (${user?.email || 'System'})`
       };
 
+      const editorName = user?.displayName || user?.email?.split('@')[0] || 'Admin';
+      const editorEmail = user?.email || '';
+      const nowIso = new Date().toISOString();
+      const modalReason = (customReason || reasonCategory || 'Admin Profile Edit').trim();
+      const nextDirectEdits = { ...(editingStudent.directEditHistory || editingStudent.fieldEditHistory || {}) };
+
+      if (updatedFields && typeof updatedFields === 'object') {
+        Object.entries(updatedFields).forEach(([fieldKey, newVal]) => {
+          const oldVal = editingStudent[fieldKey];
+          if (newVal !== undefined && newVal !== null && String(newVal).trim() !== String(oldVal || '').trim()) {
+            const editEntry = {
+              key: fieldKey,
+              oldValue: String(oldVal || '').trim(),
+              newValue: String(newVal).trim(),
+              updatedBy: editorName,
+              userEmail: editorEmail,
+              timestamp: nowIso,
+              updatedAt: nowIso,
+              reason: modalReason,
+              isDirectEdit: true
+            };
+            nextDirectEdits[fieldKey] = editEntry;
+            const norm = normalizeKey(fieldKey);
+            nextDirectEdits[norm] = editEntry;
+          }
+        });
+      }
+
+      payload.directEditHistory = nextDirectEdits;
+      payload.fieldEditHistory = nextDirectEdits;
+      payload.updatedAt = nowIso;
+      payload.lastEditedBy = `Admin (${editorName})`;
+
       // Perform in-place update on existing document (never creates duplicate docs)
       await updateStudentDocument(editingStudent, payload);
 
@@ -5957,7 +6004,15 @@ export default function AdvancedReports({
       setCurrentAdmissions(prev => prev.map(st => {
         const stFNo = String(st['Form Number'] || st['FormNo'] || st['Form No.'] || st.formNo || '').replace(/^'/, '').trim();
         if ((cleanFNo && stFNo.toLowerCase() === cleanFNo.toLowerCase()) || st.id === editingStudent.id) {
-          return { ...st, ...payload };
+          return { ...st, ...payload, directEditHistory: nextDirectEdits, fieldEditHistory: nextDirectEdits };
+        }
+        return st;
+      }));
+
+      setMasterHistoricalRecords(prev => prev.map(st => {
+        const stFNo = String(st['Form Number'] || st['FormNo'] || st['Form No.'] || st.formNo || '').replace(/^'/, '').trim();
+        if ((cleanFNo && stFNo.toLowerCase() === cleanFNo.toLowerCase()) || st.id === editingStudent.id) {
+          return { ...st, ...payload, directEditHistory: nextDirectEdits, fieldEditHistory: nextDirectEdits };
         }
         return st;
       }));
@@ -6121,8 +6176,37 @@ export default function AdvancedReports({
         }
       }
 
+      const rawOldValue = student[colKey] !== undefined ? student[colKey] : (student[targetFieldName] !== undefined ? student[targetFieldName] : '');
+      const oldValStr = String(rawOldValue || '').trim();
+      const editorName = user?.displayName || user?.email?.split('@')[0] || 'Admin';
+      const editorEmail = user?.email || '';
+      const nowIso = new Date().toISOString();
+      const resolvedReason = (customReason || reasonCategory || 'Direct Quick Cell Edit').trim();
+
+      const directEditRecord = {
+        key: colKey,
+        targetField: targetFieldName,
+        label: keyMap[colKey] || colKey,
+        oldValue: oldValStr,
+        newValue: String(newValue ?? '').trim(),
+        updatedBy: editorName,
+        userEmail: editorEmail,
+        timestamp: nowIso,
+        updatedAt: nowIso,
+        reason: resolvedReason,
+        isDirectEdit: true
+      };
+
+      const updatedDirectHistory = {
+        ...(student.directEditHistory || student.fieldEditHistory || {}),
+        [colKey]: directEditRecord,
+        [targetFieldName]: directEditRecord
+      };
+
       const payload = {
         [targetFieldName]: newValue,
+        directEditHistory: updatedDirectHistory,
+        fieldEditHistory: updatedDirectHistory,
         ...subjectPayload,
         ...(extraFields && typeof extraFields === 'object' ? extraFields : {}),
         ...(isExamRollEdit ? {
@@ -6132,8 +6216,8 @@ export default function AdvancedReports({
           examRoll: newValue,
           boardRollNo: newValue
         } : {}),
-        updatedAt: new Date().toISOString(),
-        lastEditedBy: `Admin (${user?.email || 'Quick Cell'})`
+        updatedAt: nowIso,
+        lastEditedBy: `Admin (${editorName})`
       };
 
       setQuickEditProgress(50);
@@ -6147,14 +6231,42 @@ export default function AdvancedReports({
 
       setCurrentAdmissions(prev => prev.map(st => {
         if ((cleanFNo && String(st['Form Number'] || st['Form No.'] || st.formNo || '').replace(/^'/, '').trim().toLowerCase() === cleanFNo.toLowerCase()) || st.id === student.id) {
-          return { ...st, [colKey]: newValue, [targetFieldName]: newValue, ...subjectPayload, ...(extraFields || {}), ...(isExamRollEdit ? { 'Exam R.No. (Current)': newValue, currExamRollNo: newValue, examRollNo: newValue } : {}) };
+          const nextHistory = {
+            ...(st.directEditHistory || st.fieldEditHistory || {}),
+            [colKey]: directEditRecord,
+            [targetFieldName]: directEditRecord
+          };
+          return {
+            ...st,
+            [colKey]: newValue,
+            [targetFieldName]: newValue,
+            directEditHistory: nextHistory,
+            fieldEditHistory: nextHistory,
+            ...subjectPayload,
+            ...(extraFields || {}),
+            ...(isExamRollEdit ? { 'Exam R.No. (Current)': newValue, currExamRollNo: newValue, examRollNo: newValue } : {})
+          };
         }
         return st;
       }));
 
       setMasterHistoricalRecords(prev => prev.map(st => {
         if ((cleanFNo && String(st['Form Number'] || st['Form No.'] || st.formNo || '').replace(/^'/, '').trim().toLowerCase() === cleanFNo.toLowerCase()) || st.id === student.id) {
-          return { ...st, [colKey]: newValue, [targetFieldName]: newValue, ...subjectPayload, ...(extraFields || {}), ...(isExamRollEdit ? { 'Exam R.No. (Current)': newValue, currExamRollNo: newValue, examRollNo: newValue } : {}) };
+          const nextHistory = {
+            ...(st.directEditHistory || st.fieldEditHistory || {}),
+            [colKey]: directEditRecord,
+            [targetFieldName]: directEditRecord
+          };
+          return {
+            ...st,
+            [colKey]: newValue,
+            [targetFieldName]: newValue,
+            directEditHistory: nextHistory,
+            fieldEditHistory: nextHistory,
+            ...subjectPayload,
+            ...(extraFields || {}),
+            ...(isExamRollEdit ? { 'Exam R.No. (Current)': newValue, currExamRollNo: newValue, examRollNo: newValue } : {})
+          };
         }
         return st;
       }));
@@ -10434,7 +10546,10 @@ export default function AdvancedReports({
                     _jkboseStatusMap: jkboseStatusMap,
                     _getJkboseStatus: (colKey, subKey) => {
                       if (!jkboseStatusMap) return null;
-                      return subKey ? jkboseStatusMap[subKey] : jkboseStatusMap[colKey];
+                      if (subKey) {
+                        return jkboseStatusMap[subKey] || jkboseStatusMap[normalizeKey(subKey)] || null;
+                      }
+                      return jkboseStatusMap[colKey] || jkboseStatusMap[normalizeKey(colKey)] || null;
                     }
                   };
                   const dynamicSNo = pageSize === 'All' ? idx + 1 : (currentPage - 1) * (parseInt(pageSize, 10) || 50) + idx + 1;

@@ -298,8 +298,13 @@ export function computeStudentJkboseStatusMap(student, batchTraceabilityMap = nu
     }
   }
 
-  // Instant fast-exit: If student has no board sync indicators, zero work needed
-  if (!hasDirectFields && !hasDirectUpdates && !hasRecentSync && !batchMatch) {
+  const hasDirectEdits = Boolean(
+    (student.directEditHistory && typeof student.directEditHistory === 'object' && Object.keys(student.directEditHistory).length > 0) ||
+    (student.fieldEditHistory && typeof student.fieldEditHistory === 'object' && Object.keys(student.fieldEditHistory).length > 0)
+  );
+
+  // Instant fast-exit: If student has no board sync indicators and no direct edit history, zero work needed
+  if (!hasDirectFields && !hasDirectUpdates && !hasRecentSync && !batchMatch && !hasDirectEdits) {
     return null;
   }
 
@@ -385,6 +390,42 @@ export function computeStudentJkboseStatusMap(student, batchTraceabilityMap = nu
       };
       statusMap[f] = statusObj;
       const canonicalCol = REVERSE_LOOKUP_MAP[normalizeKey(f)];
+      if (canonicalCol) {
+        statusMap[canonicalCol] = statusObj;
+      }
+    });
+  }
+
+  // 4. Direct admin edit history (covers quick cell edits and manual updates)
+  const directEdits = student.directEditHistory || student.fieldEditHistory;
+  if (directEdits && typeof directEdits === 'object') {
+    Object.entries(directEdits).forEach(([f, detail]) => {
+      if (!detail) return;
+      const normKey = normalizeKey(f);
+      const canonicalCol = REVERSE_LOOKUP_MAP[normKey];
+      const existingBoard = statusMap[f] || statusMap[normKey] || (canonicalCol ? statusMap[canonicalCol] : null);
+      const statusObj = {
+        isUpdated: true,
+        key: f,
+        source: detail.source || (detail.updatedBy ? `Admin (${detail.updatedBy})` : 'Direct Admin Edit'),
+        timestamp: detail.timestamp || detail.updatedAt || '',
+        oldValue: detail.oldValue,
+        newValue: detail.newValue,
+        label: detail.label || f,
+        isDirectEdit: true,
+        updatedBy: detail.updatedBy || detail.userEmail || 'Admin',
+        userEmail: detail.userEmail || '',
+        reason: detail.reason || '',
+        boardSync: existingBoard ? {
+          source: existingBoard.source,
+          timestamp: existingBoard.timestamp,
+          oldValue: existingBoard.oldValue,
+          newValue: existingBoard.newValue
+        } : null
+      };
+
+      statusMap[f] = statusObj;
+      statusMap[normKey] = statusObj;
       if (canonicalCol) {
         statusMap[canonicalCol] = statusObj;
       }
