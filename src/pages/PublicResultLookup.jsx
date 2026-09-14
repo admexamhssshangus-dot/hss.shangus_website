@@ -5,7 +5,7 @@ import {
   RefreshCw, School, BookOpen, ShieldCheck, X, ChevronDown, Check,
   User, Sparkles, Hash, Layers, FileText, CheckCircle, Clock, History
 } from 'lucide-react';
-import { collection, getDocs, doc, getDoc } from 'firebase/firestore';
+import { collection, getDocs, doc, getDoc, onSnapshot } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { publicLookup } from '../services/backendEndpoint';
 import SEO from '../components/SEO';
@@ -393,6 +393,65 @@ export function extractEnrolledSubjects(student) {
   }
 
   return [];
+}
+
+/**
+ * Filters and deduplicates practical evaluation sections by subject, prioritizing
+ * latest active / pending submissions over older records.
+ */
+export function filterAndDeduplicateSections(practicalDocs, targetClassName, targetSessionName, targetEvalName) {
+  if (!Array.isArray(practicalDocs) || practicalDocs.length === 0) return [];
+  const targetClass = classKey(targetClassName);
+  const targetSession = sessionKey(targetSessionName);
+  const targetEval = identityKey(targetEvalName);
+
+  const matchingSectionsRaw = practicalDocs.filter(sec => {
+    if (!Array.isArray(sec.records) || sec.records.length === 0) return false;
+    if (sec.id?.startsWith('history_') || sec.docId?.startsWith('history_')) return false;
+    if (sec.isDraft === true || sec.status === 'draft' || sec.status === 'rejected') return false;
+
+    const docCls = classKey(sec.className || sec.class || sec.selectedClass || sec.docId || '');
+    if (docCls !== targetClass) return false;
+
+    const rawSess = sec.sessionCanonical || sec.yearSuffix || sec.session || sec.Session || sec.docId || '';
+    const docSess = sessionKey(rawSess);
+    const isSessionMatched = !targetSessionName || targetSessionName === 'All' ||
+      !rawSess ||
+      docSess === targetSession ||
+      (targetSession === '2025-26' && (docSess === '2026' || String(rawSess).includes('2026') || String(rawSess).includes('2025-26'))) ||
+      (targetSession === '2024-25' && (docSess === '2025' || String(rawSess).includes('2025') || String(rawSess).includes('2024-25')));
+    if (!isSessionMatched) return false;
+
+    if (targetEvalName && targetEvalName !== 'ALL') {
+      const docEval = identityKey(sec.practicalType || sec.evaluationType || sec.examTitle || sec.type || sec.docId || '');
+      const isEvalMatched = docEval === targetEval ||
+        docEval.includes(targetEval) || targetEval.includes(docEval) ||
+        (targetEval.includes('preboard') && docEval.includes('preboard')) ||
+        (targetEval.includes('internal') && docEval.includes('internal')) ||
+        (targetEval.includes('external') && docEval.includes('external'));
+      if (!isEvalMatched) return false;
+    }
+    return true;
+  });
+
+  const sectionsBySubj = new Map();
+  for (const sec of matchingSectionsRaw) {
+    const sKey = (sec.subjectCode || sec.subject || '').toUpperCase().trim();
+    if (!sKey) continue;
+    const existing = sectionsBySubj.get(sKey);
+    if (!existing) {
+      sectionsBySubj.set(sKey, sec);
+    } else {
+      const isPending = (sec.id && sec.id.startsWith('pending_')) || sec.status === 'pending_approval';
+      const existPending = (existing.id && existing.id.startsWith('pending_')) || existing.status === 'pending_approval';
+      const secTime = Date.parse(sec.updatedAt || sec.submittedAt || sec.timestamp || 0) || 0;
+      const existTime = Date.parse(existing.updatedAt || existing.submittedAt || existing.timestamp || 0) || 0;
+      if ((isPending && !existPending) || secTime > existTime) {
+        sectionsBySubj.set(sKey, sec);
+      }
+    }
+  }
+  return Array.from(sectionsBySubj.values());
 }
 
 /**
@@ -883,6 +942,47 @@ export default function PublicResultLookup() {
   const [errorMsg, setErrorMsg] = useState('');
   const [isSearchExpandedOnMobile, setIsSearchExpandedOnMobile] = useState(false);
   const [biologyDisplayMode, setBiologyDisplayMode] = useState('combined');
+  const [livePracticalsDocs, setLivePracticalsDocs] = useState([]);
+
+  // Real-Time Live Firestore Listener: Immediately reflects teacher evaluation submissions
+  useEffect(() => {
+    let unsubscribe = () => {};
+    try {
+      unsubscribe = onSnapshot(
+        collection(db, 'practicalsData'),
+        (snapshot) => {
+          const docs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+          setLivePracticalsDocs(docs);
+        },
+        (err) => {
+          if (process.env.NODE_ENV === 'test') {
+            console.warn('Real-time practicalsData listener notice:', err);
+          }
+        }
+      );
+    } catch (e) {
+      if (process.env.NODE_ENV === 'test') {
+        console.warn('Could not attach real-time practicalsData listener:', e);
+      }
+    }
+    return () => unsubscribe();
+  }, []);
+
+  // Asynchronously hydrate student photo from Firebase if not yet populated or if Google Drive URL
+  useEffect(() => {
+    if (!studentResult || (studentResult.photoUrl && !studentResult.photoUrl.includes('drive.google.com') && !studentResult.photoUrl.includes('googleusercontent.com') && !studentResult.photoUrl.includes('docs.google.com'))) return;
+    let isMounted = true;
+    async function hydratePhoto() {
+      try {
+        const p = await fetchStudentPhotoOnDemand(studentResult.lookupContext?.matchedStudent || studentResult);
+        if (isMounted && p && !p.includes('drive.google.com') && !p.includes('googleusercontent.com') && !p.includes('docs.google.com')) {
+          setStudentResult(prev => prev ? { ...prev, photoUrl: p } : null);
+        }
+      } catch (_) {}
+    }
+    hydratePhoto();
+    return () => { isMounted = false; };
+  }, [studentResult]);
 
   // Active evaluation configuration matching selected evalType
   const activeEvalConfig = useMemo(() => {
@@ -898,13 +998,23 @@ export default function PublicResultLookup() {
   }, [activeEvalConfig]);
 
   // Reactively derive active scorecard when toggling between Combined Bio and Separate BO & ZO
+  // or when real-time practicalsData updates from live teacher submissions
   const activeScorecard = useMemo(() => {
     if (!studentResult) return null;
     if (studentResult.lookupContext) {
+      const currentMatchingSections = livePracticalsDocs.length > 0
+        ? filterAndDeduplicateSections(
+            livePracticalsDocs,
+            studentResult.className || selectedClass,
+            studentResult.session || selectedSession,
+            selectedEvalType
+          )
+        : studentResult.lookupContext.matchingSections;
+
       const computed = computeScorecardSubjects({
         matchedStudent: studentResult.lookupContext.matchedStudent,
         streamName: studentResult.lookupContext.streamName,
-        matchingSections: studentResult.lookupContext.matchingSections,
+        matchingSections: currentMatchingSections,
         matchRecord: studentResult.lookupContext.matchRecord,
         biologyDisplayMode,
         evalConfig: activeEvalConfig
@@ -915,7 +1025,7 @@ export default function PublicResultLookup() {
       };
     }
     return studentResult;
-  }, [studentResult, biologyDisplayMode, activeEvalConfig]);
+  }, [studentResult, livePracticalsDocs, biologyDisplayMode, activeEvalConfig, selectedClass, selectedSession, selectedEvalType]);
 
   const activeResult = activeScorecard || studentResult;
 
@@ -1392,6 +1502,9 @@ export default function PublicResultLookup() {
       }
 
       if (matchedStudent) {
+        if (!matchedStudent.formNo && matchedStudent.fNo) matchedStudent.formNo = matchedStudent.fNo;
+        if (!matchedStudent.fNo && matchedStudent.formNo) matchedStudent.fNo = matchedStudent.formNo;
+
         // Anti-scraping verification: verify DOB if queried via Class Roll No
         if (isRollQuery && matchedStudent.dob) {
           const isDobMatching = (recordDob, userDob) => {
@@ -1441,14 +1554,16 @@ export default function PublicResultLookup() {
           : 'General';
 
 
-        // Fetch fresh practicals data from Firestore (falling back to cache on error)
-        let practicalDocs = [];
-        try {
-          const snap = await getDocs(collection(db, 'practicalsData'));
-          practicalDocs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        } catch (pErr) {
-          const cached = await getCachedCollection('practicalsData', false, 10 * 60 * 1000).catch(() => []);
-          practicalDocs = cached || [];
+        // Fetch fresh practicals data from Firestore (preferring live real-time docs, falling back to query/cache)
+        let practicalDocs = livePracticalsDocs.length > 0 ? livePracticalsDocs : [];
+        if (practicalDocs.length === 0) {
+          try {
+            const snap = await getDocs(collection(db, 'practicalsData'));
+            practicalDocs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+          } catch (pErr) {
+            const cached = await getCachedCollection('practicalsData', false, 10 * 60 * 1000).catch(() => []);
+            practicalDocs = cached || [];
+          }
         }
 
         // Fallback to verified practicals seed dataset if live collection is empty/offline
@@ -1461,59 +1576,13 @@ export default function PublicResultLookup() {
           } catch (_) {}
         }
 
-        // Identify matching teacher submission sections
-        const targetClass = classKey(selectedClass);
-        const targetSession = sessionKey(selectedSession);
-        const targetEval = identityKey(selectedEvalType);
-
-        const matchingSectionsRaw = practicalDocs.filter(sec => {
-          if (!Array.isArray(sec.records) || sec.records.length === 0) return false;
-          if (sec.id?.startsWith('history_') || sec.docId?.startsWith('history_')) return false;
-          if (sec.isDraft === true || sec.status === 'draft' || sec.status === 'rejected') return false;
-
-          const docCls = classKey(sec.className || sec.class || sec.selectedClass || sec.docId || '');
-          if (docCls !== targetClass) return false;
-
-          const rawSess = sec.sessionCanonical || sec.yearSuffix || sec.session || sec.Session || sec.docId || '';
-          const docSess = sessionKey(rawSess);
-          const isSessionMatched = !selectedSession || selectedSession === 'All' ||
-            !rawSess ||
-            docSess === targetSession ||
-            (targetSession === '2025-26' && (docSess === '2026' || String(rawSess).includes('2026') || String(rawSess).includes('2025-26'))) ||
-            (targetSession === '2024-25' && (docSess === '2025' || String(rawSess).includes('2025') || String(rawSess).includes('2024-25')));
-          if (!isSessionMatched) return false;
-
-          if (selectedEvalType && selectedEvalType !== 'ALL') {
-            const docEval = identityKey(sec.practicalType || sec.evaluationType || sec.examTitle || sec.type || sec.docId || '');
-            const isEvalMatched = docEval === targetEval ||
-              docEval.includes(targetEval) || targetEval.includes(docEval) ||
-              (targetEval.includes('preboard') && docEval.includes('preboard')) ||
-              (targetEval.includes('internal') && docEval.includes('internal')) ||
-              (targetEval.includes('external') && docEval.includes('external'));
-            if (!isEvalMatched) return false;
-          }
-          return true;
-        });
-
-        // Deduplicate sections by subject: prioritize latest pending_ or newer submission
-        const sectionsBySubj = new Map();
-        for (const sec of matchingSectionsRaw) {
-          const sKey = (sec.subjectCode || sec.subject || '').toUpperCase().trim();
-          if (!sKey) continue;
-          const existing = sectionsBySubj.get(sKey);
-          if (!existing) {
-            sectionsBySubj.set(sKey, sec);
-          } else {
-            const isPending = (sec.id && sec.id.startsWith('pending_')) || sec.status === 'pending_approval';
-            const existPending = (existing.id && existing.id.startsWith('pending_')) || existing.status === 'pending_approval';
-            const secTime = Date.parse(sec.updatedAt || sec.submittedAt || sec.timestamp || 0) || 0;
-            const existTime = Date.parse(existing.updatedAt || existing.submittedAt || existing.timestamp || 0) || 0;
-            if ((isPending && !existPending) || secTime > existTime) {
-              sectionsBySubj.set(sKey, sec);
-            }
-          }
-        }
-        const matchingSections = Array.from(sectionsBySubj.values());
+        // Identify and deduplicate matching teacher submission sections
+        const matchingSections = filterAndDeduplicateSections(
+          practicalDocs,
+          selectedClass,
+          selectedSession,
+          selectedEvalType
+        );
 
         // Multi-tier student record matcher against a teacher's section sheet
         const matchRecord = (rec) => {

@@ -12,7 +12,8 @@ import {
   isSubjectCompatibleWithStream,
   isSubjectEnrolledByStudent,
   normalizeMarksToScale,
-  computeScorecardSubjects
+  computeScorecardSubjects,
+  filterAndDeduplicateSections
 } from './PublicResultLookup';
 
 test('unavailable configuration is explained and cannot submit an empty evaluation', async () => {
@@ -488,6 +489,50 @@ describe('Score Normalization and Flexible Biology Display', () => {
     expect(bio.isPass).toBe(true);
     expect(bio.componentNote).toContain('BO: 16/25');
     expect(bio.componentNote).toContain('ZO: 17/25');
+  });
+
+  test('filterAndDeduplicateSections correctly filters by class, session, and deduplicates prioritizing pending_ submissions', () => {
+    const rawDocs = [
+      {
+        id: '11th_ch_old',
+        className: '11th',
+        session: '2025-26',
+        practicalType: 'Pre-Board Test',
+        subjectCode: 'CH',
+        subjectName: 'Chemistry',
+        records: [{ rollNo: '1', totalMarks: 5 }]
+      },
+      {
+        id: 'pending_11th_ch_latest',
+        className: '11th',
+        session: '2025-26',
+        practicalType: 'Pre-Board Test',
+        subjectCode: 'CH',
+        subjectName: 'Chemistry',
+        records: [{ rollNo: '1', totalMarks: 6 }]
+      },
+      {
+        id: '12th_ch',
+        className: '12th',
+        session: '2025-26',
+        practicalType: 'Pre-Board Test',
+        subjectCode: 'CH',
+        records: [{ rollNo: '1', totalMarks: 40 }]
+      },
+      {
+        id: 'draft_doc',
+        className: '11th',
+        session: '2025-26',
+        isDraft: true,
+        subjectCode: 'PH',
+        records: [{ rollNo: '1', totalMarks: 30 }]
+      }
+    ];
+
+    const deduplicated = filterAndDeduplicateSections(rawDocs, '11th', '2025-26', 'Pre-Board Test');
+    expect(deduplicated.length).toBe(1);
+    expect(deduplicated[0].id).toBe('pending_11th_ch_latest');
+    expect(deduplicated[0].records[0].totalMarks).toBe(6);
   });
 });
 
