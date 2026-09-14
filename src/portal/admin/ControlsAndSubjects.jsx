@@ -392,8 +392,10 @@ export default function ControlsAndSubjects() {
 
           // Populate annual session cutoff date
           if (siteSettings.annualRolloverCutoff) {
-            if (siteSettings.annualRolloverCutoff.month !== undefined) setRolloverMonth(Number(siteSettings.annualRolloverCutoff.month));
-            if (siteSettings.annualRolloverCutoff.day !== undefined) setRolloverDay(Number(siteSettings.annualRolloverCutoff.day));
+            const m = siteSettings.annualRolloverCutoff.rolloverMonth ?? siteSettings.annualRolloverCutoff.month;
+            const d = siteSettings.annualRolloverCutoff.rolloverDay ?? siteSettings.annualRolloverCutoff.day;
+            if (m !== undefined) setRolloverMonth(Number(m));
+            if (d !== undefined) setRolloverDay(Number(d));
           }
 
           // Populate class admission toggles
@@ -546,8 +548,12 @@ export default function ControlsAndSubjects() {
     setSaving(true);
     setAlert(null);
     try {
+      const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+      const formattedDate = `${rolloverDay} ${monthNames[Number(rolloverMonth) - 1]}`;
+
       const settings = {
         session,
+        currentSession: session,
         print_order: printOrder,
         logo_url: logoUrl,
         allow_9th: allow9th,
@@ -577,7 +583,10 @@ export default function ControlsAndSubjects() {
         annualRolloverCutoff: {
           month: Number(rolloverMonth),
           day: Number(rolloverDay),
-          formatted: `${rolloverDay} ${['January','February','March','April','May','June','July','August','September','October','November','December'][Number(rolloverMonth) - 1]}`
+          rolloverMonth: Number(rolloverMonth),
+          rolloverDay: Number(rolloverDay),
+          formatted: formattedDate,
+          rolloverFormatted: formattedDate,
         },
       };
 
@@ -592,6 +601,36 @@ export default function ControlsAndSubjects() {
       setAlert({ type: 'success', text: 'System controls & emergency settings updated successfully!' });
     } catch (err) {
       setAlert({ type: 'error', text: `Settings were not saved: ${err.message || 'Please retry.'}` });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Dedicated Save Handler for Rollover Cutoff Schedule (Tab 5)
+  const handleSaveRolloverCutoff = async () => {
+    setSaving(true);
+    setAlert(null);
+    try {
+      const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+      const formattedDate = `${rolloverDay} ${monthNames[Number(rolloverMonth) - 1]}`;
+      const cutoffObj = {
+        month: Number(rolloverMonth),
+        day: Number(rolloverDay),
+        rolloverMonth: Number(rolloverMonth),
+        rolloverDay: Number(rolloverDay),
+        formatted: formattedDate,
+        rolloverFormatted: formattedDate,
+      };
+      await setDoc(doc(db, 'site', 'settings'), { annualRolloverCutoff: cutoffObj }, { merge: true });
+      logAdminActivity({
+        actionType: 'update',
+        actionTitle: 'Updated Annual Rollover Cutoff Schedule',
+        details: `Annual rollover cutoff schedule set to ${formattedDate}`,
+        metadata: { rolloverMonth, rolloverDay }
+      });
+      setAlert({ type: 'success', text: `Annual session rollover cutoff updated to ${formattedDate}!` });
+    } catch (err) {
+      setAlert({ type: 'error', text: `Failed to save cutoff schedule: ${err.message}` });
     } finally {
       setSaving(false);
     }
@@ -1071,13 +1110,13 @@ export default function ControlsAndSubjects() {
           </button>
         </div>
       )}
-      {/* Sleek Standard Sub Navigation Bar */}
+      {/* Sleek Sub Navigation Bar with Horizontal Swipe on Mobile */}
       <div className="flex items-center gap-1 sm:gap-1.5 overflow-x-auto no-scrollbar pb-1 border-b border-slate-200 dark:border-slate-800">
         {[
           { id: 'controls', label: '1. Admission Controls', icon: Sliders },
-          { id: 'subjects', label: '2. Subjects (v2)', icon: BookOpen },
+          { id: 'subjects', label: '2. Subjects & Streams', icon: BookOpen },
           { id: 'schools', label: '3. Feeder Schools', icon: GraduationCap },
-          { id: 'permissions', label: '4. Permissions', icon: ShieldCheck },
+          { id: 'permissions', label: '4. Staff & Permissions', icon: ShieldCheck },
           { id: 'lab', label: '5. Session Rollover', icon: Database },
         ].map((sub) => {
           const Icon = sub.icon;
@@ -1087,7 +1126,7 @@ export default function ControlsAndSubjects() {
               key={sub.id}
               type="button"
               onClick={() => setActiveSubTab(sub.id)}
-              className={`py-1 px-2.5 sm:py-1.5 sm:px-3 rounded-lg sm:rounded-xl font-black text-[11px] sm:text-xs flex items-center gap-1 sm:gap-1.5 transition-all whitespace-nowrap cursor-pointer shadow-2xs ${
+              className={`py-1 px-2.5 sm:py-1.5 sm:px-3 rounded-lg sm:rounded-xl font-black text-[11px] sm:text-xs flex items-center gap-1 sm:gap-1.5 transition-all whitespace-nowrap cursor-pointer shrink-0 shadow-2xs ${
                 isActive
                   ? 'bg-amber-600 text-white border border-amber-700 shadow-sm ring-1 ring-amber-500/30'
                   : 'bg-slate-100 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700/60 hover:bg-slate-200 dark:hover:bg-slate-700'
@@ -1103,12 +1142,12 @@ export default function ControlsAndSubjects() {
       {/* SUB TAB 1: CONTROLS & EMERGENCY TOGGLES */}
       {activeSubTab === 'controls' && (
         <form onSubmit={handleSaveControls} className="space-y-3">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 sm:gap-3">
             {/* Column 1: Admission Status (Open / Close) */}
             <div className="p-3 rounded-2xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm space-y-2.5">
               <div className="font-black text-xs flex items-center justify-between text-amber-700 dark:text-amber-400 border-b border-slate-200 dark:border-slate-800 pb-2">
-                <span className="flex items-center gap-1.5"><Sliders size={15} /> Class Admission Controls</span>
-                <span className="text-[10px] bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 px-2 py-0.5 rounded-full">4 Classes</span>
+                <span className="flex items-center gap-1.5"><Sliders size={14} /> Class Admission Controls</span>
+                <span className="text-[10px] font-mono bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 px-2 py-0.5 rounded-full font-bold">4 Classes</span>
               </div>
 
               <div className="space-y-1.5">
@@ -1141,8 +1180,8 @@ export default function ControlsAndSubjects() {
             {/* Column 2: Teacher Evaluation Toggles */}
             <div className="p-3 rounded-2xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm space-y-2.5">
               <div className="font-black text-xs flex items-center justify-between text-indigo-700 dark:text-indigo-400 border-b border-slate-200 dark:border-slate-800 pb-2">
-                <span className="flex items-center gap-1.5"><BookOpen size={15} /> Faculty Submissions</span>
-                <span className="text-[10px] bg-indigo-100 dark:bg-indigo-950 text-indigo-800 dark:text-indigo-300 px-2 py-0.5 rounded-full">Portals</span>
+                <span className="flex items-center gap-1.5"><BookOpen size={14} /> Faculty Submissions</span>
+                <span className="text-[10px] bg-indigo-100 dark:bg-indigo-950 text-indigo-800 dark:text-indigo-300 px-2 py-0.5 rounded-full font-bold">Portals</span>
               </div>
 
               <div className="space-y-1.5">
@@ -1169,14 +1208,14 @@ export default function ControlsAndSubjects() {
                 ))}
               </div>
 
-              <div className="pt-2 border-t border-slate-200 dark:border-slate-800 space-y-1.5">
-                <label className="block text-[11px] font-black text-slate-700 dark:text-slate-300">Active Academic Session</label>
+              <div className="pt-2 border-t border-slate-200 dark:border-slate-800 space-y-1">
+                <label className="block text-[10.5px] font-black uppercase text-slate-600 dark:text-slate-400">Active Academic Session</label>
                 <input
                   type="text"
                   value={session}
                   onChange={(e) => setSession(e.target.value)}
                   placeholder="e.g. 2025-26"
-                  className="w-full p-2 rounded-xl text-xs font-black border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white"
+                  className="w-full p-2 rounded-xl text-xs font-black border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white font-mono"
                 />
               </div>
             </div>
@@ -1184,8 +1223,8 @@ export default function ControlsAndSubjects() {
             {/* Column 3: Automated Notifications */}
             <div className="p-3 rounded-2xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm space-y-2.5">
               <div className="font-black text-xs flex items-center justify-between text-purple-700 dark:text-purple-400 border-b border-slate-200 dark:border-slate-800 pb-2">
-                <span className="flex items-center gap-1.5"><Mail size={15} /> Automated Notifications</span>
-                <span className="text-[10px] bg-purple-100 dark:bg-purple-950 text-purple-800 dark:text-purple-300 px-2 py-0.5 rounded-full">Email Triggers</span>
+                <span className="flex items-center gap-1.5"><Mail size={14} /> Automated Notifications</span>
+                <span className="text-[10px] bg-purple-100 dark:bg-purple-950 text-purple-800 dark:text-purple-300 px-2 py-0.5 rounded-full font-bold">Email Triggers</span>
               </div>
 
               <div className="space-y-1.5">
@@ -1193,8 +1232,6 @@ export default function ControlsAndSubjects() {
                   { label: 'Application Submission Email', val: emailSubmission, set: setEmailSubmission },
                   { label: 'Provisional Upgrade PDF Email', val: emailUpgradePdf, set: setEmailUpgradePdf },
                   { label: 'Rejection Notification Email', val: emailRejection, set: setEmailRejection },
-                  { label: 'Registration OTP Email', val: emailRegOtp, set: setEmailRegOtp },
-                  { label: 'Password Reset OTP Email', val: emailResetOtp, set: setEmailResetOtp },
                 ].map((item, idx) => (
                   <label
                     key={idx}
@@ -1213,12 +1250,22 @@ export default function ControlsAndSubjects() {
                     />
                   </label>
                 ))}
+
+                <div className="pt-2 border-t border-slate-200 dark:border-slate-800 space-y-1">
+                  <div className="flex items-center justify-between text-[11px] font-black text-slate-700 dark:text-slate-300">
+                    <span className="flex items-center gap-1.5"><Key size={13} className="text-teal-600" /> Account Security</span>
+                    <span className="text-[9.5px] bg-teal-50 dark:bg-teal-950 text-teal-700 dark:text-teal-300 font-black px-1.5 py-0.5 rounded border border-teal-200 dark:border-teal-800">Direct Auth</span>
+                  </div>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium leading-relaxed">
+                    Student registration verification & password reset links are issued directly via Firebase Authentication.
+                  </p>
+                </div>
               </div>
             </div>
           </div>
 
           {/* Master Student Data & Board Ingestion Control Center Card */}
-          <div className="p-3.5 rounded-2xl border border-emerald-300 dark:border-emerald-800/60 bg-gradient-to-br from-emerald-50/70 via-white to-teal-50/40 dark:from-slate-900 dark:via-slate-900 dark:to-emerald-950/20 shadow-sm space-y-2.5">
+          <div className="p-3 sm:p-3.5 rounded-2xl border border-emerald-300 dark:border-emerald-800/60 bg-gradient-to-br from-emerald-50/70 via-white to-teal-50/40 dark:from-slate-900 dark:via-slate-900 dark:to-emerald-950/20 shadow-sm space-y-2.5">
             <div className="flex items-center justify-between border-b border-emerald-200 dark:border-emerald-800/60 pb-2 flex-wrap gap-2">
               <div className="flex items-center gap-2">
                 <div className="w-7 h-7 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0">
@@ -1227,25 +1274,25 @@ export default function ControlsAndSubjects() {
                 <div>
                   <div className="flex items-center gap-2">
                     <h4 className="font-black text-xs text-slate-900 dark:text-white leading-tight">Master Student Data & Board Ingestion Hub</h4>
-                    <span className="text-[9px] bg-emerald-600 text-white font-black px-1.5 py-0.2 rounded-full uppercase tracking-wider">v2 Unified</span>
+                    <span className="text-[9px] bg-emerald-600 text-white font-black px-2 py-0.5 rounded-full uppercase tracking-wider">Board Records & Sync</span>
                   </div>
-                  <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 leading-none mt-0.5">
-                    Central privileged console for Board Overwrite, Excel tabular paste, Express Direct Entry, and Gemini Vision OCR
+                  <p className="text-[10.5px] font-bold text-slate-500 dark:text-slate-400 leading-tight mt-0.5">
+                    Board overwrites, spreadsheet sync, express intake, and document OCR
                   </p>
                 </div>
               </div>
 
-              <div className="flex items-center gap-1.5 flex-wrap">
+              <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-1.5 w-full sm:w-auto">
                 <button
                   type="button"
                   onClick={() => {
                     setMasterHubInitialMode('overwrite');
                     setShowMasterHubModal(true);
                   }}
-                  className="px-2.5 py-1 rounded-xl font-black text-xs text-white bg-emerald-700 hover:bg-emerald-600 shadow-2xs flex items-center gap-1 cursor-pointer transition-all"
+                  className="px-2.5 py-1.5 sm:py-1 rounded-xl font-black text-xs text-white bg-emerald-700 hover:bg-emerald-600 shadow-2xs flex items-center justify-center gap-1 cursor-pointer transition-all active:scale-95"
                 >
                   <FileSpreadsheet size={12} />
-                  <span>Bulk Overwrite & Board Sync</span>
+                  <span>Bulk Overwrite</span>
                 </button>
                 <button
                   type="button"
@@ -1253,10 +1300,10 @@ export default function ControlsAndSubjects() {
                     setMasterHubInitialMode('express');
                     setShowMasterHubModal(true);
                   }}
-                  className="px-2.5 py-1 rounded-xl font-black text-xs text-white bg-blue-600 hover:bg-blue-500 shadow-2xs flex items-center gap-1 cursor-pointer transition-all"
+                  className="px-2.5 py-1.5 sm:py-1 rounded-xl font-black text-xs text-white bg-blue-600 hover:bg-blue-500 shadow-2xs flex items-center justify-center gap-1 cursor-pointer transition-all active:scale-95"
                 >
                   <UserPlus size={12} />
-                  <span>Express Direct Entry</span>
+                  <span>Express Entry</span>
                 </button>
                 <button
                   type="button"
@@ -1264,10 +1311,10 @@ export default function ControlsAndSubjects() {
                     setMasterHubInitialMode('gazette_ai');
                     setShowMasterHubModal(true);
                   }}
-                  className="px-2.5 py-1 rounded-xl font-black text-xs text-white bg-purple-600 hover:bg-purple-500 shadow-2xs flex items-center gap-1 cursor-pointer transition-all"
+                  className="px-2.5 py-1.5 sm:py-1 rounded-xl font-black text-xs text-white bg-purple-600 hover:bg-purple-500 shadow-2xs flex items-center justify-center gap-1 cursor-pointer transition-all active:scale-95"
                 >
                   <Sparkles size={12} />
-                  <span>Gazette AI OCR</span>
+                  <span>Gazette AI</span>
                 </button>
                 <button
                   type="button"
@@ -1275,7 +1322,7 @@ export default function ControlsAndSubjects() {
                     setMasterHubInitialMode('admit_ai');
                     setShowMasterHubModal(true);
                   }}
-                  className="px-2.5 py-1 rounded-xl font-black text-xs text-white bg-amber-600 hover:bg-amber-500 shadow-2xs flex items-center gap-1 cursor-pointer transition-all"
+                  className="px-2.5 py-1.5 sm:py-1 rounded-xl font-black text-xs text-white bg-amber-600 hover:bg-amber-500 shadow-2xs flex items-center justify-center gap-1 cursor-pointer transition-all active:scale-95"
                 >
                   <FileCheck size={12} />
                   <span>Admit Card AI</span>
@@ -1283,18 +1330,18 @@ export default function ControlsAndSubjects() {
               </div>
             </div>
 
-            {/* Master Hub Governance & Settings Policy Grid */}
+            {/* Governance Policy Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-0.5">
-              <label className="flex items-center justify-between p-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/90 text-xs font-bold text-slate-800 dark:text-slate-200 cursor-pointer shadow-2xs">
+              <label className="flex items-center justify-between p-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/90 text-xs font-bold text-slate-800 dark:text-slate-200 shadow-2xs">
                 <div className="pr-2">
                   <div className="font-black text-xs text-slate-900 dark:text-white">Strict 3-Point Matching</div>
-                  <div className="text-[10px] text-slate-400 font-normal">Required: unique identity, session and class</div>
+                  <div className="text-[10px] text-slate-400 font-normal">Session, Class & Reg No.</div>
                 </div>
                 <input
                   type="checkbox"
                   checked={strict3PointMatching}
                   readOnly disabled aria-label="Required protection"
-                  className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer shrink-0"
+                  className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 shrink-0"
                 />
               </label>
 
@@ -1311,31 +1358,31 @@ export default function ControlsAndSubjects() {
                 />
               </label>
 
-              <label className="flex items-center justify-between p-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/90 text-xs font-bold text-slate-800 dark:text-slate-200 cursor-pointer shadow-2xs">
+              <label className="flex items-center justify-between p-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/90 text-xs font-bold text-slate-800 dark:text-slate-200 shadow-2xs">
                 <div className="pr-2">
-                  <div className="font-black text-xs text-slate-900 dark:text-white">30-Day Rollback Protection</div>
-                  <div className="text-[10px] text-slate-400 font-normal">Required: before-images for new field updates</div>
+                  <div className="font-black text-xs text-slate-900 dark:text-white">Rollback Protection</div>
+                  <div className="text-[10px] text-slate-400 font-normal">Pre-update snapshot preservation</div>
                 </div>
                 <input
                   type="checkbox"
                   checked={enable30DayRollback}
                   readOnly disabled aria-label="Required protection"
-                  className="w-4 h-4 rounded text-purple-600 focus:ring-purple-500 cursor-pointer shrink-0"
+                  className="w-4 h-4 rounded text-purple-600 focus:ring-purple-500 shrink-0"
                 />
               </label>
             </div>
 
-            <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 dark:text-slate-400 px-1 pt-0.5 flex-wrap gap-2">
-              <span>Active Cohort Session: <strong className="text-slate-800 dark:text-slate-200 font-mono">{session}</strong></span>
-              <span>Supported Classes: <strong className="text-slate-800 dark:text-slate-200">9th, 10th, 11th, 12th</strong></span>
-              <span>Database Schema Grounding: <strong className="text-emerald-700 dark:text-emerald-400">40+ Core Fields & Results</strong></span>
+            <div className="flex items-center justify-between text-[10.5px] font-bold text-slate-500 dark:text-slate-400 px-1 pt-0.5 flex-wrap gap-2">
+              <span>Cohort Session: <strong className="text-slate-800 dark:text-slate-200 font-mono">{session}</strong></span>
+              <span>Supported: <strong className="text-slate-800 dark:text-slate-200">Classes 9th–12th</strong></span>
+              <span>Schema: <strong className="text-emerald-700 dark:text-emerald-400">40+ Core Fields & Results</strong></span>
             </div>
           </div>
 
           <button
             type="submit"
             disabled={saving}
-            className="px-4 py-2 rounded-xl font-black text-xs text-white bg-amber-700 hover:bg-amber-600 shadow-sm flex items-center gap-1.5 cursor-pointer disabled:opacity-50 transition-all"
+            className="w-full sm:w-auto px-4 py-2.5 sm:py-2 rounded-xl font-black text-xs text-white bg-amber-700 hover:bg-amber-600 shadow-sm flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 transition-all active:scale-95"
           >
             {saving ? <RefreshCw size={13} className="animate-spin" /> : <Save size={13} />}
             <span>Save All System Controls</span>
@@ -1343,7 +1390,7 @@ export default function ControlsAndSubjects() {
         </form>
       )}
 
-      {/* SUB TAB 2: SUBJECT CONFIGURATION (v2) — ULTRA COMPACT & CLEAN DESIGN */}
+      {/* SUB TAB 2: SUBJECT CONFIGURATION — COMPACT & MINIMAL */}
       {activeSubTab === 'subjects' && (
         <form onSubmit={handleSaveSubjects} className="space-y-3">
           <div className="p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm space-y-3">
@@ -1356,7 +1403,7 @@ export default function ControlsAndSubjects() {
                 </div>
                 <div>
                   <h3 className="font-black text-xs text-slate-900 dark:text-white leading-tight">
-                    Subject Configuration Rules (v2)
+                    Subject Configuration Rules
                   </h3>
                   <p className="text-slate-500 dark:text-slate-400 text-[11px] font-bold leading-none">
                     Configure compulsory & elective subject pools for admission forms
@@ -1398,12 +1445,10 @@ export default function ControlsAndSubjects() {
               </div>
             </div>
 
-            {/* Dynamic Sync Notice with Express Ingestion & Forms */}
-            <div className="flex items-center gap-2 p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 text-xs font-bold text-amber-900 dark:text-amber-200">
-              <Sparkles size={14} className="text-amber-600 dark:text-amber-400 flex-shrink-0" />
-              <span>
-                <strong>Live Sync Active:</strong> Compulsory, elective, and vocational subjects configured below dynamically propagate into online admission forms, <strong>Express Direct Entry</strong> quick-tags, and <strong>Board Data Overwrite</strong> curriculum validation rules.
-              </span>
+            {/* Dynamic Sync Notice */}
+            <div className="flex items-center gap-2 p-2 rounded-xl bg-amber-50/80 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 text-[11px] font-bold text-amber-900 dark:text-amber-200">
+              <Sparkles size={13} className="text-amber-600 dark:text-amber-400 flex-shrink-0" />
+              <span>Subject pools configured below dynamically propagate to online admission forms, direct entry forms, and curriculum validation.</span>
             </div>
 
             {/* Compact Rules & Numeric Limits Bar */}
@@ -2455,56 +2500,66 @@ export default function ControlsAndSubjects() {
         </div>
       )}
 
-      {/* SUB TAB 4: ANNUAL SESSION LIFECYCLE & ROLLOVER */}
+      {/* SUB TAB 5: ANNUAL SESSION LIFECYCLE & ROLLOVER */}
       {activeSubTab === 'lab' && (
         <div className="space-y-3">
-          <div className="p-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm space-y-4">
-            <div className="flex items-start justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-3 flex-wrap">
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-purple-500/10 border border-purple-500/30 flex items-center justify-center text-purple-600 dark:text-purple-400 flex-shrink-0">
-                  <Database size={18} />
+          <div className="p-3.5 sm:p-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm space-y-3">
+            {/* Header */}
+            <div className="flex items-center justify-between gap-2.5 border-b border-slate-100 dark:border-slate-800 pb-2.5 flex-wrap">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-purple-500/10 border border-purple-500/30 flex items-center justify-center text-purple-600 dark:text-purple-400 shrink-0">
+                  <Database size={15} />
                 </div>
                 <div>
-                  <h3 className="font-black text-sm text-slate-900 dark:text-white leading-tight">
-                    Annual Session Lifecycle & Archival Manager
+                  <h3 className="font-black text-xs text-slate-900 dark:text-white leading-tight">
+                    Session Lifecycle & Archival Manager
                   </h3>
-                  <p className="text-slate-500 dark:text-slate-400 text-xs font-bold mt-0.5">
-                    100% Native Firestore Pipeline • Conclude Academic Session & Initialize Next Intake
+                  <p className="text-slate-500 dark:text-slate-400 text-[11px] font-bold leading-none">
+                    Archive active intake to Master Registers and transition session
                   </p>
                 </div>
               </div>
 
-              <span className="px-3 py-1 rounded-full text-xs font-black bg-purple-100 dark:bg-purple-950 text-purple-800 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
+              <span className="px-2.5 py-0.5 rounded-full text-[11px] font-black bg-purple-100 dark:bg-purple-950 text-purple-800 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
                 Active Session: {session}
               </span>
             </div>
 
-            <p className="text-xs font-bold text-slate-600 dark:text-slate-300 leading-relaxed">
-              When an academic intake concludes (e.g., in <strong>October</strong>), this utility cleanly packages all approved students with roll numbers from <code className="font-mono font-black text-purple-600 dark:text-purple-400">admissions</code> into permanent, searchable <code className="font-mono font-black text-purple-600 dark:text-purple-400">masterRegisters</code> chunks in Firestore with native Base64 photos preserved. Unsubmitted drafts are cleaned, and admissions intake is reset for the new academic year.
+            {/* Compact Informational Callout */}
+            <p className="text-[11.5px] font-semibold text-slate-600 dark:text-slate-400 leading-normal">
+              Packages approved students into permanent, searchable <code className="font-mono font-bold text-purple-600 dark:text-purple-400">masterRegisters</code> in Firestore with photos preserved, clears unsubmitted drafts, and safely transitions active intake to the next academic year.
             </p>
 
-            {/* Annual Session Cutoff Date Manager & Caution Guard */}
-            <div className="p-3.5 rounded-2xl border-2 border-purple-300/80 dark:border-purple-800/80 bg-purple-50/60 dark:bg-purple-950/30 space-y-3">
+            {/* Cutoff Date Manager with Save Button */}
+            <div className="p-3 rounded-xl border border-purple-200 dark:border-purple-900/60 bg-purple-50/40 dark:bg-purple-950/20 space-y-2.5">
               <div className="flex items-center justify-between flex-wrap gap-2">
-                <div className="flex items-center gap-2 font-black text-xs text-purple-950 dark:text-purple-200">
-                  <CalendarCheck size={16} className="text-purple-600 dark:text-purple-400" />
-                  <span>Annual Session Rollover Cutoff Date (Current: {rolloverDay} {['January','February','March','April','May','June','July','August','September','October','November','December'][rolloverMonth - 1]})</span>
+                <div className="flex items-center gap-1.5 font-black text-xs text-purple-950 dark:text-purple-200">
+                  <CalendarCheck size={14} className="text-purple-600 dark:text-purple-400" />
+                  <span>Annual Rollover Cutoff Schedule</span>
+                  <span className="text-[10px] font-bold text-purple-600 dark:text-purple-400">
+                    ({rolloverDay} {['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][rolloverMonth - 1]})
+                  </span>
                 </div>
-                <span className="text-[10px] font-black px-2 py-0.5 rounded-md bg-purple-200/80 dark:bg-purple-900/80 text-purple-900 dark:text-purple-200">
-                  Super Admin Controlled
-                </span>
+                <button
+                  type="button"
+                  onClick={handleSaveRolloverCutoff}
+                  disabled={saving}
+                  className="px-2.5 py-1 rounded-lg text-xs font-black text-white bg-purple-700 hover:bg-purple-600 active:scale-95 transition-all flex items-center gap-1 cursor-pointer disabled:opacity-50 shadow-2xs"
+                >
+                  {saving ? <RefreshCw size={11} className="animate-spin" /> : <Save size={11} />}
+                  <span>Save Cutoff Date</span>
+                </button>
               </div>
 
-              {/* Date Inputs */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-[10px] font-black uppercase text-purple-900 dark:text-purple-300 mb-1">
+                  <label className="block text-[10px] font-black uppercase tracking-wider text-purple-900 dark:text-purple-300 mb-1">
                     Cutoff Month
                   </label>
                   <select
                     value={rolloverMonth}
                     onChange={(e) => setRolloverMonth(Number(e.target.value))}
-                    className="w-full px-2.5 py-1.5 rounded-lg border border-purple-300 dark:border-purple-700 bg-white dark:bg-slate-900 font-bold text-xs text-slate-800 dark:text-slate-200"
+                    className="w-full px-2.5 py-1.5 rounded-lg border border-purple-200 dark:border-purple-800 bg-white dark:bg-slate-900 font-bold text-xs text-slate-800 dark:text-slate-200"
                   >
                     {['January','February','March','April','May','June','July','August','September','October','November','December'].map((mName, idx) => (
                       <option key={mName} value={idx + 1}>{mName} (Month {idx + 1})</option>
@@ -2513,13 +2568,13 @@ export default function ControlsAndSubjects() {
                 </div>
 
                 <div>
-                  <label className="block text-[10px] font-black uppercase text-purple-900 dark:text-purple-300 mb-1">
+                  <label className="block text-[10px] font-black uppercase tracking-wider text-purple-900 dark:text-purple-300 mb-1">
                     Cutoff Day of Month
                   </label>
                   <select
                     value={rolloverDay}
                     onChange={(e) => setRolloverDay(Number(e.target.value))}
-                    className="w-full px-2.5 py-1.5 rounded-lg border border-purple-300 dark:border-purple-700 bg-white dark:bg-slate-900 font-bold text-xs text-slate-800 dark:text-slate-200"
+                    className="w-full px-2.5 py-1.5 rounded-lg border border-purple-200 dark:border-purple-800 bg-white dark:bg-slate-900 font-bold text-xs text-slate-800 dark:text-slate-200"
                   >
                     {Array.from({ length: 31 }, (_, i) => i + 1).map(d => (
                       <option key={d} value={d}>Day {d}</option>
@@ -2528,66 +2583,54 @@ export default function ControlsAndSubjects() {
                 </div>
               </div>
 
-              {/* Institutional Policy Warning Alert */}
-              <div className="p-3 rounded-xl bg-amber-100/70 dark:bg-amber-950/70 border border-amber-300/80 dark:border-amber-700/80 text-amber-900 dark:text-amber-200 space-y-1">
-                <div className="flex items-center gap-1.5 font-black text-[11px]">
-                  <AlertCircle size={14} className="text-amber-700 dark:text-amber-400 shrink-0" />
-                  <span>CRITICAL WARNING: Institutional Rollover Schedule Impact</span>
-                </div>
-                <p className="text-[10px] font-bold leading-relaxed text-amber-800 dark:text-amber-300">
-                  This date dictates when the automated portal prompt requests administrators to archive the active intake to Master Registers and reset the forms for the upcoming session (e.g. 2026–27). Setting this date prematurely will trigger archival warnings while students are still completing admissions, while setting it too late will delay the upcoming session's intake.
-                </p>
+              <div className="text-[10.5px] font-medium text-amber-800 dark:text-amber-300 flex items-center gap-1.5 pt-0.5">
+                <AlertCircle size={12} className="text-amber-600 shrink-0" />
+                <span>Controls the date when administrators receive the annual rollover prompt in portal reports.</span>
               </div>
             </div>
 
-            {/* 3 Safety Pillars */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1">
-              <div className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-950/70 space-y-1">
-                <div className="font-black text-xs text-slate-900 dark:text-white flex items-center gap-1.5">
-                  <Layers size={14} className="text-purple-600" />
-                  <span>1. Deep Pre-Audit</span>
+            {/* 3 Safety Safeguards (Compact Micro-Cards) */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              <div className="p-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/40 flex items-center gap-2">
+                <Layers size={15} className="text-purple-600 shrink-0" />
+                <div className="min-w-0">
+                  <span className="font-black text-[11px] text-slate-900 dark:text-white block leading-tight">Pre-Audit Scan</span>
+                  <span className="text-[10px] text-slate-500 font-medium block truncate">Categorizes Approved, Drafts & Rejected</span>
                 </div>
-                <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400">
-                  Scans all active records and categorizes Approved vs. Drafts vs. Rejected before executing.
-                </p>
               </div>
 
-              <div className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-950/70 space-y-1">
-                <div className="font-black text-xs text-slate-900 dark:text-white flex items-center gap-1.5">
-                  <ShieldCheck size={14} className="text-emerald-600" />
-                  <span>2. Full Dry-Run Preview</span>
+              <div className="p-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/40 flex items-center gap-2">
+                <ShieldCheck size={15} className="text-emerald-600 shrink-0" />
+                <div className="min-w-0">
+                  <span className="font-black text-[11px] text-slate-900 dark:text-white block leading-tight">Dry-Run Preview</span>
+                  <span className="text-[10px] text-slate-500 font-medium block truncate">Full student table & photo verification</span>
                 </div>
-                <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400">
-                  Inspect the full student table and verify photos before confirming with an explicit verification key.
-                </p>
               </div>
 
-              <div className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-950/70 space-y-1">
-                <div className="font-black text-xs text-slate-900 dark:text-white flex items-center gap-1.5">
-                  <FileCheck size={14} className="text-blue-600" />
-                  <span>3. Pure Firestore Schema</span>
+              <div className="p-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/40 flex items-center gap-2">
+                <FileCheck size={15} className="text-blue-600 shrink-0" />
+                <div className="min-w-0">
+                  <span className="font-black text-[11px] text-slate-900 dark:text-white block leading-tight">Atomic Transactions</span>
+                  <span className="text-[10px] text-slate-500 font-medium block truncate">Native Firestore batch architecture</span>
                 </div>
-                <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400">
-                  Zero external Google Drive or Sheets dependencies. Direct atomic batch transactions.
-                </p>
               </div>
             </div>
 
-            {/* Launch Action Button */}
-            <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between flex-wrap gap-2">
-              <div className="text-[11px] font-extrabold text-amber-700 dark:text-amber-400 flex items-center gap-1">
-                <AlertCircle size={13} />
-                <span>Zero automatic action: Clicking will only launch the safe analysis & preview modal.</span>
-              </div>
+            {/* Launch Action Button Bar */}
+            <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-2.5">
+              <span className="text-[10.5px] font-bold text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                <AlertCircle size={12} className="text-amber-500 shrink-0" />
+                Zero auto-action: Clicking only launches the safe audit & preview modal.
+              </span>
 
               <button
                 type="button"
                 onClick={() => setShowArchivalModal(true)}
-                className="px-4 py-2.5 rounded-xl font-black text-xs text-white bg-purple-700 hover:bg-purple-600 shadow-md flex items-center gap-2 cursor-pointer transition-all"
+                className="w-full sm:w-auto px-4 py-2 rounded-xl font-black text-xs text-white bg-purple-700 hover:bg-purple-600 active:scale-95 shadow-xs flex items-center justify-center gap-1.5 cursor-pointer transition-all"
               >
-                <Database size={14} />
-                <span>Analyze & Preview Session Archival</span>
-                <ArrowRight size={14} />
+                <Database size={13} />
+                <span>Analyze & Preview Archival</span>
+                <ArrowRight size={13} />
               </button>
             </div>
           </div>
