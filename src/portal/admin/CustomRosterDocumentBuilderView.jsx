@@ -2019,28 +2019,28 @@ function RosterExportDropdown({
         type="button"
         disabled={disabled}
         onClick={() => setIsOpen(prev => !prev)}
-        className="px-2 sm:px-2.5 py-0.5 sm:py-1 h-7 rounded-md sm:rounded-lg bg-emerald-700 hover:bg-emerald-600 active:bg-emerald-800 text-white font-extrabold text-[9px] sm:text-[10.5px] flex items-center gap-1 shadow-2xs cursor-pointer disabled:opacity-50 transition-all shrink-0 whitespace-nowrap"
+        className="px-2 sm:px-2.5 py-0.5 sm:py-1 h-6.5 sm:h-7 rounded-md bg-emerald-700 hover:bg-emerald-600 active:bg-emerald-800 text-white font-bold text-[9.5px] sm:text-[10px] flex items-center gap-1 shadow-2xs cursor-pointer disabled:opacity-50 transition-all shrink-0 whitespace-nowrap"
         title="Export options: Excel (.xlsx) or Word (.docx)"
       >
         <Download size={10} className="shrink-0" />
         <span>Export</span>
-        <ChevronDown size={9} className={`shrink-0 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+        <ChevronDown size={8.5} className={`shrink-0 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-1 w-44 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xl p-1 z-[9999] animate-fadeIn text-slate-800 dark:text-slate-200 space-y-0.5">
+        <div className="absolute right-0 mt-1 w-40 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xl p-1 z-[9999] animate-fadeIn text-slate-800 dark:text-slate-200 space-y-0.5">
           <button
             type="button"
             onClick={() => {
               setIsOpen(false);
               onExportExcel();
             }}
-            className="w-full px-2.5 py-1.5 rounded-lg text-left text-[10.5px] font-bold flex items-center gap-2 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 text-slate-800 dark:text-slate-200 hover:text-emerald-700 dark:hover:text-emerald-300 transition-colors cursor-pointer"
+            className="w-full px-2 py-1 rounded-lg text-left text-[10px] font-bold flex items-center gap-1.5 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 text-slate-800 dark:text-slate-200 hover:text-emerald-700 dark:hover:text-emerald-300 transition-colors cursor-pointer"
           >
-            <FileSpreadsheet size={13} className="text-emerald-600 shrink-0" />
+            <FileSpreadsheet size={12} className="text-emerald-600 shrink-0" />
             <div className="flex flex-col min-w-0">
-              <span className="font-black">Excel (.xlsx)</span>
-              <span className="text-[8.5px] text-slate-500 font-normal">Spreadsheet data</span>
+              <span className="font-black text-[10px]">Excel (.xlsx)</span>
+              <span className="text-[8px] text-slate-500 font-normal">Spreadsheet data</span>
             </div>
           </button>
 
@@ -2051,12 +2051,12 @@ function RosterExportDropdown({
               setIsOpen(false);
               onExportDocx();
             }}
-            className="w-full px-2.5 py-1.5 rounded-lg text-left text-[10.5px] font-bold flex items-center gap-2 hover:bg-blue-50 dark:hover:bg-blue-950/40 text-slate-800 dark:text-slate-200 hover:text-blue-700 dark:hover:text-blue-300 transition-colors cursor-pointer disabled:opacity-50"
+            className="w-full px-2 py-1 rounded-lg text-left text-[10px] font-bold flex items-center gap-1.5 hover:bg-blue-50 dark:hover:bg-blue-950/40 text-slate-800 dark:text-slate-200 hover:text-blue-700 dark:hover:text-blue-300 transition-colors cursor-pointer disabled:opacity-50"
           >
-            {isExporting ? <RefreshCw size={13} className="animate-spin text-blue-600 shrink-0" /> : <FileText size={13} className="text-blue-600 shrink-0" />}
+            {isExporting ? <RefreshCw size={12} className="animate-spin text-blue-600 shrink-0" /> : <FileText size={12} className="text-blue-600 shrink-0" />}
             <div className="flex flex-col min-w-0">
-              <span className="font-black">Word (.docx)</span>
-              <span className="text-[8.5px] text-slate-500 font-normal">Printable document</span>
+              <span className="font-black text-[10px]">Word (.docx)</span>
+              <span className="text-[8px] text-slate-500 font-normal">Printable document</span>
             </div>
           </button>
         </div>
@@ -2089,9 +2089,11 @@ function RosterPageSetupDropdown({
       if (e.key === 'Escape') setIsOpen(false);
     };
     document.addEventListener('mousedown', handleMousedown);
+    document.addEventListener('touchstart', handleMousedown);
     document.addEventListener('keydown', handleKeydown);
     return () => {
       document.removeEventListener('mousedown', handleMousedown);
+      document.removeEventListener('touchstart', handleMousedown);
       document.removeEventListener('keydown', handleKeydown);
     };
   }, [isOpen]);
@@ -2103,27 +2105,27 @@ function RosterPageSetupDropdown({
       <button
         type="button"
         onClick={() => setIsOpen(prev => !prev)}
-        className={`px-1.5 sm:px-2 py-0.5 sm:py-1 h-7 rounded-md sm:rounded-lg border font-extrabold text-[9px] sm:text-[10px] flex items-center gap-1 shadow-2xs transition-all cursor-pointer whitespace-nowrap ${
+        className={`px-2 sm:px-2.5 py-0.5 sm:py-1 h-6.5 sm:h-7 rounded-md border font-bold text-[9.5px] sm:text-[10px] flex items-center gap-1 shadow-2xs transition-all cursor-pointer whitespace-nowrap ${
           isOpen
             ? 'bg-indigo-600 text-white border-indigo-700'
             : 'bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 hover:border-slate-400'
         }`}
         title="Document Layout, Orientation & Row Height Setup"
       >
-        <SlidersHorizontal size={10} className="shrink-0 text-indigo-500" />
+        <SlidersHorizontal size={9.5} className="shrink-0 text-indigo-500" />
         <span>Setup</span>
-        <span className="hidden sm:inline-block px-1 py-0.2 rounded text-[8px] sm:text-[8.5px] font-black bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 whitespace-nowrap">
+        <span className="hidden sm:inline-block px-1 py-0.2 rounded text-[7.5px] sm:text-[8px] font-black bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 whitespace-nowrap">
           {layoutMode === 'standard' ? 'Std' : '2-Col'} • {orientation === 'portrait' ? 'P' : 'L'} • {currentPreset?.px}px
         </span>
-        <ChevronDown size={9} className={`shrink-0 transition-transform duration-200 opacity-60 ${isOpen ? 'rotate-180' : ''}`} />
+        <ChevronDown size={8.5} className={`shrink-0 transition-transform duration-200 opacity-60 ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 
       {isOpen && (
-        <div className="absolute left-0 sm:left-auto sm:right-0 mt-1 w-64 max-w-[calc(100vw-24px)] rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl p-2 z-[9999] animate-fadeIn text-slate-900 dark:text-slate-100 space-y-2">
+        <div className="absolute left-[-45px] sm:left-auto sm:right-0 mt-1 w-60 max-w-[calc(100vw-20px)] rounded-xl border border-slate-200 dark:border-slate-700 bg-white/98 dark:bg-slate-900/98 shadow-2xl p-2 z-[9999] animate-fadeIn text-slate-900 dark:text-slate-100 space-y-1.5 backdrop-blur-md">
           {/* Popover Header */}
-          <div className="flex items-center justify-between pb-1 border-b border-slate-200 dark:border-slate-800 text-[9px] font-black uppercase tracking-wider text-slate-500">
+          <div className="flex items-center justify-between pb-1 border-b border-slate-200 dark:border-slate-800 text-[8.5px] font-black uppercase tracking-wider text-slate-500">
             <span className="flex items-center gap-1 text-indigo-600 dark:text-indigo-400">
-              <SlidersHorizontal size={11} />
+              <SlidersHorizontal size={10} />
               <span>Layout & Page Setup</span>
             </span>
             <button
@@ -2131,14 +2133,14 @@ function RosterPageSetupDropdown({
               onClick={() => setIsOpen(false)}
               className="text-slate-400 hover:text-slate-600 cursor-pointer"
             >
-              <X size={12} />
+              <X size={11} />
             </button>
           </div>
 
           {/* 1. Table Layout Mode */}
           <div className="space-y-1">
-            <label className="block text-[8px] font-black uppercase text-slate-400">Table Structure</label>
-            <div className="grid grid-cols-2 gap-1 text-[9px] font-black">
+            <label className="block text-[7.5px] font-black uppercase text-slate-400">Table Structure</label>
+            <div className="grid grid-cols-2 gap-1 text-[8.5px] font-bold">
               <button
                 type="button"
                 onClick={() => onLayoutModeChange('standard')}
@@ -2148,7 +2150,7 @@ function RosterPageSetupDropdown({
                     : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:border-slate-400'
                 }`}
               >
-                <Columns size={10} />
+                <Columns size={9.5} />
                 <span>Standard</span>
               </button>
               <button
@@ -2160,7 +2162,7 @@ function RosterPageSetupDropdown({
                     : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:border-slate-400'
                 }`}
               >
-                <ClipboardList size={10} />
+                <ClipboardList size={9.5} />
                 <span>2-Col Attend</span>
               </button>
             </div>
@@ -2168,8 +2170,8 @@ function RosterPageSetupDropdown({
 
           {/* 2. Orientation */}
           <div className="space-y-1">
-            <label className="block text-[8px] font-black uppercase text-slate-400">Orientation</label>
-            <div className="grid grid-cols-2 gap-1 text-[9px] font-black">
+            <label className="block text-[7.5px] font-black uppercase text-slate-400">Orientation</label>
+            <div className="grid grid-cols-2 gap-1 text-[8.5px] font-bold">
               <button
                 type="button"
                 onClick={() => onOrientationChange('portrait')}
@@ -2197,21 +2199,21 @@ function RosterPageSetupDropdown({
 
           {/* 3. Row Height */}
           <div className="space-y-1">
-            <label className="block text-[8px] font-black uppercase text-slate-400">Row Height</label>
-            <div className="grid grid-cols-2 gap-1 text-[8.5px]">
+            <label className="block text-[7.5px] font-black uppercase text-slate-400">Row Height</label>
+            <div className="grid grid-cols-2 gap-1 text-[8px]">
               {rowHeightPresets.map((p, idx) => (
                 <button
                   key={p.label}
                   type="button"
                   onClick={() => onRowHeightChange(idx)}
-                  className={`px-1.5 py-1 rounded-lg border text-left transition-all cursor-pointer ${
+                  className={`px-1.5 py-0.5 rounded-lg border text-left transition-all cursor-pointer ${
                     selectedRowHeightIdx === idx
                       ? 'bg-indigo-600 text-white border-indigo-700 shadow-2xs font-extrabold'
                       : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:border-slate-400 font-bold'
                   }`}
                 >
                   <div>{p.label.split(' ')[0]} ({p.px}px)</div>
-                  <div className={`text-[7px] ${selectedRowHeightIdx === idx ? 'text-indigo-100' : 'text-slate-400'}`}>{p.desc}</div>
+                  <div className={`text-[6.5px] ${selectedRowHeightIdx === idx ? 'text-indigo-100' : 'text-slate-400'}`}>{p.desc}</div>
                 </button>
               ))}
             </div>
@@ -2689,7 +2691,7 @@ export default function CustomRosterDocumentBuilderView({
     }
   }, [globalSession]);
 
-  const [selectedClasses, setSelectedClasses] = useState([]);
+  const [selectedClasses, setSelectedClasses] = useState(['11th']);
   const [selectedStreams, setSelectedStreams] = useState([]);
   const [selectedSubjects, setSelectedSubjects] = useState([]);
   const [selectedGenders, setSelectedGenders] = useState([]);
@@ -4147,7 +4149,7 @@ export default function CustomRosterDocumentBuilderView({
               value={docTitle}
               onChange={(e) => setDocTitle(e.target.value)}
               placeholder="DOCUMENT TITLE (PRINTED ON REGISTER)"
-              className="w-full px-2 py-0.5 sm:py-1 h-7 rounded-md sm:rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-black text-[9.5px] sm:text-[10.5px] uppercase shadow-2xs text-slate-900 dark:text-slate-100"
+              className="studio-inline-input w-full px-2 py-0.5 sm:py-1 h-6.5 sm:h-7 rounded-md border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-bold text-[9.5px] sm:text-[10.5px] uppercase shadow-2xs text-slate-900 dark:text-slate-100 placeholder:text-[9px]"
             />
           </div>
 
@@ -4234,12 +4236,12 @@ export default function CustomRosterDocumentBuilderView({
                 setShowMobileOptionsModal(true);
                 if (onToggleSettingsDrawer) onToggleSettingsDrawer(true);
               }}
-              className="px-2 sm:px-2.5 py-0.5 sm:py-1 h-7 rounded-md sm:rounded-lg border border-amber-400 dark:border-amber-600 bg-amber-50 dark:bg-amber-950/70 text-amber-950 dark:text-amber-200 font-extrabold text-[10px] sm:text-[10.5px] flex items-center gap-1 shadow-2xs active:scale-95 cursor-pointer shrink-0 whitespace-nowrap"
+              className="px-2 sm:px-2.5 py-0.5 sm:py-1 h-6.5 sm:h-7 rounded-md border border-amber-300 dark:border-amber-700 bg-amber-50/90 dark:bg-amber-950/60 text-amber-950 dark:text-amber-200 font-bold text-[9.5px] sm:text-[10px] flex items-center gap-1 shadow-2xs active:scale-95 cursor-pointer shrink-0 whitespace-nowrap"
               title="Configure Student Cohort Filters & Register Columns"
             >
-              <Sliders size={11} className="text-amber-600 dark:text-amber-400 shrink-0" />
+              <Sliders size={10} className="text-amber-600 dark:text-amber-400 shrink-0" />
               <span>Filters</span>
-              <span className="px-1 py-0.2 rounded-full text-[8.5px] bg-amber-200 dark:bg-amber-800 text-amber-950 dark:text-amber-100 font-black">
+              <span className="px-1 py-0.2 rounded-full text-[8px] bg-amber-200 dark:bg-amber-800 text-amber-950 dark:text-amber-100 font-black">
                 {filteredStudents.length}
               </span>
             </button>
@@ -4272,10 +4274,10 @@ export default function CustomRosterDocumentBuilderView({
               type="button"
               onClick={handlePrint}
               disabled={processedRows.length === 0}
-              className="px-2.5 sm:px-3 py-0.5 sm:py-1 h-7 rounded-md sm:rounded-lg bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white font-black text-[10px] sm:text-[10.5px] flex items-center gap-1 shadow-md cursor-pointer disabled:opacity-50 transition-all active:scale-95 shrink-0 whitespace-nowrap"
+              className="px-2.5 sm:px-3 py-0.5 sm:py-1 h-6.5 sm:h-7 rounded-md bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white font-bold text-[9.5px] sm:text-[10px] flex items-center gap-1 shadow-md cursor-pointer disabled:opacity-50 transition-all active:scale-95 shrink-0 whitespace-nowrap"
               title="Print Official Institutional Register / Save PDF"
             >
-              <Printer size={11} className="shrink-0" />
+              <Printer size={10} className="shrink-0" />
               <span>Print</span>
             </button>
           </div>

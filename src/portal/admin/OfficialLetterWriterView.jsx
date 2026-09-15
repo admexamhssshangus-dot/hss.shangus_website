@@ -2890,40 +2890,41 @@ export default function OfficialLetterWriterView({
                 <button
                   type="button"
                   onClick={() => setShowMobileTemplatesModal(true)}
-                  className="flex-1 min-w-0 text-left flex items-center gap-1 px-1.5 h-7 rounded-lg bg-purple-50/70 dark:bg-purple-950/40 border border-purple-200/80 dark:border-purple-800/80 shadow-2xs cursor-pointer active:scale-98 transition-transform"
+                  className="flex-1 min-w-0 text-left flex items-center gap-1 px-1.5 h-6.5 sm:h-7 rounded-md bg-purple-50/70 dark:bg-purple-950/40 border border-purple-200/80 dark:border-purple-800/80 shadow-2xs cursor-pointer active:scale-98 transition-transform"
                   title="Choose or Manage Letter Templates"
                 >
-                  <Sparkles size={10} className="text-amber-500 shrink-0" />
-                  <span className="text-[10px] font-bold text-slate-900 dark:text-white truncate">
-                    {displayedTemplates.find(t => t.id === selectedTemplateId)?.name || 'Official Letterhead'}
+                  <Sparkles size={9.5} className="text-amber-500 shrink-0" />
+                  <span className="text-[9.5px] sm:text-[10px] font-bold text-slate-900 dark:text-white truncate">
+                    <span className="sm:hidden">Templates</span>
+                    <span className="hidden sm:inline">{displayedTemplates.find(t => t.id === selectedTemplateId)?.name || 'Official Letterhead'}</span>
                   </span>
                   <span className="px-1 py-0.2 rounded text-[7.5px] font-black bg-purple-100 dark:bg-purple-900/60 text-purple-800 dark:text-purple-300 shrink-0">
                     {allTemplates.length}
                   </span>
-                  <ChevronDown size={9} className="text-slate-400 shrink-0" />
+                  <ChevronDown size={8.5} className="text-slate-400 shrink-0" />
                 </button>
 
                 {/* 2. Grouped Actions: Print, Word & Save in One Dropdown */}
                 <button
                   type="button"
                   onClick={() => setMobileDropdownOpen(prev => prev === 'export' ? null : 'export')}
-                  className={`h-7 px-1.5 sm:px-2 rounded-lg font-bold text-[10px] flex items-center gap-1 cursor-pointer transition-all active:scale-95 shrink-0 border whitespace-nowrap ${
+                  className={`h-6.5 sm:h-7 px-1.5 sm:px-2 rounded-md font-bold text-[9.5px] sm:text-[10px] flex items-center gap-1 cursor-pointer transition-all active:scale-95 shrink-0 border whitespace-nowrap ${
                     mobileDropdownOpen === 'export'
                       ? 'bg-rose-700 text-white border-rose-800 shadow-xs'
                       : 'bg-rose-50 dark:bg-rose-950/60 text-rose-900 dark:text-rose-200 border-rose-200 dark:border-rose-800 hover:bg-rose-100'
                   }`}
                   title="Print, Export Word (.docx) & Save Template"
                 >
-                  <Printer size={11} className="shrink-0" />
+                  <Printer size={10} className="shrink-0" />
                   <span>Export</span>
-                  <ChevronDown size={9} className={`transition-transform shrink-0 ${mobileDropdownOpen === 'export' ? 'rotate-180' : ''}`} />
+                  <ChevronDown size={8.5} className={`transition-transform shrink-0 ${mobileDropdownOpen === 'export' ? 'rotate-180' : ''}`} />
                 </button>
 
                 {/* 3. Text Formatting Dropdown (Aa) */}
                 <button
                   type="button"
                   onClick={() => setMobileDropdownOpen(prev => prev === 'format' ? null : 'format')}
-                  className={`h-7 px-1.5 rounded-lg font-extrabold text-[11px] flex items-center gap-0.5 cursor-pointer transition-all active:scale-95 shrink-0 border whitespace-nowrap ${
+                  className={`h-6.5 sm:h-7 px-1.5 rounded-md font-extrabold text-[10px] sm:text-[11px] flex items-center gap-0.5 cursor-pointer transition-all active:scale-95 shrink-0 border whitespace-nowrap ${
                     mobileDropdownOpen === 'format'
                       ? 'bg-amber-100 text-amber-950 border-amber-400 dark:bg-amber-950 dark:text-amber-200'
                       : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-200'
@@ -2931,29 +2932,29 @@ export default function OfficialLetterWriterView({
                   title="Text Style & Formatting"
                 >
                   <span className="font-serif font-black">Aa</span>
-                  <ChevronDown size={9} className={`transition-transform shrink-0 ${mobileDropdownOpen === 'format' ? 'rotate-180' : ''}`} />
+                  <ChevronDown size={8.5} className={`transition-transform shrink-0 ${mobileDropdownOpen === 'format' ? 'rotate-180' : ''}`} />
                 </button>
 
                 {/* 4. Layout Dropdown (Alignments & Inserts) */}
                 <button
                   type="button"
                   onClick={() => setMobileDropdownOpen(prev => prev === 'layout' ? null : 'layout')}
-                  className={`h-7 px-1.5 rounded-lg font-extrabold text-[11px] flex items-center gap-0.5 cursor-pointer transition-all active:scale-95 shrink-0 border whitespace-nowrap ${
+                  className={`h-6.5 sm:h-7 px-1.5 rounded-md font-extrabold text-[10px] sm:text-[11px] flex items-center gap-0.5 cursor-pointer transition-all active:scale-95 shrink-0 border whitespace-nowrap ${
                     mobileDropdownOpen === 'layout'
                       ? 'bg-amber-100 text-amber-950 border-amber-400 dark:bg-amber-950 dark:text-amber-200'
                       : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-200'
                   }`}
                   title="Alignment, Lists & Tables"
                 >
-                  <AlignLeft size={11} className="shrink-0" />
-                  <ChevronDown size={9} className={`transition-transform shrink-0 ${mobileDropdownOpen === 'layout' ? 'rotate-180' : ''}`} />
+                  <AlignLeft size={10} className="shrink-0" />
+                  <ChevronDown size={8.5} className={`transition-transform shrink-0 ${mobileDropdownOpen === 'layout' ? 'rotate-180' : ''}`} />
                 </button>
 
                 {/* 5. More Dropdown (Undo, Redo, AI, History) */}
                 <button
                   type="button"
                   onClick={() => setMobileDropdownOpen(prev => prev === 'more' ? null : 'more')}
-                  className={`h-7 w-7 rounded-lg font-bold text-[11px] flex items-center justify-center cursor-pointer transition-all active:scale-95 shrink-0 border whitespace-nowrap ${
+                  className={`h-6.5 sm:h-7 w-6.5 sm:w-7 rounded-md font-bold text-[10px] sm:text-[11px] flex items-center justify-center cursor-pointer transition-all active:scale-95 shrink-0 border whitespace-nowrap ${
                     mobileDropdownOpen === 'more'
                       ? 'bg-amber-100 text-amber-950 border-amber-400 dark:bg-amber-950 dark:text-amber-200'
                       : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-200'
@@ -2971,14 +2972,14 @@ export default function OfficialLetterWriterView({
                     setShowSettingsDrawer(next);
                     if (onToggleSettingsDrawer) onToggleSettingsDrawer(next);
                   }}
-                  className={`h-7 px-1.5 sm:px-2 rounded-lg border font-bold text-[10px] flex items-center gap-1 shadow-2xs active:scale-95 cursor-pointer shrink-0 transition-all ${
+                  className={`h-6.5 sm:h-7 px-1.5 sm:px-2 rounded-md border font-bold text-[9.5px] sm:text-[10px] flex items-center gap-1 shadow-2xs active:scale-95 cursor-pointer shrink-0 transition-all ${
                     showSettingsDrawer
                       ? 'bg-amber-100 dark:bg-amber-950 text-amber-950 dark:text-amber-200 border-amber-400'
                       : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700 hover:bg-slate-100'
                   }`}
                   title="Official Letterhead & Reference Setup"
                 >
-                  <Sliders size={10} className={showSettingsDrawer ? 'text-amber-600' : 'text-slate-500'} />
+                  <Sliders size={9.5} className={showSettingsDrawer ? 'text-amber-600' : 'text-slate-500'} />
                   <span className="hidden sm:inline">Setup</span>
                 </button>
               </div>
@@ -3915,7 +3916,7 @@ export default function OfficialLetterWriterView({
 
             <div>
               {/* Reference Number & Date Row — Direct Inline Editing */}
-              <div className="flex items-center justify-between text-xs font-bold mb-4 px-1 gap-1.5 sm:gap-3">
+              <div className="flex items-center justify-between text-xs font-bold mb-3 px-1 gap-1.5 sm:gap-3">
                 <div className="flex items-center gap-1 sm:gap-1.5 group/ref min-w-0 flex-1">
                   <span className="text-[#800000] font-black shrink-0 text-[10px] sm:text-xs select-none">
                     Ref. No.:
@@ -3927,7 +3928,8 @@ export default function OfficialLetterWriterView({
                     placeholder="e.g. HSS/SHG/2026/01"
                     title="Click to directly edit Reference Number"
                     aria-label="Reference Number"
-                    className="text-slate-900 font-semibold bg-transparent border-b border-dashed border-amber-300/80 hover:border-amber-500 focus:border-amber-600 focus:bg-amber-50/50 rounded px-1 py-0.5 outline-none transition-all w-full max-w-[140px] sm:max-w-[280px] truncate text-[10px] sm:text-xs placeholder:text-[9px] sm:placeholder:text-xs print:border-none print:bg-transparent print:p-0"
+                    className="studio-inline-input text-slate-900 font-semibold bg-transparent border-b border-dashed border-amber-300/80 hover:border-amber-500 focus:border-amber-600 focus:bg-amber-50/50 rounded px-1 py-0.5 outline-none transition-all w-full max-w-[140px] sm:max-w-[280px] truncate text-[10px] sm:text-xs placeholder:text-[9px] sm:placeholder:text-xs print:border-none print:bg-transparent print:p-0"
+                    style={{ fontSize: '11px', height: '22px' }}
                   />
                 </div>
                 <div className="flex items-center gap-1 sm:gap-1.5 group/date shrink-0">
@@ -3941,7 +3943,8 @@ export default function OfficialLetterWriterView({
                     placeholder="DD/MM/YYYY"
                     title="Click to directly edit Letter Date"
                     aria-label="Letter Date"
-                    className="text-slate-900 font-semibold bg-transparent border-b border-dashed border-amber-300/80 hover:border-amber-500 focus:border-amber-600 focus:bg-amber-50/50 rounded px-1 py-0.5 outline-none transition-all w-16 sm:w-28 text-right text-[10px] sm:text-xs placeholder:text-[9px] sm:placeholder:text-xs print:border-none print:bg-transparent print:p-0 print:text-right"
+                    className="studio-inline-input text-slate-900 font-semibold bg-transparent border-b border-dashed border-amber-300/80 hover:border-amber-500 focus:border-amber-600 focus:bg-amber-50/50 rounded px-1 py-0.5 outline-none transition-all w-20 sm:w-28 text-right text-[10px] sm:text-xs placeholder:text-[9px] sm:placeholder:text-xs print:border-none print:bg-transparent print:p-0 print:text-right"
+                    style={{ fontSize: '11px', height: '22px' }}
                   />
                   <input
                     type="date"
@@ -3953,7 +3956,7 @@ export default function OfficialLetterWriterView({
                         setDateStr(`${d}/${m}/${y}`);
                       }
                     }}
-                    className="w-4 h-4 opacity-40 hover:opacity-100 cursor-pointer print:hidden shrink-0"
+                    className="w-3.5 h-3.5 opacity-40 hover:opacity-100 cursor-pointer print:hidden shrink-0"
                   />
                 </div>
               </div>
