@@ -2875,46 +2875,10 @@ export default function OfficialLetterWriterView({
           style={{ width: isDesktop ? `${100 - leftSplitPct}%` : '100%' }}
           className="w-full lg:flex-1 space-y-1.5 pl-0 lg:pl-1 min-w-0"
         >
-          {/* ════════ MOBILE ACTION BAR: TEMPLATES PILL & SETUP TOGGLE ════════ */}
-          <div className="lg:hidden mb-1 p-0.5 rounded-lg bg-purple-50/70 dark:bg-purple-950/30 border border-purple-200/80 dark:border-purple-800/60 shadow-2xs flex items-center justify-between gap-1 h-7">
-            <button
-              type="button"
-              onClick={() => setShowMobileTemplatesModal(true)}
-              className="flex-1 min-w-0 text-left flex items-center gap-1.5 px-2 h-6 rounded bg-white dark:bg-slate-900 border border-purple-200 dark:border-purple-800 shadow-2xs cursor-pointer active:scale-98 transition-transform"
-            >
-              <Sparkles size={10} className="text-amber-500 shrink-0" />
-              <span className="text-[10px] font-bold text-slate-900 dark:text-white truncate flex-1">
-                {displayedTemplates.find(t => t.id === selectedTemplateId)?.name || 'Official Letterhead'}
-              </span>
-              <span className="px-1 py-0.2 rounded text-[7.5px] font-black bg-purple-100 dark:bg-purple-900/60 text-purple-800 dark:text-purple-300 shrink-0">
-                {allTemplates.length}
-              </span>
-              <ChevronDown size={10} className="text-slate-400 shrink-0" />
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                const next = !showSettingsDrawer;
-                setShowSettingsDrawer(next);
-                if (onToggleSettingsDrawer) onToggleSettingsDrawer(next);
-              }}
-              className={`h-6 px-2 rounded border font-bold text-[10px] flex items-center gap-1 shadow-2xs active:scale-95 cursor-pointer shrink-0 transition-all ${
-                showSettingsDrawer
-                  ? 'bg-amber-100 dark:bg-amber-950 text-amber-950 dark:text-amber-200 border-amber-400'
-                  : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700'
-              }`}
-              title="Official Letterhead & Reference Setup"
-            >
-              <Sliders size={10} className={showSettingsDrawer ? 'text-amber-600' : 'text-slate-500'} />
-              <span>Setup</span>
-            </button>
-          </div>
-
           {/* ════════ WORKSPACE CANVAS & VERTICAL FLOATING DOCK CONTAINER ════════ */}
           <div className={`flex flex-col lg:flex-row items-start justify-center gap-2 ${dockSide === 'right' ? 'lg:flex-row-reverse' : ''}`}>
             
-            {/* ─── MOBILE SLEEK ACTION & GROUPED CONTROLS BAR (Ultra Compact, Letter-First) ─── */}
+            {/* ─── MOBILE UNIFIED SINGLE-ROW TOOLBAR (Compact & Grouped) ─── */}
             <div className="lg:hidden w-full relative mb-1.5">
               {/* Click-outside backdrop to dismiss open dropdown */}
               {mobileDropdownOpen && (
@@ -2922,86 +2886,170 @@ export default function OfficialLetterWriterView({
               )}
 
               <div className="flex items-center justify-between gap-1 p-1 bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-xl shadow-2xs relative z-40 overflow-x-auto no-scrollbar max-w-full">
-                {/* Primary Document Actions (Instant Access) */}
-                <div className="flex items-center gap-1 shrink-0">
+                {/* 1. Template Selector Pill (Flexible Width) */}
+                <button
+                  type="button"
+                  onClick={() => setShowMobileTemplatesModal(true)}
+                  className="flex-1 min-w-0 text-left flex items-center gap-1 px-1.5 h-7 rounded-lg bg-purple-50/70 dark:bg-purple-950/40 border border-purple-200/80 dark:border-purple-800/80 shadow-2xs cursor-pointer active:scale-98 transition-transform"
+                  title="Choose or Manage Letter Templates"
+                >
+                  <Sparkles size={10} className="text-amber-500 shrink-0" />
+                  <span className="text-[10px] font-bold text-slate-900 dark:text-white truncate">
+                    {displayedTemplates.find(t => t.id === selectedTemplateId)?.name || 'Official Letterhead'}
+                  </span>
+                  <span className="px-1 py-0.2 rounded text-[7.5px] font-black bg-purple-100 dark:bg-purple-900/60 text-purple-800 dark:text-purple-300 shrink-0">
+                    {allTemplates.length}
+                  </span>
+                  <ChevronDown size={9} className="text-slate-400 shrink-0" />
+                </button>
+
+                {/* 2. Grouped Actions: Print, Word & Save in One Dropdown */}
+                <button
+                  type="button"
+                  onClick={() => setMobileDropdownOpen(prev => prev === 'export' ? null : 'export')}
+                  className={`h-7 px-1.5 sm:px-2 rounded-lg font-bold text-[10px] flex items-center gap-1 cursor-pointer transition-all active:scale-95 shrink-0 border whitespace-nowrap ${
+                    mobileDropdownOpen === 'export'
+                      ? 'bg-rose-700 text-white border-rose-800 shadow-xs'
+                      : 'bg-rose-50 dark:bg-rose-950/60 text-rose-900 dark:text-rose-200 border-rose-200 dark:border-rose-800 hover:bg-rose-100'
+                  }`}
+                  title="Print, Export Word (.docx) & Save Template"
+                >
+                  <Printer size={11} className="shrink-0" />
+                  <span>Export</span>
+                  <ChevronDown size={9} className={`transition-transform shrink-0 ${mobileDropdownOpen === 'export' ? 'rotate-180' : ''}`} />
+                </button>
+
+                {/* 3. Text Formatting Dropdown (Aa) */}
+                <button
+                  type="button"
+                  onClick={() => setMobileDropdownOpen(prev => prev === 'format' ? null : 'format')}
+                  className={`h-7 px-1.5 rounded-lg font-extrabold text-[11px] flex items-center gap-0.5 cursor-pointer transition-all active:scale-95 shrink-0 border whitespace-nowrap ${
+                    mobileDropdownOpen === 'format'
+                      ? 'bg-amber-100 text-amber-950 border-amber-400 dark:bg-amber-950 dark:text-amber-200'
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-200'
+                  }`}
+                  title="Text Style & Formatting"
+                >
+                  <span className="font-serif font-black">Aa</span>
+                  <ChevronDown size={9} className={`transition-transform shrink-0 ${mobileDropdownOpen === 'format' ? 'rotate-180' : ''}`} />
+                </button>
+
+                {/* 4. Layout Dropdown (Alignments & Inserts) */}
+                <button
+                  type="button"
+                  onClick={() => setMobileDropdownOpen(prev => prev === 'layout' ? null : 'layout')}
+                  className={`h-7 px-1.5 rounded-lg font-extrabold text-[11px] flex items-center gap-0.5 cursor-pointer transition-all active:scale-95 shrink-0 border whitespace-nowrap ${
+                    mobileDropdownOpen === 'layout'
+                      ? 'bg-amber-100 text-amber-950 border-amber-400 dark:bg-amber-950 dark:text-amber-200'
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-200'
+                  }`}
+                  title="Alignment, Lists & Tables"
+                >
+                  <AlignLeft size={11} className="shrink-0" />
+                  <ChevronDown size={9} className={`transition-transform shrink-0 ${mobileDropdownOpen === 'layout' ? 'rotate-180' : ''}`} />
+                </button>
+
+                {/* 5. More Dropdown (Undo, Redo, AI, History) */}
+                <button
+                  type="button"
+                  onClick={() => setMobileDropdownOpen(prev => prev === 'more' ? null : 'more')}
+                  className={`h-7 w-7 rounded-lg font-bold text-[11px] flex items-center justify-center cursor-pointer transition-all active:scale-95 shrink-0 border whitespace-nowrap ${
+                    mobileDropdownOpen === 'more'
+                      ? 'bg-amber-100 text-amber-950 border-amber-400 dark:bg-amber-950 dark:text-amber-200'
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-200'
+                  }`}
+                  title="More Tools"
+                >
+                  <span>•••</span>
+                </button>
+
+                {/* 6. Dedicated Setup Button */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const next = !showSettingsDrawer;
+                    setShowSettingsDrawer(next);
+                    if (onToggleSettingsDrawer) onToggleSettingsDrawer(next);
+                  }}
+                  className={`h-7 px-1.5 sm:px-2 rounded-lg border font-bold text-[10px] flex items-center gap-1 shadow-2xs active:scale-95 cursor-pointer shrink-0 transition-all ${
+                    showSettingsDrawer
+                      ? 'bg-amber-100 dark:bg-amber-950 text-amber-950 dark:text-amber-200 border-amber-400'
+                      : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700 hover:bg-slate-100'
+                  }`}
+                  title="Official Letterhead & Reference Setup"
+                >
+                  <Sliders size={10} className={showSettingsDrawer ? 'text-amber-600' : 'text-slate-500'} />
+                  <span className="hidden sm:inline">Setup</span>
+                </button>
+              </div>
+
+              {/* ── Active Dropdown Menus ── */}
+              {mobileDropdownOpen === 'export' && (
+                <div
+                  onClick={(e) => e.stopPropagation()}
+                  className="absolute right-1 top-full mt-1 z-50 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl p-2 w-56 max-w-[calc(100vw-1.5rem)] space-y-1.5 animate-fadeIn"
+                >
+                  <div className="flex items-center justify-between pb-1 border-b border-slate-100 dark:border-slate-800 text-[9px] font-black uppercase tracking-wider text-slate-400">
+                    <span>Export & Save Document</span>
+                    <button
+                      type="button"
+                      onClick={() => setMobileDropdownOpen(null)}
+                      className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                    >
+                      <X size={11} />
+                    </button>
+                  </div>
+
+                  {/* Print / Save PDF */}
                   <button
                     type="button"
-                    onClick={handlePrint}
-                    className="h-7 px-2 rounded-lg bg-gradient-to-r from-rose-700 to-amber-700 hover:from-rose-600 text-white font-black text-[10px] flex items-center gap-1 shadow-xs cursor-pointer active:scale-95 shrink-0 whitespace-nowrap"
-                    title="Print Official Letterhead / Save PDF"
+                    onClick={() => {
+                      setMobileDropdownOpen(null);
+                      handlePrint();
+                    }}
+                    className="w-full h-8 px-2.5 rounded-xl bg-gradient-to-r from-rose-700 to-amber-700 hover:from-rose-600 text-white font-bold text-xs flex items-center justify-between shadow-xs cursor-pointer active:scale-98 transition-all"
                   >
-                    <Printer size={12} className="shrink-0" />
-                    <span>Print</span>
+                    <div className="flex items-center gap-2">
+                      <Printer size={13} />
+                      <span>Print / Save PDF</span>
+                    </div>
+                    <span className="text-[9px] opacity-80 font-mono">A4</span>
                   </button>
 
+                  {/* Export Word (.docx) */}
                   <button
                     type="button"
                     disabled={isExportingDocx}
-                    onClick={handleExportDocx}
-                    className="h-7 px-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold text-[10px] flex items-center gap-1 shadow-xs cursor-pointer disabled:opacity-50 active:scale-95 shrink-0 whitespace-nowrap"
-                    title="Export Word (.docx)"
+                    onClick={() => {
+                      setMobileDropdownOpen(null);
+                      handleExportDocx();
+                    }}
+                    className="w-full h-8 px-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs flex items-center justify-between shadow-xs cursor-pointer disabled:opacity-50 active:scale-98 transition-all"
                   >
-                    {isExportingDocx ? <RefreshCw size={11} className="animate-spin shrink-0" /> : <FileText size={12} className="shrink-0" />}
-                    <span>Word</span>
+                    <div className="flex items-center gap-2">
+                      {isExportingDocx ? <RefreshCw size={13} className="animate-spin" /> : <FileText size={13} />}
+                      <span>Export Word</span>
+                    </div>
+                    <span className="text-[9px] opacity-80 font-mono">.docx</span>
                   </button>
 
+                  {/* Save Template in Cloud */}
                   <button
                     type="button"
-                    onClick={handleQuickUpdateTemplate}
-                    className="h-7 w-7 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 hover:bg-emerald-100 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 flex items-center justify-center cursor-pointer active:scale-95 shrink-0"
-                    title="Save Template in Cloud"
+                    onClick={() => {
+                      setMobileDropdownOpen(null);
+                      handleQuickUpdateTemplate();
+                    }}
+                    className="w-full h-8 px-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 hover:bg-emerald-100 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 font-bold text-xs flex items-center justify-between cursor-pointer active:scale-98 transition-all"
                   >
-                    <Save size={12} />
+                    <div className="flex items-center gap-2">
+                      <Save size={13} className="text-emerald-600 dark:text-emerald-400" />
+                      <span>Save as Template</span>
+                    </div>
+                    <span className="text-[9px] text-emerald-600 dark:text-emerald-400 font-mono">Cloud</span>
                   </button>
                 </div>
-
-                {/* Grouped Compact Controls (Format, Layout, More) */}
-                <div className="flex items-center gap-1 shrink-0">
-                  {/* 1. Format Dropdown (Aa) */}
-                  <button
-                    type="button"
-                    onClick={() => setMobileDropdownOpen(prev => prev === 'format' ? null : 'format')}
-                    className={`h-7 px-1.5 rounded-lg font-extrabold text-[11px] flex items-center gap-0.5 cursor-pointer transition-all active:scale-95 shrink-0 border whitespace-nowrap ${
-                      mobileDropdownOpen === 'format'
-                        ? 'bg-amber-100 text-amber-950 border-amber-400 dark:bg-amber-950 dark:text-amber-200'
-                        : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-200'
-                    }`}
-                    title="Text Style & Formatting"
-                  >
-                    <span className="font-serif font-black">Aa</span>
-                    <ChevronDown size={10} className={`transition-transform shrink-0 ${mobileDropdownOpen === 'format' ? 'rotate-180' : ''}`} />
-                  </button>
-
-                  {/* 2. Layout Dropdown (Alignments & Inserts) */}
-                  <button
-                    type="button"
-                    onClick={() => setMobileDropdownOpen(prev => prev === 'layout' ? null : 'layout')}
-                    className={`h-7 px-1.5 rounded-lg font-extrabold text-[11px] flex items-center gap-0.5 cursor-pointer transition-all active:scale-95 shrink-0 border whitespace-nowrap ${
-                      mobileDropdownOpen === 'layout'
-                        ? 'bg-amber-100 text-amber-950 border-amber-400 dark:bg-amber-950 dark:text-amber-200'
-                        : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-200'
-                    }`}
-                    title="Alignment, Lists & Tables"
-                  >
-                    <AlignLeft size={12} className="shrink-0" />
-                    <ChevronDown size={10} className={`transition-transform shrink-0 ${mobileDropdownOpen === 'layout' ? 'rotate-180' : ''}`} />
-                  </button>
-
-                  {/* 3. More Dropdown (Undo, Redo, AI, History, Template) */}
-                  <button
-                    type="button"
-                    onClick={() => setMobileDropdownOpen(prev => prev === 'more' ? null : 'more')}
-                    className={`h-7 w-7 rounded-lg font-bold text-[11px] flex items-center justify-center cursor-pointer transition-all active:scale-95 shrink-0 border whitespace-nowrap ${
-                      mobileDropdownOpen === 'more'
-                        ? 'bg-amber-100 text-amber-950 border-amber-400 dark:bg-amber-950 dark:text-amber-200'
-                        : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-200'
-                    }`}
-                    title="More Tools"
-                  >
-                    <span>•••</span>
-                  </button>
-                </div>
-              </div>
+              )}
 
               {/* ── Active Dropdown Menus (Positioned outside overflow-x-auto to prevent clipping) ── */}
               {mobileDropdownOpen === 'format' && (
@@ -3869,7 +3917,7 @@ export default function OfficialLetterWriterView({
               {/* Reference Number & Date Row — Direct Inline Editing */}
               <div className="flex items-center justify-between text-xs font-bold mb-4 px-1 gap-1.5 sm:gap-3">
                 <div className="flex items-center gap-1 sm:gap-1.5 group/ref min-w-0 flex-1">
-                  <span className="text-[#800000] font-black shrink-0 text-[11px] sm:text-xs select-none">
+                  <span className="text-[#800000] font-black shrink-0 text-[10px] sm:text-xs select-none">
                     Ref. No.:
                   </span>
                   <input
@@ -3879,11 +3927,11 @@ export default function OfficialLetterWriterView({
                     placeholder="e.g. HSS/SHG/2026/01"
                     title="Click to directly edit Reference Number"
                     aria-label="Reference Number"
-                    className="text-slate-900 font-semibold bg-transparent border-b border-dashed border-amber-300/80 hover:border-amber-500 focus:border-amber-600 focus:bg-amber-50/50 rounded px-1 py-0.5 outline-none transition-all w-full max-w-[150px] sm:max-w-[280px] truncate text-[11px] sm:text-xs print:border-none print:bg-transparent print:p-0"
+                    className="text-slate-900 font-semibold bg-transparent border-b border-dashed border-amber-300/80 hover:border-amber-500 focus:border-amber-600 focus:bg-amber-50/50 rounded px-1 py-0.5 outline-none transition-all w-full max-w-[140px] sm:max-w-[280px] truncate text-[10px] sm:text-xs placeholder:text-[9px] sm:placeholder:text-xs print:border-none print:bg-transparent print:p-0"
                   />
                 </div>
                 <div className="flex items-center gap-1 sm:gap-1.5 group/date shrink-0">
-                  <span className="text-[#800000] font-black shrink-0 text-[11px] sm:text-xs select-none">
+                  <span className="text-[#800000] font-black shrink-0 text-[10px] sm:text-xs select-none">
                     Date:
                   </span>
                   <input
@@ -3893,7 +3941,7 @@ export default function OfficialLetterWriterView({
                     placeholder="DD/MM/YYYY"
                     title="Click to directly edit Letter Date"
                     aria-label="Letter Date"
-                    className="text-slate-900 font-semibold bg-transparent border-b border-dashed border-amber-300/80 hover:border-amber-500 focus:border-amber-600 focus:bg-amber-50/50 rounded px-1 py-0.5 outline-none transition-all w-20 sm:w-28 text-right text-[11px] sm:text-xs print:border-none print:bg-transparent print:p-0 print:text-right"
+                    className="text-slate-900 font-semibold bg-transparent border-b border-dashed border-amber-300/80 hover:border-amber-500 focus:border-amber-600 focus:bg-amber-50/50 rounded px-1 py-0.5 outline-none transition-all w-16 sm:w-28 text-right text-[10px] sm:text-xs placeholder:text-[9px] sm:placeholder:text-xs print:border-none print:bg-transparent print:p-0 print:text-right"
                   />
                   <input
                     type="date"

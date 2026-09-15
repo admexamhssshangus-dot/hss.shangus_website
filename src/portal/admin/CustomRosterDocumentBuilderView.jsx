@@ -4633,34 +4633,34 @@ export default function CustomRosterDocumentBuilderView({
             ) : (
               /* ── STANDARD MULTI-COLUMN ROSTER PREVIEW ── */
               <div>
-                {/* Institution Official Letterhead Header */}
-                <div className="text-center border-b-2 border-[#800000] pb-2 mb-2.5">
+                {/* Institution Official Letterhead Header (Hidden on mobile web view to maximize data table focus, preserved on desktop & print) */}
+                <div className="hidden sm:block print:!block text-center border-b-2 border-[#800000] pb-2 mb-2.5">
                   <h2 className="text-sm sm:text-base font-black text-[#800000] tracking-wide m-0">
                     GOVERNMENT HIGHER SECONDARY SCHOOL SHANGUS
                   </h2>
-              <p className="text-[9.5px] text-slate-600 font-semibold m-0 mt-0.5">
-                District Anantnag, Kashmir — 192201 | Official Institutional Record
-              </p>
-              <h3 className="text-xs sm:text-xs font-extrabold uppercase underline tracking-wider text-slate-900 mt-1.5">
-                {docTitle || 'STUDENT ROSTER & RECORD SHEET'}
-              </h3>
-              {docSubtitle && (
-                <p className="text-[9px] text-slate-500 italic mt-0.5">{docSubtitle}</p>
-              )}
-              <div className="flex items-center justify-center gap-2 sm:gap-2.5 text-[9px] font-bold text-slate-700 mt-1 flex-wrap">
-                {metaBadges.map((b, i) => (
-                  <span key={i} className="flex items-center gap-1.5">
-                    <span>{b}</span>
-                    {i < metaBadges.length - 1 && <span className="text-slate-400 font-normal">|</span>}
-                  </span>
-                ))}
-              </div>
-            </div>
+               <p className="text-[9.5px] text-slate-600 font-semibold m-0 mt-0.5">
+                 District Anantnag, Kashmir — 192201 | Official Institutional Record
+               </p>
+               <h3 className="text-xs sm:text-xs font-extrabold uppercase underline tracking-wider text-slate-900 mt-1.5">
+                 {docTitle || 'STUDENT ROSTER & RECORD SHEET'}
+               </h3>
+               {docSubtitle && (
+                 <p className="text-[9px] text-slate-500 italic mt-0.5">{docSubtitle}</p>
+               )}
+               <div className="flex items-center justify-center gap-2 sm:gap-2.5 text-[9px] font-bold text-slate-700 mt-1 flex-wrap">
+                 {metaBadges.map((b, i) => (
+                   <span key={i} className="flex items-center gap-1.5">
+                     <span>{b}</span>
+                     {i < metaBadges.length - 1 && <span className="text-slate-400 font-normal">|</span>}
+                   </span>
+                 ))}
+               </div>
+             </div>
 
             {/* Minimal Compact Controls Bar: Student Inclusion, Skip Toggle & Column Default Saver */}
-            <div className="flex items-center justify-between gap-1.5 px-2 py-1 mb-1.5 bg-slate-50 dark:bg-slate-800/80 rounded-lg border border-slate-200/90 dark:border-slate-700/90 text-xs select-none min-h-[30px]">
+            <div className="flex items-center justify-between gap-1 px-1.5 sm:px-2 py-0.5 sm:py-1 mb-1 bg-slate-50 dark:bg-slate-800/80 rounded-lg border border-slate-200/90 dark:border-slate-700/90 text-xs select-none min-h-[26px] sm:min-h-[30px]">
               {/* Left: Included Students Count Pill */}
-              <div className="flex items-center gap-1.5 min-w-0">
+              <div className="flex items-center gap-1 sm:gap-1.5 min-w-0">
                 <button
                   type="button"
                   onClick={toggleSelectAllRows}
@@ -4668,20 +4668,27 @@ export default function CustomRosterDocumentBuilderView({
                   title={isAllRowsIncluded ? "Deselect / skip all rows" : "Select / include all rows"}
                 >
                   {isAllRowsIncluded ? (
-                    <CheckSquare size={13} className="text-emerald-600 dark:text-emerald-400 shrink-0" />
+                    <CheckSquare size={11} className="sm:hidden text-emerald-600 dark:text-emerald-400 shrink-0" />
                   ) : isSomeRowsSkipped ? (
-                    <Minus size={13} className="text-amber-600 dark:text-amber-400 border border-amber-600 rounded-xs shrink-0" />
+                    <Minus size={11} className="sm:hidden text-amber-600 dark:text-amber-400 border border-amber-600 rounded-xs shrink-0" />
                   ) : (
-                    <Square size={13} className="text-slate-400 shrink-0" />
+                    <Square size={11} className="sm:hidden text-slate-400 shrink-0" />
                   )}
-                  <span className="text-[10px] sm:text-[11px] truncate">
+                  {isAllRowsIncluded ? (
+                    <CheckSquare size={13} className="hidden sm:block text-emerald-600 dark:text-emerald-400 shrink-0" />
+                  ) : isSomeRowsSkipped ? (
+                    <Minus size={13} className="hidden sm:block text-amber-600 dark:text-amber-400 border border-amber-600 rounded-xs shrink-0" />
+                  ) : (
+                    <Square size={13} className="hidden sm:block text-slate-400 shrink-0" />
+                  )}
+                  <span className="text-[9px] sm:text-[11px] truncate">
                     <strong className="text-indigo-600 dark:text-indigo-400 font-black">{activeIncludedRows.length}</strong>
                     <span className="text-slate-500 font-normal"> / {processedRows.length}</span>
                     <span className="hidden sm:inline text-slate-600 dark:text-slate-400 ml-1">Students Included</span>
                   </span>
                 </button>
                 {skippedCount > 0 && (
-                  <span className="text-[9px] font-extrabold text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-950/70 px-1.5 py-0.2 rounded-full shrink-0">
+                  <span className="text-[8px] sm:text-[9px] font-extrabold text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-950/70 px-1 sm:px-1.5 py-0.2 rounded-full shrink-0">
                     {skippedCount} skipped
                   </span>
                 )}
@@ -4691,12 +4698,12 @@ export default function CustomRosterDocumentBuilderView({
               </div>
 
               {/* Right: Actions (Include All if skipped, Show Skipped, Save Order) */}
-              <div className="flex items-center gap-1 shrink-0 text-[9.5px] font-bold">
+              <div className="flex items-center gap-1 shrink-0 text-[8.5px] sm:text-[9.5px] font-bold">
                 {skippedCount > 0 && (
                   <button
                     type="button"
                     onClick={() => setDeselectedRowKeys(new Set())}
-                    className="h-6 px-1.5 sm:px-2 rounded bg-emerald-100 hover:bg-emerald-200 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 cursor-pointer transition-colors text-[9px] font-extrabold"
+                    className="h-5 sm:h-6 px-1.5 sm:px-2 rounded bg-emerald-100 hover:bg-emerald-200 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 cursor-pointer transition-colors text-[8px] sm:text-[9px] font-extrabold"
                     title="Reset selection: Include all students in print & exports"
                   >
                     Include All
@@ -4705,19 +4712,19 @@ export default function CustomRosterDocumentBuilderView({
                 <button
                   type="button"
                   onClick={() => setHideSkippedRows(prev => !prev)}
-                  className="h-6 px-1.5 sm:px-2 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 cursor-pointer transition-colors flex items-center gap-1 text-[9px]"
+                  className="h-5 sm:h-6 px-1.5 sm:px-2 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 cursor-pointer transition-colors flex items-center gap-0.5 sm:gap-1 text-[8px] sm:text-[9px]"
                   title={hideSkippedRows ? "Show all rows including skipped rows" : "Hide skipped rows from table preview"}
                 >
-                  {hideSkippedRows ? <Eye size={10} className="text-indigo-600 dark:text-indigo-400 shrink-0" /> : <Eye size={10} className="opacity-50 shrink-0" />}
+                  {hideSkippedRows ? <Eye size={9} className="text-indigo-600 dark:text-indigo-400 shrink-0" /> : <Eye size={9} className="opacity-50 shrink-0" />}
                   <span className="hidden sm:inline">{hideSkippedRows ? 'Showing Included Only' : 'Show Skipped'}</span>
                 </button>
                 <button
                   type="button"
                   onClick={handleSaveAsDefaultColumns}
-                  className="h-6 px-1.5 sm:px-2 rounded border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/60 hover:bg-emerald-100 text-emerald-800 dark:text-emerald-300 cursor-pointer transition-colors flex items-center gap-1 text-[9px]"
+                  className="h-5 sm:h-6 px-1.5 sm:px-2 rounded border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/60 hover:bg-emerald-100 text-emerald-800 dark:text-emerald-300 cursor-pointer transition-colors flex items-center gap-0.5 sm:gap-1 text-[8px] sm:text-[9px]"
                   title="Save this column sequence as your default order"
                 >
-                  {saveDefaultToast ? <Check size={10} className="text-emerald-600 shrink-0" /> : <Save size={10} className="text-emerald-600 shrink-0" />}
+                  {saveDefaultToast ? <Check size={9} className="text-emerald-600 shrink-0" /> : <Save size={9} className="text-emerald-600 shrink-0" />}
                   <span className="hidden sm:inline">{saveDefaultToast ? 'Saved Order' : 'Save Order'}</span>
                 </button>
               </div>
