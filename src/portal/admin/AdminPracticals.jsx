@@ -65,6 +65,15 @@ export const DEFAULT_EXCLUDED_TEACHERS = [
   'bilalhcut@gmail.com'
 ];
 
+export const formatClassDisplay = (rawCls, doc = null) => {
+  const str = String(rawCls || '').trim();
+  if (str === '11th,12th' || str === '11th, 12th' || str === '12th,11th') {
+    if (doc?.id && String(doc.id).startsWith('12th_')) return '12th';
+    return '11th';
+  }
+  return str || 'Class';
+};
+
 export const isClassMatch = (stc, trc) => {
   if (!stc) return false;
   const s = String(stc).toLowerCase().trim();
@@ -2843,7 +2852,7 @@ function SelectedSubmissionModal({ selSub, onClose, absentMarker, allStudents = 
           <div>
             <div className="flex items-center gap-2 flex-wrap">
               <h3 className="text-base sm:text-lg font-black text-slate-900 dark:text-white">
-                Class {selSub.className || selSub.Class} — {selSub.subjectName || selSub.Subject || NAMES[selSub.subjectCode] || selSub.subjectCode}
+                Class {formatClassDisplay(selSub.className || selSub.Class, selSub)} — {selSub.subjectName || selSub.Subject || NAMES[selSub.subjectCode] || selSub.subjectCode}
               </h3>
               <span className="px-2.5 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 font-black text-[11px] border border-indigo-200 dark:border-indigo-800">
                 Session: {canonicalSession}
@@ -2906,7 +2915,7 @@ function SelectedSubmissionModal({ selSub, onClose, absentMarker, allStudents = 
                 printIndividualAwardRoll({
                   subjectCode: selSub.subjectCode || selSub.subject,
                   subjectName: selSub.subjectName || selSub.Subject || NAMES[selSub.subjectCode] || selSub.subjectCode,
-                  className: selSub.className || selSub.Class,
+                  className: formatClassDisplay(selSub.className || selSub.Class, selSub),
                   session: canonicalSession,
                   records: subRecords,
                   isExternal: String(selSub.practicalType || '').toLowerCase().includes('ext'),
@@ -3234,7 +3243,7 @@ function FacultySubmissionsView({
                   <div className="space-y-1.5">
                     <div className="flex items-center justify-between gap-1">
                       <span className="font-extrabold text-xs text-slate-900 dark:text-white truncate">
-                        {pendingDoc.subject} • {pendingDoc.className}
+                        {pendingDoc.subject} • {formatClassDisplay(pendingDoc.className, pendingDoc)}
                       </span>
                       <div className="flex items-center gap-1 shrink-0">
                         {pendingDoc.isCrossSubject && (
@@ -3381,7 +3390,7 @@ function FacultySubmissionsView({
                 // Group this teacher's submissions by (Class + Subject)
                 const groupedMap = {};
                 (t.submissionsList || []).forEach(s => {
-                  const sCls = s.className || s.Class || (String(s.id).startsWith('12') ? '12th' : '11th');
+                  const sCls = formatClassDisplay(s.className || s.Class || (String(s.id).startsWith('12') ? '12th' : '11th'), s);
                   const sCode = String(s.subjectCode || s.subject || s.Subject || 'SUB').toUpperCase();
                   const sName = s.subjectName || s.Subject || NAMES[sCode] || sCode;
                   const key = `${sCls}_${sCode}`;
@@ -3622,7 +3631,7 @@ function FacultySubmissionsView({
                       <td className="py-2.5 px-3 text-center font-mono text-slate-400 text-[11px]">{idx + 1}</td>
                       <td className="py-2.5 px-3 font-mono text-[11px] font-bold text-indigo-600 dark:text-indigo-400">{s.id}</td>
                       <td className="py-2.5 px-3 font-bold text-slate-900 dark:text-slate-100">
-                        {s.className || s.Class || 'Class'} • {s.subjectName || s.Subject || NAMES[s.subjectCode] || s.subjectCode || 'Subject'}
+                        {formatClassDisplay(s.className || s.Class, s)} • {s.subjectName || s.Subject || NAMES[s.subjectCode] || s.subjectCode || 'Subject'}
                       </td>
                       <td className="py-2.5 px-3">
                         <span className="px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-[10px] font-bold text-slate-600 dark:text-slate-300">
