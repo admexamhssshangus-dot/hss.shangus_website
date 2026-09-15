@@ -388,7 +388,7 @@ export default function HeroButtonsManager({
         {/* Hero canvas representation */}
         <div className="relative py-6 px-4 bg-gradient-to-b from-slate-900 via-slate-925 to-slate-950 rounded-lg border border-slate-800/80 text-center flex flex-col items-center justify-center min-h-[140px]">
           <h2
-            className="text-[14px] sm:text-[22px] font-semibold mb-2 italic tracking-wider font-slogan"
+            className="text-[15.5px] sm:text-[24px] font-semibold mb-2 italic tracking-wider font-slogan"
             style={{
               color: '#961c14',
               textShadow: '0 0 8px rgba(255, 255, 255, 0.95), 0 0 16px rgba(255, 255, 255, 0.85), 0 0 25px rgba(255, 255, 255, 0.6)'
