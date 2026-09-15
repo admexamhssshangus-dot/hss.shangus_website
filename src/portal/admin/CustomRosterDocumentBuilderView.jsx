@@ -2065,6 +2065,224 @@ function RosterExportDropdown({
   );
 }
 
+// ─── Reusable Mobile Grouped Actions Dropdown (Print, Export, Inclusion, Views) ───
+function MobileRosterActionsDropdown({
+  onPrint,
+  onExportExcel,
+  onExportDocx,
+  disabled = false,
+  isExporting = false,
+  activeIncludedCount = 0,
+  totalCount = 0,
+  isAllRowsIncluded = true,
+  isSomeRowsSkipped = false,
+  skippedCount = 0,
+  onToggleSelectAllRows,
+  hideSkippedRows = false,
+  onToggleHideSkippedRows,
+  onSaveAsDefaultColumns,
+  saveDefaultToast = false
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleOutsideClick = (e) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        setIsOpen(false);
+      }
+    };
+    const handleKeydown = (e) => {
+      if (e.key === 'Escape') setIsOpen(false);
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    document.addEventListener('touchstart', handleOutsideClick);
+    document.addEventListener('keydown', handleKeydown);
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick);
+      document.removeEventListener('touchstart', handleOutsideClick);
+      document.removeEventListener('keydown', handleKeydown);
+    };
+  }, [isOpen]);
+
+  return (
+    <div className="relative inline-block text-left shrink-0" ref={dropdownRef}>
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => setIsOpen(prev => !prev)}
+        className="px-2 sm:px-2.5 py-0.5 sm:py-1 h-6.5 sm:h-7 rounded-md bg-gradient-to-r from-emerald-700 via-teal-700 to-emerald-800 hover:from-emerald-600 hover:to-teal-600 active:from-emerald-800 active:to-teal-900 text-white font-bold text-[9.5px] sm:text-[10px] flex items-center gap-1 shadow-2xs cursor-pointer disabled:opacity-50 transition-all shrink-0 whitespace-nowrap active:scale-95"
+        title="Print, Export & Roster Actions"
+      >
+        <Printer size={10} className="shrink-0" />
+        <span>Print & Export</span>
+        <span className="px-1 py-0.2 rounded-full text-[8px] bg-black/30 text-emerald-100 font-black shrink-0">
+          {activeIncludedCount}
+        </span>
+        <ChevronDown size={8.5} className={`shrink-0 transition-transform duration-200 opacity-80 ${isOpen ? 'rotate-180' : ''}`} />
+      </button>
+
+      {isOpen && (
+        <div className="absolute right-0 mt-1 w-64 max-w-[calc(100vw-20px)] rounded-xl border border-slate-200 dark:border-slate-700 bg-white/98 dark:bg-slate-900/98 shadow-2xl p-1.5 z-[9999] animate-fadeIn text-slate-800 dark:text-slate-200 space-y-1 backdrop-blur-md">
+          {/* Header 1: Document Output */}
+          <div className="px-2 py-0.5 text-[8px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500 flex items-center justify-between">
+            <span>Document Output</span>
+            <span className="text-[7.5px] font-bold text-slate-400">PDF • XLSX • DOCX</span>
+          </div>
+
+          {/* Primary Print / Save PDF */}
+          <button
+            type="button"
+            disabled={disabled}
+            onClick={() => {
+              setIsOpen(false);
+              onPrint();
+            }}
+            className="w-full px-2 py-1.5 rounded-lg text-left font-bold flex items-center gap-2 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/50 dark:hover:bg-amber-900/60 text-amber-950 dark:text-amber-200 border border-amber-300/80 dark:border-amber-700/80 transition-colors cursor-pointer disabled:opacity-50"
+          >
+            <div className="p-1 rounded-md bg-amber-600 text-white shrink-0">
+              <Printer size={11} />
+            </div>
+            <div className="flex flex-col min-w-0 flex-1">
+              <span className="text-[10px] font-black leading-tight">Print Register / Save PDF</span>
+              <span className="text-[7.5px] text-amber-700 dark:text-amber-400 font-normal">Official institutional print layout</span>
+            </div>
+          </button>
+
+          {/* Export Excel (.xlsx) */}
+          <button
+            type="button"
+            disabled={disabled}
+            onClick={() => {
+              setIsOpen(false);
+              onExportExcel();
+            }}
+            className="w-full px-2 py-1.5 rounded-lg text-left font-bold flex items-center gap-2 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 text-slate-800 dark:text-slate-200 hover:text-emerald-700 dark:hover:text-emerald-300 transition-colors cursor-pointer disabled:opacity-50"
+          >
+            <div className="p-1 rounded-md bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 shrink-0">
+              <FileSpreadsheet size={11} />
+            </div>
+            <div className="flex flex-col min-w-0 flex-1">
+              <span className="text-[9.5px] font-black leading-tight">Export to Excel (.xlsx)</span>
+              <span className="text-[7.5px] text-slate-500 font-normal">Formatted data spreadsheet</span>
+            </div>
+          </button>
+
+          {/* Export Word (.docx) */}
+          <button
+            type="button"
+            disabled={disabled || isExporting}
+            onClick={() => {
+              setIsOpen(false);
+              onExportDocx();
+            }}
+            className="w-full px-2 py-1.5 rounded-lg text-left font-bold flex items-center gap-2 hover:bg-blue-50 dark:hover:bg-blue-950/40 text-slate-800 dark:text-slate-200 hover:text-blue-700 dark:hover:text-blue-300 transition-colors cursor-pointer disabled:opacity-50"
+          >
+            <div className="p-1 rounded-md bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 shrink-0">
+              {isExporting ? <RefreshCw size={11} className="animate-spin text-blue-600" /> : <FileText size={11} />}
+            </div>
+            <div className="flex flex-col min-w-0 flex-1">
+              <span className="text-[9.5px] font-black leading-tight">Export to Word (.docx)</span>
+              <span className="text-[7.5px] text-slate-500 font-normal">Editable document with letterhead</span>
+            </div>
+          </button>
+
+          <div className="border-t border-slate-200 dark:border-slate-800 my-1" />
+
+          {/* Header 2: Student Selection & Sheet Settings */}
+          <div className="px-2 py-0.5 text-[8px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500 flex items-center justify-between">
+            <span>Roster Selection & Sheet</span>
+            <span className="text-[7.5px] font-bold text-indigo-600 dark:text-indigo-400">{activeIncludedCount}/{totalCount} Active</span>
+          </div>
+
+          {/* Toggle All Included Students */}
+          <button
+            type="button"
+            onClick={() => {
+              onToggleSelectAllRows();
+            }}
+            className="w-full px-2 py-1.5 rounded-lg text-left font-bold flex items-center justify-between gap-1.5 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 text-slate-800 dark:text-slate-200 transition-colors cursor-pointer"
+          >
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="p-1 rounded-md bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 shrink-0">
+                {isAllRowsIncluded ? <CheckSquare size={11} className="text-emerald-600" /> : isSomeRowsSkipped ? <Minus size={11} className="text-amber-600" /> : <Square size={11} />}
+              </div>
+              <div className="flex flex-col min-w-0">
+                <span className="text-[9.5px] font-black leading-tight">
+                  {isAllRowsIncluded ? 'Deselect All Students' : 'Include All Students'}
+                </span>
+                <span className="text-[7.5px] text-slate-500 font-normal">
+                  {skippedCount > 0 ? `${skippedCount} candidate${skippedCount === 1 ? '' : 's'} skipped` : 'All candidates included'}
+                </span>
+              </div>
+            </div>
+            <span className="px-1.5 py-0.5 rounded text-[8px] font-black bg-indigo-100 dark:bg-indigo-900/60 text-indigo-800 dark:text-indigo-200 shrink-0">
+              {activeIncludedCount}/{totalCount}
+            </span>
+          </button>
+
+          {/* Toggle Show / Hide Skipped Rows */}
+          <button
+            type="button"
+            onClick={() => {
+              onToggleHideSkippedRows();
+            }}
+            className="w-full px-2 py-1.5 rounded-lg text-left font-bold flex items-center justify-between gap-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200 transition-colors cursor-pointer"
+          >
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="p-1 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 shrink-0">
+                <Eye size={11} className={hideSkippedRows ? "text-indigo-600" : "opacity-60"} />
+              </div>
+              <div className="flex flex-col min-w-0">
+                <span className="text-[9.5px] font-black leading-tight">
+                  {hideSkippedRows ? 'Showing Included Only' : 'Show Skipped Rows'}
+                </span>
+                <span className="text-[7.5px] text-slate-500 font-normal">
+                  {hideSkippedRows ? 'Skipped rows hidden from preview' : 'Skipped rows shown with strikethrough'}
+                </span>
+              </div>
+            </div>
+            <span className={`px-1.5 py-0.5 rounded text-[7.5px] font-bold shrink-0 ${
+              hideSkippedRows ? 'bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300' : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
+            }`}>
+              {hideSkippedRows ? 'Filtered' : 'All'}
+            </span>
+          </button>
+
+          {/* Save Current Column Order as Default */}
+          <button
+            type="button"
+            onClick={() => {
+              onSaveAsDefaultColumns();
+            }}
+            className="w-full px-2 py-1.5 rounded-lg text-left font-bold flex items-center justify-between gap-1.5 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 text-slate-800 dark:text-slate-200 transition-colors cursor-pointer"
+          >
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="p-1 rounded-md bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 shrink-0">
+                {saveDefaultToast ? <Check size={11} className="text-emerald-600" /> : <Save size={11} className="text-emerald-600" />}
+              </div>
+              <div className="flex flex-col min-w-0">
+                <span className="text-[9.5px] font-black leading-tight">
+                  {saveDefaultToast ? 'Column Sequence Saved!' : 'Save Column Sequence'}
+                </span>
+                <span className="text-[7.5px] text-slate-500 font-normal">
+                  {saveDefaultToast ? 'Saved as default configuration' : 'Save current sequence as default'}
+                </span>
+              </div>
+            </div>
+            {saveDefaultToast && (
+              <span className="px-1.5 py-0.5 rounded text-[7.5px] font-extrabold bg-emerald-100 text-emerald-800 shrink-0">
+                Saved ✓
+              </span>
+            )}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Reusable Layout & Page Setup Popover for Mobile/Compact Viewports ───
 function RosterPageSetupDropdown({
   layoutMode,
@@ -2080,7 +2298,7 @@ function RosterPageSetupDropdown({
 
   useEffect(() => {
     if (!isOpen) return;
-    const handleMousedown = (e) => {
+    const handleOutsideClick = (e) => {
       if (popoverRef.current && !popoverRef.current.contains(e.target)) {
         setIsOpen(false);
       }
@@ -2088,12 +2306,12 @@ function RosterPageSetupDropdown({
     const handleKeydown = (e) => {
       if (e.key === 'Escape') setIsOpen(false);
     };
-    document.addEventListener('mousedown', handleMousedown);
-    document.addEventListener('touchstart', handleMousedown);
+    document.addEventListener('mousedown', handleOutsideClick);
+    document.addEventListener('touchstart', handleOutsideClick);
     document.addEventListener('keydown', handleKeydown);
     return () => {
-      document.removeEventListener('mousedown', handleMousedown);
-      document.removeEventListener('touchstart', handleMousedown);
+      document.removeEventListener('mousedown', handleOutsideClick);
+      document.removeEventListener('touchstart', handleOutsideClick);
       document.removeEventListener('keydown', handleKeydown);
     };
   }, [isOpen]);
@@ -2105,7 +2323,7 @@ function RosterPageSetupDropdown({
       <button
         type="button"
         onClick={() => setIsOpen(prev => !prev)}
-        className={`px-2 sm:px-2.5 py-0.5 sm:py-1 h-6.5 sm:h-7 rounded-md border font-bold text-[9.5px] sm:text-[10px] flex items-center gap-1 shadow-2xs transition-all cursor-pointer whitespace-nowrap ${
+        className={`px-2 sm:px-2.5 py-0.5 sm:py-1 h-6.5 sm:h-7 rounded-md border font-bold text-[9.5px] sm:text-[10px] flex items-center gap-1 shadow-2xs transition-all cursor-pointer whitespace-nowrap active:scale-95 ${
           isOpen
             ? 'bg-indigo-600 text-white border-indigo-700'
             : 'bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 hover:border-slate-400'
@@ -2121,7 +2339,7 @@ function RosterPageSetupDropdown({
       </button>
 
       {isOpen && (
-        <div className="absolute left-[-45px] sm:left-auto sm:right-0 mt-1 w-60 max-w-[calc(100vw-20px)] rounded-xl border border-slate-200 dark:border-slate-700 bg-white/98 dark:bg-slate-900/98 shadow-2xl p-2 z-[9999] animate-fadeIn text-slate-900 dark:text-slate-100 space-y-1.5 backdrop-blur-md">
+        <div className="absolute left-[-20px] sm:left-auto sm:right-0 mt-1 w-60 max-w-[calc(100vw-20px)] rounded-xl border border-slate-200 dark:border-slate-700 bg-white/98 dark:bg-slate-900/98 shadow-2xl p-2 z-[9999] animate-fadeIn text-slate-900 dark:text-slate-100 space-y-1.5 backdrop-blur-md">
           {/* Popover Header */}
           <div className="flex items-center justify-between pb-1 border-b border-slate-200 dark:border-slate-800 text-[8.5px] font-black uppercase tracking-wider text-slate-500">
             <span className="flex items-center gap-1 text-indigo-600 dark:text-indigo-400">
@@ -4226,8 +4444,8 @@ export default function CustomRosterDocumentBuilderView({
           </div>
         </div>
 
-        {/* Right Side: Actions (On mobile, includes Filters + Setup + Student Inclusion Controls + Export + Print on same single row) */}
-        <div className="flex items-center justify-between md:justify-end gap-1 sm:gap-1.5 shrink-0 overflow-x-auto no-scrollbar py-0.5 max-w-full">
+        {/* Right Side: Actions (On mobile: Filters + Setup + Unified Print & Export Actions dropdown; on desktop: Export Dropdown + Print) */}
+        <div className="flex items-center justify-between md:justify-end gap-1 sm:gap-1.5 shrink-0">
           {/* Mobile Filters & Columns Modal Trigger (visible on < lg) */}
           <div className="lg:hidden shrink-0">
             <button
@@ -4260,63 +4478,29 @@ export default function CustomRosterDocumentBuilderView({
             />
           </div>
 
-          {/* Mobile Student Inclusion, Skip Toggle & Column Default Saver (visible on < md in standard layout) */}
-          {layoutMode === 'standard' && (
-            <div className="md:hidden flex items-center gap-1 shrink-0">
-              {/* Student Count / Toggle All Included */}
-              <button
-                type="button"
-                onClick={toggleSelectAllRows}
-                className="px-1.5 sm:px-2 py-0.5 sm:py-1 h-6.5 sm:h-7 rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200 font-bold text-[9.5px] sm:text-[10px] flex items-center gap-1 shadow-2xs active:scale-95 cursor-pointer shrink-0 whitespace-nowrap"
-                title={isAllRowsIncluded ? "Deselect / skip all rows" : "Select / include all rows"}
-              >
-                {isAllRowsIncluded ? (
-                  <CheckSquare size={10.5} className="text-emerald-600 dark:text-emerald-400 shrink-0" />
-                ) : isSomeRowsSkipped ? (
-                  <Minus size={10.5} className="text-amber-600 dark:text-amber-400 border border-amber-600 rounded-xs shrink-0" />
-                ) : (
-                  <Square size={10.5} className="text-slate-400 shrink-0" />
-                )}
-                <span className="font-extrabold text-[9.5px]">
-                  <strong className={skippedCount > 0 ? "text-amber-600 dark:text-amber-400 font-black" : "text-indigo-600 dark:text-indigo-400 font-black"}>
-                    {activeIncludedRows.length}
-                  </strong>
-                  <span className="text-slate-400 font-normal">/{processedRows.length}</span>
-                </span>
-                {skippedCount > 0 && (
-                  <span className="px-1 py-0.2 rounded-full text-[7.5px] bg-amber-100 dark:bg-amber-950/70 text-amber-700 dark:text-amber-300 font-black">
-                    -{skippedCount}
-                  </span>
-                )}
-              </button>
+          {/* Mobile Grouped Actions: Print, Export, Student Inclusion & View Settings (visible on < md) */}
+          <div className="md:hidden shrink-0">
+            <MobileRosterActionsDropdown
+              onPrint={handlePrint}
+              onExportExcel={handleExportExcel}
+              onExportDocx={handleExportDocx}
+              disabled={processedRows.length === 0}
+              isExporting={isExporting}
+              activeIncludedCount={activeIncludedRows.length}
+              totalCount={processedRows.length}
+              isAllRowsIncluded={isAllRowsIncluded}
+              isSomeRowsSkipped={isSomeRowsSkipped}
+              skippedCount={skippedCount}
+              onToggleSelectAllRows={toggleSelectAllRows}
+              hideSkippedRows={hideSkippedRows}
+              onToggleHideSkippedRows={() => setHideSkippedRows(prev => !prev)}
+              onSaveAsDefaultColumns={handleSaveAsDefaultColumns}
+              saveDefaultToast={saveDefaultToast}
+            />
+          </div>
 
-              {/* Toggle Show/Hide Skipped Rows */}
-              <button
-                type="button"
-                onClick={() => setHideSkippedRows(prev => !prev)}
-                className={`w-6.5 h-6.5 sm:w-7 sm:h-7 rounded-md border flex items-center justify-center cursor-pointer transition-colors shadow-2xs active:scale-95 shrink-0 ${
-                  hideSkippedRows
-                    ? 'border-indigo-300 dark:border-indigo-700 bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300'
-                    : 'border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
-                }`}
-                title={hideSkippedRows ? "Showing included rows only (click to show skipped)" : "Show all rows including skipped (click to hide skipped)"}
-              >
-                <Eye size={10.5} className={hideSkippedRows ? "text-indigo-600 dark:text-indigo-400" : "opacity-60"} />
-              </button>
-
-              {/* Save Column Order as Default */}
-              <button
-                type="button"
-                onClick={handleSaveAsDefaultColumns}
-                className="w-6.5 h-6.5 sm:w-7 sm:h-7 rounded-md border border-emerald-300 dark:border-emerald-700 bg-emerald-50/90 dark:bg-emerald-950/60 hover:bg-emerald-100 text-emerald-800 dark:text-emerald-300 flex items-center justify-center shadow-2xs cursor-pointer active:scale-95 transition-colors shrink-0"
-                title="Save this column sequence as your default order"
-              >
-                {saveDefaultToast ? <Check size={10.5} className="text-emerald-600" /> : <Save size={10.5} className="text-emerald-600" />}
-              </button>
-            </div>
-          )}
-
-          <div className="flex items-center gap-1 sm:gap-1.5 ml-auto md:ml-0 shrink-0">
+          {/* Desktop Actions: Separate Export Dropdown and Primary Print Button (visible on md+) */}
+          <div className="hidden md:flex items-center gap-1 sm:gap-1.5 ml-auto md:ml-0 shrink-0">
             {/* Unified Export Dropdown (Excel & Word) */}
             <RosterExportDropdown
               onExportExcel={handleExportExcel}
