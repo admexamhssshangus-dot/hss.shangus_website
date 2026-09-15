@@ -202,24 +202,24 @@ export default function ModernCaptcha({ onVerify, isVerified, onReset }) {
   };
 
   return (
-    <div className="modern-captcha-widget w-full my-2 select-none">
-      <div className="bg-slate-50/80 dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 rounded-xl p-3 shadow-xs transition-all duration-200 hover:border-slate-300 dark:hover:border-slate-700">
+    <div className="modern-captcha-widget w-full my-1.5 sm:my-2 select-none">
+      <div className="bg-slate-50/80 dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 rounded-xl p-2 sm:p-3 shadow-2xs transition-all duration-200 hover:border-slate-300 dark:hover:border-slate-700">
         
         {/* Main Checkbox View */}
         {status !== 'challenge' && (
-          <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center justify-between gap-2.5 sm:gap-3">
             <button
               type="button"
               onClick={handleCheckboxClick}
               disabled={status === 'verified' || status === 'verifying'}
-              className={`flex items-center gap-3 text-left w-full cursor-pointer focus:outline-hidden group ${
+              className={`flex items-center gap-2.5 sm:gap-3 text-left w-full cursor-pointer focus:outline-hidden group ${
                 status === 'verified' ? 'cursor-default' : ''
               }`}
               aria-label="Security verification: I am human"
             >
               {/* Checkbox box */}
               <div
-                className={`w-6 h-6 rounded-md border flex items-center justify-center transition-all duration-300 shrink-0 ${
+                className={`w-5 h-5 sm:w-6 sm:h-6 rounded sm:rounded-md border flex items-center justify-center transition-all duration-300 shrink-0 ${
                   status === 'verified'
                     ? 'bg-teal-600 border-teal-600 text-white shadow-xs shadow-teal-500/30'
                     : status === 'verifying'
@@ -228,30 +228,30 @@ export default function ModernCaptcha({ onVerify, isVerified, onReset }) {
                 }`}
               >
                 {status === 'verified' ? (
-                  <CheckCircle2 size={16} className="stroke-[2.5] animate-scaleUp" />
+                  <CheckCircle2 size={13} className="sm:w-4 sm:h-4 stroke-[2.5] animate-scaleUp" />
                 ) : status === 'verifying' ? (
-                  <RefreshCw size={13} className="animate-spin text-teal-600 dark:text-teal-400" />
+                  <RefreshCw size={11} className="sm:w-3.5 sm:h-3.5 animate-spin text-teal-600 dark:text-teal-400" />
                 ) : null}
               </div>
 
               {/* Label */}
               <div className="flex flex-col">
-                <span className="text-xs font-bold text-slate-800 dark:text-slate-200 group-hover:text-teal-700 dark:group-hover:text-teal-300 transition-colors">
-                  {status === 'verified' ? 'Verification Complete' : status === 'verifying' ? 'Verifying human session…' : 'I am human'}
+                <span className="text-[11px] sm:text-xs font-bold text-slate-800 dark:text-slate-200 group-hover:text-teal-700 dark:group-hover:text-teal-300 transition-colors leading-tight">
+                  {status === 'verified' ? 'Verification Complete' : status === 'verifying' ? 'Verifying session…' : 'I am human'}
                 </span>
-                <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">
-                  {status === 'verified' ? 'Security challenge cleared' : 'Click to complete security check'}
+                <span className="text-[9px] sm:text-[10px] text-slate-400 dark:text-slate-500 font-medium leading-tight">
+                  {status === 'verified' ? 'Security check cleared' : 'Click to complete check'}
                 </span>
               </div>
             </button>
 
             {/* School Guardrail Badge */}
             <div className="flex flex-col items-end shrink-0 pl-2 border-l border-slate-200/60 dark:border-slate-800">
-              <div className="flex items-center gap-1 text-[10px] font-bold text-slate-500 dark:text-slate-400">
-                <Shield size={12} className="text-teal-600 dark:text-teal-400" />
+              <div className="flex items-center gap-1 text-[9px] sm:text-[10px] font-bold text-slate-500 dark:text-slate-400 leading-tight">
+                <Shield size={11} className="text-teal-600 dark:text-teal-400" />
                 <span>HSS Security</span>
               </div>
-              <span className="text-[8.5px] text-slate-400 dark:text-slate-600">Encrypted Guardrail</span>
+              <span className="text-[7.5px] sm:text-[8.5px] text-slate-400 dark:text-slate-600 leading-tight">Encrypted Guardrail</span>
             </div>
           </div>
         )}
