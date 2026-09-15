@@ -5,7 +5,8 @@ import {
   Settings, ClipboardCheck, Printer, RefreshCw, CheckCircle2, AlertCircle,
   Award, AlertTriangle, X, Sliders, Users, Mail, Phone, MessageCircle, Edit2, Check, Search,
   Download, Upload, FileSpreadsheet, FileText, Trash2, Eye, Save, Shield, ShieldAlert,
-  ChevronDown, BookOpen, SlidersHorizontal, Filter, Layers, Plus, Minus, RotateCcw, Sparkles
+  ChevronDown, BookOpen, SlidersHorizontal, Filter, Layers, Plus, Minus, RotateCcw, Sparkles,
+  History, Archive
 } from 'lucide-react';
 import { db, auth } from '../../services/firebase';
 import { collection, getDocs, doc, setDoc, deleteDoc, getDoc } from 'firebase/firestore';
@@ -14,6 +15,7 @@ import ModernLoader from '../../components/ModernLoader';
 import { getCachedCollection, invalidateCollectionCache } from '../../services/dbCache';
 import { logAdminActivity } from '../../services/adminActivityLogger';
 import { showToast } from '../../components/common/GlobalToast';
+import { saveVersionToBin, getVersionsForDoc, restoreVersionFromBin } from '../../services/practicalsBinService';
 import {
   printIndividualAwardRoll,
   printIndividualWorkSheet,
@@ -980,15 +982,11 @@ export default function AdminPracticals() {
           if (canonicalSnap.exists()) {
             const canonicalData = canonicalSnap.data();
             if (canonicalData && Array.isArray(canonicalData.records) && canonicalData.records.length > 0) {
-              // Archive previous canonical doc to history_ with zero loss
-              const archiveDocId = `history_${targetDocId}_${Date.now()}`;
-              await setDoc(doc(db, 'practicalsData', archiveDocId), {
-                ...canonicalData,
-                archivedAt: new Date().toISOString(),
-                archivedReason: 'overwritten_by_approved_revision',
-                supersededBySubmissionId: pendingDoc.id,
-                supersededByTeacher: submittedBy
-              });
+              // Archive previous canonical doc into practicalsBin with zero loss (maintaining last 3 versions)
+              await saveVersionToBin(targetDocId, canonicalData, 'admin_approved_overwrite', {
+                name: auth.currentUser?.displayName || 'Administrator',
+                email: auth.currentUser?.email
+              }).catch(() => {});
             }
           }
 
@@ -1346,6 +1344,7 @@ export default function AdminPracticals() {
             <FacultySubmissionsView
               teachers={teachers}
               submissions={submissions}
+              setSubmissions={setSubmissions}
               pendingApprovals={pendingApprovals}
               onApproveSubmission={handleApproveSubmission}
               onRejectSubmission={(pendingDoc) => setRejectReasonModal({ isOpen: true, pendingDoc, reason: '' })}
@@ -3063,6 +3062,7 @@ function SelectedSubmissionModal({ selSub, onClose, absentMarker, allStudents = 
 function FacultySubmissionsView({
   teachers,
   submissions,
+  setSubmissions,
   pendingApprovals = [],
   onApproveSubmission,
   onRejectSubmission,
@@ -3083,6 +3083,57 @@ function FacultySubmissionsView({
   const [viewMode, setViewMode] = useState('grouped'); // 'grouped' | 'documents'
   const [filterClass, setFilterClass] = useState('all');
   const [filterSubject, setFilterSubject] = useState('all');
+
+  // Version Bin State
+  const [binModalDoc, setBinModalDoc] = useState(null);
+  const [binVersions, setBinVersions] = useState([]);
+  const [loadingBinVersions, setLoadingBinVersions] = useState(false);
+  const [previewVersion, setPreviewVersion] = useState(null);
+  const [restoringVersionId, setRestoringVersionId] = useState(null);
+
+  const handleOpenVersionBin = async (docObj) => {
+    setBinModalDoc(docObj);
+    setLoadingBinVersions(true);
+    setPreviewVersion(null);
+    try {
+      const docId = docObj.canonicalDocId || docObj.id;
+      const list = await getVersionsForDoc(docId);
+      setBinVersions(list);
+    } catch (err) {
+      console.warn('Failed to load versions from bin:', err);
+      setBinVersions([]);
+    } finally {
+      setLoadingBinVersions(false);
+    }
+  };
+
+  const handleRestoreVersion = async (versionObj) => {
+    if (!binModalDoc || !versionObj) return;
+    const docId = binModalDoc.canonicalDocId || binModalDoc.id;
+    if (!window.confirm(`Restore award version from ${new Date(versionObj.createdAt).toLocaleString()} (${versionObj.recordsCount || 0} students)? The current active record will be automatically backed up into the bin before restoring.`)) {
+      return;
+    }
+    setRestoringVersionId(versionObj.id);
+    try {
+      const restored = await restoreVersionFromBin(versionObj.id, docId, {
+        name: auth.currentUser?.displayName || 'Administrator',
+        email: auth.currentUser?.email
+      });
+      if (setSubmissions) {
+        setSubmissions(prev => {
+          const filtered = prev.filter(s => s.id !== docId);
+          return [restored, ...filtered];
+        });
+      }
+      setBinModalDoc(null);
+      showToast('Award Roll successfully restored from bin into live database!', 'success');
+    } catch (err) {
+      console.error('Failed to restore version:', err);
+      showToast(err.message || 'Restoration failed.', 'error');
+    } finally {
+      setRestoringVersionId(null);
+    }
+  };
 
   const excludedSet = useMemo(() => {
     const list = Array.isArray(settings?.excludedTeacherEmails) ? settings.excludedTeacherEmails : DEFAULT_EXCLUDED_TEACHERS;
@@ -3502,6 +3553,13 @@ function FacultySubmissionsView({
                                       <Eye size={10} /> Internal ({intCount})
                                     </button>
                                     <button
+                                      onClick={() => handleOpenVersionBin(g.internal)}
+                                      className="p-1 rounded-md text-slate-400 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-slate-800 cursor-pointer"
+                                      title="Inspect Historical Versions in Bin"
+                                    >
+                                      <History size={10} />
+                                    </button>
+                                    <button
                                       onClick={() => handleDeleteSubmission(g.internal.id)}
                                       className="p-1 rounded-md text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-slate-800 cursor-pointer"
                                       title="Delete Internal Submission"
@@ -3524,6 +3582,13 @@ function FacultySubmissionsView({
                                       title="Inspect External Practical Awards"
                                     >
                                       <Eye size={10} /> External ({extCount})
+                                    </button>
+                                    <button
+                                      onClick={() => handleOpenVersionBin(g.external)}
+                                      className="p-1 rounded-md text-slate-400 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-slate-800 cursor-pointer"
+                                      title="Inspect Historical Versions in Bin"
+                                    >
+                                      <History size={10} />
                                     </button>
                                     <button
                                       onClick={() => handleDeleteSubmission(g.external.id)}
@@ -3651,6 +3716,14 @@ function FacultySubmissionsView({
                           <Eye size={12} /> View Awards
                         </button>
                         <button
+                          type="button"
+                          onClick={() => handleOpenVersionBin(s)}
+                          className="px-2.5 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 text-[11px] font-bold cursor-pointer inline-flex items-center gap-1 border border-amber-200 dark:border-amber-800 shadow-2xs"
+                          title="View previous versions in Bin"
+                        >
+                          <History size={12} /> Bin
+                        </button>
+                        <button
                           onClick={() => handleDeleteSubmission(s.id)}
                           className="px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 text-[11px] font-bold cursor-pointer inline-flex items-center gap-1 shadow-2xs"
                         >
@@ -3669,6 +3742,165 @@ function FacultySubmissionsView({
                 )}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* VERSION BIN MODAL (LAST 3 VERSIONS) */}
+      {binModalDoc && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="w-full max-w-3xl bg-white dark:bg-slate-900 rounded-3xl p-4 sm:p-6 shadow-2xl border border-slate-200 dark:border-slate-800 flex flex-col max-h-[90vh] space-y-4">
+            {/* Modal Header */}
+            <div className="flex items-start justify-between border-b border-slate-100 dark:border-slate-800 pb-3 gap-3">
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="text-base sm:text-lg font-black text-slate-900 dark:text-white flex items-center gap-2">
+                    <History className="text-amber-500" size={20} />
+                    Version Bin & History
+                  </h3>
+                  <span className="px-2.5 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/50 text-amber-800 dark:text-amber-300 font-black text-[11px] border border-amber-200 dark:border-amber-800">
+                    Last 3 Versions
+                  </span>
+                </div>
+                <p className="text-xs font-semibold text-slate-500 mt-1">
+                  {binModalDoc.subject || binModalDoc.Subject} • Class {formatClassDisplay(binModalDoc.className || binModalDoc.Class, binModalDoc)} ({binModalDoc.id})
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => { setBinModalDoc(null); setPreviewVersion(null); }}
+                className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors cursor-pointer text-slate-400 hover:text-slate-600"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="flex-1 overflow-y-auto space-y-3">
+              {loadingBinVersions ? (
+                <div className="py-12 flex flex-col items-center justify-center gap-2 text-slate-400">
+                  <RefreshCw size={24} className="animate-spin text-amber-500" />
+                  <span className="text-xs font-bold">Loading archived versions from bin...</span>
+                </div>
+              ) : binVersions.length === 0 ? (
+                <div className="py-12 text-center space-y-2">
+                  <div className="w-12 h-12 rounded-2xl bg-amber-500/10 text-amber-600 mx-auto flex items-center justify-center">
+                    <History size={24} />
+                  </div>
+                  <h4 className="font-bold text-sm text-slate-800 dark:text-slate-200">No Prior Versions in Bin</h4>
+                  <p className="text-xs text-slate-500 max-w-md mx-auto leading-relaxed">
+                    Whenever a faculty member re-submits marks or an overwrite is approved for this award roll, up to the last 3 versions will be automatically preserved here for disaster recovery.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <p className="text-xs font-semibold text-slate-500">
+                    If an update or submission overwrote marks incorrectly, you can take out (restore) any of the prior versions below back into the live portal:
+                  </p>
+                  {binVersions.map((v, vIdx) => {
+                    const isPreviewingThis = previewVersion?.id === v.id;
+                    const isRestoring = restoringVersionId === v.id;
+                    return (
+                      <div
+                        key={v.id}
+                        className="p-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-950/40 space-y-3"
+                      >
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                          <div className="space-y-0.5">
+                            <div className="flex items-center gap-2">
+                              <span className="px-2 py-0.5 rounded-md bg-indigo-100 dark:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 font-mono font-black text-[10.5px]">
+                                Version #{binVersions.length - vIdx}
+                              </span>
+                              <span className="text-xs font-black text-slate-900 dark:text-white">
+                                {new Date(v.createdAt).toLocaleDateString(undefined, { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })} at {new Date(v.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              </span>
+                            </div>
+                            <div className="text-[11px] text-slate-500 flex items-center gap-2 flex-wrap">
+                              <span>Archived by: <strong className="text-slate-700 dark:text-slate-300">{v.archivedBy || 'Faculty'}</strong></span>
+                              <span>•</span>
+                              <span className="font-mono font-bold text-emerald-600">{v.recordsCount || v.records?.length || 0} Students</span>
+                              {v.archivedReason && (
+                                <>
+                                  <span>•</span>
+                                  <span className="text-slate-400 capitalize">{String(v.archivedReason).replace(/_/g, ' ')}</span>
+                                </>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setPreviewVersion(isPreviewingThis ? null : v)}
+                              className="px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 font-bold text-xs flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
+                            >
+                              <Eye size={12} /> {isPreviewingThis ? 'Hide Records' : 'Preview Records'}
+                            </button>
+                            <button
+                              type="button"
+                              disabled={isRestoring}
+                              onClick={() => handleRestoreVersion(v)}
+                              className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer transition-all shadow-2xs active:scale-98 disabled:opacity-50"
+                            >
+                              {isRestoring ? <RefreshCw size={12} className="animate-spin" /> : <RotateCcw size={12} />}
+                              <span>Restore Version</span>
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Inline Student Records Preview */}
+                        {isPreviewingThis && (
+                          <div className="mt-3 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden bg-white dark:bg-slate-900 animate-in fade-in duration-150">
+                            <div className="p-2 bg-slate-100 dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between text-[11px] font-bold text-slate-600 dark:text-slate-400">
+                              <span>Showing {v.records?.length || 0} student marks in this version</span>
+                              <span>Max: {v.maxMarks || 50}M</span>
+                            </div>
+                            <div className="max-h-56 overflow-y-auto">
+                              <table className="w-full text-left text-xs border-collapse">
+                                <thead className="bg-slate-50 dark:bg-slate-950/80 text-[10px] uppercase font-bold text-slate-400 border-b border-slate-100 dark:border-slate-800">
+                                  <tr>
+                                    <th className="p-2 text-center w-8">#</th>
+                                    <th className="p-2">Roll</th>
+                                    <th className="p-2">Student Name</th>
+                                    <th className="p-2 text-center">Marks</th>
+                                    <th className="p-2 text-center">Total</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium text-[11px]">
+                                  {(v.records || []).map((r, rIdx) => (
+                                    <tr key={rIdx} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                                      <td className="p-2 text-center font-mono text-slate-400">{rIdx + 1}</td>
+                                      <td className="p-2 font-mono font-bold text-indigo-600">{r.rollNo || r.classRollNo || '—'}</td>
+                                      <td className="p-2 font-bold text-slate-800 dark:text-slate-200">{r.name || r.studentName || '—'}</td>
+                                      <td className="p-2 text-center font-mono">{r.practicalMarks ?? '—'}</td>
+                                      <td className="p-2 text-center font-mono font-bold text-emerald-600">{r.totalMarks ?? r.practicalMarks ?? '—'}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+              <span className="text-[11px] text-slate-400">
+                Safe Recovery: Restoring automatically archives the current state as a new safety version.
+              </span>
+              <button
+                type="button"
+                onClick={() => { setBinModalDoc(null); setPreviewVersion(null); }}
+                className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs cursor-pointer"
+              >
+                Close Bin
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -656,7 +656,14 @@ export function isTeacherSubjectMatch(teacherSubject, selectedSubject) {
  * Canonical Document ID Generator for Practicals & Evaluations
  */
 export function formatPracticalDocId(cls, subject, practicalType, yearSuffix) {
-  const clsNorm = String(cls || '').replace(/class/i, '').trim();
+  let clsNorm = String(cls || '').replace(/class/i, '').trim();
+  // Sanitize composite or messy class names (e.g. '11th,12th')
+  if (clsNorm.includes('11') && !clsNorm.includes('12')) clsNorm = '11th';
+  else if (clsNorm.includes('12') && !clsNorm.includes('11')) clsNorm = '12th';
+  else if (clsNorm.includes('10')) clsNorm = '10th';
+  else if (clsNorm.includes('9')) clsNorm = '9th';
+  else if (clsNorm === '11th,12th' || clsNorm === '11th, 12th') clsNorm = '11th';
+
   const subjClean = String(subject || '').trim();
   const typeClean = String(practicalType || '').trim();
   const sessClean = String(yearSuffix || '').trim();
