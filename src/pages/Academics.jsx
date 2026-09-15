@@ -71,27 +71,27 @@ function FacultyCard({ member, faculty, setActiveProfileMember }) {
 
       {/* Badges */}
       <div className="flex gap-1 flex-wrap justify-center mb-1.5">
-        <span className="text-[9px] uppercase font-bold text-teal-800 bg-teal-50 px-1.5 py-0.5 rounded-full border border-teal-100">{member.department}</span>
+        <span className="text-[8.5px] sm:text-[9px] uppercase font-bold text-teal-800 bg-teal-50 px-1.5 py-0.5 rounded-full border border-teal-100">{member.department}</span>
         {(member.if_deployed === 'in' || member.if_deployed === 'Yes') && (
-          <span className="text-[9px] uppercase font-bold text-blue-800 bg-blue-50 px-1.5 py-0.5 rounded-full border border-blue-100">→ Deployed In</span>
+          <span className="text-[8.5px] sm:text-[9px] uppercase font-bold text-blue-800 bg-blue-50 px-1.5 py-0.5 rounded-full border border-blue-100">→ Deployed In</span>
         )}
         {member.if_deployed === 'out' && (
-          <span className="text-[9px] uppercase font-bold text-amber-800 bg-amber-50 px-1.5 py-0.5 rounded-full border border-amber-100">← Deployed Out</span>
+          <span className="text-[8.5px] sm:text-[9px] uppercase font-bold text-amber-800 bg-amber-50 px-1.5 py-0.5 rounded-full border border-amber-100">← Deployed Out</span>
         )}
       </div>
 
       <h4 className="font-extrabold text-slate-900 text-xs sm:text-sm mb-0.5 leading-tight line-clamp-1" title={member.name}>{member.name}</h4>
       {duplicateNames && (
-        <p className="text-[9px] text-teal-700 font-extrabold mb-0.5 px-1 py-0.5 rounded bg-teal-50/60 border border-teal-100 inline-block w-fit">
+        <p className="text-[8.5px] sm:text-[9px] text-teal-700 font-extrabold mb-0.5 px-1 py-0.5 rounded bg-teal-50/60 border border-teal-100 inline-block w-fit">
           Faculty member
         </p>
       )}
       <div className="flex flex-col items-center gap-1 mb-3 w-full px-2 min-h-[3rem] justify-center">
-        <span className="text-[11px] sm:text-xs font-bold text-white bg-slate-800 px-2.5 py-1 rounded-md w-full text-center shadow-sm">
+        <span className="text-[10.5px] sm:text-xs font-bold text-white bg-slate-800 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md w-full text-center shadow-sm">
           {fixDesignation(member.designation)}
         </span>
         {(member.subject && !['Administration', 'MTS'].includes(member.department)) && (
-          <span className="text-[10px] sm:text-[11px] font-semibold text-slate-800 w-full text-center truncate">
+          <span className="text-[9.5px] sm:text-[11px] font-semibold text-slate-800 w-full text-center truncate">
             {member.subject}
           </span>
         )}
@@ -427,39 +427,39 @@ export default function Academics() {
       <SEO title="Academic Streams & Combinations" description="Explore the school departments, subjects, and curriculum choices for secondary and higher secondary levels at Govt. Higher Secondary School Shangus." />
       <div className="max-w-5xl mx-auto px-2.5 sm:px-6 relative z-10 w-full min-w-0">
         <header className="text-center mb-6 sm:mb-8 px-1">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-bold bg-white/90 text-teal-800 border border-teal-200 shadow-xs mb-3 backdrop-blur-sm">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold bg-white/90 text-teal-800 border border-teal-200 shadow-xs mb-3 backdrop-blur-sm">
             <span className="text-sm">🎓</span>
-            <span className="tracking-wide uppercase text-[11px] font-extrabold">Academic Excellence &amp; Future-Ready Learning</span>
+            <span className="tracking-wide uppercase text-[9.5px] sm:text-[11px] font-extrabold">Academic Excellence &amp; Future-Ready Learning</span>
           </div>
-          <h1 className="ui-page-title text-2xl sm:text-3xl md:text-4xl text-slate-800 font-extrabold">Academics, Streams &amp; Faculty</h1>
-          <div className="h-1.5 w-28 bg-gradient-to-r from-teal-500 via-emerald-400 to-amber-500 mx-auto mt-3 rounded-full shadow-xs"></div>
-          <p className="text-sm sm:text-base text-slate-600 mt-3 max-w-2xl mx-auto leading-relaxed">Explore our diverse academic departments, carefully curated subject combinations, and dedicated faculty inspiring every learner to excel.</p>
+          <h1 className="ui-page-title text-xl sm:text-3xl md:text-4xl text-slate-800 font-extrabold">Academics, Streams &amp; Faculty</h1>
+          <div className="h-1.5 w-24 sm:w-28 bg-gradient-to-r from-teal-500 via-emerald-400 to-amber-500 mx-auto mt-2.5 sm:mt-3 rounded-full shadow-xs"></div>
+          <p className="text-xs sm:text-base text-slate-600 mt-2.5 sm:mt-3 max-w-2xl mx-auto leading-relaxed">Explore our diverse academic departments, carefully curated subject combinations, and dedicated faculty inspiring every learner to excel.</p>
         </header>
 
         {/* Our Departments Card */}
         <div className="relative bg-white p-3 sm:p-5 rounded-2xl shadow-sm hover:shadow-md border border-slate-200/80 mb-6 overflow-hidden transition-all duration-300 w-full min-w-0">
           <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-teal-500 via-cyan-400 to-emerald-500" />
-          <div className="flex items-center gap-2.5 mb-3.5 min-w-0">
+          <div className="flex items-center gap-2.5 mb-3 min-w-0">
             <div className="w-8 h-8 rounded-xl bg-teal-50 text-teal-700 flex items-center justify-center font-bold text-sm shadow-2xs border border-teal-200/60 shrink-0">
-              <GraduationCap size={18} className="stroke-[2.2]" />
+              <GraduationCap size={17} className="stroke-[2.2]" />
             </div>
             <div className="min-w-0 flex-1">
-              <h2 className="text-base sm:text-xl font-bold text-slate-900 font-heading truncate">Academic Departments</h2>
-              <p className="text-[11px] sm:text-xs text-slate-500 line-clamp-1 sm:line-clamp-none">Secondary foundation &amp; specialized Higher Secondary disciplines.</p>
+              <h2 className="text-[15px] sm:text-xl font-bold text-slate-900 font-heading truncate">Academic Departments</h2>
+              <p className="text-[10px] sm:text-xs text-slate-500 line-clamp-1 sm:line-clamp-none">Secondary foundation &amp; specialized Higher Secondary disciplines.</p>
             </div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4 w-full min-w-0">
             {/* Secondary Level */}
             <div className="p-2.5 sm:p-3.5 rounded-xl bg-slate-50/60 border border-slate-200/60 flex flex-col justify-between w-full min-w-0">
               <div>
-                <div className="flex flex-wrap items-center justify-between gap-1.5 pb-2 mb-2 border-b border-slate-200/50">
+                <div className="flex flex-wrap items-center justify-between gap-1 pb-1.5 mb-2 border-b border-slate-200/50">
                   <div className="flex items-center gap-1.5 min-w-0">
                     <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 shrink-0"></span>
-                    <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wide truncate">
+                    <h3 className="text-[11px] sm:text-xs font-bold text-slate-800 uppercase tracking-wide truncate">
                       Secondary (9th–10th)
                     </h3>
                   </div>
-                  <span className="text-[9px] sm:text-[9.5px] font-semibold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-200/60 shrink-0">
+                  <span className="text-[8.5px] sm:text-[9.5px] font-semibold text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded-md border border-indigo-200/60 shrink-0">
                     Core &amp; Skills
                   </span>
                 </div>
@@ -469,7 +469,7 @@ export default function Academics() {
                     return (
                       <span
                         key={sub}
-                        className={`inline-flex items-center text-[10.5px] sm:text-xs px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md font-medium border transition-colors ${
+                        className={`inline-flex items-center text-[10px] sm:text-xs px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md font-medium border transition-colors ${
                           isVoc
                             ? 'bg-cyan-50/70 text-cyan-800 border-cyan-200/70 hover:bg-cyan-100/70'
                             : 'bg-white text-slate-700 border-slate-200/80 hover:border-slate-300'
@@ -486,14 +486,14 @@ export default function Academics() {
             {/* Higher Secondary */}
             <div className="p-2.5 sm:p-3.5 rounded-xl bg-slate-50/60 border border-slate-200/60 flex flex-col justify-between w-full min-w-0">
               <div>
-                <div className="flex flex-wrap items-center justify-between gap-1.5 pb-2 mb-2 border-b border-slate-200/50">
+                <div className="flex flex-wrap items-center justify-between gap-1 pb-1.5 mb-2 border-b border-slate-200/50">
                   <div className="flex items-center gap-1.5 min-w-0">
                     <span className="w-1.5 h-1.5 rounded-full bg-teal-500 shrink-0"></span>
-                    <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wide truncate">
+                    <h3 className="text-[11px] sm:text-xs font-bold text-slate-800 uppercase tracking-wide truncate">
                       Higher Secondary (11th–12th)
                     </h3>
                   </div>
-                  <span className="text-[9px] sm:text-[9.5px] font-semibold text-teal-700 bg-teal-50 px-2 py-0.5 rounded-md border border-teal-200/60 shrink-0">
+                  <span className="text-[8.5px] sm:text-[9.5px] font-semibold text-teal-700 bg-teal-50 px-1.5 py-0.5 rounded-md border border-teal-200/60 shrink-0">
                     Multidisciplinary
                   </span>
                 </div>
@@ -511,7 +511,7 @@ export default function Academics() {
                     return (
                       <span
                         key={sub}
-                        className={`inline-flex items-center text-[10.5px] sm:text-xs px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md font-medium border transition-colors ${badgeStyle}`}
+                        className={`inline-flex items-center text-[10px] sm:text-xs px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md font-medium border transition-colors ${badgeStyle}`}
                       >
                         {sub}
                       </span>
@@ -528,110 +528,110 @@ export default function Academics() {
           <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-teal-500 via-amber-400 to-indigo-500" />
           <div className="flex items-center gap-2.5 mb-2 min-w-0">
             <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center font-bold text-sm shadow-2xs border border-amber-200/60 shrink-0">
-              <BookOpen size={18} className="stroke-[2.2]" />
+              <BookOpen size={17} className="stroke-[2.2]" />
             </div>
             <div className="min-w-0 flex-1">
-              <h2 className="text-base sm:text-xl font-bold text-slate-900 font-heading truncate">Subject Combinations &amp; Streams</h2>
-              <p className="text-[11px] sm:text-xs text-slate-500 line-clamp-1 sm:line-clamp-none">Explore curated subject combinations for each stream with quick copy and download options.</p>
+              <h2 className="text-[15px] sm:text-xl font-bold text-slate-900 font-heading truncate">Subject Combinations &amp; Streams</h2>
+              <p className="text-[10px] sm:text-xs text-slate-500 line-clamp-1 sm:line-clamp-none">Explore curated subject combinations for each stream with quick copy and download options.</p>
             </div>
           </div>
 
           <CombinationsModal />
 
           <div className="bg-white rounded-xl p-2 sm:p-3.5 border border-slate-200/90 shadow-2xs mt-3 w-full min-w-0">
-            <div className="grid grid-cols-3 bg-slate-100/90 dark:bg-slate-800/90 p-1 sm:p-1.5 rounded-xl gap-1 sm:gap-1.5 mb-3.5 border border-slate-200 dark:border-slate-700/80 w-full min-w-0">
+            <div className="grid grid-cols-3 bg-slate-100/90 dark:bg-slate-800/90 p-1 sm:p-1.5 rounded-xl gap-1 sm:gap-1.5 mb-3 border border-slate-200 dark:border-slate-700/80 w-full min-w-0">
               <button
                 aria-pressed={activeTab === 'science'}
                 onClick={() => switchTab('science')}
-                className={`text-center py-2 sm:py-2 px-1 sm:px-2.5 rounded-lg font-bold text-[11px] sm:text-xs transition-all duration-300 flex flex-col xs:flex-row items-center justify-center gap-1 xs:gap-1.5 min-w-0 ${activeTab === 'science'
+                className={`text-center py-1.5 sm:py-2 px-1 sm:px-2.5 rounded-lg font-bold text-[10.5px] sm:text-xs transition-all duration-300 flex flex-col xs:flex-row items-center justify-center gap-1 xs:gap-1.5 min-w-0 ${activeTab === 'science'
                   ? 'bg-gradient-to-r from-teal-600 to-emerald-600 text-white shadow-sm scale-[1.01]'
                   : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
                   }`}
               >
-                <FlaskConical size={13} className="stroke-[2.2] shrink-0" />
+                <FlaskConical size={12} className="stroke-[2.2] shrink-0" />
                 <span className="truncate">Science</span>
               </button>
               <button
                 aria-pressed={activeTab === 'humanities'}
                 onClick={() => switchTab('humanities')}
-                className={`text-center py-2 sm:py-2 px-1 sm:px-2.5 rounded-lg font-bold text-[11px] sm:text-xs transition-all duration-300 flex flex-col xs:flex-row items-center justify-center gap-1 xs:gap-1.5 min-w-0 ${activeTab === 'humanities'
+                className={`text-center py-1.5 sm:py-2 px-1 sm:px-2.5 rounded-lg font-bold text-[10.5px] sm:text-xs transition-all duration-300 flex flex-col xs:flex-row items-center justify-center gap-1 xs:gap-1.5 min-w-0 ${activeTab === 'humanities'
                   ? 'bg-gradient-to-r from-amber-600 to-orange-600 text-white shadow-md scale-[1.01]'
                   : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
                   }`}
               >
-                <BookOpen size={13} className="stroke-[2.2] shrink-0" />
+                <BookOpen size={12} className="stroke-[2.2] shrink-0" />
                 <span className="truncate">Humanities</span>
               </button>
               <button
                 aria-pressed={activeTab === 'secondary'}
                 onClick={() => switchTab('secondary')}
-                className={`text-center py-2 sm:py-2 px-1 sm:px-2.5 rounded-lg font-bold text-[11px] sm:text-xs transition-all duration-300 flex flex-col xs:flex-row items-center justify-center gap-1 xs:gap-1.5 min-w-0 ${activeTab === 'secondary'
+                className={`text-center py-1.5 sm:py-2 px-1 sm:px-2.5 rounded-lg font-bold text-[10.5px] sm:text-xs transition-all duration-300 flex flex-col xs:flex-row items-center justify-center gap-1 xs:gap-1.5 min-w-0 ${activeTab === 'secondary'
                   ? 'bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-md scale-[1.01]'
                   : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
                   }`}
               >
-                <GraduationCap size={13} className="stroke-[2.2] shrink-0" />
+                <GraduationCap size={12} className="stroke-[2.2] shrink-0" />
                 <span className="truncate">9th &amp; 10th</span>
               </button>
             </div>
 
-            <div className={`grid grid-cols-1 md:grid-cols-3 gap-2.5 sm:gap-3.5 w-full min-w-0 transition-all duration-200 ${tabAnimating ? 'opacity-60 -translate-y-1' : 'opacity-100 translate-y-0'}`}>
-              <div className="p-2.5 sm:p-3 rounded-xl bg-slate-50/80 border border-slate-200/70 w-full min-w-0 overflow-hidden">
-                <div className="text-xs uppercase text-slate-600 font-bold mb-2 flex items-center justify-between gap-1 min-w-0">
+            <div className={`grid grid-cols-1 md:grid-cols-3 gap-2 sm:gap-3.5 w-full min-w-0 transition-all duration-200 ${tabAnimating ? 'opacity-60 -translate-y-1' : 'opacity-100 translate-y-0'}`}>
+              <div className="p-2 sm:p-3 rounded-xl bg-slate-50/80 border border-slate-200/70 w-full min-w-0 overflow-hidden">
+                <div className="text-[10.5px] sm:text-xs uppercase text-slate-600 font-bold mb-1.5 flex items-center justify-between gap-1 min-w-0">
                   <span className="truncate">Group A</span>
-                  <span className="text-[9.5px] sm:text-[10px] bg-slate-200/80 text-slate-700 px-2 py-0.5 rounded font-bold shrink-0">Compulsory</span>
+                  <span className="text-[8.5px] sm:text-[10px] bg-slate-200/80 text-slate-700 px-1.5 py-0.5 rounded font-bold shrink-0">Compulsory</span>
                 </div>
-                <div className="bg-white p-2.5 rounded-lg border border-slate-200/80 text-slate-800 font-semibold text-xs sm:text-sm shadow-xs break-words">
+                <div className="bg-white p-2 sm:p-2.5 rounded-lg border border-slate-200/80 text-slate-800 font-semibold text-[11.5px] sm:text-sm shadow-xs break-words">
                   {activeTab === 'science' && 'General English, Physics, Chemistry'}
                   {activeTab === 'humanities' && 'General English'}
                   {activeTab === 'secondary' && 'English, Mathematics, Science, Social Studies'}
                 </div>
-                <div className="text-[11px] text-slate-500 mt-2 font-medium">Standard required curriculum for all candidates.</div>
+                <div className="text-[10px] sm:text-[11px] text-slate-500 mt-1.5 font-medium">Standard required curriculum for all candidates.</div>
               </div>
 
-              <div className="p-2.5 sm:p-3 rounded-xl bg-slate-50/80 border border-slate-200/70 w-full min-w-0 overflow-hidden">
-                <div className="text-xs uppercase text-slate-600 font-bold mb-2 flex items-center justify-between gap-1 min-w-0">
+              <div className="p-2 sm:p-3 rounded-xl bg-slate-50/80 border border-slate-200/70 w-full min-w-0 overflow-hidden">
+                <div className="text-[10.5px] sm:text-xs uppercase text-slate-600 font-bold mb-1.5 flex items-center justify-between gap-1 min-w-0">
                   <span className="truncate">Group B (Options)</span>
-                  <span className="text-[9.5px] sm:text-[10px] bg-teal-100 text-teal-800 px-2 py-0.5 rounded font-bold shrink-0">Core Elective</span>
+                  <span className="text-[8.5px] sm:text-[10px] bg-teal-100 text-teal-800 px-1.5 py-0.5 rounded font-bold shrink-0">Core Elective</span>
                 </div>
-                <div className="bg-white p-2.5 rounded-lg border border-slate-200/80 shadow-xs">
-                  <ul className="space-y-2">
+                <div className="bg-white p-2 sm:p-2.5 rounded-lg border border-slate-200/80 shadow-xs">
+                  <ul className="space-y-1.5 sm:space-y-2">
                     {activeTab === 'science' && ['Biology', 'Mathematics'].map(s => (
-                      <li key={s} className="text-slate-700 text-xs sm:text-sm flex items-start gap-1.5 font-medium min-w-0"><CheckCircle className="text-emerald-600 mt-0.5 flex-shrink-0" size={14} /><span className="break-words min-w-0">{s}</span></li>
+                      <li key={s} className="text-slate-700 text-[11.5px] sm:text-sm flex items-start gap-1.5 font-medium min-w-0"><CheckCircle className="text-emerald-600 mt-0.5 flex-shrink-0" size={13} /><span className="break-words min-w-0">{s}</span></li>
                     ))}
                     {activeTab === 'humanities' && ['Urdu', 'Education', 'Economics', 'History', 'Political Science', 'Mathematics'].map(s => (
-                      <li key={s} className="text-slate-700 text-xs sm:text-sm flex items-start gap-1.5 font-medium min-w-0"><CheckCircle className="text-amber-600 mt-0.5 flex-shrink-0" size={14} /><span className="break-words min-w-0">{s}</span></li>
+                      <li key={s} className="text-slate-700 text-[11.5px] sm:text-sm flex items-start gap-1.5 font-medium min-w-0"><CheckCircle className="text-amber-600 mt-0.5 flex-shrink-0" size={13} /><span className="break-words min-w-0">{s}</span></li>
                     ))}
                     {activeTab === 'secondary' && ['Urdu', 'Arabic', 'Hindi', 'Kashmiri'].map(s => (
-                      <li key={s} className="text-slate-700 text-xs sm:text-sm flex items-start gap-1.5 font-medium min-w-0"><CheckCircle className="text-indigo-600 mt-0.5 flex-shrink-0" size={14} /><span className="break-words min-w-0">{s}</span></li>
+                      <li key={s} className="text-slate-700 text-[11.5px] sm:text-sm flex items-start gap-1.5 font-medium min-w-0"><CheckCircle className="text-indigo-600 mt-0.5 flex-shrink-0" size={13} /><span className="break-words min-w-0">{s}</span></li>
                     ))}
                   </ul>
                 </div>
               </div>
 
-              <div className="p-2.5 sm:p-3 rounded-xl bg-slate-50/80 border border-slate-200/70 w-full min-w-0 overflow-hidden">
-                <div className="text-xs uppercase text-slate-600 font-bold mb-2 flex items-center justify-between gap-1 min-w-0">
+              <div className="p-2 sm:p-3 rounded-xl bg-slate-50/80 border border-slate-200/70 w-full min-w-0 overflow-hidden">
+                <div className="text-[10.5px] sm:text-xs uppercase text-slate-600 font-bold mb-1.5 flex items-center justify-between gap-1 min-w-0">
                   <span className="truncate">Group C (Options)</span>
-                  <span className="text-[9.5px] sm:text-[10px] bg-cyan-100 text-cyan-800 px-2 py-0.5 rounded font-bold shrink-0">Applied Skill</span>
+                  <span className="text-[8.5px] sm:text-[10px] bg-cyan-100 text-cyan-800 px-1.5 py-0.5 rounded font-bold shrink-0">Applied Skill</span>
                 </div>
-                <div className="bg-white p-2.5 rounded-lg border border-slate-200/80 shadow-xs">
-                  <ul className="space-y-2">
+                <div className="bg-white p-2 sm:p-2.5 rounded-lg border border-slate-200/80 shadow-xs">
+                  <ul className="space-y-1.5 sm:space-y-2">
                     {(activeTab === 'secondary' ? ['Healthcare', 'IT and ITES'] : ['Environmental Science', 'Physical Education', 'Healthcare', 'IT and ITES']).map(s => (
-                      <li key={s} className="text-slate-700 text-xs sm:text-sm flex items-start gap-1.5 font-medium min-w-0"><CheckCircle className="text-teal-600 mt-0.5 flex-shrink-0" size={14} /><span className="break-words min-w-0">{s}</span></li>
+                      <li key={s} className="text-slate-700 text-[11.5px] sm:text-sm flex items-start gap-1.5 font-medium min-w-0"><CheckCircle className="text-teal-600 mt-0.5 flex-shrink-0" size={13} /><span className="break-words min-w-0">{s}</span></li>
                     ))}
                   </ul>
                 </div>
               </div>
             </div>
 
-            <div className="mt-3.5 pt-3 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center gap-2.5 sm:gap-3 w-full min-w-0">
+            <div className="mt-3 pt-2.5 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 w-full min-w-0">
               <button
                 onClick={() => showCombinations(activeTab === 'secondary' ? 'secondary' : activeTab, activeTab === 'secondary' ? '9th & 10th' : '11th & 12th')}
-                className="w-full sm:w-fit btn-primary-custom px-4 py-2 rounded-lg font-semibold text-xs sm:text-sm shadow transition-all duration-200 flex-shrink-0 text-center justify-center flex items-center"
+                className="w-fit btn-primary-custom px-3.5 py-1.5 rounded-lg font-semibold text-[11.5px] sm:text-sm shadow transition-all duration-200 flex-shrink-0 text-center justify-center flex items-center"
               >
                 View List
               </button>
-              <div className="text-[11px] sm:text-xs text-slate-600 font-medium bg-slate-50 px-2.5 py-2 rounded-lg border border-slate-200/70 min-w-0 leading-relaxed">
+              <div className="text-[10px] sm:text-xs text-slate-600 font-medium bg-slate-50 px-2.5 py-1.5 rounded-lg border border-slate-200/70 min-w-0 leading-relaxed">
                 {activeTab === 'science' && '📌 Compulsory (3). Choose 2 more: either both from Group B, or 1 from Group B and 1 from Group C (both from Group C not allowed).'}
                 {activeTab === 'humanities' && '📌 Compulsory (1). Choose 3 from Group B and 1 from Group C.'}
                 {activeTab === 'secondary' && '📌 Students have to take a maximum of 5 subjects (some may take 6 depending on choices).'}
@@ -643,10 +643,10 @@ export default function Academics() {
         {/* Faculty & Staff Directory Section */}
         <div className="relative bg-white p-3 sm:p-6 rounded-2xl shadow-sm hover:shadow-md border border-slate-200/80 mt-6 overflow-hidden transition-all duration-300 w-full min-w-0">
           <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-teal-600 via-indigo-500 to-purple-600" />
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 gap-3 min-w-0">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-3.5 gap-2.5 min-w-0">
             <div>
-              <h2 className="text-lg sm:text-xl font-bold text-teal-800 font-heading">Our Distinguished Community</h2>
-              <p className="text-xs sm:text-sm text-slate-500 mt-0.5">Meet our dedicated teaching faculty and supportive staff.</p>
+              <h2 className="text-[15px] sm:text-xl font-bold text-teal-800 font-heading">Our Distinguished Community</h2>
+              <p className="text-[11px] sm:text-sm text-slate-500 mt-0.5">Meet our dedicated teaching faculty and supportive staff.</p>
             </div>
             {/* Filter controls */}
             <div className="flex items-center gap-1.5 overflow-x-auto pb-2 sm:pb-0 scrollbar-none w-full sm:w-auto max-w-full">
@@ -654,7 +654,7 @@ export default function Academics() {
                 <button
                   key={dept}
                   onClick={() => setSelectedDept(dept)}
-                  className={`px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap shrink-0 transition-all duration-200 ${selectedDept === dept ? 'bg-teal-800 text-white shadow-sm' : 'bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200'}`}
+                  className={`px-2.5 py-0.5 sm:px-3 sm:py-1 rounded-full text-[10.5px] sm:text-xs font-semibold whitespace-nowrap shrink-0 transition-all duration-200 ${selectedDept === dept ? 'bg-teal-800 text-white shadow-sm' : 'bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200'}`}
                 >
                   {dept}
                 </button>
@@ -665,15 +665,15 @@ export default function Academics() {
           {/* ── Teaching / Faculty ── */}
           {teachingFaculty.length > 0 && (
             <>
-              <div className="flex items-center gap-2.5 sm:gap-3 mb-2.5 min-w-0">
-                <span className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-0.5 sm:py-1 rounded-full text-[10px] sm:text-[11px] font-extrabold uppercase tracking-widest bg-blue-50 text-blue-700 border border-blue-200 shrink-0">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z" /><path d="M6 12v5c3 3 9 3 12 0v-5" /></svg>
+              <div className="flex items-center gap-2 sm:gap-3 mb-2.5 min-w-0">
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 sm:px-3 sm:py-1 rounded-full text-[9px] sm:text-[10.5px] font-bold uppercase tracking-wider bg-blue-50 text-blue-700 border border-blue-200 shrink-0">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z" /><path d="M6 12v5c3 3 9 3 12 0v-5" /></svg>
                   Teaching / Faculty
                 </span>
-                <span className="text-[11px] sm:text-xs text-slate-400 font-mono shrink-0">{teachingFaculty.length} member{teachingFaculty.length !== 1 ? 's' : ''}</span>
+                <span className="text-[10.5px] sm:text-xs text-slate-400 font-mono shrink-0">{teachingFaculty.length} member{teachingFaculty.length !== 1 ? 's' : ''}</span>
                 <div className="flex-1 h-px bg-slate-100 min-w-[20px]" />
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 mb-6 w-full min-w-0">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5 sm:gap-6 mb-6 w-full min-w-0">
                 {teachingFaculty.map((member, idx) => (
                   <div key={`${member.name}-${idx}`} className={showAllFacultyMobile ? 'w-full min-w-0' : 'ui-mobile-progressive-item w-full min-w-0'}>
                     <FacultyCard member={member} faculty={faculty} setActiveProfileMember={setActiveProfileMember} />
@@ -686,15 +686,15 @@ export default function Academics() {
           {/* ── Non-Teaching Staff ── */}
           {nonTeachingFaculty.length > 0 && (
             <>
-              <div className="flex items-center gap-2.5 sm:gap-3 mb-2.5 min-w-0">
-                <span className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-0.5 sm:py-1 rounded-full text-[10px] sm:text-[11px] font-extrabold uppercase tracking-widest bg-violet-50 text-violet-700 border border-violet-200 shrink-0">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="4" /><path d="M20 21a8 8 0 1 0-16 0" /></svg>
+              <div className="flex items-center gap-2 sm:gap-3 mb-2.5 min-w-0">
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 sm:px-3 sm:py-1 rounded-full text-[9px] sm:text-[10.5px] font-bold uppercase tracking-wider bg-violet-50 text-violet-700 border border-violet-200 shrink-0">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="4" /><path d="M20 21a8 8 0 1 0-16 0" /></svg>
                   Non-Teaching Staff
                 </span>
-                <span className="text-[11px] sm:text-xs text-slate-400 font-mono shrink-0">{nonTeachingFaculty.length} member{nonTeachingFaculty.length !== 1 ? 's' : ''}</span>
+                <span className="text-[10.5px] sm:text-xs text-slate-400 font-mono shrink-0">{nonTeachingFaculty.length} member{nonTeachingFaculty.length !== 1 ? 's' : ''}</span>
                 <div className="flex-1 h-px bg-slate-100 min-w-[20px]" />
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 w-full min-w-0">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5 sm:gap-6 w-full min-w-0">
                 {nonTeachingFaculty.map((member, idx) => (
                   <div key={`${member.name}-${idx}`} className={showAllFacultyMobile ? 'w-full min-w-0' : 'ui-mobile-progressive-item w-full min-w-0'}>
                     <FacultyCard member={member} faculty={faculty} setActiveProfileMember={setActiveProfileMember} />
