@@ -3644,163 +3644,10 @@ export default function CustomRosterDocumentBuilderView({
     );
   }
 
-  return (
-    <div className="space-y-2 animate-fadeIn text-slate-900 dark:text-slate-100">
-      
-      {/* ── SLEEK CONTROL BAR WITH EXPORT ACTIONS & DOCUMENT SETTINGS ── */}
-      <div 
-        className="px-1.5 sm:px-2 py-1 sm:py-1.5 rounded-lg sm:rounded-xl border shadow-2xs space-y-1 md:space-y-0 md:flex md:items-center md:justify-between md:gap-2 text-xs font-extrabold"
-        style={{ backgroundColor: 'var(--bg-card, #ffffff)', borderColor: 'var(--border-ui, #cbd5e1)' }}
-      >
-        {/* Left Side: Document Title & Desktop Inline Config */}
-        <div className="flex items-center gap-1.5 flex-1 min-w-0">
-          <div className="w-full md:w-auto flex-1 md:min-w-[180px] md:max-w-[320px]">
-            <input
-              type="text"
-              value={docTitle}
-              onChange={(e) => setDocTitle(e.target.value)}
-              placeholder="DOCUMENT TITLE (PRINTED ON REGISTER)"
-              className="w-full px-2 py-0.5 sm:py-1 h-7 rounded-md sm:rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-black text-[9.5px] sm:text-[10.5px] uppercase shadow-2xs text-slate-900 dark:text-slate-100"
-            />
-          </div>
-
-          {/* Desktop inline toggles (visible on md+) */}
-          <div className="hidden md:flex items-center gap-1.5 shrink-0">
-            {/* Layout Structure Toggle */}
-            <div className="inline-flex rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 p-0.5 text-[9.5px] font-black">
-              <button
-                type="button"
-                onClick={() => handleLayoutModeChange('standard')}
-                className={`px-2 py-0.5 rounded cursor-pointer transition-all flex items-center gap-1 ${
-                  layoutMode === 'standard'
-                    ? 'bg-indigo-600 text-white shadow-2xs'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                }`}
-                title="Standard multi-column cohort roster"
-              >
-                <Columns size={10} />
-                <span>Standard</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => handleLayoutModeChange('two_column_attendance')}
-                className={`px-2 py-0.5 rounded cursor-pointer transition-all flex items-center gap-1 ${
-                  layoutMode === 'two_column_attendance'
-                    ? 'bg-amber-600 text-white shadow-2xs'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                }`}
-                title="Official two-column examination daily attendance sheet"
-              >
-                <ClipboardList size={10} />
-                <span>2-Col Attendance</span>
-              </button>
-            </div>
-
-            {/* Orientation Toggle */}
-            <div className="inline-flex rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 p-0.5 text-[9.5px] font-black">
-              <button
-                type="button"
-                onClick={() => setOrientation('portrait')}
-                className={`px-2 py-0.5 rounded cursor-pointer transition-all ${
-                  orientation === 'portrait'
-                    ? 'bg-indigo-600 text-white shadow-2xs'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                }`}
-              >
-                Portrait
-              </button>
-              <button
-                type="button"
-                onClick={() => setOrientation('landscape')}
-                className={`px-2 py-0.5 rounded cursor-pointer transition-all ${
-                  orientation === 'landscape'
-                    ? 'bg-indigo-600 text-white shadow-2xs'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                }`}
-              >
-                Landscape
-              </button>
-            </div>
-
-            {/* Row Height Preset */}
-            <select
-              value={selectedRowHeightIdx}
-              onChange={(e) => setSelectedRowHeightIdx(Number(e.target.value))}
-              className="px-2 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-extrabold text-[10px] text-slate-800 dark:text-slate-200"
-            >
-              {ROW_HEIGHT_PRESETS.map((p, idx) => (
-                <option key={p.label} value={idx}>
-                  {p.label}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        {/* Right Side: Actions (On mobile, includes Filters Modal + Layout Popover + Export Dropdown + Print) */}
-        <div className="flex items-center justify-between md:justify-end gap-1.5 shrink-0">
-          {/* Mobile Filters & Columns Modal Trigger (visible on < lg) */}
-          <div className="lg:hidden">
-            <button
-              type="button"
-              onClick={() => setShowMobileOptionsModal(true)}
-              className="px-2 sm:px-2.5 py-0.5 sm:py-1 h-7 rounded-md sm:rounded-lg border border-amber-400 dark:border-amber-600 bg-amber-50 dark:bg-amber-950/70 text-amber-950 dark:text-amber-200 font-extrabold text-[9.5px] sm:text-[10.5px] flex items-center gap-1 shadow-2xs active:scale-95 cursor-pointer shrink-0"
-              title="Configure Student Cohort Filters & Register Columns"
-            >
-              <Sliders size={11} className="text-amber-600 dark:text-amber-400 shrink-0" />
-              <span>Filters & Cols</span>
-              <span className="px-1 py-0.2 rounded-full text-[8px] bg-amber-200 dark:bg-amber-800 text-amber-950 dark:text-amber-100 font-black">
-                {filteredStudents.length}
-              </span>
-            </button>
-          </div>
-
-          {/* Mobile Layout & Page Setup Popover (visible on < md) */}
-          <div className="md:hidden">
-            <RosterPageSetupDropdown
-              layoutMode={layoutMode}
-              onLayoutModeChange={handleLayoutModeChange}
-              orientation={orientation}
-              onOrientationChange={setOrientation}
-              selectedRowHeightIdx={selectedRowHeightIdx}
-              onRowHeightChange={setSelectedRowHeightIdx}
-              rowHeightPresets={ROW_HEIGHT_PRESETS}
-            />
-          </div>
-
-          <div className="flex items-center gap-1.5 ml-auto md:ml-0">
-            {/* Unified Export Dropdown (Excel & Word) */}
-            <RosterExportDropdown
-              onExportExcel={handleExportExcel}
-              onExportDocx={handleExportDocx}
-              disabled={processedRows.length === 0}
-              isExporting={isExporting}
-            />
-
-            {/* Primary Print / PDF Button */}
-            <button
-              type="button"
-              onClick={handlePrint}
-              disabled={processedRows.length === 0}
-              className="px-2 sm:px-3 py-0.5 sm:py-1 h-7 rounded-md sm:rounded-lg bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white font-black text-[9.5px] sm:text-[10.5px] flex items-center gap-1 shadow-md cursor-pointer disabled:opacity-50 transition-all active:scale-95 shrink-0"
-              title="Print Official Institutional Register / Save PDF"
-            >
-              <Printer size={11} className="shrink-0" />
-              <span>Print / PDF</span>
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* ── 2-COLUMN DRAG-RESIZABLE SPLIT-SCREEN LAYOUT ── */}
-      <div className="split-pane-container flex flex-col lg:flex-row gap-0 items-start w-full relative">
-        
-        {/* ════════ LEFT HALF: COMPACT UNIFIED CONTROL PALETTE ════════ */}
-        <div
-          style={{ width: isDesktop ? `${leftSplitPct}%` : '100%' }}
-          className="w-full lg:w-auto shrink-0 bg-white dark:bg-slate-900 rounded-lg sm:rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs p-1.5 sm:p-2.5 space-y-1 sm:space-y-2 text-xs overflow-visible"
-        >
-          {/* COHORT & DEMOGRAPHIC FILTERS */}
+  // ─── Unified Roster Control Palette (Cohort Filters, Custom Tags & Matrix) ───
+  const renderRosterControlPalette = () => (
+    <div className="space-y-2 text-xs">
+      {/* COHORT & DEMOGRAPHIC FILTERS */}
           <div className="space-y-1 pb-1 sm:pb-1.5 border-b border-slate-200 dark:border-slate-800">
             <div className="flex items-center justify-between text-[9px] uppercase font-black tracking-wider text-slate-500 py-0.5">
               <button
@@ -4248,10 +4095,224 @@ export default function CustomRosterDocumentBuilderView({
             </div>
           )}
         </div>
+    </div>
+  );
+
+    return (
+    <div className="space-y-2 animate-fadeIn text-slate-900 dark:text-slate-100">
+      
+      {/* ── SLEEK CONTROL BAR WITH EXPORT ACTIONS & DOCUMENT SETTINGS ── */}
+      <div 
+        className="px-1.5 sm:px-2 py-1 sm:py-1.5 rounded-lg sm:rounded-xl border shadow-2xs space-y-1 md:space-y-0 md:flex md:items-center md:justify-between md:gap-2 text-xs font-extrabold"
+        style={{ backgroundColor: 'var(--bg-card, #ffffff)', borderColor: 'var(--border-ui, #cbd5e1)' }}
+      >
+        {/* Left Side: Document Title & Desktop Inline Config */}
+        <div className="flex items-center gap-1.5 flex-1 min-w-0">
+          <div className="w-full md:w-auto flex-1 md:min-w-[180px] md:max-w-[320px]">
+            <input
+              type="text"
+              value={docTitle}
+              onChange={(e) => setDocTitle(e.target.value)}
+              placeholder="DOCUMENT TITLE (PRINTED ON REGISTER)"
+              className="w-full px-2 py-0.5 sm:py-1 h-7 rounded-md sm:rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-black text-[9.5px] sm:text-[10.5px] uppercase shadow-2xs text-slate-900 dark:text-slate-100"
+            />
+          </div>
+
+          {/* Desktop inline toggles (visible on md+) */}
+          <div className="hidden md:flex items-center gap-1.5 shrink-0">
+            {/* Layout Structure Toggle */}
+            <div className="inline-flex rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 p-0.5 text-[9.5px] font-black">
+              <button
+                type="button"
+                onClick={() => handleLayoutModeChange('standard')}
+                className={`px-2 py-0.5 rounded cursor-pointer transition-all flex items-center gap-1 ${
+                  layoutMode === 'standard'
+                    ? 'bg-indigo-600 text-white shadow-2xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+                title="Standard multi-column cohort roster"
+              >
+                <Columns size={10} />
+                <span>Standard</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleLayoutModeChange('two_column_attendance')}
+                className={`px-2 py-0.5 rounded cursor-pointer transition-all flex items-center gap-1 ${
+                  layoutMode === 'two_column_attendance'
+                    ? 'bg-amber-600 text-white shadow-2xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+                title="Official two-column examination daily attendance sheet"
+              >
+                <ClipboardList size={10} />
+                <span>2-Col Attendance</span>
+              </button>
+            </div>
+
+            {/* Orientation Toggle */}
+            <div className="inline-flex rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 p-0.5 text-[9.5px] font-black">
+              <button
+                type="button"
+                onClick={() => setOrientation('portrait')}
+                className={`px-2 py-0.5 rounded cursor-pointer transition-all ${
+                  orientation === 'portrait'
+                    ? 'bg-indigo-600 text-white shadow-2xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                Portrait
+              </button>
+              <button
+                type="button"
+                onClick={() => setOrientation('landscape')}
+                className={`px-2 py-0.5 rounded cursor-pointer transition-all ${
+                  orientation === 'landscape'
+                    ? 'bg-indigo-600 text-white shadow-2xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                Landscape
+              </button>
+            </div>
+
+            {/* Row Height Preset */}
+            <select
+              value={selectedRowHeightIdx}
+              onChange={(e) => setSelectedRowHeightIdx(Number(e.target.value))}
+              className="px-2 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-extrabold text-[10px] text-slate-800 dark:text-slate-200"
+            >
+              {ROW_HEIGHT_PRESETS.map((p, idx) => (
+                <option key={p.label} value={idx}>
+                  {p.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {/* Right Side: Actions (On mobile, includes Filters Modal + Layout Popover + Export Dropdown + Print) */}
+        <div className="flex items-center justify-between md:justify-end gap-1.5 shrink-0">
+          {/* Mobile Filters & Columns Modal Trigger (visible on < lg) */}
+          <div className="lg:hidden">
+            <button
+              type="button"
+              onClick={() => setShowMobileOptionsModal(true)}
+              className="px-2 sm:px-2.5 py-0.5 sm:py-1 h-7 rounded-md sm:rounded-lg border border-amber-400 dark:border-amber-600 bg-amber-50 dark:bg-amber-950/70 text-amber-950 dark:text-amber-200 font-extrabold text-[9.5px] sm:text-[10.5px] flex items-center gap-1 shadow-2xs active:scale-95 cursor-pointer shrink-0"
+              title="Configure Student Cohort Filters & Register Columns"
+            >
+              <Sliders size={11} className="text-amber-600 dark:text-amber-400 shrink-0" />
+              <span>Filters & Cols</span>
+              <span className="px-1 py-0.2 rounded-full text-[8px] bg-amber-200 dark:bg-amber-800 text-amber-950 dark:text-amber-100 font-black">
+                {filteredStudents.length}
+              </span>
+            </button>
+          </div>
+
+          {/* Mobile Layout & Page Setup Popover (visible on < md) */}
+          <div className="md:hidden">
+            <RosterPageSetupDropdown
+              layoutMode={layoutMode}
+              onLayoutModeChange={handleLayoutModeChange}
+              orientation={orientation}
+              onOrientationChange={setOrientation}
+              selectedRowHeightIdx={selectedRowHeightIdx}
+              onRowHeightChange={setSelectedRowHeightIdx}
+              rowHeightPresets={ROW_HEIGHT_PRESETS}
+            />
+          </div>
+
+          <div className="flex items-center gap-1.5 ml-auto md:ml-0">
+            {/* Unified Export Dropdown (Excel & Word) */}
+            <RosterExportDropdown
+              onExportExcel={handleExportExcel}
+              onExportDocx={handleExportDocx}
+              disabled={processedRows.length === 0}
+              isExporting={isExporting}
+            />
+
+            {/* Primary Print / PDF Button */}
+            <button
+              type="button"
+              onClick={handlePrint}
+              disabled={processedRows.length === 0}
+              className="px-2 sm:px-3 py-0.5 sm:py-1 h-7 rounded-md sm:rounded-lg bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white font-black text-[9.5px] sm:text-[10.5px] flex items-center gap-1 shadow-md cursor-pointer disabled:opacity-50 transition-all active:scale-95 shrink-0"
+              title="Print Official Institutional Register / Save PDF"
+            >
+              <Printer size={11} className="shrink-0" />
+              <span>Print / PDF</span>
+            </button>
+          </div>
+        </div>
       </div>
 
+      {/* ── 2-COLUMN DRAG-RESIZABLE SPLIT-SCREEN LAYOUT ── */}
+      <div className="split-pane-container flex flex-col lg:flex-row gap-0 items-start w-full relative">
+        
+{/* ════════ LEFT HALF: COMPACT UNIFIED CONTROL PALETTE (DESKTOP) ════════ */}
+        {isDesktop && (
+          <div
+            style={{ width: `${leftSplitPct}%` }}
+            className="w-full lg:w-auto shrink-0 bg-white dark:bg-slate-900 rounded-lg sm:rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs p-1.5 sm:p-2.5 space-y-2 text-xs overflow-visible lg:overflow-hidden flex flex-col min-h-0 lg:min-h-[620px] lg:max-h-[calc(100dvh-95px)]"
+          >
+            {renderRosterControlPalette()}
+          </div>
+        )}
+
+        {/* ════════ MOBILE POPUP MODAL: FILTERS, COLUMNS & TAGS ════════ */}
+        {!isDesktop && showMobileOptionsModal && createPortal(
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center p-2 sm:p-4 bg-slate-950/70 backdrop-blur-xs animate-fadeIn">
+            <div className="absolute inset-0" onClick={() => setShowMobileOptionsModal(false)} />
+            <div
+              role="dialog"
+              aria-modal="true"
+              className="relative w-full max-w-xl max-h-[92dvh] flex flex-col bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden z-10 animate-scaleUp"
+            >
+              {/* Modal Header */}
+              <div className="flex items-center justify-between px-3.5 py-2.5 border-b border-slate-200 dark:border-slate-800 bg-slate-50/90 dark:bg-slate-800/90 shrink-0">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <Sliders size={14} className="text-amber-600 dark:text-amber-400 shrink-0" />
+                  <h3 className="font-black text-xs text-slate-900 dark:text-white uppercase tracking-wider truncate">
+                    Roster Filters, Columns & Options
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowMobileOptionsModal(false)}
+                  className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors cursor-pointer"
+                  aria-label="Close modal"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+
+              {/* Modal Scrollable Body */}
+              <div className="overflow-y-auto p-3 space-y-3 flex-1 overscroll-contain">
+                {renderRosterControlPalette()}
+              </div>
+
+              {/* Sticky Done Footer */}
+              <div className="p-2.5 border-t border-slate-200 dark:border-slate-800 bg-slate-50/90 dark:bg-slate-900 shrink-0 flex items-center justify-between gap-2">
+                <div className="text-[10px] font-bold text-slate-500 truncate">
+                  {filteredStudents.length} Students • {activeTableColumns.length} Columns
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowMobileOptionsModal(false)}
+                  className="px-4 py-1.5 rounded-xl bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 text-white font-black text-xs shadow-md cursor-pointer flex items-center gap-1.5 active:scale-95 transition-all shrink-0"
+                >
+                  <Check size={13} />
+                  <span>Done & View Document</span>
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
+
         {/* ── DRAGGABLE VERTICAL SPLITTER HANDLE ── */}
-        <div
+        {isDesktop && (
+          <div
           onMouseDown={handleSplitterMouseDown}
           title="Drag horizontally to adjust split width (Double-click to reset)"
           onDoubleClick={() => {
@@ -4262,8 +4323,9 @@ export default function CustomRosterDocumentBuilderView({
         >
           <div className={`w-1 rounded-full transition-all group-hover:w-1.5 group-hover:bg-indigo-600 ${isDraggingSplitter ? 'bg-indigo-600 w-1.5 h-full shadow-md' : 'bg-slate-300 dark:bg-slate-700 h-24'}`} />
         </div>
+        )}
 
-        {/* ════════ RIGHT HALF: STICKY LIVE DOCUMENT PREVIEW ════════ */}
+                {/* ════════ RIGHT HALF: STICKY LIVE DOCUMENT PREVIEW ════════ */}
         <div
           style={{ width: isDesktop ? `${100 - leftSplitPct}%` : '100%' }}
           className="w-full lg:flex-1 sticky top-3 self-start pl-0 lg:pl-1 min-w-0"
