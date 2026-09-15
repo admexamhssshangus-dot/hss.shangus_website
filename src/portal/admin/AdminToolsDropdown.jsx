@@ -367,53 +367,53 @@ export default function AdminToolsDropdown({
         onClick={item.onClick}
         aria-current={isActive ? 'page' : undefined}
         title={item.maturityNote || item.desc}
-        className={`w-full text-left p-1.5 sm:p-2.5 rounded-lg sm:rounded-xl flex items-center justify-between gap-2 sm:gap-3 transition-all cursor-pointer group ${
+        className={`w-full text-left p-1 sm:p-2.5 rounded-lg sm:rounded-xl flex items-center justify-between gap-1.5 sm:gap-3 transition-all cursor-pointer group ${
           isActive
             ? 'bg-teal-50/70 dark:bg-teal-950/40 text-teal-950 dark:text-teal-100 border border-teal-500/80 shadow-xs ring-1 ring-teal-500/20'
             : 'bg-white dark:bg-slate-900/90 hover:bg-slate-50 dark:hover:bg-slate-850 text-slate-800 dark:text-slate-200 border border-slate-200/80 dark:border-slate-800 hover:border-teal-300/80 dark:hover:border-teal-700/80 hover:shadow-xs'
         }`}
       >
-        <div className="flex items-center gap-2 sm:gap-2.5 min-w-0 flex-1">
+        <div className="flex items-center gap-1.5 sm:gap-2.5 min-w-0 flex-1">
           <div
-            className={`w-6.5 h-6.5 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl flex items-center justify-center shrink-0 transition-colors ${
+            className={`w-5.5 h-5.5 sm:w-8 sm:h-8 rounded-md sm:rounded-xl flex items-center justify-center shrink-0 transition-colors ${
               isActive
                 ? 'bg-teal-600 text-white shadow-xs'
                 : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 group-hover:bg-teal-500/10 group-hover:text-teal-600 dark:group-hover:text-teal-400'
             }`}
           >
-            <Icon size={13} className="sm:hidden" />
+            <Icon size={11} className="sm:hidden" />
             <Icon size={15} className="hidden sm:block" />
           </div>
           <div className="min-w-0 flex-1">
-            <div className="flex min-w-0 items-center gap-1.5">
-              <span className="min-w-0 truncate font-semibold text-[11px] sm:text-xs text-slate-900 dark:text-white group-hover:text-teal-950 dark:group-hover:text-teal-100 transition-colors">
+            <div className="flex min-w-0 items-center gap-1">
+              <span className="min-w-0 truncate font-bold text-[10px] sm:text-xs text-slate-900 dark:text-white group-hover:text-teal-950 dark:group-hover:text-teal-100 transition-colors">
                 {item.label}
               </span>
               {isBeta && (
-                <span className="shrink-0 rounded px-1 py-0.2 text-[7.5px] sm:text-[8px] font-bold border border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/70 dark:text-amber-300 leading-none tracking-wide">
+                <span className="shrink-0 rounded px-1 py-0.2 text-[7px] sm:text-[8px] font-bold border border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/70 dark:text-amber-300 leading-none tracking-wide">
                   Beta
                 </span>
               )}
               {searchQuery && (
-                <span className="text-[8px] sm:text-[9px] px-1.5 py-0.2 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 shrink-0">
+                <span className="text-[7.5px] sm:text-[9px] px-1 py-0.2 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 shrink-0">
                   {item.category}
                 </span>
               )}
             </div>
-            <div className="text-[9px] sm:text-[10.5px] text-slate-500 dark:text-slate-400 line-clamp-1 mt-0.5">
+            <div className="text-[8px] sm:text-[10.5px] text-slate-500 dark:text-slate-400 line-clamp-1 mt-0.2 leading-tight">
               {item.desc}
             </div>
           </div>
         </div>
 
         {isActive ? (
-          <span className="shrink-0 flex items-center gap-1 text-[8px] sm:text-[9px] uppercase tracking-wider text-teal-700 dark:text-teal-300 font-black px-1.5 sm:px-2 py-0.5 rounded-full bg-teal-100/80 dark:bg-teal-900/60 border border-teal-200 dark:border-teal-800">
-            <Check size={10} strokeWidth={3} />
+          <span className="shrink-0 flex items-center gap-0.5 text-[7.5px] sm:text-[9px] uppercase tracking-wider text-teal-700 dark:text-teal-300 font-black px-1 sm:px-2 py-0.5 rounded-full bg-teal-100/80 dark:bg-teal-900/60 border border-teal-200 dark:border-teal-800">
+            <Check size={9} strokeWidth={3} />
             <span className="hidden sm:inline">Active</span>
           </span>
         ) : (
           <ChevronRight
-            size={12}
+            size={11}
             className="sm:hidden text-slate-300 dark:text-slate-600 group-hover:text-teal-600 dark:group-hover:text-teal-400 group-hover:translate-x-0.5 transition-transform shrink-0"
           />
         )}
