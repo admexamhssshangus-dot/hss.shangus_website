@@ -920,14 +920,14 @@ export default function LoginPage() {
         {/* RIGHT COLUMN: MAIN LOGIN GLASS CARD (Fully Responsive 100% width on mobile, 6-col on lg) */}
         <div className="lg:col-span-6 w-full max-w-[440px] mx-auto lg:max-w-none">
           
-          <div className={`rounded-3xl p-5 sm:p-8 border shadow-2xl transition-all duration-300 relative overflow-hidden bg-white/90 dark:bg-slate-900/90 backdrop-blur-2xl ${
+          <div className={`rounded-2xl sm:rounded-3xl p-4 xs:p-5 sm:p-8 border shadow-xl sm:shadow-2xl transition-all duration-300 relative overflow-hidden bg-white/95 dark:bg-slate-900/95 backdrop-blur-2xl ${
             isSuperAdmin ? 'border-purple-500/30 shadow-purple-500/10' : 'border-slate-200/80 dark:border-slate-800/80 shadow-teal-500/5'
           }`}>
 
             {/* Loading blur overlay */}
             {isLoading && (
               <div 
-                className="absolute inset-0 z-50 rounded-3xl flex flex-col items-center justify-center p-4 animate-fadeIn"
+                className="absolute inset-0 z-50 rounded-2xl sm:rounded-3xl flex flex-col items-center justify-center p-4 animate-fadeIn"
                 style={{ backgroundColor: 'rgba(255,255,255,0.88)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)' }}
               >
                 <ModernLoader
@@ -940,19 +940,19 @@ export default function LoginPage() {
             )}
 
             {/* Card Header: School Crest + Title + SuperAdmin Toggle */}
-            <div className="relative z-10 space-y-3 mb-5">
+            <div className="relative z-10 space-y-2 sm:space-y-3 mb-3.5 sm:mb-5">
               
               {/* Crest Logo */}
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-11 h-11 rounded-2xl bg-teal-500/10 border border-teal-500/20 flex items-center justify-center p-1.5 shadow-xs">
+                <div className="flex items-center gap-2 sm:gap-2.5">
+                  <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-xl sm:rounded-2xl bg-teal-500/10 border border-teal-500/20 flex items-center justify-center p-1 sm:p-1.5 shadow-2xs">
                     <img src="/logo512.png" alt="HSS Shangus Crest" className="w-full h-full object-contain" />
                   </div>
                   <div>
-                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block">
+                    <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-wider text-slate-400 block leading-tight">
                       HSS Shangus Portal
                     </span>
-                    <h1 className="text-base sm:text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">
+                    <h1 className="text-sm sm:text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight leading-tight">
                       Sign In
                     </h1>
                   </div>
@@ -973,14 +973,14 @@ export default function LoginPage() {
               </div>
 
               {isSuperAdmin && (
-                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-black bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20 w-full justify-center">
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 sm:px-3 sm:py-1 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-black bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20 w-full justify-center">
                   <ShieldCheck size={13} /> SuperAdmin Access Mode Active
                 </div>
               )}
             </div>
 
             {/* Segmented Control Role Selector Tabs */}
-            <div className="grid grid-cols-3 p-1 rounded-2xl border text-xs font-black relative z-10 bg-slate-100/90 dark:bg-slate-950/90 border-slate-200 dark:border-slate-800 mb-3">
+            <div className="grid grid-cols-3 p-1 rounded-xl sm:rounded-2xl border text-[11px] sm:text-xs font-black relative z-10 bg-slate-100/90 dark:bg-slate-950/90 border-slate-200 dark:border-slate-800 mb-2.5 sm:mb-3">
               <button
                 type="button"
                 onClick={() => {
@@ -988,14 +988,14 @@ export default function LoginPage() {
                   setSelectedRole('student');
                   setCaptchaToken(null);
                 }}
-                className={`py-2.5 sm:py-2 rounded-xl flex items-center justify-center gap-1.5 transition-all duration-200 cursor-pointer ${
+                className={`py-1.5 sm:py-2 px-1 rounded-lg sm:rounded-xl flex items-center justify-center gap-1 sm:gap-1.5 transition-all duration-200 cursor-pointer ${
                   selectedRole === 'student'
-                    ? 'bg-teal-600 text-white shadow-md font-black scale-[1.02]'
+                    ? 'bg-teal-600 text-white shadow-md font-black scale-[1.01]'
                     : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white font-extrabold'
                 }`}
               >
-                <GraduationCap size={15} /> 
-                <span className="truncate">Student</span>
+                <GraduationCap size={13} className="sm:w-3.5 sm:h-3.5 shrink-0" /> 
+                <span className="truncate text-[11px] sm:text-xs">Student</span>
               </button>
 
               <button
@@ -1005,14 +1005,14 @@ export default function LoginPage() {
                   setSelectedRole('teacher');
                   setCaptchaToken(null);
                 }}
-                className={`py-2.5 sm:py-2 rounded-xl flex items-center justify-center gap-1.5 transition-all duration-200 cursor-pointer ${
+                className={`py-1.5 sm:py-2 px-1 rounded-lg sm:rounded-xl flex items-center justify-center gap-1 sm:gap-1.5 transition-all duration-200 cursor-pointer ${
                   selectedRole === 'teacher'
-                    ? 'bg-emerald-600 text-white shadow-md font-black scale-[1.02]'
+                    ? 'bg-emerald-600 text-white shadow-md font-black scale-[1.01]'
                     : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white font-extrabold'
                 }`}
               >
-                <UserCheck size={15} /> 
-                <span className="truncate">Teacher</span>
+                <UserCheck size={13} className="sm:w-3.5 sm:h-3.5 shrink-0" /> 
+                <span className="truncate text-[11px] sm:text-xs">Teacher</span>
               </button>
 
               <button
@@ -1021,14 +1021,14 @@ export default function LoginPage() {
                   setSelectedRole(isSuperAdmin ? 'superadmin' : 'admin');
                   setCaptchaToken(null);
                 }}
-                className={`py-2.5 sm:py-2 rounded-xl flex items-center justify-center gap-1.5 transition-all duration-200 cursor-pointer ${
+                className={`py-1.5 sm:py-2 px-1 rounded-lg sm:rounded-xl flex items-center justify-center gap-1 sm:gap-1.5 transition-all duration-200 cursor-pointer ${
                   selectedRole === 'admin' || isSuperAdmin
-                    ? 'bg-purple-600 text-white shadow-md font-black scale-[1.02]'
+                    ? 'bg-purple-600 text-white shadow-md font-black scale-[1.01]'
                     : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white font-extrabold'
                 }`}
               >
-                <Lock size={15} /> 
-                <span className="truncate">Admin</span>
+                <Lock size={13} className="sm:w-3.5 sm:h-3.5 shrink-0" /> 
+                <span className="truncate text-[11px] sm:text-xs">Admin</span>
               </button>
             </div>
 
@@ -1223,15 +1223,15 @@ export default function LoginPage() {
             ) : (
               <>
                 {/* == == == == == == == == MAIN LOGIN FORM == == == == == == == == */}
-                <form onSubmit={handleSubmit} className="space-y-4 relative z-10">
+                <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-4 relative z-10">
                 
                 {/* Email Input */}
-                <div className="space-y-1.5 text-left">
-                  <label htmlFor="login-email" className="block text-xs font-bold text-slate-700 dark:text-slate-200 tracking-tight">
+                <div className="space-y-1 sm:space-y-1.5 text-left">
+                  <label htmlFor="login-email" className="block text-[11px] sm:text-xs font-bold text-slate-700 dark:text-slate-200 tracking-tight">
                     Email Address <span className="text-rose-500 font-bold">*</span>
                   </label>
                   <div className="relative group">
-                    <Mail size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-teal-600 dark:group-focus-within:text-teal-400 transition-colors pointer-events-none" />
+                    <Mail size={14} className="sm:w-4 sm:h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-teal-600 dark:group-focus-within:text-teal-400 transition-colors pointer-events-none" />
                     <input
                       id="login-email"
                       type="email"
@@ -1239,18 +1239,18 @@ export default function LoginPage() {
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       required
-                      className="w-full pl-10 pr-3.5 py-2.5 rounded-xl text-[13.5px] font-medium border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 shadow-2xs hover:border-slate-300 dark:hover:border-slate-600 focus:outline-none focus:border-teal-600 dark:focus:border-teal-500 focus:ring-3 focus:ring-teal-500/15 dark:focus:ring-teal-500/25 transition-all duration-150"
+                      className="w-full pl-9 sm:pl-10 pr-3 sm:pr-3.5 py-2 sm:py-2.5 rounded-lg sm:rounded-xl text-xs sm:text-[13.5px] font-medium border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 shadow-2xs hover:border-slate-300 dark:hover:border-slate-600 focus:outline-none focus:border-teal-600 dark:focus:border-teal-500 focus:ring-2 sm:focus:ring-3 focus:ring-teal-500/15 dark:focus:ring-teal-500/25 transition-all duration-150"
                     />
                   </div>
                 </div>
 
                 {/* Password Input */}
-                <div className="space-y-1.5 text-left">
-                  <label htmlFor="login-password" className="block text-xs font-bold text-slate-700 dark:text-slate-200 tracking-tight">
+                <div className="space-y-1 sm:space-y-1.5 text-left">
+                  <label htmlFor="login-password" className="block text-[11px] sm:text-xs font-bold text-slate-700 dark:text-slate-200 tracking-tight">
                     Password <span className="text-rose-500 font-bold">*</span>
                   </label>
                   <div className="relative group">
-                    <KeyRound size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-teal-600 dark:group-focus-within:text-teal-400 transition-colors pointer-events-none" />
+                    <KeyRound size={14} className="sm:w-4 sm:h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-teal-600 dark:group-focus-within:text-teal-400 transition-colors pointer-events-none" />
                     <input
                       id="login-password"
                       type={showPassword ? 'text' : 'password'}
@@ -1258,27 +1258,27 @@ export default function LoginPage() {
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       required
-                      className="w-full pl-10 pr-10 py-2.5 rounded-xl text-[13.5px] font-medium border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 shadow-2xs hover:border-slate-300 dark:hover:border-slate-600 focus:outline-none focus:border-teal-600 dark:focus:border-teal-500 focus:ring-3 focus:ring-teal-500/15 dark:focus:ring-teal-500/25 transition-all duration-150"
+                      className="w-full pl-9 sm:pl-10 pr-9 sm:pr-10 py-2 sm:py-2.5 rounded-lg sm:rounded-xl text-xs sm:text-[13.5px] font-medium border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 shadow-2xs hover:border-slate-300 dark:hover:border-slate-600 focus:outline-none focus:border-teal-600 dark:focus:border-teal-500 focus:ring-2 sm:focus:ring-3 focus:ring-teal-500/15 dark:focus:ring-teal-500/25 transition-all duration-150"
                     />
                     <button
                       type="button"
                       aria-label={showPassword ? 'Hide password' : 'Show password'}
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-all"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer p-1 sm:p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-all"
                     >
-                      {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                      {showPassword ? <EyeOff size={13} className="sm:w-3.5 sm:h-3.5" /> : <Eye size={13} className="sm:w-3.5 sm:h-3.5" />}
                     </button>
                   </div>
                 </div>
 
                 {/* Options Row: Keep Logged In + Forgot Password */}
-                <div className="flex items-center justify-between text-xs font-bold pt-0.5">
-                  <label className="flex items-center gap-2 cursor-pointer text-slate-600 dark:text-slate-400 select-none">
+                <div className="flex items-center justify-between text-[11px] sm:text-xs font-bold pt-0">
+                  <label className="flex items-center gap-1.5 sm:gap-2 cursor-pointer text-slate-600 dark:text-slate-400 select-none">
                     <input
                       type="checkbox"
                       checked={keepLoggedIn}
                       onChange={(e) => setKeepLoggedIn(e.target.checked)}
-                      className="rounded-md border-slate-300 text-teal-600 focus:ring-teal-500 cursor-pointer w-4 h-4"
+                      className="rounded border-slate-300 text-teal-600 focus:ring-teal-500 cursor-pointer w-3.5 h-3.5 sm:w-4 sm:h-4"
                     />
                     <span>Keep me logged in</span>
                   </label>
@@ -1299,7 +1299,7 @@ export default function LoginPage() {
                 <button
                   type="submit"
                   disabled={isLoading}
-                  className={`w-full py-3 rounded-xl font-bold text-sm text-white shadow-md transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 active:scale-[0.99] mt-2 ${
+                  className={`w-full py-2.5 sm:py-3 rounded-lg sm:rounded-xl font-bold text-xs sm:text-sm text-white shadow-md transition-all duration-200 flex items-center justify-center gap-1.5 sm:gap-2 cursor-pointer disabled:opacity-50 active:scale-[0.99] mt-1 sm:mt-2 ${
                     isSuperAdmin
                       ? 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 shadow-purple-600/25'
                       : selectedRole === 'teacher'
@@ -1308,25 +1308,25 @@ export default function LoginPage() {
                   }`}
                 >
                   {isLoading ? (
-                    <RefreshCw size={16} className="animate-spin" />
+                    <RefreshCw size={14} className="sm:w-4 sm:h-4 animate-spin" />
                   ) : (
                     <>
                       <span>{isSuperAdmin ? 'Sign In as SUPERADMIN' : `Sign In as ${selectedRole.toUpperCase()}`}</span>
-                      <ArrowRight size={16} />
+                      <ArrowRight size={14} className="sm:w-4 sm:h-4" />
                     </>
                   )}
                 </button>
               </form>
 
               {/* Social Google OAuth Button */}
-              <div className="relative z-10 pt-3">
+              <div className="relative z-10 pt-2 sm:pt-3">
                 <button
                   type="button"
                   onClick={handleGoogleSignIn}
                   disabled={isLoading}
-                  className="w-full py-2.5 rounded-xl font-semibold text-sm border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/80 hover:border-slate-300 dark:hover:border-slate-600 shadow-2xs hover:shadow-xs transition-all flex items-center justify-center gap-2.5 cursor-pointer"
+                  className="w-full py-2 sm:py-2.5 rounded-lg sm:rounded-xl font-semibold text-xs sm:text-sm border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/80 hover:border-slate-300 dark:hover:border-slate-600 shadow-2xs hover:shadow-xs transition-all flex items-center justify-center gap-2 sm:gap-2.5 cursor-pointer"
                 >
-                  <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24">
+                  <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" viewBox="0 0 24 24">
                     <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
                     <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
                     <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
@@ -1337,10 +1337,10 @@ export default function LoginPage() {
               </div>
 
               {/* Registration Footer Link */}
-              <div className="text-center text-xs relative z-10 pt-3 border-t border-slate-100 dark:border-slate-800 mt-3">
+              <div className="text-center text-[11px] sm:text-xs relative z-10 pt-2.5 sm:pt-3 border-t border-slate-100 dark:border-slate-800 mt-2.5 sm:mt-3">
                 <span className="text-slate-500 font-medium">Don't have an account? </span>
                 <Link to="/portal/register" className="text-teal-600 dark:text-teal-400 font-bold hover:underline inline-flex items-center gap-1">
-                  Create New Account <ChevronRight size={13} />
+                  Create New Account <ChevronRight size={12} className="sm:w-3.5 sm:h-3.5" />
                 </Link>
               </div>
             </>
