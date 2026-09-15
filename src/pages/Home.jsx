@@ -555,48 +555,48 @@ export default function Home() {
         <div className="col-span-1 lg:col-span-4 xl:col-span-4 flex flex-col">
           <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-md hover:shadow-xl border border-slate-200/90 dark:border-slate-800 overflow-hidden flex flex-col h-full transition-all duration-300">
             {/* Header */}
-            <div className="bg-gradient-to-r from-teal-800 via-teal-900 to-slate-900 text-white px-3.5 sm:px-5 py-3 sm:py-4 flex items-center justify-between border-b border-teal-700/50">
+            <div className="bg-gradient-to-r from-teal-800 via-teal-900 to-slate-900 text-white px-3 sm:px-4 py-2 sm:py-2.5 flex items-center justify-between border-b border-teal-700/50">
               <div className="flex items-center gap-2">
-                <span className="relative flex h-2.5 w-2.5">
+                <span className="relative flex h-2 w-2">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-teal-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-teal-400"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-teal-400"></span>
                 </span>
-                <h2 className="font-bold text-base sm:text-lg font-heading tracking-wide flex items-center gap-2">
-                  <Megaphone size={18} className="text-teal-300 flex-shrink-0" />
+                <h2 className="font-bold text-sm sm:text-base font-heading tracking-wide flex items-center gap-1.5">
+                  <Megaphone size={16} className="text-teal-300 flex-shrink-0" />
                   <span>Latest Notices</span>
                 </h2>
               </div>
-              <span className="text-[10px] sm:text-[11px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full bg-teal-700/60 border border-teal-500/30 text-teal-100">
+              <span className="text-[9px] sm:text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full bg-teal-700/60 border border-teal-500/30 text-teal-100">
                 {notices.length} Updates
               </span>
             </div>
 
-            {/* List */}
-            <div className="flex-1 min-h-[260px] max-h-[360px] lg:max-h-[380px] overflow-y-auto custom-scrollbar px-2.5 sm:px-4 py-1.5 divide-y divide-slate-100 dark:divide-slate-800/80">
-              <ul className="space-y-0.5">
+            {/* List - Vertically compact to fit more items */}
+            <div className="flex-1 min-h-[260px] max-h-[380px] sm:max-h-[420px] lg:max-h-[440px] overflow-y-auto custom-scrollbar px-1.5 sm:px-3 py-1 divide-y divide-slate-100 dark:divide-slate-800/70">
+              <ul className="space-y-0">
                 {notices.map((n, idx) => {
                   const isNew = isNoticeNew(n.date, n.days, settings?.defaultNewNoticeDays !== undefined ? settings.defaultNewNoticeDays : 7);
                   return (
-                    <li key={idx} className="py-2.5 px-1.5 sm:px-2 rounded-xl transition-all duration-200 hover:bg-slate-50 dark:hover:bg-slate-800/60 flex items-center gap-2.5 sm:gap-3 group border-l-2 border-l-transparent hover:border-l-teal-600">
-                      {/* Mini Date Badge */}
+                    <li key={idx} className="py-1.5 px-1.5 sm:px-2 rounded-lg transition-all duration-150 hover:bg-slate-50 dark:hover:bg-slate-800/60 flex items-center gap-2 sm:gap-2.5 group border-l-2 border-l-transparent hover:border-l-teal-600">
+                      {/* Mini Date Badge - Compact Vertical Profile */}
                       {(() => {
                         const formatted = formatDate(n.date);
                         const parts = formatted.split('-');
                         const day = parts[0] || n.date;
                         const month = (parts[1] || '').toUpperCase();
                         return (
-                          <div className="w-10 h-9 sm:w-11 sm:h-10 rounded-xl border border-teal-200 dark:border-teal-800/60 bg-gradient-to-b from-teal-50 to-white dark:from-teal-950/40 dark:to-slate-900 flex flex-col overflow-hidden flex-shrink-0 shadow-2xs transition-transform group-hover:scale-105">
-                            <div className="bg-teal-700 dark:bg-teal-800 text-[7.5px] sm:text-[8px] font-black text-white py-0.5 uppercase tracking-wider text-center select-none leading-none">
+                          <div className="w-9 h-7.5 sm:w-9.5 sm:h-8.5 rounded-lg border border-teal-200 dark:border-teal-800/60 bg-gradient-to-b from-teal-50 to-white dark:from-teal-950/40 dark:to-slate-900 flex flex-col overflow-hidden flex-shrink-0 shadow-2xs transition-transform group-hover:scale-105">
+                            <div className="bg-teal-700 dark:bg-teal-800 text-[6.5px] sm:text-[7.5px] font-black text-white py-0.2 uppercase tracking-wider text-center select-none leading-none">
                               {month || 'DATE'}
                             </div>
-                            <div className="flex-grow flex items-center justify-center font-bold text-[11px] sm:text-[12px] text-slate-800 dark:text-slate-100 leading-none">
+                            <div className="flex-grow flex items-center justify-center font-extrabold text-[10px] sm:text-[11px] text-slate-800 dark:text-slate-100 leading-none">
                               {day}
                             </div>
                           </div>
                         );
                       })()}
                       <div className="flex-1 min-w-0">
-                        <div className="text-xs sm:text-sm font-semibold text-slate-800 dark:text-slate-200 group-hover:text-teal-700 dark:group-hover:text-teal-400 transition-colors line-clamp-2 leading-snug">
+                        <div className="text-[11.5px] sm:text-[13px] font-semibold text-slate-800 dark:text-slate-200 group-hover:text-teal-700 dark:group-hover:text-teal-400 transition-colors line-clamp-2 leading-snug">
                           {n.link && n.link !== '#' ? (
                             n.link.startsWith('http') || n.link.startsWith('mailto:') ? (
                               <a href={n.link} target="_blank" rel="noopener noreferrer" 
@@ -618,7 +618,7 @@ export default function Home() {
                           )}
 
                           {isNew && (
-                            <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[8px] font-extrabold badge-red-custom animate-pulse uppercase tracking-wider align-middle ml-1.5">
+                            <span className="inline-flex items-center px-1.2 py-0.2 rounded text-[7.5px] font-extrabold badge-red-custom animate-pulse uppercase tracking-wider align-middle ml-1.5">
                               New
                             </span>
                           )}
@@ -631,10 +631,10 @@ export default function Home() {
             </div>
 
             {/* Footer */}
-            <div className="bg-slate-50/90 dark:bg-slate-900/80 p-3 sm:p-3.5 text-center border-t border-slate-100 dark:border-slate-800 mt-auto">
-              <Link to="/notices" className="ui-touch-target inline-flex items-center justify-center gap-2 text-xs sm:text-sm font-bold text-teal-800 dark:text-teal-400 hover:text-teal-950 dark:hover:text-teal-300 hover:underline tracking-wide uppercase group">
+            <div className="bg-slate-50/90 dark:bg-slate-900/80 py-2 px-3 sm:py-2.5 text-center border-t border-slate-100 dark:border-slate-800 mt-auto">
+              <Link to="/notices" className="ui-touch-target inline-flex items-center justify-center gap-1.5 text-xs font-bold text-teal-800 dark:text-teal-400 hover:text-teal-950 dark:hover:text-teal-300 hover:underline tracking-wide uppercase group">
                 <span>View All Archives</span>
-                <ArrowRight size={14} className="transition-transform duration-200 group-hover:translate-x-1" />
+                <ArrowRight size={13} className="transition-transform duration-200 group-hover:translate-x-1" />
               </Link>
             </div>
           </div>
@@ -695,7 +695,7 @@ export default function Home() {
           </div>
 
           {/* Stats Row - Responsive across Mobile, Tablet, and Desktop */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 sm:gap-4">
             {[
               { icon: Users, end: 700, suffix: "+", label: "STUDENTS", subtext: "Enrolled Scholars", colorClass: 'text-teal-700 bg-teal-50 border-teal-200 hover:shadow-teal-100/50', accentBar: 'from-teal-500 to-emerald-500', glow: 'group-hover:border-teal-500/40' },
               { icon: Award, end: 25, suffix: "+", label: "TEACHERS", subtext: "Faculty Mentors", colorClass: 'text-amber-700 bg-amber-50 border-amber-200 hover:shadow-amber-100/50', accentBar: 'from-amber-500 to-orange-500', glow: 'group-hover:border-amber-500/40' },
@@ -706,15 +706,15 @@ export default function Home() {
               return (
                 <div key={i} className={`relative overflow-hidden bg-white dark:bg-slate-900 rounded-2xl shadow-sm hover:shadow-xl border border-slate-200/90 dark:border-slate-800 transition-all duration-300 hover:-translate-y-1 group ${stat.glow}`}>
                   <div className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${stat.accentBar}`} />
-                  {/* Adaptive layout: Executive horizontal on mobile (1 per row), Centered vertical on sm/lg */}
-                  <div className="flex flex-row sm:flex-col items-center justify-between sm:justify-center p-3.5 sm:p-5 text-left sm:text-center gap-2.5 sm:gap-0">
-                    <div className="flex items-center gap-3 sm:flex-col sm:gap-0">
-                      <div className={`w-12 h-12 sm:w-13 sm:h-13 rounded-2xl flex items-center justify-center border sm:mb-2.5 transition-transform duration-300 group-hover:scale-110 ${stat.colorClass} shadow-xs flex-shrink-0`}>
-                        <IconComponent size={24} className="stroke-[2.5]" />
+                  {/* Adaptive layout: Executive spacious layout on mobile taking more vertical space, Centered vertical on sm/lg */}
+                  <div className="flex flex-row sm:flex-col items-center justify-between sm:justify-center py-6 px-4 xs:px-5 sm:p-5 text-left sm:text-center gap-3 sm:gap-0 min-h-[92px] sm:min-h-0">
+                    <div className="flex items-center gap-3.5 sm:flex-col sm:gap-0">
+                      <div className={`w-13 h-13 sm:w-13 sm:h-13 rounded-2xl flex items-center justify-center border sm:mb-2.5 transition-transform duration-300 group-hover:scale-110 ${stat.colorClass} shadow-xs flex-shrink-0`}>
+                        <IconComponent size={26} className="stroke-[2.5]" />
                       </div>
                       <div className="sm:text-center">
-                        <p className="text-xs font-extrabold text-slate-800 dark:text-slate-200 uppercase tracking-wider sm:tracking-widest sm:mt-1">{stat.label}</p>
-                        <span className="sm:hidden text-[11px] text-slate-500 dark:text-slate-400 font-medium block">{stat.subtext}</span>
+                        <p className="text-xs xs:text-[13px] font-black text-slate-800 dark:text-slate-200 uppercase tracking-wider sm:tracking-widest sm:mt-1">{stat.label}</p>
+                        <span className="sm:hidden text-[11.5px] xs:text-xs text-slate-500 dark:text-slate-400 font-medium block mt-0.5">{stat.subtext}</span>
                       </div>
                     </div>
                     <div className="text-right sm:text-center">
