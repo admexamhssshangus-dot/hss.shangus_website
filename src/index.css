@@ -1647,6 +1647,30 @@ html, body, #root {
   border-color: #1e293b !important;
 }
 
+/* About Page Hero Banner (Immune to theme text inversion) */
+.about-hero,
+.theme-light .about-hero {
+  background-color: #0f172a !important;
+}
+.about-hero .ui-page-title,
+.theme-light .about-hero .ui-page-title,
+.about-hero h1,
+.theme-light .about-hero h1 {
+  color: #ffffff !important;
+}
+.about-hero h3,
+.theme-light .about-hero h3 {
+  color: #5eead4 !important;
+}
+.about-hero p,
+.about-hero .about-hero-desc,
+.theme-light .about-hero p,
+.theme-light .about-hero .about-hero-desc {
+  color: #f8fafc !important;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.95), 0 0 12px rgba(0, 0, 0, 0.8) !important;
+}
+
+
 /* --- ALL DARK THEMES: Nav link contrast improvements --- */
 
 /* Inactive nav links in dark themes: use muted accent shade for differentiation */

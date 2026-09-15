@@ -36,6 +36,7 @@ import {
   isSuperAdminEmail
 } from '../services/staffAuthService';
 import { sessionManager } from '../services/sessionManager';
+import ModernCaptcha from '../components/ModernCaptcha';
 
 export default function LoginPage() {
   const { onLoginSuccess, isAuthenticated, user } = useOutletContext();
@@ -63,6 +64,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [keepLoggedIn, setKeepLoggedIn] = useState(true);
+  const [captchaToken, setCaptchaToken] = useState(null);
 
   // 2-Step Verification Link State for Admin / SuperAdmin (Window 1 waiting state)
   const [emailLinkSentState, setEmailLinkSentState] = useState(() => {
@@ -662,6 +664,11 @@ export default function LoginPage() {
       return;
     }
 
+    if (!captchaToken) {
+      setAlert({ type: 'error', text: 'Please complete the security verification (I am human) before signing in.' });
+      return;
+    }
+
     setIsLoading(true);
     setAlert(null);
 
@@ -979,6 +986,7 @@ export default function LoginPage() {
                 onClick={() => {
                   if (emailLinkSentState) handleCancel2Step();
                   setSelectedRole('student');
+                  setCaptchaToken(null);
                 }}
                 className={`py-2.5 sm:py-2 rounded-xl flex items-center justify-center gap-1.5 transition-all duration-200 cursor-pointer ${
                   selectedRole === 'student'
@@ -995,6 +1003,7 @@ export default function LoginPage() {
                 onClick={() => {
                   if (emailLinkSentState) handleCancel2Step();
                   setSelectedRole('teacher');
+                  setCaptchaToken(null);
                 }}
                 className={`py-2.5 sm:py-2 rounded-xl flex items-center justify-center gap-1.5 transition-all duration-200 cursor-pointer ${
                   selectedRole === 'teacher'
@@ -1008,7 +1017,10 @@ export default function LoginPage() {
 
               <button
                 type="button"
-                onClick={() => setSelectedRole(isSuperAdmin ? 'superadmin' : 'admin')}
+                onClick={() => {
+                  setSelectedRole(isSuperAdmin ? 'superadmin' : 'admin');
+                  setCaptchaToken(null);
+                }}
                 className={`py-2.5 sm:py-2 rounded-xl flex items-center justify-center gap-1.5 transition-all duration-200 cursor-pointer ${
                   selectedRole === 'admin' || isSuperAdmin
                     ? 'bg-purple-600 text-white shadow-md font-black scale-[1.02]'
@@ -1275,6 +1287,13 @@ export default function LoginPage() {
                     Forgot Password?
                   </Link>
                 </div>
+
+                {/* Modern Zero-Dependency Security Verification Check */}
+                <ModernCaptcha
+                  onVerify={(token) => setCaptchaToken(token)}
+                  isVerified={Boolean(captchaToken)}
+                  onReset={() => setCaptchaToken(null)}
+                />
 
                 {/* Main Submit CTA Button */}
                 <button
