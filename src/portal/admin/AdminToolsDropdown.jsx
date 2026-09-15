@@ -29,6 +29,7 @@ const MODULE_ICONS = {
   funds: CreditCard,
   cms: PanelsTopLeft,
   boardSync: FileSpreadsheet,
+  docStudio: FileSpreadsheet,
 };
 
 export const ADMIN_TOOL_MODULES = ADMIN_MODULE_CATALOG
