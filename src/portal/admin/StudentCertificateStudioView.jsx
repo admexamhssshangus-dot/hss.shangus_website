@@ -4648,6 +4648,41 @@ export default function StudentCertificateStudioView({
               <span>Setup</span>
             </button>
           </div>
+
+          {/* Mobile Ref No & Date Quick Access Bar */}
+          <div className="lg:hidden mb-1.5 px-2.5 py-1 rounded-xl bg-teal-50/50 dark:bg-slate-900/80 border border-teal-200/80 dark:border-slate-800 shadow-2xs flex items-center justify-between text-[11px] font-bold text-slate-700 dark:text-slate-300 gap-2">
+            <div className="flex items-center gap-1 min-w-0 flex-1">
+              <span className="text-teal-700 dark:text-teal-400 font-black text-[10px] shrink-0">Ref:</span>
+              <input
+                type="text"
+                value={refNo}
+                onChange={(e) => setRefNo(e.target.value)}
+                placeholder="Certificate / Serial No..."
+                className="bg-transparent border-b border-dashed border-teal-300 dark:border-teal-700 text-slate-900 dark:text-white font-mono font-semibold text-[10.5px] px-1 py-0.2 outline-none w-full truncate"
+              />
+            </div>
+            <div className="flex items-center gap-1 shrink-0">
+              <span className="text-teal-700 dark:text-teal-400 font-black text-[10px] shrink-0">Date:</span>
+              <input
+                type="text"
+                value={dateStr}
+                onChange={(e) => setDateStr(e.target.value)}
+                placeholder="DD/MM/YYYY"
+                className="bg-transparent border-b border-dashed border-teal-300 dark:border-teal-700 text-slate-900 dark:text-white font-semibold text-[10.5px] px-1 py-0.2 outline-none w-22 text-right"
+              />
+              <input
+                type="date"
+                title="Pick date from calendar"
+                onChange={(e) => {
+                  if (e.target.value) {
+                    const [y, m, d] = e.target.value.split('-');
+                    setDateStr(`${d}/${m}/${y}`);
+                  }
+                }}
+                className="w-3.5 h-3.5 opacity-40 hover:opacity-100 cursor-pointer print:hidden shrink-0"
+              />
+            </div>
+          </div>
           {/* Main preview container hosting the Vertical Floating Dock + A4 Canvas */}
           <div className={`flex flex-col lg:flex-row items-start justify-center gap-3 ${dockSide === 'right' ? 'lg:flex-row-reverse' : ''}`}>
 
@@ -5549,11 +5584,45 @@ export default function StudentCertificateStudioView({
                 </p>
               </div>
 
-              {/* Ref & Date Row (Hidden for Discharge / Transfer Certificate where structured metadata box is used) */}
+              {/* Ref & Date Row — Direct Inline Editing */}
               {!isTcDcActive && (
-                <div className="flex items-center justify-between text-[10px] font-bold text-slate-800 border-b border-slate-300 pb-1 px-1 -mt-[0.25in] mb-[0.25in]">
-                  <div>Ref No: <span className="font-mono font-black">{refNo}</span></div>
-                  <div>Date: <span className="font-black">{dateStr}</span></div>
+                <div className="flex items-center justify-between text-[10px] font-bold text-slate-800 border-b border-slate-300 pb-1 px-1 -mt-[0.25in] mb-[0.25in] gap-2">
+                  <div className="flex items-center gap-1 group/ref min-w-0 flex-1">
+                    <span className="shrink-0 text-slate-700">Ref No:</span>
+                    <input
+                      type="text"
+                      value={refNo}
+                      onChange={(e) => setRefNo(e.target.value)}
+                      placeholder="e.g. HSS/SHG/Bonafide/2026/01"
+                      title="Click to directly edit Certificate Reference Number"
+                      aria-label="Certificate Reference Number"
+                      className="font-mono font-black text-slate-900 bg-transparent border-b border-dashed border-teal-300/80 hover:border-teal-500 focus:border-teal-600 focus:bg-teal-50/40 rounded px-1 py-0.2 outline-none transition-all w-full max-w-[280px] text-[10px] print:border-none print:bg-transparent print:p-0"
+                    />
+                  </div>
+                  <div className="flex items-center gap-1 group/date shrink-0">
+                    <span className="shrink-0 text-slate-700">Date:</span>
+                    <input
+                      type="text"
+                      value={dateStr}
+                      onChange={(e) => setDateStr(e.target.value)}
+                      placeholder="DD/MM/YYYY"
+                      title="Click to directly edit Issue Date"
+                      aria-label="Issue Date"
+                      className="font-black text-slate-900 bg-transparent border-b border-dashed border-teal-300/80 hover:border-teal-500 focus:border-teal-600 focus:bg-teal-50/40 rounded px-1 py-0.2 outline-none transition-all w-22 sm:w-24 text-right text-[10px] print:border-none print:bg-transparent print:p-0 print:text-right"
+                    />
+                    <input
+                      type="date"
+                      title="Pick certificate issue date from calendar"
+                      aria-label="Pick issue date from calendar"
+                      onChange={(e) => {
+                        if (e.target.value) {
+                          const [y, m, d] = e.target.value.split('-');
+                          setDateStr(`${d}/${m}/${y}`);
+                        }
+                      }}
+                      className="w-3.5 h-3.5 opacity-40 hover:opacity-100 cursor-pointer print:hidden shrink-0"
+                    />
+                  </div>
                 </div>
               )}
 
@@ -5577,7 +5646,15 @@ export default function StudentCertificateStudioView({
                   <div className="grid grid-cols-[1fr_1.25fr] gap-x-3 gap-y-2 flex-1 px-3 py-2 leading-relaxed min-w-0">
                     <div className="flex items-baseline gap-1.5 min-w-0">
                       <span className="font-bold text-slate-600 text-[9px] shrink-0">Certificate No.:</span>
-                      <span className="font-mono font-black text-red-600 truncate">{refNo || '—'}</span>
+                      <input
+                        type="text"
+                        value={refNo}
+                        onChange={(e) => setRefNo(e.target.value)}
+                        placeholder="1368"
+                        title="Click to directly edit Certificate Serial Number"
+                        aria-label="Certificate Serial Number"
+                        className="font-mono font-black text-red-600 bg-transparent border-b border-dashed border-red-300/80 hover:border-red-500 focus:border-red-600 focus:bg-red-50/40 rounded px-0.5 py-0 outline-none transition-all w-24 text-[9.5px] print:border-none print:bg-transparent print:p-0"
+                      />
                     </div>
                     <div className="flex items-baseline gap-1.5 min-w-0">
                       <span className="font-bold text-slate-600 text-[9px] shrink-0">Reg. No.:</span>
@@ -5585,11 +5662,38 @@ export default function StudentCertificateStudioView({
                     </div>
                     <div className="flex items-baseline gap-1.5 min-w-0">
                       <span className="font-bold text-slate-600 text-[9px] shrink-0">Admission No.:</span>
-                      <span className="font-mono font-black text-blue-700 truncate">{admissionNo || extractStudentAdmissionNumber(selectedStudent) || '—'}</span>
+                      <input
+                        type="text"
+                        value={admissionNo || ''}
+                        onChange={(e) => setAdmissionNo(e.target.value)}
+                        placeholder="e.g. 1045"
+                        title="Click to directly edit Admission Number"
+                        aria-label="Admission Number"
+                        className="font-mono font-black text-blue-700 bg-transparent border-b border-dashed border-blue-300/80 hover:border-blue-500 focus:border-blue-600 focus:bg-blue-50/40 rounded px-0.5 py-0 outline-none transition-all w-20 text-[9px] print:border-none print:bg-transparent print:p-0"
+                      />
                     </div>
                     <div className="flex items-baseline gap-1.5 min-w-0">
                       <span className="font-bold text-slate-600 text-[9px] shrink-0">Date of Admission:</span>
-                      <span className="font-mono font-black text-blue-700 truncate">{admissionDate || extractStudentAdmissionDate(selectedStudent) || '—'}</span>
+                      <input
+                        type="text"
+                        value={admissionDate || ''}
+                        onChange={(e) => setAdmissionDate(e.target.value)}
+                        placeholder="DD-MM-YYYY"
+                        title="Click to directly edit Date of Admission"
+                        aria-label="Date of Admission"
+                        className="font-mono font-black text-blue-700 bg-transparent border-b border-dashed border-blue-300/80 hover:border-blue-500 focus:border-blue-600 focus:bg-blue-50/40 rounded px-0.5 py-0 outline-none transition-all w-20 text-[9px] print:border-none print:bg-transparent print:p-0"
+                      />
+                      <input
+                        type="date"
+                        title="Pick date of admission from calendar"
+                        onChange={(e) => {
+                          if (e.target.value) {
+                            const [y, m, d] = e.target.value.split('-');
+                            setAdmissionDate(`${d}-${m}-${y}`);
+                          }
+                        }}
+                        className="w-3 h-3 opacity-40 hover:opacity-100 cursor-pointer print:hidden shrink-0"
+                      />
                     </div>
                   </div>
 

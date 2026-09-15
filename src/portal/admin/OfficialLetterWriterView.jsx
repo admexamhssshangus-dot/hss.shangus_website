@@ -2575,6 +2575,41 @@ export default function OfficialLetterWriterView({
             </button>
           </div>
 
+          {/* Mobile Ref No & Date Quick Access Bar */}
+          <div className="lg:hidden mb-1.5 px-2.5 py-1 rounded-xl bg-amber-50/50 dark:bg-slate-900/80 border border-amber-200/80 dark:border-slate-800 shadow-2xs flex items-center justify-between text-[11px] font-bold text-slate-700 dark:text-slate-300 gap-2">
+            <div className="flex items-center gap-1 min-w-0 flex-1">
+              <span className="text-[#800000] dark:text-amber-400 font-black text-[10px] shrink-0">Ref:</span>
+              <input
+                type="text"
+                value={refNo}
+                onChange={(e) => setRefNo(e.target.value)}
+                placeholder="HSS/SHG/..."
+                className="bg-transparent border-b border-dashed border-amber-300 dark:border-amber-700 text-slate-900 dark:text-white font-semibold text-[10.5px] px-1 py-0.2 outline-none w-full truncate"
+              />
+            </div>
+            <div className="flex items-center gap-1 shrink-0">
+              <span className="text-[#800000] dark:text-amber-400 font-black text-[10px] shrink-0">Date:</span>
+              <input
+                type="text"
+                value={dateStr}
+                onChange={(e) => setDateStr(e.target.value)}
+                placeholder="DD/MM/YYYY"
+                className="bg-transparent border-b border-dashed border-amber-300 dark:border-amber-700 text-slate-900 dark:text-white font-semibold text-[10.5px] px-1 py-0.2 outline-none w-22 text-right"
+              />
+              <input
+                type="date"
+                title="Pick date from calendar"
+                onChange={(e) => {
+                  if (e.target.value) {
+                    const [y, m, d] = e.target.value.split('-');
+                    setDateStr(`${d}/${m}/${y}`);
+                  }
+                }}
+                className="w-3.5 h-3.5 opacity-40 hover:opacity-100 cursor-pointer print:hidden shrink-0"
+              />
+            </div>
+          </div>
+
           {/* â•�â•�â•�â•�â•�â•�â•�â•� WORKSPACE CANVAS & VERTICAL FLOATING DOCK CONTAINER â•�â•�â•�â•�â•�â•�â•�â•� */}
           <div className={`flex flex-col lg:flex-row items-start justify-center gap-3 ${dockSide === 'right' ? 'lg:flex-row-reverse' : ''}`}>
             
@@ -3132,15 +3167,43 @@ export default function OfficialLetterWriterView({
             </div>
 
             <div>
-              {/* Reference Number & Date Row */}
-              <div className="flex items-center justify-between text-xs font-bold mb-4 px-1">
-                <div>
-                  <span className="text-[#800000] font-black">Ref. No.:</span>{' '}
-                  <span className="text-slate-900 font-semibold">{refNo || '—'}</span>
+              {/* Reference Number & Date Row — Direct Inline Editing */}
+              <div className="flex items-center justify-between text-xs font-bold mb-4 px-1 gap-3">
+                <div className="flex items-center gap-1.5 group/ref min-w-0 flex-1">
+                  <span className="text-[#800000] font-black shrink-0">Ref. No.:</span>
+                  <input
+                    type="text"
+                    value={refNo}
+                    onChange={(e) => setRefNo(e.target.value)}
+                    placeholder="e.g. HSS/SHG/2026/01"
+                    title="Click to directly edit Reference Number"
+                    aria-label="Reference Number"
+                    className="text-slate-900 font-semibold bg-transparent border-b border-dashed border-amber-300/80 hover:border-amber-500 focus:border-amber-600 focus:bg-amber-50/50 rounded px-1.5 py-0.5 outline-none transition-all w-full max-w-[280px] text-xs print:border-none print:bg-transparent print:p-0"
+                  />
                 </div>
-                <div>
-                  <span className="text-[#800000] font-black">Date:</span>{' '}
-                  <span className="text-slate-900 font-semibold">{dateStr || new Date().toLocaleDateString('en-GB')}</span>
+                <div className="flex items-center gap-1.5 group/date shrink-0">
+                  <span className="text-[#800000] font-black shrink-0">Date:</span>
+                  <input
+                    type="text"
+                    value={dateStr}
+                    onChange={(e) => setDateStr(e.target.value)}
+                    placeholder="DD/MM/YYYY"
+                    title="Click to directly edit Letter Date"
+                    aria-label="Letter Date"
+                    className="text-slate-900 font-semibold bg-transparent border-b border-dashed border-amber-300/80 hover:border-amber-500 focus:border-amber-600 focus:bg-amber-50/50 rounded px-1.5 py-0.5 outline-none transition-all w-24 sm:w-28 text-right text-xs print:border-none print:bg-transparent print:p-0 print:text-right"
+                  />
+                  <input
+                    type="date"
+                    title="Pick letter date from calendar"
+                    aria-label="Pick date from calendar"
+                    onChange={(e) => {
+                      if (e.target.value) {
+                        const [y, m, d] = e.target.value.split('-');
+                        setDateStr(`${d}/${m}/${y}`);
+                      }
+                    }}
+                    className="w-4 h-4 opacity-40 hover:opacity-100 cursor-pointer print:hidden shrink-0"
+                  />
                 </div>
               </div>
 
