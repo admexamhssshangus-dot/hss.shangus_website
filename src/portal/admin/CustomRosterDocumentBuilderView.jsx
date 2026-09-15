@@ -2414,7 +2414,10 @@ export default function CustomRosterDocumentBuilderView({
   onSwitchSubTab,
   onSwitchToLetterWriter,
   globalSession,
-  onSelectGlobalSession
+  onSelectGlobalSession,
+  isActive = true,
+  showSettingsDrawerProp,
+  onToggleSettingsDrawer
 }) {
   const [isReady, setIsReady] = useState(true);
 
@@ -2783,6 +2786,21 @@ export default function CustomRosterDocumentBuilderView({
   const [isDesktop, setIsDesktop] = useState(() => typeof window !== 'undefined' && window.innerWidth >= 1024);
   const [showMobileOptionsModal, setShowMobileOptionsModal] = useState(false);
 
+  // Automatically dismiss mobile options modal if the tab becomes inactive
+  useEffect(() => {
+    if (!isActive) {
+      setShowMobileOptionsModal(false);
+    }
+  }, [isActive]);
+
+  // Sync external Setup toggle from Top Sub-Nav bar when active
+  useEffect(() => {
+    if (!isActive) return;
+    if (showSettingsDrawerProp !== undefined) {
+      setShowMobileOptionsModal(showSettingsDrawerProp);
+    }
+  }, [showSettingsDrawerProp, isActive]);
+
   useEffect(() => {
     const handleResize = () => setIsDesktop(window.innerWidth >= 1024);
     window.addEventListener('resize', handleResize);
@@ -2790,14 +2808,29 @@ export default function CustomRosterDocumentBuilderView({
   }, []);
 
   useEffect(() => {
-    const handleToggle = () => setShowMobileOptionsModal(prev => !prev);
+    const handleToggle = (e) => {
+      if (!isActive) return;
+      if (e?.detail?.targetModule && e.detail.targetModule !== 'customRoster' && e.detail.targetModule !== 'docStudio') {
+        return;
+      }
+      if (typeof e?.detail?.open === 'boolean') {
+        setShowMobileOptionsModal(e.detail.open);
+      } else {
+        setShowMobileOptionsModal(prev => !prev);
+      }
+    };
     window.addEventListener('hss-toggle-studio-setup', handleToggle);
     window.addEventListener('hss-toggle-roster-filters', handleToggle);
     return () => {
       window.removeEventListener('hss-toggle-studio-setup', handleToggle);
       window.removeEventListener('hss-toggle-roster-filters', handleToggle);
     };
-  }, []);
+  }, [isActive]);
+
+  const handleCloseMobileOptions = useCallback(() => {
+    setShowMobileOptionsModal(false);
+    if (onToggleSettingsDrawer) onToggleSettingsDrawer(false);
+  }, [onToggleSettingsDrawer]);
 
   const handleSplitterMouseDown = (e) => {
     e.preventDefault();
@@ -4197,7 +4230,10 @@ export default function CustomRosterDocumentBuilderView({
           <div className="lg:hidden shrink-0">
             <button
               type="button"
-              onClick={() => setShowMobileOptionsModal(true)}
+              onClick={() => {
+                setShowMobileOptionsModal(true);
+                if (onToggleSettingsDrawer) onToggleSettingsDrawer(true);
+              }}
               className="px-2 sm:px-2.5 py-0.5 sm:py-1 h-7 rounded-md sm:rounded-lg border border-amber-400 dark:border-amber-600 bg-amber-50 dark:bg-amber-950/70 text-amber-950 dark:text-amber-200 font-extrabold text-[10px] sm:text-[10.5px] flex items-center gap-1 shadow-2xs active:scale-95 cursor-pointer shrink-0 whitespace-nowrap"
               title="Configure Student Cohort Filters & Register Columns"
             >
@@ -4262,7 +4298,7 @@ export default function CustomRosterDocumentBuilderView({
         {/* ════════ MOBILE POPUP MODAL: FILTERS, COLUMNS & TAGS ════════ */}
         {!isDesktop && showMobileOptionsModal && createPortal(
           <div className="fixed inset-0 z-[9999] flex items-center justify-center p-2 sm:p-4 bg-slate-950/70 backdrop-blur-xs animate-fadeIn">
-            <div className="absolute inset-0" onClick={() => setShowMobileOptionsModal(false)} />
+            <div className="absolute inset-0" onClick={handleCloseMobileOptions} />
             <div
               role="dialog"
               aria-modal="true"
@@ -4278,7 +4314,7 @@ export default function CustomRosterDocumentBuilderView({
                 </div>
                 <button
                   type="button"
-                  onClick={() => setShowMobileOptionsModal(false)}
+                  onClick={handleCloseMobileOptions}
                   className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors cursor-pointer"
                   aria-label="Close modal"
                 >
@@ -4298,7 +4334,7 @@ export default function CustomRosterDocumentBuilderView({
                 </div>
                 <button
                   type="button"
-                  onClick={() => setShowMobileOptionsModal(false)}
+                  onClick={handleCloseMobileOptions}
                   className="px-4 py-1.5 rounded-xl bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 text-white font-black text-xs shadow-md cursor-pointer flex items-center gap-1.5 active:scale-95 transition-all shrink-0"
                 >
                   <Check size={13} />
@@ -4621,57 +4657,46 @@ export default function CustomRosterDocumentBuilderView({
               </div>
             </div>
 
-            {/* Quick Column Order Helper & Save Default Badge */}
-            <div className="flex items-center justify-between text-[9px] text-slate-500 font-bold mb-1 px-0.5">
-              <span className="flex items-center gap-1">
-                <span>💡 Drag headers or use ◀ ▶ arrows to reorder columns.</span>
-              </span>
-              <div className="flex items-center gap-1.5">
-                <button
-                  type="button"
-                  onClick={handleSaveAsDefaultColumns}
-                  className="text-emerald-700 hover:text-emerald-900 font-black flex items-center gap-0.5 hover:underline cursor-pointer"
-                  title="Save this column sequence as your default order"
-                >
-                  {saveDefaultToast ? <Check size={10} /> : <Save size={10} />}
-                  <span>{saveDefaultToast ? '✓ Saved as Default!' : '💾 Save as Default Order'}</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Row Inclusion / Skip Selection Status Bar */}
-            <div className="flex flex-wrap items-center justify-between gap-1.5 px-2 py-1 mb-1.5 bg-slate-50 dark:bg-slate-800/80 rounded-lg border border-slate-200 dark:border-slate-700 text-xs select-none">
-              <div className="flex items-center gap-2">
+            {/* Minimal Compact Controls Bar: Student Inclusion, Skip Toggle & Column Default Saver */}
+            <div className="flex items-center justify-between gap-1.5 px-2 py-1 mb-1.5 bg-slate-50 dark:bg-slate-800/80 rounded-lg border border-slate-200/90 dark:border-slate-700/90 text-xs select-none min-h-[30px]">
+              {/* Left: Included Students Count Pill */}
+              <div className="flex items-center gap-1.5 min-w-0">
                 <button
                   type="button"
                   onClick={toggleSelectAllRows}
-                  className="flex items-center gap-1.5 text-slate-800 dark:text-slate-200 hover:text-indigo-600 dark:hover:text-indigo-400 font-extrabold cursor-pointer transition-colors"
+                  className="flex items-center gap-1 text-slate-800 dark:text-slate-200 hover:text-indigo-600 dark:hover:text-indigo-400 font-bold cursor-pointer transition-colors shrink-0"
                   title={isAllRowsIncluded ? "Deselect / skip all rows" : "Select / include all rows"}
                 >
                   {isAllRowsIncluded ? (
-                    <CheckSquare size={13} className="text-emerald-600 dark:text-emerald-400" />
+                    <CheckSquare size={13} className="text-emerald-600 dark:text-emerald-400 shrink-0" />
                   ) : isSomeRowsSkipped ? (
-                    <Minus size={13} className="text-amber-600 dark:text-amber-400 border border-amber-600 rounded-xs" />
+                    <Minus size={13} className="text-amber-600 dark:text-amber-400 border border-amber-600 rounded-xs shrink-0" />
                   ) : (
-                    <Square size={13} className="text-slate-400" />
+                    <Square size={13} className="text-slate-400 shrink-0" />
                   )}
-                  <span className="text-[10.5px]">
-                    <strong className="text-indigo-600 dark:text-indigo-400 font-black">{activeIncludedRows.length}</strong> of {processedRows.length} Students Included
+                  <span className="text-[10px] sm:text-[11px] truncate">
+                    <strong className="text-indigo-600 dark:text-indigo-400 font-black">{activeIncludedRows.length}</strong>
+                    <span className="text-slate-500 font-normal"> / {processedRows.length}</span>
+                    <span className="hidden sm:inline text-slate-600 dark:text-slate-400 ml-1">Students Included</span>
                   </span>
                 </button>
                 {skippedCount > 0 && (
-                  <span className="text-[9.5px] font-black text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-950/70 px-1.5 py-0.5 rounded-full">
-                    {skippedCount} skipped from print/exports
+                  <span className="text-[9px] font-extrabold text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-950/70 px-1.5 py-0.2 rounded-full shrink-0">
+                    {skippedCount} skipped
                   </span>
                 )}
+                <span className="hidden md:inline-flex items-center text-[9px] text-slate-400 font-medium ml-2">
+                  💡 Drag headers or use ◀ ▶ arrows to reorder columns
+                </span>
               </div>
 
-              <div className="flex items-center gap-1.5 text-[9.5px] font-extrabold">
+              {/* Right: Actions (Include All if skipped, Show Skipped, Save Order) */}
+              <div className="flex items-center gap-1 shrink-0 text-[9.5px] font-bold">
                 {skippedCount > 0 && (
                   <button
                     type="button"
                     onClick={() => setDeselectedRowKeys(new Set())}
-                    className="px-2 py-0.5 rounded bg-emerald-100 hover:bg-emerald-200 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 cursor-pointer transition-colors shadow-2xs"
+                    className="h-6 px-1.5 sm:px-2 rounded bg-emerald-100 hover:bg-emerald-200 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 cursor-pointer transition-colors text-[9px] font-extrabold"
                     title="Reset selection: Include all students in print & exports"
                   >
                     Include All
@@ -4680,11 +4705,20 @@ export default function CustomRosterDocumentBuilderView({
                 <button
                   type="button"
                   onClick={() => setHideSkippedRows(prev => !prev)}
-                  className="px-2 py-0.5 rounded border border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 cursor-pointer transition-colors flex items-center gap-1 shadow-2xs"
+                  className="h-6 px-1.5 sm:px-2 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 cursor-pointer transition-colors flex items-center gap-1 text-[9px]"
                   title={hideSkippedRows ? "Show all rows including skipped rows" : "Hide skipped rows from table preview"}
                 >
-                  {hideSkippedRows ? <Eye size={10.5} className="text-indigo-600 dark:text-indigo-400" /> : <Eye size={10.5} className="opacity-50" />}
-                  <span>{hideSkippedRows ? 'Showing Included Only' : 'Show Skipped in Preview'}</span>
+                  {hideSkippedRows ? <Eye size={10} className="text-indigo-600 dark:text-indigo-400 shrink-0" /> : <Eye size={10} className="opacity-50 shrink-0" />}
+                  <span className="hidden sm:inline">{hideSkippedRows ? 'Showing Included Only' : 'Show Skipped'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveAsDefaultColumns}
+                  className="h-6 px-1.5 sm:px-2 rounded border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/60 hover:bg-emerald-100 text-emerald-800 dark:text-emerald-300 cursor-pointer transition-colors flex items-center gap-1 text-[9px]"
+                  title="Save this column sequence as your default order"
+                >
+                  {saveDefaultToast ? <Check size={10} className="text-emerald-600 shrink-0" /> : <Save size={10} className="text-emerald-600 shrink-0" />}
+                  <span className="hidden sm:inline">{saveDefaultToast ? 'Saved Order' : 'Save Order'}</span>
                 </button>
               </div>
             </div>

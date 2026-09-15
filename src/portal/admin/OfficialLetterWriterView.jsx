@@ -3,7 +3,7 @@
 // With Gemini AI Multi-Key Pool, Reusable Template Builder & Word Processor
 // =================================================================
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Printer, FileText, Calendar, Edit3, FileSpreadsheet, Download, RotateCcw, Save, Sparkles,
@@ -243,10 +243,24 @@ export default function OfficialLetterWriterView({
   }, [showSettingsDrawerProp]);
 
   useEffect(() => {
-    const handleToggle = () => setShowSettingsDrawer(prev => !prev);
+    const handleToggle = (e) => {
+      if (e?.detail?.targetModule && e.detail.targetModule !== 'officialLetter') {
+        return;
+      }
+      if (typeof e?.detail?.open === 'boolean') {
+        setShowSettingsDrawer(e.detail.open);
+      } else {
+        setShowSettingsDrawer(prev => !prev);
+      }
+    };
     window.addEventListener('hss-toggle-studio-setup', handleToggle);
     return () => window.removeEventListener('hss-toggle-studio-setup', handleToggle);
   }, []);
+
+  const handleCloseSettings = useCallback(() => {
+    setShowSettingsDrawer(false);
+    if (onToggleSettingsDrawer) onToggleSettingsDrawer(false);
+  }, [onToggleSettingsDrawer]);
 
   // ─── Reusable Custom Templates State ───
   const [templateToDelete, setTemplateToDelete] = useState(null);
@@ -1643,7 +1657,7 @@ export default function OfficialLetterWriterView({
       {/* ─── MOBILE SETUP POPUP MODAL ─── */}
       {showSettingsDrawer && !isDesktop && createPortal(
         <div className="fixed inset-0 z-[9999] flex items-center justify-center p-2 sm:p-4 bg-slate-950/70 backdrop-blur-xs animate-fadeIn">
-          <div className="absolute inset-0" onClick={() => setShowSettingsDrawer(false)} />
+          <div className="absolute inset-0" onClick={handleCloseSettings} />
           <div
             role="dialog"
             aria-modal="true"
@@ -1659,7 +1673,7 @@ export default function OfficialLetterWriterView({
               </div>
               <button
                 type="button"
-                onClick={() => setShowSettingsDrawer(false)}
+                onClick={handleCloseSettings}
                 className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors cursor-pointer"
                 aria-label="Close setup modal"
               >
@@ -1802,7 +1816,7 @@ export default function OfficialLetterWriterView({
             <div className="p-2.5 border-t border-slate-200 dark:border-slate-800 bg-slate-50/90 dark:bg-slate-900 shrink-0 flex items-center justify-end">
               <button
                 type="button"
-                onClick={() => setShowSettingsDrawer(false)}
+                onClick={handleCloseSettings}
                 className="px-4 py-1.5 rounded-xl bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 text-white font-black text-xs shadow-md cursor-pointer flex items-center gap-1.5 active:scale-95 transition-all shrink-0"
               >
                 <Check size={13} />
@@ -2880,7 +2894,11 @@ export default function OfficialLetterWriterView({
 
             <button
               type="button"
-              onClick={() => setShowSettingsDrawer(prev => !prev)}
+              onClick={() => {
+                const next = !showSettingsDrawer;
+                setShowSettingsDrawer(next);
+                if (onToggleSettingsDrawer) onToggleSettingsDrawer(next);
+              }}
               className={`h-6 px-2 rounded border font-bold text-[10px] flex items-center gap-1 shadow-2xs active:scale-95 cursor-pointer shrink-0 transition-all ${
                 showSettingsDrawer
                   ? 'bg-amber-100 dark:bg-amber-950 text-amber-950 dark:text-amber-200 border-amber-400'
@@ -2937,19 +2955,8 @@ export default function OfficialLetterWriterView({
                   </button>
                 </div>
 
-                {/* Grouped Compact Controls (Ref/Date, Format, Layout, More) */}
+                {/* Grouped Compact Controls (Format, Layout, More) */}
                 <div className="flex items-center gap-1 shrink-0">
-                  {/* Quick Ref & Date Modal Trigger */}
-                  <button
-                    type="button"
-                    onClick={() => setShowRefDateModal(true)}
-                    className="h-7 px-1.5 sm:px-2 rounded-lg font-bold text-[10px] flex items-center gap-1 cursor-pointer transition-all active:scale-95 shrink-0 border bg-rose-50 dark:bg-rose-950/60 text-rose-900 dark:text-rose-200 border-rose-200 dark:border-rose-800 hover:bg-rose-100 whitespace-nowrap"
-                    title="Edit Reference Number & Document Date in Popup"
-                  >
-                    <Calendar size={11} className="shrink-0 text-rose-600 dark:text-rose-400" />
-                    <span>Ref/Date</span>
-                  </button>
-
                   {/* 1. Format Dropdown (Aa) */}
                   <button
                     type="button"
@@ -3838,8 +3845,8 @@ export default function OfficialLetterWriterView({
             <div className="flex-1 w-full max-w-[840px] min-w-0">
               <div className="bg-white text-slate-900 border border-slate-300 rounded-xl p-4 sm:p-6 shadow-sm min-h-[420px] flex flex-col justify-start">
                 
-                {/* Top Official Letterhead Header Banner (Soft Ice-Blue Background) */}
-                <div className="block print:!block -mx-4 sm:-mx-6 -mt-4 sm:-mt-6 p-3 sm:p-5 text-center bg-[#f0f8ff] border-b-[2.5px] border-[#800000] rounded-t-xl mb-3">
+                {/* Top Official Letterhead Header Banner (Soft Ice-Blue Background) - Hidden in web view on mobile to focus on main content, preserved in desktop & print */}
+                <div className="hidden sm:block print:!block -mx-4 sm:-mx-6 -mt-4 sm:-mt-6 p-3 sm:p-5 text-center bg-[#f0f8ff] border-b-[2.5px] border-[#800000] rounded-t-xl mb-3">
                   <img
                     src="/logo192.png"
                     alt="School Seal"
@@ -3862,15 +3869,9 @@ export default function OfficialLetterWriterView({
               {/* Reference Number & Date Row — Direct Inline Editing */}
               <div className="flex items-center justify-between text-xs font-bold mb-4 px-1 gap-1.5 sm:gap-3">
                 <div className="flex items-center gap-1 sm:gap-1.5 group/ref min-w-0 flex-1">
-                  <button
-                    type="button"
-                    onClick={() => setShowRefDateModal(true)}
-                    className="text-[#800000] font-black shrink-0 hover:underline cursor-pointer flex items-center gap-0.5 text-[11px] sm:text-xs"
-                    title="Click to edit Reference No. & Date in popup"
-                  >
-                    <span>Ref. No.:</span>
-                    <Edit3 size={10} className="text-slate-400 lg:hidden" />
-                  </button>
+                  <span className="text-[#800000] font-black shrink-0 text-[11px] sm:text-xs select-none">
+                    Ref. No.:
+                  </span>
                   <input
                     type="text"
                     value={refNo}
@@ -3882,15 +3883,9 @@ export default function OfficialLetterWriterView({
                   />
                 </div>
                 <div className="flex items-center gap-1 sm:gap-1.5 group/date shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => setShowRefDateModal(true)}
-                    className="text-[#800000] font-black shrink-0 hover:underline cursor-pointer flex items-center gap-0.5 text-[11px] sm:text-xs"
-                    title="Click to edit Reference No. & Date in popup"
-                  >
-                    <span>Date:</span>
-                    <Edit3 size={10} className="text-slate-400 lg:hidden" />
-                  </button>
+                  <span className="text-[#800000] font-black shrink-0 text-[11px] sm:text-xs select-none">
+                    Date:
+                  </span>
                   <input
                     type="text"
                     value={dateStr}

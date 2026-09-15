@@ -5632,7 +5632,8 @@ export default function AdvancedReports({
   triggerAction,
   onTriggerActionHandled,
   enableQuickCellEdit: parentQuickCellEdit,
-  setEnableQuickCellEdit: parentSetQuickCellEdit
+  setEnableQuickCellEdit: parentSetQuickCellEdit,
+  isActive = true
 }) {
   // Clear legacy cache keys on initial render to prevent stale dataset from sticking in sessionStorage
   useEffect(() => {
@@ -6783,6 +6784,16 @@ export default function AdvancedReports({
 
   // Global Custom Confirmation Modal State
   const [confirmModalConfig, setConfirmModalConfig] = useState(null);
+
+  // Dismiss background portal modals if reports tab becomes inactive
+  useEffect(() => {
+    if (!isActive) {
+      setShowToolsModal(false);
+      setShowColumnManager(false);
+      setPreviewPhotoModal(null);
+      setConfirmModalConfig(null);
+    }
+  }, [isActive]);
 
   const handleDirectRecordAdded = (newRecord) => {
     setCurrentAdmissions(prev => [newRecord, ...prev]);
