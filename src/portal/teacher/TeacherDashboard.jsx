@@ -1,12 +1,14 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { useOutletContext, Link, useNavigate } from 'react-router-dom';
 import { 
   History, CalendarCheck, LogOut,
-  ArrowRight, Award, X, Clock, RefreshCw
+  ArrowRight, Award, X, Clock, RefreshCw, Search
 } from 'lucide-react';
 import SEO from '../../components/SEO';
 import LogoutConfirmModal from '../components/LogoutConfirmModal';
 import { getCachedCollection } from '../../services/dbCache';
+import { db } from '../../services/firebase';
+import { collection, getDocs } from 'firebase/firestore';
 
 export default function TeacherDashboard() {
   const { user, onLogout } = useOutletContext();
@@ -19,16 +21,39 @@ export default function TeacherDashboard() {
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [submissionHistory, setSubmissionHistory] = useState([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
+  const [historySearch, setHistorySearch] = useState('');
 
   const fetchSubmissionHistory = useCallback(async () => {
     setLoadingHistory(true);
     try {
-      const docs = await getCachedCollection('practicalsData', false, 15 * 60 * 1000);
-      if (Array.isArray(docs) && docs.length > 0) {
-        const list = docs
-          .filter(d => d && !String(d.id || d.docId || '').startsWith('history_'))
+      let rawDocs = await getCachedCollection('practicalsData', false, 15 * 60 * 1000);
+      if (!Array.isArray(rawDocs) || rawDocs.length === 0) {
+        const snap = await getDocs(collection(db, 'practicalsData'));
+        if (!snap.empty) {
+          rawDocs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        } else {
+          rawDocs = [];
+        }
+      }
+
+      if (Array.isArray(rawDocs) && rawDocs.length > 0) {
+        const list = rawDocs
+          .filter(d => {
+            if (!d) return false;
+            const rawId = String(d.id || d.docId || '');
+            if (rawId.startsWith('history_')) return false;
+
+            const recCount = Array.isArray(d.records) ? d.records.length : (Array.isArray(d.students) ? d.students.length : 0);
+            const subj = String(d.subject || d.subjectName || d.subjectCode || '').trim();
+            const hasValidSubject = subj.length > 0 && subj.toLowerCase() !== 'n/a' && subj.toLowerCase() !== 'null';
+
+            // Filter out shell/corrupted records that have 0 students or no valid subject
+            if (recCount === 0 || !hasValidSubject) return false;
+            return true;
+          })
           .map(d => {
             const rawId = String(d.id || d.docId || '');
+            const evalType = d.practicalType || d.evaluationType || d.examTitle || d.title || 'Assessment';
             
             // Safely resolve timestamp
             let sortTime = 0;
@@ -59,23 +84,51 @@ export default function TeacherDashboard() {
               id: rawId,
               className: d.className || d.class || d.selectedClass || 'N/A',
               subject: d.subject || d.subjectName || d.subjectCode || 'N/A',
+              practicalType: evalType,
+              evaluationType: evalType,
+              yearSuffix: d.yearSuffix || d.sessionCanonical || d.session || '',
               recordsCount: Array.isArray(d.records) ? d.records.length : (Array.isArray(d.students) ? d.students.length : 0),
               displayDate,
               sortTime
             };
           })
           .sort((a, b) => b.sortTime - a.sortTime);
-        setSubmissionHistory(list);
+
+        // Deduplicate duplicate items by unique compound identity
+        const seen = new Set();
+        const deduped = [];
+        for (const item of list) {
+          const key = `${item.id}_${item.className}_${item.subject}_${item.practicalType}_${item.yearSuffix}`;
+          if (!seen.has(key)) {
+            seen.add(key);
+            deduped.push(item);
+          }
+        }
+
+        setSubmissionHistory(deduped);
       } else {
         setSubmissionHistory([]);
       }
     } catch (e) {
-      console.error('Failed to load practicals history:', e);
+      console.error('Failed to load submissions history:', e);
       setSubmissionHistory([]);
     } finally {
       setLoadingHistory(false);
     }
   }, []);
+
+  const filteredSubmissions = useMemo(() => {
+    if (!historySearch.trim()) return submissionHistory;
+    const q = historySearch.toLowerCase().trim();
+    return submissionHistory.filter(item => {
+      const className = String(item.className || '').toLowerCase();
+      const subject = String(item.subject || '').toLowerCase();
+      const practicalType = String(item.practicalType || '').toLowerCase();
+      const displayDate = String(item.displayDate || '').toLowerCase();
+      const year = String(item.yearSuffix || '').toLowerCase();
+      return className.includes(q) || subject.includes(q) || practicalType.includes(q) || displayDate.includes(q) || year.includes(q);
+    });
+  }, [submissionHistory, historySearch]);
 
   const handleOpenHistoryModal = () => {
     setShowHistoryModal(true);
@@ -219,7 +272,10 @@ export default function TeacherDashboard() {
             <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2 gap-2">
               <div className="flex items-center gap-2 min-w-0 flex-1">
                 <History className="text-indigo-600 dark:text-indigo-400 shrink-0" size={18} />
-                <h3 className="font-black text-xs sm:text-sm text-slate-900 dark:text-white truncate">Practicals Submission History Log</h3>
+                <div className="min-w-0">
+                  <h3 className="font-black text-xs sm:text-sm text-slate-900 dark:text-white truncate">Assessment & Evaluation Submissions Log</h3>
+                  <p className="text-[10px] text-slate-400 font-medium">All evaluations (Pre-Board, Practicals, Term End & Unit Tests)</p>
+                </div>
               </div>
               <button
                 type="button"
@@ -231,42 +287,60 @@ export default function TeacherDashboard() {
               </button>
             </div>
 
+            {/* Quick Search Filter */}
+            <div className="relative">
+              <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Filter by subject, class, or test type (e.g. Physics, 11th, Pre-Board)..."
+                value={historySearch}
+                onChange={(e) => setHistorySearch(e.target.value)}
+                className="w-full pl-8 pr-3 py-1.5 text-xs bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl focus:outline-hidden focus:ring-1 focus:ring-indigo-500 text-slate-800 dark:text-slate-100 placeholder:text-slate-400"
+              />
+            </div>
+
             {loadingHistory ? (
               <div className="p-8 text-center text-xs font-bold text-slate-400 space-y-2">
                 <RefreshCw size={18} className="animate-spin mx-auto text-indigo-600" />
                 <div>Fetching historical submissions…</div>
               </div>
-            ) : submissionHistory.length > 0 ? (
+            ) : filteredSubmissions.length > 0 ? (
               <div className="max-h-80 overflow-y-auto space-y-1.5 pr-1">
-                {submissionHistory.map((item, i) => {
+                {filteredSubmissions.map((item, i) => {
                   const itemId = String(item.id || item.docId || '');
                   const isPending = itemId.startsWith('pending_') || item.status === 'pending_approval';
                   const isRejected = item.status === 'rejected';
 
                   return (
-                    <div key={itemId || i} className="p-2.5 rounded-xl border bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2 text-xs">
+                    <div 
+                      key={`${itemId || 'eval'}_${item.className}_${item.subject}_${item.practicalType}_${i}`} 
+                      className="p-2.5 rounded-xl border bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2 text-xs"
+                    >
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <span className="font-extrabold text-xs text-slate-900 dark:text-slate-100 truncate">
-                            {item.className} • {item.subject} ({item.practicalType || 'Internal'})
+                            {item.className} • {item.subject}
+                          </span>
+                          <span className="px-1.5 py-0.5 rounded-md text-[9px] font-black bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border border-indigo-500/20">
+                            {item.practicalType || 'Assessment'}
                           </span>
                           {isPending ? (
                             isRejected ? (
-                              <span className="px-1.5 py-0.2 rounded text-[8.5px] font-extrabold bg-rose-500/15 text-rose-600 dark:text-rose-400">
+                              <span className="px-1.5 py-0.5 rounded-md text-[8.5px] font-extrabold bg-rose-500/15 text-rose-600 dark:text-rose-400">
                                 Revision Requested
                               </span>
                             ) : (
-                              <span className="px-1.5 py-0.2 rounded text-[8.5px] font-extrabold bg-amber-500/15 text-amber-600 dark:text-amber-400">
+                              <span className="px-1.5 py-0.5 rounded-md text-[8.5px] font-extrabold bg-amber-500/15 text-amber-600 dark:text-amber-400">
                                 Pending Approval
                               </span>
                             )
                           ) : (
-                            <span className="px-1.5 py-0.2 rounded text-[8.5px] font-extrabold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
+                            <span className="px-1.5 py-0.5 rounded-md text-[8.5px] font-extrabold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
                               Approved & Live
                             </span>
                           )}
                           {item.isCrossSubject && (
-                            <span className="px-1.5 py-0.2 rounded text-[8.5px] font-extrabold bg-purple-500/15 text-purple-600 dark:text-purple-400">
+                            <span className="px-1.5 py-0.5 rounded-md text-[8.5px] font-extrabold bg-purple-500/15 text-purple-600 dark:text-purple-400">
                               Cross-Subject
                             </span>
                           )}
@@ -275,6 +349,9 @@ export default function TeacherDashboard() {
                           <Clock size={10} className="shrink-0" />
                           <span>{item.displayDate || (item.updatedAt || item.submittedAt ? String(item.updatedAt || item.submittedAt) : 'N/A')}</span>
                           <span className="text-indigo-600 dark:text-indigo-400 font-bold shrink-0">• {item.recordsCount || (item.records?.length || 0)} Students</span>
+                          {item.yearSuffix && (
+                            <span className="text-slate-500 dark:text-slate-400 font-medium shrink-0">• Session {item.yearSuffix}</span>
+                          )}
                         </div>
                       </div>
 
@@ -301,7 +378,7 @@ export default function TeacherDashboard() {
               </div>
             ) : (
               <div className="p-8 text-center text-xs font-bold text-slate-400">
-                No past practical submission records found.
+                {historySearch ? 'No matching submissions found for this search.' : 'No past evaluation submission records found.'}
               </div>
             )}
           </div>
