@@ -120,6 +120,43 @@ html, body, #root {
   50% { transform: translateX(6px); }
 }
 
+/* Educational Background Dynamic Animations */
+@keyframes eduFloat {
+  0%, 100% { transform: translateY(0px) rotate(0deg); }
+  50% { transform: translateY(-10px) rotate(2deg); }
+}
+
+@keyframes eduFloatReverse {
+  0%, 100% { transform: translateY(0px) rotate(0deg); }
+  50% { transform: translateY(10px) rotate(-2deg); }
+}
+
+@keyframes eduPulseSubtle {
+  0%, 100% { transform: scale(1); opacity: 0.75; }
+  50% { transform: scale(1.03); opacity: 0.95; }
+}
+
+@keyframes eduSpinSlow {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.animate-edu-float {
+  animation: eduFloat 8s ease-in-out infinite;
+}
+
+.animate-edu-float-delayed {
+  animation: eduFloatReverse 11s ease-in-out 2s infinite;
+}
+
+.animate-edu-pulse {
+  animation: eduPulseSubtle 7s ease-in-out infinite;
+}
+
+.animate-edu-spin-slow {
+  animation: eduSpinSlow 45s linear infinite;
+}
+
 /* Animated Circular Moving Border Beam around Rectangular Profile Area */
 @keyframes profileBorderBeamRotate {
   0% {
@@ -325,34 +362,56 @@ html, body, #root {
   background-color: var(--bg-page) !important;
 }
 
-/* Modal and card overrides */
+/* Modal and card overrides across all dark themes */
 .theme-dark .bg-white,
+.theme-dark [class*="bg-white/"],
+.theme-dark [class*="bg-white\\/"],
 .theme-royal .bg-white,
-.theme-forest .bg-white ,
-.theme-midnight .bg-white {
+.theme-royal [class*="bg-white/"],
+.theme-royal [class*="bg-white\\/"],
+.theme-forest .bg-white,
+.theme-forest [class*="bg-white/"],
+.theme-forest [class*="bg-white\\/"],
+.theme-midnight .bg-white,
+.theme-midnight [class*="bg-white/"],
+.theme-midnight [class*="bg-white\\/"] {
   background-color: var(--bg-card) !important;
   color: var(--text-main) !important;
 }
 
+/* Neutralize white gradient stops on cards in dark themes */
+.theme-dark [class*="from-white"],
+.theme-royal [class*="from-white"],
+.theme-forest [class*="from-white"],
+.theme-midnight [class*="from-white"] {
+  --tw-gradient-from: var(--bg-card) var(--tw-gradient-from-position) !important;
+}
+.theme-dark [class*="via-white"],
+.theme-royal [class*="via-white"],
+.theme-forest [class*="via-white"],
+.theme-midnight [class*="via-white"] {
+  --tw-gradient-stops: var(--tw-gradient-from), var(--bg-card) var(--tw-gradient-via-position), var(--tw-gradient-to) !important;
+}
+.theme-dark [class*="to-white"],
+.theme-royal [class*="to-white"],
+.theme-forest [class*="to-white"],
+.theme-midnight [class*="to-white"] {
+  --tw-gradient-to: var(--bg-card) var(--tw-gradient-to-position) !important;
+}
+
 .theme-dark .bg-slate-50,
 .theme-royal .bg-slate-50,
-.theme-forest .bg-slate-50 ,
+.theme-forest .bg-slate-50,
 .theme-midnight .bg-slate-50 {
   background-color: var(--bg-page) !important;
 }
 
 /* Translucent slate overrides for dark themes */
-.theme-dark .bg-slate-50\/50 {
-  background-color: rgba(15, 23, 42, 0.6) !important;
-}
-.theme-royal .bg-slate-50\/50 {
-  background-color: rgba(10, 17, 40, 0.6) !important;
-}
-.theme-forest .bg-slate-50\/50 {
-  background-color: rgba(6, 46, 27, 0.6) !important;
-}
-.theme-midnight .bg-slate-50\/50 {
-  background-color: rgba(0, 0, 0, 0.6) !important;
+.theme-dark [class*="bg-slate-50"],
+.theme-royal [class*="bg-slate-50"],
+.theme-forest [class*="bg-slate-50"],
+.theme-midnight [class*="bg-slate-50"] {
+  background-color: rgba(255, 255, 255, 0.04) !important;
 }
 
 .theme-dark .bg-slate-50\/30,
@@ -369,45 +428,102 @@ html, body, #root {
   background-color: var(--bg-card) !important;
 }
 
-/* border overrides for slate opacity borders in dark themes */
-.theme-dark .border-slate-100\/80,
-.theme-dark .border-slate-200\/80,
-.theme-dark .border-slate-200\/60,
-.theme-royal .border-slate-100\/80,
-.theme-royal .border-slate-200\/80,
-.theme-royal .border-slate-200\/60,
-.theme-forest .border-slate-100\/80,
-.theme-forest .border-slate-200\/80,
-.theme-forest .border-slate-200\/60,
-.theme-midnight .border-slate-100\/80,
-.theme-midnight .border-slate-200\/80,
-.theme-midnight .border-slate-200\/60 {
+/* Border overrides for all slate borders in dark themes */
+.theme-dark [class*="border-slate-"],
+.theme-royal [class*="border-slate-"],
+.theme-forest [class*="border-slate-"],
+.theme-midnight [class*="border-slate-"] {
   border-color: var(--border-ui) !important;
 }
 
-.theme-dark .bg-slate-100,
-.theme-royal .bg-slate-100,
-.theme-forest .bg-slate-100 ,
-.theme-midnight .bg-slate-100 {
-  background-color: var(--bg-page) !important;
+.theme-dark [class*="bg-slate-100"],
+.theme-royal [class*="bg-slate-100"],
+.theme-forest [class*="bg-slate-100"],
+.theme-midnight [class*="bg-slate-100"] {
+  background-color: rgba(255, 255, 255, 0.06) !important;
 }
 
-/* Text color overrides */
-.theme-dark .text-slate-900, .theme-dark .text-slate-800, .theme-dark .text-slate-700,
-.theme-royal .text-slate-900, .theme-royal .text-slate-800, .theme-royal .text-slate-700,
-.theme-forest .text-slate-900,
-.theme-midnight .text-slate-900, .theme-forest .text-slate-800,
-.theme-midnight .text-slate-800, .theme-forest .text-slate-700 ,
-.theme-midnight .text-slate-700 {
+/* Text color overrides across all dark themes */
+.theme-dark .text-slate-950, .theme-dark .text-slate-900, .theme-dark .text-slate-800, .theme-dark .text-slate-700,
+.theme-royal .text-slate-950, .theme-royal .text-slate-900, .theme-royal .text-slate-800, .theme-royal .text-slate-700,
+.theme-forest .text-slate-950, .theme-forest .text-slate-900, .theme-forest .text-slate-800, .theme-forest .text-slate-700,
+.theme-midnight .text-slate-950, .theme-midnight .text-slate-900, .theme-midnight .text-slate-800, .theme-midnight .text-slate-700 {
   color: var(--text-main) !important;
 }
 
-.theme-dark .text-slate-600, .theme-dark .text-slate-500,
-.theme-royal .text-slate-600, .theme-royal .text-slate-500,
-.theme-forest .text-slate-600,
-.theme-midnight .text-slate-600, .theme-forest .text-slate-500 ,
-.theme-midnight .text-slate-500 {
+.theme-dark .text-slate-600, .theme-dark .text-slate-500, .theme-dark .text-slate-400,
+.theme-royal .text-slate-600, .theme-royal .text-slate-500, .theme-royal .text-slate-400,
+.theme-forest .text-slate-600, .theme-forest .text-slate-500, .theme-forest .text-slate-400,
+.theme-midnight .text-slate-600, .theme-midnight .text-slate-500, .theme-midnight .text-slate-400 {
   color: var(--text-muted) !important;
+}
+
+/* Pastel Badge & Pill overrides in all dark themes for perfect contrast */
+.theme-dark [class*="bg-teal-50"], .theme-royal [class*="bg-teal-50"], .theme-forest [class*="bg-teal-50"], .theme-midnight [class*="bg-teal-50"] {
+  background-color: rgba(13, 148, 136, 0.16) !important;
+  border-color: rgba(20, 184, 166, 0.35) !important;
+}
+.theme-dark [class*="bg-teal-100"], .theme-royal [class*="bg-teal-100"], .theme-forest [class*="bg-teal-100"], .theme-midnight [class*="bg-teal-100"] {
+  background-color: rgba(13, 148, 136, 0.25) !important;
+  border-color: rgba(20, 184, 166, 0.45) !important;
+}
+
+.theme-dark [class*="bg-emerald-50"], .theme-royal [class*="bg-emerald-50"], .theme-forest [class*="bg-emerald-50"], .theme-midnight [class*="bg-emerald-50"] {
+  background-color: rgba(16, 185, 129, 0.16) !important;
+  border-color: rgba(16, 185, 129, 0.35) !important;
+}
+.theme-dark [class*="bg-emerald-100"], .theme-royal [class*="bg-emerald-100"], .theme-forest [class*="bg-emerald-100"], .theme-midnight [class*="bg-emerald-100"] {
+  background-color: rgba(16, 185, 129, 0.25) !important;
+  border-color: rgba(16, 185, 129, 0.45) !important;
+}
+
+.theme-dark [class*="bg-amber-50"], .theme-royal [class*="bg-amber-50"], .theme-forest [class*="bg-amber-50"], .theme-midnight [class*="bg-amber-50"] {
+  background-color: rgba(245, 158, 11, 0.16) !important;
+  border-color: rgba(245, 158, 11, 0.35) !important;
+}
+.theme-dark [class*="bg-amber-100"], .theme-royal [class*="bg-amber-100"], .theme-forest [class*="bg-amber-100"], .theme-midnight [class*="bg-amber-100"] {
+  background-color: rgba(245, 158, 11, 0.25) !important;
+  border-color: rgba(245, 158, 11, 0.45) !important;
+}
+
+.theme-dark [class*="bg-indigo-50"], .theme-royal [class*="bg-indigo-50"], .theme-forest [class*="bg-indigo-50"], .theme-midnight [class*="bg-indigo-50"] {
+  background-color: rgba(99, 102, 241, 0.16) !important;
+  border-color: rgba(99, 102, 241, 0.35) !important;
+}
+.theme-dark [class*="bg-indigo-100"], .theme-royal [class*="bg-indigo-100"], .theme-forest [class*="bg-indigo-100"], .theme-midnight [class*="bg-indigo-100"] {
+  background-color: rgba(99, 102, 241, 0.25) !important;
+  border-color: rgba(99, 102, 241, 0.45) !important;
+}
+
+.theme-dark [class*="bg-rose-50"], .theme-royal [class*="bg-rose-50"], .theme-forest [class*="bg-rose-50"], .theme-midnight [class*="bg-rose-50"] {
+  background-color: rgba(244, 63, 94, 0.16) !important;
+  border-color: rgba(244, 63, 94, 0.35) !important;
+}
+.theme-dark [class*="bg-rose-100"], .theme-royal [class*="bg-rose-100"], .theme-forest [class*="bg-rose-100"], .theme-midnight [class*="bg-rose-100"] {
+  background-color: rgba(244, 63, 94, 0.25) !important;
+  border-color: rgba(244, 63, 94, 0.45) !important;
+}
+
+.theme-dark [class*="bg-cyan-50"], .theme-royal [class*="bg-cyan-50"], .theme-forest [class*="bg-cyan-50"], .theme-midnight [class*="bg-cyan-50"] {
+  background-color: rgba(6, 182, 212, 0.16) !important;
+  border-color: rgba(6, 182, 212, 0.35) !important;
+}
+
+/* Badge Text colors in all dark themes */
+.theme-dark [class*="text-emerald-"], .theme-royal [class*="text-emerald-"], .theme-forest [class*="text-emerald-"], .theme-midnight [class*="text-emerald-"] {
+  color: #34d399 !important;
+}
+.theme-dark [class*="text-amber-"], .theme-royal [class*="text-amber-"], .theme-forest [class*="text-amber-"], .theme-midnight [class*="text-amber-"] {
+  color: #fbbf24 !important;
+}
+.theme-dark [class*="text-indigo-"], .theme-royal [class*="text-indigo-"], .theme-forest [class*="text-indigo-"], .theme-midnight [class*="text-indigo-"] {
+  color: #818cf8 !important;
+}
+.theme-dark [class*="text-rose-"], .theme-royal [class*="text-rose-"], .theme-forest [class*="text-rose-"], .theme-midnight [class*="text-rose-"] {
+  color: #fb7185 !important;
+}
+.theme-dark [class*="text-cyan-"], .theme-royal [class*="text-cyan-"], .theme-forest [class*="text-cyan-"], .theme-midnight [class*="text-cyan-"] {
+  color: #38bdf8 !important;
 }
 
 /* Border overrides */
