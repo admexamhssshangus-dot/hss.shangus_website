@@ -475,27 +475,28 @@ export default function AdminDashboard() {
         </div>
 
         {/* Workspace Card */}
-        <div className="rounded-xl p-0.5 sm:p-1 border shadow-sm space-y-1" style={{ backgroundColor: 'var(--bg-card, #ffffff)', borderColor: 'var(--border-ui, #e2e8f0)' }}>
+        {/* Workspace Card */}
+        <div className="rounded-lg sm:rounded-xl p-0 sm:p-1 border-0 sm:border shadow-none sm:shadow-sm space-y-0.5 sm:space-y-1" style={{ backgroundColor: 'var(--bg-card, #ffffff)', borderColor: 'var(--border-ui, #e2e8f0)' }}>
           {/* Navigation Tabs Dynamic Toolbar (For non-reports tabs) */}
           {activeTab !== 'reports' && (() => {
             const currentModule = TOOL_MODULES.find(m => m.id === activeTab) || { id: activeTab, label: 'Admin Tool', shortLabel: 'Admin Tool', icon: Wrench };
             const CurrentIcon = currentModule.icon;
             const displayLabel = currentModule.shortLabel || currentModule.label;
             return (
-              <div className={`no-print flex items-center justify-between gap-1 sm:gap-2 px-1 sm:px-2.5 py-0.5 sm:py-1.5 rounded-lg sm:rounded-xl border border-slate-200/90 dark:border-slate-800/90 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm text-xs font-bold shadow-2xs w-full min-w-0 flex-nowrap relative ${isToolsOpen ? 'z-[99999]' : 'z-20'}`}>
+              <div className={`no-print flex items-center justify-between gap-1 sm:gap-2 px-1 sm:px-2.5 py-0 sm:py-1 h-7 sm:h-8.5 rounded-md sm:rounded-xl border border-slate-200/90 dark:border-slate-800/90 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm text-xs font-bold shadow-2xs w-full min-w-0 flex-nowrap relative ${isToolsOpen ? 'z-[99999]' : 'z-20'}`}>
                 
                 {/* Left Slot: Navigation Back to Records + Active Module Title */}
-                <div className="flex min-w-0 items-center gap-1 sm:gap-2 flex-1 mr-1">
+                <div className="flex min-w-0 items-center gap-1 sm:gap-1.5 flex-1 mr-1">
                   <button
                     type="button"
                     onClick={() => setActiveTab('reports')}
-                    className="flex items-center justify-center h-6 w-6 sm:h-8 sm:w-auto p-0 sm:px-2.5 rounded-md sm:rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 hover:bg-teal-50 dark:hover:bg-teal-950/40 text-slate-700 dark:text-slate-200 hover:text-teal-700 dark:hover:text-teal-300 font-bold text-[10px] sm:text-xs shadow-2xs transition-all cursor-pointer group shrink-0 active:scale-95"
+                    className="flex items-center justify-center h-5.5 w-5.5 sm:h-7 sm:w-auto p-0 sm:px-2 rounded sm:rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 hover:bg-teal-50 dark:hover:bg-teal-950/40 text-slate-700 dark:text-slate-200 hover:text-teal-700 dark:hover:text-teal-300 font-bold text-[10px] sm:text-xs shadow-2xs transition-all cursor-pointer group shrink-0 active:scale-95"
                     title="Return to Student Records & Reports"
                     aria-label="Return to Records"
                   >
-                    <ArrowLeft size={11} className="sm:hidden text-slate-500 group-hover:text-teal-600 transition-transform" />
-                    <ArrowLeft size={13} className="hidden sm:inline text-slate-500 group-hover:text-teal-600 group-hover:-translate-x-0.5 transition-transform" />
-                    <span className="hidden sm:inline font-bold ml-1">Records</span>
+                    <ArrowLeft size={10} className="sm:hidden text-slate-500 group-hover:text-teal-600 transition-transform" />
+                    <ArrowLeft size={12} className="hidden sm:inline text-slate-500 group-hover:text-teal-600 group-hover:-translate-x-0.5 transition-transform" />
+                    <span className="hidden sm:inline font-bold ml-1 text-xs">Records</span>
                   </button>
 
                   <span className="hidden sm:inline text-slate-300 dark:text-slate-700 font-bold text-xs select-none">/</span>
@@ -507,14 +508,14 @@ export default function AdminDashboard() {
                         setIsToolsOpen(prev => !prev);
                       }
                     }}
-                    className="flex min-w-0 items-center gap-1 sm:gap-1.5 h-6 sm:h-auto px-1.5 sm:px-2.5 py-0 sm:py-1 rounded-md sm:rounded-lg border border-teal-200/80 dark:border-slate-700 bg-gradient-to-r from-teal-50/80 to-indigo-50/40 dark:from-slate-900 dark:to-slate-900 text-teal-950 dark:text-teal-100 shadow-2xs cursor-pointer sm:cursor-default max-w-full"
+                    className="flex min-w-0 items-center gap-1 sm:gap-1.5 h-5.5 sm:h-7 px-1.5 sm:px-2.5 py-0 rounded sm:rounded-lg border border-teal-200/80 dark:border-slate-700 bg-gradient-to-r from-teal-50/80 to-indigo-50/40 dark:from-slate-900 dark:to-slate-900 text-teal-950 dark:text-teal-100 shadow-2xs cursor-pointer sm:cursor-default max-w-full"
                     title={currentModule.label}
                   >
                     <div className="w-3.5 h-3.5 sm:w-4 sm:h-4 rounded bg-teal-600 text-white flex items-center justify-center shrink-0 shadow-2xs">
-                      <CurrentIcon size={9} className="sm:hidden" />
+                      <CurrentIcon size={8.5} className="sm:hidden" />
                       <CurrentIcon size={11} className="hidden sm:block" />
                     </div>
-                    <span className="truncate font-bold text-[10px] sm:text-xs leading-tight">
+                    <span className="truncate font-bold text-[9.5px] sm:text-xs leading-tight">
                       <span className="sm:hidden">{displayLabel}</span>
                       <span className="hidden sm:inline">{currentModule.label}</span>
                     </span>
@@ -534,14 +535,14 @@ export default function AdminDashboard() {
                           window.dispatchEvent(new CustomEvent('hss-toggle-roster-filters'));
                         }
                       }}
-                      className={`h-6 sm:h-8 px-1.5 sm:px-2.5 rounded-md sm:rounded-lg border font-bold text-[10px] sm:text-xs cursor-pointer transition-all shadow-2xs flex items-center gap-1 active:scale-95 shrink-0 ${
+                      className={`h-5.5 sm:h-7 px-1.5 sm:px-2 rounded sm:rounded-lg border font-bold text-[9.5px] sm:text-xs cursor-pointer transition-all shadow-2xs flex items-center gap-1 active:scale-95 shrink-0 ${
                         isStudioSetupOpen
                           ? 'bg-amber-100 dark:bg-amber-950/80 text-amber-950 dark:text-amber-200 border-amber-400 dark:border-amber-700 ring-1 ring-amber-400 shadow-xs'
                           : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800'
                       }`}
                       title="Configure Options, Filters, Signatories & Layout"
                     >
-                      <Sliders size={10} className={`sm:hidden ${isStudioSetupOpen ? 'text-amber-600' : 'text-slate-500'}`} />
+                      <Sliders size={9.5} className={`sm:hidden ${isStudioSetupOpen ? 'text-amber-600' : 'text-slate-500'}`} />
                       <Sliders size={11} className={`hidden sm:inline ${isStudioSetupOpen ? 'text-amber-600' : 'text-slate-500'}`} />
                       <span className="hidden sm:inline">Setup</span>
                     </button>
@@ -553,15 +554,15 @@ export default function AdminDashboard() {
                       type="button"
                       onClick={() => setIsToolsOpen(!isToolsOpen)}
                       title="Switch Administrative Tool / Module"
-                      className="flex h-6 sm:h-8 items-center gap-1 sm:gap-1.5 px-1.5 sm:px-3 rounded-md sm:rounded-lg border border-purple-300/80 dark:border-purple-800/80 bg-purple-50/70 dark:bg-purple-950/60 sm:bg-white sm:dark:bg-slate-900 text-purple-900 dark:text-purple-200 hover:bg-purple-100 dark:hover:bg-purple-900/60 transition-all cursor-pointer shadow-2xs font-bold text-[10px] sm:text-xs group shrink-0 active:scale-95"
+                      className="flex h-5.5 sm:h-7 items-center gap-1 sm:gap-1.5 px-1.5 sm:px-2.5 rounded sm:rounded-lg border border-purple-300/80 dark:border-purple-800/80 bg-purple-50/70 dark:bg-purple-950/60 sm:bg-white sm:dark:bg-slate-900 text-purple-900 dark:text-purple-200 hover:bg-purple-100 dark:hover:bg-purple-900/60 transition-all cursor-pointer shadow-2xs font-bold text-[9.5px] sm:text-xs group shrink-0 active:scale-95"
                     >
-                      <div className="w-3.5 h-3.5 sm:w-5 sm:h-5 rounded sm:rounded-lg bg-purple-100 dark:bg-purple-900/60 text-purple-700 dark:text-purple-300 flex items-center justify-center shrink-0">
-                        <Wrench size={9} className="sm:hidden" />
-                        <Wrench size={13} className="hidden sm:block" />
+                      <div className="w-3.5 h-3.5 sm:w-4 sm:h-4 rounded bg-purple-100 dark:bg-purple-900/60 text-purple-700 dark:text-purple-300 flex items-center justify-center shrink-0">
+                        <Wrench size={8.5} className="sm:hidden" />
+                        <Wrench size={11} className="hidden sm:block" />
                       </div>
-                      <span className="tracking-tight font-bold text-[10px] sm:text-xs">Modules</span>
-                      <ChevronDown size={10} className="sm:hidden text-purple-600 dark:text-purple-400 group-hover:translate-y-0.5 transition-transform" />
-                      <ChevronDown size={12} className="hidden sm:inline text-purple-600 dark:text-purple-400 group-hover:translate-y-0.5 transition-transform ml-0.5" />
+                      <span className="tracking-tight font-bold text-[9.5px] sm:text-xs">Modules</span>
+                      <ChevronDown size={9} className="sm:hidden text-purple-600 dark:text-purple-400 group-hover:translate-y-0.5 transition-transform" />
+                      <ChevronDown size={11} className="hidden sm:inline text-purple-600 dark:text-purple-400 group-hover:translate-y-0.5 transition-transform ml-0.5" />
                     </button>
 
                     <AdminToolsDropdown

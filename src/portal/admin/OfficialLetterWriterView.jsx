@@ -223,6 +223,8 @@ export default function OfficialLetterWriterView({
   const [isExportingDocx, setIsExportingDocx] = useState(false);
   const [showSettingsDrawer, setShowSettingsDrawer] = useState(false);
   const [showMobileTemplatesModal, setShowMobileTemplatesModal] = useState(false);
+  const [showMobileFormatToolbar, setShowMobileFormatToolbar] = useState(false);
+  const [mobileDropdownOpen, setMobileDropdownOpen] = useState(null);
   const [savedDraftsCount, setSavedDraftsCount] = useState(0);
   const [dockSide, setDockSide] = useState(() => {
     try {
@@ -1515,8 +1517,8 @@ export default function OfficialLetterWriterView({
   return (
     <div className="space-y-1.5 text-slate-800 dark:text-slate-100 animate-fadeIn text-xs">
 
-      {/* â•�â•�â•�â•�â•�â•�â•�â•� COLLAPSIBLE LETTERHEAD & REFERENCE CONFIG DRAWER â•�â•�â•�â•�â•�â•�â•�â•� */}
-      {showSettingsDrawer && (
+      {/* ════════ COLLAPSIBLE LETTERHEAD & REFERENCE CONFIG DRAWER (DESKTOP) ════════ */}
+      {showSettingsDrawer && isDesktop && (
         <div 
           className="rounded-xl p-2.5 shadow-2xs space-y-1.5 animate-fadeIn text-xs border"
           style={{ backgroundColor: 'var(--bg-card, #ffffff)', borderColor: 'var(--border-ui, #cbd5e1)' }}
@@ -1637,7 +1639,181 @@ export default function OfficialLetterWriterView({
         </div>
       )}
 
-      {/* ─        {/* ─── LEFT SIDEBAR: REUSABLE TEMPLATES & GEMINI AI ASSISTANT (DESKTOP INLINE) ─── */}
+      {/* ─── MOBILE SETUP POPUP MODAL ─── */}
+      {showSettingsDrawer && !isDesktop && createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-2 sm:p-4 bg-slate-950/70 backdrop-blur-xs animate-fadeIn">
+          <div className="absolute inset-0" onClick={() => setShowSettingsDrawer(false)} />
+          <div
+            role="dialog"
+            aria-modal="true"
+            className="relative w-full max-w-lg max-h-[90dvh] flex flex-col bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden z-10 animate-scaleUp"
+          >
+            {/* Modal Header */}
+            <div className="flex items-center justify-between px-3.5 py-2.5 border-b border-slate-200 dark:border-slate-800 bg-slate-50/90 dark:bg-slate-800/90 shrink-0">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <Sliders size={13} className="text-amber-600 dark:text-amber-400 shrink-0" />
+                <h3 className="font-black text-xs text-slate-900 dark:text-white uppercase tracking-wider truncate">
+                  Official Letterhead & Reference Setup
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowSettingsDrawer(false)}
+                className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors cursor-pointer"
+                aria-label="Close setup modal"
+              >
+                <X size={14} />
+              </button>
+            </div>
+
+            {/* Modal Scrollable Body */}
+            <div className="overflow-y-auto p-3 space-y-2.5 flex-1 overscroll-contain">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                {/* Office Title */}
+                <div>
+                  <label className="block text-[8.5px] font-black uppercase text-slate-500 dark:text-slate-400 mb-0.5 tracking-wider">Office Header</label>
+                  <input
+                    type="text"
+                    value={officeTitle}
+                    onChange={(e) => setOfficeTitle(e.target.value)}
+                    placeholder="OFFICE OF THE PRINCIPAL"
+                    className="w-full px-2 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-black text-xs text-rose-800 dark:text-rose-300 focus:ring-1 focus:ring-amber-500 focus:outline-none transition-all"
+                  />
+                </div>
+
+                {/* Ref No */}
+                <div>
+                  <label className="block text-[8.5px] font-black uppercase text-slate-500 dark:text-slate-400 mb-0.5 tracking-wider">Reference No.</label>
+                  <input
+                    type="text"
+                    value={refNo}
+                    onChange={(e) => setRefNo(e.target.value)}
+                    placeholder="e.g. HSS/SHG/2026/01"
+                    className="w-full px-2 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-bold text-xs focus:ring-1 focus:ring-amber-500 focus:outline-none transition-all font-mono"
+                  />
+                </div>
+
+                {/* Date */}
+                <div>
+                  <div className="flex items-center justify-between mb-0.5">
+                    <label className="block text-[8.5px] font-black uppercase text-slate-500 dark:text-slate-400 tracking-wider">Letter Date</label>
+                    <button
+                      type="button"
+                      onClick={() => setDateStr(new Date().toLocaleDateString('en-GB'))}
+                      className="text-[8.5px] font-bold text-amber-700 dark:text-amber-400 underline cursor-pointer"
+                    >
+                      Set Today
+                    </button>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <input
+                      type="text"
+                      value={dateStr}
+                      onChange={(e) => setDateStr(e.target.value)}
+                      placeholder="DD/MM/YYYY"
+                      className="flex-1 px-2 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-bold text-xs focus:ring-1 focus:ring-amber-500 focus:outline-none transition-all"
+                    />
+                    <input
+                      type="date"
+                      title="Pick date from calendar"
+                      onChange={(e) => {
+                        if (e.target.value) {
+                          const [y, m, d] = e.target.value.split('-');
+                          setDateStr(`${d}/${m}/${y}`);
+                        }
+                      }}
+                      className="w-7 h-7 p-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 cursor-pointer shrink-0"
+                    />
+                  </div>
+                </div>
+
+                {/* Signatory Designation */}
+                <div>
+                  <label className="block text-[8.5px] font-black uppercase text-slate-500 dark:text-slate-400 mb-0.5 tracking-wider">Signatory Title</label>
+                  <input
+                    type="text"
+                    value={signatoryDesignation}
+                    onChange={(e) => setSignatoryDesignation(e.target.value)}
+                    placeholder="Principal"
+                    className="w-full px-2 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-bold text-xs focus:ring-1 focus:ring-amber-500 focus:outline-none transition-all"
+                  />
+                </div>
+
+                {/* Signatory Institution */}
+                <div>
+                  <label className="block text-[8.5px] font-black uppercase text-slate-500 dark:text-slate-400 mb-0.5 tracking-wider">Institution</label>
+                  <input
+                    type="text"
+                    value={signatoryInstitution}
+                    onChange={(e) => setSignatoryInstitution(e.target.value)}
+                    placeholder="Govt. Hr Sec. School Shangus"
+                    className="w-full px-2 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-bold text-xs text-blue-900 dark:text-blue-300 focus:ring-1 focus:ring-amber-500 focus:outline-none transition-all"
+                  />
+                </div>
+
+                {/* Header Layout Alignment */}
+                <div>
+                  <label className="block text-[8.5px] font-black uppercase text-slate-500 dark:text-slate-400 mb-0.5 tracking-wider">Layout</label>
+                  <select
+                    value={headerLayout}
+                    onChange={(e) => setHeaderLayout(e.target.value)}
+                    className="w-full px-2 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-bold text-xs cursor-pointer focus:ring-1 focus:ring-amber-500 focus:outline-none transition-all"
+                  >
+                    <option value="logo_right">Logo Right</option>
+                    <option value="logo_center">Centered</option>
+                    <option value="logo_left">Logo Left</option>
+                  </select>
+                </div>
+
+                {/* Page Margin */}
+                <div>
+                  <label className="block text-[8.5px] font-black uppercase text-slate-500 dark:text-slate-400 mb-0.5 tracking-wider">Margins</label>
+                  <select
+                    value={pageMargin}
+                    onChange={(e) => setPageMargin(e.target.value)}
+                    className="w-full px-2 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-bold text-xs cursor-pointer focus:ring-1 focus:ring-amber-500 focus:outline-none transition-all"
+                  >
+                    <option value="0.5in">0.5" Std</option>
+                    <option value="0.4in">0.4" Tight</option>
+                    <option value="0.3in">0.3" Min</option>
+                    <option value="0.75in">0.75" Med</option>
+                    <option value="1.0in">1.0" Wide</option>
+                  </select>
+                </div>
+
+                {/* Copy To / Dispatch block */}
+                <div>
+                  <label className="block text-[8.5px] font-black uppercase text-slate-500 dark:text-slate-400 mb-0.5 tracking-wider">
+                    Copy To / Dispatch <span className="text-slate-400 font-normal lowercase">(optional)</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={copyToText}
+                    onChange={(e) => setCopyToText(e.target.value)}
+                    placeholder="1. CEO Anantnag, 2. Office copy"
+                    className="w-full px-2 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-medium text-xs focus:ring-1 focus:ring-amber-500 focus:outline-none transition-all"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-2.5 border-t border-slate-200 dark:border-slate-800 bg-slate-50/90 dark:bg-slate-900 shrink-0 flex items-center justify-end">
+              <button
+                type="button"
+                onClick={() => setShowSettingsDrawer(false)}
+                className="px-4 py-1.5 rounded-xl bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 text-white font-black text-xs shadow-md cursor-pointer flex items-center gap-1.5 active:scale-95 transition-all shrink-0"
+              >
+                <Check size={13} />
+                <span>Done & Close Setup</span>
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* ─── LEFT SIDEBAR: REUSABLE TEMPLATES & GEMINI AI ASSISTANT (DESKTOP INLINE) ─── */}
         {isDesktop && (
           <div
             style={{ width: `${leftSplitPct}%` }}
@@ -2085,6 +2261,58 @@ export default function OfficialLetterWriterView({
 
               {/* Modal Scrollable Body */}
               <div className="overflow-y-auto p-2.5 space-y-2 flex-1 overscroll-contain">
+                {/* Mobile Popup: Quick Reference No. & Letter Date Section */}
+                <div className="p-2 rounded-xl bg-amber-50/80 dark:bg-amber-950/40 border border-amber-200/80 dark:border-amber-800/60 shadow-2xs space-y-1.5">
+                  <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-wider text-amber-900 dark:text-amber-300">
+                    <span className="flex items-center gap-1">
+                      <FileText size={11} className="text-amber-600 dark:text-amber-400" />
+                      <span>Document Reference & Date</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setDateStr(new Date().toLocaleDateString('en-GB'))}
+                      className="text-[9px] font-bold text-amber-700 hover:text-amber-900 dark:text-amber-300 underline cursor-pointer"
+                    >
+                      Set Today
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                    <div>
+                      <label className="block text-[8px] font-black uppercase text-slate-500 dark:text-slate-400 mb-0.5">Reference No.</label>
+                      <input
+                        type="text"
+                        value={refNo}
+                        onChange={(e) => setRefNo(e.target.value)}
+                        placeholder="e.g. HSS/SHG/2026/01"
+                        className="w-full px-2 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-mono font-bold text-xs text-slate-900 dark:text-white outline-none focus:border-amber-500 transition-all"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[8px] font-black uppercase text-slate-500 dark:text-slate-400 mb-0.5">Letter Date</label>
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="text"
+                          value={dateStr}
+                          onChange={(e) => setDateStr(e.target.value)}
+                          placeholder="DD/MM/YYYY"
+                          className="flex-1 px-2 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-bold text-xs text-slate-900 dark:text-white outline-none focus:border-amber-500 transition-all"
+                        />
+                        <input
+                          type="date"
+                          title="Pick date from calendar"
+                          onChange={(e) => {
+                            if (e.target.value) {
+                              const [y, m, d] = e.target.value.split('-');
+                              setDateStr(`${d}/${m}/${y}`);
+                            }
+                          }}
+                          className="w-7 h-7 p-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 cursor-pointer shrink-0"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
                 {/* Top Segmented Tab Switcher */}
                 <div className="flex items-center justify-between p-0.5 bg-slate-100 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-2xs">
                   <div className="flex items-center gap-1">
@@ -2536,86 +2764,450 @@ export default function OfficialLetterWriterView({
           style={{ width: isDesktop ? `${100 - leftSplitPct}%` : '100%' }}
           className="w-full lg:flex-1 space-y-1.5 pl-0 lg:pl-1 min-w-0"
         >
-          {/* â•�â•�â•�â•�â•�â•�â•�â•� MOBILE ACTION BAR: TEMPLATES PILL & SETUP TOGGLE â•�â•�â•�â•�â•�â•�â•�â•� */}
-          <div className="lg:hidden mb-1.5 p-1 rounded-xl bg-purple-50/80 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800/60 shadow-2xs flex items-center justify-between gap-1.5">
+          {/* ════════ MOBILE ACTION BAR: TEMPLATES PILL & SETUP TOGGLE ════════ */}
+          <div className="lg:hidden mb-1 p-0.5 rounded-lg bg-purple-50/70 dark:bg-purple-950/30 border border-purple-200/80 dark:border-purple-800/60 shadow-2xs flex items-center justify-between gap-1 h-7">
             <button
               type="button"
               onClick={() => setShowMobileTemplatesModal(true)}
-              className="flex-1 min-w-0 text-left flex items-center gap-2 px-2 py-1 rounded-lg bg-white dark:bg-slate-900 border border-purple-300/80 dark:border-purple-700 shadow-2xs cursor-pointer active:scale-98 transition-transform"
+              className="flex-1 min-w-0 text-left flex items-center gap-1.5 px-2 h-6 rounded bg-white dark:bg-slate-900 border border-purple-200 dark:border-purple-800 shadow-2xs cursor-pointer active:scale-98 transition-transform"
             >
-              <div className="w-6 h-6 rounded-md bg-gradient-to-r from-purple-600 to-indigo-600 text-white flex items-center justify-center shrink-0 shadow-2xs">
-                <Sparkles size={11} className="text-amber-300" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="text-[8.5px] font-black uppercase text-purple-700 dark:text-purple-300 tracking-wider">
-                  Template & AI
-                </div>
-                <div className="text-[11px] font-extrabold text-slate-900 dark:text-white truncate">
-                  {displayedTemplates.find(t => t.id === selectedTemplateId)?.name || 'Blank Official Letterhead'}
-                </div>
-              </div>
-              <span className="px-1.5 py-0.5 rounded text-[8px] font-black bg-purple-100 dark:bg-purple-900/60 text-purple-800 dark:text-purple-300 shrink-0">
-                {allTemplates.length} Presets
+              <Sparkles size={10} className="text-amber-500 shrink-0" />
+              <span className="text-[10px] font-bold text-slate-900 dark:text-white truncate flex-1">
+                {displayedTemplates.find(t => t.id === selectedTemplateId)?.name || 'Official Letterhead'}
               </span>
-              <ChevronDown size={12} className="text-slate-400 shrink-0" />
+              <span className="px-1 py-0.2 rounded text-[7.5px] font-black bg-purple-100 dark:bg-purple-900/60 text-purple-800 dark:text-purple-300 shrink-0">
+                {allTemplates.length}
+              </span>
+              <ChevronDown size={10} className="text-slate-400 shrink-0" />
             </button>
 
             <button
               type="button"
               onClick={() => setShowSettingsDrawer(prev => !prev)}
-              className={`h-8 px-2.5 rounded-lg border font-bold text-[11px] flex items-center gap-1 shadow-2xs active:scale-95 cursor-pointer shrink-0 transition-all ${
+              className={`h-6 px-2 rounded border font-bold text-[10px] flex items-center gap-1 shadow-2xs active:scale-95 cursor-pointer shrink-0 transition-all ${
                 showSettingsDrawer
                   ? 'bg-amber-100 dark:bg-amber-950 text-amber-950 dark:text-amber-200 border-amber-400'
                   : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700'
               }`}
               title="Official Letterhead & Reference Setup"
             >
-              <Sliders size={11} className={showSettingsDrawer ? 'text-amber-600' : 'text-slate-500'} />
+              <Sliders size={10} className={showSettingsDrawer ? 'text-amber-600' : 'text-slate-500'} />
               <span>Setup</span>
             </button>
           </div>
 
-          {/* Mobile Ref No & Date Quick Access Bar */}
-          <div className="lg:hidden mb-1.5 px-2.5 py-1 rounded-xl bg-amber-50/50 dark:bg-slate-900/80 border border-amber-200/80 dark:border-slate-800 shadow-2xs flex items-center justify-between text-[11px] font-bold text-slate-700 dark:text-slate-300 gap-2">
-            <div className="flex items-center gap-1 min-w-0 flex-1">
-              <span className="text-[#800000] dark:text-amber-400 font-black text-[10px] shrink-0">Ref:</span>
-              <input
-                type="text"
-                value={refNo}
-                onChange={(e) => setRefNo(e.target.value)}
-                placeholder="HSS/SHG/..."
-                className="bg-transparent border-b border-dashed border-amber-300 dark:border-amber-700 text-slate-900 dark:text-white font-semibold text-[10.5px] px-1 py-0.2 outline-none w-full truncate"
-              />
-            </div>
-            <div className="flex items-center gap-1 shrink-0">
-              <span className="text-[#800000] dark:text-amber-400 font-black text-[10px] shrink-0">Date:</span>
-              <input
-                type="text"
-                value={dateStr}
-                onChange={(e) => setDateStr(e.target.value)}
-                placeholder="DD/MM/YYYY"
-                className="bg-transparent border-b border-dashed border-amber-300 dark:border-amber-700 text-slate-900 dark:text-white font-semibold text-[10.5px] px-1 py-0.2 outline-none w-22 text-right"
-              />
-              <input
-                type="date"
-                title="Pick date from calendar"
-                onChange={(e) => {
-                  if (e.target.value) {
-                    const [y, m, d] = e.target.value.split('-');
-                    setDateStr(`${d}/${m}/${y}`);
-                  }
-                }}
-                className="w-3.5 h-3.5 opacity-40 hover:opacity-100 cursor-pointer print:hidden shrink-0"
-              />
-            </div>
-          </div>
-
-          {/* â•�â•�â•�â•�â•�â•�â•�â•� WORKSPACE CANVAS & VERTICAL FLOATING DOCK CONTAINER â•�â•�â•�â•�â•�â•�â•�â•� */}
-          <div className={`flex flex-col lg:flex-row items-start justify-center gap-3 ${dockSide === 'right' ? 'lg:flex-row-reverse' : ''}`}>
+          {/* ════════ WORKSPACE CANVAS & VERTICAL FLOATING DOCK CONTAINER ════════ */}
+          <div className={`flex flex-col lg:flex-row items-start justify-center gap-2 ${dockSide === 'right' ? 'lg:flex-row-reverse' : ''}`}>
             
-            {/* â•�â•�â•�â•�â•�â•�â•�â•� VERTICAL FLOATING DOCK (3 Vertical Columns Side-by-Side) â•�â•�â•�â•�â•�â•�â•�â•� */}
-            <div className="w-full lg:w-auto lg:sticky lg:top-2 z-30 shrink-0">
-              <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-1.5 shadow-md flex flex-wrap lg:grid lg:grid-cols-3 items-center justify-items-center gap-1 max-w-fit">
+            {/* ─── MOBILE SLEEK ACTION & GROUPED CONTROLS BAR (Ultra Compact, Letter-First) ─── */}
+            <div className="lg:hidden w-full relative mb-1.5">
+              {/* Click-outside backdrop to dismiss open dropdown */}
+              {mobileDropdownOpen && (
+                <div className="fixed inset-0 z-40" onClick={() => setMobileDropdownOpen(null)} />
+              )}
+
+              <div className="flex items-center justify-between gap-1 p-1 bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-xl shadow-2xs relative z-40">
+                {/* Primary Document Actions (Instant Access) */}
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={handlePrint}
+                    className="h-7 px-2.5 rounded-lg bg-gradient-to-r from-rose-700 to-amber-700 hover:from-rose-600 text-white font-black text-[10px] flex items-center gap-1 shadow-xs cursor-pointer active:scale-95 shrink-0"
+                    title="Print Official Letterhead / Save PDF"
+                  >
+                    <Printer size={11} />
+                    <span>Print</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={isExportingDocx}
+                    onClick={handleExportDocx}
+                    className="h-7 px-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold text-[10px] flex items-center gap-1 shadow-xs cursor-pointer disabled:opacity-50 active:scale-95 shrink-0"
+                    title="Export Word (.docx)"
+                  >
+                    {isExportingDocx ? <RefreshCw size={10} className="animate-spin" /> : <FileText size={11} />}
+                    <span>Word</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleQuickUpdateTemplate}
+                    className="h-7 px-2 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 hover:bg-emerald-100 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 font-bold text-[10px] flex items-center gap-1 shadow-2xs cursor-pointer active:scale-95 shrink-0"
+                    title="Save Template in Cloud"
+                  >
+                    <Save size={11} />
+                    <span>Save</span>
+                  </button>
+                </div>
+
+                {/* Grouped Compact Dropdowns */}
+                <div className="flex items-center gap-1">
+                  {/* 1. Format Dropdown (H1, H2, ¶, B, I, U, S, Colors, Clear) */}
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setMobileDropdownOpen(prev => prev === 'format' ? null : 'format')}
+                      className={`h-7 px-2 rounded-lg font-extrabold text-[10px] flex items-center gap-1 cursor-pointer transition-all active:scale-95 shrink-0 border ${
+                        mobileDropdownOpen === 'format'
+                          ? 'bg-amber-100 text-amber-950 border-amber-400 dark:bg-amber-950 dark:text-amber-200'
+                          : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-200'
+                      }`}
+                      title="Text Style & Formatting"
+                    >
+                      <span className="font-serif font-black text-[11px]">Aa</span>
+                      <span>Format</span>
+                      <ChevronDown size={10} className={`transition-transform ${mobileDropdownOpen === 'format' ? 'rotate-180' : ''}`} />
+                    </button>
+
+                    {mobileDropdownOpen === 'format' && (
+                      <div
+                        onClick={(e) => e.stopPropagation()}
+                        className="absolute right-0 top-full mt-1.5 z-50 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl p-2 w-64 space-y-2 animate-fadeIn"
+                      >
+                        <div className="flex items-center justify-between pb-1 border-b border-slate-100 dark:border-slate-800 text-[9px] font-black uppercase tracking-wider text-slate-400">
+                          <span>Text & Headings</span>
+                          <button
+                            type="button"
+                            onClick={() => setMobileDropdownOpen(null)}
+                            className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                          >
+                            <X size={11} />
+                          </button>
+                        </div>
+
+                        {/* Headings & Paragraph */}
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => { executeFormat('formatBlock', '<h1>'); setMobileDropdownOpen(null); }}
+                            className={`flex-1 py-1 rounded-lg text-[10px] font-black border transition-all ${
+                              activeFormats.h1
+                                ? 'bg-amber-100 dark:bg-amber-950 text-amber-900 border-amber-400'
+                                : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-100'
+                            }`}
+                          >
+                            H1
+                          </button>
+                          <button
+                            type="button"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => { executeFormat('formatBlock', '<h2>'); setMobileDropdownOpen(null); }}
+                            className={`flex-1 py-1 rounded-lg text-[10px] font-black border transition-all ${
+                              activeFormats.h2
+                                ? 'bg-amber-100 dark:bg-amber-950 text-amber-900 border-amber-400'
+                                : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-100'
+                            }`}
+                          >
+                            H2
+                          </button>
+                          <button
+                            type="button"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => { executeFormat('formatBlock', '<p>'); setMobileDropdownOpen(null); }}
+                            className={`flex-1 py-1 rounded-lg text-[10px] font-bold border transition-all ${
+                              activeFormats.p
+                                ? 'bg-amber-100 dark:bg-amber-950 text-amber-900 border-amber-400'
+                                : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-100'
+                            }`}
+                          >
+                            Paragraph
+                          </button>
+                        </div>
+
+                        {/* Inline Styles: B, I, U, S, Clear */}
+                        <div className="flex items-center justify-between gap-1 pt-1 border-t border-slate-100 dark:border-slate-800">
+                          <button
+                            type="button"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => executeFormat('bold')}
+                            className={`w-7 h-7 rounded-lg flex items-center justify-center ${activeFormats.bold ? 'bg-amber-100 text-amber-900 font-black' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200'}`}
+                            title="Bold"
+                          >
+                            <Bold size={12} />
+                          </button>
+                          <button
+                            type="button"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => executeFormat('italic')}
+                            className={`w-7 h-7 rounded-lg flex items-center justify-center ${activeFormats.italic ? 'bg-amber-100 text-amber-900 font-black' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200'}`}
+                            title="Italic"
+                          >
+                            <Italic size={12} />
+                          </button>
+                          <button
+                            type="button"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => executeFormat('underline')}
+                            className={`w-7 h-7 rounded-lg flex items-center justify-center ${activeFormats.underline ? 'bg-amber-100 text-amber-900 font-black' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200'}`}
+                            title="Underline"
+                          >
+                            <Underline size={12} />
+                          </button>
+                          <button
+                            type="button"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => executeFormat('strikethrough')}
+                            className={`w-7 h-7 rounded-lg flex items-center justify-center ${activeFormats.strikeThrough ? 'bg-amber-100 text-amber-900 font-black' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200'}`}
+                            title="Strikethrough"
+                          >
+                            <Strikethrough size={12} />
+                          </button>
+                          <button
+                            type="button"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => { executeFormat('removeFormat'); setMobileDropdownOpen(null); }}
+                            className="w-7 h-7 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-rose-600 flex items-center justify-center"
+                            title="Clear Formatting"
+                          >
+                            <RemoveFormatting size={12} />
+                          </button>
+                        </div>
+
+                        {/* Quick Text Colors */}
+                        <div className="flex items-center justify-between gap-1 pt-1 border-t border-slate-100 dark:border-slate-800">
+                          <span className="text-[9px] font-bold text-slate-500">Color:</span>
+                          <div className="flex items-center gap-1.5">
+                            {[
+                              { label: 'Black', color: '#0f172a' },
+                              { label: 'Maroon', color: '#800000' },
+                              { label: 'Navy Blue', color: '#0a192f' },
+                              { label: 'Forest Green', color: '#065f46' },
+                              { label: 'Slate Gray', color: '#475569' },
+                              { label: 'Crimson', color: '#dc2626' }
+                            ].map(c => (
+                              <button
+                                key={c.color}
+                                type="button"
+                                onMouseDown={(e) => e.preventDefault()}
+                                onClick={() => { applyTextColor(c.color); setMobileDropdownOpen(null); }}
+                                className="w-5 h-5 rounded-full border border-slate-300 dark:border-slate-600 cursor-pointer hover:scale-110 transition-transform shadow-2xs"
+                                style={{ backgroundColor: c.color }}
+                                title={c.label}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 2. Layout & Insert Dropdown (Align, Lists, Divider, Table) */}
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setMobileDropdownOpen(prev => prev === 'layout' ? null : 'layout')}
+                      className={`h-7 px-2 rounded-lg font-extrabold text-[10px] flex items-center gap-1 cursor-pointer transition-all active:scale-95 shrink-0 border ${
+                        mobileDropdownOpen === 'layout'
+                          ? 'bg-amber-100 text-amber-950 border-amber-400 dark:bg-amber-950 dark:text-amber-200'
+                          : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-200'
+                      }`}
+                      title="Alignment, Lists & Tables"
+                    >
+                      <AlignLeft size={11} />
+                      <span>Layout</span>
+                      <ChevronDown size={10} className={`transition-transform ${mobileDropdownOpen === 'layout' ? 'rotate-180' : ''}`} />
+                    </button>
+
+                    {mobileDropdownOpen === 'layout' && (
+                      <div
+                        onClick={(e) => e.stopPropagation()}
+                        className="absolute right-0 top-full mt-1.5 z-50 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl p-2 w-56 space-y-2 animate-fadeIn"
+                      >
+                        <div className="flex items-center justify-between pb-1 border-b border-slate-100 dark:border-slate-800 text-[9px] font-black uppercase tracking-wider text-slate-400">
+                          <span>Layout & Structure</span>
+                          <button
+                            type="button"
+                            onClick={() => setMobileDropdownOpen(null)}
+                            className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                          >
+                            <X size={11} />
+                          </button>
+                        </div>
+
+                        {/* Alignments */}
+                        <div className="flex items-center justify-between gap-1">
+                          <button
+                            type="button"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => executeFormat('justifyLeft')}
+                            className={`w-7 h-7 rounded-lg flex items-center justify-center ${activeFormats.justifyLeft ? 'bg-amber-100 text-amber-900' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200'}`}
+                            title="Align Left"
+                          >
+                            <AlignLeft size={12} />
+                          </button>
+                          <button
+                            type="button"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => executeFormat('justifyCenter')}
+                            className={`w-7 h-7 rounded-lg flex items-center justify-center ${activeFormats.justifyCenter ? 'bg-amber-100 text-amber-900' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200'}`}
+                            title="Align Center"
+                          >
+                            <AlignCenter size={12} />
+                          </button>
+                          <button
+                            type="button"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => executeFormat('justifyRight')}
+                            className={`w-7 h-7 rounded-lg flex items-center justify-center ${activeFormats.justifyRight ? 'bg-amber-100 text-amber-900' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200'}`}
+                            title="Align Right"
+                          >
+                            <AlignRight size={12} />
+                          </button>
+                          <button
+                            type="button"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => executeFormat('justifyFull')}
+                            className={`w-7 h-7 rounded-lg flex items-center justify-center ${activeFormats.justifyFull ? 'bg-amber-100 text-amber-900' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200'}`}
+                            title="Justify"
+                          >
+                            <AlignJustify size={12} />
+                          </button>
+                        </div>
+
+                        {/* Lists */}
+                        <div className="flex items-center justify-between gap-1 pt-1 border-t border-slate-100 dark:border-slate-800">
+                          <button
+                            type="button"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => executeFormat('insertUnorderedList')}
+                            className={`flex-1 py-1 rounded-lg text-[10px] font-bold flex items-center justify-center gap-1 border border-slate-200 dark:border-slate-700 ${activeFormats.insertUnorderedList ? 'bg-amber-100 text-amber-900' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200'}`}
+                            title="Bullet List"
+                          >
+                            <List size={11} />
+                            <span>Bullets</span>
+                          </button>
+                          <button
+                            type="button"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => executeFormat('insertOrderedList')}
+                            className={`flex-1 py-1 rounded-lg text-[10px] font-bold flex items-center justify-center gap-1 border border-slate-200 dark:border-slate-700 ${activeFormats.insertOrderedList ? 'bg-amber-100 text-amber-900' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200'}`}
+                            title="Numbered List"
+                          >
+                            <ListOrdered size={11} />
+                            <span>Numbered</span>
+                          </button>
+                        </div>
+
+                        {/* Table & Divider */}
+                        <div className="flex items-center gap-1 pt-1 border-t border-slate-100 dark:border-slate-800">
+                          <button
+                            type="button"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => { executeFormat('insertHorizontalRule'); setMobileDropdownOpen(null); }}
+                            className="flex-1 py-1 rounded-lg text-[10px] font-bold flex items-center justify-center gap-1 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200"
+                          >
+                            <Minus size={11} />
+                            <span>Divider</span>
+                          </button>
+                          <button
+                            type="button"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => { insertTable(2, 4); setMobileDropdownOpen(null); }}
+                            className="flex-1 py-1 rounded-lg text-[10px] font-bold flex items-center justify-center gap-1 bg-purple-50 dark:bg-purple-950/60 text-purple-800 dark:text-purple-200 border border-purple-200 dark:border-purple-800"
+                          >
+                            <TableIcon size={11} />
+                            <span>Table</span>
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 3. More Dropdown (Undo, Redo, AI, History, Template) */}
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setMobileDropdownOpen(prev => prev === 'more' ? null : 'more')}
+                      className={`h-7 w-7 rounded-lg font-bold text-[11px] flex items-center justify-center cursor-pointer transition-all active:scale-95 shrink-0 border ${
+                        mobileDropdownOpen === 'more'
+                          ? 'bg-amber-100 text-amber-950 border-amber-400 dark:bg-amber-950 dark:text-amber-200'
+                          : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-200'
+                      }`}
+                      title="More Tools"
+                    >
+                      <span>•••</span>
+                    </button>
+
+                    {mobileDropdownOpen === 'more' && (
+                      <div
+                        onClick={(e) => e.stopPropagation()}
+                        className="absolute right-0 top-full mt-1.5 z-50 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl p-1.5 w-52 space-y-1 animate-fadeIn"
+                      >
+                        {/* Undo / Redo */}
+                        <div className="flex items-center justify-between gap-1 p-1 bg-slate-50 dark:bg-slate-800/80 rounded-xl">
+                          <button
+                            type="button"
+                            disabled={!canUndo}
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => { handleUndo(); setTimeout(checkActiveFormats, 50); }}
+                            className="flex-1 py-1 rounded-lg flex items-center justify-center gap-1 text-[10px] font-bold text-slate-700 dark:text-slate-200 hover:bg-white dark:hover:bg-slate-700 disabled:opacity-30"
+                          >
+                            <Undo size={11} />
+                            <span>Undo</span>
+                          </button>
+                          <button
+                            type="button"
+                            disabled={!canRedo}
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => { handleRedo(); setTimeout(checkActiveFormats, 50); }}
+                            className="flex-1 py-1 rounded-lg flex items-center justify-center gap-1 text-[10px] font-bold text-slate-700 dark:text-slate-200 hover:bg-white dark:hover:bg-slate-700 disabled:opacity-30"
+                          >
+                            <Redo size={11} />
+                            <span>Redo</span>
+                          </button>
+                        </div>
+
+                        {/* AI Assistant */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setActiveLeftTab('ai');
+                            setShowMobileTemplatesModal(true);
+                            setMobileDropdownOpen(null);
+                          }}
+                          className="w-full text-left px-2 py-1.5 rounded-lg hover:bg-purple-50 dark:hover:bg-purple-950/50 text-purple-900 dark:text-purple-200 flex items-center gap-2 cursor-pointer text-[10.5px] font-bold"
+                        >
+                          <Sparkles size={12} className="text-purple-600 dark:text-purple-400" />
+                          <span>Gemini AI Assistant</span>
+                        </button>
+
+                        {/* History / Archive */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowHistoryModal(true);
+                            setMobileDropdownOpen(null);
+                          }}
+                          className="w-full text-left px-2 py-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 flex items-center gap-2 cursor-pointer text-[10.5px] font-bold"
+                        >
+                          <History size={12} className="text-slate-500" />
+                          <span>Archived Documents</span>
+                        </button>
+
+                        {/* Save As New Template */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowSaveTemplateModal(true);
+                            setMobileDropdownOpen(null);
+                          }}
+                          className="w-full text-left px-2 py-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 flex items-center gap-2 cursor-pointer text-[10.5px] font-bold"
+                        >
+                          <BookmarkPlus size={12} className="text-slate-500" />
+                          <span>Save As New Template</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* ─── DESKTOP VERTICAL FLOATING DOCK (3 Columns) ─── */}
+            <div className="hidden lg:block lg:sticky lg:top-2 z-30 shrink-0">
+              <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-1.5 shadow-md grid grid-cols-3 items-center justify-items-center gap-1 max-w-fit">
                 {/* ── Row 1: Primary Actions (Print, Word, Save) ── */}
                 <button
                   type="button"
