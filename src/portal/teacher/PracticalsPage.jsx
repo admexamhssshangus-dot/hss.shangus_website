@@ -1,4 +1,5 @@
 import { saveAcademicRecord } from '../../services/academicRecordService';
+import { saveVersionToBin } from '../../services/practicalsBinService';
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Link, useLocation, useOutletContext } from 'react-router-dom';
 import { 
@@ -1303,7 +1304,7 @@ export default function PracticalsPage() {
 
       try {
         const [rawDocs, masterRes, admRes] = await Promise.all([
-          getCachedCollection('practicalsData', false, 15 * 60 * 1000).catch(() => []),
+          getCachedCollection('practicalsData', true, 0).catch(() => []),
           getCachedCollection('masterRegisters', false, 15 * 60 * 1000).catch(() => []),
           getCachedCollection('admissions', false, 15 * 60 * 1000).catch(() => [])
         ]);
@@ -1319,8 +1320,9 @@ export default function PracticalsPage() {
           if (dId === pendingDocId || (String(data.canonicalDocId || '') === docId && (data.status === 'pending_approval' || data.status === 'rejected' || data.status === 'draft' || data.isDraft === true))) {
             foundPending = { id: dId, ...data };
           }
-          // Track canonical integrated submission
-          if ((dId === docId || (String(data.docId || '') === docId && !dId.startsWith('pending_') && !dId.startsWith('history_'))) && Array.isArray(data.records) && data.records.length > 0) {
+          // Track canonical integrated submission (supporting legacy format with composite class prefix if matching)
+          const isLegacyDocMatch = (dId === '11th,12th_' + docId.replace(/^11th_/, '')) && clsNorm === '11th';
+          if ((dId === docId || isLegacyDocMatch || (String(data.docId || '') === docId && !dId.startsWith('pending_') && !dId.startsWith('history_') && !dId.startsWith('bin_'))) && Array.isArray(data.records) && data.records.length > 0) {
             foundCanonical = { id: dId, ...data };
           }
 
@@ -1460,7 +1462,8 @@ export default function PracticalsPage() {
       }
 
       const cacheKey = `${selectedClass}_${yearSuffix}_${selectedSubject}_${practicalType}`;
-      let uniqueStudents = masterRosterCacheRef.current[cacheKey];
+      // Re-evaluate roster when saved marks exist in database to guarantee full sync
+      let uniqueStudents = Object.keys(savedMarksMap).length > 0 ? null : masterRosterCacheRef.current[cacheKey];
 
       if (!uniqueStudents || uniqueStudents.length === 0) {
         let allCandidates = [];
@@ -1825,8 +1828,15 @@ export default function PracticalsPage() {
                         {};
           const draft = draftMap[key] || {};
 
-          const pMarkVal = draft.practicalMarks !== undefined ? draft.practicalMarks : (saved.practicalMarks !== undefined ? saved.practicalMarks : '');
-          const vMarkVal = draft.vivaMarks !== undefined ? draft.vivaMarks : (saved.vivaMarks !== undefined ? saved.vivaMarks : '');
+          const pSaved = (saved.practicalMarks !== undefined && saved.practicalMarks !== null && String(saved.practicalMarks).trim() !== '') ? saved.practicalMarks : undefined;
+          const vSaved = (saved.vivaMarks !== undefined && saved.vivaMarks !== null && String(saved.vivaMarks).trim() !== '') ? saved.vivaMarks : undefined;
+
+          const pDraft = (draft.practicalMarks !== undefined && draft.practicalMarks !== null && String(draft.practicalMarks).trim() !== '') ? draft.practicalMarks : undefined;
+          const vDraft = (draft.vivaMarks !== undefined && draft.vivaMarks !== null && String(draft.vivaMarks).trim() !== '') ? draft.vivaMarks : undefined;
+
+          // Saved database marks take absolute priority over blank local draft entries; draft marks apply when edited
+          const pMarkVal = pSaved !== undefined ? pSaved : (pDraft !== undefined ? pDraft : '');
+          const vMarkVal = vSaved !== undefined ? vSaved : (vDraft !== undefined ? vDraft : '');
 
           return {
             rollNo: roll,
@@ -2050,10 +2060,16 @@ export default function PracticalsPage() {
         localStorage.setItem(draftKey, JSON.stringify(draftPayloadLocal));
       } catch (_) {}
 
-      // Write draft to Firestore database: only students with marks or absent are stored with values;
-      // for other students, marks obtained will be empty string.
       const docId = formatPracticalDocId(selectedClass, selectedSubject, practicalType, yearSuffix);
       const pendingDocId = `pending_${docId}`;
+
+      // Archive previous version to Bin if an official or pending record already exists
+      if (existingAwardInfo?.canonical && Array.isArray(existingAwardInfo.canonical.records) && existingAwardInfo.canonical.records.length > 0) {
+        saveVersionToBin(docId, existingAwardInfo.canonical, 'teacher_draft_update', {
+          name: user?.name || auth.currentUser?.displayName,
+          email: auth.currentUser?.email
+        }).catch(() => {});
+      }
 
       const records = studentMarks.map((s) => {
         const pRaw = String(s.practicalMarks !== undefined && s.practicalMarks !== null ? s.practicalMarks : '').trim().toUpperCase();
@@ -2269,6 +2285,19 @@ export default function PracticalsPage() {
         submittedAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
+
+      // Archive prior integrated or pending record to Version Bin before saving final submission
+      if (existingAwardInfo?.canonical && Array.isArray(existingAwardInfo.canonical.records) && existingAwardInfo.canonical.records.length > 0) {
+        await saveVersionToBin(docId, existingAwardInfo.canonical, 'teacher_resubmission', {
+          name: user?.name || auth.currentUser?.displayName,
+          email: auth.currentUser?.email
+        }).catch(() => {});
+      } else if (existingAwardInfo?.pending && Array.isArray(existingAwardInfo.pending.records) && existingAwardInfo.pending.records.length > 0) {
+        await saveVersionToBin(docId, existingAwardInfo.pending, 'teacher_pending_revision', {
+          name: user?.name || auth.currentUser?.displayName,
+          email: auth.currentUser?.email
+        }).catch(() => {});
+      }
 
       await saveAcademicRecord('practicalsData', pendingDocId, submissionPayload);
       invalidateCollectionCache('practicalsData');

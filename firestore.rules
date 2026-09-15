@@ -490,6 +490,12 @@ service cloud.firestore {
       allow delete: if canUse('practicals');
     }
 
+    match /practicalsBin/{documentId} {
+      allow read: if isTeacher() || canUse('practicals');
+      allow create, update: if (isTeacher() || canUse('practicals')) && validStaffDocument(request.resource.data);
+      allow delete: if canUse('practicals');
+    }
+
     match /activityLogs/{documentId} {
       allow create: if isTeacher() && validStaffDocument(request.resource.data);
       allow read, delete: if isAdmin();
