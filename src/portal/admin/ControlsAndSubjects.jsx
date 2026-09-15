@@ -4,7 +4,7 @@ import {
   Trash2, Wand2, Mail, Plus, X, Database, Sparkles, Copy, Download, UserPlus, Edit3, 
   Lock, ShieldAlert, Check, ArrowRight, Layers, FileCheck, FileSpreadsheet, GitMerge, 
   PanelsTopLeft, Send, Key, UserCheck, Phone, GraduationCap, Eye, EyeOff, Search,
-  RotateCcw, ArrowUpDown, Pencil, CalendarCheck
+  RotateCcw, ArrowUpDown, Pencil, CalendarCheck, ChevronDown, ChevronUp
 } from 'lucide-react';
 import appsScriptApi from '../../services/appsScriptApi';
 import { db } from '../../services/firebase';
@@ -180,6 +180,12 @@ export default function ControlsAndSubjects() {
       }
       window.history.replaceState(null, '', url.toString());
     } catch (_) {}
+  };
+
+  // Staff Permissions Accordion State for Mobile Compactness
+  const [expandedUsers, setExpandedUsers] = useState({});
+  const toggleExpandUser = (email) => {
+    setExpandedUsers(prev => ({ ...prev, [email]: !prev[email] }));
   };
 
   // Settings & Controls States
@@ -1147,11 +1153,11 @@ export default function ControlsAndSubjects() {
       {/* Sleek Sub Navigation Bar with Horizontal Swipe on Mobile */}
       <div className="flex items-center gap-1 sm:gap-1.5 overflow-x-auto no-scrollbar pb-1 border-b border-slate-200 dark:border-slate-800">
         {[
-          { id: 'controls', label: '1. Admission Controls', icon: Sliders },
-          { id: 'subjects', label: '2. Subjects & Streams', icon: BookOpen },
-          { id: 'schools', label: '3. Feeder Schools', icon: GraduationCap },
-          { id: 'permissions', label: '4. Staff & Permissions', icon: ShieldCheck },
-          { id: 'lab', label: '5. Session Rollover', icon: Database },
+          { id: 'controls', label: '1. Admission Controls', shortLabel: '1. Controls', icon: Sliders },
+          { id: 'subjects', label: '2. Subjects & Streams', shortLabel: '2. Subjects', icon: BookOpen },
+          { id: 'schools', label: '3. Feeder Schools', shortLabel: '3. Feeders', icon: GraduationCap },
+          { id: 'permissions', label: '4. Staff & Permissions', shortLabel: '4. Permissions', icon: ShieldCheck },
+          { id: 'lab', label: '5. Session Rollover', shortLabel: '5. Sessions', icon: Database },
         ].map((sub) => {
           const Icon = sub.icon;
           const isActive = activeSubTab === sub.id;
@@ -1160,14 +1166,15 @@ export default function ControlsAndSubjects() {
               key={sub.id}
               type="button"
               onClick={() => setActiveSubTab(sub.id)}
-              className={`py-1 px-2.5 sm:py-1.5 sm:px-3 rounded-lg sm:rounded-xl font-black text-[11px] sm:text-xs flex items-center gap-1 sm:gap-1.5 transition-all whitespace-nowrap cursor-pointer shrink-0 shadow-2xs ${
+              className={`py-1 px-2 sm:py-1.5 sm:px-3 rounded-lg sm:rounded-xl font-black text-[10.5px] sm:text-xs flex items-center gap-1 sm:gap-1.5 transition-all whitespace-nowrap cursor-pointer shrink-0 shadow-2xs ${
                 isActive
                   ? 'bg-amber-600 text-white border border-amber-700 shadow-sm ring-1 ring-amber-500/30'
                   : 'bg-slate-100 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700/60 hover:bg-slate-200 dark:hover:bg-slate-700'
               }`}
             >
               <Icon size={12} className={isActive ? 'text-white' : 'text-slate-500 dark:text-slate-400'} />
-              <span>{sub.label}</span>
+              <span className="sm:hidden">{sub.shortLabel}</span>
+              <span className="hidden sm:inline">{sub.label}</span>
             </button>
           );
         })}
@@ -1959,34 +1966,34 @@ export default function ControlsAndSubjects() {
         }).length;
 
         return (
-          <div className="space-y-3">
-            <div className="p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm space-y-3">
+          <div className="space-y-2.5 sm:space-y-3">
+            <div className="p-2 sm:p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs space-y-2.5 sm:space-y-3">
               {/* Header Toolbar */}
-              <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2.5 flex-wrap gap-2">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2.5 gap-2">
                 <div className="flex items-center gap-2">
-                  <div className="w-7 h-7 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-600 dark:text-amber-400">
-                    <ShieldCheck size={16} />
+                  <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-600 dark:text-amber-400 shrink-0">
+                    <ShieldCheck size={14} className="sm:w-4 sm:h-4" />
                   </div>
-                  <div>
-                    <h3 className="font-black text-xs text-slate-900 dark:text-white leading-tight">
-                      Staff Accounts & Granular Permissions
+                  <div className="min-w-0">
+                    <h3 className="font-black text-xs sm:text-sm text-slate-900 dark:text-white leading-tight truncate">
+                      Staff Accounts & Permissions
                     </h3>
-                    <p className="text-slate-500 dark:text-slate-400 text-[11px] font-bold leading-none">
-                      Manage Admins, SuperAdmins, and Teaching Faculty with Cloud Firestore & Firebase Auth
+                    <p className="text-slate-500 dark:text-slate-400 text-[10px] sm:text-[11px] font-bold leading-tight line-clamp-1 sm:line-clamp-none">
+                      Manage Admins, SuperAdmins, and Faculty permissions
                     </p>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-1.5 flex-wrap">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 w-full sm:w-auto">
                   {/* Role Filter Pills */}
-                  <div className="inline-flex p-0.5 bg-slate-100 dark:bg-slate-800 rounded-xl text-[10.5px] font-bold">
+                  <div className="inline-flex p-0.5 bg-slate-100 dark:bg-slate-800 rounded-xl text-[10px] font-bold w-full sm:w-auto justify-between sm:justify-start">
                     <button
                       type="button"
                       onClick={() => setStaffRoleFilter('all')}
-                      className={`px-2 py-1 rounded-lg cursor-pointer transition-all ${
+                      className={`px-2 py-1 rounded-lg cursor-pointer transition-all flex-1 sm:flex-none text-center ${
                         staffRoleFilter === 'all'
                           ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-2xs font-black'
-                          : 'text-slate-500'
+                          : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
                       }`}
                     >
                       All ({adminUsers.length})
@@ -1994,10 +2001,10 @@ export default function ControlsAndSubjects() {
                     <button
                       type="button"
                       onClick={() => setStaffRoleFilter('admin')}
-                      className={`px-2 py-1 rounded-lg cursor-pointer transition-all ${
+                      className={`px-2 py-1 rounded-lg cursor-pointer transition-all flex-1 sm:flex-none text-center ${
                         staffRoleFilter === 'admin'
                           ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-2xs font-black'
-                          : 'text-slate-500'
+                          : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
                       }`}
                     >
                       Admins ({adminCount})
@@ -2005,39 +2012,42 @@ export default function ControlsAndSubjects() {
                     <button
                       type="button"
                       onClick={() => setStaffRoleFilter('teacher')}
-                      className={`px-2 py-1 rounded-lg cursor-pointer transition-all ${
+                      className={`px-2 py-1 rounded-lg cursor-pointer transition-all flex-1 sm:flex-none text-center ${
                         staffRoleFilter === 'teacher'
                           ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-2xs font-black'
-                          : 'text-slate-500'
+                          : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
                       }`}
                     >
                       Teachers ({teacherCount})
                     </button>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={handleOpenAddAdmin}
-                    className="px-3 py-1.5 rounded-xl font-black text-xs text-white bg-indigo-600 hover:bg-indigo-500 shadow-2xs flex items-center gap-1 cursor-pointer transition-all"
-                  >
-                    <UserPlus size={13} />
-                    <span>Add New Staff / Admin</span>
-                  </button>
+                  {/* Actions in a single side-by-side row */}
+                  <div className="flex items-center gap-1.5 w-full sm:w-auto">
+                    <button
+                      type="button"
+                      onClick={handleOpenAddAdmin}
+                      className="flex-1 sm:flex-none px-2.5 sm:px-3 py-1.5 rounded-xl font-black text-[10.5px] sm:text-xs text-white bg-indigo-600 hover:bg-indigo-500 shadow-2xs flex items-center justify-center gap-1 cursor-pointer transition-all active:scale-95"
+                    >
+                      <UserPlus size={12} className="sm:w-3.5 sm:h-3.5" />
+                      <span>Add Staff</span>
+                    </button>
 
-                  <button
-                    type="button"
-                    onClick={() => handleApplyPermissions()}
-                    disabled={saving}
-                    className="px-3.5 py-1.5 rounded-xl font-black text-xs text-white bg-amber-600 hover:bg-amber-500 shadow-2xs flex items-center gap-1 cursor-pointer disabled:opacity-50 transition-all"
-                  >
-                    {saving ? <RefreshCw size={13} className="animate-spin" /> : <Save size={13} />}
-                    <span>Save All Changes</span>
-                  </button>
+                    <button
+                      type="button"
+                      onClick={() => handleApplyPermissions()}
+                      disabled={saving}
+                      className="flex-1 sm:flex-none px-2.5 sm:px-3.5 py-1.5 rounded-xl font-black text-[10.5px] sm:text-xs text-white bg-amber-600 hover:bg-amber-500 shadow-2xs flex items-center justify-center gap-1 cursor-pointer disabled:opacity-50 transition-all active:scale-95"
+                    >
+                      {saving ? <RefreshCw size={12} className="animate-spin" /> : <Save size={12} className="sm:w-3.5 sm:h-3.5" />}
+                      <span>Save Changes</span>
+                    </button>
+                  </div>
                 </div>
               </div>
 
               {/* Staff Users List */}
-              <div className="space-y-2.5">
+              <div className="space-y-1.5 sm:space-y-2">
                 {filteredStaff.map((user, idx) => {
                   const cleanEmail = String(user.email || '').trim().toLowerCase();
                   const roleStr = String(user.role || '').toLowerCase();
@@ -2047,59 +2057,62 @@ export default function ControlsAndSubjects() {
                   const allSelected = ALL_ADMIN_MODULES.every((m) => userPerms.includes(m.code));
                   const activeCount = isSuper ? ALL_ADMIN_MODULES.length : userPerms.length;
                   const isSendingReset = sendingResetFor === cleanEmail;
+                  const isExpanded = Boolean(expandedUsers[cleanEmail]);
 
                   return (
                     <div 
                       key={idx} 
-                      className="p-2.5 sm:p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-950/60 space-y-2 hover:border-amber-500/40 transition-all"
+                      className="p-2 sm:p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-950/60 hover:border-amber-500/40 transition-all space-y-1.5"
                     >
                       {/* Compact Single-Line User Header */}
-                      <div className="flex items-center justify-between flex-wrap gap-2">
-                        <div className="flex items-center gap-2">
-                          <div className={`w-7 h-7 rounded-lg flex items-center justify-center font-black ${
+                      <div className="flex items-start sm:items-center justify-between gap-1.5">
+                        <div className="flex items-center gap-2 min-w-0 flex-1">
+                          <div className={`w-6 h-6 sm:w-7 sm:h-7 rounded-lg flex items-center justify-center font-black shrink-0 ${
                             isSuper 
                               ? 'bg-purple-500/20 text-purple-600 border border-purple-500/30' 
                               : isTeacher
                               ? 'bg-emerald-500/20 text-emerald-600 border border-emerald-500/30'
                               : 'bg-amber-500/20 text-amber-600 border border-amber-500/30'
                           }`}>
-                            {isSuper ? <ShieldCheck size={14} /> : isTeacher ? <UserCheck size={14} /> : <Lock size={13} />}
+                            {isSuper ? <ShieldCheck size={13} /> : isTeacher ? <UserCheck size={13} /> : <Lock size={12} />}
                           </div>
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <strong className="text-xs font-black text-slate-900 dark:text-white">{user.name}</strong>
-                            <span className={`px-2 py-0.2 rounded-full font-black text-[9px] uppercase tracking-wider ${
-                              isSuper ? 'bg-purple-600 text-white' : isTeacher ? 'bg-emerald-600 text-white' : 'bg-amber-600 text-white'
-                            }`}>
-                              {isSuper ? 'SuperAdmin' : isTeacher ? 'Teacher / Faculty' : 'Admin'}
-                            </span>
-                            {user.subject && (
-                              <span className="px-1.5 py-0.2 rounded text-[9px] font-extrabold bg-blue-100 dark:bg-blue-950 text-blue-800 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
-                                Subject: {user.subject}
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <strong className="text-xs font-black text-slate-900 dark:text-white truncate max-w-[130px] sm:max-w-none">
+                                {user.name}
+                              </strong>
+                              <span className={`px-1.5 py-0.2 rounded-full font-black text-[8.5px] uppercase tracking-wider shrink-0 ${
+                                isSuper ? 'bg-purple-600 text-white' : isTeacher ? 'bg-emerald-600 text-white' : 'bg-amber-600 text-white'
+                              }`}>
+                                {isSuper ? 'SuperAdmin' : isTeacher ? 'Teacher' : 'Admin'}
                               </span>
-                            )}
-                            <span className="text-slate-400 font-mono text-[10px]">({user.email})</span>
+                              {user.subject && (
+                                <span className="px-1 py-0.2 rounded text-[8.5px] font-bold bg-blue-100 dark:bg-blue-950 text-blue-800 dark:text-blue-300 border border-blue-200 dark:border-blue-800 shrink-0 font-sans">
+                                  {user.subject}
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-[9.5px] sm:text-[10px] text-slate-400 font-mono truncate max-w-[200px] sm:max-w-none">
+                              {user.email}
+                            </div>
                           </div>
                         </div>
 
                         {/* Controls & Action Buttons */}
-                        <div className="flex items-center gap-1.5 flex-wrap">
+                        <div className="flex items-center gap-1 shrink-0">
                           {!isTeacher && (
-                            <span className={`px-2 py-0.5 rounded-md text-[10px] font-black ${
-                              activeCount === ALL_ADMIN_MODULES.length
-                                ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
-                                : 'bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800'
-                            }`}>
-                              {activeCount} / {ALL_ADMIN_MODULES.length} Modules
-                            </span>
-                          )}
-
-                          {!isTeacher && !isSuper && (
                             <button
                               type="button"
-                              onClick={() => setAllPermissionsForUser(user.email, !allSelected)}
-                              className="px-2 py-0.5 rounded-lg text-[10px] font-black bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-300 cursor-pointer"
+                              onClick={() => toggleExpandUser(cleanEmail)}
+                              className={`px-1.5 py-1 rounded-md text-[9.5px] font-black inline-flex items-center gap-0.5 cursor-pointer transition-all ${
+                                activeCount === ALL_ADMIN_MODULES.length
+                                  ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
+                                  : 'bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800'
+                              }`}
+                              title="Click to view/edit module permissions"
                             >
-                              {allSelected ? 'Clear All' : 'Select All'}
+                              <span>{activeCount}/{ALL_ADMIN_MODULES.length}</span>
+                              <ChevronDown size={11} className={`transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} />
                             </button>
                           )}
 
@@ -2108,21 +2121,21 @@ export default function ControlsAndSubjects() {
                             type="button"
                             onClick={() => handleSendPasswordReset(user.email)}
                             disabled={isSendingReset}
-                            title="Send Password Setup / Reset Email Link"
-                            className="px-2 py-1 rounded-lg text-[10px] font-black bg-teal-50 dark:bg-teal-950/80 text-teal-700 dark:text-teal-300 hover:bg-teal-100 dark:hover:bg-teal-900 border border-teal-200 dark:border-teal-800 flex items-center gap-1 cursor-pointer transition-colors"
+                            title="Send Password Reset Link"
+                            className="p-1 sm:px-2 sm:py-1 rounded-lg text-[10px] font-black bg-teal-50 dark:bg-teal-950/80 text-teal-700 dark:text-teal-300 hover:bg-teal-100 dark:hover:bg-teal-900 border border-teal-200 dark:border-teal-800 flex items-center gap-1 cursor-pointer transition-colors"
                           >
-                            {isSendingReset ? <RefreshCw size={10} className="animate-spin" /> : <Key size={10} />}
-                            <span>Send Password Reset</span>
+                            {isSendingReset ? <RefreshCw size={11} className="animate-spin" /> : <Key size={11} />}
+                            <span className="hidden md:inline">Reset</span>
                           </button>
                           
-                          {/* Edit Staff & Email Button */}
+                          {/* Edit Staff Button */}
                           <button
                             type="button"
                             onClick={() => handleOpenEditAdmin(user)}
-                            title="Edit Account Details & Email Address"
+                            title="Edit Account Details"
                             className="p-1 rounded-lg bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-200 cursor-pointer"
                           >
-                            <Edit3 size={12} />
+                            <Edit3 size={11} />
                           </button>
                           
                           {!isSuper && (
@@ -2132,39 +2145,56 @@ export default function ControlsAndSubjects() {
                               title="Revoke / Delete Account"
                               className="p-1 rounded-lg bg-rose-100 dark:bg-rose-950 text-rose-700 dark:text-rose-300 hover:bg-rose-200 cursor-pointer"
                             >
-                              <Trash2 size={12} />
+                              <Trash2 size={11} />
                             </button>
                           )}
                         </div>
                       </div>
 
-                      {/* Admin Module Permission Micro-Chips (Shown for Admins & SuperAdmins) */}
-                      {!isTeacher && (
-                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-1 pt-1">
-                          {ALL_ADMIN_MODULES.map((mod) => {
-                            const active = userPerms.includes(mod.code) || isSuper;
-                            const maturity = getModuleMaturity(mod.maturity);
-                            return (
+                      {/* Admin Module Permission Micro-Chips (Shown for Admins & SuperAdmins when expanded) */}
+                      {!isTeacher && isExpanded && (
+                        <div className="pt-2 border-t border-slate-200 dark:border-slate-800 space-y-1.5 animate-fadeIn">
+                          <div className="flex items-center justify-between text-[10px] font-bold text-slate-500 dark:text-slate-400">
+                            <span>Granular Modules Access ({activeCount} enabled):</span>
+                            {!isSuper && (
                               <button
-                                key={mod.code}
                                 type="button"
-                                onClick={() => togglePermission(user.email, mod.code)}
-                                title={`${maturity.label}: ${mod.maturityNote}\n${mod.desc}`}
-                                className={`py-1 px-2 rounded-lg text-left text-[10.5px] transition-all cursor-pointer border flex items-center justify-between ${
-                                  active
-                                    ? 'bg-amber-600 text-white border-amber-700 font-black shadow-2xs'
-                                    : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800 hover:border-amber-400 font-bold'
-                                }`}
+                                onClick={() => setAllPermissionsForUser(user.email, !allSelected)}
+                                className="px-2 py-0.5 rounded text-[9.5px] font-black bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-300 cursor-pointer"
                               >
-                                <span className="truncate pr-1">{mod.label}</span>
-                                {active ? (
-                                  <Check size={11} className="flex-shrink-0 text-white" />
-                                ) : (
-                                  <Plus size={11} className="opacity-30 flex-shrink-0" />
-                                )}
+                                {allSelected ? 'Clear All' : 'Select All'}
                               </button>
-                            );
-                          })}
+                            )}
+                          </div>
+                          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-1">
+                            {ALL_ADMIN_MODULES.map((mod) => {
+                              const active = userPerms.includes(mod.code) || isSuper;
+                              const maturity = getModuleMaturity(mod.maturity);
+                              return (
+                                <button
+                                  key={mod.code}
+                                  type="button"
+                                  onClick={() => !isSuper && togglePermission(user.email, mod.code)}
+                                  disabled={isSuper}
+                                  title={`${maturity.label}: ${mod.maturityNote}\n${mod.desc}`}
+                                  className={`py-1 px-1.5 rounded-lg text-left text-[9.5px] sm:text-[10px] transition-all border flex items-center justify-between gap-1 ${
+                                    isSuper ? 'cursor-default' : 'cursor-pointer'
+                                  } ${
+                                    active
+                                      ? 'bg-amber-600 text-white border-amber-700 font-black shadow-2xs'
+                                      : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800 hover:border-amber-400 font-bold'
+                                  }`}
+                                >
+                                  <span className="truncate flex-1">{mod.label}</span>
+                                  {active ? (
+                                    <Check size={10} className="flex-shrink-0 text-white" />
+                                  ) : (
+                                    <Plus size={10} className="opacity-30 flex-shrink-0" />
+                                  )}
+                                </button>
+                              );
+                            })}
+                          </div>
                         </div>
                       )}
                     </div>
