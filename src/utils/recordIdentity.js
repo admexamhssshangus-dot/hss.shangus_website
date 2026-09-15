@@ -87,7 +87,17 @@ export function uniqueStudentMatch(students, identifiers, session, className) {
 }
 export function recordLocator(student = {}) {
   const s = { ...(student.raw || {}), ...student };
-  const parent = s._parentDocId || s.parentDocId;
+  let parent = s._parentDocId || s.parentDocId;
+  const rawIdStr = String(s.docId || s._docId || s.id || s.formNo || s['Form Number'] || '').replace(/^#/, '');
+  const chunkMatch = rawIdStr.match(/^(chunk_[a-zA-Z0-9_-]+)_(\d+)$/);
+  let rawIdx = s._arrayIndex !== undefined ? s._arrayIndex : s.arrayIndex;
+  if (!parent && chunkMatch) {
+    parent = chunkMatch[1];
+    if (rawIdx === undefined || rawIdx === null || isNaN(Number(rawIdx))) {
+      rawIdx = parseInt(chunkMatch[2], 10);
+    }
+  }
+
   const collection = s._srcCollection || s._sourceCollection || s._source || s.sourceCollection ||
     (parent || s._isHistorical || s.isHistoricalMasterRegister ? 'masterRegisters' : 'admissions');
   const documentId = parent || s._docId || s.docId || s.id;
@@ -101,7 +111,6 @@ export function recordLocator(student = {}) {
     nested: Boolean(parent), 
     identity: recordIdentity(s) 
   };
-  const rawIdx = s._arrayIndex !== undefined ? s._arrayIndex : s.arrayIndex;
   if (rawIdx !== undefined && rawIdx !== null && !isNaN(Number(rawIdx))) {
     loc.arrayIndex = Number(rawIdx);
   }

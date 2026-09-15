@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback, useDeferredValue } from 'react';
 import { createPortal } from 'react-dom';
 import JSZip from 'jszip';
-import { RefreshCw, Search, SearchX, Wrench, Columns, Printer, Check, X, Play, ChevronDown, ChevronLeft, ChevronRight, CheckSquare, Square, FileSpreadsheet, FileText, Maximize2, Settings, Hash, Layers, Mail, CreditCard, Camera, Upload, Image as ImageIcon, Download, Copy, Save, RotateCcw, Lock, LogOut, Unlock, Eye, History, Key, MessageSquare, AlertOctagon, Trash2, CheckCircle2, ClipboardCheck, CalendarCheck, Edit3, UserCheck, User, BookOpen, Landmark, CheckCircle, Loader2, PlusCircle, ShieldCheck, ShieldAlert, BarChart2, Building2, Database, Zap, Sliders, Sparkles, Star, FolderDown } from 'lucide-react';
+import { RefreshCw, Search, SearchX, Wrench, Columns, Printer, Check, X, Play, ChevronDown, ChevronLeft, ChevronRight, CheckSquare, Square, FileSpreadsheet, FileText, Maximize2, Settings, Hash, Layers, Mail, CreditCard, Camera, Upload, Image as ImageIcon, Download, Copy, Save, RotateCcw, Lock, LogOut, Unlock, Eye, History, Key, MessageSquare, AlertOctagon, Trash2, CheckCircle2, ClipboardCheck, CalendarCheck, Calendar, List, Edit3, UserCheck, User, BookOpen, Landmark, CheckCircle, Loader2, PlusCircle, ShieldCheck, ShieldAlert, BarChart2, Building2, Database, Zap, Sliders, Sparkles, Star, FolderDown } from 'lucide-react';
 import appsScriptApi from '../../services/appsScriptApi';
 import { db, auth, ensureFirestoreConnected } from '../../services/firebase';
 import { sendPasswordResetEmail } from 'firebase/auth';
@@ -32,6 +32,7 @@ import { expandJkboseSubjectCodes } from '../../utils/jkboseResultManager';
 import { resolveCcDcVal, extractReappearCodes, getClassTier, areClassTiersCompatible, isSecondaryOnlySubjectList } from '../../utils/certificateStudentResolution';
 import JkboseFieldBadge from './JkboseFieldBadge';
 import { getJkboseFieldStatus, computeStudentJkboseStatusMap, loadRecentJkboseBatchTraceability, normalizeKey } from '../../utils/jkboseTraceability';
+import { applyRecordPatch, completeMutationJob } from '../../services/recordMutationService';
 
 const BULK_FORM_ROW_BATCH_SIZE = 100;
 
@@ -706,30 +707,50 @@ export async function updateStudentDocument(student, updates) {
   const isMasterRegister = Boolean(
     student._isHistorical ||
     student._sourceCollection === 'masterRegisters' ||
+    student._parentDocId ||
+    student.parentDocId ||
+    String(student.id || '').includes('chunk_') ||
+    String(student['Form Number'] || '').includes('chunk_') ||
     String(student._docId || student.id || '').includes('masterRegisters')
   );
-  const collsToTry = isMasterRegister ? ['masterRegisters', 'admissions'] : ['admissions', 'masterRegisters'];
 
   let updated = false;
 
-  for (const cid of idCandidates) {
-    const sanitized = cleanCid(cid);
-    if (!sanitized || sanitized.includes('/')) continue;
-
-    for (const coll of collsToTry) {
-      try {
-        await withTimeout(updateDoc(doc(db, coll, sanitized), updates));
+  // For nested chunk master register records, use transactional applyRecordPatch to prevent creating duplicate docs
+  if (isMasterRegister || student._parentDocId || student.parentDocId || String(student.id || '').includes('chunk_')) {
+    try {
+      const jobId = await applyRecordPatch({ ...student, _source: 'masterRegisters' }, updates, { force: true });
+      if (jobId) {
+        await completeMutationJob(jobId);
         updated = true;
-        break;
-      } catch (e) {
+      }
+    } catch (patchErr) {
+      console.warn('applyRecordPatch nested masterRegisters attempt:', patchErr);
+    }
+  }
+
+  const collsToTry = isMasterRegister ? ['masterRegisters', 'admissions'] : ['admissions', 'masterRegisters'];
+
+  if (!updated) {
+    for (const cid of idCandidates) {
+      const sanitized = cleanCid(cid);
+      if (!sanitized || sanitized.includes('/')) continue;
+
+      for (const coll of collsToTry) {
         try {
-          await withTimeout(setDoc(doc(db, coll, sanitized), updates, { merge: true }));
+          await withTimeout(updateDoc(doc(db, coll, sanitized), updates));
           updated = true;
           break;
-        } catch (err2) {}
+        } catch (e) {
+          try {
+            await withTimeout(setDoc(doc(db, coll, sanitized), updates, { merge: true }));
+            updated = true;
+            break;
+          } catch (err2) {}
+        }
       }
+      if (updated) break;
     }
-    if (updated) break;
   }
 
   if (!updated && formNo && formNo !== '—') {
@@ -3788,6 +3809,269 @@ function OnDemandStudentPhotoCell({ student, val }) {
   );
 }
 
+// ─── Comprehensive Session List Generator (All standard academic sessions + custom database sessions) ───
+export function getAllAcademicSessions(extraSessions = []) {
+  const sessionSet = new Set();
+
+  // Generate complete historical sequence of annual sessions from 2028-29 down to 1995-96 (33+ academic years)
+  for (let y = 2028; y >= 1995; y--) {
+    const nextY = (y + 1) % 100;
+    const sess = `${y}-${String(nextY).padStart(2, '0')}`;
+    sessionSet.add(sess);
+  }
+
+  // Merge in any database or historical sessions (e.g. 2024-25 (Oct-Nov), 2026 APR/BIAN, etc.)
+  if (Array.isArray(extraSessions)) {
+    extraSessions.forEach(s => {
+      const clean = String(s || '').trim();
+      if (clean && clean !== '—' && clean !== 'null' && clean !== 'undefined' && clean !== 'Historical') {
+        sessionSet.add(clean);
+      }
+    });
+  }
+
+  return Array.from(sessionSet).sort((a, b) => {
+    const matchA = a.match(/\b(19\d{2}|20\d{2})\b/);
+    const matchB = b.match(/\b(19\d{2}|20\d{2})\b/);
+    const yearA = matchA ? parseInt(matchA[1], 10) : 0;
+    const yearB = matchB ? parseInt(matchB[1], 10) : 0;
+
+    if (yearA !== yearB) return yearB - yearA;
+
+    const aIsSpecial = /[()a-zA-Z]/.test(a);
+    const bIsSpecial = /[()a-zA-Z]/.test(b);
+    if (!aIsSpecial && bIsSpecial) return -1;
+    if (aIsSpecial && !bIsSpecial) return 1;
+    return b.localeCompare(a, undefined, { numeric: true });
+  });
+}
+
+// ─── Interactive Quick Session Selector & Custom Creator for Admin Quick Edit ───
+function QuickSessionEditor({
+  currentValue,
+  availableSessions = [],
+  onSave,
+  isSaving
+}) {
+  const allSessions = useMemo(() => {
+    return getAllAcademicSessions([
+      currentValue,
+      ...(Array.isArray(availableSessions) ? availableSessions : [])
+    ]);
+  }, [currentValue, availableSessions]);
+
+  const initialVal = String(currentValue || '2025-26').trim();
+  const isCustomInitially = !allSessions.includes(initialVal) && initialVal !== '';
+
+  const [mode, setMode] = useState(isCustomInitially ? 'custom' : 'select'); // 'select' | 'custom'
+  const [selectedSession, setSelectedSession] = useState(initialVal || '2025-26');
+  const [customSession, setCustomSession] = useState(initialVal);
+
+  const effectiveValue = mode === 'custom' ? customSession.trim() : selectedSession;
+
+  // Split sessions into readable optgroups
+  const { recentGroup, historicalGroup, olderGroup } = useMemo(() => {
+    const recent = [];
+    const historical = [];
+    const older = [];
+
+    allSessions.forEach(s => {
+      const match = s.match(/\b(19\d{2}|20\d{2})\b/);
+      const y = match ? parseInt(match[1], 10) : 0;
+      if (y >= 2023) recent.push(s);
+      else if (y >= 2010) historical.push(s);
+      else older.push(s);
+    });
+
+    return { recentGroup: recent, historicalGroup: historical, olderGroup: older };
+  }, [allSessions]);
+
+  const handleSelectChange = (e) => {
+    const val = e.target.value;
+    if (val === '__ADD_NEW__') {
+      setMode('custom');
+      setCustomSession('');
+    } else {
+      setSelectedSession(val);
+    }
+  };
+
+  const handleApplyPresetChip = (preset) => {
+    setCustomSession(preset);
+  };
+
+  const handleAppendSuffix = (suffix) => {
+    setCustomSession(prev => {
+      const base = prev.replace(/\s*\([^)]*\)/g, '').trim();
+      return base ? `${base} ${suffix}` : suffix;
+    });
+  };
+
+  return (
+    <div className="space-y-3">
+      {/* Hidden synced input with id="quickEditInput" so outer Save & Sync button reads it reliably */}
+      <input
+        type="hidden"
+        id="quickEditInput"
+        value={effectiveValue}
+        readOnly
+      />
+
+      {/* Mode & Action Header Bar */}
+      <div className="flex items-center justify-between pb-1">
+        <div className="flex items-center gap-1.5 text-xs font-black text-slate-700 dark:text-slate-300">
+          <Calendar size={13} className="text-amber-600 dark:text-amber-400" />
+          <span>Select or Add Academic Session</span>
+        </div>
+        <button
+          type="button"
+          onClick={() => {
+            if (mode === 'select') {
+              setMode('custom');
+              setCustomSession(selectedSession);
+            } else {
+              setMode('select');
+              if (allSessions.includes(customSession)) {
+                setSelectedSession(customSession);
+              }
+            }
+          }}
+          className="text-[11px] font-bold text-amber-700 dark:text-amber-400 hover:text-amber-800 dark:hover:text-amber-300 flex items-center gap-1 cursor-pointer underline transition-colors"
+        >
+          {mode === 'select' ? (
+            <>
+              <PlusCircle size={12} />
+              <span>+ Add New / Custom</span>
+            </>
+          ) : (
+            <>
+              <List size={12} />
+              <span>← Back to Sessions List</span>
+            </>
+          )}
+        </button>
+      </div>
+
+      {mode === 'select' ? (
+        <div className="space-y-2">
+          {/* Main Rich Select Dropdown with all historical and current sessions */}
+          <div className="relative">
+            <select
+              autoFocus
+              value={selectedSession}
+              onChange={handleSelectChange}
+              className="w-full px-3 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-black text-xs text-slate-900 dark:text-white focus:ring-2 focus:ring-amber-500 focus:outline-none font-mono cursor-pointer shadow-xs"
+            >
+              <option value="__ADD_NEW__" className="font-bold text-amber-600 dark:text-amber-400 bg-amber-50/50 dark:bg-amber-950/50">
+                ➕ Add New / Custom Session (Type your own)...
+              </option>
+
+              {initialVal && (
+                <option value={initialVal} className="font-bold text-teal-600 dark:text-teal-400">
+                  ⭐ Current Student Value: {initialVal}
+                </option>
+              )}
+
+              <optgroup label="📅 Active & Recent Sessions (2023 – 2028)">
+                {recentGroup.map(sess => (
+                  <option key={sess} value={sess}>
+                    {sess}
+                  </option>
+                ))}
+              </optgroup>
+
+              <optgroup label="📜 Previous & Historical Sessions (2010 – 2022)">
+                {historicalGroup.map(sess => (
+                  <option key={sess} value={sess}>
+                    {sess}
+                  </option>
+                ))}
+              </optgroup>
+
+              <optgroup label="🏛️ Archived Historical Sessions (1995 – 2009)">
+                {olderGroup.map(sess => (
+                  <option key={sess} value={sess}>
+                    {sess}
+                  </option>
+                ))}
+              </optgroup>
+            </select>
+          </div>
+
+          <div className="flex items-center justify-between text-[10px] text-slate-400 dark:text-slate-500 font-semibold px-1">
+            <span>Includes all {allSessions.length} past & active school sessions</span>
+            <span className="font-mono font-bold text-amber-600 dark:text-amber-400">Selected: {selectedSession}</span>
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-2.5 p-3 rounded-xl bg-amber-500/5 border border-amber-500/20 animate-fadeIn">
+          <div>
+            <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-200 mb-1">
+              Enter New / Custom Academic Session:
+            </label>
+            <input
+              autoFocus
+              type="text"
+              value={customSession}
+              onChange={(e) => setCustomSession(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && customSession.trim() && onSave) {
+                  e.preventDefault();
+                  onSave(customSession.trim());
+                }
+              }}
+              placeholder="e.g. 2012-13, 2012-13 (Oct-Nov), or 2011-12"
+              className="w-full px-3 py-2 rounded-xl border border-amber-400 dark:border-amber-600 bg-white dark:bg-slate-900 font-mono font-black text-xs text-slate-900 dark:text-white focus:ring-2 focus:ring-amber-500 focus:outline-none shadow-xs"
+            />
+          </div>
+
+          {/* Quick preset chips for rapid past session entry */}
+          <div className="space-y-1.5">
+            <div className="text-[10px] font-extrabold text-slate-500 dark:text-slate-400">
+              ⚡ Quick Past Session Presets:
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {['2012-13', '2011-12', '2013-14', '2014-15', '2015-16', '2016-17', '2017-18', '2018-19', '2019-20', '2020-21', '2021-22', '2022-23'].map(yr => (
+                <button
+                  key={yr}
+                  type="button"
+                  onClick={() => handleApplyPresetChip(yr)}
+                  className={`px-2 py-0.5 rounded-lg text-[10.5px] font-mono font-bold transition-all cursor-pointer ${
+                    customSession.startsWith(yr)
+                      ? 'bg-amber-600 text-white shadow-xs'
+                      : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:border-amber-400'
+                  }`}
+                >
+                  {yr}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Suffix helpers */}
+          <div className="space-y-1 pt-1 border-t border-amber-500/10">
+            <div className="text-[10px] font-extrabold text-slate-500 dark:text-slate-400">
+              Optional Suffix:
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {['(Annual)', '(Oct-Nov)', '(Mar-Apr)', '(Bi-Annual)', 'APR/BIAN'].map(sfx => (
+                <button
+                  key={sfx}
+                  type="button"
+                  onClick={() => handleAppendSuffix(sfx)}
+                  className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-amber-600 dark:hover:text-amber-400 cursor-pointer border border-transparent hover:border-amber-300"
+                >
+                  +{sfx}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Interactive Class & Stream Subject Selector for Admin Quick Edit ───
 function QuickSubjectStreamEditor({
   student,
@@ -6239,6 +6523,7 @@ export default function AdvancedReports({
 
       const isDob = colKey === 'dob' || targetFieldName === 'DoB (as per school records)';
       const formattedNewDob = isDob ? (formatDobToDisplay(newValue) || newValue) : null;
+      const isSessionEdit = colKey.toLowerCase() === 'session' || targetFieldName.toLowerCase() === 'session';
 
       const payload = {
         [targetFieldName]: isDob ? formattedNewDob : newValue,
@@ -6247,6 +6532,11 @@ export default function AdvancedReports({
           'DoB (as per school records)': formattedNewDob,
           'DoB (figures)': formattedNewDob,
           DoB: formattedNewDob
+        } : {}),
+        ...(isSessionEdit ? {
+          session: newValue,
+          Session: newValue,
+          'Academic Session': newValue
         } : {}),
         directEditHistory: updatedDirectHistory,
         fieldEditHistory: updatedDirectHistory,
@@ -6293,6 +6583,7 @@ export default function AdvancedReports({
             fieldEditHistory: nextHistory,
             ...subjectPayload,
             ...(extraFields || {}),
+            ...(isSessionEdit ? { session: newValue, Session: newValue, 'Academic Session': newValue } : {}),
             ...(isExamRollEdit ? { 'Exam R.No. (Current)': newValue, currExamRollNo: newValue, examRollNo: newValue } : {})
           };
         }
@@ -6320,6 +6611,7 @@ export default function AdvancedReports({
             fieldEditHistory: nextHistory,
             ...subjectPayload,
             ...(extraFields || {}),
+            ...(isSessionEdit ? { session: newValue, Session: newValue, 'Academic Session': newValue } : {}),
             ...(isExamRollEdit ? { 'Exam R.No. (Current)': newValue, currExamRollNo: newValue, examRollNo: newValue } : {})
           };
         }
@@ -12741,17 +13033,14 @@ export default function AdvancedReports({
                       <option value="8th">8th</option>
                     </select>
                   ) : (quickEditCell.column.key === 'session' || quickEditCell.column.key === 'Session') ? (
-                    <select
-                      autoFocus
-                      defaultValue={quickEditCell.currentValue || '2025-26'}
-                      id="quickEditInput"
-                      className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-black text-xs text-slate-900 dark:text-white focus:ring-2 focus:ring-amber-500 focus:outline-none font-mono"
-                    >
-                      <option value="2025-26">2025-26</option>
-                      <option value="2024-25">2024-25</option>
-                      <option value="2026-27">2026-27</option>
-                      <option value="2023-24">2023-24</option>
-                    </select>
+                    <QuickSessionEditor
+                      currentValue={quickEditCell.currentValue}
+                      availableSessions={availableSessions}
+                      isSaving={isSavingQuickEdit}
+                      onSave={(finalSessVal) => {
+                        handleSaveQuickCellEdit(quickEditCell.student, quickEditCell.column.key, finalSessVal);
+                      }}
+                    />
                   ) : (
                     <input
                       type="text"
