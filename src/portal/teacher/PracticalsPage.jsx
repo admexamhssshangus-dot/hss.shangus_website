@@ -3,7 +3,7 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { Link, useLocation, useOutletContext } from 'react-router-dom';
 import { 
   ArrowLeft, RefreshCw, AlertCircle, 
-  CheckCircle2, Printer, ShieldCheck, History, Clock,
+  CheckCircle2, Printer, ShieldCheck, History, Clock, Search,
   Bookmark, Send, ChevronDown, Check, SlidersHorizontal, Zap, X, Info, Sparkles, Award,
   AlertTriangle, ShieldAlert
 } from 'lucide-react';
@@ -1143,6 +1143,20 @@ export default function PracticalsPage() {
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [submissionHistory, setSubmissionHistory] = useState([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
+  const [historySearch, setHistorySearch] = useState('');
+
+  const filteredSubmissions = useMemo(() => {
+    if (!historySearch.trim()) return submissionHistory;
+    const q = historySearch.toLowerCase().trim();
+    return submissionHistory.filter(item => {
+      const className = String(item.className || '').toLowerCase();
+      const subject = String(item.subject || '').toLowerCase();
+      const practicalType = String(item.practicalType || '').toLowerCase();
+      const displayDate = String(item.displayDate || '').toLowerCase();
+      const year = String(item.yearSuffix || '').toLowerCase();
+      return className.includes(q) || subject.includes(q) || practicalType.includes(q) || displayDate.includes(q) || year.includes(q);
+    });
+  }, [submissionHistory, historySearch]);
 
   // Draft & Final Submission Validation States
   const [draftSavedAt, setDraftSavedAt] = useState(null);
@@ -1846,26 +1860,96 @@ export default function PracticalsPage() {
     fetchPracticalData();
   }, [fetchPracticalData]);
 
-  // Fetch Past Submission History
+  // Fetch Past Submission History across all evaluation types
   const fetchSubmissionHistory = useCallback(async () => {
     setLoadingHistory(true);
     try {
-      const docs = await getCachedCollection('practicalsData', false, 15 * 60 * 1000);
-      if (Array.isArray(docs) && docs.length > 0) {
-        const list = [...docs].sort((a, b) => new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0));
-        setSubmissionHistory(list);
-      } else {
+      let rawDocs = await getCachedCollection('practicalsData', false, 15 * 60 * 1000);
+      if (!Array.isArray(rawDocs) || rawDocs.length === 0) {
         const snap = await getDocs(collection(db, 'practicalsData'));
         if (!snap.empty) {
-          const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-          list.sort((a, b) => new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0));
-          setSubmissionHistory(list);
+          rawDocs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
         } else {
-          setSubmissionHistory([]);
+          rawDocs = [];
         }
       }
+
+      if (Array.isArray(rawDocs) && rawDocs.length > 0) {
+        const list = rawDocs
+          .filter(d => {
+            if (!d) return false;
+            const rawId = String(d.id || d.docId || '');
+            if (rawId.startsWith('history_')) return false;
+
+            const recCount = Array.isArray(d.records) ? d.records.length : (Array.isArray(d.students) ? d.students.length : 0);
+            const subj = String(d.subject || d.subjectName || d.subjectCode || '').trim();
+            const hasValidSubject = subj.length > 0 && subj.toLowerCase() !== 'n/a' && subj.toLowerCase() !== 'null';
+
+            // Filter out shell/corrupted records that have 0 students or no valid subject
+            if (recCount === 0 || !hasValidSubject) return false;
+            return true;
+          })
+          .map(d => {
+            const rawId = String(d.id || d.docId || '');
+            const evalType = d.practicalType || d.evaluationType || d.examTitle || d.title || 'Assessment';
+            
+            // Safely resolve timestamp
+            let sortTime = 0;
+            let displayDate = 'N/A';
+            const rawTime = d.updatedAt || d.submittedAt;
+            if (rawTime) {
+              if (typeof rawTime?.toDate === 'function') {
+                const dateObj = rawTime.toDate();
+                sortTime = dateObj.getTime();
+                displayDate = dateObj.toLocaleString();
+              } else if (rawTime?.seconds) {
+                const dateObj = new Date(rawTime.seconds * 1000);
+                sortTime = dateObj.getTime();
+                displayDate = dateObj.toLocaleString();
+              } else {
+                const dateObj = new Date(rawTime);
+                if (!isNaN(dateObj.getTime())) {
+                  sortTime = dateObj.getTime();
+                  displayDate = dateObj.toLocaleString();
+                } else {
+                  displayDate = String(rawTime);
+                }
+              }
+            }
+
+            return {
+              ...d,
+              id: rawId,
+              className: d.className || d.class || d.selectedClass || 'N/A',
+              subject: d.subject || d.subjectName || d.subjectCode || 'N/A',
+              practicalType: evalType,
+              evaluationType: evalType,
+              yearSuffix: d.yearSuffix || d.sessionCanonical || d.session || '',
+              recordsCount: Array.isArray(d.records) ? d.records.length : (Array.isArray(d.students) ? d.students.length : 0),
+              displayDate,
+              sortTime
+            };
+          })
+          .sort((a, b) => b.sortTime - a.sortTime);
+
+        // Deduplicate duplicate items by unique compound identity
+        const seen = new Set();
+        const deduped = [];
+        for (const item of list) {
+          const key = `${item.id}_${item.className}_${item.subject}_${item.practicalType}_${item.yearSuffix}`;
+          if (!seen.has(key)) {
+            seen.add(key);
+            deduped.push(item);
+          }
+        }
+
+        setSubmissionHistory(deduped);
+      } else {
+        setSubmissionHistory([]);
+      }
     } catch (e) {
-      console.error('Failed to load practicals history:', e);
+      console.error('Failed to load submissions history:', e);
+      setSubmissionHistory([]);
     } finally {
       setLoadingHistory(false);
     }
@@ -3885,7 +3969,10 @@ export default function PracticalsPage() {
             <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2 gap-2">
               <div className="flex items-center gap-2 min-w-0 flex-1">
                 <History className="text-indigo-600 dark:text-indigo-400 shrink-0" size={18} />
-                <h3 className="font-black text-xs sm:text-sm text-slate-900 dark:text-white truncate">Practicals Submission History Log</h3>
+                <div className="min-w-0">
+                  <h3 className="font-black text-xs sm:text-sm text-slate-900 dark:text-white truncate">Assessment & Evaluation Submissions Log</h3>
+                  <p className="text-[10px] text-slate-400 font-medium">All evaluations (Pre-Board, Practicals, Term End & Unit Tests)</p>
+                </div>
               </div>
               <button
                 type="button"
@@ -3897,6 +3984,18 @@ export default function PracticalsPage() {
               </button>
             </div>
 
+            {/* Quick Search Filter */}
+            <div className="relative">
+              <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Filter by subject, class, or test type (e.g. Physics, 11th, Pre-Board)..."
+                value={historySearch}
+                onChange={(e) => setHistorySearch(e.target.value)}
+                className="w-full pl-8 pr-3 py-1.5 text-xs bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl focus:outline-hidden focus:ring-1 focus:ring-indigo-500 text-slate-800 dark:text-slate-100 placeholder:text-slate-400"
+              />
+            </div>
+
             {loadingHistory ? (
               <ModernLoader
                 moduleKey="practicals"
@@ -3904,38 +4003,77 @@ export default function PracticalsPage() {
                 subtext="Please wait."
                 className="py-6"
               />
-            ) : submissionHistory.length > 0 ? (
+            ) : filteredSubmissions.length > 0 ? (
               <div className="max-h-80 overflow-y-auto space-y-1.5 pr-1">
-                {submissionHistory.map((item, i) => (
-                  <div key={i} className="p-2.5 rounded-xl border bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs gap-2">
-                    <div className="min-w-0 flex-1">
-                      <div className="font-extrabold text-xs text-slate-900 dark:text-slate-100 truncate">
-                        {item.className} • {item.subject} ({item.practicalType || 'Internal'})
-                      </div>
-                      <div className="text-[9.5px] text-slate-400 flex items-center gap-1.5 mt-0.5 flex-wrap">
-                        <span className="inline-flex items-center gap-1"><Clock size={10} /> {item.updatedAt ? new Date(item.updatedAt).toLocaleString() : 'N/A'}</span>
-                        <span className="text-indigo-600 dark:text-indigo-400 font-bold">• {item.records?.length || 0} Students</span>
-                      </div>
-                    </div>
+                {filteredSubmissions.map((item, i) => {
+                  const itemId = String(item.id || item.docId || '');
+                  const isPending = itemId.startsWith('pending_') || item.status === 'pending_approval';
+                  const isRejected = item.status === 'rejected';
 
-                    <button
-                      onClick={() => {
-                        setSelectedClass(item.className || '12th');
-                        setSelectedSubject(item.subject || 'Physics');
-                        if (item.practicalType) setPracticalType(item.practicalType);
-                        if (item.yearSuffix) setYearSuffix(item.yearSuffix);
-                        setShowHistoryModal(false);
-                      }}
-                      className="px-2.5 py-1.5 rounded-lg text-[10px] font-black bg-indigo-600/10 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-600/20 border border-indigo-500/20 cursor-pointer shrink-0 active:scale-95 transition-all"
+                  return (
+                    <div 
+                      key={`${itemId || 'eval'}_${item.className}_${item.subject}_${item.practicalType}_${i}`} 
+                      className="p-2.5 rounded-xl border bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs gap-2"
                     >
-                      Load Record
-                    </button>
-                  </div>
-                ))}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="font-extrabold text-xs text-slate-900 dark:text-slate-100 truncate">
+                            {item.className} • {item.subject}
+                          </span>
+                          <span className="px-1.5 py-0.5 rounded-md text-[9px] font-black bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border border-indigo-500/20">
+                            {item.practicalType || 'Assessment'}
+                          </span>
+                          {isPending ? (
+                            isRejected ? (
+                              <span className="px-1.5 py-0.5 rounded-md text-[8.5px] font-extrabold bg-rose-500/15 text-rose-600 dark:text-rose-400">
+                                Revision Requested
+                              </span>
+                            ) : (
+                              <span className="px-1.5 py-0.5 rounded-md text-[8.5px] font-extrabold bg-amber-500/15 text-amber-600 dark:text-amber-400">
+                                Pending Approval
+                              </span>
+                            )
+                          ) : (
+                            <span className="px-1.5 py-0.5 rounded-md text-[8.5px] font-extrabold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
+                              Approved & Live
+                            </span>
+                          )}
+                          {item.isCrossSubject && (
+                            <span className="px-1.5 py-0.5 rounded-md text-[8.5px] font-extrabold bg-purple-500/15 text-purple-600 dark:text-purple-400">
+                              Cross-Subject
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-[9.5px] text-slate-400 flex items-center gap-1.5 mt-0.5 flex-wrap">
+                          <Clock size={10} className="shrink-0" />
+                          <span>{item.displayDate || (item.updatedAt ? new Date(item.updatedAt).toLocaleString() : 'N/A')}</span>
+                          <span className="text-indigo-600 dark:text-indigo-400 font-bold shrink-0">• {item.recordsCount || (item.records?.length || 0)} Students</span>
+                          {item.yearSuffix && (
+                            <span className="text-slate-500 dark:text-slate-400 font-medium shrink-0">• Session {item.yearSuffix}</span>
+                          )}
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedClass(item.className && item.className !== 'N/A' ? item.className : '12th');
+                          setSelectedSubject(item.subject && item.subject !== 'N/A' ? item.subject : 'Physics');
+                          if (item.practicalType) setPracticalType(item.practicalType);
+                          if (item.yearSuffix) setYearSuffix(item.yearSuffix);
+                          setShowHistoryModal(false);
+                        }}
+                        className="px-2.5 py-1.5 rounded-lg text-[10px] font-black bg-indigo-600/10 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-600/20 border border-indigo-500/20 cursor-pointer shrink-0 active:scale-95 transition-all"
+                      >
+                        Load Record
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
             ) : (
               <div className="p-6 text-center text-xs font-bold text-slate-400">
-                No past practical submission records found.
+                {historySearch ? 'No matching submissions found for this search.' : 'No past evaluation submission records found.'}
               </div>
             )}
           </div>
