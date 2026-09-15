@@ -54,7 +54,7 @@ function FacultyCard({ member, faculty, setActiveProfileMember }) {
   const duplicateNames = faculty.filter(f => f.name && f.name.trim().toLowerCase() === member.name.trim().toLowerCase()).length > 1;
 
   return (
-    <div className="bg-white/95 backdrop-blur-sm rounded-xl border border-slate-200/90 p-5 flex flex-col items-center text-center transition-all duration-300 hover:shadow-lg hover:border-teal-500 hover:-translate-y-1 group relative overflow-hidden">
+    <div className="bg-white rounded-xl border border-slate-200/90 p-3.5 sm:p-5 flex flex-col items-center text-center transition-all duration-300 hover:shadow-lg hover:border-teal-500 hover:-translate-y-1 group relative overflow-hidden">
       {/* Accent top bar on hover */}
       <div className="absolute top-0 left-0 right-0 h-1 bg-transparent group-hover:bg-teal-500 transition-colors" />
 
@@ -425,19 +425,19 @@ export default function Academics() {
     <div className="public-page relative w-full min-h-screen py-6 sm:py-10 overflow-hidden isolate">
       <EducationalBackground variant="academics" />
       <SEO title="Academic Streams & Combinations" description="Explore the school departments, subjects, and curriculum choices for secondary and higher secondary levels at Govt. Higher Secondary School Shangus." />
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 relative z-10">
-        <header className="text-center mb-8 px-2">
+      <div className="max-w-5xl mx-auto px-3 sm:px-6 relative z-10">
+        <header className="text-center mb-6 sm:mb-8 px-1">
           <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-bold bg-white/90 text-teal-800 border border-teal-200 shadow-xs mb-3 backdrop-blur-sm">
             <span className="text-sm">🎓</span>
-            <span className="tracking-wide uppercase text-[11px] font-extrabold">Academic Excellence & Future-Ready Learning</span>
+            <span className="tracking-wide uppercase text-[11px] font-extrabold">Academic Excellence &amp; Future-Ready Learning</span>
           </div>
-          <h1 className="ui-page-title text-2xl sm:text-3xl md:text-4xl text-slate-800 font-extrabold">Academics, Streams & Faculty</h1>
+          <h1 className="ui-page-title text-2xl sm:text-3xl md:text-4xl text-slate-800 font-extrabold">Academics, Streams &amp; Faculty</h1>
           <div className="h-1.5 w-28 bg-gradient-to-r from-teal-500 via-emerald-400 to-amber-500 mx-auto mt-3 rounded-full shadow-xs"></div>
           <p className="text-sm sm:text-base text-slate-600 mt-3 max-w-2xl mx-auto leading-relaxed">Explore our diverse academic departments, carefully curated subject combinations, and dedicated faculty inspiring every learner to excel.</p>
         </header>
 
         {/* Our Departments Card */}
-        <div className="relative bg-white/95 backdrop-blur-md p-4 sm:p-6 rounded-2xl shadow-sm hover:shadow-md border border-slate-200/80 mb-6 overflow-hidden transition-all duration-300">
+        <div className="relative bg-white p-3.5 sm:p-6 rounded-2xl shadow-sm hover:shadow-md border border-slate-200/80 mb-6 overflow-hidden transition-all duration-300">
           <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-teal-500 via-cyan-400 to-emerald-500" />
           <div className="flex items-center gap-2.5 mb-4">
             <div className="w-8 h-8 rounded-xl bg-teal-50 text-teal-700 flex items-center justify-center font-bold text-sm shadow-xs border border-teal-200/60">
@@ -493,7 +493,7 @@ export default function Academics() {
         </div>
 
         {/* Subject Combinations & Streams Card */}
-        <div className="relative bg-white/95 backdrop-blur-md p-4 sm:p-6 rounded-2xl shadow-sm hover:shadow-md border border-slate-200/80 mb-6 overflow-hidden transition-all duration-300">
+        <div className="relative bg-white p-3.5 sm:p-6 rounded-2xl shadow-sm hover:shadow-md border border-slate-200/80 mb-6 overflow-hidden transition-all duration-300">
           <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-teal-500 via-amber-400 to-indigo-500" />
           <div className="flex items-center gap-2.5 mb-2">
             <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center font-bold text-sm shadow-xs border border-amber-200/60">
@@ -507,40 +507,40 @@ export default function Academics() {
 
           <CombinationsModal />
 
-          <div className="bg-white rounded-xl p-3 sm:p-4 border border-slate-200/90 shadow-xs mt-4">
-            <div className="flex bg-slate-100/90 p-1.5 rounded-xl gap-1.5 mb-5 border border-slate-200">
+          <div className="bg-white rounded-xl p-2.5 sm:p-4 border border-slate-200/90 shadow-xs mt-3 sm:mt-4">
+            <div className="grid grid-cols-3 bg-slate-100/90 dark:bg-slate-800/90 p-1 sm:p-1.5 rounded-xl gap-1 sm:gap-1.5 mb-5 border border-slate-200 dark:border-slate-700/80">
               <button
                 aria-pressed={activeTab === 'science'}
                 onClick={() => switchTab('science')}
-                className={`flex-1 text-center py-2.5 rounded-lg font-bold text-xs sm:text-sm transition-all duration-300 flex items-center justify-center gap-1.5 ${activeTab === 'science'
+                className={`text-center py-2 sm:py-2.5 px-1 sm:px-3 rounded-lg font-bold text-[11px] xs:text-xs sm:text-sm transition-all duration-300 flex flex-col xs:flex-row items-center justify-center gap-0.5 xs:gap-1.5 ${activeTab === 'science'
                   ? 'bg-gradient-to-r from-teal-600 to-emerald-600 text-white shadow-md scale-[1.01]'
                   : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
                   }`}
               >
-                <span>🔬</span>
-                <span>Science</span>
+                <span className="text-xs sm:text-sm">🔬</span>
+                <span className="truncate xs:overflow-visible">Science</span>
               </button>
               <button
                 aria-pressed={activeTab === 'humanities'}
                 onClick={() => switchTab('humanities')}
-                className={`flex-1 text-center py-2.5 rounded-lg font-bold text-xs sm:text-sm transition-all duration-300 flex items-center justify-center gap-1.5 ${activeTab === 'humanities'
+                className={`text-center py-2 sm:py-2.5 px-1 sm:px-3 rounded-lg font-bold text-[11px] xs:text-xs sm:text-sm transition-all duration-300 flex flex-col xs:flex-row items-center justify-center gap-0.5 xs:gap-1.5 ${activeTab === 'humanities'
                   ? 'bg-gradient-to-r from-amber-600 to-orange-600 text-white shadow-md scale-[1.01]'
                   : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
                   }`}
               >
-                <span>📖</span>
-                <span>Humanities</span>
+                <span className="text-xs sm:text-sm">📖</span>
+                <span className="truncate xs:overflow-visible">Humanities</span>
               </button>
               <button
                 aria-pressed={activeTab === 'secondary'}
                 onClick={() => switchTab('secondary')}
-                className={`flex-1 text-center py-2.5 rounded-lg font-bold text-xs sm:text-sm transition-all duration-300 flex items-center justify-center gap-1.5 ${activeTab === 'secondary'
+                className={`text-center py-2 sm:py-2.5 px-1 sm:px-3 rounded-lg font-bold text-[11px] xs:text-xs sm:text-sm transition-all duration-300 flex flex-col xs:flex-row items-center justify-center gap-0.5 xs:gap-1.5 ${activeTab === 'secondary'
                   ? 'bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-md scale-[1.01]'
                   : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
                   }`}
               >
-                <span>🎒</span>
-                <span>9th & 10th</span>
+                <span className="text-xs sm:text-sm">🎒</span>
+                <span className="whitespace-nowrap">9th &amp; 10th</span>
               </button>
             </div>
 
@@ -610,7 +610,7 @@ export default function Academics() {
         </div>
 
         {/* Faculty & Staff Directory Section */}
-        <div className="relative bg-white/95 backdrop-blur-md p-4 sm:p-6 rounded-2xl shadow-sm hover:shadow-md border border-slate-200/80 mt-6 overflow-hidden transition-all duration-300">
+        <div className="relative bg-white p-3.5 sm:p-6 rounded-2xl shadow-sm hover:shadow-md border border-slate-200/80 mt-6 overflow-hidden transition-all duration-300">
           <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-teal-600 via-indigo-500 to-purple-600" />
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 gap-3">
             <div>
@@ -618,7 +618,7 @@ export default function Academics() {
               <p className="text-sm text-slate-500 mt-1">Meet our dedicated teaching faculty and supportive staff.</p>
             </div>
             {/* Filter controls */}
-            <div className="flex items-center gap-1.5 overflow-x-auto pb-1.5 sm:pb-0">
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-2 sm:pb-0 scrollbar-none -mx-1 px-1">
               {['All', 'Science', 'Humanities', 'Secondary', 'Administration', 'MTS'].map((dept) => (
                 <button
                   key={dept}

@@ -459,7 +459,7 @@ export default function Home() {
                   outline: 'btn-hero-outline'
                 };
                 const styleClasses = styleClassMap[btn.style] || (idx === 0 ? 'btn-hero-primary' : 'btn-hero-secondary');
-                const baseClasses = `px-2 py-0.5 sm:px-4 sm:py-2 font-bold rounded sm:rounded-lg transition-all shadow sm:shadow-lg inline-flex items-center text-[9px] sm:text-sm leading-tight ${styleClasses}`;
+                const baseClasses = `px-2.5 py-1 sm:px-4 sm:py-2 font-bold rounded-md sm:rounded-lg transition-all shadow-xs sm:shadow-lg inline-flex items-center text-[10px] sm:text-sm leading-tight ${styleClasses}`;
 
                 if (isExternal) {
                   return (
@@ -549,14 +549,14 @@ export default function Home() {
       </div>
 
       {/* Main Content Area: Notices, Principal & Key Stats */}
-      <section id="home-briefing" className="home-briefing max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10 md:py-12 grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-7 lg:gap-8 items-stretch" aria-label="School updates and Principal's message">
+      <section id="home-briefing" className="home-briefing max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-6 sm:py-10 md:py-12 grid grid-cols-1 lg:grid-cols-12 gap-5 sm:gap-7 lg:gap-8 items-stretch" aria-label="School updates and Principal's message">
         
         {/* Notices Sidebar */}
         <div className="col-span-1 lg:col-span-4 xl:col-span-4 flex flex-col">
           <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-md hover:shadow-xl border border-slate-200/90 dark:border-slate-800 overflow-hidden flex flex-col h-full transition-all duration-300">
             {/* Header */}
-            <div className="bg-gradient-to-r from-teal-800 via-teal-900 to-slate-900 text-white px-4 sm:px-5 py-3.5 sm:py-4 flex items-center justify-between border-b border-teal-700/50">
-              <div className="flex items-center gap-2.5">
+            <div className="bg-gradient-to-r from-teal-800 via-teal-900 to-slate-900 text-white px-3.5 sm:px-5 py-3 sm:py-4 flex items-center justify-between border-b border-teal-700/50">
+              <div className="flex items-center gap-2">
                 <span className="relative flex h-2.5 w-2.5">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-teal-400 opacity-75"></span>
                   <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-teal-400"></span>
@@ -566,18 +566,18 @@ export default function Home() {
                   <span>Latest Notices</span>
                 </h2>
               </div>
-              <span className="text-[11px] font-extrabold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-teal-700/60 border border-teal-500/30 text-teal-100">
+              <span className="text-[10px] sm:text-[11px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full bg-teal-700/60 border border-teal-500/30 text-teal-100">
                 {notices.length} Updates
               </span>
             </div>
 
             {/* List */}
-            <div className="flex-1 min-h-[260px] max-h-[360px] lg:max-h-[380px] overflow-y-auto custom-scrollbar px-3 sm:px-4 py-1.5 divide-y divide-slate-100 dark:divide-slate-800/80">
+            <div className="flex-1 min-h-[260px] max-h-[360px] lg:max-h-[380px] overflow-y-auto custom-scrollbar px-2.5 sm:px-4 py-1.5 divide-y divide-slate-100 dark:divide-slate-800/80">
               <ul className="space-y-0.5">
                 {notices.map((n, idx) => {
                   const isNew = isNoticeNew(n.date, n.days, settings?.defaultNewNoticeDays !== undefined ? settings.defaultNewNoticeDays : 7);
                   return (
-                    <li key={idx} className="py-2.5 px-2 rounded-xl transition-all duration-200 hover:bg-slate-50 dark:hover:bg-slate-800/60 flex items-center gap-3 group border-l-2 border-l-transparent hover:border-l-teal-600">
+                    <li key={idx} className="py-2.5 px-1.5 sm:px-2 rounded-xl transition-all duration-200 hover:bg-slate-50 dark:hover:bg-slate-800/60 flex items-center gap-2.5 sm:gap-3 group border-l-2 border-l-transparent hover:border-l-teal-600">
                       {/* Mini Date Badge */}
                       {(() => {
                         const formatted = formatDate(n.date);
@@ -585,11 +585,11 @@ export default function Home() {
                         const day = parts[0] || n.date;
                         const month = (parts[1] || '').toUpperCase();
                         return (
-                          <div className="w-11 h-10 rounded-xl border border-teal-200 dark:border-teal-800/60 bg-gradient-to-b from-teal-50 to-white dark:from-teal-950/40 dark:to-slate-900 flex flex-col overflow-hidden flex-shrink-0 shadow-2xs transition-transform group-hover:scale-105">
-                            <div className="bg-teal-700 dark:bg-teal-800 text-[8px] font-black text-white py-0.5 uppercase tracking-wider text-center select-none leading-none">
+                          <div className="w-10 h-9 sm:w-11 sm:h-10 rounded-xl border border-teal-200 dark:border-teal-800/60 bg-gradient-to-b from-teal-50 to-white dark:from-teal-950/40 dark:to-slate-900 flex flex-col overflow-hidden flex-shrink-0 shadow-2xs transition-transform group-hover:scale-105">
+                            <div className="bg-teal-700 dark:bg-teal-800 text-[7.5px] sm:text-[8px] font-black text-white py-0.5 uppercase tracking-wider text-center select-none leading-none">
                               {month || 'DATE'}
                             </div>
-                            <div className="flex-grow flex items-center justify-center font-bold text-[12px] text-slate-800 dark:text-slate-100 leading-none">
+                            <div className="flex-grow flex items-center justify-center font-bold text-[11px] sm:text-[12px] text-slate-800 dark:text-slate-100 leading-none">
                               {day}
                             </div>
                           </div>
@@ -657,23 +657,23 @@ export default function Home() {
               </span>
             </div>
 
-            <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-md hover:shadow-xl border border-slate-200/90 dark:border-slate-800 p-4 sm:p-6 transition-all duration-300 hover:border-teal-500/30 relative overflow-hidden group">
+            <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-md hover:shadow-xl border border-slate-200/90 dark:border-slate-800 p-3.5 sm:p-6 transition-all duration-300 hover:border-teal-500/30 relative overflow-hidden group">
               <div className="absolute top-0 right-0 w-36 h-36 bg-gradient-to-bl from-teal-500/10 via-emerald-500/5 to-transparent rounded-bl-full pointer-events-none" />
 
-              <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 sm:gap-6 relative z-10">
+              <div className="flex flex-col sm:flex-row items-center sm:items-start gap-3.5 sm:gap-6 relative z-10">
                 {/* Principal Portrait Frame */}
-                <div className="w-28 h-28 xs:w-32 xs:h-32 sm:w-36 sm:h-40 flex-shrink-0 rounded-2xl overflow-hidden shadow-md border-2 border-teal-600/50 group-hover:border-teal-600 transition-colors relative">
+                <div className="w-24 h-24 xs:w-28 xs:h-28 sm:w-36 sm:h-40 flex-shrink-0 rounded-2xl overflow-hidden shadow-md border-2 border-teal-600/50 group-hover:border-teal-600 transition-colors relative">
                   <img src="/slides/Principal.jpg" alt={`Principal ${principalName}`} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" loading="lazy" />
                   <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-slate-950/90 via-slate-950/60 to-transparent pt-3 pb-1.5 px-2 text-center">
-                    <span className="text-[10px] font-black uppercase tracking-widest text-teal-200">Principal</span>
+                    <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-teal-200">Principal</span>
                   </div>
                 </div>
 
                 {/* Message Body */}
                 <div className="flex-1 min-w-0 flex flex-col justify-between">
                   <div className="relative">
-                    <Quote size={28} className="text-teal-600/30 dark:text-teal-400/30 mb-1 rotate-180" />
-                    <p className="text-slate-700 dark:text-slate-200 italic text-[13.5px] sm:text-[14.5px] leading-relaxed font-normal">
+                    <Quote size={24} className="text-teal-600/30 dark:text-teal-400/30 mb-1 rotate-180" />
+                    <p className="text-slate-700 dark:text-slate-200 italic text-xs xs:text-[13.5px] sm:text-[14.5px] leading-relaxed font-normal">
                       Welcome to <strong className="text-slate-900 dark:text-white font-bold not-italic">Govt HSS Shangus</strong>. Our mandate is to <strong className="text-teal-800 dark:text-teal-300 font-semibold not-italic">empower leaders</strong> defined by academic excellence and ethics. We offer a learning environment where cutting-edge resources in Science and Humanities meet value-based education — equipping you with the skills to thrive and the character to lead in a global society.
                     </p>
                   </div>
@@ -681,11 +681,11 @@ export default function Home() {
                   {/* Principal Sign-off */}
                   <div className="mt-3.5 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between flex-wrap gap-2">
                     <div>
-                      <h4 className="font-bold text-sm text-slate-900 dark:text-white">{principalName}</h4>
-                      <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Principal, Govt. Higher Secondary School Shangus</p>
+                      <h4 className="font-bold text-xs sm:text-sm text-slate-900 dark:text-white">{principalName}</h4>
+                      <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 font-medium">Principal, Govt. Higher Secondary School Shangus</p>
                     </div>
-                    <span className="inline-flex items-center gap-1 text-[11px] font-bold text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/40 px-2.5 py-0.5 rounded-lg border border-teal-200 dark:border-teal-800/60">
-                      <Sparkles size={12} className="text-teal-600 dark:text-teal-400" />
+                    <span className="inline-flex items-center gap-1 text-[10px] sm:text-[11px] font-bold text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/40 px-2 sm:px-2.5 py-0.5 rounded-lg border border-teal-200 dark:border-teal-800/60">
+                      <Sparkles size={11} className="text-teal-600 dark:text-teal-400" />
                       Official Note
                     </span>
                   </div>
@@ -695,7 +695,7 @@ export default function Home() {
           </div>
 
           {/* Stats Row - Responsive across Mobile, Tablet, and Desktop */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
             {[
               { icon: Users, end: 700, suffix: "+", label: "STUDENTS", subtext: "Enrolled Scholars", colorClass: 'text-teal-700 bg-teal-50 border-teal-200 hover:shadow-teal-100/50', accentBar: 'from-teal-500 to-emerald-500', glow: 'group-hover:border-teal-500/40' },
               { icon: Award, end: 25, suffix: "+", label: "TEACHERS", subtext: "Faculty Mentors", colorClass: 'text-amber-700 bg-amber-50 border-amber-200 hover:shadow-amber-100/50', accentBar: 'from-amber-500 to-orange-500', glow: 'group-hover:border-amber-500/40' },
@@ -707,7 +707,7 @@ export default function Home() {
                 <div key={i} className={`relative overflow-hidden bg-white dark:bg-slate-900 rounded-2xl shadow-sm hover:shadow-xl border border-slate-200/90 dark:border-slate-800 transition-all duration-300 hover:-translate-y-1 group ${stat.glow}`}>
                   <div className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${stat.accentBar}`} />
                   {/* Adaptive layout: Executive horizontal on mobile (1 per row), Centered vertical on sm/lg */}
-                  <div className="flex flex-row sm:flex-col items-center justify-between sm:justify-center p-4 sm:p-5 text-left sm:text-center gap-3 sm:gap-0">
+                  <div className="flex flex-row sm:flex-col items-center justify-between sm:justify-center p-3.5 sm:p-5 text-left sm:text-center gap-2.5 sm:gap-0">
                     <div className="flex items-center gap-3 sm:flex-col sm:gap-0">
                       <div className={`w-12 h-12 sm:w-13 sm:h-13 rounded-2xl flex items-center justify-center border sm:mb-2.5 transition-transform duration-300 group-hover:scale-110 ${stat.colorClass} shadow-xs flex-shrink-0`}>
                         <IconComponent size={24} className="stroke-[2.5]" />
