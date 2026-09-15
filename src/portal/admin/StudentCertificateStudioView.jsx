@@ -890,9 +890,12 @@ export default function StudentCertificateStudioView({
   }, [showSettingsDrawerProp]);
 
   useEffect(() => {
-    const handleToggle = () => {
-      if (typeof window !== 'undefined' && window.innerWidth < 1024) {
-        setShowMobileOptionsModal(prev => !prev);
+    const handleToggle = (e) => {
+      if (e?.detail?.targetModule && e.detail.targetModule !== 'certStudio' && e.detail.targetModule !== 'certificate') {
+        return;
+      }
+      if (typeof e?.detail?.open === 'boolean') {
+        setShowSettingsDrawer(e.detail.open);
       } else {
         setShowSettingsDrawer(prev => !prev);
       }
@@ -900,6 +903,11 @@ export default function StudentCertificateStudioView({
     window.addEventListener('hss-toggle-studio-setup', handleToggle);
     return () => window.removeEventListener('hss-toggle-studio-setup', handleToggle);
   }, []);
+
+  const handleCloseSettings = useCallback(() => {
+    setShowSettingsDrawer(false);
+    if (onToggleSettingsDrawer) onToggleSettingsDrawer(false);
+  }, [onToggleSettingsDrawer]);
 
   // ─── Templates State (Built-in + Custom) ───
   const [defaultTemplateId, setDefaultTemplateId] = useState(() => {
@@ -4380,7 +4388,18 @@ export default function StudentCertificateStudioView({
               <Sliders size={11} className="text-teal-600 dark:text-teal-400" />
               <span>Certificate Letterhead & Institutional Setup</span>
             </h3>
-            <span className="text-[9px] font-bold text-slate-400">Live preview & auto-applied on print/export</span>
+            <div className="flex items-center gap-2">
+              <span className="text-[9px] font-bold text-slate-400 hidden sm:inline">Live preview & auto-applied on print/export</span>
+              <button
+                type="button"
+                onClick={handleCloseSettings}
+                className="p-1 rounded-md text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                title="Close setup drawer"
+                aria-label="Close setup drawer"
+              >
+                <X size={13} />
+              </button>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 text-xs">
@@ -4794,7 +4813,11 @@ export default function StudentCertificateStudioView({
 
             <button
               type="button"
-              onClick={() => setShowSettingsDrawer(prev => !prev)}
+              onClick={() => {
+                const next = !showSettingsDrawer;
+                setShowSettingsDrawer(next);
+                if (onToggleSettingsDrawer) onToggleSettingsDrawer(next);
+              }}
               className={`h-6 px-2 rounded border font-bold text-[10px] flex items-center gap-1 shadow-2xs active:scale-95 cursor-pointer shrink-0 transition-all ${
                 showSettingsDrawer
                   ? 'bg-amber-100 dark:bg-amber-950 text-amber-950 dark:text-amber-200 border-amber-400'
