@@ -419,5 +419,20 @@ button.portal-compact-btn,
   }
 }
 
+/* Studio & Document Builder Ultra-Compact Toolbar Buttons */
+.studio-compact-toolbar-btn {
+  height: 23px !important;
+  min-height: 23px !important;
+  max-height: 23px !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  line-height: 1 !important;
+}
 
-
+@media (min-width: 640px) {
+  .studio-compact-toolbar-btn {
+    height: 27px !important;
+    min-height: 27px !important;
+    max-height: 27px !important;
+  }
+}
