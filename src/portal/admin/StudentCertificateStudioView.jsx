@@ -4120,7 +4120,7 @@ export default function StudentCertificateStudioView({
                   ref={listContainerRef}
                   onScroll={handleListScroll}
                   className={`overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800 overscroll-contain transition-all ${
-                    isDropdownPinned ? 'max-h-96' : 'max-h-72'
+                    isDropdownPinned ? 'max-h-[50vh] sm:max-h-96' : 'max-h-[42vh] sm:max-h-72'
                   }`}
                 >
                   {filteredStudents.length === 0 ? (
@@ -4866,361 +4866,356 @@ export default function StudentCertificateStudioView({
                   </button>
 
                   {/* 1. Format Dropdown (Aa) */}
-                  <div className="relative">
-                    <button
-                      type="button"
-                      onClick={() => setMobileDropdownOpen(prev => prev === 'format' ? null : 'format')}
-                      className={`h-7 px-1.5 rounded-lg font-extrabold text-[11px] flex items-center gap-0.5 cursor-pointer transition-all active:scale-95 shrink-0 border whitespace-nowrap ${
-                        mobileDropdownOpen === 'format'
-                          ? 'bg-amber-100 text-amber-950 border-amber-400 dark:bg-amber-950 dark:text-amber-200'
-                          : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-200'
-                      }`}
-                      title="Text Style & Formatting"
-                    >
-                      <span className="font-serif font-black">Aa</span>
-                      <ChevronDown size={10} className={`transition-transform shrink-0 ${mobileDropdownOpen === 'format' ? 'rotate-180' : ''}`} />
-                    </button>
-
-                    {mobileDropdownOpen === 'format' && (
-                      <div
-                        onClick={(e) => e.stopPropagation()}
-                        className="absolute right-0 top-full mt-1.5 z-50 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl p-2 w-64 space-y-2 animate-fadeIn"
-                      >
-                        <div className="flex items-center justify-between pb-1 border-b border-slate-100 dark:border-slate-800 text-[9px] font-black uppercase tracking-wider text-slate-400">
-                          <span>Text & Headings</span>
-                          <button
-                            type="button"
-                            onClick={() => setMobileDropdownOpen(null)}
-                            className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
-                          >
-                            <X size={11} />
-                          </button>
-                        </div>
-
-                        {/* Headings & Paragraph */}
-                        <div className="flex items-center gap-1">
-                          <button
-                            type="button"
-                            onMouseDown={(e) => e.preventDefault()}
-                            onClick={() => { executeFormat('formatBlock', '<h1>'); setMobileDropdownOpen(null); }}
-                            className={`flex-1 py-1 rounded-lg text-[10px] font-black border transition-all ${
-                              activeFormats.h1
-                                ? 'bg-amber-100 dark:bg-amber-950 text-amber-900 border-amber-400'
-                                : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-100'
-                            }`}
-                          >
-                            H1
-                          </button>
-                          <button
-                            type="button"
-                            onMouseDown={(e) => e.preventDefault()}
-                            onClick={() => { executeFormat('formatBlock', '<h2>'); setMobileDropdownOpen(null); }}
-                            className={`flex-1 py-1 rounded-lg text-[10px] font-black border transition-all ${
-                              activeFormats.h2
-                                ? 'bg-amber-100 dark:bg-amber-950 text-amber-900 border-amber-400'
-                                : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-100'
-                            }`}
-                          >
-                            H2
-                          </button>
-                          <button
-                            type="button"
-                            onMouseDown={(e) => e.preventDefault()}
-                            onClick={() => { executeFormat('formatBlock', '<p>'); setMobileDropdownOpen(null); }}
-                            className={`flex-1 py-1 rounded-lg text-[10px] font-bold border transition-all ${
-                              activeFormats.p
-                                ? 'bg-amber-100 dark:bg-amber-950 text-amber-900 border-amber-400'
-                                : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-100'
-                            }`}
-                          >
-                            Paragraph
-                          </button>
-                        </div>
-
-                        {/* Inline Styles: B, I, U, S, Clear */}
-                        <div className="flex items-center justify-between gap-1 pt-1 border-t border-slate-100 dark:border-slate-800">
-                          <button
-                            type="button"
-                            onMouseDown={(e) => e.preventDefault()}
-                            onClick={() => executeFormat('bold')}
-                            className={`w-7 h-7 rounded-lg flex items-center justify-center ${activeFormats.bold ? 'bg-amber-100 text-amber-900 font-black' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200'}`}
-                            title="Bold"
-                          >
-                            <Bold size={12} />
-                          </button>
-                          <button
-                            type="button"
-                            onMouseDown={(e) => e.preventDefault()}
-                            onClick={() => executeFormat('italic')}
-                            className={`w-7 h-7 rounded-lg flex items-center justify-center ${activeFormats.italic ? 'bg-amber-100 text-amber-900 font-black' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200'}`}
-                            title="Italic"
-                          >
-                            <Italic size={12} />
-                          </button>
-                          <button
-                            type="button"
-                            onMouseDown={(e) => e.preventDefault()}
-                            onClick={() => executeFormat('underline')}
-                            className={`w-7 h-7 rounded-lg flex items-center justify-center ${activeFormats.underline ? 'bg-amber-100 text-amber-900 font-black' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200'}`}
-                            title="Underline"
-                          >
-                            <Underline size={12} />
-                          </button>
-                          <button
-                            type="button"
-                            onMouseDown={(e) => e.preventDefault()}
-                            onClick={() => executeFormat('strikethrough')}
-                            className={`w-7 h-7 rounded-lg flex items-center justify-center ${activeFormats.strikeThrough ? 'bg-amber-100 text-amber-900 font-black' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200'}`}
-                            title="Strikethrough"
-                          >
-                            <Strikethrough size={12} />
-                          </button>
-                          <button
-                            type="button"
-                            onMouseDown={(e) => e.preventDefault()}
-                            onClick={() => { executeFormat('removeFormat'); setMobileDropdownOpen(null); }}
-                            className="w-7 h-7 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-rose-600 flex items-center justify-center"
-                            title="Clear Formatting"
-                          >
-                            <RemoveFormatting size={12} />
-                          </button>
-                        </div>
-
-                        {/* Quick Text Colors */}
-                        <div className="flex items-center justify-between gap-1 pt-1 border-t border-slate-100 dark:border-slate-800">
-                          <span className="text-[9px] font-bold text-slate-500">Color:</span>
-                          <div className="flex items-center gap-1.5">
-                            {[
-                              { label: 'Black', color: '#0f172a' },
-                              { label: 'Maroon', color: '#800000' },
-                              { label: 'Navy Blue', color: '#0a192f' },
-                              { label: 'Forest Green', color: '#065f46' },
-                              { label: 'Slate Gray', color: '#475569' },
-                              { label: 'Crimson', color: '#dc2626' }
-                            ].map(c => (
-                              <button
-                                key={c.color}
-                                type="button"
-                                onMouseDown={(e) => e.preventDefault()}
-                                onClick={() => { applyTextColor(c.color); setMobileDropdownOpen(null); }}
-                                className="w-5 h-5 rounded-full border border-slate-300 dark:border-slate-600 cursor-pointer hover:scale-110 transition-transform shadow-2xs"
-                                style={{ backgroundColor: c.color }}
-                                title={c.label}
-                              />
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setMobileDropdownOpen(prev => prev === 'format' ? null : 'format')}
+                    className={`h-7 px-1.5 rounded-lg font-extrabold text-[11px] flex items-center gap-0.5 cursor-pointer transition-all active:scale-95 shrink-0 border whitespace-nowrap ${
+                      mobileDropdownOpen === 'format'
+                        ? 'bg-amber-100 text-amber-950 border-amber-400 dark:bg-amber-950 dark:text-amber-200'
+                        : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-200'
+                    }`}
+                    title="Text Style & Formatting"
+                  >
+                    <span className="font-serif font-black">Aa</span>
+                    <ChevronDown size={10} className={`transition-transform shrink-0 ${mobileDropdownOpen === 'format' ? 'rotate-180' : ''}`} />
+                  </button>
 
                   {/* 2. Layout Dropdown (Alignments & Inserts) */}
-                  <div className="relative">
-                    <button
-                      type="button"
-                      onClick={() => setMobileDropdownOpen(prev => prev === 'layout' ? null : 'layout')}
-                      className={`h-7 w-7 rounded-lg flex items-center justify-center cursor-pointer transition-all active:scale-95 shrink-0 border whitespace-nowrap ${
-                        mobileDropdownOpen === 'layout'
-                          ? 'bg-amber-100 text-amber-950 border-amber-400 dark:bg-amber-950 dark:text-amber-200'
-                          : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-200'
-                      }`}
-                      title="Alignment, Lists & Tables"
-                    >
-                      <AlignLeft size={12} className="shrink-0" />
-                    </button>
-
-                    {mobileDropdownOpen === 'layout' && (
-                      <div
-                        onClick={(e) => e.stopPropagation()}
-                        className="absolute right-0 top-full mt-1.5 z-50 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl p-2 w-56 space-y-2 animate-fadeIn"
-                      >
-                        <div className="flex items-center justify-between pb-1 border-b border-slate-100 dark:border-slate-800 text-[9px] font-black uppercase tracking-wider text-slate-400">
-                          <span>Layout & Structure</span>
-                          <button
-                            type="button"
-                            onClick={() => setMobileDropdownOpen(null)}
-                            className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
-                          >
-                            <X size={11} />
-                          </button>
-                        </div>
-
-                        {/* Alignments */}
-                        <div className="flex items-center justify-between gap-1">
-                          <button
-                            type="button"
-                            onMouseDown={(e) => e.preventDefault()}
-                            onClick={() => executeFormat('justifyLeft')}
-                            className={`w-7 h-7 rounded-lg flex items-center justify-center ${activeFormats.justifyLeft ? 'bg-amber-100 text-amber-900' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200'}`}
-                            title="Align Left"
-                          >
-                            <AlignLeft size={12} />
-                          </button>
-                          <button
-                            type="button"
-                            onMouseDown={(e) => e.preventDefault()}
-                            onClick={() => executeFormat('justifyCenter')}
-                            className={`w-7 h-7 rounded-lg flex items-center justify-center ${activeFormats.justifyCenter ? 'bg-amber-100 text-amber-900' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200'}`}
-                            title="Align Center"
-                          >
-                            <AlignCenter size={12} />
-                          </button>
-                          <button
-                            type="button"
-                            onMouseDown={(e) => e.preventDefault()}
-                            onClick={() => executeFormat('justifyRight')}
-                            className={`w-7 h-7 rounded-lg flex items-center justify-center ${activeFormats.justifyRight ? 'bg-amber-100 text-amber-900' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200'}`}
-                            title="Align Right"
-                          >
-                            <AlignRight size={12} />
-                          </button>
-                          <button
-                            type="button"
-                            onMouseDown={(e) => e.preventDefault()}
-                            onClick={() => executeFormat('justifyFull')}
-                            className={`w-7 h-7 rounded-lg flex items-center justify-center ${activeFormats.justifyFull ? 'bg-amber-100 text-amber-900' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200'}`}
-                            title="Justify"
-                          >
-                            <AlignJustify size={12} />
-                          </button>
-                        </div>
-
-                        {/* Lists */}
-                        <div className="flex items-center justify-between gap-1 pt-1 border-t border-slate-100 dark:border-slate-800">
-                          <button
-                            type="button"
-                            onMouseDown={(e) => e.preventDefault()}
-                            onClick={() => executeFormat('insertUnorderedList')}
-                            className={`flex-1 py-1 rounded-lg text-[10px] font-bold flex items-center justify-center gap-1 border border-slate-200 dark:border-slate-700 ${activeFormats.insertUnorderedList ? 'bg-amber-100 text-amber-900' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200'}`}
-                            title="Bullet List"
-                          >
-                            <List size={11} />
-                            <span>Bullets</span>
-                          </button>
-                          <button
-                            type="button"
-                            onMouseDown={(e) => e.preventDefault()}
-                            onClick={() => executeFormat('insertOrderedList')}
-                            className={`flex-1 py-1 rounded-lg text-[10px] font-bold flex items-center justify-center gap-1 border border-slate-200 dark:border-slate-700 ${activeFormats.insertOrderedList ? 'bg-amber-100 text-amber-900' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200'}`}
-                            title="Numbered List"
-                          >
-                            <ListOrdered size={11} />
-                            <span>Numbered</span>
-                          </button>
-                        </div>
-
-                        {/* Table & Divider */}
-                        <div className="flex items-center gap-1 pt-1 border-t border-slate-100 dark:border-slate-800">
-                          <button
-                            type="button"
-                            onMouseDown={(e) => e.preventDefault()}
-                            onClick={() => { executeFormat('insertHorizontalRule'); setMobileDropdownOpen(null); }}
-                            className="flex-1 py-1 rounded-lg text-[10px] font-bold flex items-center justify-center gap-1 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200"
-                          >
-                            <Minus size={11} />
-                            <span>Divider</span>
-                          </button>
-                          <button
-                            type="button"
-                            onMouseDown={(e) => e.preventDefault()}
-                            onClick={() => { insertTable(2, 4); setMobileDropdownOpen(null); }}
-                            className="flex-1 py-1 rounded-lg text-[10px] font-bold flex items-center justify-center gap-1 bg-purple-50 dark:bg-purple-950/60 text-purple-800 dark:text-purple-200 border border-purple-200 dark:border-purple-800"
-                          >
-                            <TableIcon size={11} />
-                            <span>Table</span>
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setMobileDropdownOpen(prev => prev === 'layout' ? null : 'layout')}
+                    className={`h-7 w-7 rounded-lg flex items-center justify-center cursor-pointer transition-all active:scale-95 shrink-0 border whitespace-nowrap ${
+                      mobileDropdownOpen === 'layout'
+                        ? 'bg-amber-100 text-amber-950 border-amber-400 dark:bg-amber-950 dark:text-amber-200'
+                        : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-200'
+                    }`}
+                    title="Alignment, Lists & Tables"
+                  >
+                    <AlignLeft size={12} className="shrink-0" />
+                  </button>
 
                   {/* 3. More Dropdown (Undo, Redo, AI, History, Template) */}
-                  <div className="relative">
-                    <button
-                      type="button"
-                      onClick={() => setMobileDropdownOpen(prev => prev === 'more' ? null : 'more')}
-                      className={`h-7 w-7 rounded-lg font-bold text-[11px] flex items-center justify-center cursor-pointer transition-all active:scale-95 shrink-0 border whitespace-nowrap ${
-                        mobileDropdownOpen === 'more'
-                          ? 'bg-amber-100 text-amber-950 border-amber-400 dark:bg-amber-950 dark:text-amber-200'
-                          : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-200'
-                      }`}
-                      title="More Tools"
-                    >
-                      <span>•••</span>
-                    </button>
-
-                    {mobileDropdownOpen === 'more' && (
-                      <div
-                        onClick={(e) => e.stopPropagation()}
-                        className="absolute right-0 top-full mt-1.5 z-50 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl p-1.5 w-52 space-y-1 animate-fadeIn"
-                      >
-                        {/* Undo / Redo */}
-                        <div className="flex items-center justify-between gap-1 p-1 bg-slate-50 dark:bg-slate-800/80 rounded-xl">
-                          <button
-                            type="button"
-                            disabled={!canUndo}
-                            onMouseDown={(e) => e.preventDefault()}
-                            onClick={() => { handleUndo(); setTimeout(checkActiveFormats, 50); }}
-                            className="flex-1 py-1 rounded-lg flex items-center justify-center gap-1 text-[10px] font-bold text-slate-700 dark:text-slate-200 hover:bg-white dark:hover:bg-slate-700 disabled:opacity-30"
-                          >
-                            <Undo size={11} />
-                            <span>Undo</span>
-                          </button>
-                          <button
-                            type="button"
-                            disabled={!canRedo}
-                            onMouseDown={(e) => e.preventDefault()}
-                            onClick={() => { handleRedo(); setTimeout(checkActiveFormats, 50); }}
-                            className="flex-1 py-1 rounded-lg flex items-center justify-center gap-1 text-[10px] font-bold text-slate-700 dark:text-slate-200 hover:bg-white dark:hover:bg-slate-700 disabled:opacity-30"
-                          >
-                            <Redo size={11} />
-                            <span>Redo</span>
-                          </button>
-                        </div>
-
-                        {/* AI Assistant */}
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setShowAiModal(true);
-                            setMobileDropdownOpen(null);
-                          }}
-                          className="w-full text-left px-2 py-1.5 rounded-lg hover:bg-purple-50 dark:hover:bg-purple-950/50 text-purple-900 dark:text-purple-200 flex items-center gap-2 cursor-pointer text-[10.5px] font-bold"
-                        >
-                          <Sparkles size={12} className="text-purple-600 dark:text-purple-400" />
-                          <span>Gemini AI Assistant</span>
-                        </button>
-
-                        {/* History / Archive */}
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setShowHistoryModal(true);
-                            setMobileDropdownOpen(null);
-                          }}
-                          className="w-full text-left px-2 py-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 flex items-center gap-2 cursor-pointer text-[10.5px] font-bold"
-                        >
-                          <History size={12} className="text-slate-500" />
-                          <span>Archived Documents</span>
-                        </button>
-
-                        {/* Save As New Template */}
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setShowSaveTemplateModal(true);
-                            setMobileDropdownOpen(null);
-                          }}
-                          className="w-full text-left px-2 py-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 flex items-center gap-2 cursor-pointer text-[10.5px] font-bold"
-                        >
-                          <BookmarkPlus size={12} className="text-slate-500" />
-                          <span>Save As New Template</span>
-                        </button>
-                      </div>
-                    )}
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setMobileDropdownOpen(prev => prev === 'more' ? null : 'more')}
+                    className={`h-7 w-7 rounded-lg font-bold text-[11px] flex items-center justify-center cursor-pointer transition-all active:scale-95 shrink-0 border whitespace-nowrap ${
+                      mobileDropdownOpen === 'more'
+                        ? 'bg-amber-100 text-amber-950 border-amber-400 dark:bg-amber-950 dark:text-amber-200'
+                        : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-200'
+                    }`}
+                    title="More Tools"
+                  >
+                    <span>•••</span>
+                  </button>
                 </div>
               </div>
+
+              {/* ── Active Dropdown Menus (Positioned outside overflow-x-auto to prevent clipping) ── */}
+              {mobileDropdownOpen === 'format' && (
+                <div
+                  onClick={(e) => e.stopPropagation()}
+                  className="absolute right-1 top-full mt-1 z-50 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl p-2 w-64 max-w-[calc(100vw-1.5rem)] space-y-2 animate-fadeIn"
+                >
+                  <div className="flex items-center justify-between pb-1 border-b border-slate-100 dark:border-slate-800 text-[9px] font-black uppercase tracking-wider text-slate-400">
+                    <span>Text & Headings</span>
+                    <button
+                      type="button"
+                      onClick={() => setMobileDropdownOpen(null)}
+                      className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                    >
+                      <X size={11} />
+                    </button>
+                  </div>
+
+                  {/* Headings & Paragraph */}
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => { executeFormat('formatBlock', '<h1>'); setMobileDropdownOpen(null); }}
+                      className={`flex-1 py-1 rounded-lg text-[10px] font-black border transition-all ${
+                        activeFormats.h1
+                          ? 'bg-amber-100 dark:bg-amber-950 text-amber-900 border-amber-400'
+                          : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-100'
+                      }`}
+                    >
+                      H1
+                    </button>
+                    <button
+                      type="button"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => { executeFormat('formatBlock', '<h2>'); setMobileDropdownOpen(null); }}
+                      className={`flex-1 py-1 rounded-lg text-[10px] font-black border transition-all ${
+                        activeFormats.h2
+                          ? 'bg-amber-100 dark:bg-amber-950 text-amber-900 border-amber-400'
+                          : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-100'
+                      }`}
+                    >
+                      H2
+                    </button>
+                    <button
+                      type="button"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => { executeFormat('formatBlock', '<p>'); setMobileDropdownOpen(null); }}
+                      className={`flex-1 py-1 rounded-lg text-[10px] font-bold border transition-all ${
+                        activeFormats.p
+                          ? 'bg-amber-100 dark:bg-amber-950 text-amber-900 border-amber-400'
+                          : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-100'
+                      }`}
+                    >
+                      Paragraph
+                    </button>
+                  </div>
+
+                  {/* Inline Styles: B, I, U, S, Clear */}
+                  <div className="flex items-center justify-between gap-1 pt-1 border-t border-slate-100 dark:border-slate-800">
+                    <button
+                      type="button"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => executeFormat('bold')}
+                      className={`w-7 h-7 rounded-lg flex items-center justify-center ${activeFormats.bold ? 'bg-amber-100 text-amber-900 font-black' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200'}`}
+                      title="Bold"
+                    >
+                      <Bold size={12} />
+                    </button>
+                    <button
+                      type="button"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => executeFormat('italic')}
+                      className={`w-7 h-7 rounded-lg flex items-center justify-center ${activeFormats.italic ? 'bg-amber-100 text-amber-900 font-black' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200'}`}
+                      title="Italic"
+                    >
+                      <Italic size={12} />
+                    </button>
+                    <button
+                      type="button"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => executeFormat('underline')}
+                      className={`w-7 h-7 rounded-lg flex items-center justify-center ${activeFormats.underline ? 'bg-amber-100 text-amber-900 font-black' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200'}`}
+                      title="Underline"
+                    >
+                      <Underline size={12} />
+                    </button>
+                    <button
+                      type="button"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => executeFormat('strikethrough')}
+                      className={`w-7 h-7 rounded-lg flex items-center justify-center ${activeFormats.strikeThrough ? 'bg-amber-100 text-amber-900 font-black' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200'}`}
+                      title="Strikethrough"
+                    >
+                      <Strikethrough size={12} />
+                    </button>
+                    <button
+                      type="button"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => { executeFormat('removeFormat'); setMobileDropdownOpen(null); }}
+                      className="w-7 h-7 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-rose-600 flex items-center justify-center"
+                      title="Clear Formatting"
+                    >
+                      <RemoveFormatting size={12} />
+                    </button>
+                  </div>
+
+                  {/* Quick Text Colors */}
+                  <div className="flex items-center justify-between gap-1 pt-1 border-t border-slate-100 dark:border-slate-800">
+                    <span className="text-[9px] font-bold text-slate-500">Color:</span>
+                    <div className="flex items-center gap-1.5">
+                      {[
+                        { label: 'Black', color: '#0f172a' },
+                        { label: 'Maroon', color: '#800000' },
+                        { label: 'Navy Blue', color: '#0a192f' },
+                        { label: 'Forest Green', color: '#065f46' },
+                        { label: 'Slate Gray', color: '#475569' },
+                        { label: 'Crimson', color: '#dc2626' }
+                      ].map(c => (
+                        <button
+                          key={c.color}
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => { applyTextColor(c.color); setMobileDropdownOpen(null); }}
+                          className="w-5 h-5 rounded-full border border-slate-300 dark:border-slate-600 cursor-pointer hover:scale-110 transition-transform shadow-2xs"
+                          style={{ backgroundColor: c.color }}
+                          title={c.label}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {mobileDropdownOpen === 'layout' && (
+                <div
+                  onClick={(e) => e.stopPropagation()}
+                  className="absolute right-1 top-full mt-1 z-50 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl p-2 w-56 max-w-[calc(100vw-1.5rem)] space-y-2 animate-fadeIn"
+                >
+                  <div className="flex items-center justify-between pb-1 border-b border-slate-100 dark:border-slate-800 text-[9px] font-black uppercase tracking-wider text-slate-400">
+                    <span>Layout & Structure</span>
+                    <button
+                      type="button"
+                      onClick={() => setMobileDropdownOpen(null)}
+                      className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                    >
+                      <X size={11} />
+                    </button>
+                  </div>
+
+                  {/* Alignments */}
+                  <div className="flex items-center justify-between gap-1">
+                    <button
+                      type="button"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => executeFormat('justifyLeft')}
+                      className={`w-7 h-7 rounded-lg flex items-center justify-center ${activeFormats.justifyLeft ? 'bg-amber-100 text-amber-900' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200'}`}
+                      title="Align Left"
+                    >
+                      <AlignLeft size={12} />
+                    </button>
+                    <button
+                      type="button"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => executeFormat('justifyCenter')}
+                      className={`w-7 h-7 rounded-lg flex items-center justify-center ${activeFormats.justifyCenter ? 'bg-amber-100 text-amber-900' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200'}`}
+                      title="Align Center"
+                    >
+                      <AlignCenter size={12} />
+                    </button>
+                    <button
+                      type="button"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => executeFormat('justifyRight')}
+                      className={`w-7 h-7 rounded-lg flex items-center justify-center ${activeFormats.justifyRight ? 'bg-amber-100 text-amber-900' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200'}`}
+                      title="Align Right"
+                    >
+                      <AlignRight size={12} />
+                    </button>
+                    <button
+                      type="button"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => executeFormat('justifyFull')}
+                      className={`w-7 h-7 rounded-lg flex items-center justify-center ${activeFormats.justifyFull ? 'bg-amber-100 text-amber-900' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200'}`}
+                      title="Justify"
+                    >
+                      <AlignJustify size={12} />
+                    </button>
+                  </div>
+
+                  {/* Lists */}
+                  <div className="flex items-center justify-between gap-1 pt-1 border-t border-slate-100 dark:border-slate-800">
+                    <button
+                      type="button"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => executeFormat('insertUnorderedList')}
+                      className={`flex-1 py-1 rounded-lg text-[10px] font-bold flex items-center justify-center gap-1 border border-slate-200 dark:border-slate-700 ${activeFormats.insertUnorderedList ? 'bg-amber-100 text-amber-900' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200'}`}
+                      title="Bullet List"
+                    >
+                      <List size={11} />
+                      <span>Bullets</span>
+                    </button>
+                    <button
+                      type="button"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => executeFormat('insertOrderedList')}
+                      className={`flex-1 py-1 rounded-lg text-[10px] font-bold flex items-center justify-center gap-1 border border-slate-200 dark:border-slate-700 ${activeFormats.insertOrderedList ? 'bg-amber-100 text-amber-900' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200'}`}
+                      title="Numbered List"
+                    >
+                      <ListOrdered size={11} />
+                      <span>Numbered</span>
+                    </button>
+                  </div>
+
+                  {/* Table & Divider */}
+                  <div className="flex items-center gap-1 pt-1 border-t border-slate-100 dark:border-slate-800">
+                    <button
+                      type="button"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => { executeFormat('insertHorizontalRule'); setMobileDropdownOpen(null); }}
+                      className="flex-1 py-1 rounded-lg text-[10px] font-bold flex items-center justify-center gap-1 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200"
+                    >
+                      <Minus size={11} />
+                      <span>Divider</span>
+                    </button>
+                    <button
+                      type="button"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => { insertTable(2, 4); setMobileDropdownOpen(null); }}
+                      className="flex-1 py-1 rounded-lg text-[10px] font-bold flex items-center justify-center gap-1 bg-purple-50 dark:bg-purple-950/60 text-purple-800 dark:text-purple-200 border border-purple-200 dark:border-purple-800"
+                    >
+                      <TableIcon size={11} />
+                      <span>Table</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {mobileDropdownOpen === 'more' && (
+                <div
+                  onClick={(e) => e.stopPropagation()}
+                  className="absolute right-1 top-full mt-1 z-50 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl p-1.5 w-52 max-w-[calc(100vw-1.5rem)] space-y-1 animate-fadeIn"
+                >
+                  {/* Undo / Redo */}
+                  <div className="flex items-center justify-between gap-1 p-1 bg-slate-50 dark:bg-slate-800/80 rounded-xl">
+                    <button
+                      type="button"
+                      disabled={!canUndo}
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => { handleUndo(); setTimeout(checkActiveFormats, 50); }}
+                      className="flex-1 py-1 rounded-lg flex items-center justify-center gap-1 text-[10px] font-bold text-slate-700 dark:text-slate-200 hover:bg-white dark:hover:bg-slate-700 disabled:opacity-30"
+                    >
+                      <Undo size={11} />
+                      <span>Undo</span>
+                    </button>
+                    <button
+                      type="button"
+                      disabled={!canRedo}
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => { handleRedo(); setTimeout(checkActiveFormats, 50); }}
+                      className="flex-1 py-1 rounded-lg flex items-center justify-center gap-1 text-[10px] font-bold text-slate-700 dark:text-slate-200 hover:bg-white dark:hover:bg-slate-700 disabled:opacity-30"
+                    >
+                      <Redo size={11} />
+                      <span>Redo</span>
+                    </button>
+                  </div>
+
+                  {/* AI Assistant */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowAiModal(true);
+                      setMobileDropdownOpen(null);
+                    }}
+                    className="w-full text-left px-2 py-1.5 rounded-lg hover:bg-purple-50 dark:hover:bg-purple-950/50 text-purple-900 dark:text-purple-200 flex items-center gap-2 cursor-pointer text-[10.5px] font-bold"
+                  >
+                    <Sparkles size={12} className="text-purple-600 dark:text-purple-400" />
+                    <span>Gemini AI Assistant</span>
+                  </button>
+
+                  {/* History / Archive */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowHistoryModal(true);
+                      setMobileDropdownOpen(null);
+                    }}
+                    className="w-full text-left px-2 py-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 flex items-center gap-2 cursor-pointer text-[10.5px] font-bold"
+                  >
+                    <History size={12} className="text-slate-500" />
+                    <span>Archived Documents</span>
+                  </button>
+
+                  {/* Save As New Template */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowSaveTemplateModal(true);
+                      setMobileDropdownOpen(null);
+                    }}
+                    className="w-full text-left px-2 py-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 flex items-center gap-2 cursor-pointer text-[10.5px] font-bold"
+                  >
+                    <BookmarkPlus size={12} className="text-slate-500" />
+                    <span>Save As New Template</span>
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* ── VERTICAL FLOATING DOCK (3 Vertical Columns Side-by-Side - Desktop Only) ── */}
