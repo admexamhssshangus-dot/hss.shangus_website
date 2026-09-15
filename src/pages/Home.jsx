@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Users, Award, BookOpen, GraduationCap, Megaphone, ArrowRight, Pause, Play } from 'lucide-react';
+import { Users, Award, BookOpen, GraduationCap, Megaphone, ArrowRight, Pause, Play, ShieldCheck, Quote, Sparkles } from 'lucide-react';
 import { Link } from 'react-router-dom';
 // 1. IMPORT YOUR LOCAL BACKGROUND IMAGE (Make sure the file is renamed to logo.png)
 import Slideshow from '../components/Slideshow';
@@ -548,21 +548,36 @@ export default function Home() {
         )}
       </div>
 
-      {/* Main Content Area: Notices & Principal */}
-      <section id="home-briefing" className="home-briefing max-w-7xl mx-auto px-4 py-8 md:py-7 grid grid-cols-1 md:grid-cols-3 gap-6" aria-label="School updates and Principal's message">
+      {/* Main Content Area: Notices, Principal & Key Stats */}
+      <section id="home-briefing" className="home-briefing max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10 md:py-12 grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-7 lg:gap-8 items-stretch" aria-label="School updates and Principal's message">
         
         {/* Notices Sidebar */}
-        <div className="col-span-1">
-          <div className="bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden hover:shadow-xl transition-shadow duration-300">
-            <div className="bg-teal-800 text-white px-4 py-3">
-              <h2 className="font-bold text-lg font-heading tracking-wide">Latest Notices</h2>
+        <div className="col-span-1 lg:col-span-4 xl:col-span-4 flex flex-col">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-md hover:shadow-xl border border-slate-200/90 dark:border-slate-800 overflow-hidden flex flex-col h-full transition-all duration-300">
+            {/* Header */}
+            <div className="bg-gradient-to-r from-teal-800 via-teal-900 to-slate-900 text-white px-4 sm:px-5 py-3.5 sm:py-4 flex items-center justify-between border-b border-teal-700/50">
+              <div className="flex items-center gap-2.5">
+                <span className="relative flex h-2.5 w-2.5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-teal-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-teal-400"></span>
+                </span>
+                <h2 className="font-bold text-base sm:text-lg font-heading tracking-wide flex items-center gap-2">
+                  <Megaphone size={18} className="text-teal-300 flex-shrink-0" />
+                  <span>Latest Notices</span>
+                </h2>
+              </div>
+              <span className="text-[11px] font-extrabold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-teal-700/60 border border-teal-500/30 text-teal-100">
+                {notices.length} Updates
+              </span>
             </div>
-            <div className="max-h-[240px] overflow-y-auto custom-scrollbar px-4">
-              <ul className="">
+
+            {/* List */}
+            <div className="flex-1 min-h-[260px] max-h-[360px] lg:max-h-[380px] overflow-y-auto custom-scrollbar px-3 sm:px-4 py-1.5 divide-y divide-slate-100 dark:divide-slate-800/80">
+              <ul className="space-y-0.5">
                 {notices.map((n, idx) => {
                   const isNew = isNoticeNew(n.date, n.days, settings?.defaultNewNoticeDays !== undefined ? settings.defaultNewNoticeDays : 7);
                   return (
-                    <li key={idx} className="py-2.5 flex items-center gap-3 transition-all duration-200 hover:bg-slate-50/70 -mx-4 px-4 border-l-2 border-l-transparent hover:border-l-teal-800 border-b border-slate-100 last:border-b-0 group">
+                    <li key={idx} className="py-2.5 px-2 rounded-xl transition-all duration-200 hover:bg-slate-50 dark:hover:bg-slate-800/60 flex items-center gap-3 group border-l-2 border-l-transparent hover:border-l-teal-600">
                       {/* Mini Date Badge */}
                       {(() => {
                         const formatted = formatDate(n.date);
@@ -570,35 +585,34 @@ export default function Home() {
                         const day = parts[0] || n.date;
                         const month = (parts[1] || '').toUpperCase();
                         return (
-                          <div className="w-10 h-8 rounded-lg border border-slate-200 bg-slate-50 flex flex-col overflow-hidden flex-shrink-0 shadow-xs transition-all group-hover:border-teal-500/40">
-                            <div className="bg-teal-700 text-[6.5px] font-black text-white py-0.5 uppercase tracking-wider text-center select-none leading-none">
+                          <div className="w-11 h-10 rounded-xl border border-teal-200 dark:border-teal-800/60 bg-gradient-to-b from-teal-50 to-white dark:from-teal-950/40 dark:to-slate-900 flex flex-col overflow-hidden flex-shrink-0 shadow-2xs transition-transform group-hover:scale-105">
+                            <div className="bg-teal-700 dark:bg-teal-800 text-[8px] font-black text-white py-0.5 uppercase tracking-wider text-center select-none leading-none">
                               {month || 'DATE'}
                             </div>
-                            <div className="flex-grow flex items-center justify-center bg-white font-title text-[11px] font-black text-slate-800 leading-none">
+                            <div className="flex-grow flex items-center justify-center font-bold text-[12px] text-slate-800 dark:text-slate-100 leading-none">
                               {day}
                             </div>
                           </div>
                         );
                       })()}
                       <div className="flex-1 min-w-0">
-                        <div className="text-xs sm:text-sm font-semibold text-slate-800 line-clamp-2"
-                             style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        <div className="text-xs sm:text-sm font-semibold text-slate-800 dark:text-slate-200 group-hover:text-teal-700 dark:group-hover:text-teal-400 transition-colors line-clamp-2 leading-snug">
                           {n.link && n.link !== '#' ? (
                             n.link.startsWith('http') || n.link.startsWith('mailto:') ? (
                               <a href={n.link} target="_blank" rel="noopener noreferrer" 
-                                 className="hover:text-teal-700 hover:underline"
+                                 className="hover:underline"
                                  title={n.title}>
                                 {formatTitleWithBrackets(n.title)}
                               </a>
                             ) : (
                               <Link to={n.link} 
-                                    className="hover:text-teal-700 hover:underline"
+                                    className="hover:underline"
                                     title={n.title}>
                                 {formatTitleWithBrackets(n.title)}
                               </Link>
                             )
                           ) : (
-                            <span className="text-slate-700" title={n.title}>
+                            <span title={n.title}>
                               {formatTitleWithBrackets(n.title)}
                             </span>
                           )}
@@ -615,54 +629,101 @@ export default function Home() {
                 })}
               </ul>
             </div>
-            <div className="bg-slate-50 p-3 text-center border-t border-slate-100">
-              <Link to="/notices" className="ui-touch-target inline-flex items-center text-xs sm:text-sm font-bold text-teal-800 hover:text-teal-950 hover:underline tracking-wide uppercase">
-                View All Archives
+
+            {/* Footer */}
+            <div className="bg-slate-50/90 dark:bg-slate-900/80 p-3 sm:p-3.5 text-center border-t border-slate-100 dark:border-slate-800 mt-auto">
+              <Link to="/notices" className="ui-touch-target inline-flex items-center justify-center gap-2 text-xs sm:text-sm font-bold text-teal-800 dark:text-teal-400 hover:text-teal-950 dark:hover:text-teal-300 hover:underline tracking-wide uppercase group">
+                <span>View All Archives</span>
+                <ArrowRight size={14} className="transition-transform duration-200 group-hover:translate-x-1" />
               </Link>
             </div>
           </div>
         </div>
 
-        {/* Principal Message & Stats */}
-        <div className="col-span-1 md:col-span-2">
-          <div className="mb-6">
-            <h2 className="text-2xl font-bold text-slate-800 md:border-l-4 md:border-teal-800 md:pl-4 mb-3 font-heading">Principal's Message</h2>
-            <div className="flex flex-col sm:flex-row bg-white p-4 rounded-2xl shadow-lg border border-slate-200/80 items-center hover:border-teal-500/30 transition-all duration-300 relative overflow-hidden group">
-              <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-bl from-teal-500/5 to-transparent rounded-bl-full pointer-events-none" />
-              <div className="w-28 h-28 flex-shrink-0 rounded-2xl overflow-hidden mx-auto mb-4 sm:mb-0 shadow-md border-2 border-teal-600/80 hover:scale-105 transition-transform duration-300">
-                <img src="/slides/Principal.jpg" alt={`Principal ${principalName}`} className="w-full h-full object-cover" loading="lazy" />
+        {/* Principal Message & Stats Column */}
+        <div className="col-span-1 lg:col-span-8 xl:col-span-8 flex flex-col justify-between gap-5 sm:gap-6">
+          {/* Principal Card Section */}
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-1.5 h-6 rounded-full bg-gradient-to-b from-teal-600 to-emerald-600" />
+                <h2 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white font-heading tracking-tight">
+                  Principal's Message
+                </h2>
               </div>
-              <div className="flex-1 lg:border-l lg:border-slate-100 lg:pl-6 pl-0 relative min-w-0 w-full">
-                {/* Stylized background quote icon */}
-                <div className="absolute top-0 left-2 text-slate-100 select-none text-8xl font-serif leading-none pointer-events-none opacity-40">“</div>
-                <div className="relative z-10 bg-slate-50/50 p-3 rounded-xl border border-slate-100/80">
-                  <p className="text-slate-700 italic text-[13.5px] sm:text-sm leading-relaxed pl-2">
-                    Welcome to <strong className="text-slate-800 font-bold">Govt HSS Shangus</strong>. Our mandate is to <strong>empower leaders</strong> defined by <strong>academic excellence and ethics</strong>. We offer a learning environment where <strong>cutting-edge resources</strong> in <strong>Science and Humanities</strong> meet <strong>value-based education</strong> — equipping you with the skills to thrive and the character to lead in a global society.
-                  </p>
-                  <p className="text-right text-xs text-teal-800 font-bold mt-2 pr-1">{principalName}<br/><span className="text-slate-400 font-normal">Principal, HSS Shangus</span></p>
+              <span className="hidden sm:inline-flex items-center gap-1.5 text-xs font-semibold text-teal-800 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/40 border border-teal-200 dark:border-teal-800/60 px-3 py-1 rounded-full shadow-2xs">
+                <ShieldCheck size={14} className="text-teal-600 dark:text-teal-400" />
+                Leadership &amp; Vision
+              </span>
+            </div>
+
+            <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-md hover:shadow-xl border border-slate-200/90 dark:border-slate-800 p-4 sm:p-6 transition-all duration-300 hover:border-teal-500/30 relative overflow-hidden group">
+              <div className="absolute top-0 right-0 w-36 h-36 bg-gradient-to-bl from-teal-500/10 via-emerald-500/5 to-transparent rounded-bl-full pointer-events-none" />
+
+              <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 sm:gap-6 relative z-10">
+                {/* Principal Portrait Frame */}
+                <div className="w-28 h-28 xs:w-32 xs:h-32 sm:w-36 sm:h-40 flex-shrink-0 rounded-2xl overflow-hidden shadow-md border-2 border-teal-600/50 group-hover:border-teal-600 transition-colors relative">
+                  <img src="/slides/Principal.jpg" alt={`Principal ${principalName}`} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" loading="lazy" />
+                  <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-slate-950/90 via-slate-950/60 to-transparent pt-3 pb-1.5 px-2 text-center">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-teal-200">Principal</span>
+                  </div>
+                </div>
+
+                {/* Message Body */}
+                <div className="flex-1 min-w-0 flex flex-col justify-between">
+                  <div className="relative">
+                    <Quote size={28} className="text-teal-600/30 dark:text-teal-400/30 mb-1 rotate-180" />
+                    <p className="text-slate-700 dark:text-slate-200 italic text-[13.5px] sm:text-[14.5px] leading-relaxed font-normal">
+                      Welcome to <strong className="text-slate-900 dark:text-white font-bold not-italic">Govt HSS Shangus</strong>. Our mandate is to <strong className="text-teal-800 dark:text-teal-300 font-semibold not-italic">empower leaders</strong> defined by academic excellence and ethics. We offer a learning environment where cutting-edge resources in Science and Humanities meet value-based education — equipping you with the skills to thrive and the character to lead in a global society.
+                    </p>
+                  </div>
+
+                  {/* Principal Sign-off */}
+                  <div className="mt-3.5 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between flex-wrap gap-2">
+                    <div>
+                      <h4 className="font-bold text-sm text-slate-900 dark:text-white">{principalName}</h4>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Principal, Govt. Higher Secondary School Shangus</p>
+                    </div>
+                    <span className="inline-flex items-center gap-1 text-[11px] font-bold text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/40 px-2.5 py-0.5 rounded-lg border border-teal-200 dark:border-teal-800/60">
+                      <Sparkles size={12} className="text-teal-600 dark:text-teal-400" />
+                      Official Note
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Stats Row - NOW FEATURING ANIMATED COUNTERS & MODERN ICON CARDS! */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {/* Stats Row - Responsive across Mobile, Tablet, and Desktop */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
             {[
-              { icon: Users, end: 700, suffix: "+", label: "STUDENTS", colorClass: 'text-teal-600 bg-teal-50 border-teal-100 hover:shadow-teal-100/50' },
-              { icon: Award, end: 25, suffix: "+", label: "TEACHERS", colorClass: 'text-amber-600 bg-amber-50 border-amber-100 hover:shadow-amber-100/50' },
-              { icon: BookOpen, end: 22, suffix: "+", label: "SUBJECTS", colorClass: 'text-violet-600 bg-violet-50 border-violet-100 hover:shadow-violet-100/50' },
-              { icon: GraduationCap, end: 90, suffix: "%+", label: "RESULT", colorClass: 'text-rose-600 bg-rose-50 border-rose-100 hover:shadow-rose-100/50' }
+              { icon: Users, end: 700, suffix: "+", label: "STUDENTS", subtext: "Enrolled Scholars", colorClass: 'text-teal-700 bg-teal-50 border-teal-200 hover:shadow-teal-100/50', accentBar: 'from-teal-500 to-emerald-500', glow: 'group-hover:border-teal-500/40' },
+              { icon: Award, end: 25, suffix: "+", label: "TEACHERS", subtext: "Faculty Mentors", colorClass: 'text-amber-700 bg-amber-50 border-amber-200 hover:shadow-amber-100/50', accentBar: 'from-amber-500 to-orange-500', glow: 'group-hover:border-amber-500/40' },
+              { icon: BookOpen, end: 22, suffix: "+", label: "SUBJECTS", subtext: "Academic Streams", colorClass: 'text-indigo-700 bg-indigo-50 border-indigo-200 hover:shadow-indigo-100/50', accentBar: 'from-indigo-500 to-blue-500', glow: 'group-hover:border-indigo-500/40' },
+              { icon: GraduationCap, end: 90, suffix: "%+", label: "RESULT", subtext: "Board Pass Rate", colorClass: 'text-rose-700 bg-rose-50 border-rose-200 hover:shadow-rose-100/50', accentBar: 'from-rose-500 to-pink-500', glow: 'group-hover:border-rose-500/40' }
             ].map((stat, i) => {
               const IconComponent = stat.icon;
               return (
-                <div key={i} className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 text-center flex flex-col items-center justify-center transition-all duration-300 hover:shadow-lg hover:-translate-y-1 hover:border-slate-300 group">
-                  <div className={`w-11 h-11 rounded-xl flex items-center justify-center border mb-3 transition-transform duration-300 group-hover:scale-110 ${stat.colorClass} shadow-sm`}>
-                    <IconComponent size={20} className="stroke-[2.5]" />
+                <div key={i} className={`relative overflow-hidden bg-white dark:bg-slate-900 rounded-2xl shadow-sm hover:shadow-xl border border-slate-200/90 dark:border-slate-800 transition-all duration-300 hover:-translate-y-1 group ${stat.glow}`}>
+                  <div className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${stat.accentBar}`} />
+                  {/* Adaptive layout: Executive horizontal on mobile (1 per row), Centered vertical on sm/lg */}
+                  <div className="flex flex-row sm:flex-col items-center justify-between sm:justify-center p-4 sm:p-5 text-left sm:text-center gap-3 sm:gap-0">
+                    <div className="flex items-center gap-3 sm:flex-col sm:gap-0">
+                      <div className={`w-12 h-12 sm:w-13 sm:h-13 rounded-2xl flex items-center justify-center border sm:mb-2.5 transition-transform duration-300 group-hover:scale-110 ${stat.colorClass} shadow-xs flex-shrink-0`}>
+                        <IconComponent size={24} className="stroke-[2.5]" />
+                      </div>
+                      <div className="sm:text-center">
+                        <p className="text-xs font-extrabold text-slate-800 dark:text-slate-200 uppercase tracking-wider sm:tracking-widest sm:mt-1">{stat.label}</p>
+                        <span className="sm:hidden text-[11px] text-slate-500 dark:text-slate-400 font-medium block">{stat.subtext}</span>
+                      </div>
+                    </div>
+                    <div className="text-right sm:text-center">
+                      <h4 className="text-2xl xs:text-3xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight leading-none font-slogan">
+                        <AnimatedCounter end={stat.end} prefix={stat.prefix} suffix={stat.suffix} />
+                      </h4>
+                      <span className="hidden sm:block text-[11px] text-slate-500 dark:text-slate-400 font-medium mt-1">{stat.subtext}</span>
+                    </div>
                   </div>
-                  <h4 className="text-2xl sm:text-3xl font-extrabold text-slate-800 tracking-tight leading-none font-slogan">
-                    <AnimatedCounter end={stat.end} prefix={stat.prefix} suffix={stat.suffix} />
-                  </h4>
-                  <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-2.5">{stat.label}</p>
                 </div>
               );
             })}
