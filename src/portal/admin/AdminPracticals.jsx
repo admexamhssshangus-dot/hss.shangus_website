@@ -11,7 +11,7 @@ import { db, auth } from '../../services/firebase';
 import { collection, getDocs, doc, setDoc, deleteDoc, getDoc } from 'firebase/firestore';
 import { staffCallable } from '../../services/staffCommand';
 import ModernLoader from '../../components/ModernLoader';
-import { getCachedCollection } from '../../services/dbCache';
+import { getCachedCollection, invalidateCollectionCache } from '../../services/dbCache';
 import { logAdminActivity } from '../../services/adminActivityLogger';
 import { showToast } from '../../components/common/GlobalToast';
 import {
@@ -927,6 +927,7 @@ export default function AdminPracticals() {
         setGeneralConfirmModal(p => ({ ...p, isOpen: false }));
         try {
           await deleteAcademicRecord('practicalsData', subId);
+          invalidateCollectionCache('practicalsData');
           setSubmissions(prev => prev.filter(s => s.id !== subId));
           logAdminActivity({
             actionType: 'delete',
@@ -1000,7 +1001,10 @@ export default function AdminPracticals() {
           // 4. Remove pending staging document
           await deleteDoc(doc(db, 'practicalsData', pendingDoc.id));
 
-          // 5. Update local states
+          // 5. Invalidate practicalsData cache so changes reflect instantly
+          invalidateCollectionCache('practicalsData');
+
+          // 6. Update local states
           setPendingApprovals(prev => prev.filter(p => p.id !== pendingDoc.id));
           setSubmissions(prev => {
             const filtered = prev.filter(s => s.id !== targetDocId);
@@ -1039,6 +1043,8 @@ export default function AdminPracticals() {
           rejectedAt: new Date().toISOString(),
           rejectedBy: auth.currentUser?.email || 'Administrator'
         }, { merge: true });
+
+        invalidateCollectionCache('practicalsData');
 
         setPendingApprovals(prev => prev.map(p => {
           if (p.id === pendingDoc.id) {

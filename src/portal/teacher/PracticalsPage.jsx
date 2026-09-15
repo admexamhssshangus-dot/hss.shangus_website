@@ -1014,9 +1014,9 @@ export default function PracticalsPage() {
 
   // Initial class defaulting: location state > first assigned class > '11th'
   const initialClass = useMemo(() => {
-    if (location.state?.selectedClass) return location.state.selectedClass;
-    if (teacherAssignedClasses.length > 0) return teacherAssignedClasses[0];
-    return '11th';
+    const raw = location.state?.selectedClass || (teacherAssignedClasses.length > 0 ? teacherAssignedClasses[0] : '11th');
+    const s = String(raw || '');
+    return s.includes('11') ? '11th' : (s.includes('12') ? '12th' : (s.includes('10') ? '10th' : (s.includes('9') ? '9th' : '11th')));
   }, [location.state?.selectedClass, teacherAssignedClasses]);
 
   // Filter States
@@ -1037,14 +1037,20 @@ export default function PracticalsPage() {
       if (match) setSelectedSubject(match.name);
     }
     if (!location.state?.selectedClass && teacherAssignedClasses.length > 0) {
-      setSelectedClass(teacherAssignedClasses[0]);
+      const raw = String(teacherAssignedClasses[0] || '');
+      const clean = raw.includes('11') ? '11th' : (raw.includes('12') ? '12th' : (raw.includes('10') ? '10th' : (raw.includes('9') ? '9th' : '11th')));
+      setSelectedClass(clean);
     }
   }, [teacherRegisteredSubject, teacherAssignedClasses, location.state]);
 
   // Synchronize filter states if user navigates with state (e.g. from Dashboard Submission History)
   useEffect(() => {
     if (location.state) {
-      if (location.state.selectedClass) setSelectedClass(location.state.selectedClass);
+      if (location.state.selectedClass) {
+        const raw = String(location.state.selectedClass || '');
+        const clean = raw.includes('11') ? '11th' : (raw.includes('12') ? '12th' : (raw.includes('10') ? '10th' : (raw.includes('9') ? '9th' : '11th')));
+        setSelectedClass(clean);
+      }
       if (location.state.selectedSubject) setSelectedSubject(location.state.selectedSubject);
       if (location.state.practicalType) setPracticalType(location.state.practicalType);
       if (location.state.yearSuffix) setYearSuffix(location.state.yearSuffix);
@@ -1867,17 +1873,21 @@ export default function PracticalsPage() {
   }, [fetchPracticalData]);
 
   // Fetch Past Submission History across all evaluation types
-  const fetchSubmissionHistory = useCallback(async () => {
+  const fetchSubmissionHistory = useCallback(async (force = true) => {
     setLoadingHistory(true);
     try {
-      let rawDocs = await getCachedCollection('practicalsData', false, 15 * 60 * 1000);
-      if (!Array.isArray(rawDocs) || rawDocs.length === 0) {
+      if (force) {
+        invalidateCollectionCache('practicalsData');
+      }
+      let rawDocs = [];
+      try {
         const snap = await getDocs(collection(db, 'practicalsData'));
         if (!snap.empty) {
           rawDocs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        } else {
-          rawDocs = [];
         }
+      } catch (err) {
+        console.warn('Direct getDocs failed, attempting cache:', err);
+        rawDocs = await getCachedCollection('practicalsData', force, 5 * 60 * 1000).catch(() => []);
       }
 
       if (Array.isArray(rawDocs) && rawDocs.length > 0) {
@@ -1966,9 +1976,16 @@ export default function PracticalsPage() {
     const params = new URLSearchParams(location.search);
     if (params.get('view') === 'history' || params.get('history') === 'true' || location.state?.openHistory) {
       setShowHistoryModal(true);
-      fetchSubmissionHistory();
+      fetchSubmissionHistory(true);
     }
   }, [location, fetchSubmissionHistory]);
+
+  // Auto-fetch fresh submission records whenever the modal is shown
+  useEffect(() => {
+    if (showHistoryModal) {
+      fetchSubmissionHistory(true);
+    }
+  }, [showHistoryModal, fetchSubmissionHistory]);
 
 
 
@@ -2315,6 +2332,7 @@ export default function PracticalsPage() {
         secondaryButtonText: 'View Submission History',
         onSecondaryClick: () => {
           setShowHistoryModal(true);
+          fetchSubmissionHistory(true);
         }
       });
     } catch (err) {
@@ -4065,7 +4083,9 @@ export default function PracticalsPage() {
                       <button
                         type="button"
                         onClick={() => {
-                          setSelectedClass(item.className && item.className !== 'N/A' ? item.className : '12th');
+                          const rawCls = String(item.className || '');
+                          const cleanCls = rawCls.includes('11') ? '11th' : (rawCls.includes('12') ? '12th' : (rawCls.includes('10') ? '10th' : (rawCls.includes('9') ? '9th' : '11th')));
+                          setSelectedClass(cleanCls);
                           setSelectedSubject(item.subject && item.subject !== 'N/A' ? item.subject : 'Physics');
                           if (item.practicalType) setPracticalType(item.practicalType);
                           if (item.yearSuffix) setYearSuffix(item.yearSuffix);

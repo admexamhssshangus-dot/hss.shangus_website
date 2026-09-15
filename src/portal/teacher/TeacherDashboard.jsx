@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useOutletContext, Link, useNavigate } from 'react-router-dom';
 import { 
   History, CalendarCheck, LogOut,
@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import SEO from '../../components/SEO';
 import LogoutConfirmModal from '../components/LogoutConfirmModal';
-import { getCachedCollection } from '../../services/dbCache';
+import { getCachedCollection, invalidateCollectionCache } from '../../services/dbCache';
 import { db } from '../../services/firebase';
 import { collection, getDocs } from 'firebase/firestore';
 
@@ -23,17 +23,21 @@ export default function TeacherDashboard() {
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [historySearch, setHistorySearch] = useState('');
 
-  const fetchSubmissionHistory = useCallback(async () => {
+  const fetchSubmissionHistory = useCallback(async (force = true) => {
     setLoadingHistory(true);
     try {
-      let rawDocs = await getCachedCollection('practicalsData', false, 15 * 60 * 1000);
-      if (!Array.isArray(rawDocs) || rawDocs.length === 0) {
+      if (force) {
+        invalidateCollectionCache('practicalsData');
+      }
+      let rawDocs = [];
+      try {
         const snap = await getDocs(collection(db, 'practicalsData'));
         if (!snap.empty) {
           rawDocs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        } else {
-          rawDocs = [];
         }
+      } catch (err) {
+        console.warn('Direct getDocs failed, falling back to cache:', err);
+        rawDocs = await getCachedCollection('practicalsData', force, 5 * 60 * 1000).catch(() => []);
       }
 
       if (Array.isArray(rawDocs) && rawDocs.length > 0) {
@@ -130,9 +134,15 @@ export default function TeacherDashboard() {
     });
   }, [submissionHistory, historySearch]);
 
+  useEffect(() => {
+    if (showHistoryModal) {
+      fetchSubmissionHistory(true);
+    }
+  }, [showHistoryModal, fetchSubmissionHistory]);
+
   const handleOpenHistoryModal = () => {
     setShowHistoryModal(true);
-    fetchSubmissionHistory();
+    fetchSubmissionHistory(true);
   };
 
   const userName = user?.displayName || user?.name || 'Teacher';
@@ -359,9 +369,11 @@ export default function TeacherDashboard() {
                         type="button"
                         onClick={() => {
                           setShowHistoryModal(false);
+                          const rawCls = String(item.className || '');
+                          const cleanCls = rawCls.includes('11') ? '11th' : (rawCls.includes('12') ? '12th' : (rawCls.includes('10') ? '10th' : (rawCls.includes('9') ? '9th' : '11th')));
                           navigate('/portal/teacher/practicals', {
                             state: {
-                              selectedClass: item.className !== 'N/A' ? item.className : '12th',
+                              selectedClass: cleanCls,
                               selectedSubject: item.subject !== 'N/A' ? item.subject : 'Physics',
                               practicalType: item.practicalType,
                               yearSuffix: item.yearSuffix

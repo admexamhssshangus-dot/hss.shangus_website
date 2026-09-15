@@ -222,6 +222,21 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
       return true;
     });
 
+    // Sort matchingDocs: exact class match first, then newest timestamp
+    matchingDocs.sort((a, b) => {
+      const aExact = String(a.className || '').trim() === selectedClass ? 1 : 0;
+      const bExact = String(b.className || '').trim() === selectedClass ? 1 : 0;
+      if (aExact !== bExact) return bExact - aExact;
+
+      const getTs = (d) => {
+        const t = d.updatedAt || d.approvedAt || d.submittedAt;
+        if (!t) return 0;
+        const dt = new Date(t);
+        return isNaN(dt.getTime()) ? 0 : dt.getTime();
+      };
+      return getTs(b) - getTs(a);
+    });
+
     // 2. Select appropriate standard subjects list based on class (Class 10th/9th has only 7 subjects, 11th/12th has 15 subjects)
     const isSecondary = targetClass === '10th' || targetClass === '9th' || targetClass === '10' || targetClass === '9';
     const baseSubjects = isSecondary ? STANDARD_7_CLASS_10TH_SUBJECTS : STANDARD_15_GAZETTE_SUBJECTS;
@@ -259,30 +274,22 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
       if (matchedDoc) {
         const docMax = Number(matchedDoc.maxMarks);
         if (docMax > 0) {
-          // If Biology was submitted as a single 30 or 50 mark sheet, split for Botany and Zoology
-          if ((subj.code === 'BO' || subj.code === 'ZO') && (matchedDoc.subjectCode === 'BI' || String(matchedDoc.subject || '').toLowerCase().includes('biology'))) {
-            maxMarks = Math.round(docMax / 2);
+          // If Biology was submitted as a single sheet, or Botany/Zoology submitted separately (25M):
+          // In Gazette tabulation, Botany and Zoology are standardized to 50M (scaled 2x from 25M)
+          if (subj.code === 'BO' || subj.code === 'ZO') {
+            maxMarks = 50;
+            minMarks = 18;
           } else {
             maxMarks = docMax;
+            minMarks = Number(matchedDoc.minMarks) > 0 ? Number(matchedDoc.minMarks) : Math.ceil(maxMarks * 0.36);
           }
-          minMarks = Number(matchedDoc.minMarks) > 0
-            ? (subj.code === 'BO' || subj.code === 'ZO' ? Math.ceil(Number(matchedDoc.minMarks) / 2) : Number(matchedDoc.minMarks))
-            : Math.ceil(maxMarks * 0.36);
         }
       }
 
-      // Harmonize Botany and Zoology maxMarks so both columns always match scale
+      // Harmonize Botany and Zoology maxMarks so both columns always match 50-mark scale
       if (subj.code === 'BO' || subj.code === 'ZO') {
-        const siblingCode = subj.code === 'BO' ? 'ZO' : 'BO';
-        const siblingDoc = matchingDocs.find(sec => {
-          const c = (sec.subjectCode || '').toUpperCase().trim();
-          const n = String(sec.subjectName || sec.subject || '').toLowerCase();
-          return c === siblingCode || (siblingCode === 'BO' && n.includes('botany')) || (siblingCode === 'ZO' && n.includes('zoology'));
-        });
-        if (!matchedDoc && siblingDoc && Number(siblingDoc.maxMarks) > 0) {
-          maxMarks = Number(siblingDoc.maxMarks);
-          minMarks = Number(siblingDoc.minMarks) > 0 ? Number(siblingDoc.minMarks) : Math.ceil(maxMarks * 0.36);
-        }
+        maxMarks = 50;
+        minMarks = 18;
       }
 
       return {
@@ -402,6 +409,8 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
       subjectsListArray.forEach(sMeta => {
         const code = sMeta.code;
         let foundRecord = null;
+        let foundRecordDoc = null;
+        let foundRecordIsAbsent = false;
         let isFromBiology = false;
 
         // Search matching teacher submission for this subject
@@ -432,9 +441,15 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
             const recs = sec.records || [];
             const match = recs.find(r => matchStudentRecord(r, student, identity));
             if (match) {
-              foundRecord = match;
-              isFromBiology = false;
-              break;
+              const rawM = match.totalMarks ?? match.practicalMarks;
+              const isAb = /^(a|ab|absent)$/i.test(String(rawM).trim());
+              if (!foundRecord || (foundRecordIsAbsent && !isAb && rawM !== '' && rawM !== null && rawM !== undefined)) {
+                foundRecord = match;
+                foundRecordDoc = sec;
+                foundRecordIsAbsent = isAb;
+                isFromBiology = false;
+                if (!isAb) break;
+              }
             }
           }
         }
@@ -449,6 +464,7 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
               const match = recs.find(r => matchStudentRecord(r, student, identity));
               if (match) {
                 foundRecord = match;
+                foundRecordDoc = sec;
                 isFromBiology = true;
                 break;
               }
@@ -476,8 +492,18 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
             };
           } else if (hasNumeric) {
             evaluatedSubjectsCount++;
-            // If from combined Biology, split the score between Botany and Zoology
-            let marksVal = isFromBiology ? Math.round(numeric / 2) : Math.min(sMeta.maxMarks, numeric);
+            // Calculate scaled score:
+            // If Botany (BO) or Zoology (ZO) was evaluated out of 25 while Gazette standard is 50:
+            // 1 mark out of 25 turns into 2 out of 50.
+            const docMax = Number(foundRecordDoc?.maxMarks) || ((code === 'BO' || code === 'ZO') ? 25 : sMeta.maxMarks);
+            let marksVal = numeric;
+            if (isFromBiology) {
+              marksVal = Math.round(numeric / 2);
+            } else if ((code === 'BO' || code === 'ZO') && docMax > 0 && docMax !== sMeta.maxMarks) {
+              marksVal = Math.round((numeric / docMax) * sMeta.maxMarks);
+            } else if (docMax > 0 && docMax !== sMeta.maxMarks) {
+              marksVal = Math.round((numeric / docMax) * sMeta.maxMarks);
+            }
             marksVal = Math.min(sMeta.maxMarks, marksVal);
             const isPass = marksVal >= sMeta.minMarks;
             totalObtained += marksVal;
