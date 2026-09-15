@@ -23,15 +23,14 @@ async function lookupResult(db, body) {
   // One bounded class query, then exact assessment/session matching. No full
   // collection downloads and no sample data presented as student results.
   // Query practical evaluation documents for the cohort class
-  const snapshot = await db.collection('practicalsData').limit(300).get();
-  if (snapshot.size === 300) throw Object.assign(new Error('Results require an index refresh. Please contact the school.'), { status: 503 });
+  const snapshot = await db.collection('practicalsData').limit(1000).get();
 
   // 1. Identify and deduplicate matching sections (prioritize latest pending_ or newer submission per subject)
   const sectionsBySubj = new Map();
   for (const snap of snapshot.docs) {
     const section = snap.data();
     if (section.isDraft === true || section.status === 'draft' || section.status === 'rejected') continue;
-    if (snap.id.startsWith('history_') || section.docId?.startsWith('history_')) continue;
+    if (String(snap.id || '').startsWith('history_') || String(section.docId || '').startsWith('history_')) continue;
     if (!Array.isArray(section.records) || section.records.length === 0) continue;
 
     // Class matching

@@ -3004,7 +3004,7 @@ function SelectedSubmissionModal({ selSub, onClose, absentMarker, allStudents = 
           </table>
         </div>
 
-        {(selSub.id?.startsWith('pending_') || selSub.status === 'pending_approval' || selSub.isPendingApproval) && (
+        {(String(selSub?.id || '').startsWith('pending_') || selSub.status === 'pending_approval' || selSub.isPendingApproval) && (
           <div className="flex flex-col sm:flex-row items-center justify-between border-t border-slate-100 dark:border-slate-800 pt-3 gap-2">
             <div className="text-xs font-bold text-amber-700 dark:text-amber-300 flex items-center gap-1.5">
               <ShieldAlert size={16} />

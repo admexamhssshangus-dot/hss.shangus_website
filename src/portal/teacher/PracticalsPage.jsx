@@ -1289,14 +1289,14 @@ export default function PracticalsPage() {
 
         const docItems = Array.isArray(rawDocs) ? rawDocs : (rawDocs?.docs ? rawDocs.docs.map(d => ({ id: d.id, ...d.data() })) : []);
         docItems.forEach(data => {
-          const dId = data.id || data.docId || '';
+          const dId = String(data.id || data.docId || '');
 
           // Track pending, draft or rejected submission for this exact class, subject, evalType, session
-          if (dId === pendingDocId || (data.canonicalDocId === docId && (data.status === 'pending_approval' || data.status === 'rejected' || data.status === 'draft' || data.isDraft === true))) {
+          if (dId === pendingDocId || (String(data.canonicalDocId || '') === docId && (data.status === 'pending_approval' || data.status === 'rejected' || data.status === 'draft' || data.isDraft === true))) {
             foundPending = { id: dId, ...data };
           }
           // Track canonical integrated submission
-          if ((dId === docId || (data.docId === docId && !dId.startsWith('pending_') && !dId.startsWith('history_'))) && Array.isArray(data.records) && data.records.length > 0) {
+          if ((dId === docId || (String(data.docId || '') === docId && !dId.startsWith('pending_') && !dId.startsWith('history_'))) && Array.isArray(data.records) && data.records.length > 0) {
             foundCanonical = { id: dId, ...data };
           }
 
@@ -1317,7 +1317,7 @@ export default function PracticalsPage() {
             if (s === '2023-24 (revised)') return '2023-24 (Oct-Nov)';
             return s;
           };
-          const docYr = String(data.yearSuffix || data.Session || data.session || dId.split('_').pop() || '').trim();
+          const docYr = String(data.yearSuffix || data.Session || data.session || (dId.includes('_') ? dId.split('_').pop() : '') || '').trim();
           const docYrNorm = normalizeYr(docYr);
           const targetNorm = normalizeYr(String(yearSuffix).trim());
           const matchYr = (docYrNorm === targetNorm) || dId === docId || dId === pendingDocId || (targetNorm === '2025-26' && (docYr === '2026' || docYrNorm === '2025-26'));
