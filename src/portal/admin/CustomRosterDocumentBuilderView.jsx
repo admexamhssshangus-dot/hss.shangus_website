@@ -4226,8 +4226,8 @@ export default function CustomRosterDocumentBuilderView({
           </div>
         </div>
 
-        {/* Right Side: Actions (On mobile, includes Filters Modal + Layout Popover + Export Dropdown + Print) */}
-        <div className="flex items-center justify-between md:justify-end gap-1 sm:gap-1.5 shrink-0">
+        {/* Right Side: Actions (On mobile, includes Filters + Setup + Student Inclusion Controls + Export + Print on same single row) */}
+        <div className="flex items-center justify-between md:justify-end gap-1 sm:gap-1.5 shrink-0 overflow-x-auto no-scrollbar py-0.5 max-w-full">
           {/* Mobile Filters & Columns Modal Trigger (visible on < lg) */}
           <div className="lg:hidden shrink-0">
             <button
@@ -4259,6 +4259,62 @@ export default function CustomRosterDocumentBuilderView({
               rowHeightPresets={ROW_HEIGHT_PRESETS}
             />
           </div>
+
+          {/* Mobile Student Inclusion, Skip Toggle & Column Default Saver (visible on < md in standard layout) */}
+          {layoutMode === 'standard' && (
+            <div className="md:hidden flex items-center gap-1 shrink-0">
+              {/* Student Count / Toggle All Included */}
+              <button
+                type="button"
+                onClick={toggleSelectAllRows}
+                className="px-1.5 sm:px-2 py-0.5 sm:py-1 h-6.5 sm:h-7 rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200 font-bold text-[9.5px] sm:text-[10px] flex items-center gap-1 shadow-2xs active:scale-95 cursor-pointer shrink-0 whitespace-nowrap"
+                title={isAllRowsIncluded ? "Deselect / skip all rows" : "Select / include all rows"}
+              >
+                {isAllRowsIncluded ? (
+                  <CheckSquare size={10.5} className="text-emerald-600 dark:text-emerald-400 shrink-0" />
+                ) : isSomeRowsSkipped ? (
+                  <Minus size={10.5} className="text-amber-600 dark:text-amber-400 border border-amber-600 rounded-xs shrink-0" />
+                ) : (
+                  <Square size={10.5} className="text-slate-400 shrink-0" />
+                )}
+                <span className="font-extrabold text-[9.5px]">
+                  <strong className={skippedCount > 0 ? "text-amber-600 dark:text-amber-400 font-black" : "text-indigo-600 dark:text-indigo-400 font-black"}>
+                    {activeIncludedRows.length}
+                  </strong>
+                  <span className="text-slate-400 font-normal">/{processedRows.length}</span>
+                </span>
+                {skippedCount > 0 && (
+                  <span className="px-1 py-0.2 rounded-full text-[7.5px] bg-amber-100 dark:bg-amber-950/70 text-amber-700 dark:text-amber-300 font-black">
+                    -{skippedCount}
+                  </span>
+                )}
+              </button>
+
+              {/* Toggle Show/Hide Skipped Rows */}
+              <button
+                type="button"
+                onClick={() => setHideSkippedRows(prev => !prev)}
+                className={`w-6.5 h-6.5 sm:w-7 sm:h-7 rounded-md border flex items-center justify-center cursor-pointer transition-colors shadow-2xs active:scale-95 shrink-0 ${
+                  hideSkippedRows
+                    ? 'border-indigo-300 dark:border-indigo-700 bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300'
+                    : 'border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                }`}
+                title={hideSkippedRows ? "Showing included rows only (click to show skipped)" : "Show all rows including skipped (click to hide skipped)"}
+              >
+                <Eye size={10.5} className={hideSkippedRows ? "text-indigo-600 dark:text-indigo-400" : "opacity-60"} />
+              </button>
+
+              {/* Save Column Order as Default */}
+              <button
+                type="button"
+                onClick={handleSaveAsDefaultColumns}
+                className="w-6.5 h-6.5 sm:w-7 sm:h-7 rounded-md border border-emerald-300 dark:border-emerald-700 bg-emerald-50/90 dark:bg-emerald-950/60 hover:bg-emerald-100 text-emerald-800 dark:text-emerald-300 flex items-center justify-center shadow-2xs cursor-pointer active:scale-95 transition-colors shrink-0"
+                title="Save this column sequence as your default order"
+              >
+                {saveDefaultToast ? <Check size={10.5} className="text-emerald-600" /> : <Save size={10.5} className="text-emerald-600" />}
+              </button>
+            </div>
+          )}
 
           <div className="flex items-center gap-1 sm:gap-1.5 ml-auto md:ml-0 shrink-0">
             {/* Unified Export Dropdown (Excel & Word) */}
@@ -4659,8 +4715,8 @@ export default function CustomRosterDocumentBuilderView({
                </div>
              </div>
 
-            {/* Minimal Compact Controls Bar: Student Inclusion, Skip Toggle & Column Default Saver */}
-            <div className="flex items-center justify-between gap-1 px-1.5 sm:px-2 py-0.5 sm:py-1 mb-1 bg-slate-50 dark:bg-slate-800/80 rounded-lg border border-slate-200/90 dark:border-slate-700/90 text-xs select-none min-h-[26px] sm:min-h-[30px]">
+            {/* Minimal Compact Controls Bar: Student Inclusion, Skip Toggle & Column Default Saver (Visible on desktop md+, consolidated into top action bar on mobile) */}
+            <div className="hidden md:flex items-center justify-between gap-1 px-1.5 sm:px-2 py-0.5 sm:py-1 mb-1 bg-slate-50 dark:bg-slate-800/80 rounded-lg border border-slate-200/90 dark:border-slate-700/90 text-xs select-none min-h-[26px] sm:min-h-[30px]">
               {/* Left: Included Students Count Pill */}
               <div className="flex items-center gap-1 sm:gap-1.5 min-w-0">
                 <button
