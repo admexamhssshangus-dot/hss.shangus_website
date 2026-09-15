@@ -1678,7 +1678,7 @@ export default function BulkCertificateGeneratorModal({
             💡 Assign numbers once, then reprint indefinitely with the same locked number. Each certificate generates <strong>2 A4 pages</strong>.
           </div>
 
-          <div className="flex items-center gap-2 w-full sm:w-auto">
+          <div className="grid grid-cols-2 sm:flex sm:items-center gap-2 w-full sm:w-auto">
             {selectedIssuedCount > 0 && (
               <button
                 type="button"

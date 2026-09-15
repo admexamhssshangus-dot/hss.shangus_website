@@ -2119,7 +2119,7 @@ function RosterPageSetupDropdown({
       </button>
 
       {isOpen && (
-        <div className="absolute left-0 mt-1 w-64 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl p-2 z-[9999] animate-fadeIn text-slate-900 dark:text-slate-100 space-y-2">
+        <div className="absolute left-0 sm:left-auto sm:right-0 mt-1 w-64 max-w-[calc(100vw-24px)] rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl p-2 z-[9999] animate-fadeIn text-slate-900 dark:text-slate-100 space-y-2">
           {/* Popover Header */}
           <div className="flex items-center justify-between pb-1 border-b border-slate-200 dark:border-slate-800 text-[9px] font-black uppercase tracking-wider text-slate-500">
             <span className="flex items-center gap-1 text-indigo-600 dark:text-indigo-400">
@@ -3930,8 +3930,8 @@ export default function CustomRosterDocumentBuilderView({
               </div>
             </div>
 
-            {/* Desktop Column Header Bar (hidden on sm:hidden) */}
-            <div className="hidden sm:flex flex-wrap items-center justify-between gap-1 text-[9px] uppercase font-black tracking-wider text-slate-500">
+            {/* Column Header Bar */}
+            <div className="flex flex-wrap items-center justify-between gap-1 text-[9px] uppercase font-black tracking-wider text-slate-500">
               <span className="flex items-center gap-1 shrink-0">
                 <Layers size={10} className="text-indigo-600 dark:text-indigo-400" />
                 <span>Columns ({activeTableColumns.length} Active)</span>
@@ -4016,8 +4016,8 @@ export default function CustomRosterDocumentBuilderView({
               </div>
             </div>
 
-            {/* Categorized Database Field Matrix (Hidden on mobile to focus letter preview; visible on sm+) */}
-            <div className={`hidden sm:grid gap-1.5 ${showMoreFields ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-4' : 'grid-cols-1 sm:grid-cols-3'}`}>
+            {/* Categorized Database Field Matrix */}
+            <div className={`grid gap-1.5 ${showMoreFields ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-4' : 'grid-cols-1 sm:grid-cols-3'}`}>
               {DB_COLUMN_GROUPS.map((grp) => {
                 const visibleCols = showMoreFields
                   ? grp.columns
