@@ -4,7 +4,7 @@ import {
   Trash2, Wand2, Mail, Plus, X, Database, Sparkles, Copy, Download, UserPlus, Edit3, 
   Lock, ShieldAlert, Check, ArrowRight, Layers, FileCheck, FileSpreadsheet, GitMerge, 
   PanelsTopLeft, Send, Key, UserCheck, Phone, GraduationCap, Eye, EyeOff, Search,
-  RotateCcw, ArrowUpDown, Pencil, CalendarCheck, ChevronDown, ChevronUp
+  RotateCcw, ArrowUpDown, Pencil, CalendarCheck, ChevronDown, ChevronUp, SlidersHorizontal
 } from 'lucide-react';
 import appsScriptApi from '../../services/appsScriptApi';
 import { db } from '../../services/firebase';
@@ -182,11 +182,23 @@ export default function ControlsAndSubjects() {
     } catch (_) {}
   };
 
-  // Staff Permissions Accordion State for Mobile Compactness
-  const [expandedUsers, setExpandedUsers] = useState({});
-  const toggleExpandUser = (email) => {
-    setExpandedUsers(prev => ({ ...prev, [email]: !prev[email] }));
+  // Staff Permissions Dropdown Checkbox State
+  const [openDropdownUser, setOpenDropdownUser] = useState(null);
+  const [dropdownSearch, setDropdownSearch] = useState('');
+  const toggleModulesDropdown = (email) => {
+    setOpenDropdownUser(prev => prev === email ? null : email);
+    setDropdownSearch('');
   };
+
+  const filteredModules = useMemo(() => {
+    if (!dropdownSearch.trim()) return ALL_ADMIN_MODULES;
+    const q = dropdownSearch.toLowerCase().trim();
+    return ALL_ADMIN_MODULES.filter(m => 
+      m.label.toLowerCase().includes(q) || 
+      m.code.toLowerCase().includes(q) || 
+      (m.desc && m.desc.toLowerCase().includes(q))
+    );
+  }, [dropdownSearch]);
 
   // Settings & Controls States
   const [session, setSession] = useState('2025-26');
@@ -2057,7 +2069,7 @@ export default function ControlsAndSubjects() {
                   const allSelected = ALL_ADMIN_MODULES.every((m) => userPerms.includes(m.code));
                   const activeCount = isSuper ? ALL_ADMIN_MODULES.length : userPerms.length;
                   const isSendingReset = sendingResetFor === cleanEmail;
-                  const isExpanded = Boolean(expandedUsers[cleanEmail]);
+                  const isOpen = openDropdownUser === cleanEmail;
 
                   return (
                     <div 
@@ -2103,16 +2115,17 @@ export default function ControlsAndSubjects() {
                           {!isTeacher && (
                             <button
                               type="button"
-                              onClick={() => toggleExpandUser(cleanEmail)}
-                              className={`px-1.5 py-1 rounded-md text-[9.5px] font-black inline-flex items-center gap-0.5 cursor-pointer transition-all ${
+                              onClick={() => toggleModulesDropdown(cleanEmail)}
+                              className={`px-2 py-1 rounded-lg text-[9.5px] font-black inline-flex items-center gap-1 cursor-pointer transition-all border ${
                                 activeCount === ALL_ADMIN_MODULES.length
-                                  ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
-                                  : 'bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800'
+                                  ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/20'
+                                  : 'bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border-indigo-500/30 hover:bg-indigo-500/20'
                               }`}
-                              title="Click to view/edit module permissions"
+                              title="Click to open module permissions dropdown checklist"
                             >
+                              <SlidersHorizontal size={11} className="text-indigo-600 dark:text-indigo-400" />
                               <span>{activeCount}/{ALL_ADMIN_MODULES.length}</span>
-                              <ChevronDown size={11} className={`transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} />
+                              <ChevronDown size={11} className={`transition-transform duration-200 ${isOpen ? 'rotate-180 text-indigo-600' : 'text-slate-400'}`} />
                             </button>
                           )}
 
@@ -2151,49 +2164,115 @@ export default function ControlsAndSubjects() {
                         </div>
                       </div>
 
-                      {/* Admin Module Permission Micro-Chips (Shown for Admins & SuperAdmins when expanded) */}
-                      {!isTeacher && isExpanded && (
-                        <div className="pt-2 border-t border-slate-200 dark:border-slate-800 space-y-1.5 animate-fadeIn">
-                          <div className="flex items-center justify-between text-[10px] font-bold text-slate-500 dark:text-slate-400">
-                            <span>Granular Modules Access ({activeCount} enabled):</span>
-                            {!isSuper && (
+                      {/* Dropdown Checkbox Panel for Granular Modules */}
+                      {!isTeacher && isOpen && (
+                        <div className="pt-2 border-t border-slate-200 dark:border-slate-800 space-y-2 animate-fadeIn">
+                          {/* Dropdown Header Toolbar */}
+                          <div className="flex items-center justify-between gap-1.5 flex-wrap">
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <ShieldCheck size={13} className="text-indigo-600 dark:text-indigo-400 shrink-0" />
+                              <span className="text-xs font-black text-slate-900 dark:text-white truncate">
+                                Module Permissions ({activeCount}/{ALL_ADMIN_MODULES.length})
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              {!isSuper && (
+                                <button
+                                  type="button"
+                                  onClick={() => setAllPermissionsForUser(user.email, !allSelected)}
+                                  className="px-2 py-0.5 rounded text-[9.5px] font-black bg-indigo-50 dark:bg-indigo-950/80 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 border border-indigo-200 dark:border-indigo-800 cursor-pointer transition-colors"
+                                >
+                                  {allSelected ? 'Clear All' : 'Select All'}
+                                </button>
+                              )}
                               <button
                                 type="button"
-                                onClick={() => setAllPermissionsForUser(user.email, !allSelected)}
-                                className="px-2 py-0.5 rounded text-[9.5px] font-black bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-300 cursor-pointer"
+                                onClick={() => setOpenDropdownUser(null)}
+                                className="p-1 rounded text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-200/50 cursor-pointer"
+                                title="Close Dropdown"
                               >
-                                {allSelected ? 'Clear All' : 'Select All'}
+                                <X size={12} />
                               </button>
-                            )}
+                            </div>
                           </div>
-                          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-1">
-                            {ALL_ADMIN_MODULES.map((mod) => {
-                              const active = userPerms.includes(mod.code) || isSuper;
+
+                          {/* Quick Search inside Dropdown */}
+                          <div className="relative">
+                            <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                            <input
+                              type="text"
+                              placeholder="Search modules (e.g. attendance, exams, reports)..."
+                              value={dropdownSearch}
+                              onChange={(e) => setDropdownSearch(e.target.value)}
+                              className="w-full pl-7 pr-2.5 py-1 text-[11px] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-hidden focus:ring-1 focus:ring-indigo-500 text-slate-800 dark:text-slate-100 placeholder:text-slate-400"
+                            />
+                          </div>
+
+                          {isSuper && (
+                            <div className="p-2 rounded-lg bg-purple-500/10 border border-purple-500/20 text-purple-700 dark:text-purple-300 text-[10.5px] font-bold flex items-center gap-1.5">
+                              <ShieldAlert size={13} className="shrink-0" />
+                              <span>SuperAdmins inherently retain global access to all 19 modules by default.</span>
+                            </div>
+                          )}
+
+                          {/* Scrollable Checkbox Checklist */}
+                          <div className="max-h-56 overflow-y-auto space-y-1 pr-0.5 scrollbar-thin">
+                            {filteredModules.map((mod) => {
+                              const checked = userPerms.includes(mod.code) || isSuper;
                               const maturity = getModuleMaturity(mod.maturity);
+
                               return (
-                                <button
+                                <label
                                   key={mod.code}
-                                  type="button"
-                                  onClick={() => !isSuper && togglePermission(user.email, mod.code)}
-                                  disabled={isSuper}
-                                  title={`${maturity.label}: ${mod.maturityNote}\n${mod.desc}`}
-                                  className={`py-1 px-1.5 rounded-lg text-left text-[9.5px] sm:text-[10px] transition-all border flex items-center justify-between gap-1 ${
-                                    isSuper ? 'cursor-default' : 'cursor-pointer'
-                                  } ${
-                                    active
-                                      ? 'bg-amber-600 text-white border-amber-700 font-black shadow-2xs'
-                                      : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800 hover:border-amber-400 font-bold'
-                                  }`}
+                                  className={`flex items-start gap-2.5 p-2 rounded-lg border transition-all select-none cursor-pointer ${
+                                    checked
+                                      ? 'bg-indigo-50/70 dark:bg-indigo-950/40 border-indigo-200 dark:border-indigo-800/80 text-indigo-950 dark:text-indigo-100 font-bold'
+                                      : 'bg-white dark:bg-slate-900/60 border-slate-200/80 dark:border-slate-800/80 text-slate-700 dark:text-slate-300 hover:bg-slate-100/60 dark:hover:bg-slate-800/60'
+                                  } ${isSuper ? 'cursor-default' : ''}`}
                                 >
-                                  <span className="truncate flex-1">{mod.label}</span>
-                                  {active ? (
-                                    <Check size={10} className="flex-shrink-0 text-white" />
-                                  ) : (
-                                    <Plus size={10} className="opacity-30 flex-shrink-0" />
-                                  )}
-                                </button>
+                                  <input
+                                    type="checkbox"
+                                    checked={checked}
+                                    disabled={isSuper}
+                                    onChange={() => !isSuper && togglePermission(user.email, mod.code)}
+                                    className="mt-0.5 w-4 h-4 rounded border-slate-300 dark:border-slate-700 text-indigo-600 focus:ring-indigo-500 cursor-pointer disabled:cursor-default shrink-0"
+                                  />
+                                  <div className="min-w-0 flex-1 leading-tight">
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                      <span className={`text-xs ${checked ? 'font-black' : 'font-semibold'}`}>
+                                        {mod.label}
+                                      </span>
+                                      <span className={`rounded border px-1 py-0.2 text-[7.5px] font-black leading-none ${maturity.badgeClass}`}>
+                                        {maturity.label}
+                                      </span>
+                                    </div>
+                                    {mod.desc && (
+                                      <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5 truncate">
+                                        {mod.desc}
+                                      </p>
+                                    )}
+                                  </div>
+                                </label>
                               );
                             })}
+
+                            {filteredModules.length === 0 && (
+                              <div className="p-4 text-center text-slate-400 text-xs font-bold">
+                                No modules match "{dropdownSearch}"
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Dropdown Footer */}
+                          <div className="flex items-center justify-between pt-1 text-[10px] font-bold text-slate-400 border-t border-slate-100 dark:border-slate-800">
+                            <span>Click checkbox to grant or revoke instantly.</span>
+                            <button
+                              type="button"
+                              onClick={() => setOpenDropdownUser(null)}
+                              className="px-3 py-1 rounded-md text-[10px] font-black bg-indigo-600 text-white hover:bg-indigo-500 cursor-pointer active:scale-95 transition-all"
+                            >
+                              Done
+                            </button>
                           </div>
                         </div>
                       )}
