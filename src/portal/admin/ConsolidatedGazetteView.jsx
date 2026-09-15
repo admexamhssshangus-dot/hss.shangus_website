@@ -11,6 +11,7 @@ import { DEFAULT_SCHOOL_EVALUATIONS } from '../../utils/practicalsSettingsManage
 import { sameCohort, recordIdentity, identityKey, sessionKey, classKey, formatConsistentName } from '../../utils/recordIdentity';
 import verifiedCatalog from '../../data/verifiedStudentsCatalog.json';
 import { showToast } from '../../components/common/GlobalToast';
+import { isStudentEnrolledInSubject } from './AdminPracticals';
 
 const SESSIONS = ['2025-26', '2024-25', '2023-24'];
 const CLASSES = ['12th', '11th', '10th'];
@@ -424,7 +425,7 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
             (code === 'EC' && (sCode === 'ECO' || sName.includes('economics'))) ||
             (code === 'PS' && (sCode === 'POL' || sName.includes('political') || sName.includes('pol science'))) ||
             (code === 'HT' && (sCode === 'HIST' || (sCode === 'HT' && !sName.includes('health')) || sName.includes('history'))) ||
-            (code === 'ED' && (sCode === 'EDU' || sName.includes('education'))) ||
+            (code === 'ED' && (sCode === 'EDU' || sCode === 'ED' || (sName.includes('education') && !sName.includes('physical') && !sName.includes('ped')))) ||
             (code === 'UR' && (sCode === 'UR' || sName.includes('urdu')));
 
           if (isDirectMatch) {
@@ -609,7 +610,12 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
   const subjectStats = useMemo(() => {
     if (!selectedSubjectMeta) return null;
     const code = selectedSubjectMeta.code;
-    const rowsWithSubject = gazetteRows.filter(r => {
+    const enrolledRows = gazetteRows.filter(r => {
+      const m = r.subjectMarks[code];
+      const hasMark = m && (m.obtained !== null || m.isAbsent);
+      return hasMark || isStudentEnrolledInSubject(r.student, code, selectedClass);
+    });
+    const rowsWithSubject = enrolledRows.filter(r => {
       const m = r.subjectMarks[code];
       return m && (m.obtained !== null || m.isAbsent);
     });
@@ -630,7 +636,7 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
       name: selectedSubjectMeta.name,
       maxMarks: selectedSubjectMeta.maxMarks,
       minMarks: selectedSubjectMeta.minMarks,
-      totalEnrolled: gazetteRows.length,
+      totalEnrolled: enrolledRows.length,
       appearedCount,
       passedCount,
       failedCount,
@@ -638,7 +644,7 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
       avgScore,
       passPct
     };
-  }, [selectedSubjectMeta, gazetteRows]);
+  }, [selectedSubjectMeta, gazetteRows, selectedClass]);
 
   // Filtered rows for Search, Stream, Admission Status, Subject, and Result
   const filteredRows = useMemo(() => {
@@ -677,12 +683,13 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
       rows = rows.filter(r => {
         const m = r.subjectMarks[selectedSubject];
         const hasMark = m && (m.obtained !== null || m.isAbsent);
+        const isEnrolled = isStudentEnrolledInSubject(r.student, selectedSubject, selectedClass);
         if (selectedSubjectResult === 'EVALUATED') return hasMark;
         if (selectedSubjectResult === 'PASS') return m && m.isPass;
         if (selectedSubjectResult === 'RE-APPEAR') return m && m.isFailed && !m.isAbsent;
         if (selectedSubjectResult === 'ABSENT') return m && m.isAbsent;
-        if (selectedSubjectResult === 'NOT_EVALUATED') return !hasMark;
-        return true; // 'All' shows all cohort candidates with subject column highlighted
+        if (selectedSubjectResult === 'NOT_EVALUATED') return isEnrolled && !hasMark;
+        return isEnrolled || hasMark;
       });
     }
 

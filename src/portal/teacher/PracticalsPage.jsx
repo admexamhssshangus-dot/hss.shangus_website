@@ -11,7 +11,7 @@ import ConfirmModal from '../components/ConfirmModal';
 import SEO from '../../components/SEO';
 import { db, auth } from '../../services/firebase';
 import { collection, getDocs, addDoc } from 'firebase/firestore';
-import { getCachedCollection } from '../../services/dbCache';
+import { getCachedCollection, invalidateCollectionCache } from '../../services/dbCache';
 import { printIndividualAwardRoll } from '../../utils/practicalsPdfGenerator';
 import { loadSiteSettings } from '../../utils/settingsLoader';
 import {
@@ -294,10 +294,13 @@ function isSubjectOrStreamMatch(st, targetSubjectCode, targetSubjectName) {
     return false;
   }
   if (codeUpper === 'ED' || nameUpper === 'EDUCATION') {
-    const withoutPhysicalEd = rawSubjStr.replace(/\b(PHYSICAL\s*EDUCATION|PHYSICAL\s*ED|PHY\s*ED|P\.ED)\b/gi, '');
-    if (hasToken('ED') && !/\b(PHYSICAL\s*EDUCATION|PHY\s*ED)\b/i.test(rawSubjStr)) return true;
-    if (/\bEDUCATION\b/i.test(withoutPhysicalEd)) return true;
-    if (isArts && !rawSubjStr) return true;
+    const cleanSubj = rawSubjStr
+      .replace(/\b(NON-MED|NON\s*MED|NON-MEDICAL|MEDICAL|MED)\b/gi, '')
+      .replace(/\b(PHYSICAL\s*EDUCATION|PHYSICAL\s*ED|PHY\s*ED|P\.ED|PED|P\.E)\b/gi, '');
+    const hasEdToken = /\b(ED|EDU)\b/i.test(cleanSubj);
+    if (hasEdToken) return true;
+    if (/\bEDUCATION\b/i.test(cleanSubj)) return true;
+    if (isArts && !rawSubjStr && !isScienceStrict) return true;
     return false;
   }
   if (codeUpper === 'HT' || nameUpper.includes('HISTORY')) {
@@ -370,10 +373,11 @@ function isSubjectOrStreamMatch(st, targetSubjectCode, targetSubjectName) {
 function extractStudentClass(st) {
   if (!st) return '';
   const c = String(
-    st.class || st.Class || st['Class'] ||
-    st['Class for which Admission Sought'] ||
     st['Admission sought for class'] ||
-    st['Class Enrolled'] || st.className || ''
+    st['Class for which Admission Sought'] ||
+    st['Class Enrolled'] ||
+    st.className ||
+    st.class || st.Class || st['Class'] || ''
   ).trim();
   if (c.includes('12') || c.includes('XII') || c.toLowerCase().includes('twelve')) return '12th';
   if (c.includes('11') || c.includes('XI') || c.toLowerCase().includes('eleven')) return '11th';
@@ -1492,14 +1496,14 @@ export default function PracticalsPage() {
                 allCandidates.push({
                   ...it,
                   session: it.Session || it.session || docSession,
-                  class: it.class || it.Class || it['Class'] || docClass
+                  class: it['Admission sought for class'] || it['Class for which Admission Sought'] || it['Class Enrolled'] || it.className || it.class || it.Class || it['Class'] || docClass
                 });
               });
             } else {
               allCandidates.push({
                 ...d,
                 session: d.Session || d.session || docSession,
-                class: d.class || d.Class || docClass
+                class: d['Admission sought for class'] || d['Class for which Admission Sought'] || d['Class Enrolled'] || d.className || d.class || d.Class || docClass
               });
             }
           });
@@ -1545,9 +1549,11 @@ export default function PracticalsPage() {
           const rForm = String(it.formNo || it['Form No.'] || it['Form Number'] || it.FormNo || '').trim();
           setIfBetter(richByForm, rForm, it);
 
-          // 3. Class Roll No
+          // 3. Class Roll No (Strictly restrict to matching class to prevent cross-class roll number collisions)
           const rRoll = String(it.classRollNo || it.rollNo || it['Class Roll No'] || it['Roll No'] || '').trim();
-          setIfBetter(richByRoll, rRoll, it);
+          if (isMatchCls) {
+            setIfBetter(richByRoll, rRoll, it);
+          }
 
           // 4. Board Exam Roll
           const boardKeys = [
@@ -2096,6 +2102,7 @@ export default function PracticalsPage() {
       };
 
       await saveAcademicRecord('practicalsData', pendingDocId, submissionPayload);
+      invalidateCollectionCache('practicalsData');
       setExistingAwardInfo(prev => ({ ...prev, pending: submissionPayload }));
       setDraftSavedAt(timeStr);
       triggerNotification({
@@ -2247,6 +2254,7 @@ export default function PracticalsPage() {
       };
 
       await saveAcademicRecord('practicalsData', pendingDocId, submissionPayload);
+      invalidateCollectionCache('practicalsData');
       setExistingAwardInfo(prev => ({ ...prev, pending: submissionPayload }));
 
       // Update studentMarks in state so the table immediately displays 'AB' for any previously unfilled students

@@ -213,7 +213,10 @@ export function isStudentEnrolledInSubject(st, subCode, cls) {
     } else if (code === 'PS') {
       if (subStr.includes('PS') || subStr.includes('POL') || subStr.includes('POLITICAL')) return true;
     } else if (code === 'ED') {
-      if (subStr.includes('ED') || subStr.includes('EDUCATION')) return true;
+      const cleanSubj = subStr
+        .replace(/\b(NON-MED|NON\s*MED|NON-MEDICAL|MEDICAL|MED)\b/gi, '')
+        .replace(/\b(PHYSICAL\s*EDUCATION|PHYSICAL\s*ED|PHY\s*ED|P\.ED|PED|P\.E)\b/gi, '');
+      if (/\b(ED|EDU|EDUCATION)\b/i.test(cleanSubj)) return true;
     } else if (code === 'HT') {
       if (subStr.includes('HT') || subStr.includes('HIST') || subStr.includes('HISTORY')) return true;
     } else if (code === 'UR') {
