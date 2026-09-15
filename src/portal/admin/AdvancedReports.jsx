@@ -4935,7 +4935,7 @@ const COLUMN_DEFS = [
   },
   { key: 'class', label: 'Class', className: 'font-black whitespace-nowrap text-center' },
   { key: 'session', label: 'Session', className: 'font-black text-purple-700 dark:text-purple-400 whitespace-nowrap text-center' },
-  { key: 'boardRegNo', label: 'Reg. No.', className: 'font-mono text-[11px] leading-tight text-slate-700 dark:text-slate-300 whitespace-normal break-all' },
+  { key: 'boardRegNo', label: 'Reg. No.', className: 'font-mono text-[11px] leading-tight text-slate-700 dark:text-slate-300 whitespace-nowrap' },
   {
     key: 'photoId', label: 'Photo', className: 'text-center', render: (val, student) => {
       return <OnDemandStudentPhotoCell student={student} val={val} />;
@@ -5321,7 +5321,7 @@ const DEFAULT_1_WIDTHS = {
   admNo: 70,
   class: 52,
   session: 65,
-  boardRegNo: 80,
+  boardRegNo: 140,
   photoId: 66,
   studentName: 135,
   fatherName: 165,
@@ -10834,7 +10834,7 @@ export default function AdvancedReports({
                 )}
                 {orderedVisibleColumns.map((col, idx) => {
                   const configuredWidth = colWidths[col.key] || DEFAULT_1_WIDTHS[col.key] || 100;
-                  const widthPx = col.key === 'fatherName' ? Math.max(configuredWidth, 150) : col.key === 'sno' ? Math.max(configuredWidth, 70) : configuredWidth;
+                  const widthPx = col.key === 'fatherName' ? Math.max(configuredWidth, 150) : col.key === 'sno' ? Math.max(configuredWidth, 70) : col.key === 'boardRegNo' ? Math.max(configuredWidth, 140) : configuredWidth;
                   const stickyClasses = col.isSticky
                     ? `${hasSnoColumn ? 'sticky left-0' : 'sticky left-9'} top-0 z-40 bg-slate-100 dark:bg-slate-800 text-[#800000] dark:text-rose-400 font-black border-r border-slate-300 dark:border-slate-700`
                     : 'sticky top-0 z-30 bg-slate-100 dark:bg-slate-800 text-[#800000] dark:text-rose-400 font-black';
@@ -10972,7 +10972,7 @@ export default function AdvancedReports({
                         const isCopied = copiedCellId === cellId;
                         const isRowCopied = copiedCellId === `row_${s.id || s.sno}`;
                         const configuredWidth = colWidths[col.key] || DEFAULT_1_WIDTHS[col.key] || 100;
-                        const widthPx = col.key === 'fatherName' ? Math.max(configuredWidth, 150) : col.key === 'sno' ? Math.max(configuredWidth, 70) : configuredWidth;
+                        const widthPx = col.key === 'fatherName' ? Math.max(configuredWidth, 150) : col.key === 'sno' ? Math.max(configuredWidth, 70) : col.key === 'boardRegNo' ? Math.max(configuredWidth, 140) : configuredWidth;
 
                         const stickyBg = col.isSticky
                           ? ` ${hasSnoColumn ? 'sticky left-0' : 'sticky left-9'} z-20 border-r border-slate-200 dark:border-slate-800/50 transition-colors ${isSelected ? 'bg-indigo-50 dark:bg-indigo-950' : idx % 2 === 0 ? 'bg-white dark:bg-slate-900' : 'bg-slate-50 dark:bg-slate-800/40'} group-hover:bg-amber-50 dark:group-hover:bg-amber-900/30`
@@ -11023,7 +11023,7 @@ export default function AdvancedReports({
                               </div>
                             ) : (
                               <div className="flex items-center justify-between gap-1 min-w-0">
-                                <div className="flex-1 min-w-0 whitespace-normal break-words">
+                                <div className={`flex-1 min-w-0 ${['boardRegNo', 'formNo', 'admNo', 'classRollNo', 'session', 'class'].includes(col.key) ? 'whitespace-nowrap' : 'whitespace-normal break-words'}`}>
                                   {col.render ? col.render(val, studentWithModal) : val}
                                 </div>
                                 {(!['studentName', 'fatherName', 'subs', 'aadhar', 'dob', 'sno'].includes(col.key)) &&
