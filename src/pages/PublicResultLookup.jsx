@@ -6,7 +6,7 @@ import {
   User, Sparkles, Hash, Layers, FileText, CheckCircle, Clock, History
 } from 'lucide-react';
 import { collection, getDocs, doc, getDoc, onSnapshot } from 'firebase/firestore';
-import { db } from '../services/firebase';
+import { db, auth } from '../services/firebase';
 import { publicLookup } from '../services/backendEndpoint';
 import SEO from '../components/SEO';
 import { DEFAULT_SCHOOL_EVALUATIONS, SUBJECT_CONFIG_DEFS } from '../utils/practicalsSettingsManager';
@@ -407,7 +407,7 @@ export function filterAndDeduplicateSections(practicalDocs, targetClassName, tar
 
   const matchingSectionsRaw = practicalDocs.filter(sec => {
     if (!Array.isArray(sec.records) || sec.records.length === 0) return false;
-    if (sec.id?.startsWith('history_') || sec.docId?.startsWith('history_')) return false;
+    if (String(sec.id || '').startsWith('history_') || String(sec.docId || '').startsWith('history_')) return false;
     if (sec.isDraft === true || sec.status === 'draft' || sec.status === 'rejected') return false;
 
     const docCls = classKey(sec.className || sec.class || sec.selectedClass || sec.docId || '');
@@ -1431,8 +1431,8 @@ export default function PublicResultLookup() {
               }
             }
 
-            // 6B. Search cached admissions and masterRegisters
-            if (!matchedStudent) {
+            // 6B. Search cached admissions and masterRegisters (only when authenticated as staff)
+            if (!matchedStudent && auth?.currentUser) {
               const [cachedAdm, cachedMaster] = await Promise.all([
                 getCachedCollection('admissions', false, 10 * 60 * 1000).catch(() => []),
                 getCachedCollection('masterRegisters', false, 10 * 60 * 1000).catch(() => [])
