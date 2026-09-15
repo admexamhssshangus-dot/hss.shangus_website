@@ -1134,7 +1134,11 @@ function MoreActionsDropdown({
       }
     }
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener('touchstart', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
   }, [isOpen]);
 
   return (
@@ -1157,33 +1161,34 @@ function MoreActionsDropdown({
       {isOpen && (
         <div
           onMouseDown={(e) => e.stopPropagation()}
-          className={`absolute ${align === 'left' ? 'left-0 sm:right-0 sm:left-auto' : 'right-0'} mt-1.5 w-60 max-w-[calc(100vw-24px)] rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl z-[99999] p-2 space-y-1 animate-fadeIn bg-white/95 dark:bg-slate-900/95 backdrop-blur-md text-slate-900 dark:text-slate-100 text-xs font-extrabold`}
+          onTouchStart={(e) => e.stopPropagation()}
+          className={`absolute ${align === 'left' ? 'left-0 sm:right-0 sm:left-auto' : 'right-0'} mt-1.5 w-52 sm:w-60 max-w-[calc(100vw-20px)] rounded-xl sm:rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-xl sm:shadow-2xl z-[99999] p-1 sm:p-2 space-y-0.5 sm:space-y-1 animate-fadeIn bg-white/98 dark:bg-slate-900/98 backdrop-blur-md text-slate-900 dark:text-slate-100 text-[10.5px] sm:text-xs font-bold sm:font-extrabold`}
         >
-          <div className="px-2 py-1 border-b border-slate-200 dark:border-slate-800 text-[10px] uppercase font-black tracking-wider text-slate-400">
+          <div className="px-1.5 sm:px-2 py-0.5 sm:py-1 border-b border-slate-100 dark:border-slate-800/80 text-[8.5px] sm:text-[10px] uppercase font-bold sm:font-black tracking-wider text-slate-400 dark:text-slate-500">
             Layout & Display Controls
           </div>
 
-          <div className="flex items-center justify-between px-2 py-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800/60">
-            <span>Density:</span>
-            <div className="flex items-center gap-1 p-0.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-100 dark:bg-slate-950 text-[10px]">
+          <div className="flex items-center justify-between px-1.5 sm:px-2 py-0.5 sm:py-1.5 rounded-lg sm:rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/50">
+            <span className="text-[10px] sm:text-xs text-slate-600 dark:text-slate-300 font-semibold sm:font-bold">Density:</span>
+            <div className="flex items-center gap-0.5 sm:gap-1 p-0.5 rounded-md sm:rounded-lg border border-slate-200 dark:border-slate-700/80 bg-slate-100/80 dark:bg-slate-950 text-[9px] sm:text-[10px]">
               <button
                 type="button"
                 onClick={() => setDensity('fit')}
-                className={`px-2 py-0.5 rounded font-black transition-colors ${density === 'fit' ? 'bg-amber-700 text-white shadow-2xs' : 'text-slate-700 dark:text-slate-300'}`}
+                className={`px-1.5 sm:px-2 py-0.5 rounded font-bold sm:font-black transition-colors cursor-pointer ${density === 'fit' ? 'bg-amber-700 text-white shadow-2xs' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'}`}
               >
                 Fit
               </button>
               <button
                 type="button"
                 onClick={() => setDensity('compact')}
-                className={`px-2 py-0.5 rounded font-black transition-colors ${density === 'compact' ? 'bg-amber-700 text-white shadow-2xs' : 'text-slate-700 dark:text-slate-300'}`}
+                className={`px-1.5 sm:px-2 py-0.5 rounded font-bold sm:font-black transition-colors cursor-pointer ${density === 'compact' ? 'bg-amber-700 text-white shadow-2xs' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'}`}
               >
                 Compact
               </button>
               <button
                 type="button"
                 onClick={() => setDensity('normal')}
-                className={`px-2 py-0.5 rounded font-black transition-colors ${density === 'normal' ? 'bg-amber-700 text-white shadow-2xs' : 'text-slate-700 dark:text-slate-300'}`}
+                className={`px-1.5 sm:px-2 py-0.5 rounded font-bold sm:font-black transition-colors cursor-pointer ${density === 'normal' ? 'bg-amber-700 text-white shadow-2xs' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'}`}
               >
                 Normal
               </button>
@@ -1193,49 +1198,49 @@ function MoreActionsDropdown({
           <button
             type="button"
             onClick={() => { setShowColumnManager(true); setIsOpen(false); }}
-            className="w-full text-left px-2.5 py-1.5 rounded-xl hover:bg-indigo-50 dark:hover:bg-indigo-950/40 flex items-center gap-2 text-indigo-700 dark:text-indigo-400 font-extrabold cursor-pointer"
+            className="w-full text-left px-1.5 sm:px-2.5 py-1 sm:py-1.5 rounded-lg sm:rounded-xl hover:bg-indigo-50/80 dark:hover:bg-indigo-950/40 flex items-center gap-1.5 sm:gap-2 text-indigo-700 dark:text-indigo-400 font-bold sm:font-extrabold text-[10.5px] sm:text-xs cursor-pointer transition-colors"
           >
-            <Columns size={13} />
-            <span>Manage Table Columns (Cols)</span>
+            <Columns size={12} className="sm:w-3.5 sm:h-3.5 shrink-0" />
+            <span className="truncate">Manage Table Columns (Cols)</span>
           </button>
 
           {onOpenRecycleBin && (
             <button
               type="button"
               onClick={() => { onOpenRecycleBin(); setIsOpen(false); }}
-              className="w-full text-left px-2.5 py-1.5 rounded-xl hover:bg-amber-50 dark:hover:bg-amber-950/40 flex items-center justify-between text-amber-800 dark:text-amber-300 font-extrabold cursor-pointer"
+              className="w-full text-left px-1.5 sm:px-2.5 py-1 sm:py-1.5 rounded-lg sm:rounded-xl hover:bg-amber-50/80 dark:hover:bg-amber-950/40 flex items-center justify-between text-amber-800 dark:text-amber-300 font-bold sm:font-extrabold text-[10.5px] sm:text-xs cursor-pointer transition-colors"
             >
-              <span className="flex items-center gap-2">
-                <Trash2 size={13} className="text-amber-600 dark:text-amber-400" />
+              <span className="flex items-center gap-1.5 sm:gap-2">
+                <Trash2 size={12} className="sm:w-3.5 sm:h-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
                 <span>90-Day Recycle Bin</span>
               </span>
               {unreadRecycleBinCount > 0 && (
-                <span className="px-1.5 py-0.2 rounded-full bg-rose-600 text-white text-[9px] font-black font-mono">
+                <span className="px-1 sm:px-1.5 py-0.1 sm:py-0.2 rounded-full bg-rose-600 text-white text-[7.5px] sm:text-[9px] font-black font-mono shadow-xs">
                   {unreadRecycleBinCount}
                 </span>
               )}
             </button>
           )}
 
-          <div className="px-2 py-1 border-t border-b border-slate-200 dark:border-slate-800 text-[10px] uppercase font-black tracking-wider text-slate-400 mt-1">
+          <div className="px-1.5 sm:px-2 py-0.5 sm:py-1 border-t border-b border-slate-100 dark:border-slate-800/80 text-[8.5px] sm:text-[10px] uppercase font-bold sm:font-black tracking-wider text-slate-400 dark:text-slate-500 mt-0.5 sm:mt-1">
             Export & Print
           </div>
 
           <button
             type="button"
             onClick={() => { onPrint(); setIsOpen(false); }}
-            className="w-full text-left px-2.5 py-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2 text-blue-600 dark:text-blue-400 font-extrabold cursor-pointer"
+            className="w-full text-left px-1.5 sm:px-2.5 py-1 sm:py-1.5 rounded-lg sm:rounded-xl hover:bg-blue-50/70 dark:hover:bg-slate-800/70 flex items-center gap-1.5 sm:gap-2 text-blue-600 dark:text-blue-400 font-bold sm:font-extrabold text-[10.5px] sm:text-xs cursor-pointer transition-colors"
           >
-            <Printer size={13} />
+            <Printer size={12} className="sm:w-3.5 sm:h-3.5 shrink-0" />
             <span>Print Register Report</span>
           </button>
 
           <button
             type="button"
             onClick={() => { onExportCSV(); setIsOpen(false); }}
-            className="w-full text-left px-2.5 py-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2 text-teal-600 dark:text-teal-400 font-extrabold cursor-pointer"
+            className="w-full text-left px-1.5 sm:px-2.5 py-1 sm:py-1.5 rounded-lg sm:rounded-xl hover:bg-teal-50/70 dark:hover:bg-slate-800/70 flex items-center gap-1.5 sm:gap-2 text-teal-600 dark:text-teal-400 font-bold sm:font-extrabold text-[10.5px] sm:text-xs cursor-pointer transition-colors"
           >
-            <FileSpreadsheet size={13} />
+            <FileSpreadsheet size={12} className="sm:w-3.5 sm:h-3.5 shrink-0" />
             <span>Export to Excel / CSV</span>
           </button>
 
@@ -1243,9 +1248,9 @@ function MoreActionsDropdown({
             type="button"
             onClick={() => { onSync(); setIsOpen(false); }}
             disabled={loading}
-            className="w-full text-left px-2.5 py-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2 text-slate-700 dark:text-slate-300 font-extrabold cursor-pointer"
+            className="w-full text-left px-1.5 sm:px-2.5 py-1 sm:py-1.5 rounded-lg sm:rounded-xl hover:bg-slate-100/80 dark:hover:bg-slate-800/70 flex items-center gap-1.5 sm:gap-2 text-slate-700 dark:text-slate-300 font-bold sm:font-extrabold text-[10.5px] sm:text-xs cursor-pointer transition-colors disabled:opacity-50"
           >
-            <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
+            <RefreshCw size={12} className={`sm:w-3.5 sm:h-3.5 shrink-0 ${loading ? 'animate-spin text-indigo-500' : ''}`} />
             <span>Force Sync Data</span>
           </button>
         </div>
