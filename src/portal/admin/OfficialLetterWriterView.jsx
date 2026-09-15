@@ -6,7 +6,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import {
-  Printer, FileText, FileSpreadsheet, Download, RotateCcw, Save, Sparkles,
+  Printer, FileText, Calendar, Edit3, FileSpreadsheet, Download, RotateCcw, Save, Sparkles,
   Bold, Italic, Underline, Strikethrough, AlignLeft, AlignCenter,
   AlignRight, AlignJustify, List, ListOrdered, Table as TableIcon,
   Heading1, Heading2, Sliders, ChevronDown, Check, Copy, Undo, Redo,
@@ -225,6 +225,7 @@ export default function OfficialLetterWriterView({
   const [showMobileTemplatesModal, setShowMobileTemplatesModal] = useState(false);
   const [showMobileFormatToolbar, setShowMobileFormatToolbar] = useState(false);
   const [mobileDropdownOpen, setMobileDropdownOpen] = useState(null);
+  const [showRefDateModal, setShowRefDateModal] = useState(false);
   const [savedDraftsCount, setSavedDraftsCount] = useState(0);
   const [dockSide, setDockSide] = useState(() => {
     try {
@@ -2233,7 +2234,100 @@ export default function OfficialLetterWriterView({
         )}
 
         {/* ─── MOBILE POPUP MODAL FOR TEMPLATES & GEMINI AI ─── */}
-        {!isDesktop && showMobileTemplatesModal && createPortal(
+        {showRefDateModal && createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-4 bg-slate-950/75 backdrop-blur-xs animate-fadeIn">
+          <div className="absolute inset-0" onClick={() => setShowRefDateModal(false)} />
+          <div
+            role="dialog"
+            aria-modal="true"
+            className="relative w-full max-w-sm flex flex-col bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden z-10 animate-scaleUp"
+          >
+            {/* Modal Header */}
+            <div className="flex items-center justify-between px-3.5 py-2.5 border-b border-slate-200 dark:border-slate-800 bg-slate-50/90 dark:bg-slate-800/90">
+              <div className="flex items-center gap-1.5">
+                <Calendar size={14} className="text-rose-600 dark:text-rose-400 shrink-0" />
+                <h3 className="font-black text-xs text-slate-900 dark:text-white uppercase tracking-wider">
+                  Edit Reference No. & Date
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowRefDateModal(false)}
+                className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-700 cursor-pointer"
+              >
+                <X size={14} />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-3.5 space-y-3">
+              <div>
+                <label className="block text-[9.5px] font-black uppercase text-slate-600 dark:text-slate-400 mb-1">
+                  Reference / Dispatch Number
+                </label>
+                <input
+                  type="text"
+                  value={refNo}
+                  onChange={(e) => setRefNo(e.target.value)}
+                  placeholder="e.g. HSS/SHG/2026/01"
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-mono font-bold text-xs text-slate-900 dark:text-white outline-none focus:border-rose-500 focus:bg-white dark:focus:bg-slate-900 transition-all"
+                  autoFocus
+                />
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-[9.5px] font-black uppercase text-slate-600 dark:text-slate-400">
+                    Official Document Date
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setDateStr(new Date().toLocaleDateString('en-GB'))}
+                    className="text-[9px] font-bold text-rose-600 dark:text-rose-400 hover:underline cursor-pointer"
+                  >
+                    Set Today
+                  </button>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="text"
+                    value={dateStr}
+                    onChange={(e) => setDateStr(e.target.value)}
+                    placeholder="DD/MM/YYYY"
+                    className="flex-1 px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-bold text-xs text-slate-900 dark:text-white outline-none focus:border-rose-500 focus:bg-white dark:focus:bg-slate-900 transition-all"
+                  />
+                  <input
+                    type="date"
+                    title="Pick date from calendar"
+                    onChange={(e) => {
+                      if (e.target.value) {
+                        const [y, m, d] = e.target.value.split('-');
+                        setDateStr(`${d}/${m}/${y}`);
+                      }
+                    }}
+                    className="w-10 h-10 p-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 cursor-pointer shrink-0"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-3 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setShowRefDateModal(false)}
+                className="w-full py-2 rounded-xl bg-gradient-to-r from-rose-700 to-amber-700 text-white font-black text-xs shadow-md cursor-pointer flex items-center justify-center gap-1.5 active:scale-95 transition-all"
+              >
+                <Check size={14} />
+                <span>Apply & Done</span>
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {!isDesktop && showMobileTemplatesModal && createPortal(
           <div className="fixed inset-0 z-[9999] flex items-center justify-center p-2 sm:p-4 bg-slate-950/70 backdrop-blur-xs animate-fadeIn">
             <div className="absolute inset-0" onClick={() => setShowMobileTemplatesModal(false)} />
             <div
@@ -2806,16 +2900,16 @@ export default function OfficialLetterWriterView({
                 <div className="fixed inset-0 z-40" onClick={() => setMobileDropdownOpen(null)} />
               )}
 
-              <div className="flex items-center justify-between gap-1 p-1 bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-xl shadow-2xs relative z-40">
+              <div className="flex items-center justify-between gap-1 p-1 bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-xl shadow-2xs relative z-40 overflow-x-auto no-scrollbar max-w-full">
                 {/* Primary Document Actions (Instant Access) */}
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1 shrink-0">
                   <button
                     type="button"
                     onClick={handlePrint}
-                    className="h-7 px-2.5 rounded-lg bg-gradient-to-r from-rose-700 to-amber-700 hover:from-rose-600 text-white font-black text-[10px] flex items-center gap-1 shadow-xs cursor-pointer active:scale-95 shrink-0"
+                    className="h-7 px-2 rounded-lg bg-gradient-to-r from-rose-700 to-amber-700 hover:from-rose-600 text-white font-black text-[10px] flex items-center gap-1 shadow-xs cursor-pointer active:scale-95 shrink-0 whitespace-nowrap"
                     title="Print Official Letterhead / Save PDF"
                   >
-                    <Printer size={11} />
+                    <Printer size={12} className="shrink-0" />
                     <span>Print</span>
                   </button>
 
@@ -2823,41 +2917,50 @@ export default function OfficialLetterWriterView({
                     type="button"
                     disabled={isExportingDocx}
                     onClick={handleExportDocx}
-                    className="h-7 px-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold text-[10px] flex items-center gap-1 shadow-xs cursor-pointer disabled:opacity-50 active:scale-95 shrink-0"
+                    className="h-7 px-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold text-[10px] flex items-center gap-1 shadow-xs cursor-pointer disabled:opacity-50 active:scale-95 shrink-0 whitespace-nowrap"
                     title="Export Word (.docx)"
                   >
-                    {isExportingDocx ? <RefreshCw size={10} className="animate-spin" /> : <FileText size={11} />}
+                    {isExportingDocx ? <RefreshCw size={11} className="animate-spin shrink-0" /> : <FileText size={12} className="shrink-0" />}
                     <span>Word</span>
                   </button>
 
                   <button
                     type="button"
                     onClick={handleQuickUpdateTemplate}
-                    className="h-7 px-2 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 hover:bg-emerald-100 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 font-bold text-[10px] flex items-center gap-1 shadow-2xs cursor-pointer active:scale-95 shrink-0"
+                    className="h-7 w-7 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 hover:bg-emerald-100 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 flex items-center justify-center cursor-pointer active:scale-95 shrink-0"
                     title="Save Template in Cloud"
                   >
-                    <Save size={11} />
-                    <span>Save</span>
+                    <Save size={12} />
                   </button>
                 </div>
 
-                {/* Grouped Compact Dropdowns */}
-                <div className="flex items-center gap-1">
-                  {/* 1. Format Dropdown (H1, H2, ¶, B, I, U, S, Colors, Clear) */}
+                {/* Grouped Compact Controls (Ref/Date, Format, Layout, More) */}
+                <div className="flex items-center gap-1 shrink-0">
+                  {/* Quick Ref & Date Modal Trigger */}
+                  <button
+                    type="button"
+                    onClick={() => setShowRefDateModal(true)}
+                    className="h-7 px-1.5 sm:px-2 rounded-lg font-bold text-[10px] flex items-center gap-1 cursor-pointer transition-all active:scale-95 shrink-0 border bg-rose-50 dark:bg-rose-950/60 text-rose-900 dark:text-rose-200 border-rose-200 dark:border-rose-800 hover:bg-rose-100 whitespace-nowrap"
+                    title="Edit Reference Number & Document Date in Popup"
+                  >
+                    <Calendar size={11} className="shrink-0 text-rose-600 dark:text-rose-400" />
+                    <span>Ref/Date</span>
+                  </button>
+
+                  {/* 1. Format Dropdown (Aa) */}
                   <div className="relative">
                     <button
                       type="button"
                       onClick={() => setMobileDropdownOpen(prev => prev === 'format' ? null : 'format')}
-                      className={`h-7 px-2 rounded-lg font-extrabold text-[10px] flex items-center gap-1 cursor-pointer transition-all active:scale-95 shrink-0 border ${
+                      className={`h-7 px-1.5 rounded-lg font-extrabold text-[11px] flex items-center gap-0.5 cursor-pointer transition-all active:scale-95 shrink-0 border whitespace-nowrap ${
                         mobileDropdownOpen === 'format'
                           ? 'bg-amber-100 text-amber-950 border-amber-400 dark:bg-amber-950 dark:text-amber-200'
                           : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-200'
                       }`}
                       title="Text Style & Formatting"
                     >
-                      <span className="font-serif font-black text-[11px]">Aa</span>
-                      <span>Format</span>
-                      <ChevronDown size={10} className={`transition-transform ${mobileDropdownOpen === 'format' ? 'rotate-180' : ''}`} />
+                      <span className="font-serif font-black">Aa</span>
+                      <ChevronDown size={10} className={`transition-transform shrink-0 ${mobileDropdownOpen === 'format' ? 'rotate-180' : ''}`} />
                     </button>
 
                     {mobileDropdownOpen === 'format' && (
@@ -2993,21 +3096,20 @@ export default function OfficialLetterWriterView({
                     )}
                   </div>
 
-                  {/* 2. Layout & Insert Dropdown (Align, Lists, Divider, Table) */}
+                  {/* 2. Layout Dropdown (Alignments & Inserts) */}
                   <div className="relative">
                     <button
                       type="button"
                       onClick={() => setMobileDropdownOpen(prev => prev === 'layout' ? null : 'layout')}
-                      className={`h-7 px-2 rounded-lg font-extrabold text-[10px] flex items-center gap-1 cursor-pointer transition-all active:scale-95 shrink-0 border ${
+                      className={`h-7 px-1.5 rounded-lg font-extrabold text-[11px] flex items-center gap-0.5 cursor-pointer transition-all active:scale-95 shrink-0 border whitespace-nowrap ${
                         mobileDropdownOpen === 'layout'
                           ? 'bg-amber-100 text-amber-950 border-amber-400 dark:bg-amber-950 dark:text-amber-200'
                           : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-200'
                       }`}
                       title="Alignment, Lists & Tables"
                     >
-                      <AlignLeft size={11} />
-                      <span>Layout</span>
-                      <ChevronDown size={10} className={`transition-transform ${mobileDropdownOpen === 'layout' ? 'rotate-180' : ''}`} />
+                      <AlignLeft size={12} className="shrink-0" />
+                      <ChevronDown size={10} className={`transition-transform shrink-0 ${mobileDropdownOpen === 'layout' ? 'rotate-180' : ''}`} />
                     </button>
 
                     {mobileDropdownOpen === 'layout' && (
@@ -3120,7 +3222,7 @@ export default function OfficialLetterWriterView({
                     <button
                       type="button"
                       onClick={() => setMobileDropdownOpen(prev => prev === 'more' ? null : 'more')}
-                      className={`h-7 w-7 rounded-lg font-bold text-[11px] flex items-center justify-center cursor-pointer transition-all active:scale-95 shrink-0 border ${
+                      className={`h-7 w-7 rounded-lg font-bold text-[11px] flex items-center justify-center cursor-pointer transition-all active:scale-95 shrink-0 border whitespace-nowrap ${
                         mobileDropdownOpen === 'more'
                           ? 'bg-amber-100 text-amber-950 border-amber-400 dark:bg-amber-950 dark:text-amber-200'
                           : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-200'
@@ -3203,8 +3305,8 @@ export default function OfficialLetterWriterView({
                   </div>
                 </div>
               </div>
-            </div>
-
+            </div>
+
             {/* ─── DESKTOP VERTICAL FLOATING DOCK (3 Columns) ─── */}
             <div className="hidden lg:block lg:sticky lg:top-2 z-30 shrink-0">
               <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-1.5 shadow-md grid grid-cols-3 items-center justify-items-center gap-1 max-w-fit">
@@ -3739,7 +3841,7 @@ export default function OfficialLetterWriterView({
               <div className="bg-white text-slate-900 border border-slate-300 rounded-xl p-4 sm:p-6 shadow-sm min-h-[420px] flex flex-col justify-start">
                 
                 {/* Top Official Letterhead Header Banner (Soft Ice-Blue Background) */}
-                <div className="-mx-4 sm:-mx-6 -mt-4 sm:-mt-6 p-4 sm:p-5 text-center bg-[#f0f8ff] border-b-[2.5px] border-[#800000] rounded-t-xl mb-3">
+                <div className="hidden lg:block print:!block -mx-4 sm:-mx-6 -mt-4 sm:-mt-6 p-4 sm:p-5 text-center bg-[#f0f8ff] border-b-[2.5px] border-[#800000] rounded-t-xl mb-3">
                   <img
                     src="/logo192.png"
                     alt="School Seal"
@@ -3760,9 +3862,17 @@ export default function OfficialLetterWriterView({
 
             <div>
               {/* Reference Number & Date Row — Direct Inline Editing */}
-              <div className="flex items-center justify-between text-xs font-bold mb-4 px-1 gap-3">
-                <div className="flex items-center gap-1.5 group/ref min-w-0 flex-1">
-                  <span className="text-[#800000] font-black shrink-0">Ref. No.:</span>
+              <div className="flex items-center justify-between text-xs font-bold mb-4 px-1 gap-1.5 sm:gap-3">
+                <div className="flex items-center gap-1 sm:gap-1.5 group/ref min-w-0 flex-1">
+                  <button
+                    type="button"
+                    onClick={() => setShowRefDateModal(true)}
+                    className="text-[#800000] font-black shrink-0 hover:underline cursor-pointer flex items-center gap-0.5 text-[11px] sm:text-xs"
+                    title="Click to edit Reference No. & Date in popup"
+                  >
+                    <span>Ref. No.:</span>
+                    <Edit3 size={10} className="text-slate-400 lg:hidden" />
+                  </button>
                   <input
                     type="text"
                     value={refNo}
@@ -3770,11 +3880,19 @@ export default function OfficialLetterWriterView({
                     placeholder="e.g. HSS/SHG/2026/01"
                     title="Click to directly edit Reference Number"
                     aria-label="Reference Number"
-                    className="text-slate-900 font-semibold bg-transparent border-b border-dashed border-amber-300/80 hover:border-amber-500 focus:border-amber-600 focus:bg-amber-50/50 rounded px-1.5 py-0.5 outline-none transition-all w-full max-w-[280px] text-xs print:border-none print:bg-transparent print:p-0"
+                    className="text-slate-900 font-semibold bg-transparent border-b border-dashed border-amber-300/80 hover:border-amber-500 focus:border-amber-600 focus:bg-amber-50/50 rounded px-1 py-0.5 outline-none transition-all w-full max-w-[150px] sm:max-w-[280px] truncate text-[11px] sm:text-xs print:border-none print:bg-transparent print:p-0"
                   />
                 </div>
-                <div className="flex items-center gap-1.5 group/date shrink-0">
-                  <span className="text-[#800000] font-black shrink-0">Date:</span>
+                <div className="flex items-center gap-1 sm:gap-1.5 group/date shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setShowRefDateModal(true)}
+                    className="text-[#800000] font-black shrink-0 hover:underline cursor-pointer flex items-center gap-0.5 text-[11px] sm:text-xs"
+                    title="Click to edit Reference No. & Date in popup"
+                  >
+                    <span>Date:</span>
+                    <Edit3 size={10} className="text-slate-400 lg:hidden" />
+                  </button>
                   <input
                     type="text"
                     value={dateStr}
@@ -3782,7 +3900,7 @@ export default function OfficialLetterWriterView({
                     placeholder="DD/MM/YYYY"
                     title="Click to directly edit Letter Date"
                     aria-label="Letter Date"
-                    className="text-slate-900 font-semibold bg-transparent border-b border-dashed border-amber-300/80 hover:border-amber-500 focus:border-amber-600 focus:bg-amber-50/50 rounded px-1.5 py-0.5 outline-none transition-all w-24 sm:w-28 text-right text-xs print:border-none print:bg-transparent print:p-0 print:text-right"
+                    className="text-slate-900 font-semibold bg-transparent border-b border-dashed border-amber-300/80 hover:border-amber-500 focus:border-amber-600 focus:bg-amber-50/50 rounded px-1 py-0.5 outline-none transition-all w-20 sm:w-28 text-right text-[11px] sm:text-xs print:border-none print:bg-transparent print:p-0 print:text-right"
                   />
                   <input
                     type="date"
