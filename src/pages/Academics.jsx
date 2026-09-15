@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { CheckCircle, Phone, Mail, User } from 'lucide-react';
+import { CheckCircle, Phone, Mail, User, GraduationCap, BookOpen, FlaskConical, Layers, Building2 } from 'lucide-react';
 import { db } from '../firebase';
 import { collection, doc, getDoc, getDocs } from 'firebase/firestore';
 import DynamicPageRenderer from '../components/DynamicPageRenderer';
@@ -437,109 +437,140 @@ export default function Academics() {
         </header>
 
         {/* Our Departments Card */}
-        <div className="relative bg-white p-3.5 sm:p-6 rounded-2xl shadow-sm hover:shadow-md border border-slate-200/80 mb-6 overflow-hidden transition-all duration-300">
+        <div className="relative bg-white p-3.5 sm:p-5 rounded-2xl shadow-sm hover:shadow-md border border-slate-200/80 mb-6 overflow-hidden transition-all duration-300">
           <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-teal-500 via-cyan-400 to-emerald-500" />
-          <div className="flex items-center gap-2.5 mb-4">
-            <div className="w-8 h-8 rounded-xl bg-teal-50 text-teal-700 flex items-center justify-center font-bold text-sm shadow-xs border border-teal-200/60">
-              🏫
+          <div className="flex items-center gap-2.5 mb-3.5">
+            <div className="w-8 h-8 rounded-xl bg-teal-50 text-teal-700 flex items-center justify-center font-bold text-sm shadow-2xs border border-teal-200/60 shrink-0">
+              <GraduationCap size={18} className="stroke-[2.2]" />
             </div>
             <div>
-              <h2 className="text-xl font-bold text-slate-800 font-heading">Our Academic Departments</h2>
-              <p className="text-xs text-slate-500">Comprehensive foundation for Secondary and specialized Higher Secondary education.</p>
+              <h2 className="text-lg sm:text-xl font-bold text-slate-900 font-heading">Academic Departments</h2>
+              <p className="text-[11px] sm:text-xs text-slate-500">Secondary foundation &amp; specialized Higher Secondary disciplines.</p>
             </div>
           </div>
-          <div className="grid md:grid-cols-2 gap-5">
-            <div className="p-3.5 rounded-xl bg-slate-50/70 border border-slate-200/60">
-              <div className="flex items-center justify-between mb-3">
-                <h4 className="font-bold text-xs text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-indigo-500"></span>
-                  Secondary Level (9th – 10th)
-                </h4>
-                <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-200/60">Core & Skills</span>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {['English', 'Urdu', 'Mathematics', 'Science', 'Social Studies', 'IT & ITES', 'Healthcare'].map(sub => (
-                  <span key={sub} className="bg-white text-slate-700 text-xs px-2.5 py-1.5 rounded-lg font-medium border border-slate-200 shadow-xs hover:border-teal-400 hover:text-teal-700 transition-colors">{sub}</span>
-                ))}
+          <div className="grid md:grid-cols-2 gap-3 sm:gap-4">
+            {/* Secondary Level */}
+            <div className="p-3 sm:p-3.5 rounded-xl bg-slate-50/60 border border-slate-200/60 flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between gap-2 pb-2 mb-2.5 border-b border-slate-200/50">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 shrink-0"></span>
+                    <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wide truncate">
+                      Secondary Level (9th – 10th)
+                    </h3>
+                  </div>
+                  <span className="text-[9.5px] font-semibold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-200/60 whitespace-nowrap shrink-0">
+                    Core &amp; Skills
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {['English', 'Urdu', 'Mathematics', 'Science', 'Social Studies', 'IT & ITES', 'Healthcare'].map(sub => {
+                    const isVoc = ['IT & ITES', 'Healthcare'].includes(sub);
+                    return (
+                      <span
+                        key={sub}
+                        className={`inline-flex items-center text-[11px] sm:text-xs px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md font-medium border transition-colors ${
+                          isVoc
+                            ? 'bg-cyan-50/70 text-cyan-800 border-cyan-200/70 hover:bg-cyan-100/70'
+                            : 'bg-white text-slate-700 border-slate-200/80 hover:border-slate-300'
+                        }`}
+                      >
+                        {sub}
+                      </span>
+                    );
+                  })}
+                </div>
               </div>
             </div>
-            <div className="p-3.5 rounded-xl bg-teal-50/40 border border-teal-100/80">
-              <div className="flex items-center justify-between mb-3">
-                <h4 className="font-bold text-xs text-teal-900 uppercase tracking-wider flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-teal-500"></span>
-                  Higher Secondary (11th – 12th)
-                </h4>
-                <span className="text-[10px] font-bold text-teal-700 bg-teal-100/70 px-2 py-0.5 rounded-full border border-teal-200/60">Multidisciplinary</span>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {['General English', 'Physics', 'Chemistry', 'Biology', 'Mathematics', 'Environmental Science', 'Physical Education', 'IT & ITES', 'Healthcare', 'Education', 'History', 'Political Science', 'Economics', 'Urdu'].map(sub => {
-                  const isScience = ['Physics', 'Chemistry', 'Biology', 'Mathematics', 'Environmental Science'].includes(sub);
-                  const isHumanities = ['Education', 'History', 'Political Science', 'Economics'].includes(sub);
-                  const isVocational = ['IT & ITES', 'Healthcare', 'Physical Education'].includes(sub);
-                  
-                  let badgeStyle = 'bg-white text-teal-800 border-teal-200';
-                  if (isScience) badgeStyle = 'bg-emerald-50/90 text-emerald-800 border-emerald-200 hover:bg-emerald-100';
-                  else if (isHumanities) badgeStyle = 'bg-amber-50/90 text-amber-900 border-amber-200 hover:bg-amber-100';
-                  else if (isVocational) badgeStyle = 'bg-cyan-50/90 text-cyan-800 border-cyan-200 hover:bg-cyan-100';
-                  else badgeStyle = 'bg-indigo-50/90 text-indigo-800 border-indigo-200 hover:bg-indigo-100';
 
-                  return (
-                    <span key={sub} className={`text-xs px-2.5 py-1.5 rounded-lg font-medium border shadow-xs transition-colors ${badgeStyle}`}>{sub}</span>
-                  );
-                })}
+            {/* Higher Secondary */}
+            <div className="p-3 sm:p-3.5 rounded-xl bg-slate-50/60 border border-slate-200/60 flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between gap-2 pb-2 mb-2.5 border-b border-slate-200/50">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <span className="w-1.5 h-1.5 rounded-full bg-teal-500 shrink-0"></span>
+                    <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wide truncate">
+                      Higher Secondary (11th – 12th)
+                    </h3>
+                  </div>
+                  <span className="text-[9.5px] font-semibold text-teal-700 bg-teal-50 px-2 py-0.5 rounded-md border border-teal-200/60 whitespace-nowrap shrink-0">
+                    Multidisciplinary
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {['General English', 'Physics', 'Chemistry', 'Biology', 'Mathematics', 'Environmental Science', 'Physical Education', 'IT & ITES', 'Healthcare', 'Education', 'History', 'Political Science', 'Economics', 'Urdu'].map(sub => {
+                    const isScience = ['Physics', 'Chemistry', 'Biology', 'Mathematics', 'Environmental Science'].includes(sub);
+                    const isHumanities = ['Education', 'History', 'Political Science', 'Economics'].includes(sub);
+                    const isVocational = ['IT & ITES', 'Healthcare', 'Physical Education'].includes(sub);
+
+                    let badgeStyle = 'bg-white text-slate-700 border-slate-200/80 hover:border-slate-300';
+                    if (isScience) badgeStyle = 'bg-emerald-50/70 text-emerald-800 border-emerald-200/70 hover:bg-emerald-100/70';
+                    else if (isHumanities) badgeStyle = 'bg-amber-50/70 text-amber-900 border-amber-200/70 hover:bg-amber-100/70';
+                    else if (isVocational) badgeStyle = 'bg-cyan-50/70 text-cyan-800 border-cyan-200/70 hover:bg-cyan-100/70';
+
+                    return (
+                      <span
+                        key={sub}
+                        className={`inline-flex items-center text-[11px] sm:text-xs px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md font-medium border transition-colors ${badgeStyle}`}
+                      >
+                        {sub}
+                      </span>
+                    );
+                  })}
+                </div>
               </div>
             </div>
           </div>
         </div>
 
         {/* Subject Combinations & Streams Card */}
-        <div className="relative bg-white p-3.5 sm:p-6 rounded-2xl shadow-sm hover:shadow-md border border-slate-200/80 mb-6 overflow-hidden transition-all duration-300">
+        <div className="relative bg-white p-3.5 sm:p-5 rounded-2xl shadow-sm hover:shadow-md border border-slate-200/80 mb-6 overflow-hidden transition-all duration-300">
           <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-teal-500 via-amber-400 to-indigo-500" />
           <div className="flex items-center gap-2.5 mb-2">
-            <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center font-bold text-sm shadow-xs border border-amber-200/60">
-              📚
+            <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center font-bold text-sm shadow-2xs border border-amber-200/60 shrink-0">
+              <BookOpen size={18} className="stroke-[2.2]" />
             </div>
             <div>
-              <h2 className="text-xl sm:text-2xl font-bold text-slate-800 font-heading">Subject Combinations & Streams</h2>
-              <p className="text-xs sm:text-sm text-slate-500">Explore curated subject combinations for each stream with quick copy and download options.</p>
+              <h2 className="text-lg sm:text-xl font-bold text-slate-900 font-heading">Subject Combinations &amp; Streams</h2>
+              <p className="text-[11px] sm:text-xs text-slate-500">Explore curated subject combinations for each stream with quick copy and download options.</p>
             </div>
           </div>
 
           <CombinationsModal />
 
-          <div className="bg-white rounded-xl p-2.5 sm:p-4 border border-slate-200/90 shadow-xs mt-3 sm:mt-4">
-            <div className="grid grid-cols-3 bg-slate-100/90 dark:bg-slate-800/90 p-1 sm:p-1.5 rounded-xl gap-1 sm:gap-1.5 mb-5 border border-slate-200 dark:border-slate-700/80">
+          <div className="bg-white rounded-xl p-2.5 sm:p-3.5 border border-slate-200/90 shadow-2xs mt-3">
+            <div className="grid grid-cols-3 bg-slate-100/90 dark:bg-slate-800/90 p-1 sm:p-1.5 rounded-xl gap-1 sm:gap-1.5 mb-4 border border-slate-200 dark:border-slate-700/80">
               <button
                 aria-pressed={activeTab === 'science'}
                 onClick={() => switchTab('science')}
-                className={`text-center py-2 sm:py-2.5 px-1 sm:px-3 rounded-lg font-bold text-[11px] xs:text-xs sm:text-sm transition-all duration-300 flex flex-col xs:flex-row items-center justify-center gap-0.5 xs:gap-1.5 ${activeTab === 'science'
-                  ? 'bg-gradient-to-r from-teal-600 to-emerald-600 text-white shadow-md scale-[1.01]'
+                className={`text-center py-2 sm:py-2 px-1 sm:px-3 rounded-lg font-bold text-[11px] xs:text-xs sm:text-sm transition-all duration-300 flex flex-col xs:flex-row items-center justify-center gap-1 xs:gap-1.5 ${activeTab === 'science'
+                  ? 'bg-gradient-to-r from-teal-600 to-emerald-600 text-white shadow-sm scale-[1.01]'
                   : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
                   }`}
               >
-                <span className="text-xs sm:text-sm">🔬</span>
+                <FlaskConical size={13} className="stroke-[2.2] shrink-0" />
                 <span className="truncate xs:overflow-visible">Science</span>
               </button>
               <button
                 aria-pressed={activeTab === 'humanities'}
                 onClick={() => switchTab('humanities')}
-                className={`text-center py-2 sm:py-2.5 px-1 sm:px-3 rounded-lg font-bold text-[11px] xs:text-xs sm:text-sm transition-all duration-300 flex flex-col xs:flex-row items-center justify-center gap-0.5 xs:gap-1.5 ${activeTab === 'humanities'
+                className={`text-center py-2 sm:py-2 px-1 sm:px-3 rounded-lg font-bold text-[11px] xs:text-xs sm:text-sm transition-all duration-300 flex flex-col xs:flex-row items-center justify-center gap-1 xs:gap-1.5 ${activeTab === 'humanities'
                   ? 'bg-gradient-to-r from-amber-600 to-orange-600 text-white shadow-md scale-[1.01]'
                   : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
                   }`}
               >
-                <span className="text-xs sm:text-sm">📖</span>
+                <BookOpen size={13} className="stroke-[2.2] shrink-0" />
                 <span className="truncate xs:overflow-visible">Humanities</span>
               </button>
               <button
                 aria-pressed={activeTab === 'secondary'}
                 onClick={() => switchTab('secondary')}
-                className={`text-center py-2 sm:py-2.5 px-1 sm:px-3 rounded-lg font-bold text-[11px] xs:text-xs sm:text-sm transition-all duration-300 flex flex-col xs:flex-row items-center justify-center gap-0.5 xs:gap-1.5 ${activeTab === 'secondary'
+                className={`text-center py-2 sm:py-2 px-1 sm:px-3 rounded-lg font-bold text-[11px] xs:text-xs sm:text-sm transition-all duration-300 flex flex-col xs:flex-row items-center justify-center gap-1 xs:gap-1.5 ${activeTab === 'secondary'
                   ? 'bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-md scale-[1.01]'
                   : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
                   }`}
               >
-                <span className="text-xs sm:text-sm">🎒</span>
+                <GraduationCap size={13} className="stroke-[2.2] shrink-0" />
                 <span className="whitespace-nowrap">9th &amp; 10th</span>
               </button>
             </div>
