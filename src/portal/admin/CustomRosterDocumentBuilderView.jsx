@@ -2112,15 +2112,15 @@ function MobileRosterActionsDropdown({
         type="button"
         disabled={disabled}
         onClick={() => setIsOpen(prev => !prev)}
-        className="px-2 sm:px-2.5 py-0.5 sm:py-1 h-6.5 sm:h-7 rounded-md bg-gradient-to-r from-emerald-700 via-teal-700 to-emerald-800 hover:from-emerald-600 hover:to-teal-600 active:from-emerald-800 active:to-teal-900 text-white font-bold text-[9.5px] sm:text-[10px] flex items-center gap-1 shadow-2xs cursor-pointer disabled:opacity-50 transition-all shrink-0 whitespace-nowrap active:scale-95"
+        className="studio-compact-toolbar-btn px-2 sm:px-2.5 h-6 sm:h-7 rounded-md bg-gradient-to-r from-emerald-700 via-teal-700 to-emerald-800 hover:from-emerald-600 hover:to-teal-600 active:from-emerald-800 active:to-teal-900 text-white font-bold text-[9px] sm:text-[10px] flex items-center gap-1 shadow-2xs cursor-pointer disabled:opacity-50 transition-all shrink-0 whitespace-nowrap active:scale-95"
         title="Print, Export & Roster Actions"
       >
-        <Printer size={10} className="shrink-0" />
+        <Printer size={9.5} className="shrink-0" />
         <span>Print & Export</span>
-        <span className="px-1 py-0.2 rounded-full text-[8px] bg-black/30 text-emerald-100 font-black shrink-0">
+        <span className="px-1 py-0.2 rounded-full text-[7.5px] bg-black/30 text-emerald-100 font-black shrink-0">
           {activeIncludedCount}
         </span>
-        <ChevronDown size={8.5} className={`shrink-0 transition-transform duration-200 opacity-80 ${isOpen ? 'rotate-180' : ''}`} />
+        <ChevronDown size={8} className={`shrink-0 transition-transform duration-200 opacity-80 ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 
       {isOpen && (
@@ -2323,19 +2323,19 @@ function RosterPageSetupDropdown({
       <button
         type="button"
         onClick={() => setIsOpen(prev => !prev)}
-        className={`px-2 sm:px-2.5 py-0.5 sm:py-1 h-6.5 sm:h-7 rounded-md border font-bold text-[9.5px] sm:text-[10px] flex items-center gap-1 shadow-2xs transition-all cursor-pointer whitespace-nowrap active:scale-95 ${
+        className={`studio-compact-toolbar-btn px-2 sm:px-2.5 h-6 sm:h-7 rounded-md border font-bold text-[9px] sm:text-[10px] flex items-center gap-1 shadow-2xs transition-all cursor-pointer whitespace-nowrap active:scale-95 ${
           isOpen
             ? 'bg-indigo-600 text-white border-indigo-700'
             : 'bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 hover:border-slate-400'
         }`}
         title="Document Layout, Orientation & Row Height Setup"
       >
-        <SlidersHorizontal size={9.5} className="shrink-0 text-indigo-500" />
+        <SlidersHorizontal size={9} className="shrink-0 text-indigo-500" />
         <span>Setup</span>
         <span className="hidden sm:inline-block px-1 py-0.2 rounded text-[7.5px] sm:text-[8px] font-black bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 whitespace-nowrap">
           {layoutMode === 'standard' ? 'Std' : '2-Col'} • {orientation === 'portrait' ? 'P' : 'L'} • {currentPreset?.px}px
         </span>
-        <ChevronDown size={8.5} className={`shrink-0 transition-transform duration-200 opacity-60 ${isOpen ? 'rotate-180' : ''}`} />
+        <ChevronDown size={8} className={`shrink-0 transition-transform duration-200 opacity-60 ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 
       {isOpen && (
@@ -4356,7 +4356,7 @@ export default function CustomRosterDocumentBuilderView({
       
       {/* ── SLEEK CONTROL BAR WITH EXPORT ACTIONS & DOCUMENT SETTINGS ── */}
       <div 
-        className="px-1.5 sm:px-2 py-1 sm:py-1.5 rounded-lg sm:rounded-xl border shadow-2xs space-y-1 md:space-y-0 md:flex md:items-center md:justify-between md:gap-2 text-xs font-extrabold"
+        className="px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-lg sm:rounded-xl border shadow-2xs space-y-0.5 md:space-y-0 md:flex md:items-center md:justify-between md:gap-2 text-xs font-extrabold"
         style={{ backgroundColor: 'var(--bg-card, #ffffff)', borderColor: 'var(--border-ui, #cbd5e1)' }}
       >
         {/* Left Side: Document Title & Desktop Inline Config */}
@@ -4367,7 +4367,7 @@ export default function CustomRosterDocumentBuilderView({
               value={docTitle}
               onChange={(e) => setDocTitle(e.target.value)}
               placeholder="DOCUMENT TITLE (PRINTED ON REGISTER)"
-              className="studio-inline-input w-full px-2 py-0.5 sm:py-1 h-6.5 sm:h-7 rounded-md border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-bold text-[9.5px] sm:text-[10.5px] uppercase shadow-2xs text-slate-900 dark:text-slate-100 placeholder:text-[9px]"
+              className="studio-inline-input studio-compact-toolbar-btn w-full px-2 py-0 h-6 sm:h-7 rounded-md border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-bold text-[9px] sm:text-[10px] uppercase shadow-2xs text-slate-900 dark:text-slate-100 placeholder:text-[8.5px]"
             />
           </div>
 
@@ -4454,12 +4454,12 @@ export default function CustomRosterDocumentBuilderView({
                 setShowMobileOptionsModal(true);
                 if (onToggleSettingsDrawer) onToggleSettingsDrawer(true);
               }}
-              className="px-2 sm:px-2.5 py-0.5 sm:py-1 h-6.5 sm:h-7 rounded-md border border-amber-300 dark:border-amber-700 bg-amber-50/90 dark:bg-amber-950/60 text-amber-950 dark:text-amber-200 font-bold text-[9.5px] sm:text-[10px] flex items-center gap-1 shadow-2xs active:scale-95 cursor-pointer shrink-0 whitespace-nowrap"
+              className="studio-compact-toolbar-btn px-2 sm:px-2.5 h-6 sm:h-7 rounded-md border border-amber-300 dark:border-amber-700 bg-amber-50/90 dark:bg-amber-950/60 text-amber-950 dark:text-amber-200 font-bold text-[9px] sm:text-[10px] flex items-center gap-1 shadow-2xs active:scale-95 cursor-pointer shrink-0 whitespace-nowrap"
               title="Configure Student Cohort Filters & Register Columns"
             >
-              <Sliders size={10} className="text-amber-600 dark:text-amber-400 shrink-0" />
+              <Sliders size={9.5} className="text-amber-600 dark:text-amber-400 shrink-0" />
               <span>Filters</span>
-              <span className="px-1 py-0.2 rounded-full text-[8px] bg-amber-200 dark:bg-amber-800 text-amber-950 dark:text-amber-100 font-black">
+              <span className="px-1 py-0.2 rounded-full text-[7.5px] bg-amber-200 dark:bg-amber-800 text-amber-950 dark:text-amber-100 font-black">
                 {filteredStudents.length}
               </span>
             </button>
