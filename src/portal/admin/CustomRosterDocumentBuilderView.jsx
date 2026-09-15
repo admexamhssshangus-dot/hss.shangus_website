@@ -7,6 +7,7 @@
 // =================================================================
 
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Printer, FileText, FileSpreadsheet, Download, Plus, Minus, Trash2,
   Sliders, SlidersHorizontal, CheckSquare, Square, Eye, Layers, Sparkles,
@@ -2780,11 +2781,22 @@ export default function CustomRosterDocumentBuilderView({
   });
   const [isDraggingSplitter, setIsDraggingSplitter] = useState(false);
   const [isDesktop, setIsDesktop] = useState(() => typeof window !== 'undefined' && window.innerWidth >= 1024);
+  const [showMobileOptionsModal, setShowMobileOptionsModal] = useState(false);
 
   useEffect(() => {
     const handleResize = () => setIsDesktop(window.innerWidth >= 1024);
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  useEffect(() => {
+    const handleToggle = () => setShowMobileOptionsModal(prev => !prev);
+    window.addEventListener('hss-toggle-studio-setup', handleToggle);
+    window.addEventListener('hss-toggle-roster-filters', handleToggle);
+    return () => {
+      window.removeEventListener('hss-toggle-studio-setup', handleToggle);
+      window.removeEventListener('hss-toggle-roster-filters', handleToggle);
+    };
   }, []);
 
   const handleSplitterMouseDown = (e) => {
@@ -3725,8 +3737,24 @@ export default function CustomRosterDocumentBuilderView({
           </div>
         </div>
 
-        {/* Right Side: Actions (On mobile, includes Layout Popover + Export Dropdown + Print) */}
+        {/* Right Side: Actions (On mobile, includes Filters Modal + Layout Popover + Export Dropdown + Print) */}
         <div className="flex items-center justify-between md:justify-end gap-1.5 shrink-0">
+          {/* Mobile Filters & Columns Modal Trigger (visible on < lg) */}
+          <div className="lg:hidden">
+            <button
+              type="button"
+              onClick={() => setShowMobileOptionsModal(true)}
+              className="px-2 sm:px-2.5 py-0.5 sm:py-1 h-7 rounded-md sm:rounded-lg border border-amber-400 dark:border-amber-600 bg-amber-50 dark:bg-amber-950/70 text-amber-950 dark:text-amber-200 font-extrabold text-[9.5px] sm:text-[10.5px] flex items-center gap-1 shadow-2xs active:scale-95 cursor-pointer shrink-0"
+              title="Configure Student Cohort Filters & Register Columns"
+            >
+              <Sliders size={11} className="text-amber-600 dark:text-amber-400 shrink-0" />
+              <span>Filters & Cols</span>
+              <span className="px-1 py-0.2 rounded-full text-[8px] bg-amber-200 dark:bg-amber-800 text-amber-950 dark:text-amber-100 font-black">
+                {filteredStudents.length}
+              </span>
+            </button>
+          </div>
+
           {/* Mobile Layout & Page Setup Popover (visible on < md) */}
           <div className="md:hidden">
             <RosterPageSetupDropdown
