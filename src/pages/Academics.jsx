@@ -433,7 +433,7 @@ export default function Academics() {
           </div>
           <h1 className="ui-page-title text-xl sm:text-3xl md:text-4xl text-slate-800 font-extrabold">Academics, Streams &amp; Faculty</h1>
           <div className="h-1.5 w-24 sm:w-28 bg-gradient-to-r from-teal-500 via-emerald-400 to-amber-500 mx-auto mt-2.5 sm:mt-3 rounded-full shadow-xs"></div>
-          <p className="text-xs sm:text-base text-slate-600 mt-2.5 sm:mt-3 max-w-2xl mx-auto leading-relaxed">Explore our diverse academic departments, carefully curated subject combinations, and dedicated faculty inspiring every learner to excel.</p>
+          <p className="text-xs sm:text-base text-slate-800 dark:text-slate-200 font-medium mt-2.5 sm:mt-3 max-w-2xl mx-auto leading-relaxed">Explore our diverse academic departments, carefully curated subject combinations, and dedicated faculty inspiring every learner to excel.</p>
         </header>
 
         {/* Our Departments Card */}

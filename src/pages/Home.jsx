@@ -420,7 +420,7 @@ export default function Home() {
         
         <div className="relative z-20 px-3 sm:px-4">
           <h1
-            className="text-[15px] xs:text-[17.5px] sm:text-[35px] md:text-[52px] font-semibold mb-1.5 sm:mb-6 italic tracking-wider leading-none sm:leading-snug font-slogan"
+            className="text-[15px] xs:text-[17.5px] sm:text-[35px] md:text-[52px] font-semibold mb-1 sm:mb-6 italic tracking-wider leading-none sm:leading-snug font-slogan"
             style={{
               color: '#961c14',
               textShadow: '0 0 8px rgba(255, 255, 255, 0.95), 0 0 16px rgba(255, 255, 255, 0.85), 0 0 25px rgba(255, 255, 255, 0.6), 0 2px 4px rgba(0, 0, 0, 0.5)'
@@ -428,7 +428,7 @@ export default function Home() {
           >
             nurturing minds, shaping futures
           </h1>
-          <div className="flex flex-row justify-center items-center gap-1.5 sm:gap-2 flex-wrap">
+          <div className="flex flex-row justify-center items-center gap-1 sm:gap-2 flex-wrap">
             {(Array.isArray(settings?.heroButtons)
               ? settings.heroButtons
               : DEFAULT_HERO_BUTTONS
@@ -459,7 +459,7 @@ export default function Home() {
                   outline: 'btn-hero-outline'
                 };
                 const styleClasses = styleClassMap[btn.style] || (idx === 0 ? 'btn-hero-primary' : 'btn-hero-secondary');
-                const baseClasses = `px-2.5 py-1 sm:px-4 sm:py-2 font-bold rounded-md sm:rounded-lg transition-all shadow-xs sm:shadow-lg inline-flex items-center text-[10px] sm:text-sm leading-tight ${styleClasses}`;
+                const baseClasses = `px-2 py-0.5 sm:px-4 sm:py-2 font-bold rounded-md sm:rounded-lg transition-all shadow-xs sm:shadow-lg inline-flex items-center text-[9.5px] xs:text-[10.5px] sm:text-sm leading-tight ${styleClasses}`;
 
                 if (isExternal) {
                   return (

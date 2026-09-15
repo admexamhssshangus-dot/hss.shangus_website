@@ -62,7 +62,7 @@ export default function About() {
     <div className="public-page w-full mb-16 sm:mb-20">
       <SEO title="About Us & Institution" description="Discover the history, vision, mission, and institutional glimpses of Govt. Higher Secondary School Shangus in Anantnag. Explore our academic legacy and campus heritage." />
       {/* Hero */}
-      <div className="relative h-[270px] xs:h-[304px] sm:h-[378px] w-full bg-slate-900 flex items-center justify-center text-center">
+      <div className="about-hero relative h-[270px] xs:h-[304px] sm:h-[378px] w-full bg-slate-900 flex items-center justify-center text-center">
         <div 
           className="absolute inset-0 bg-cover bg-center opacity-30"
           style={{ backgroundImage: `url(${aboutBg})` }}
@@ -71,9 +71,17 @@ export default function About() {
         <div className="absolute inset-0 bg-black/60"></div>
         
         <div className="relative z-10 px-3 sm:px-4 max-w-4xl mx-auto">
-          <h1 className="ui-page-title text-xl xs:text-2xl sm:text-3xl md:text-4xl text-white mb-1.5 sm:mb-2">About Our Institution</h1>
-          <h3 className="text-base xs:text-lg sm:text-xl md:text-2xl font-semibold text-teal-300 mb-3 sm:mb-6">A Beacon of Knowledge</h3>
-          <p className="text-slate-100 text-xs sm:text-sm md:text-base leading-relaxed max-w-2xl mx-auto">Serving the Anantnag district with a long tradition of academic excellence and holistic student development.</p>
+          <h1 className="ui-page-title text-xl xs:text-2xl sm:text-3xl md:text-4xl text-white mb-1.5 sm:mb-2 drop-shadow-md">About Our Institution</h1>
+          <h3 className="text-base xs:text-lg sm:text-xl md:text-2xl font-semibold text-teal-300 mb-3 sm:mb-6 drop-shadow-sm">A Beacon of Knowledge</h3>
+          <p
+            className="about-hero-desc text-xs sm:text-sm md:text-base leading-relaxed max-w-2xl mx-auto font-medium"
+            style={{
+              color: '#f8fafc',
+              textShadow: '0 2px 6px rgba(0, 0, 0, 0.95), 0 0 12px rgba(0, 0, 0, 0.8)'
+            }}
+          >
+            Serving the Anantnag district with a long tradition of academic excellence and holistic student development.
+          </p>
         </div>
       </div>
 

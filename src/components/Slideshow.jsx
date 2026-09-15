@@ -355,7 +355,7 @@ export default function Slideshow({
           )}
           {slides[index].caption && (
             <div
-              className="px-1.5 py-0.5 rounded-[3px] sm:rounded-[4px] shadow-sm sm:shadow-lg flex items-center m-0"
+              className="-ml-1.5 sm:-ml-2 px-1.5 sm:px-2 py-0.5 rounded-[3px] sm:rounded-[4px] shadow-sm sm:shadow-lg flex items-center m-0"
               style={{
                 backgroundColor: 'rgba(2, 6, 23, 0.75)',
                 backdropFilter: 'blur(6px)',
