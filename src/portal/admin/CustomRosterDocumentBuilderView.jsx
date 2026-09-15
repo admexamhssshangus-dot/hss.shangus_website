@@ -2019,7 +2019,7 @@ function RosterExportDropdown({
         type="button"
         disabled={disabled}
         onClick={() => setIsOpen(prev => !prev)}
-        className="px-2 sm:px-2.5 py-0.5 sm:py-1 h-7 rounded-md sm:rounded-lg bg-emerald-700 hover:bg-emerald-600 active:bg-emerald-800 text-white font-extrabold text-[9px] sm:text-[10.5px] flex items-center gap-1 shadow-2xs cursor-pointer disabled:opacity-50 transition-all shrink-0"
+        className="px-2 sm:px-2.5 py-0.5 sm:py-1 h-7 rounded-md sm:rounded-lg bg-emerald-700 hover:bg-emerald-600 active:bg-emerald-800 text-white font-extrabold text-[9px] sm:text-[10.5px] flex items-center gap-1 shadow-2xs cursor-pointer disabled:opacity-50 transition-all shrink-0 whitespace-nowrap"
         title="Export options: Excel (.xlsx) or Word (.docx)"
       >
         <Download size={10} className="shrink-0" />
@@ -2103,7 +2103,7 @@ function RosterPageSetupDropdown({
       <button
         type="button"
         onClick={() => setIsOpen(prev => !prev)}
-        className={`px-1.5 sm:px-2 py-0.5 sm:py-1 h-7 rounded-md sm:rounded-lg border font-extrabold text-[9px] sm:text-[10px] flex items-center gap-1 shadow-2xs transition-all cursor-pointer ${
+        className={`px-1.5 sm:px-2 py-0.5 sm:py-1 h-7 rounded-md sm:rounded-lg border font-extrabold text-[9px] sm:text-[10px] flex items-center gap-1 shadow-2xs transition-all cursor-pointer whitespace-nowrap ${
           isOpen
             ? 'bg-indigo-600 text-white border-indigo-700'
             : 'bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 hover:border-slate-400'
@@ -2111,8 +2111,8 @@ function RosterPageSetupDropdown({
         title="Document Layout, Orientation & Row Height Setup"
       >
         <SlidersHorizontal size={10} className="shrink-0 text-indigo-500" />
-        <span>Layout</span>
-        <span className="px-1 py-0.2 rounded text-[8px] sm:text-[8.5px] font-black bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+        <span>Setup</span>
+        <span className="hidden sm:inline-block px-1 py-0.2 rounded text-[8px] sm:text-[8.5px] font-black bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 whitespace-nowrap">
           {layoutMode === 'standard' ? 'Std' : '2-Col'} • {orientation === 'portrait' ? 'P' : 'L'} • {currentPreset?.px}px
         </span>
         <ChevronDown size={9} className={`shrink-0 transition-transform duration-200 opacity-60 ${isOpen ? 'rotate-180' : ''}`} />
@@ -4192,25 +4192,25 @@ export default function CustomRosterDocumentBuilderView({
         </div>
 
         {/* Right Side: Actions (On mobile, includes Filters Modal + Layout Popover + Export Dropdown + Print) */}
-        <div className="flex items-center justify-between md:justify-end gap-1.5 shrink-0">
+        <div className="flex items-center justify-between md:justify-end gap-1 sm:gap-1.5 shrink-0">
           {/* Mobile Filters & Columns Modal Trigger (visible on < lg) */}
-          <div className="lg:hidden">
+          <div className="lg:hidden shrink-0">
             <button
               type="button"
               onClick={() => setShowMobileOptionsModal(true)}
-              className="px-2 sm:px-2.5 py-0.5 sm:py-1 h-7 rounded-md sm:rounded-lg border border-amber-400 dark:border-amber-600 bg-amber-50 dark:bg-amber-950/70 text-amber-950 dark:text-amber-200 font-extrabold text-[9.5px] sm:text-[10.5px] flex items-center gap-1 shadow-2xs active:scale-95 cursor-pointer shrink-0"
+              className="px-2 sm:px-2.5 py-0.5 sm:py-1 h-7 rounded-md sm:rounded-lg border border-amber-400 dark:border-amber-600 bg-amber-50 dark:bg-amber-950/70 text-amber-950 dark:text-amber-200 font-extrabold text-[10px] sm:text-[10.5px] flex items-center gap-1 shadow-2xs active:scale-95 cursor-pointer shrink-0 whitespace-nowrap"
               title="Configure Student Cohort Filters & Register Columns"
             >
               <Sliders size={11} className="text-amber-600 dark:text-amber-400 shrink-0" />
-              <span>Filters & Cols</span>
-              <span className="px-1 py-0.2 rounded-full text-[8px] bg-amber-200 dark:bg-amber-800 text-amber-950 dark:text-amber-100 font-black">
+              <span>Filters</span>
+              <span className="px-1 py-0.2 rounded-full text-[8.5px] bg-amber-200 dark:bg-amber-800 text-amber-950 dark:text-amber-100 font-black">
                 {filteredStudents.length}
               </span>
             </button>
           </div>
 
           {/* Mobile Layout & Page Setup Popover (visible on < md) */}
-          <div className="md:hidden">
+          <div className="md:hidden shrink-0">
             <RosterPageSetupDropdown
               layoutMode={layoutMode}
               onLayoutModeChange={handleLayoutModeChange}
@@ -4222,7 +4222,7 @@ export default function CustomRosterDocumentBuilderView({
             />
           </div>
 
-          <div className="flex items-center gap-1.5 ml-auto md:ml-0">
+          <div className="flex items-center gap-1 sm:gap-1.5 ml-auto md:ml-0 shrink-0">
             {/* Unified Export Dropdown (Excel & Word) */}
             <RosterExportDropdown
               onExportExcel={handleExportExcel}
@@ -4236,11 +4236,11 @@ export default function CustomRosterDocumentBuilderView({
               type="button"
               onClick={handlePrint}
               disabled={processedRows.length === 0}
-              className="px-2 sm:px-3 py-0.5 sm:py-1 h-7 rounded-md sm:rounded-lg bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white font-black text-[9.5px] sm:text-[10.5px] flex items-center gap-1 shadow-md cursor-pointer disabled:opacity-50 transition-all active:scale-95 shrink-0"
+              className="px-2.5 sm:px-3 py-0.5 sm:py-1 h-7 rounded-md sm:rounded-lg bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white font-black text-[10px] sm:text-[10.5px] flex items-center gap-1 shadow-md cursor-pointer disabled:opacity-50 transition-all active:scale-95 shrink-0 whitespace-nowrap"
               title="Print Official Institutional Register / Save PDF"
             >
               <Printer size={11} className="shrink-0" />
-              <span>Print / PDF</span>
+              <span>Print</span>
             </button>
           </div>
         </div>
@@ -4690,8 +4690,11 @@ export default function CustomRosterDocumentBuilderView({
             </div>
 
             {/* Formatted Data Table with Draggable & Arrow-Reorderable Headers */}
-            <div className="overflow-x-auto">
-              <table className="w-full table-fixed border-collapse border border-slate-400 text-xs">
+            <div className="overflow-x-auto w-full -mx-1 sm:mx-0 shadow-2xs border border-slate-300 dark:border-slate-700 rounded-lg">
+              <table
+                style={{ minWidth: isDesktop ? '100%' : `${Math.max(760, (activeTableColumns.length + 1) * 92)}px` }}
+                className="w-full table-fixed border-collapse border border-slate-400 text-xs print:min-w-0 print:w-full"
+              >
                 <colgroup>
                   <col style={{ width: '32px' }} />
                   {activeTableColumns.map((col) => {
@@ -4885,7 +4888,7 @@ export default function CustomRosterDocumentBuilderView({
                                   textAlign: col.align || 'left',
                                   minHeight: `${currentRowHeightPx}px`
                                 }}
-                                className="border border-slate-300 px-1.5 py-1 text-[10px] font-medium leading-snug align-middle break-words whitespace-normal overflow-visible"
+                                className="border border-slate-300 px-1.5 py-1 text-[10px] font-medium leading-snug align-middle whitespace-nowrap overflow-visible"
                               >
                                 {col.key === 'studentPhoto' || col.key === 'photo' ? (
                                   <RosterStudentPhotoCell
