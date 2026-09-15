@@ -530,6 +530,9 @@ export default function AdminDashboard() {
                       onClick={() => {
                         setIsStudioSetupOpen(prev => !prev);
                         window.dispatchEvent(new CustomEvent('hss-toggle-studio-setup'));
+                        if (activeTab === 'customRoster') {
+                          window.dispatchEvent(new CustomEvent('hss-toggle-roster-filters'));
+                        }
                       }}
                       className={`h-6 sm:h-8 px-1.5 sm:px-2.5 rounded-md sm:rounded-lg border font-bold text-[10px] sm:text-xs cursor-pointer transition-all shadow-2xs flex items-center gap-1 active:scale-95 shrink-0 ${
                         isStudioSetupOpen

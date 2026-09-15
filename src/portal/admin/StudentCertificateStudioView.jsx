@@ -5,6 +5,7 @@ import { registerIssuedDocument } from '../../services/issuedDocumentService';
 // =================================================================
 
 import React, { useState, useEffect, useRef, useMemo, useCallback, useDeferredValue } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Award, FileSpreadsheet, FileText, Printer, Download, Save,
   Search, Check, Sparkles, UserCheck, Sliders, RefreshCw, X,
@@ -751,6 +752,7 @@ export default function StudentCertificateStudioView({
   const [isDropdownPinned, setIsDropdownPinned] = useState(false);
   const [previewedStudentId, setPreviewedStudentId] = useState(null);
   const [selectedStudent, setSelectedStudent] = useState(null);
+  const [showMobileOptionsModal, setShowMobileOptionsModal] = useState(false);
   const listContainerRef = useRef(null);
   const livePreviewTimeoutRef = useRef(null);
   const scrollPreviewTimeoutRef = useRef(null);
@@ -885,7 +887,13 @@ export default function StudentCertificateStudioView({
   }, [showSettingsDrawerProp]);
 
   useEffect(() => {
-    const handleToggle = () => setShowSettingsDrawer(prev => !prev);
+    const handleToggle = () => {
+      if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+        setShowMobileOptionsModal(prev => !prev);
+      } else {
+        setShowSettingsDrawer(prev => !prev);
+      }
+    };
     window.addEventListener('hss-toggle-studio-setup', handleToggle);
     return () => window.removeEventListener('hss-toggle-studio-setup', handleToggle);
   }, []);
@@ -1302,6 +1310,9 @@ export default function StudentCertificateStudioView({
     if (!keepOpen && !isDropdownPinned && !isPreviewOnly) {
       setIsSearchDropdownOpen(false);
       setStudentSearchQuery(`${st.name} (${st.rollNo || st.regNo || st.cls})`);
+      if (!isDesktop) {
+        setShowMobileOptionsModal(false);
+      }
     }
 
     // Reset canvas override so the new student data is cleanly interpolated from template tokens
@@ -1762,6 +1773,9 @@ export default function StudentCertificateStudioView({
       setRefNo(`${sanitizedTpl.refPrefix}/${cleanSerial}/${new Date().getFullYear()}`);
     } else if (sanitizedTpl.refNo) {
       setRefNo(sanitizedTpl.refNo);
+    }
+    if (!isDesktop) {
+      setShowMobileOptionsModal(false);
     }
   };
 
@@ -3677,218 +3691,10 @@ export default function StudentCertificateStudioView({
     );
   }
 
-  return (
-    <div className="space-y-2 animate-fadeIn text-slate-900 dark:text-slate-100">
-
-      {/* Unified Global Floating Toast Notification */}
-      {toast && (
-        <div
-          role={toast.type === 'error' ? 'alert' : 'status'}
-          aria-live={toast.type === 'error' ? 'assertive' : 'polite'}
-          style={{ position: 'fixed', bottom: '24px', right: '24px', zIndex: 9999999 }}
-          className={`px-4 py-3 rounded-2xl shadow-2xl border flex items-center gap-2.5 font-sans font-bold text-xs animate-in fade-in slide-in-from-bottom-4 duration-200 backdrop-blur-md ${
-            toast.type === 'error'
-              ? 'bg-rose-950/95 text-rose-100 border-rose-700/80 shadow-rose-950/60'
-              : toast.type === 'info'
-              ? 'bg-sky-950/95 text-sky-100 border-sky-700/80 shadow-sky-950/60'
-              : toast.type === 'warning'
-              ? 'bg-amber-950/95 text-amber-100 border-amber-700/80 shadow-amber-950/60'
-              : 'bg-emerald-950/95 text-emerald-100 border-emerald-700/80 shadow-emerald-950/60'
-          }`}
-        >
-          {toast.type === 'error' ? (
-            <AlertCircle size={16} className="text-rose-400 shrink-0" />
-          ) : toast.type === 'info' ? (
-            <Info size={16} className="text-sky-400 shrink-0" />
-          ) : toast.type === 'warning' ? (
-            <AlertTriangle size={16} className="text-amber-400 shrink-0" />
-          ) : (
-            <CheckCircle2 size={16} className="text-emerald-400 shrink-0" />
-          )}
-          <span className="leading-snug">{toast.message}</span>
-          <button
-            type="button"
-            onClick={() => setToast(null)}
-            aria-label="Dismiss notification"
-            className="ml-2 text-slate-400 hover:text-white transition-colors cursor-pointer"
-          >
-            <X size={13} />
-          </button>
-        </div>
-      )}
-
-      {/* == == == == == == == ==  COLLAPSIBLE CERTIFICATE HEADER & LAYOUT CONFIG DRAWER == == == == == == == ==  */}
-      {showSettingsDrawer && (
-        <div 
-          className="rounded-xl p-3 shadow-2xs space-y-2 animate-fadeIn text-xs border"
-          style={{ backgroundColor: 'var(--bg-card, #ffffff)', borderColor: 'var(--border-ui, #cbd5e1)' }}
-        >
-          <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-1.5">
-            <h3 className="font-black text-[10.5px] text-teal-900 dark:text-teal-200 uppercase tracking-wider flex items-center gap-1.5 m-0">
-              <Sliders size={11} className="text-teal-600 dark:text-teal-400" />
-              <span>Certificate Letterhead & Institutional Setup</span>
-            </h3>
-            <span className="text-[9px] font-bold text-slate-400">Live preview & auto-applied on print/export</span>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 text-xs">
-            {/* Office Title */}
-            <div>
-              <label className="block text-[9.5px] font-black uppercase text-slate-500 mb-0.5">Office Header</label>
-              <input
-                type="text"
-                value={officeTitle}
-                onChange={(e) => setOfficeTitle(e.target.value)}
-                placeholder="OFFICE OF THE PRINCIPAL"
-                className="w-full px-2 py-0.5 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-black text-xs text-rose-800 dark:text-rose-300"
-              />
-            </div>
-
-            {/* Institution Name */}
-            <div>
-              <label className="block text-[9.5px] font-black uppercase text-slate-500 mb-0.5">Institution Name</label>
-              <input
-                type="text"
-                value={institutionName}
-                onChange={(e) => setInstitutionName(e.target.value)}
-                placeholder="GOVT. HIGHER SECONDARY SCHOOL SHANGUS"
-                className="w-full px-2 py-0.5 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-bold text-xs text-blue-900 dark:text-blue-300"
-              />
-            </div>
-
-            {/* Ref No */}
-            <div>
-              <label className="block text-[9.5px] font-black uppercase text-slate-500 mb-0.5">Reference Number</label>
-              <input
-                type="text"
-                value={refNo}
-                onChange={(e) => setRefNo(e.target.value)}
-                placeholder="HSS/SHG/Bonafide/2026/01"
-                className="w-full px-2 py-0.5 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-bold text-xs"
-              />
-            </div>
-
-            {/* Date */}
-            <div>
-              <label className="block text-[9.5px] font-black uppercase text-slate-500 mb-0.5">Issue Date</label>
-              <input
-                type="text"
-                value={dateStr}
-                onChange={(e) => setDateStr(e.target.value)}
-                placeholder="DD/MM/YYYY"
-                className="w-full px-2 py-0.5 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-bold text-xs"
-              />
-            </div>
-
-            {/* Certificate Title */}
-            <div>
-              <label className="block text-[9.5px] font-black uppercase text-slate-500 mb-0.5">Certificate Title Banner</label>
-              <input
-                type="text"
-                value={certificateTitle}
-                onChange={(e) => setCertificateTitle(e.target.value)}
-                placeholder="BONAFIDE CERTIFICATE"
-                className="w-full px-2 py-0.5 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-bold text-xs text-amber-900 dark:text-amber-200"
-              />
-            </div>
-
-            {/* Signatory 1 (Left) */}
-            <div>
-              <label className="block text-[9.5px] font-black uppercase text-slate-500 mb-0.5">Signatory 1 (Left)</label>
-              <input
-                type="text"
-                value={signatoryLeft}
-                onChange={(e) => setSignatoryLeft(e.target.value)}
-                placeholder="Incharge Admissions & Exam"
-                className="w-full px-2 py-0.5 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-medium text-xs"
-              />
-            </div>
-
-            {/* Signatory 2 (Center - for TC/DC) */}
-            {isTcDcActive && (
-              <div>
-                <label className="block text-[9.5px] font-black uppercase text-slate-500 mb-0.5">Signatory 2 (Center - Checked By)</label>
-                <input
-                  type="text"
-                  value={signatoryCenter}
-                  onChange={(e) => setSignatoryCenter(e.target.value)}
-                  placeholder="Checked By"
-                  className="w-full px-2 py-0.5 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-medium text-xs"
-                />
-              </div>
-            )}
-
-            {/* Signatory 3 (Right) */}
-            <div>
-              <label className="block text-[9.5px] font-black uppercase text-slate-500 mb-0.5">{isTcDcActive ? 'Signatory 3 (Right - Principal)' : 'Signatory 2 (Right - Principal)'}</label>
-              <input
-                type="text"
-                value={signatoryRight}
-                onChange={(e) => setSignatoryRight(e.target.value)}
-                placeholder="Principal"
-                className="w-full px-2 py-0.5 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-medium text-xs"
-              />
-            </div>
-          </div>
-
-          {/* ─── OPTIONS TOGGLES & PRECISION SPACING CONTROLS (FULL-WIDTH) ─── */}
-          <div className="mt-3 pt-2.5 border-t border-slate-200 dark:border-slate-800 space-y-2.5 w-full">
-            
-            {/* Top Row: Certificate Feature Options & Toggles Bar */}
-            <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-50 dark:bg-slate-950/60 p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-2xs w-full">
-              <div className="flex items-center gap-3.5 flex-wrap">
-                <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1">
-                  <CheckCircle2 size={12} className="text-teal-600 dark:text-teal-400" />
-                  <span>Options:</span>
-                </span>
-
-                <label className="inline-flex items-center gap-1.5 cursor-pointer text-xs font-bold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-900 px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700 shadow-2xs hover:border-teal-400 transition-colors">
-                  <input
-                    type="checkbox"
-                    checked={watermark}
-                    onChange={(e) => setWatermark(e.target.checked)}
-                    className="rounded text-teal-600 focus:ring-teal-500 cursor-pointer"
-                  />
-                  <span>Seal Watermark</span>
-                </label>
-
-                <label className="inline-flex items-center gap-1.5 cursor-pointer text-xs font-bold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-900 px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700 shadow-2xs hover:border-teal-400 transition-colors">
-                  <input
-                    type="checkbox"
-                    checked={showPhoto}
-                    onChange={(e) => handleTogglePhoto(e.target.checked)}
-                    className="rounded text-teal-600 focus:ring-teal-500 cursor-pointer"
-                  />
-                  <span>Photo Box</span>
-                </label>
-
-                <label className="inline-flex items-center gap-1.5 cursor-pointer text-xs font-bold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-900 px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700 shadow-2xs hover:border-teal-400 transition-colors" title="Toggle to hide or show Mr., Mrs., Ms. titles on certificates">
-                  <input
-                    type="checkbox"
-                    checked={includeSalutations}
-                    onChange={(e) => handleToggleSalutations(e.target.checked)}
-                    className="rounded text-teal-600 focus:ring-teal-500 cursor-pointer"
-                  />
-                  <span className={includeSalutations ? 'text-teal-700 dark:text-teal-300 font-bold' : 'text-slate-400 line-through'}>
-                    Mr. / Mrs. Titles
-                  </span>
-                </label>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── 2-COLUMN DRAG-RESIZABLE SPLIT-SCREEN LAYOUT ── */}
-      <div className="cert-split-container flex flex-col lg:flex-row gap-0 items-start w-full relative">
-        
-        {/* ================ LEFT HALF: STUDENT SELECTOR & CERTIFICATE PALETTE ================ */}
-        <div
-          style={{ width: isDesktop ? `${leftSplitPct}%` : '100%' }}
-          className="w-full lg:w-auto shrink-0 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs p-3 space-y-2.5 text-xs overflow-visible lg:overflow-hidden flex flex-col min-h-0 lg:min-h-[620px] lg:max-h-[calc(100dvh-95px)]"
-        >
-          
-          {/* STUDENT AUTO-COMPLETE SEARCH BAR & COHORT FILTERS */}
+  // ─── Student & Certificate Template Selector Palette ───
+  const renderStudentAndTemplateSelector = () => (
+    <div className="space-y-2.5 text-xs">
+      {/* STUDENT AUTO-COMPLETE SEARCH BAR & COHORT FILTERS */}
           <div className="space-y-1.5 pb-2 border-b border-slate-200 dark:border-slate-800 relative shrink-0">
             <div className="flex items-center justify-between text-[9px] uppercase font-black tracking-wider text-slate-500">
               <span className="flex items-center gap-1">
@@ -4517,11 +4323,278 @@ export default function StudentCertificateStudioView({
               })}
             </div>
           </div>
+    </div>
+  );
 
+    return (
+    <div className="space-y-2 animate-fadeIn text-slate-900 dark:text-slate-100">
+
+      {/* Unified Global Floating Toast Notification */}
+      {toast && (
+        <div
+          role={toast.type === 'error' ? 'alert' : 'status'}
+          aria-live={toast.type === 'error' ? 'assertive' : 'polite'}
+          style={{ position: 'fixed', bottom: '24px', right: '24px', zIndex: 9999999 }}
+          className={`px-4 py-3 rounded-2xl shadow-2xl border flex items-center gap-2.5 font-sans font-bold text-xs animate-in fade-in slide-in-from-bottom-4 duration-200 backdrop-blur-md ${
+            toast.type === 'error'
+              ? 'bg-rose-950/95 text-rose-100 border-rose-700/80 shadow-rose-950/60'
+              : toast.type === 'info'
+              ? 'bg-sky-950/95 text-sky-100 border-sky-700/80 shadow-sky-950/60'
+              : toast.type === 'warning'
+              ? 'bg-amber-950/95 text-amber-100 border-amber-700/80 shadow-amber-950/60'
+              : 'bg-emerald-950/95 text-emerald-100 border-emerald-700/80 shadow-emerald-950/60'
+          }`}
+        >
+          {toast.type === 'error' ? (
+            <AlertCircle size={16} className="text-rose-400 shrink-0" />
+          ) : toast.type === 'info' ? (
+            <Info size={16} className="text-sky-400 shrink-0" />
+          ) : toast.type === 'warning' ? (
+            <AlertTriangle size={16} className="text-amber-400 shrink-0" />
+          ) : (
+            <CheckCircle2 size={16} className="text-emerald-400 shrink-0" />
+          )}
+          <span className="leading-snug">{toast.message}</span>
+          <button
+            type="button"
+            onClick={() => setToast(null)}
+            aria-label="Dismiss notification"
+            className="ml-2 text-slate-400 hover:text-white transition-colors cursor-pointer"
+          >
+            <X size={13} />
+          </button>
         </div>
+      )}
+
+      {/* == == == == == == == ==  COLLAPSIBLE CERTIFICATE HEADER & LAYOUT CONFIG DRAWER == == == == == == == ==  */}
+      {showSettingsDrawer && (
+        <div 
+          className="rounded-xl p-3 shadow-2xs space-y-2 animate-fadeIn text-xs border"
+          style={{ backgroundColor: 'var(--bg-card, #ffffff)', borderColor: 'var(--border-ui, #cbd5e1)' }}
+        >
+          <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-1.5">
+            <h3 className="font-black text-[10.5px] text-teal-900 dark:text-teal-200 uppercase tracking-wider flex items-center gap-1.5 m-0">
+              <Sliders size={11} className="text-teal-600 dark:text-teal-400" />
+              <span>Certificate Letterhead & Institutional Setup</span>
+            </h3>
+            <span className="text-[9px] font-bold text-slate-400">Live preview & auto-applied on print/export</span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 text-xs">
+            {/* Office Title */}
+            <div>
+              <label className="block text-[9.5px] font-black uppercase text-slate-500 mb-0.5">Office Header</label>
+              <input
+                type="text"
+                value={officeTitle}
+                onChange={(e) => setOfficeTitle(e.target.value)}
+                placeholder="OFFICE OF THE PRINCIPAL"
+                className="w-full px-2 py-0.5 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-black text-xs text-rose-800 dark:text-rose-300"
+              />
+            </div>
+
+            {/* Institution Name */}
+            <div>
+              <label className="block text-[9.5px] font-black uppercase text-slate-500 mb-0.5">Institution Name</label>
+              <input
+                type="text"
+                value={institutionName}
+                onChange={(e) => setInstitutionName(e.target.value)}
+                placeholder="GOVT. HIGHER SECONDARY SCHOOL SHANGUS"
+                className="w-full px-2 py-0.5 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-bold text-xs text-blue-900 dark:text-blue-300"
+              />
+            </div>
+
+            {/* Ref No */}
+            <div>
+              <label className="block text-[9.5px] font-black uppercase text-slate-500 mb-0.5">Reference Number</label>
+              <input
+                type="text"
+                value={refNo}
+                onChange={(e) => setRefNo(e.target.value)}
+                placeholder="HSS/SHG/Bonafide/2026/01"
+                className="w-full px-2 py-0.5 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-bold text-xs"
+              />
+            </div>
+
+            {/* Date */}
+            <div>
+              <label className="block text-[9.5px] font-black uppercase text-slate-500 mb-0.5">Issue Date</label>
+              <input
+                type="text"
+                value={dateStr}
+                onChange={(e) => setDateStr(e.target.value)}
+                placeholder="DD/MM/YYYY"
+                className="w-full px-2 py-0.5 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-bold text-xs"
+              />
+            </div>
+
+            {/* Certificate Title */}
+            <div>
+              <label className="block text-[9.5px] font-black uppercase text-slate-500 mb-0.5">Certificate Title Banner</label>
+              <input
+                type="text"
+                value={certificateTitle}
+                onChange={(e) => setCertificateTitle(e.target.value)}
+                placeholder="BONAFIDE CERTIFICATE"
+                className="w-full px-2 py-0.5 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-bold text-xs text-amber-900 dark:text-amber-200"
+              />
+            </div>
+
+            {/* Signatory 1 (Left) */}
+            <div>
+              <label className="block text-[9.5px] font-black uppercase text-slate-500 mb-0.5">Signatory 1 (Left)</label>
+              <input
+                type="text"
+                value={signatoryLeft}
+                onChange={(e) => setSignatoryLeft(e.target.value)}
+                placeholder="Incharge Admissions & Exam"
+                className="w-full px-2 py-0.5 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-medium text-xs"
+              />
+            </div>
+
+            {/* Signatory 2 (Center - for TC/DC) */}
+            {isTcDcActive && (
+              <div>
+                <label className="block text-[9.5px] font-black uppercase text-slate-500 mb-0.5">Signatory 2 (Center - Checked By)</label>
+                <input
+                  type="text"
+                  value={signatoryCenter}
+                  onChange={(e) => setSignatoryCenter(e.target.value)}
+                  placeholder="Checked By"
+                  className="w-full px-2 py-0.5 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-medium text-xs"
+                />
+              </div>
+            )}
+
+            {/* Signatory 3 (Right) */}
+            <div>
+              <label className="block text-[9.5px] font-black uppercase text-slate-500 mb-0.5">{isTcDcActive ? 'Signatory 3 (Right - Principal)' : 'Signatory 2 (Right - Principal)'}</label>
+              <input
+                type="text"
+                value={signatoryRight}
+                onChange={(e) => setSignatoryRight(e.target.value)}
+                placeholder="Principal"
+                className="w-full px-2 py-0.5 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-medium text-xs"
+              />
+            </div>
+          </div>
+
+          {/* ─── OPTIONS TOGGLES & PRECISION SPACING CONTROLS (FULL-WIDTH) ─── */}
+          <div className="mt-3 pt-2.5 border-t border-slate-200 dark:border-slate-800 space-y-2.5 w-full">
+            
+            {/* Top Row: Certificate Feature Options & Toggles Bar */}
+            <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-50 dark:bg-slate-950/60 p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-2xs w-full">
+              <div className="flex items-center gap-3.5 flex-wrap">
+                <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                  <CheckCircle2 size={12} className="text-teal-600 dark:text-teal-400" />
+                  <span>Options:</span>
+                </span>
+
+                <label className="inline-flex items-center gap-1.5 cursor-pointer text-xs font-bold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-900 px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700 shadow-2xs hover:border-teal-400 transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={watermark}
+                    onChange={(e) => setWatermark(e.target.checked)}
+                    className="rounded text-teal-600 focus:ring-teal-500 cursor-pointer"
+                  />
+                  <span>Seal Watermark</span>
+                </label>
+
+                <label className="inline-flex items-center gap-1.5 cursor-pointer text-xs font-bold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-900 px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700 shadow-2xs hover:border-teal-400 transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={showPhoto}
+                    onChange={(e) => handleTogglePhoto(e.target.checked)}
+                    className="rounded text-teal-600 focus:ring-teal-500 cursor-pointer"
+                  />
+                  <span>Photo Box</span>
+                </label>
+
+                <label className="inline-flex items-center gap-1.5 cursor-pointer text-xs font-bold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-900 px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700 shadow-2xs hover:border-teal-400 transition-colors" title="Toggle to hide or show Mr., Mrs., Ms. titles on certificates">
+                  <input
+                    type="checkbox"
+                    checked={includeSalutations}
+                    onChange={(e) => handleToggleSalutations(e.target.checked)}
+                    className="rounded text-teal-600 focus:ring-teal-500 cursor-pointer"
+                  />
+                  <span className={includeSalutations ? 'text-teal-700 dark:text-teal-300 font-bold' : 'text-slate-400 line-through'}>
+                    Mr. / Mrs. Titles
+                  </span>
+                </label>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── 2-COLUMN DRAG-RESIZABLE SPLIT-SCREEN LAYOUT ── */}
+      <div className="cert-split-container flex flex-col lg:flex-row gap-0 items-start w-full relative">
+        
+{/* == == == == == == == ==  LEFT HALF: STUDENT SELECTOR & CERTIFICATE PALETTE (DESKTOP) == == == == == == == ==  */}
+        {isDesktop && (
+          <div
+            style={{ width: `${leftSplitPct}%` }}
+            className="w-full lg:w-auto shrink-0 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs p-3 space-y-2.5 text-xs overflow-visible lg:overflow-hidden flex flex-col min-h-0 lg:min-h-[620px] lg:max-h-[calc(100dvh-95px)]"
+          >
+            {renderStudentAndTemplateSelector()}
+          </div>
+        )}
+
+        {/* == == == == == == == == MOBILE POPUP MODAL: STUDENT SELECTOR & CERTIFICATE PALETTE == == == == == == == == */}
+        {!isDesktop && showMobileOptionsModal && createPortal(
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center p-2 sm:p-4 bg-slate-950/70 backdrop-blur-xs animate-fadeIn">
+            <div className="absolute inset-0" onClick={() => setShowMobileOptionsModal(false)} />
+            <div
+              role="dialog"
+              aria-modal="true"
+              className="relative w-full max-w-xl max-h-[92dvh] flex flex-col bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden z-10 animate-scaleUp"
+            >
+              {/* Modal Header */}
+              <div className="flex items-center justify-between px-3.5 py-2.5 border-b border-slate-200 dark:border-slate-800 bg-slate-50/90 dark:bg-slate-800/90 shrink-0">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <Award size={14} className="text-teal-600 dark:text-teal-400 shrink-0" />
+                  <h3 className="font-black text-xs text-slate-900 dark:text-white uppercase tracking-wider truncate">
+                    Select Student & Certificate Template
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowMobileOptionsModal(false)}
+                  className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors cursor-pointer"
+                  aria-label="Close modal"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+
+              {/* Modal Scrollable Body */}
+              <div className="overflow-y-auto p-3 space-y-3 flex-1 overscroll-contain">
+                {renderStudentAndTemplateSelector()}
+              </div>
+
+              {/* Sticky Done Footer */}
+              <div className="p-2.5 border-t border-slate-200 dark:border-slate-800 bg-slate-50/90 dark:bg-slate-900 shrink-0 flex items-center justify-between gap-2">
+                <div className="text-[10px] font-bold text-slate-500 truncate">
+                  {selectedStudent ? `${selectedStudent.name || selectedStudent.studentName} (${selectedStudent.cls || selectedStudent.className || 'Student'})` : 'No student selected'}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowMobileOptionsModal(false)}
+                  className="px-4 py-1.5 rounded-xl bg-gradient-to-r from-teal-700 to-indigo-700 hover:from-teal-600 text-white font-black text-xs shadow-md cursor-pointer flex items-center gap-1.5 active:scale-95 transition-all shrink-0"
+                >
+                  <Check size={13} />
+                  <span>Done & View Certificate</span>
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
 
         {/* ── DRAGGABLE VERTICAL SPLITTER HANDLE ── */}
-        <div
+        {isDesktop && (
+          <div
           onMouseDown={handleSplitterMouseDown}
           title="Drag horizontally to adjust workspace split width (Double-click to reset)"
           onDoubleClick={() => {
@@ -4532,12 +4605,49 @@ export default function StudentCertificateStudioView({
         >
           <div className={`w-1 rounded-full transition-all group-hover:w-1.5 group-hover:bg-teal-700 ${isDraggingSplitter ? 'bg-teal-700 w-1.5 h-full shadow-md' : 'bg-slate-300 dark:bg-slate-700 h-24'}`} />
         </div>
+        )}
 
-        {/* == == == == == == == ==  RIGHT HALF: LIVE A4 CERTIFICATE PREVIEW & VERTICAL FLOATING DOCK == == == == == == == ==  */}
+                {/* == == == == == == == ==  RIGHT HALF: LIVE A4 CERTIFICATE PREVIEW & VERTICAL FLOATING DOCK == == == == == == == ==  */}
         <div
           style={{ width: isDesktop ? `${100 - leftSplitPct}%` : '100%' }}
           className="w-full lg:flex-1 pl-0 lg:pl-1 min-w-0"
         >
+          {/* Mobile Student & Template Bar */}
+          <div className="lg:hidden mb-1.5 p-1 rounded-xl bg-teal-50/80 dark:bg-teal-950/40 border border-teal-200 dark:border-teal-800/60 shadow-2xs flex items-center justify-between gap-1.5">
+            <button
+              type="button"
+              onClick={() => setShowMobileOptionsModal(true)}
+              className="flex-1 min-w-0 text-left flex items-center gap-2 px-2 py-1 rounded-lg bg-white dark:bg-slate-900 border border-teal-300/80 dark:border-teal-700 shadow-2xs cursor-pointer active:scale-98 transition-transform"
+            >
+              <div className="w-6 h-6 rounded-md bg-gradient-to-r from-teal-700 to-indigo-700 text-white flex items-center justify-center shrink-0 shadow-2xs">
+                <Search size={11} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="text-[8.5px] font-black uppercase text-teal-700 dark:text-teal-300 tracking-wider">
+                  Student & Template
+                </div>
+                <div className="text-[11px] font-extrabold text-slate-900 dark:text-white truncate">
+                  {selectedStudent ? (selectedStudent.name || selectedStudent.studentName) : 'Select / Search Student'}
+                  <span className="font-normal text-slate-400"> • {allTemplatesList.find(t => t.id === selectedTemplateId)?.name || 'Certificate'}</span>
+                </div>
+              </div>
+              <ChevronDown size={12} className="text-slate-400 shrink-0" />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setShowSettingsDrawer(prev => !prev)}
+              className={`h-8 px-2.5 rounded-lg border font-bold text-[11px] flex items-center gap-1 shadow-2xs active:scale-95 cursor-pointer shrink-0 transition-all ${
+                showSettingsDrawer
+                  ? 'bg-amber-100 dark:bg-amber-950 text-amber-950 dark:text-amber-200 border-amber-400'
+                  : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700'
+              }`}
+              title="Certificate Layout & Head Setup"
+            >
+              <Sliders size={11} className={showSettingsDrawer ? 'text-amber-600' : 'text-slate-500'} />
+              <span>Setup</span>
+            </button>
+          </div>
           {/* Main preview container hosting the Vertical Floating Dock + A4 Canvas */}
           <div className={`flex flex-col lg:flex-row items-start justify-center gap-3 ${dockSide === 'right' ? 'lg:flex-row-reverse' : ''}`}>
 
