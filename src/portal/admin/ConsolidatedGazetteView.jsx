@@ -195,6 +195,10 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
       // Must contain student records
       if (!Array.isArray(section.records) || section.records.length === 0) return false;
 
+      // Exclude archived versions, trash bin items, and drafts
+      const rawId = String(section.id || section.docId || '');
+      if (rawId.startsWith('history_') || rawId.startsWith('bin_') || section.isDraft === true) return false;
+
       // Class matching
       const docCls = classKey(section.className || section.class || section.selectedClass || section.docId || '');
       if (docCls !== targetClass) return false;
@@ -223,11 +227,15 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
       return true;
     });
 
-    // Sort matchingDocs: exact class match first, then newest timestamp
+    // Sort matchingDocs: exact class match first, approved canonical docs over pending, then newest timestamp
     matchingDocs.sort((a, b) => {
       const aExact = String(a.className || '').trim() === selectedClass ? 1 : 0;
       const bExact = String(b.className || '').trim() === selectedClass ? 1 : 0;
       if (aExact !== bExact) return bExact - aExact;
+
+      const aApproved = a.status === 'approved' ? 1 : (a.status === 'submitted' ? 0.5 : 0);
+      const bApproved = b.status === 'approved' ? 1 : (b.status === 'submitted' ? 0.5 : 0);
+      if (aApproved !== bApproved) return bApproved - aApproved;
 
       const getTs = (d) => {
         const t = d.updatedAt || d.approvedAt || d.submittedAt;
@@ -418,7 +426,6 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
         const code = sMeta.code;
         let foundRecord = null;
         let foundRecordDoc = null;
-        let foundRecordIsAbsent = false;
         let isFromBiology = false;
 
         // Search matching teacher submission for this subject
@@ -450,13 +457,11 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
             const match = recs.find(r => matchStudentRecord(r, student, identity));
             if (match) {
               const rawM = match.totalMarks ?? match.practicalMarks;
-              const isAb = /^(a|ab|absent)$/i.test(String(rawM).trim());
-              if (!foundRecord || (foundRecordIsAbsent && !isAb && rawM !== '' && rawM !== null && rawM !== undefined)) {
+              if (rawM !== '' && rawM !== null && rawM !== undefined) {
                 foundRecord = match;
                 foundRecordDoc = sec;
-                foundRecordIsAbsent = isAb;
                 isFromBiology = false;
-                if (!isAb) break;
+                break;
               }
             }
           }
