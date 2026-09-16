@@ -33,10 +33,24 @@ import {
   recordTeacher2StepVerification,
   isBootstrapSuperAdminEmail,
   isBootstrapAdminEmail,
-  isSuperAdminEmail
+  isSuperAdminEmail,
+  FALLBACK_STAFF_PROFILES
 } from '../services/staffAuthService';
 import { sessionManager } from '../services/sessionManager';
 import ModernCaptcha from '../components/ModernCaptcha';
+
+// Helper to quickly check if an email belongs to a teacher/faculty
+const isLikelyTeacherEmail = (rawEmail) => {
+  const clean = String(rawEmail || '').trim().toLowerCase();
+  if (!clean || !clean.includes('@')) return false;
+  if (clean === 'socialshiftz@gmail.com') return true;
+  if (FALLBACK_STAFF_PROFILES[clean]?.isTeacher || FALLBACK_STAFF_PROFILES[clean]?.role === 'Teacher') return true;
+  try {
+    const rawSession = sessionStorage.getItem(`hss_staff_profile_${clean}`);
+    if (rawSession && JSON.parse(rawSession)?.profile?.isTeacher) return true;
+  } catch (_) {}
+  return false;
+};
 
 export default function LoginPage() {
   const { onLoginSuccess, isAuthenticated, user } = useOutletContext();
@@ -683,11 +697,27 @@ export default function LoginPage() {
       const staffProfile = await resolveStaffRoleAndPerms(cleanEmail);
       const isSuper = staffProfile?.isSuperAdmin || staffProfile?.role === 'SuperAdmin' || isBootstrapSuperAdminEmail(cleanEmail);
       const isAdmin = isSuper || staffProfile?.isAdmin || isBootstrapAdminEmail(cleanEmail) || String(staffProfile?.role || '').toLowerCase() === 'admin';
-      const isTeacher = staffProfile?.isTeacher || ['teacher', 'faculty'].includes(String(staffProfile?.role || '').toLowerCase());
+      const isTeacher = staffProfile?.isTeacher || ['teacher', 'faculty'].includes(String(staffProfile?.role || '').toLowerCase()) || Boolean(staffProfile?.subject || staffProfile?.teachingSubject);
 
       // 3. STRICT TAB & ROLE ACCESS CONTROL
 
-      // --- TEACHER TAB ACCESS (PRIORITIZED BEFORE ADMIN 2SV) ---
+      // --- AUTO-RECOGNIZE TEACHER ACCOUNT (DIRECT LOGIN WITHOUT ADMIN 2SV) ---
+      // If the account has Teacher privileges:
+      // Even if user was on the Admin tab or Student tab, unless user specifically activated SuperAdmin mode,
+      // automatically recognize it and log in directly to Teacher Portal without 2SV!
+      if (isTeacher && (selectedRole === 'teacher' || (selectedRole === 'admin' && !isSuper) || selectedRole === 'student')) {
+        incrementTeacherLoginCount(cleanEmail).catch(() => {});
+        const verifiedSession = await createVerifiedSession(userCred.user, cleanEmail, staffProfile);
+        verifiedSession.redirectPath = '/portal/teacher';
+        setAlert({ 
+          type: 'success', 
+          text: `Welcome back, ${verifiedSession.user.name}! ${selectedRole === 'admin' ? 'Recognized Faculty account — signing in directly...' : 'Redirecting to Teacher Portal...'}` 
+        });
+        onLoginSuccess(verifiedSession, keepLoggedIn);
+        return;
+      }
+
+      // --- TEACHER TAB ACCESS (Fallback check for unauthorized users) ---
       if (selectedRole === 'teacher') {
         if (!isTeacher && !isAdmin) {
           await signOut(auth).catch(() => {});
@@ -1032,6 +1062,26 @@ export default function LoginPage() {
               </button>
             </div>
 
+            {/* Helpful Teacher Account Pre-detection Banner when user is on Admin or Student tab */}
+            {selectedRole !== 'teacher' && isLikelyTeacherEmail(email) && (
+              <div className="mb-2.5 p-2 px-2.5 rounded-xl bg-emerald-50/95 dark:bg-emerald-950/80 border border-emerald-300/80 dark:border-emerald-700/80 text-emerald-800 dark:text-emerald-200 text-[11px] font-bold flex items-center justify-between gap-2 animate-fadeIn relative z-10 shadow-2xs">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <UserCheck size={14} className="text-emerald-600 dark:text-emerald-400 shrink-0" />
+                  <span className="truncate">Teacher account detected ({email})</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedRole('teacher');
+                    setCaptchaToken(null);
+                  }}
+                  className="px-2 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[10.5px] transition-all shrink-0 cursor-pointer shadow-2xs active:scale-95"
+                >
+                  Switch to Teacher
+                </button>
+              </div>
+            )}
+
             {/* Alert Banner (Suppressed during clean waiting / confirmed states unless error) */}
             {alert && !emailLinkSentState && !window2VerifiedState && (
               <div className={`p-3.5 rounded-2xl text-xs font-bold flex flex-col gap-2.5 mb-4 animate-fadeIn relative z-10 ${
@@ -1200,6 +1250,35 @@ export default function LoginPage() {
                   </div>
                   <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">Listening for verification in real-time</span>
                 </div>
+
+                {/* 1-Click Direct Sign-in as Teacher if the account has Teacher privileges */}
+                {isLikelyTeacherEmail(emailLinkSentState.email) && (
+                  <div className="pt-1">
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        setIsLoading(true);
+                        try {
+                          const cleanEmail = String(emailLinkSentState.email).trim().toLowerCase();
+                          const staffProfile = await resolveStaffRoleAndPerms(cleanEmail);
+                          incrementTeacherLoginCount(cleanEmail).catch(() => {});
+                          const verifiedSession = await createVerifiedSession(auth.currentUser, cleanEmail, staffProfile);
+                          verifiedSession.redirectPath = '/portal/teacher';
+                          handleCancel2Step();
+                          setAlert({ type: 'success', text: `Welcome back, ${verifiedSession.user.name}! Redirecting to Teacher Portal...` });
+                          onLoginSuccess(verifiedSession, keepLoggedIn);
+                        } catch (err) {
+                          setAlert({ type: 'error', text: err.message || 'Direct teacher login failed.' });
+                          setIsLoading(false);
+                        }
+                      }}
+                      className="w-full py-2.5 px-3 rounded-xl bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/60 dark:hover:bg-emerald-900/80 border border-emerald-300 dark:border-emerald-700 text-emerald-800 dark:text-emerald-200 text-xs font-black flex items-center justify-center gap-1.5 transition-all shadow-xs cursor-pointer active:scale-98"
+                    >
+                      <UserCheck size={14} className="text-emerald-600 dark:text-emerald-400 shrink-0" />
+                      <span>Sign In Directly as Teacher (No Email Link Needed)</span>
+                    </button>
+                  </div>
+                )}
 
                 <div className="flex items-center justify-center gap-3 pt-0.5 text-xs">
                   <button

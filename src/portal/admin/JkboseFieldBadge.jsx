@@ -220,7 +220,7 @@ export default function JkboseFieldBadge({
               <span className="text-[9.5px] font-bold uppercase tracking-wider text-slate-400 shrink-0">
                 Previous
               </span>
-              <span className="font-mono text-rose-500/90 line-through truncate text-right font-medium max-w-[190px]" title={displayOld}>
+              <span className="font-mono text-rose-500/90 line-through truncate text-right font-medium flex-1 min-w-0 max-w-[150px] sm:max-w-[190px]" title={displayOld}>
                 {displayOld}
               </span>
             </div>
@@ -230,7 +230,7 @@ export default function JkboseFieldBadge({
               }`}>
                 <CheckCircle2 size={10} /> {isDirectEdit ? 'Updated' : 'Master'}
               </span>
-              <span className="font-mono font-black text-slate-900 dark:text-white truncate text-right max-w-[190px]" title={displayNew}>
+              <span className="font-mono font-black text-slate-900 dark:text-white truncate text-right flex-1 min-w-0 max-w-[150px] sm:max-w-[190px]" title={displayNew}>
                 {displayNew}
               </span>
             </div>
@@ -291,14 +291,14 @@ export default function JkboseFieldBadge({
           onMouseEnter={handleMouseEnter}
           onMouseLeave={handleMouseLeave}
           onClick={handleClick}
-          className={`inline-flex items-center justify-center w-2 h-2 rounded-full cursor-pointer select-none shrink-0 ${
+          className={`inline-flex items-center justify-center w-2.5 h-2.5 rounded-full cursor-pointer select-none shrink-0 align-middle ${
             isDirectEdit
               ? 'bg-amber-500 ring-2 ring-amber-200 dark:ring-amber-950'
               : 'bg-emerald-500 ring-2 ring-emerald-200 dark:ring-emerald-950'
           } ${className}`}
           aria-label={isDirectEdit ? 'Directly edited by Admin' : 'Updated as per JKBOSE record'}
         >
-          <span className="w-1 h-1 rounded-full bg-white dark:bg-slate-900 animate-pulse" />
+          <span className="w-1 h-1 rounded-full bg-white dark:bg-slate-900 animate-pulse shrink-0" />
         </span>
         {renderTooltip()}
       </>
@@ -313,10 +313,10 @@ export default function JkboseFieldBadge({
           onMouseEnter={handleMouseEnter}
           onMouseLeave={handleMouseLeave}
           onClick={handleClick}
-          className={`inline-flex items-center gap-0.5 px-1 py-0.2 rounded-[3px] text-[7.5px] font-black uppercase tracking-wider bg-amber-50/95 dark:bg-amber-950/80 text-amber-700 dark:text-amber-300 border border-amber-300/80 dark:border-amber-700/80 leading-none select-none cursor-pointer shadow-2xs hover:bg-amber-100 dark:hover:bg-amber-900/60 hover:scale-105 transition-all shrink-0 align-middle ${className}`}
+          className={`inline-flex items-center gap-1 px-1 sm:px-1.5 py-0.5 rounded-[4px] text-[7px] sm:text-[7.5px] md:text-[8px] font-black uppercase tracking-wider bg-amber-500/10 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 border border-amber-400/60 dark:border-amber-700/80 leading-none select-none cursor-pointer shadow-2xs hover:bg-amber-500/20 dark:hover:bg-amber-900/60 hover:scale-105 transition-all shrink-0 align-middle whitespace-nowrap ${className}`}
           aria-label="Directly edited by Admin"
         >
-          <span className="w-1 h-1 rounded-full bg-amber-500 animate-pulse" />
+          <span className="w-1.5 h-1.5 rounded-full bg-amber-500 ring-1 ring-amber-300/70 dark:ring-amber-400/50 animate-pulse shrink-0" />
           EDITED
         </span>
         {renderTooltip()}
@@ -331,10 +331,10 @@ export default function JkboseFieldBadge({
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
         onClick={handleClick}
-        className={`inline-flex items-center gap-0.5 px-1 py-0.2 rounded-[3px] text-[7.5px] font-black uppercase tracking-wider bg-emerald-50/95 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 border border-emerald-300/80 dark:border-emerald-700/80 leading-none select-none cursor-pointer shadow-2xs hover:bg-emerald-100 dark:hover:bg-emerald-900/60 hover:scale-105 transition-all shrink-0 align-middle ${className}`}
+        className={`inline-flex items-center gap-1 px-1 sm:px-1.5 py-0.5 rounded-[4px] text-[7px] sm:text-[7.5px] md:text-[8px] font-black uppercase tracking-wider bg-emerald-500/10 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 border border-emerald-400/60 dark:border-emerald-700/80 leading-none select-none cursor-pointer shadow-2xs hover:bg-emerald-500/20 dark:hover:bg-emerald-900/60 hover:scale-105 transition-all shrink-0 align-middle whitespace-nowrap ${className}`}
         aria-label="Updated as per JKBOSE data"
       >
-        <span className="w-1 h-1 rounded-full bg-emerald-500 animate-pulse" />
+        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 ring-1 ring-emerald-300/70 dark:ring-emerald-400/50 animate-pulse shrink-0" />
         JKBOSE
       </span>
       {renderTooltip()}

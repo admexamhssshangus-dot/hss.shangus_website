@@ -4351,7 +4351,7 @@ export default function PracticalsPage() {
               : `Auto-marking unfilled entries as Absent and staging ${selectedSubject} (${selectedClass}) for Administrator approval…`
           }
           fullScreen={true}
-          inverted={true}
+          inverted={false}
         />
       )}
 

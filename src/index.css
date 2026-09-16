@@ -1495,6 +1495,34 @@ html, body, #root {
   color: var(--text-muted) !important;
 }
 
+/* Progress Pages, Dark Overlays & Inverted Surfaces Text Protection */
+.theme-light [class*="bg-slate-9"] .text-slate-100,
+.theme-light [class*="bg-slate-9"] .text-slate-200,
+.theme-light [class*="bg-slate-9"] .text-slate-300,
+.theme-light [class*="bg-slate-8"] .text-slate-100,
+.theme-light [class*="bg-slate-8"] .text-slate-200,
+.theme-light [class*="bg-slate-8"] .text-slate-300,
+.theme-light .modern-loader-inverted .text-slate-100,
+.theme-light .modern-loader-inverted .text-slate-200,
+.theme-light .modern-loader-inverted .text-slate-300 {
+  color: #f8fafc !important;
+}
+
+.theme-light [class*="bg-slate-9"] .text-slate-400,
+.theme-light [class*="bg-slate-8"] .text-slate-400,
+.theme-light .modern-loader-inverted .text-slate-400 {
+  color: #94a3b8 !important;
+}
+
+.theme-light .modern-loader-inverted h1,
+.theme-light .modern-loader-inverted h2 {
+  color: #ffffff !important;
+}
+
+.theme-light .modern-loader-inverted p {
+  color: #cbd5e1 !important;
+}
+
 /* Notice Board Page Background Override */
 .theme-light .from-teal-50, .theme-light .to-white,
 .theme-dark .from-teal-50, .theme-dark .to-white,
