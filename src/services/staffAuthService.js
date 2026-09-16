@@ -19,23 +19,54 @@ export {
   isBootstrapSuperAdminEmail 
 };
 
-// Fallback staff directory to ensure foundational admins are always recognized
-const FALLBACK_STAFF_PROFILES = {
-  'adm.exam.hss.shangus@gmail.com': { name: 'Sheikh Gulfam (SuperAdmin)', role: 'SuperAdmin', perms: ['*'] },
-  'e.educational.24@gmail.com': { name: 'Sheikh Gulfam', role: 'Admin', perms: ['*'] },
-  'ghssshangus74@gmail.com': { name: 'GHSS Shangus (Admin)', role: 'Admin', perms: ['*'] },
-  'socialshiftz@gmail.com': { name: 'Technical Admin', role: 'Admin', perms: ['*'] },
-  'shahnawaz13678@gmail.com': { name: 'Nawaz Ahmad Shah (Admin)', role: 'Admin', perms: ['*'] },
-  'shahnawaz@gmail.com': { name: 'Nawaz Ahmad Shah (Admin)', role: 'Admin', perms: ['*'] },
-  'bilalhcu@gmail.com': { name: 'Bilal Ahmad Khandy (Admin)', role: 'Admin', perms: ['*'] },
-  'majidhassannajar@gmail.com': { name: 'Majid Hassan Najar (Admin)', role: 'Admin', perms: ['*'] },
+// Fallback staff directory to ensure foundational staff are always recognized
+export const FALLBACK_STAFF_PROFILES = {
+  'adm.exam.hss.shangus@gmail.com': { name: 'Sheikh Gulfam (SuperAdmin)', role: 'SuperAdmin', isSuperAdmin: true, isAdmin: true, perms: ['*'] },
+  'e.educational.24@gmail.com': { name: 'Sheikh Gulfam', role: 'Admin', isAdmin: true, perms: ['*'] },
+  'ghssshangus74@gmail.com': { name: 'GHSS Shangus (Admin)', role: 'Admin', isAdmin: true, perms: ['*'] },
+  'socialshiftz@gmail.com': { 
+    name: 'Technical Admin / Faculty', 
+    role: 'Teacher', 
+    isTeacher: true, 
+    isAdmin: true, 
+    isStaff: true, 
+    subject: 'Botany',
+    teachingSubject: 'Botany',
+    assignedClasses: ['11th', '12th'],
+    perms: ['*'] 
+  },
+  'shahnawaz13678@gmail.com': { name: 'Nawaz Ahmad Shah (Admin)', role: 'Admin', isAdmin: true, perms: ['*'] },
+  'shahnawaz@gmail.com': { name: 'Nawaz Ahmad Shah (Admin)', role: 'Admin', isAdmin: true, perms: ['*'] },
+  'bilalhcu@gmail.com': { name: 'Bilal Ahmad Khandy (Admin)', role: 'Admin', isAdmin: true, perms: ['*'] },
+  'majidhassannajar@gmail.com': { name: 'Majid Hassan Najar (Admin)', role: 'Admin', isAdmin: true, perms: ['*'] },
 };
+
+// High-speed in-memory cache for resolved staff profiles (0ms resolution across navigations)
+const staffProfileMemoryCache = new Map();
+const STAFF_CACHE_TTL_MS = 15 * 60 * 1000; // 15 minutes
+
+export function clearStaffProfileCache(email = null) {
+  if (email) {
+    const clean = String(email).toLowerCase().trim();
+    staffProfileMemoryCache.delete(clean);
+    try {
+      sessionStorage.removeItem(`hss_staff_profile_${clean}`);
+    } catch (_) {}
+  } else {
+    staffProfileMemoryCache.clear();
+    try {
+      Object.keys(sessionStorage).forEach(k => {
+        if (k.startsWith('hss_staff_profile_')) sessionStorage.removeItem(k);
+      });
+    } catch (_) {}
+  }
+}
 
 /**
  * Authoritatively resolves staff role and permissions for a given user or email.
  * Spark-plan compatible: checks UID doc, email doc, adminSettings/permissions, and fallbacks.
  */
-export async function resolveStaffRoleAndPerms(emailOrUser) {
+export async function resolveStaffRoleAndPerms(emailOrUser, forceFresh = false) {
   const user = typeof emailOrUser === 'object' && emailOrUser?.uid ? emailOrUser : auth.currentUser;
   let email = '';
 
@@ -46,6 +77,24 @@ export async function resolveStaffRoleAndPerms(emailOrUser) {
   }
 
   if (!email) return null;
+
+  // 0. Check high-speed in-memory or sessionStorage cache (0ms instant return)
+  if (!forceFresh) {
+    const memCached = staffProfileMemoryCache.get(email);
+    if (memCached && (Date.now() - memCached.cachedAt < STAFF_CACHE_TTL_MS)) {
+      return memCached.profile;
+    }
+    try {
+      const rawSession = sessionStorage.getItem(`hss_staff_profile_${email}`);
+      if (rawSession) {
+        const parsed = JSON.parse(rawSession);
+        if (parsed && (Date.now() - parsed.cachedAt < STAFF_CACHE_TTL_MS)) {
+          staffProfileMemoryCache.set(email, parsed);
+          return parsed.profile;
+        }
+      }
+    } catch (_) {}
+  }
 
   // 1. Master Super Admin check (immediate & immune to database errors)
   if (isSuperAdminEmail(email)) {
@@ -63,6 +112,10 @@ export async function resolveStaffRoleAndPerms(emailOrUser) {
     if (user?.uid) {
       setDoc(doc(db, 'users', user.uid), { ...superProfile, updatedAt: new Date().toISOString() }, { merge: true }).catch(() => {});
     }
+    staffProfileMemoryCache.set(email, { profile: superProfile, cachedAt: Date.now() });
+    try {
+      sessionStorage.setItem(`hss_staff_profile_${email}`, JSON.stringify({ profile: superProfile, cachedAt: Date.now() }));
+    } catch (_) {}
     return superProfile;
   }
 
@@ -154,9 +207,9 @@ export async function resolveStaffRoleAndPerms(emailOrUser) {
 
   const isBootstrap = isBootstrapAdminEmail(email);
   const isSuper = isSuperAdminEmail(email);
-  const isAdmin = isSuper || isBootstrap || normalizedRole === 'admin' || normalizedRole === 'superadmin';
-  const isTeacher = normalizedRole === 'teacher' || normalizedRole === 'faculty';
-  const role = isSuper ? 'SuperAdmin' : (normalizedRole === 'faculty' ? 'Faculty' : (isTeacher ? 'Teacher' : 'Admin'));
+  const isAdmin = isSuper || isBootstrap || normalizedRole === 'admin' || normalizedRole === 'superadmin' || Boolean(profile.isAdmin);
+  const isTeacher = normalizedRole === 'teacher' || normalizedRole === 'faculty' || Boolean(profile.isTeacher) || Boolean(profile.teachingSubject || profile.subject);
+  const role = isSuper ? 'SuperAdmin' : (normalizedRole === 'faculty' ? 'Faculty' : (isTeacher ? 'Teacher' : (isAdmin ? 'Admin' : 'Teacher')));
 
   const resolved = {
     ...profile,
@@ -185,12 +238,19 @@ export async function resolveStaffRoleAndPerms(emailOrUser) {
       role: resolved.role,
       perms: resolved.perms,
       isStaff: true,
+      isTeacher: resolved.isTeacher,
+      isAdmin: resolved.isAdmin,
       subject: resolved.subject,
       teachingSubject: resolved.teachingSubject,
       assignedClasses: resolved.assignedClasses,
       updatedAt: new Date().toISOString(),
     }, { merge: true }).catch(() => {});
   }
+
+  staffProfileMemoryCache.set(email, { profile: resolved, cachedAt: Date.now() });
+  try {
+    sessionStorage.setItem(`hss_staff_profile_${email}`, JSON.stringify({ profile: resolved, cachedAt: Date.now() }));
+  } catch (_) {}
 
   return resolved;
 }
