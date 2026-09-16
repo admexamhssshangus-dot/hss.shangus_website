@@ -7,7 +7,8 @@ import {
 import * as XLSX from 'xlsx';
 import { collection, onSnapshot, getDocs, doc, getDoc } from 'firebase/firestore';
 import { db } from '../../services/firebase';
-import { DEFAULT_SCHOOL_EVALUATIONS } from '../../utils/practicalsSettingsManager';
+import { DEFAULT_SCHOOL_EVALUATIONS, getSubjectOverride } from '../../utils/practicalsSettingsManager';
+import { printIndividualAwardRoll } from '../../utils/practicalsPdfGenerator';
 import { sameCohort, recordIdentity, identityKey, sessionKey, classKey, formatConsistentName } from '../../utils/recordIdentity';
 import verifiedCatalog from '../../data/verifiedStudentsCatalog.json';
 import { showToast } from '../../components/common/GlobalToast';
@@ -241,6 +242,12 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
     const isSecondary = targetClass === '10th' || targetClass === '9th' || targetClass === '10' || targetClass === '9';
     const baseSubjects = isSecondary ? STANDARD_7_CLASS_10TH_SUBJECTS : STANDARD_15_GAZETTE_SUBJECTS;
 
+    // Active evaluation configuration & selective Pre-Board check
+    const activeEvalConfig = availableEvaluations.find(e => (e.evalType || e.title) === selectedEvalType);
+    const isPreBoard = String(selectedEvalType).toLowerCase().includes('pre-board') ||
+                       String(selectedEvalType).toLowerCase().includes('preboard') ||
+                       (activeEvalConfig && activeEvalConfig.normalizeTo50 === true && (String(activeEvalConfig.evalType).toLowerCase().includes('pre-board') || String(activeEvalConfig.evalType).toLowerCase().includes('preboard')));
+
     const subjectsListArray = baseSubjects.map(subj => {
       // Find matching document for this subject to retrieve teacher's maxMarks and minMarks
       const matchedDoc = matchingDocs.find(sec => {
@@ -268,28 +275,29 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
         return n === subj.name.toLowerCase() || n.includes(subj.name.toLowerCase());
       });
 
-      let maxMarks = subj.defaultMax;
-      let minMarks = Math.ceil(maxMarks * 0.36);
+      // Check subject override for this class & subject
+      const override = getSubjectOverride(activeEvalConfig?.subjectOverrides, subj.code, selectedClass);
 
-      if (matchedDoc) {
-        const docMax = Number(matchedDoc.maxMarks);
-        if (docMax > 0) {
-          // If Biology was submitted as a single sheet, or Botany/Zoology submitted separately (25M):
-          // In Gazette tabulation, Botany and Zoology are standardized to 50M (scaled 2x from 25M)
-          if (subj.code === 'BO' || subj.code === 'ZO') {
-            maxMarks = 50;
-            minMarks = 18;
-          } else {
-            maxMarks = docMax;
-            minMarks = Number(matchedDoc.minMarks) > 0 ? Number(matchedDoc.minMarks) : Math.ceil(maxMarks * 0.36);
-          }
-        }
-      }
+      let maxMarks;
+      let minMarks;
 
-      // Harmonize Botany and Zoology maxMarks so both columns always match 50-mark scale
-      if (subj.code === 'BO' || subj.code === 'ZO') {
+      if (isPreBoard) {
+        // Pre-Board Gazette strictly standardizes columns to 50M
         maxMarks = 50;
         minMarks = 18;
+      } else {
+        // Non-pre-board examinations (Term End, Mid Term, Unit Tests, Internal, External)
+        // preserve the authentic entered or configured assessment scale
+        if (override && Number(override.maxMarks) > 0) {
+          maxMarks = Number(override.maxMarks);
+          minMarks = Number(override.minMarks) > 0 ? Number(override.minMarks) : Math.ceil(maxMarks * 0.36);
+        } else if (matchedDoc && Number(matchedDoc.maxMarks) > 0) {
+          maxMarks = Number(matchedDoc.maxMarks);
+          minMarks = Number(matchedDoc.minMarks) > 0 ? Number(matchedDoc.minMarks) : Math.ceil(maxMarks * 0.36);
+        } else {
+          maxMarks = subj.defaultMax || 50;
+          minMarks = Math.ceil(maxMarks * 0.36);
+        }
       }
 
       return {
@@ -493,18 +501,43 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
           } else if (hasNumeric) {
             evaluatedSubjectsCount++;
             // Calculate scaled score:
-            // If Botany (BO) or Zoology (ZO) was evaluated out of 25 while Gazette standard is 50:
-            // 1 mark out of 25 turns into 2 out of 50.
-            const docMax = Number(foundRecordDoc?.maxMarks) || ((code === 'BO' || code === 'ZO') ? 25 : sMeta.maxMarks);
-            let marksVal = numeric;
-            if (isFromBiology) {
-              marksVal = Math.round(numeric / 2);
-            } else if ((code === 'BO' || code === 'ZO') && docMax > 0 && docMax !== sMeta.maxMarks) {
-              marksVal = Math.round((numeric / docMax) * sMeta.maxMarks);
-            } else if (docMax > 0 && docMax !== sMeta.maxMarks) {
-              marksVal = Math.round((numeric / docMax) * sMeta.maxMarks);
+            // Fetch subject-specific paper override for this class & subject (e.g. Botany 25M, Zoology 50M)
+            const override = getSubjectOverride(activeEvalConfig?.subjectOverrides, code, selectedClass);
+            let nativePaperMax = Number(foundRecordDoc?.maxMarks);
+            if (!nativePaperMax || nativePaperMax <= 0) {
+              if (override && Number(override.maxMarks) > 0) {
+                nativePaperMax = Number(override.maxMarks);
+              } else if (code === 'BO') {
+                // Botany default in Pre-Board is 25M
+                nativePaperMax = 25;
+              } else if (code === 'ZO') {
+                // Zoology default in Pre-Board is 50M
+                nativePaperMax = 50;
+              } else {
+                nativePaperMax = isPreBoard ? 50 : sMeta.maxMarks;
+              }
             }
-            marksVal = Math.min(sMeta.maxMarks, marksVal);
+
+            let marksVal = numeric;
+            if (isPreBoard) {
+              if (isFromBiology) {
+                // Biology combined paper (e.g. 50M combined)
+                const biMax = Number(foundRecordDoc?.maxMarks) || 50;
+                marksVal = Math.round((numeric / biMax) * 50);
+              } else if (nativePaperMax > 0 && nativePaperMax !== 50) {
+                // Asymmetric scaling: Botany 25M scales 2x into 50M, Zoology 50M scales 1x into 50M
+                marksVal = Math.round((numeric / nativePaperMax) * 50);
+              }
+              marksVal = Math.min(50, Math.max(0, marksVal));
+            } else {
+              // Non-Pre-Board (Term End, Mid Term, Unit Test, Internal, External)
+              // Retains the exact marks entered on the native paper scale
+              marksVal = numeric;
+              if (nativePaperMax > 0) {
+                marksVal = Math.min(nativePaperMax, Math.max(0, marksVal));
+              }
+            }
+
             const isPass = marksVal >= sMeta.minMarks;
             totalObtained += marksVal;
             totalMax += sMeta.maxMarks;
@@ -512,6 +545,8 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
 
             subjectMarks[code] = {
               obtained: marksVal,
+              nativeMark: numeric,
+              nativeMax: nativePaperMax,
               isAbsent: false,
               isPass,
               isFailed: !isPass,
@@ -625,7 +660,7 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
         avgScorePct: complete.length ? (complete.reduce((total, row) => total + row.numericPercentage, 0) / complete.length).toFixed(1) : 0
       }
     };
-  }, [practicalsDocs, allStudents, selectedClass, selectedSession, selectedEvalType]);
+  }, [practicalsDocs, allStudents, selectedClass, selectedSession, selectedEvalType, availableEvaluations]);
 
   // Subject-Specific Analysis & Drilldown Metrics
   const selectedSubjectMeta = useMemo(() => {
@@ -1073,6 +1108,68 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
     }, 450);
   };
 
+  // Official Subject-Wise Award Roll Print Handler (2-column JKBOSE Format)
+  const handlePrintIndividualAwardRoll = useCallback((subjCode) => {
+    const targetSubjCode = subjCode || (selectedSubject !== 'All' ? selectedSubject : subjectsList[0]?.code);
+    if (!targetSubjCode) return;
+
+    const subMeta = subjectsList.find(s => s.code === targetSubjCode);
+    if (!subMeta) return;
+
+    // Filter students enrolled or who have a record for this subject
+    const subjectStudents = gazetteRows.filter(row => {
+      const sm = row.subjectMarks?.[targetSubjCode];
+      return sm && (sm.obtained !== null || sm.isAbsent || sm.nativeMark !== undefined);
+    });
+
+    const targetList = subjectStudents.length > 0 ? subjectStudents : gazetteRows;
+
+    // Determine native max / min marks for this subject
+    const activeEvalConfig = availableEvaluations.find(e => (e.evalType || e.title) === selectedEvalType);
+    const override = getSubjectOverride(activeEvalConfig?.subjectOverrides, targetSubjCode, selectedClass);
+    const nativeMax = (override && Number(override.maxMarks) > 0)
+      ? Number(override.maxMarks)
+      : (targetList[0]?.subjectMarks?.[targetSubjCode]?.nativeMax || subMeta.maxMarks);
+    const nativeMin = (override && Number(override.minMarks) > 0)
+      ? Number(override.minMarks)
+      : (targetList[0]?.subjectMarks?.[targetSubjCode]?.minMarks || subMeta.minMarks || Math.ceil(nativeMax * 0.36));
+
+    const records = targetList.map(row => {
+      const sm = row.subjectMarks?.[targetSubjCode];
+      let markVal = '';
+      if (sm) {
+        if (sm.isAbsent) {
+          markVal = 'AB';
+        } else if (sm.nativeMark !== undefined && sm.nativeMark !== null) {
+          markVal = sm.nativeMark;
+        } else if (sm.obtained !== null && sm.obtained !== undefined) {
+          markVal = sm.obtained;
+        }
+      }
+      return {
+        examRollNo: row.examRollNo && row.examRollNo !== '—' ? row.examRollNo : row.rollNo,
+        rollNo: row.rollNo,
+        regNo: row.regNo,
+        name: row.name,
+        fatherName: row.fatherName,
+        totalMarks: markVal,
+        practicalMarks: markVal,
+        marks: markVal,
+      };
+    });
+
+    printIndividualAwardRoll({
+      subjectCode: subMeta.code,
+      subjectName: subMeta.name,
+      className: selectedClass,
+      session: selectedSession,
+      evaluationType: selectedEvalType,
+      records,
+      maxMarks: nativeMax,
+      minMarks: nativeMin,
+    });
+  }, [gazetteRows, subjectsList, selectedSubject, selectedClass, selectedSession, selectedEvalType, availableEvaluations]);
+
   return (
     <div className="space-y-4 text-slate-900 dark:text-slate-100">
       {/* Dynamic Multi-Page Print Style Sheet */}
@@ -1149,6 +1246,16 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
             </button>
             <button
               type="button"
+              onClick={() => handlePrintIndividualAwardRoll(selectedSubject !== 'All' ? selectedSubject : null)}
+              disabled={filteredRows.length === 0}
+              className="h-7.5 px-3 rounded-lg bg-indigo-700 hover:bg-indigo-600 active:bg-indigo-800 text-white font-bold text-xs flex items-center gap-1.5 transition-all shadow-xs cursor-pointer disabled:opacity-50"
+              title={selectedSubject !== 'All' ? `Print Official 2-Column Award Roll for ${selectedSubject}` : 'Print Official 2-Column Subject Award Roll'}
+            >
+              <FileText size={13} />
+              <span>{selectedSubject !== 'All' ? `Award Roll (${selectedSubject})` : 'Subject Award'}</span>
+            </button>
+            <button
+              type="button"
               onClick={handleExportExcel}
               disabled={filteredRows.length === 0}
               className="h-7.5 px-3 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white font-bold text-xs flex items-center gap-1.5 transition-all shadow-xs cursor-pointer disabled:opacity-50"
@@ -1189,15 +1296,17 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
               title="Evaluation Type"
             >
               <option value="ALL">All Evaluations</option>
-              {availableEvaluations.map(ev => (
-                <option key={ev.id || ev.evalType} value={ev.evalType}>
-                  {ev.evalType}
+              {Array.from(
+                new Map(
+                  availableEvaluations
+                    .filter(ev => Boolean(ev && (ev.evalType || ev.title)))
+                    .map(ev => [String(ev.evalType || ev.title).trim().toLowerCase(), ev.evalType || ev.title])
+                ).values()
+              ).map(evalTypeTitle => (
+                <option key={evalTypeTitle} value={evalTypeTitle}>
+                  {evalTypeTitle}
                 </option>
               ))}
-              <option value="Pre-Board Test">Pre-Board Test</option>
-              <option value="Internal Assessment">Internal Assessment</option>
-              <option value="External Practical">External Practical</option>
-              <option value="Term End Evaluation">Term End Evaluation</option>
             </select>
           </div>
 
@@ -1444,6 +1553,16 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
                 <span className="font-black text-slate-700 dark:text-slate-300">{subjectStats.absentCount}</span>
               </button>
             )}
+
+            <button
+              type="button"
+              onClick={() => handlePrintIndividualAwardRoll(subjectStats.code)}
+              className="flex items-center gap-1.5 ml-3 px-2.5 py-1 rounded-lg bg-teal-700 hover:bg-teal-600 active:bg-teal-800 text-white font-bold text-xs shadow-xs transition-all cursor-pointer whitespace-nowrap"
+              title={`Print Official 2-Column Award Roll for ${subjectStats.name}`}
+            >
+              <Printer size={13} />
+              <span>Print {subjectStats.code} Award</span>
+            </button>
           </div>
         ) : (
           <div className="flex items-center gap-3 sm:gap-5 text-xs font-semibold text-slate-700 dark:text-slate-300 divide-x divide-slate-200 dark:divide-slate-800">

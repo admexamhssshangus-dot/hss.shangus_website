@@ -266,17 +266,17 @@ export default function NoticeBoard() {
                     {/* Calendar Badge */}
                     {(() => {
                       const formatted = formatDate(n.date);
-                      const parts = formatted.split('-');
+                      const parts = (formatted || '').split('-');
                       const day = parts[0] || n.date;
                       const month = (parts[1] || '').toUpperCase();
                       return (
-                        <div className="w-10 h-8 sm:w-11 sm:h-9 rounded-lg border border-slate-200 bg-slate-50 flex flex-col overflow-hidden flex-shrink-0 shadow-xs transition-all group-hover:border-teal-500/50 group-hover:shadow">
+                        <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-white dark:bg-slate-950 border border-teal-200 dark:border-teal-800/70 shadow-2xs flex flex-col overflow-hidden shrink-0 group-hover:border-teal-500 group-hover:scale-105 transition-all duration-200">
                           {/* Calendar Month Header */}
-                          <div className="bg-teal-800 text-[6.5px] sm:text-[7.5px] font-bold text-white py-0.5 uppercase tracking-wider text-center select-none leading-none">
+                          <div className="bg-teal-700 dark:bg-teal-600 text-[7.5px] sm:text-[8px] font-black text-white py-0.5 uppercase tracking-wider text-center select-none leading-none w-full">
                             {month || 'DATE'}
                           </div>
                           {/* Calendar Day Body */}
-                          <div className="flex-grow flex items-center justify-center bg-white font-title text-[11px] sm:text-xs font-bold text-slate-800 leading-none">
+                          <div className="flex-1 flex items-center justify-center font-black text-xs sm:text-[13px] text-slate-800 dark:text-slate-100 font-mono leading-none">
                             {day}
                           </div>
                         </div>
@@ -316,8 +316,9 @@ export default function NoticeBoard() {
                         )}
 
                         {isNew && (
-                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-bold badge-red-custom uppercase tracking-wider animate-pulse">
-                            New
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[8px] font-black uppercase tracking-wider bg-rose-50 dark:bg-rose-950/80 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800/60 shadow-2xs animate-pulse">
+                            <span className="w-1.5 h-1.5 rounded-full bg-rose-500 inline-block" />
+                            NEW
                           </span>
                         )}
                       </div>
