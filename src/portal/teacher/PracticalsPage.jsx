@@ -1304,7 +1304,7 @@ export default function PracticalsPage() {
       let foundPending = null;
 
       try {
-        const [rawDocs, masterRes, admRes] = await Promise.all([
+        let [rawDocs, masterRes, admRes] = await Promise.all([
           getCachedCollection('practicalsData', true, 0).catch(() => []),
           getCachedCollection('masterRegisters', false, 15 * 60 * 1000).catch(() => []),
           getCachedCollection('admissions', false, 15 * 60 * 1000).catch(() => [])
@@ -1313,12 +1313,24 @@ export default function PracticalsPage() {
         masterDocs = Array.isArray(masterRes) ? masterRes : [];
         admDocs = Array.isArray(admRes) ? admRes : [];
 
-        const docItems = Array.isArray(rawDocs) ? rawDocs : (rawDocs?.docs ? rawDocs.docs.map(d => ({ id: d.id, ...d.data() })) : []);
+        let docItems = Array.isArray(rawDocs) ? rawDocs : (rawDocs?.docs ? rawDocs.docs.map(d => ({ id: d.id, ...d.data() })) : []);
+        // Direct query fallback to ensure complete integrity if cached collection is empty
+        if (docItems.length === 0) {
+          try {
+            const snap = await getDocs(collection(db, 'practicalsData'));
+            if (!snap.empty) {
+              docItems = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+            }
+          } catch (_) {}
+        }
+
         docItems.forEach(data => {
           const dId = String(data.id || data.docId || '');
+          const isApproved = data.status === 'approved' || (data.isPendingApproval === false && data.status !== 'pending_approval' && data.status !== 'rejected' && data.status !== 'draft');
 
           // Track pending, draft or rejected submission for this exact class, subject, evalType, session
-          if (dId === pendingDocId || (String(data.canonicalDocId || '') === docId && (data.status === 'pending_approval' || data.status === 'rejected' || data.status === 'draft' || data.isDraft === true))) {
+          // Strictly guarantee approved records are NEVER flagged as pending
+          if ((dId === pendingDocId || String(data.canonicalDocId || '') === docId) && !isApproved && (data.status === 'pending_approval' || data.status === 'rejected' || data.status === 'draft' || (data.isDraft === true && data.status !== 'approved'))) {
             foundPending = { id: dId, ...data };
           }
           // Track canonical integrated submission (supporting legacy format with composite class prefix if matching)
@@ -1331,6 +1343,23 @@ export default function PracticalsPage() {
           const docClass = String(data.className || data.Class || dId).toLowerCase();
           const matchClass = docClass.includes(clsNorm.toLowerCase()) || dId.toLowerCase().includes(clsNorm.toLowerCase());
           if (!matchClass && dId !== docId && dId !== pendingDocId) return;
+
+          // Evaluation Type Match — isolate Pre-Board Test, Internal, External, etc.
+          const docEvalType = String(data.practicalType || data.evaluationType || data.examTitle || '').toLowerCase().trim();
+          const targetEvalType = String(practicalType || '').toLowerCase().trim();
+          const isPreboardTarget = targetEvalType.includes('preboard') || targetEvalType.includes('pre-board');
+          const isPreboardDoc = docEvalType.includes('preboard') || docEvalType.includes('pre-board');
+          const isInternalTarget = targetEvalType.includes('internal');
+          const isInternalDoc = docEvalType.includes('internal');
+          const isExternalTarget = targetEvalType.includes('external');
+          const isExternalDoc = docEvalType.includes('external');
+
+          const matchEval = (isPreboardTarget && isPreboardDoc) || 
+                            (isInternalTarget && isInternalDoc) || 
+                            (isExternalTarget && isExternalDoc) || 
+                            (docEvalType === targetEvalType) ||
+                            dId === docId || dId === pendingDocId;
+          if (!matchEval) return;
 
           // Year Match — normalize old yearSuffix keys before comparing
           const normalizeYr = (y) => {
@@ -1361,10 +1390,6 @@ export default function PracticalsPage() {
           
           if (!matchSubj && dId !== docId && dId !== pendingDocId) return;
 
-          if (data.maxMarks && Number(data.maxMarks) > 0) {
-            setTeacherCustomMax(Number(data.maxMarks));
-          }
-
           // Parse records array if present (skip history backups)
           if (Array.isArray(data.records) && !dId.startsWith('history_')) {
             data.records.forEach(r => {
@@ -1382,12 +1407,16 @@ export default function PracticalsPage() {
                 studentName: r.name || r.studentName,
                 parentName: r.parentName || '',
                 formNo: rForm || rRoll,
-                practicalMarks: r.practicalMarks,
+                practicalMarks: r.practicalMarks !== undefined && r.practicalMarks !== null ? String(r.practicalMarks) : '',
                 vivaMarks: r.vivaMarks || '',
-                totalMarks: r.totalMarks || r.practicalMarks
+                totalMarks: r.totalMarks !== undefined && r.totalMarks !== null ? r.totalMarks : (r.practicalMarks || '')
               };
 
-              if (rRoll) savedMarksMap[rRoll] = recObj;
+              if (rRoll) {
+                savedMarksMap[rRoll] = recObj;
+                const num = parseInt(rRoll, 10);
+                if (!isNaN(num)) savedMarksMap[String(num)] = recObj;
+              }
               if (rBoard) savedMarksMap[rBoard] = recObj;
               if (rForm) savedMarksMap[rForm] = recObj;
               if (rName) savedMarksMap[rName] = recObj;
@@ -1409,7 +1438,7 @@ export default function PracticalsPage() {
                 boardRoll: boardRoll,
                 name: studentName,
                 parentName: parentName,
-                practicalMarks: val,
+                practicalMarks: val !== undefined && val !== null ? String(val) : '',
                 totalMarks: val,
                 vivaMarks: ''
               };
@@ -1438,19 +1467,27 @@ export default function PracticalsPage() {
               studentName: r.name || r.studentName,
               parentName: r.parentName || '',
               formNo: rForm || rRoll,
-              practicalMarks: r.practicalMarks !== undefined && r.practicalMarks !== null ? r.practicalMarks : '',
+              practicalMarks: r.practicalMarks !== undefined && r.practicalMarks !== null ? String(r.practicalMarks) : '',
               vivaMarks: r.vivaMarks || '',
               totalMarks: r.totalMarks !== undefined && r.totalMarks !== null ? r.totalMarks : (r.practicalMarks || '')
             };
 
-            if (rRoll) savedMarksMap[rRoll] = recObj;
+            if (rRoll) {
+              savedMarksMap[rRoll] = recObj;
+              const num = parseInt(rRoll, 10);
+              if (!isNaN(num)) savedMarksMap[String(num)] = recObj;
+            }
             if (rBoard) savedMarksMap[rBoard] = recObj;
             if (rForm) savedMarksMap[rForm] = recObj;
             if (rName) savedMarksMap[rName] = recObj;
           });
-          if (foundPending.maxMarks && Number(foundPending.maxMarks) > 0) {
-            setTeacherCustomMax(Number(foundPending.maxMarks));
-          }
+        }
+
+        // Accurately resolve custom max marks from active pending/draft or canonical record
+        if (foundPending?.maxMarks && Number(foundPending.maxMarks) > 0) {
+          setTeacherCustomMax(Number(foundPending.maxMarks));
+        } else if (foundCanonical?.maxMarks && Number(foundCanonical.maxMarks) > 0) {
+          setTeacherCustomMax(Number(foundCanonical.maxMarks));
         }
 
         // Set existing award info for UI indicators & safe overwrite workflow
@@ -1882,6 +1919,107 @@ export default function PracticalsPage() {
   useEffect(() => {
     fetchPracticalData();
   }, [fetchPracticalData]);
+
+  // Dedicated loader for historical / approved submissions: synchronizes state, updates max marks, maps marks directly into the UI, and performs background cache revalidation
+  const handleLoadSubmissionRecord = useCallback((item) => {
+    if (!item) return;
+    const rawCls = String(item.className || '');
+    const cleanCls = rawCls.includes('11') ? '11th' : (rawCls.includes('12') ? '12th' : (rawCls.includes('10') ? '10th' : (rawCls.includes('9') ? '9th' : '11th')));
+    const subj = item.subject && item.subject !== 'N/A' ? item.subject : 'Physics';
+    const pType = item.practicalType || item.evaluationType || 'Internal Assessment';
+    const ySuffix = item.yearSuffix || CURRENT_SESSION;
+    const maxM = item.maxMarks ? Number(item.maxMarks) : null;
+
+    setSelectedClass(cleanCls);
+    setSelectedSubject(subj);
+    setPracticalType(pType);
+    setYearSuffix(ySuffix);
+    if (maxM && maxM > 0) {
+      setTeacherCustomMax(maxM);
+    }
+
+    const itemId = String(item.id || item.docId || '');
+    const isPending = itemId.startsWith('pending_') || item.status === 'pending_approval' || item.status === 'draft' || item.status === 'rejected';
+    setExistingAwardInfo({
+      canonical: isPending ? null : item,
+      pending: isPending ? item : null
+    });
+
+    if (Array.isArray(item.records) && item.records.length > 0) {
+      const marksByRoll = new Map();
+      const marksByForm = new Map();
+      const marksByName = new Map();
+
+      item.records.forEach(r => {
+        const rRoll = String(r.rollNo || r.classRollNo || '').trim();
+        const rForm = String(r.formNo || '').trim();
+        const rName = String(r.name || r.studentName || '').toLowerCase().trim();
+        const mObj = {
+          practicalMarks: r.practicalMarks !== undefined && r.practicalMarks !== null ? String(r.practicalMarks) : '',
+          vivaMarks: r.vivaMarks !== undefined && r.vivaMarks !== null ? String(r.vivaMarks) : '',
+          totalMarks: r.totalMarks !== undefined && r.totalMarks !== null ? r.totalMarks : (r.practicalMarks || '')
+        };
+        if (rRoll) {
+          marksByRoll.set(rRoll, mObj);
+          const num = parseInt(rRoll, 10);
+          if (!isNaN(num)) marksByRoll.set(String(num), mObj);
+        }
+        if (rForm) marksByForm.set(rForm, mObj);
+        if (rName) marksByName.set(rName, mObj);
+      });
+
+      setStudentMarks(prev => {
+        if (Array.isArray(prev) && prev.length > 0) {
+          return prev.map(st => {
+            const rollKey = String(st.rollNo || '').trim();
+            const formKey = String(st.formNo || '').trim();
+            const nameKey = String(st.name || '').toLowerCase().trim();
+            const found = marksByRoll.get(rollKey) || marksByForm.get(formKey) || marksByName.get(nameKey);
+            if (found) {
+              return {
+                ...st,
+                practicalMarks: found.practicalMarks,
+                vivaMarks: found.vivaMarks
+              };
+            }
+            return st;
+          });
+        }
+        return item.records.map(r => ({
+          rollNo: String(r.rollNo || r.classRollNo || ''),
+          name: r.name || r.studentName || '',
+          examRollNo: r.examRollNo || r.boardRollNo || '',
+          subjectsAbbr: r.subjectsAbbr || subj,
+          rawSubjects: r.rawSubjects || subj,
+          formNo: r.formNo || '',
+          regNo: r.regNo || '',
+          practicalMarks: r.practicalMarks !== undefined && r.practicalMarks !== null ? String(r.practicalMarks) : '',
+          vivaMarks: r.vivaMarks !== undefined && r.vivaMarks !== null ? String(r.vivaMarks) : ''
+        }));
+      });
+    }
+
+    setShowHistoryModal(false);
+
+    triggerNotification({
+      type: 'success',
+      title: 'Evaluation Record Loaded',
+      badge: isPending ? 'Draft / Pending' : 'Approved Award',
+      text: `Successfully loaded ${item.recordsCount || item.records?.length || 0} student records for ${cleanCls} • ${subj} (${pType}).`,
+      primaryButtonText: 'OK'
+    });
+
+    setTimeout(() => {
+      fetchPracticalData(true);
+    }, 50);
+  }, [fetchPracticalData, triggerNotification]);
+
+  // Synchronize submission if navigated with loadedRecord from Dashboard
+  useEffect(() => {
+    if (location.state?.loadedRecord) {
+      handleLoadSubmissionRecord(location.state.loadedRecord);
+    }
+  }, [location.state?.loadedRecord, handleLoadSubmissionRecord]);
 
   // Fetch Past Submission History across all evaluation types
   const fetchSubmissionHistory = useCallback(async (force = true) => {
@@ -2856,27 +2994,32 @@ export default function PracticalsPage() {
 
             {/* Right: Actions Group (Filters, Quick Fill, Print - All Visible & Guaranteed 32px Height) */}
             <div className="flex items-center gap-1 shrink-0">
-              {/* Filters Button with Compact Student Count */}
+              {/* Filters Button (Wider, informative with student counts & filter indicators) */}
               <button
                 type="button"
                 onClick={() => setShowFilterSettings(!showFilterSettings)}
-                className={`practicals-toolbar-item h-8 min-h-[32px] max-h-[32px] px-1.5 sm:px-2.5 rounded-lg border text-[11px] font-bold flex items-center justify-center gap-1 transition-all cursor-pointer shadow-2xs active:scale-95 shrink-0 ${
+                className={`practicals-toolbar-item h-8 min-h-[32px] max-h-[32px] px-2 sm:px-3 rounded-lg border text-[11px] font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-2xs active:scale-95 shrink-0 ${
                   showFilterSettings
                     ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
                     : 'bg-white hover:bg-slate-50 dark:bg-slate-900 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700'
                 }`}
-                title={`Open evaluation filters (${displayedStudents.length} students)`}
+                title={`Open evaluation filters (${displayedStudents.length} of ${studentMarks.length} students)`}
               >
-                <SlidersHorizontal size={13} className={showFilterSettings ? 'text-white' : 'text-indigo-600 dark:text-indigo-400'} />
-                <span className="hidden sm:inline">Filters</span>
-                <span className={`px-1 py-0.2 rounded font-mono text-[9px] sm:text-[9.5px] font-black leading-none ${
+                <SlidersHorizontal size={13} className={showFilterSettings ? 'text-white' : 'text-indigo-600 dark:text-indigo-400 shrink-0'} />
+                <span className="font-extrabold text-[11px]">Filters</span>
+                <span className={`px-1.5 py-0.5 rounded-md font-mono text-[9.5px] sm:text-[10px] font-black leading-none flex items-center gap-1 ${
                   showFilterSettings
                     ? 'bg-white/25 text-white'
                     : 'bg-indigo-100 dark:bg-indigo-950/80 text-indigo-700 dark:text-indigo-300'
                 }`}>
-                  {displayedStudents.length}{showFailOnly ? 'F' : ''}
+                  <span>
+                    {displayedStudents.length}
+                    {displayedStudents.length !== studentMarks.length ? `/${studentMarks.length}` : ''}
+                  </span>
+                  <span className="hidden sm:inline font-sans text-[9px] font-bold opacity-85">Students</span>
+                  {showFailOnly && <span className="text-rose-500 font-sans font-black text-[9px]">• Fail</span>}
                 </span>
-                <ChevronDown size={11} className={`hidden sm:inline transition-transform duration-200 ${showFilterSettings ? 'rotate-180' : ''}`} />
+                <ChevronDown size={11} className={`transition-transform duration-200 shrink-0 ${showFilterSettings ? 'rotate-180' : ''}`} />
               </button>
 
               {/* Quick Fill Button */}
@@ -4112,15 +4255,7 @@ export default function PracticalsPage() {
 
                       <button
                         type="button"
-                        onClick={() => {
-                          const rawCls = String(item.className || '');
-                          const cleanCls = rawCls.includes('11') ? '11th' : (rawCls.includes('12') ? '12th' : (rawCls.includes('10') ? '10th' : (rawCls.includes('9') ? '9th' : '11th')));
-                          setSelectedClass(cleanCls);
-                          setSelectedSubject(item.subject && item.subject !== 'N/A' ? item.subject : 'Physics');
-                          if (item.practicalType) setPracticalType(item.practicalType);
-                          if (item.yearSuffix) setYearSuffix(item.yearSuffix);
-                          setShowHistoryModal(false);
-                        }}
+                        onClick={() => handleLoadSubmissionRecord(item)}
                         className="px-2.5 py-1.5 rounded-lg text-[10px] font-black bg-indigo-600/10 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-600/20 border border-indigo-500/20 cursor-pointer shrink-0 active:scale-95 transition-all"
                       >
                         Load Record

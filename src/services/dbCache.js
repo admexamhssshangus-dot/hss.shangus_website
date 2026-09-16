@@ -337,6 +337,13 @@ export const MODERN_CHUNK_IDS = [
 ];
 
 /**
+ * Check whether a collection stores chunked student registries (e.g. admissions, masterRegisters, legacyStudents).
+ * Document-level collections like practicalsData, attendance, holidays, and settings must never have their records flattened.
+ */
+export const isChunkedRegistryCollection = (collName) => 
+  collName === 'admissions' || collName === 'masterRegisters' || collName === 'legacyStudents';
+
+/**
  * Helper to unpack chunk or flat student documents into uniform student records.
  */
 export function unpackMasterRegisterDoc(docSnap) {
@@ -495,7 +502,10 @@ export async function getPaginatedCollection(collectionName, pageSize = 50, last
         data._deleted === true
       ) return;
 
-      const chunkItems = data.items || data.students || data.records || data.data;
+      // Only unpack chunked student registry documents. Evaluation awards (practicalsData),
+      // attendance, holidays, etc. are document-level entities and must retain their structure.
+      const isChunked = isChunkedRegistryCollection(collectionName);
+      const chunkItems = isChunked ? (data.items || data.students || data.records || data.data) : null;
       if (Array.isArray(chunkItems) && chunkItems.length > 0) {
         const docSession = data.Session || data.session || data['Academic Session'] || data.groupKey?.split('_')[0] || docSnap.id?.split('_')[0] || '';
         const docClass = data.class || data.Class || data.className || data['Class'] || data.groupKey?.split('_')[1] || '';
@@ -611,7 +621,8 @@ export function subscribeToCollection(collectionName, onUpdate, onError) {
         data._deleted === true
       ) return [];
 
-      const chunkItems = data.items || data.students || data.records || data.data;
+      const isChunked = isChunkedRegistryCollection(collectionName);
+      const chunkItems = isChunked ? (data.items || data.students || data.records || data.data) : null;
       if (Array.isArray(chunkItems) && chunkItems.length > 0) {
         const docSession = data.Session || data.session || data['Academic Session'] || data.groupKey?.split('_')[0] || docSnap.id?.split('_')[0] || '';
         const docClass = data.class || data.Class || data.className || data['Class'] || data.groupKey?.split('_')[1] || '';
@@ -727,7 +738,8 @@ async function fetchFreshFromFirestore(collectionName) {
         data._deleted === true
       ) return;
 
-      const chunkItems = data.items || data.students || data.records || data.data;
+      const isChunked = isChunkedRegistryCollection(collectionName);
+      const chunkItems = isChunked ? (data.items || data.students || data.records || data.data) : null;
       if (Array.isArray(chunkItems) && chunkItems.length > 0) {
         const docSession = data.Session || data.session || data['Academic Session'] || data.groupKey?.split('_')[0] || docSnap.id?.split('_')[0] || '';
         const docClass = data.class || data.Class || data.className || data['Class'] || data.groupKey?.split('_')[1] || '';
