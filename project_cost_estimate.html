@@ -279,35 +279,35 @@
     </div>
   </div>
   <div>
-    <span class="badge-migration">100% React + Firebase (Legacy Excluded)</span>
+    <span class="badge-migration">100% React + Firebase (Production Active)</span>
   </div>
 </div>
 
 <div class="callout success">
-  <strong>Architecture Update (September 2026):</strong> The legacy Google Apps Script codebase (formerly in <code>login/</code>) has been <strong>entirely decommissioned</strong>. All administrative, teacher, student, reporting, and examination workflows are now fully engineered in modern <strong>React 19 + Firebase (Firestore, Storage, Cloud Functions, and Netlify Edge)</strong>. This audit strictly measures the active, production-grade web platform.
+  <strong>Architecture Update (September 2026):</strong> The legacy Google Apps Script codebase (formerly in <code>login/</code>) has been <strong>entirely decommissioned</strong>. All administrative, faculty, student, reporting, dynamic tabulation, and examination workflows are now fully engineered in modern <strong>React 19 + Firebase (Firestore, Cloud Storage, Cloud Functions, and Netlify Edge)</strong>. This audit strictly measures the active, production-grade web platform.
 </div>
 
 <!-- ===== SUMMARY CARDS ===== -->
 <div class="summary-grid">
   <div class="summary-card">
     <div class="label">Active Code Files</div>
-    <div class="value">267</div>
-    <div class="sub">269 incl. master seed records</div>
+    <div class="value">351</div>
+    <div class="sub">354 incl. master seed records</div>
   </div>
   <div class="summary-card accent">
     <div class="label">Active Code LOC</div>
-    <div class="value">145,817</div>
-    <div class="sub">362,733 lines with database seeds</div>
+    <div class="value">181,795</div>
+    <div class="sub">421,471 lines with database seeds</div>
   </div>
   <div class="summary-card indigo">
     <div class="label">Codebase Characters</div>
-    <div class="value">~6.86M</div>
-    <div class="sub">6,858,838 pure code chars</div>
+    <div class="value">~8.66M</div>
+    <div class="sub">8,659,349 pure code chars</div>
   </div>
   <div class="summary-card amber">
     <div class="label">Approx Code Tokens</div>
-    <div class="value">~1.76M</div>
-    <div class="sub">1,758,674 code tokens</div>
+    <div class="value">~2.22M</div>
+    <div class="sub">2,220,346 code tokens</div>
   </div>
 </div>
 
@@ -329,179 +329,179 @@
     <tr>
       <td><strong>Admin Portal Suite</strong> <small>(src/portal/admin/)</small></td>
       <td>Student Studios, Dynamic Rosters, Gazettes, Ingestion, Funds</td>
-      <td class="num">31</td>
-      <td class="num">65,477</td>
-      <td class="num">3,254,553</td>
-      <td class="num">834,502</td>
+      <td class="num">40</td>
+      <td class="num">83,392</td>
+      <td class="num">4,215,393</td>
+      <td class="num">1,080,871</td>
       <td><span class="badge badge-portal">Portal ERP</span></td>
     </tr>
     <tr>
       <td><strong>Public Web Platform</strong> <small>(src/pages/)</small></td>
       <td>Admissions Hub, Academics, Admin Portal Hub, Public Portals</td>
-      <td class="num">14</td>
-      <td class="num">17,177</td>
-      <td class="num">933,655</td>
-      <td class="num">239,397</td>
+      <td class="num">17</td>
+      <td class="num">20,942</td>
+      <td class="num">1,122,066</td>
+      <td class="num">287,708</td>
       <td><span class="badge badge-core">Core Frontend</span></td>
     </tr>
     <tr>
       <td><strong>Client Document Engines</strong> <small>(src/utils/)</small></td>
       <td>PDF Auto-Table, DOCX Exporters, Vector Canvas, Certificate Engine</td>
-      <td class="num">40</td>
-      <td class="num">16,140</td>
-      <td class="num">674,943</td>
-      <td class="num">173,064</td>
+      <td class="num">51</td>
+      <td class="num">19,807</td>
+      <td class="num">830,000</td>
+      <td class="num">212,822</td>
       <td><span class="badge badge-engine">Client Engines</span></td>
     </tr>
     <tr>
       <td><strong>Automation & Regressions</strong> <small>(scripts/)</small></td>
       <td>Data Migration, Database Seeds, CLI Regressions, Health Checks</td>
-      <td class="num">89</td>
-      <td class="num">10,420</td>
-      <td class="num">379,404</td>
-      <td class="num">97,281</td>
+      <td class="num">97</td>
+      <td class="num">11,139</td>
+      <td class="num">423,644</td>
+      <td class="num">108,626</td>
       <td><span class="badge badge-infra">DevOps & Tooling</span></td>
     </tr>
     <tr>
       <td><strong>Firebase Services & Sync</strong> <small>(src/services/)</small></td>
       <td>Firestore CRUD, Multi-tier IndexedDB Cache, Realtime Listeners</td>
-      <td class="num">20</td>
-      <td class="num">8,911</td>
-      <td class="num">334,874</td>
-      <td class="num">85,864</td>
+      <td class="num">32</td>
+      <td class="num">9,590</td>
+      <td class="num">368,454</td>
+      <td class="num">94,473</td>
       <td><span class="badge badge-service">Cloud Data</span></td>
     </tr>
     <tr>
       <td><strong>Teacher Portal</strong> <small>(src/portal/teacher/)</small></td>
       <td>Digital Attendance Matrix, Science & Vocational Lab Marks</td>
-      <td class="num">3</td>
-      <td class="num">6,921</td>
-      <td class="num">329,192</td>
-      <td class="num">84,408</td>
+      <td class="num">4</td>
+      <td class="num">9,248</td>
+      <td class="num">469,527</td>
+      <td class="num">120,392</td>
       <td><span class="badge badge-portal">Faculty ERP</span></td>
+    </tr>
+    <tr>
+      <td><strong>Root Config & Security Rules</strong></td>
+      <td>Firestore Rules, Storage Rules, Webpack, Netlify Config</td>
+      <td class="num">33</td>
+      <td class="num">5,081</td>
+      <td class="num">189,480</td>
+      <td class="num">48,585</td>
+      <td><span class="badge badge-infra">Cloud Config</span></td>
     </tr>
     <tr>
       <td><strong>Student Portal</strong> <small>(src/portal/student/)</small></td>
       <td>Multi-stream Admission Application Form, Student Self-Service</td>
       <td class="num">2</td>
-      <td class="num">4,392</td>
-      <td class="num">238,261</td>
-      <td class="num">61,093</td>
+      <td class="num">4,432</td>
+      <td class="num">239,548</td>
+      <td class="num">61,423</td>
       <td><span class="badge badge-portal">Student App</span></td>
     </tr>
     <tr>
       <td><strong>Public Reusable UI</strong> <small>(src/components/)</small></td>
       <td>Navigation, Interactive Footer, Hero Sliders, SEO Meta, Modals</td>
-      <td class="num">14</td>
-      <td class="num">3,626</td>
-      <td class="num">172,477</td>
-      <td class="num">44,224</td>
+      <td class="num">18</td>
+      <td class="num">4,391</td>
+      <td class="num">202,709</td>
+      <td class="num">51,977</td>
       <td><span class="badge badge-core">UI Library</span></td>
-    </tr>
-    <tr>
-      <td><strong>Portal UI & Dynamic Engine</strong> <small>(src/portal/components/)</small></td>
-      <td>Configurable Dynamic Form Fields, Validation Modals, Pickers</td>
-      <td class="num">7</td>
-      <td class="num">2,590</td>
-      <td class="num">116,911</td>
-      <td class="num">29,978</td>
-      <td><span class="badge badge-portal">Engine</span></td>
     </tr>
     <tr>
       <td><strong>Portal Auth & Routing</strong> <small>(src/portal/)</small></td>
       <td>Role Guards (RBAC), Session Verification, Token Persistence</td>
       <td class="num">6</td>
-      <td class="num">2,401</td>
-      <td class="num">118,566</td>
-      <td class="num">30,402</td>
+      <td class="num">2,967</td>
+      <td class="num">144,683</td>
+      <td class="num">37,098</td>
       <td><span class="badge badge-service">Security / Auth</span></td>
     </tr>
     <tr>
       <td><strong>Design System & Styling</strong> <small>(src/styles & index.css)</small></td>
       <td>Tailwind CSS Rules, Custom Glassmorphism, Theme Tokens</td>
       <td class="num">2</td>
-      <td class="num">2,336</td>
-      <td class="num">72,894</td>
-      <td class="num">18,691</td>
+      <td class="num">2,836</td>
+      <td class="num">91,426</td>
+      <td class="num">23,443</td>
       <td><span class="badge badge-core">Styles</span></td>
     </tr>
     <tr>
-      <td><strong>Root Config & Security Rules</strong></td>
-      <td>Firestore Rules, Storage Rules, Webpack, Netlify Config</td>
-      <td class="num">19</td>
-      <td class="num">2,236</td>
-      <td class="num">92,709</td>
-      <td class="num">23,771</td>
-      <td><span class="badge badge-infra">Cloud Config</span></td>
+      <td><strong>Portal UI & Dynamic Engine</strong> <small>(src/portal/components/)</small></td>
+      <td>Configurable Dynamic Form Fields, Validation Modals, Pickers</td>
+      <td class="num">7</td>
+      <td class="num">2,500</td>
+      <td class="num">113,372</td>
+      <td class="num">29,070</td>
+      <td><span class="badge badge-portal">Engine</span></td>
     </tr>
     <tr>
       <td><strong>Netlify Edge Functions</strong> <small>(netlify/)</small></td>
       <td>Serverless Endpoints, Security Verification, Webhook Handlers</td>
-      <td class="num">6</td>
-      <td class="num">1,242</td>
-      <td class="num">62,026</td>
-      <td class="num">15,904</td>
+      <td class="num">9</td>
+      <td class="num">1,487</td>
+      <td class="num">81,900</td>
+      <td class="num">21,001</td>
       <td><span class="badge badge-service">Serverless</span></td>
     </tr>
     <tr>
-      <td><strong>Public Static Manifests</strong> <small>(public/)</small></td>
-      <td>PWA Manifests, Service Workers, JSON Schemas, Icons</td>
-      <td class="num">6</td>
-      <td class="num">779</td>
-      <td class="num">29,493</td>
-      <td class="num">7,563</td>
-      <td><span class="badge badge-infra">PWA / Static</span></td>
+      <td><strong>Firebase Cloud Functions</strong> <small>(functions/)</small></td>
+      <td>Node.js Cloud Functions for Background Trigger Processing</td>
+      <td class="num">14</td>
+      <td class="num">1,460</td>
+      <td class="num">65,418</td>
+      <td class="num">16,773</td>
+      <td><span class="badge badge-service">Backend</span></td>
     </tr>
     <tr>
       <td><strong>Core Application Root</strong> <small>(src/)</small></td>
       <td>App.js, index.js, Error Boundaries, Setup Proxies</td>
-      <td class="num">4</td>
-      <td class="num">626</td>
-      <td class="num">25,711</td>
-      <td class="num">6,592</td>
+      <td class="num">10</td>
+      <td class="num">1,389</td>
+      <td class="num">57,265</td>
+      <td class="num">14,683</td>
       <td><span class="badge badge-core">Runtime</span></td>
+    </tr>
+    <tr>
+      <td><strong>Public Static Manifests</strong> <small>(public/)</small></td>
+      <td>PWA Manifests, Service Workers, JSON Schemas, Icons</td>
+      <td class="num">7</td>
+      <td class="num">644</td>
+      <td class="num">20,976</td>
+      <td class="num">5,378</td>
+      <td><span class="badge badge-infra">PWA / Static</span></td>
     </tr>
     <tr>
       <td><strong>Portal Layout & Shell</strong> <small>(src/portal/layout/)</small></td>
       <td>Responsive Sidebar, Multi-Tab Navigation Shell, Status Bar</td>
       <td class="num">2</td>
-      <td class="num">373</td>
-      <td class="num">16,791</td>
-      <td class="num">4,305</td>
+      <td class="num">490</td>
+      <td class="num">23,488</td>
+      <td class="num">6,023</td>
       <td><span class="badge badge-portal">Portal Shell</span></td>
-    </tr>
-    <tr>
-      <td><strong>Firebase Cloud Functions</strong> <small>(functions/)</small></td>
-      <td>Node.js Cloud Functions for Background Trigger Processing</td>
-      <td class="num">2</td>
-      <td class="num">170</td>
-      <td class="num">6,378</td>
-      <td class="num">1,635</td>
-      <td><span class="badge badge-service">Backend</span></td>
     </tr>
     <tr class="subtotal">
       <td colspan="2">ACTIVE CODEBASE SUBTOTAL</td>
-      <td class="num">267</td>
-      <td class="num">145,817</td>
-      <td class="num">6,858,838</td>
-      <td class="num">1,758,674</td>
+      <td class="num">351</td>
+      <td class="num">181,795</td>
+      <td class="num">8,659,349</td>
+      <td class="num">2,220,346</td>
       <td><span class="badge badge-core">100% React</span></td>
     </tr>
     <tr>
       <td><strong>Master Seed Datasets</strong> <small>(src/data/)</small></td>
       <td>Institution Master Student Ledgers, Historical Practical Seeds</td>
-      <td class="num">2</td>
-      <td class="num">216,916</td>
-      <td class="num">7,781,659</td>
-      <td class="num">1,995,297</td>
+      <td class="num">3</td>
+      <td class="num">239,676</td>
+      <td class="num">8,258,259</td>
+      <td class="num">2,117,502</td>
       <td><span class="badge badge-data">Database Seeds</span></td>
     </tr>
     <tr class="total-row">
       <td colspan="2">TOTAL REPOSITORY SCALE</td>
-      <td class="num">269</td>
-      <td class="num">362,733</td>
-      <td class="num">14,640,497</td>
-      <td class="num">3,753,971</td>
+      <td class="num">354</td>
+      <td class="num">421,471</td>
+      <td class="num">16,917,608</td>
+      <td class="num">4,337,848</td>
       <td><strong>Enterprise Asset</strong></td>
     </tr>
   </tbody>
@@ -517,23 +517,23 @@
 
 <h2>🏗 Architecture Breakdown & Modernization Analysis</h2>
 <p style="margin-bottom: 8px;">
-  The platform has transitioned from a fragmented Google Apps Script architecture into a unified, high-performance, reactive full-stack web application. The <strong>145,817 lines of active code</strong> are structured across 5 specialized architectural pillars:
+  The platform has transitioned from a fragmented Google Apps Script architecture into a unified, high-performance, reactive full-stack web application. The <strong>181,795 lines of active code</strong> are structured across 5 specialized architectural pillars:
 </p>
 
 <div class="two-col">
   <div class="card-box">
-    <h4>1. Multi-Portal Enterprise ERP (56.1% • 81,784 LOC)</h4>
-    <p>Unified administrative and operational governance suite for faculty, administration, and students:</p>
+    <h4>1. Multi-Portal Enterprise ERP (56.7% • 103,029 LOC)</h4>
+    <p>Unified administrative, faculty, and student operational governance suite:</p>
     <ul>
-      <li><strong>Admin Portal Suite (65,477 LOC):</strong> Advanced Reports BI Engine, Certificate Studio, Custom Roster Document Builder, Admission Gazette, Fund Distribution Ledger, Direct Bulk Ingestion Modal, and Official Letter Writer.</li>
-      <li><strong>Teacher Portal (6,921 LOC):</strong> Stream-based digital attendance registers, practical lab evaluation grids, automated grade calculation.</li>
-      <li><strong>Student Portal (4,392 LOC):</strong> Multi-stream provisional and full admission self-service, document upload, and status tracker.</li>
-      <li><strong>Portal Framework & Dynamic Forms (5,364 LOC):</strong> Schema-driven form generator, session validation, and layout shell.</li>
+      <li><strong>Admin Portal Suite (83,392 LOC):</strong> Advanced Reports BI Engine, Certificate Studio, Custom Roster Document Builder, Admission Gazette, Consolidated Tabulation Engine, Fund Distribution Ledger, Direct Ingestion, and Official Letter Writer.</li>
+      <li><strong>Teacher Portal (9,248 LOC):</strong> Stream-based digital attendance matrix, practical lab marks evaluation grids, automated 50M scaling, and real-time revision sync.</li>
+      <li><strong>Student Portal (4,432 LOC):</strong> Multi-stream provisional and full admission self-service, document upload, and real-time status tracker.</li>
+      <li><strong>Portal Framework & Dynamic Engine (5,957 LOC):</strong> Schema-driven form generator, session validation, role routing, and responsive tab layout shell.</li>
     </ul>
   </div>
 
   <div class="card-box">
-    <h4>2. Client-Side Document & Render Engines (11.1% • 16,140 LOC)</h4>
+    <h4>2. Client-Side Document & Render Engines (10.9% • 19,807 LOC)</h4>
     <p>Zero-server rendering architecture allowing instant, client-side generation of high-resolution institutional documents:</p>
     <ul>
       <li><strong>PDF Auto-Table Generator:</strong> Dynamic gazettes, multi-column tabulation, automated page splitting, and watermarks.</li>
@@ -546,33 +546,33 @@
 
 <div class="two-col">
   <div class="card-box">
-    <h4>3. Public Web Experience & Dashboards (14.7% • 21,429 LOC)</h4>
+    <h4>3. Public Web Experience & Dashboards (16.3% • 29,558 LOC)</h4>
     <p>High-engagement institutional web portal designed with glassmorphism and modern web ergonomics:</p>
     <ul>
-      <li><strong>Institutional Portals & Pages (17,177 LOC):</strong> Academics, Stream Selector, Faculty Showcase, Examination News, Legal Disclaimers, and Unified Portal Navigation Hub.</li>
-      <li><strong>Component Design System (3,626 LOC):</strong> Dynamic Navbar with responsive mobile drawer, animated hero carousels, accessible modals, and notification toasts.</li>
-      <li><strong>Root Runtime (626 LOC):</strong> Strict React 19 concurrent root, global error boundaries, and dynamic code splitting.</li>
+      <li><strong>Institutional Portals & Pages (20,942 LOC):</strong> Academics, Stream Selector, Faculty Showcase, Examination News, Public Result Lookup, Legal Disclaimers, and Unified Portal Navigation Hub.</li>
+      <li><strong>Component Design System (7,227 LOC):</strong> Dynamic Navbar with responsive mobile drawer, animated hero carousels, accessible modals, notification toasts, and bespoke Tailwind styling.</li>
+      <li><strong>Root Runtime (1,389 LOC):</strong> Strict React 19 concurrent root, global error boundaries, lazy chunk prefetchers, and dynamic code splitting.</li>
     </ul>
   </div>
 
   <div class="card-box">
-    <h4>4. Cloud Data, Caching & Serverless (9.4% • 13,705 LOC)</h4>
+    <h4>4. Cloud Data, Caching & Serverless (9.7% • 17,618 LOC)</h4>
     <p>Cloud-native backend leveraging Google Cloud / Firebase serverless infrastructure:</p>
     <ul>
-      <li><strong>Multi-Tier Caching Layer (dbCache.js - 2,019 LOC):</strong> Transparent IndexedDB client caching with sub-millisecond query responses and offline availability.</li>
-      <li><strong>Firebase Firestore & Cloud Storage:</strong> Granular collection architecture with atomic batch writes and transactional ledger commits.</li>
-      <li><strong>Security & Edge Infrastructure (3,648 LOC):</strong> Granular Firestore Security Rules, Netlify Edge serverless functions, and Firebase Cloud Functions.</li>
+      <li><strong>Multi-Tier Caching Layer (dbCache.js - 2,014 LOC):</strong> Transparent IndexedDB client caching with sub-millisecond query responses and offline availability.</li>
+      <li><strong>Firebase Services (9,590 LOC):</strong> Granular collection architecture with atomic batch writes, real-time Firestore listeners, and version bin service.</li>
+      <li><strong>Security & Edge Infrastructure (8,028 LOC):</strong> Granular Firestore Security Rules, Netlify Edge serverless endpoints, and Firebase Cloud Functions.</li>
     </ul>
   </div>
 </div>
 
 <div class="card-box" style="margin-bottom: 8px;">
-  <h4>5. DevOps, Automated Testing & Ingestion Tooling (7.1% • 10,420 LOC)</h4>
+  <h4>5. DevOps, Automated Testing & Ingestion Tooling (6.1% • 11,139 LOC)</h4>
   <p>Comprehensive engineering toolset guaranteeing enterprise data integrity and regression safety:</p>
   <ul>
     <li><strong>Regression Test Harnesses:</strong> Dedicated regression suites for admission validation, student promotion, fee distribution integrity, and role security.</li>
-    <li><strong>High-Throughput Data Ingestion:</strong> Automated sanitizers, historical Excel/CSV parsers, and schema synchronizers.</li>
-    <li><strong>Database Maintenance Scripts:</strong> Cache invalidators, schema migration utilities, and automated build verifiers.</li>
+    <li><strong>High-Throughput Data Ingestion:</strong> Automated sanitizers, historical Excel/CSV parsers, schema synchronizers, and photo indexing scripts.</li>
+    <li><strong>Database Maintenance Scripts:</strong> Cache invalidators, schema migration utilities, audit verifiers, and automated SEO build verifiers.</li>
   </ul>
 </div>
 
@@ -641,189 +641,189 @@
   <tbody>
     <tr>
       <td>1</td>
-      <td><code>src/pages/<strong>AdminPortal.jsx</strong></code></td>
-      <td>Unified Admin Workspace, Multi-tab Router, Global State Hub</td>
-      <td class="num">11,688</td>
-      <td class="num">633 KB</td>
-      <td class="num">166,253</td>
+      <td><code>src/portal/admin/<strong>AdvancedReports.jsx</strong></code></td>
+      <td>Interactive BI Analytics Engine, Multi-parameter Filter Suite</td>
+      <td class="num">13,286</td>
+      <td class="num">640 KB</td>
+      <td class="num">164,103</td>
       <td><span class="badge badge-portal">React JSX</span></td>
     </tr>
     <tr>
       <td>2</td>
-      <td><code>src/portal/admin/<strong>AdvancedReports.jsx</strong></code></td>
-      <td>Interactive BI Analytics Engine, Multi-parameter Filter Suite</td>
-      <td class="num">11,595</td>
-      <td class="num">548 KB</td>
-      <td class="num">143,849</td>
+      <td><code>src/pages/<strong>AdminPortal.jsx</strong></code></td>
+      <td>Unified Admin Workspace, Multi-tab Router, Global State Hub</td>
+      <td class="num">11,818</td>
+      <td class="num">639 KB</td>
+      <td class="num">163,846</td>
       <td><span class="badge badge-portal">React JSX</span></td>
     </tr>
     <tr>
       <td>3</td>
-      <td><code>src/portal/admin/<strong>StudentCertificateStudioView.jsx</strong></code></td>
-      <td>Vector Certificate Designer, WYSIWYG Visual Canvas, Print Studio</td>
-      <td class="num">6,244</td>
-      <td class="num">308 KB</td>
-      <td class="num">80,997</td>
+      <td><code>src/portal/admin/<strong>AdmissionRegisterSuite.jsx</strong></code></td>
+      <td>Institutional Gazette Ledger, Sequential Roll/Registration Assigner</td>
+      <td class="num">7,732</td>
+      <td class="num">400 KB</td>
+      <td class="num">102,564</td>
       <td><span class="badge badge-portal">React JSX</span></td>
     </tr>
     <tr>
       <td>4</td>
-      <td><code>src/portal/admin/<strong>AdmissionRegisterSuite.jsx</strong></code></td>
-      <td>Institutional Gazette Ledger, Sequential Roll/Registration Assigner</td>
-      <td class="num">4,509</td>
-      <td class="num">231 KB</td>
-      <td class="num">60,675</td>
+      <td><code>src/portal/admin/<strong>StudentCertificateStudioView.jsx</strong></code></td>
+      <td>Vector Certificate Designer, WYSIWYG Visual Canvas, Print Studio</td>
+      <td class="num">7,475</td>
+      <td class="num">374 KB</td>
+      <td class="num">95,897</td>
       <td><span class="badge badge-portal">React JSX</span></td>
     </tr>
     <tr>
       <td>5</td>
-      <td><code>src/portal/admin/<strong>FundDistribution.jsx</strong></code></td>
-      <td>Financial Aid Ledger, Student Entitlements, Disbursement Auditing</td>
-      <td class="num">4,402</td>
-      <td class="num">227 KB</td>
-      <td class="num">59,515</td>
+      <td><code>src/portal/admin/<strong>CustomRosterDocumentBuilderView.jsx</strong></code></td>
+      <td>Dynamic Roster Studio, Column Customizer, Field Merging</td>
+      <td class="num">5,640</td>
+      <td class="num">263 KB</td>
+      <td class="num">67,436</td>
       <td><span class="badge badge-portal">React JSX</span></td>
     </tr>
     <tr>
       <td>6</td>
       <td><code>src/portal/admin/<strong>AdminPracticals.jsx</strong></code></td>
       <td>Science & Vocational Lab Assessment Admin, Center Master Matrix</td>
-      <td class="num">4,197</td>
-      <td class="num">213 KB</td>
-      <td class="num">55,880</td>
+      <td class="num">4,863</td>
+      <td class="num">255 KB</td>
+      <td class="num">65,385</td>
       <td><span class="badge badge-portal">React JSX</span></td>
     </tr>
     <tr>
       <td>7</td>
-      <td><code>src/portal/admin/<strong>DirectIngestionModal.jsx</strong></code></td>
-      <td>High-Throughput Excel/CSV Ingestion Engine, Schema Auto-Mapping</td>
-      <td class="num">4,131</td>
-      <td class="num">209 KB</td>
-      <td class="num">54,900</td>
+      <td><code>src/portal/teacher/<strong>PracticalsPage.jsx</strong></code></td>
+      <td>Teacher Science Lab Marks Entry, Validation, Atomic Sync</td>
+      <td class="num">4,478</td>
+      <td class="num">225 KB</td>
+      <td class="num">57,692</td>
       <td><span class="badge badge-portal">React JSX</span></td>
     </tr>
     <tr>
       <td>8</td>
-      <td><code>src/portal/teacher/<strong>AttendancePage.jsx</strong></code></td>
-      <td>Faculty Digital Attendance Matrix, Monthly Aggregates, Sync Engine</td>
-      <td class="num">3,715</td>
-      <td class="num">174 KB</td>
-      <td class="num">45,811</td>
+      <td><code>src/portal/admin/<strong>FundDistribution.jsx</strong></code></td>
+      <td>Financial Aid Ledger, Student Entitlements, Disbursement Auditing</td>
+      <td class="num">4,437</td>
+      <td class="num">233 KB</td>
+      <td class="num">59,744</td>
       <td><span class="badge badge-portal">React JSX</span></td>
     </tr>
     <tr>
       <td>9</td>
-      <td><code>src/portal/admin/<strong>CustomRosterDocumentBuilderView.jsx</strong></code></td>
-      <td>Dynamic Roster Studio, Column Customizer, Field Merging</td>
-      <td class="num">3,458</td>
-      <td class="num">153 KB</td>
-      <td class="num">40,130</td>
+      <td><code>src/portal/admin/<strong>OfficialLetterWriterView.jsx</strong></code></td>
+      <td>Official Document Creator, Header/Footer Templates, DOCX/PDF</td>
+      <td class="num">4,254</td>
+      <td class="num">217 KB</td>
+      <td class="num">55,641</td>
       <td><span class="badge badge-portal">React JSX</span></td>
     </tr>
     <tr>
       <td>10</td>
-      <td><code>src/portal/admin/<strong>StudentIdCardManager.jsx</strong></code></td>
-      <td>Batch ID Card Generator, Dual-Sided Cards, QR Code Embedding</td>
-      <td class="num">3,346</td>
-      <td class="num">158 KB</td>
-      <td class="num">41,422</td>
+      <td><code>src/portal/teacher/<strong>AttendancePage.jsx</strong></code></td>
+      <td>Faculty Digital Attendance Matrix, Monthly Aggregates, Sync Engine</td>
+      <td class="num">4,151</td>
+      <td class="num">204 KB</td>
+      <td class="num">52,308</td>
       <td><span class="badge badge-portal">React JSX</span></td>
     </tr>
     <tr>
       <td>11</td>
-      <td><code>src/portal/student/<strong>AdmissionForm.jsx</strong></code></td>
-      <td>Public Student Enrollment Portal, Multi-stream Dynamic Rules</td>
-      <td class="num">3,212</td>
-      <td class="num">171 KB</td>
-      <td class="num">44,963</td>
+      <td><code>src/portal/admin/<strong>StudentIdCardManager.jsx</strong></code></td>
+      <td>Batch ID Card Generator, Dual-Sided Cards, QR Code Embedding</td>
+      <td class="num">3,348</td>
+      <td class="num">158 KB</td>
+      <td class="num">40,513</td>
       <td><span class="badge badge-portal">React JSX</span></td>
     </tr>
     <tr>
       <td>12</td>
-      <td><code>src/portal/teacher/<strong>PracticalsPage.jsx</strong></code></td>
-      <td>Teacher Science Lab Marks Entry, Validation, Atomic Sync</td>
-      <td class="num">2,900</td>
-      <td class="num">132 KB</td>
-      <td class="num">34,637</td>
+      <td><code>src/portal/student/<strong>AdmissionForm.jsx</strong></code></td>
+      <td>Public Student Enrollment Portal, Multi-stream Dynamic Rules</td>
+      <td class="num">3,216</td>
+      <td class="num">172 KB</td>
+      <td class="num">44,103</td>
       <td><span class="badge badge-portal">React JSX</span></td>
     </tr>
     <tr>
       <td>13</td>
-      <td><code>src/portal/admin/<strong>OfficialLetterWriterView.jsx</strong></code></td>
-      <td>Official Document Creator, Header/Footer Templates, DOCX/PDF</td>
-      <td class="num">2,864</td>
-      <td class="num">134 KB</td>
-      <td class="num">35,245</td>
-      <td><span class="badge badge-portal">React JSX</span></td>
+      <td><code>src/utils/<strong>certificateExportUtils.js</strong></code></td>
+      <td>High-DPI Vector Canvas Export, PDF Transformation Pipeline</td>
+      <td class="num">3,204</td>
+      <td class="num">122 KB</td>
+      <td class="num">31,282</td>
+      <td><span class="badge badge-engine">JS Utility</span></td>
     </tr>
     <tr>
       <td>14</td>
-      <td><code>src/utils/<strong>certificateExportUtils.js</strong></code></td>
-      <td>High-DPI Vector Canvas Export, PDF Transformation Pipeline</td>
-      <td class="num">2,721</td>
-      <td class="num">100 KB</td>
-      <td class="num">26,181</td>
-      <td><span class="badge badge-engine">JS Utility</span></td>
+      <td><code>src/portal/admin/<strong>BulkFieldOverwriteModal.jsx</strong></code></td>
+      <td>Multi-field Batch Updater, Express Overwrite Engine</td>
+      <td class="num">2,985</td>
+      <td class="num">162 KB</td>
+      <td class="num">41,538</td>
+      <td><span class="badge badge-portal">React JSX</span></td>
     </tr>
     <tr>
       <td>15</td>
       <td><code>src/portal/admin/<strong>ControlsAndSubjects.jsx</strong></code></td>
       <td>Academic Curriculum Configuration, Subject Stream Rules Engine</td>
-      <td class="num">2,353</td>
-      <td class="num">119 KB</td>
-      <td class="num">31,145</td>
+      <td class="num">2,807</td>
+      <td class="num">148 KB</td>
+      <td class="num">37,949</td>
       <td><span class="badge badge-portal">React JSX</span></td>
     </tr>
     <tr>
       <td>16</td>
-      <td><code>src/utils/<strong>pdfGenerator.js</strong></code></td>
-      <td>Auto-Table Multi-Page PDF Generation Engine, Styling Plugins</td>
-      <td class="num">2,188</td>
-      <td class="num">111 KB</td>
-      <td class="num">29,189</td>
-      <td><span class="badge badge-engine">JS Utility</span></td>
+      <td><code>src/pages/<strong>PublicResultLookup.jsx</strong></code></td>
+      <td>Public Student Examination Scorecard & Certificate Verification</td>
+      <td class="num">2,401</td>
+      <td class="num">116 KB</td>
+      <td class="num">29,744</td>
+      <td><span class="badge badge-portal">React JSX</span></td>
     </tr>
     <tr>
       <td>17</td>
-      <td><code>src/portal/admin/<strong>AdminGkTestManager.jsx</strong></code></td>
-      <td>General Knowledge & Competitive Examination Testing Suite</td>
-      <td class="num">2,090</td>
-      <td class="num">100 KB</td>
-      <td class="num">26,219</td>
-      <td><span class="badge badge-portal">React JSX</span></td>
+      <td><code>src/utils/<strong>pdfGenerator.js</strong></code></td>
+      <td>Auto-Table Multi-Page PDF Generation Engine, Styling Plugins</td>
+      <td class="num">2,342</td>
+      <td class="num">120 KB</td>
+      <td class="num">30,769</td>
+      <td><span class="badge badge-engine">JS Utility</span></td>
     </tr>
     <tr>
       <td>18</td>
       <td><code>src/<strong>index.css</strong></code></td>
       <td>Global Design System Tokens, Glassmorphism, Micro-Animations</td>
-      <td class="num">2,022</td>
-      <td class="num">62 KB</td>
-      <td class="num">16,336</td>
+      <td class="num">2,282</td>
+      <td class="num">73 KB</td>
+      <td class="num">18,718</td>
       <td><span class="badge badge-core">CSS Styles</span></td>
     </tr>
     <tr>
       <td>19</td>
-      <td><code>src/services/<strong>dbCache.js</strong></code></td>
-      <td>IndexedDB High-Performance Cache, Cache Expiry, Invalidation</td>
-      <td class="num">2,019</td>
-      <td class="num">79 KB</td>
-      <td class="num">20,759</td>
-      <td><span class="badge badge-service">JS Service</span></td>
+      <td><code>src/portal/admin/<strong>AdminGkTestManager.jsx</strong></code></td>
+      <td>General Knowledge & Competitive Examination Testing Suite</td>
+      <td class="num">2,114</td>
+      <td class="num">102 KB</td>
+      <td class="num">26,154</td>
+      <td><span class="badge badge-portal">React JSX</span></td>
     </tr>
     <tr>
       <td>20</td>
-      <td><code>src/portal/admin/<strong>ResultIngestionModal.jsx</strong></code></td>
-      <td>Board Results Matrix Parser, Roll Number Matching, Batch Update</td>
-      <td class="num">1,907</td>
-      <td class="num">96 KB</td>
-      <td class="num">25,179</td>
-      <td><span class="badge badge-portal">React JSX</span></td>
+      <td><code>src/services/<strong>dbCache.js</strong></code></td>
+      <td>IndexedDB High-Performance Cache, Cache Expiry, Invalidation</td>
+      <td class="num">2,014</td>
+      <td class="num">82 KB</td>
+      <td class="num">21,026</td>
+      <td><span class="badge badge-service">JS Service</span></td>
     </tr>
   </tbody>
 </table>
 
 <div class="callout info">
-  <strong>Key Observation:</strong> The top 20 source files alone represent <strong>81,458 lines of code</strong> (55.8% of the active codebase). This concentration demonstrates deep feature completeness in administrative automation, client-side rendering engines, and high-volume data ingestion.
+  <strong>Key Observation:</strong> The top 20 source files alone represent <strong>92,867 lines of code</strong> (51.1% of the active codebase). This concentration demonstrates deep feature completeness in administrative automation, client-side rendering engines, and high-volume data ingestion.
 </div>
 
 <div class="footer-note">
@@ -837,7 +837,7 @@
 <h2>📈 Project Scale & Industry Valuation Models</h2>
 
 <div class="callout warning">
-  <strong>Scale Classification:</strong> At <strong>145,817 active source lines of code</strong> (SLOC), this application ranks as a <strong>Tier-1 Enterprise Web Application</strong>. Standard commercial web portals typically average 30,000 – 60,000 LOC; this platform exceeds that benchmark by more than <strong>2.4×</strong> due to its integrated Studio suites, client-side document engines, and comprehensive multi-role ERP portals.
+  <strong>Scale Classification:</strong> At <strong>181,795 active source lines of code</strong> (SLOC), this application ranks as a <strong>Tier-1 Enterprise Web Application</strong>. Standard commercial web portals typically average 30,000 – 60,000 LOC; this platform exceeds that benchmark by more than <strong>3.0×</strong> due to its integrated Studio suites, client-side document engines, and comprehensive multi-role ERP portals.
 </div>
 
 <table class="scale-table">
@@ -872,7 +872,7 @@
       <td><strong>Tier-1 Enterprise Web Platform</strong></td>
       <td><strong>75,000 – 150,000+</strong></td>
       <td><strong>Multi-Role Portals, Custom Studios, Ingestion, Real-Time Sync</strong></td>
-      <td><strong>✅ 145,817 Active Code LOC</strong></td>
+      <td><strong>✅ 181,795 Active Code LOC</strong></td>
     </tr>
   </tbody>
 </table>
@@ -884,11 +884,11 @@
     <h4>COCOMO II Estimation Model</h4>
     <p>Using the industry-standard Constructive Cost Model for modern semi-detached web engineering:</p>
     <ul>
-      <li><strong>Codebase Metric:</strong> 145.82 KLOC (Kilo-Lines of Code)</li>
+      <li><strong>Codebase Metric:</strong> 181.80 KLOC (Kilo-Lines of Code)</li>
       <li><strong>Effort Equation:</strong> <code>PM = 3.0 × (KSLOC)^1.05</code></li>
-      <li><strong>Development Effort:</strong> <strong>~38 – 45 Person-Months (PM)</strong></li>
-      <li><strong>Team Distribution:</strong> Senior Full-Stack Lead (1), Frontend Engineers (2), Cloud/DevOps Engineer (1) over <strong>10 – 12 months</strong> of continuous engineering.</li>
-      <li><strong>Total Development Hours:</strong> ~6,200 – 7,200 productive engineering hours.</li>
+      <li><strong>Development Effort:</strong> <strong>~48 – 56 Person-Months (PM)</strong></li>
+      <li><strong>Team Distribution:</strong> Senior Full-Stack Lead (1), Frontend Engineers (2–3), Cloud/DevOps Engineer (1) over <strong>12 – 14 months</strong> of continuous engineering.</li>
+      <li><strong>Total Development Hours:</strong> ~7,800 – 9,000 productive engineering hours.</li>
     </ul>
   </div>
 
@@ -898,11 +898,11 @@
     <ul>
       <li><strong>Domestic / GovTech Rate (India):</strong><br>
         ₹1,25,000 – ₹1,75,000 per developer-month<br>
-        <strong>Estimated Cost: ₹48,00,000 – ₹72,00,000 INR</strong> (~$58,000 – $86,000 USD)
+        <strong>Estimated Cost: ₹60,00,000 – ₹98,00,000 INR</strong> (~$72,000 – $118,000 USD)
       </li>
       <li><strong>Global Commercial Benchmark (US / EU Tier-1):</strong><br>
-        $75 – $110 per engineering hour (6,500 hrs)<br>
-        <strong>Estimated Cost: $480,000 – $715,000 USD</strong> (~₹4.0 – ₹5.9 Crore INR)
+        $75 – $110 per engineering hour (8,200 hrs)<br>
+        <strong>Estimated Cost: $615,000 – $900,000 USD</strong> (~₹5.1 – ₹7.5 Crore INR)
       </li>
     </ul>
   </div>
@@ -925,7 +925,7 @@
 </div>
 
 <div class="callout info" style="margin-top: 8px;">
-  <strong>Conclusion & Governance Summary:</strong> The HSS Shangus web platform represents an enterprise-tier software asset valued at <strong>₹48 – ₹72 Lakhs INR ($58,000 – $86,000 USD)</strong> in domestic engineering replacement value. The successful deprecation and total replacement of legacy Google Apps Script has established a modern, secure, and infinitely scalable foundation capable of serving students, faculty, and administrators with zero execution bottlenecks.
+  <strong>Conclusion & Governance Summary:</strong> The HSS Shangus web platform represents an enterprise-tier software asset valued at <strong>₹60 – ₹98 Lakhs INR ($72,000 – $118,000 USD)</strong> in domestic engineering replacement value. The successful deprecation and total replacement of legacy Google Apps Script has established a modern, secure, and infinitely scalable foundation capable of serving students, faculty, and administrators with zero execution bottlenecks.
 </div>
 
 <div class="footer-note">
