@@ -520,6 +520,47 @@ export async function getAdminPracticalsSettings() {
 }
 
 /**
+ * Resolves subject-specific paper scale override for a given subject code and class.
+ * Supports:
+ * 1. Direct composite class-specific key: e.g. "11th_BO", "12th_ZO"
+ * 2. Object with matching targetClass and code
+ * 3. Fallback generic code key: e.g. "BO"
+ */
+export function getSubjectOverride(subjectOverrides, subjectCode, targetClass = '') {
+  if (!subjectOverrides || !subjectCode) return null;
+  const sCode = String(subjectCode).toUpperCase().trim();
+  const normCls = String(targetClass || '').replace(/class/i, '').trim();
+
+  // 1. Direct composite key match: e.g. "11th_BO"
+  if (normCls) {
+    const compositeKey = `${normCls}_${sCode}`;
+    if (subjectOverrides[compositeKey]) {
+      return subjectOverrides[compositeKey];
+    }
+  }
+
+  // 2. Search entries for matching targetClass & code
+  const entries = Object.values(subjectOverrides);
+  if (normCls) {
+    const classMatch = entries.find(
+      o => o && String(o.code).toUpperCase().trim() === sCode &&
+           String(o.targetClass || '').replace(/class/i, '').trim().toLowerCase() === normCls.toLowerCase()
+    );
+    if (classMatch) return classMatch;
+  }
+
+  // 3. Fallback to generic override (targetClass is 'ALL' or empty)
+  const genericMatch = entries.find(
+    o => o && String(o.code).toUpperCase().trim() === sCode &&
+         (!o.targetClass || o.targetClass === 'ALL' || o.targetClass === 'All')
+  );
+  if (genericMatch) return genericMatch;
+
+  // 4. Direct key fallback: e.g. subjectOverrides['BO']
+  return subjectOverrides[sCode] || null;
+}
+
+/**
  * Default School Evaluation Presets (Pre-Board Tests, Golden Tests, etc.)
  */
 export const DEFAULT_SCHOOL_EVALUATIONS = [

@@ -19,6 +19,7 @@ import {
   getSubjectMarksConfig,
   getAdminPracticalsSettings,
   getEvaluationTypesForTeacher,
+  getSubjectOverride,
   SUBJECT_CONFIG_DEFS,
   isTeacherSubjectMatch,
   normalizeSubjectIdentity,
@@ -1256,7 +1257,7 @@ export default function PracticalsPage() {
   const currentSubjectObj = SUBJECT_MAP.find(s => s.name === selectedSubject) || SUBJECT_MAP[1];
   const evalTypeNorm = String(practicalType || '').toLowerCase().includes('ext') ? 'external' : 'internal';
   const currentMarksConfig = getSubjectMarksConfig(practicalsSettings, selectedClass, evalTypeNorm, currentSubjectObj.code);
-  const customSubjOverride = activeEvalOption?.evalConfig?.subjectOverrides?.[currentSubjectObj.code];
+  const customSubjOverride = getSubjectOverride(activeEvalOption?.evalConfig?.subjectOverrides, currentSubjectObj.code, selectedClass);
   const baseEvalMax = customSubjOverride?.maxMarks
     ? Number(customSubjOverride.maxMarks)
     : (isCustomEval && activeEvalOption?.evalConfig?.maxMarks
@@ -1274,7 +1275,7 @@ export default function PracticalsPage() {
     if (code === currentSubjectObj.code && Number(teacherCustomMax) > 0) {
       return Number(teacherCustomMax);
     }
-    const override = activeEvalOption?.evalConfig?.subjectOverrides?.[code];
+    const override = getSubjectOverride(activeEvalOption?.evalConfig?.subjectOverrides, code, selectedClass);
     if (override?.maxMarks) {
       return Number(override.maxMarks);
     }

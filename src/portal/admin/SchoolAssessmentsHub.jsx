@@ -78,6 +78,7 @@ export default function SchoolAssessmentsHub({ allStudents = [], onSwitchToGazet
   // Edit / Create Form Modal
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState(null);
+  const [overrideTargetClass, setOverrideTargetClass] = useState('ALL');
   const [overrideSelectCode, setOverrideSelectCode] = useState('');
   const [overrideMaxInput, setOverrideMaxInput] = useState('');
   const [overridePassInput, setOverridePassInput] = useState('');
@@ -93,8 +94,8 @@ export default function SchoolAssessmentsHub({ allStudents = [], onSwitchToGazet
     biologyDisplayMode: 'combined',
     normalizeTo50: true,
     subjectOverrides: {
-      'BO': { code: 'BO', name: 'Botany', maxMarks: 25, minMarks: 9 },
-      'ZO': { code: 'ZO', name: 'Zoology', maxMarks: 25, minMarks: 9 }
+      '11th_BO': { key: '11th_BO', targetClass: '11th', code: 'BO', name: 'Botany', maxMarks: 25, minMarks: 9 },
+      '11th_ZO': { key: '11th_ZO', targetClass: '11th', code: 'ZO', name: 'Zoology', maxMarks: 50, minMarks: 18 }
     },
     isOpenForTeachers: true,
     isPublishedForStudents: true,
@@ -110,11 +111,16 @@ export default function SchoolAssessmentsHub({ allStudents = [], onSwitchToGazet
       return;
     }
     const pass = Number(overridePassInput) || Math.ceil(max * 0.36);
+    const cls = overrideTargetClass || 'ALL';
+    const compositeKey = cls === 'ALL' ? overrideSelectCode : `${cls}_${overrideSelectCode}`;
+
     setFormState(prev => ({
       ...prev,
       subjectOverrides: {
         ...(prev.subjectOverrides || {}),
-        [overrideSelectCode]: {
+        [compositeKey]: {
+          key: compositeKey,
+          targetClass: cls,
           code: overrideSelectCode,
           name: subObj?.name || overrideSelectCode,
           maxMarks: max,
@@ -528,7 +534,7 @@ export default function SchoolAssessmentsHub({ allStudents = [], onSwitchToGazet
                   </span>
                   {item.subjectOverrides && Object.keys(item.subjectOverrides).length > 0 && (
                     <span className="px-1.5 py-0.5 rounded font-bold bg-amber-50 dark:bg-amber-950/60 text-amber-900 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
-                      Custom: {Object.entries(item.subjectOverrides).map(([c, o]) => `${c}(${o.maxMarks}M)`).join(', ')}
+                      Custom: {Object.entries(item.subjectOverrides).map(([c, o]) => `${o.targetClass && o.targetClass !== 'ALL' ? `${o.targetClass}:` : ''}${o.code || c}(${o.maxMarks}M)`).join(', ')}
                     </span>
                   )}
                 </div>
@@ -883,14 +889,33 @@ export default function SchoolAssessmentsHub({ allStudents = [], onSwitchToGazet
                               ...prev,
                               subjectOverrides: {
                                 ...(prev.subjectOverrides || {}),
-                                'BO': { name: 'Botany', code: 'BO', maxMarks: 25, minMarks: 9 },
-                                'ZO': { name: 'Zoology', code: 'ZO', maxMarks: 25, minMarks: 9 }
+                                '11th_BO': { key: '11th_BO', targetClass: '11th', name: 'Botany', code: 'BO', maxMarks: 25, minMarks: 9 },
+                                '11th_ZO': { key: '11th_ZO', targetClass: '11th', name: 'Zoology', code: 'ZO', maxMarks: 50, minMarks: 18 },
+                                '12th_BO': { key: '12th_BO', targetClass: '12th', name: 'Botany', code: 'BO', maxMarks: 25, minMarks: 9 },
+                                '12th_ZO': { key: '12th_ZO', targetClass: '12th', name: 'Zoology', code: 'ZO', maxMarks: 50, minMarks: 18 }
+                              }
+                            }));
+                          }}
+                          className="px-2 py-0.5 rounded-md bg-teal-100 hover:bg-teal-200 dark:bg-teal-900/80 dark:hover:bg-teal-800 text-teal-950 dark:text-teal-200 border border-teal-300 dark:border-teal-700 text-[10px] font-black cursor-pointer transition-colors shadow-2xs"
+                          title="Sets Botany to 25M and Zoology to 50M for Class 11th and 12th"
+                        >
+                          + Botany 25M &amp; Zoology 50M
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setFormState(prev => ({
+                              ...prev,
+                              subjectOverrides: {
+                                ...(prev.subjectOverrides || {}),
+                                'BO': { key: 'BO', targetClass: 'ALL', name: 'Botany', code: 'BO', maxMarks: 25, minMarks: 9 },
+                                'ZO': { key: 'ZO', targetClass: 'ALL', name: 'Zoology', code: 'ZO', maxMarks: 25, minMarks: 9 }
                               }
                             }));
                           }}
                           className="px-2 py-0.5 rounded-md bg-teal-50 hover:bg-teal-100 dark:bg-teal-950 dark:hover:bg-teal-900/60 text-teal-800 dark:text-teal-300 border border-teal-200 dark:border-teal-800 text-[10px] font-bold cursor-pointer transition-colors"
                         >
-                          + Botany & Zoology (25M each)
+                          + Botany &amp; Zoology (25M each)
                         </button>
                         <button
                           type="button"
@@ -899,14 +924,14 @@ export default function SchoolAssessmentsHub({ allStudents = [], onSwitchToGazet
                               ...prev,
                               subjectOverrides: {
                                 ...(prev.subjectOverrides || {}),
-                                'PH': { name: 'Physics', code: 'PH', maxMarks: 35, minMarks: 13 },
-                                'CH': { name: 'Chemistry', code: 'CH', maxMarks: 35, minMarks: 13 }
+                                'PH': { key: 'PH', targetClass: 'ALL', name: 'Physics', code: 'PH', maxMarks: 35, minMarks: 13 },
+                                'CH': { key: 'CH', targetClass: 'ALL', name: 'Chemistry', code: 'CH', maxMarks: 35, minMarks: 13 }
                               }
                             }));
                           }}
                           className="px-2 py-0.5 rounded-md bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950 dark:hover:bg-indigo-900/60 text-indigo-800 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 text-[10px] font-bold cursor-pointer transition-colors"
                         >
-                          + Science 35M (Physics & Chemistry)
+                          + Science 35M (Physics &amp; Chemistry)
                         </button>
                         <button
                           type="button"
@@ -915,8 +940,8 @@ export default function SchoolAssessmentsHub({ allStudents = [], onSwitchToGazet
                               ...prev,
                               subjectOverrides: {
                                 ...(prev.subjectOverrides || {}),
-                                'HTC': { name: 'Healthcare', code: 'HTC', maxMarks: 30, minMarks: 11 },
-                                'ITE': { name: 'IT and ITES', code: 'ITE', maxMarks: 30, minMarks: 11 }
+                                'HTC': { key: 'HTC', targetClass: 'ALL', name: 'Healthcare', code: 'HTC', maxMarks: 30, minMarks: 11 },
+                                'ITE': { key: 'ITE', targetClass: 'ALL', name: 'IT and ITES', code: 'ITE', maxMarks: 30, minMarks: 11 }
                               }
                             }));
                           }}
@@ -927,7 +952,18 @@ export default function SchoolAssessmentsHub({ allStudents = [], onSwitchToGazet
                       </div>
 
                       {/* Add Custom Override Row */}
-                      <div className="flex items-center gap-1.5 pt-1">
+                      <div className="flex items-center gap-1.5 pt-1 flex-wrap sm:flex-nowrap">
+                        <select
+                          value={overrideTargetClass}
+                          onChange={(e) => setOverrideTargetClass(e.target.value)}
+                          className="w-24 shrink-0 px-2 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-xs font-bold text-teal-800 dark:text-teal-300 focus:outline-none focus:border-teal-600 transition-colors"
+                          title="Target Class for this paper scale override"
+                        >
+                          <option value="ALL">All Classes</option>
+                          {(formState.classes || ['10th', '11th', '12th']).map(cls => (
+                            <option key={cls} value={cls}>Class {cls}</option>
+                          ))}
+                        </select>
                         <select
                           value={overrideSelectCode}
                           onChange={(e) => setOverrideSelectCode(e.target.value)}
@@ -992,30 +1028,36 @@ export default function SchoolAssessmentsHub({ allStudents = [], onSwitchToGazet
                             </button>
                           </div>
                           <div className="flex items-center gap-1.5 flex-wrap">
-                            {Object.entries(formState.subjectOverrides).map(([code, ov]) => (
-                              <span
-                                key={code}
-                                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 text-[11px] shadow-2xs font-medium"
-                              >
-                                <strong className="font-bold text-teal-800 dark:text-teal-300">{ov.name || code} [{code}]</strong>
-                                <span className="font-mono font-black text-slate-900 dark:text-white">{ov.maxMarks}M</span>
-                                <span className="text-[9.5px] text-slate-400 font-mono">(Pass {ov.minMarks})</span>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setFormState(prev => {
-                                      const next = { ...(prev.subjectOverrides || {}) };
-                                      delete next[code];
-                                      return { ...prev, subjectOverrides: next };
-                                    });
-                                  }}
-                                  className="text-slate-400 hover:text-rose-600 cursor-pointer font-bold ml-1 transition-colors"
-                                  title="Remove custom marks"
+                            {Object.entries(formState.subjectOverrides).map(([key, ov]) => {
+                              const clsBadge = ov.targetClass && ov.targetClass !== 'ALL' ? `Class ${ov.targetClass}` : 'All Classes';
+                              return (
+                                <span
+                                  key={key}
+                                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 text-[11px] shadow-2xs font-medium"
                                 >
-                                  ✕
-                                </button>
-                              </span>
-                            ))}
+                                  <span className="text-[9px] font-black uppercase px-1.5 py-0.2 rounded bg-teal-50 dark:bg-teal-950 text-teal-800 dark:text-teal-300 border border-teal-200 dark:border-teal-800/60">
+                                    {clsBadge}
+                                  </span>
+                                  <strong className="font-bold text-slate-900 dark:text-white">{ov.name || ov.code} [{ov.code}]</strong>
+                                  <span className="font-mono font-black text-teal-700 dark:text-teal-400">{ov.maxMarks}M</span>
+                                  <span className="text-[9.5px] text-slate-400 font-mono">(Pass {ov.minMarks})</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setFormState(prev => {
+                                        const next = { ...(prev.subjectOverrides || {}) };
+                                        delete next[key];
+                                        return { ...prev, subjectOverrides: next };
+                                      });
+                                    }}
+                                    className="text-slate-400 hover:text-rose-600 cursor-pointer font-bold ml-1 transition-colors"
+                                    title="Remove custom marks"
+                                  >
+                                    ✕
+                                  </button>
+                                </span>
+                              );
+                            })}
                           </div>
                         </div>
                       ) : (

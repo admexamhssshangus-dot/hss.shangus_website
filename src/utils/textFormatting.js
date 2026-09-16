@@ -1,17 +1,29 @@
 import React from 'react';
 
 /**
+ * Cleans notice titles by replacing raw underscores used as delimiters with an elegant typographic em-dash.
+ * e.g. "Pre-Board Test_Result" -> "Pre-Board Test — Result"
+ */
+export function cleanNoticeTitle(title) {
+  if (!title || typeof title !== 'string') return title;
+  return title.replace(/\s*_\s*/g, ' — ').trim();
+}
+
+/**
  * Formats news / notice titles such that any text enclosed in brackets e.g. (to be held on 10 August)
  * is rendered in a font size that is smaller by 4 points (calc(1em - 4pt)).
+ * Also cleans raw underscores with cleanNoticeTitle.
  */
 export function formatTitleWithBrackets(title) {
   if (!title || typeof title !== 'string') return title;
 
+  const cleaned = cleanNoticeTitle(title);
+
   // Split title by parenthetical or bracketed substrings
   const regex = /(\([^)]+\)|\[[^\]]+\])/g;
-  const parts = title.split(regex);
+  const parts = cleaned.split(regex);
 
-  if (parts.length <= 1) return title;
+  if (parts.length <= 1) return cleaned;
 
   return parts.map((part, i) => {
     if (!part) return null;

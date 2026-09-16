@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Users, Award, BookOpen, GraduationCap, Megaphone, ArrowRight, Pause, Play, ShieldCheck, Quote, Sparkles } from 'lucide-react';
+import { Users, Award, BookOpen, GraduationCap, Megaphone, ArrowRight, Pause, Play, ShieldCheck, Quote, Sparkles, ChevronRight, Bell } from 'lucide-react';
 import { Link } from 'react-router-dom';
 // 1. IMPORT YOUR LOCAL BACKGROUND IMAGE (Make sure the file is renamed to logo.png)
 import Slideshow from '../components/Slideshow';
@@ -554,87 +554,107 @@ export default function Home() {
         {/* Notices Sidebar */}
         <div className="col-span-1 lg:col-span-4 xl:col-span-4 flex flex-col">
           <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-md hover:shadow-xl border border-slate-200/90 dark:border-slate-800 overflow-hidden flex flex-col h-full transition-all duration-300">
-            {/* Header */}
-            <div className="bg-gradient-to-r from-teal-800 via-teal-900 to-slate-900 text-white px-3 sm:px-4 py-2 sm:py-2.5 flex items-center justify-between border-b border-teal-700/50">
-              <div className="flex items-center gap-2">
-                <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-teal-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-teal-400"></span>
+            {/* Header: Rich Emerald-Teal Gradient with Live Pulsing Beacon */}
+            <div className="bg-gradient-to-r from-teal-900 via-teal-800 to-emerald-950 text-white px-3.5 sm:px-4 py-2.5 sm:py-3 flex items-center justify-between border-b border-teal-700/50 shadow-2xs">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <span className="relative flex h-2.5 w-2.5 shrink-0">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-400"></span>
                 </span>
-                <h2 className="font-bold text-sm sm:text-base font-heading tracking-wide flex items-center gap-1.5">
-                  <Megaphone size={16} className="text-teal-300 flex-shrink-0" />
+                <h2 className="font-extrabold text-sm sm:text-base font-heading tracking-tight flex items-center gap-1.5 m-0 truncate">
+                  <Megaphone size={16} className="text-teal-300 shrink-0" />
                   <span>Latest Notices</span>
                 </h2>
               </div>
-              <span className="text-[9px] sm:text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full bg-teal-700/60 border border-teal-500/30 text-teal-100">
+              <span className="text-[9.5px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-white/15 dark:bg-white/10 border border-white/20 text-teal-100 shadow-2xs shrink-0">
                 {notices.length} Updates
               </span>
             </div>
 
-            {/* List - Vertically compact to fit more items */}
-            <div className="flex-1 min-h-[260px] max-h-[380px] sm:max-h-[420px] lg:max-h-[440px] overflow-y-auto custom-scrollbar px-1.5 sm:px-3 py-1 divide-y divide-slate-100 dark:divide-slate-800/70">
-              <ul className="space-y-0">
+            {/* List - Interactive Cards with Micro-Calendar Date Badges */}
+            <div className="flex-1 overflow-y-auto custom-scrollbar p-2 sm:p-2.5 space-y-1.5 max-h-[400px] sm:max-h-[430px] lg:max-h-[460px]">
+              <ul className="space-y-1.5 m-0 p-0 list-none">
                 {notices.map((n, idx) => {
                   const isNew = isNoticeNew(n.date, n.days, settings?.defaultNewNoticeDays !== undefined ? settings.defaultNewNoticeDays : 7);
-                  return (
-                    <li key={idx} className="py-1.5 px-1.5 sm:px-2 rounded-lg transition-all duration-150 hover:bg-slate-50 dark:hover:bg-slate-800/60 flex items-center gap-2 sm:gap-2.5 group border-l-2 border-l-transparent hover:border-l-teal-600">
-                      {/* Mini Date Badge - Compact Vertical Profile */}
-                      {(() => {
-                        const formatted = formatDate(n.date);
-                        const parts = formatted.split('-');
-                        const day = parts[0] || n.date;
-                        const month = (parts[1] || '').toUpperCase();
-                        return (
-                          <div className="w-9 h-7.5 sm:w-9.5 sm:h-8.5 rounded-lg border border-teal-200 dark:border-teal-800/60 bg-gradient-to-b from-teal-50 to-white dark:from-teal-950/40 dark:to-slate-900 flex flex-col overflow-hidden flex-shrink-0 shadow-2xs transition-transform group-hover:scale-105">
-                            <div className="bg-teal-700 dark:bg-teal-800 text-[6.5px] sm:text-[7.5px] font-black text-white py-0.2 uppercase tracking-wider text-center select-none leading-none">
-                              {month || 'DATE'}
-                            </div>
-                            <div className="flex-grow flex items-center justify-center font-extrabold text-[10px] sm:text-[11px] text-slate-800 dark:text-slate-100 leading-none">
-                              {day}
-                            </div>
-                          </div>
-                        );
-                      })()}
-                      <div className="flex-1 min-w-0">
-                        <div className="text-[11.5px] sm:text-[13px] font-semibold text-slate-800 dark:text-slate-200 group-hover:text-teal-700 dark:group-hover:text-teal-400 transition-colors line-clamp-2 leading-snug">
-                          {n.link && n.link !== '#' ? (
-                            n.link.startsWith('http') || n.link.startsWith('mailto:') ? (
-                              <a href={n.link} target="_blank" rel="noopener noreferrer" 
-                                 className="hover:underline"
-                                 title={n.title}>
-                                {formatTitleWithBrackets(n.title)}
-                              </a>
-                            ) : (
-                              <Link to={n.link} 
-                                    className="hover:underline"
-                                    title={n.title}>
-                                {formatTitleWithBrackets(n.title)}
-                              </Link>
-                            )
-                          ) : (
-                            <span title={n.title}>
-                              {formatTitleWithBrackets(n.title)}
-                            </span>
-                          )}
+                  const formatted = formatDate(n.date);
+                  const parts = (formatted || '').split('-');
+                  const day = parts[0] || n.date;
+                  const month = (parts[1] || '').toUpperCase();
 
+                  const noticeContent = (
+                    <>
+                      {/* Mini-Calendar Date Badge */}
+                      <div className="w-10 h-10 sm:w-10.5 sm:h-10.5 rounded-xl bg-white dark:bg-slate-950 border border-teal-200 dark:border-teal-800/70 shadow-2xs flex flex-col overflow-hidden shrink-0 group-hover/item:border-teal-500 group-hover/item:scale-105 transition-all duration-200">
+                        <div className="bg-teal-700 dark:bg-teal-600 text-white font-black text-[7.5px] uppercase tracking-wider text-center py-0.5 select-none leading-none w-full">
+                          {month || 'DATE'}
+                        </div>
+                        <div className="flex-1 flex items-center justify-center font-black text-xs sm:text-[13px] text-slate-800 dark:text-slate-100 font-mono leading-none">
+                          {day}
+                        </div>
+                      </div>
+
+                      {/* Notice Title & Badges */}
+                      <div className="flex-1 min-w-0">
+                        <div className="text-xs sm:text-[12.5px] font-bold text-slate-800 dark:text-slate-200 group-hover/item:text-teal-700 dark:group-hover/item:text-teal-300 transition-colors leading-snug line-clamp-2">
+                          <span>{formatTitleWithBrackets(n.title)}</span>
                           {isNew && (
-                            <span className="inline-flex items-center px-1.2 py-0.2 rounded text-[7.5px] font-extrabold badge-red-custom animate-pulse uppercase tracking-wider align-middle ml-1.5">
-                              New
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[8px] font-black uppercase tracking-wider bg-rose-50 dark:bg-rose-950/80 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800/60 shadow-2xs animate-pulse ml-1.5 align-middle">
+                              <span className="w-1.5 h-1.5 rounded-full bg-rose-500 inline-block" />
+                              NEW
                             </span>
                           )}
                         </div>
                       </div>
+
+                      {/* Hover Arrow Hint */}
+                      <ChevronRight size={14} className="text-slate-400 group-hover/item:text-teal-600 dark:group-hover/item:text-teal-400 opacity-0 group-hover/item:opacity-100 -translate-x-1 group-hover/item:translate-x-0 transition-all duration-200 shrink-0 ml-auto hidden sm:block" />
+                    </>
+                  );
+
+                  return (
+                    <li key={idx} className="list-none">
+                      {n.link && n.link !== '#' ? (
+                        n.link.startsWith('http') || n.link.startsWith('mailto:') ? (
+                          <a
+                            href={n.link}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="p-2 sm:p-2.5 rounded-xl border border-slate-100 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-900/40 hover:bg-teal-50/70 dark:hover:bg-teal-950/40 hover:border-teal-200 dark:hover:border-teal-800/80 hover:shadow-xs transition-all duration-200 flex items-center gap-2.5 sm:gap-3 group/item cursor-pointer"
+                            title={n.title}
+                          >
+                            {noticeContent}
+                          </a>
+                        ) : (
+                          <Link
+                            to={n.link}
+                            className="p-2 sm:p-2.5 rounded-xl border border-slate-100 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-900/40 hover:bg-teal-50/70 dark:hover:bg-teal-950/40 hover:border-teal-200 dark:hover:border-teal-800/80 hover:shadow-xs transition-all duration-200 flex items-center gap-2.5 sm:gap-3 group/item cursor-pointer"
+                            title={n.title}
+                          >
+                            {noticeContent}
+                          </Link>
+                        )
+                      ) : (
+                        <div
+                          className="p-2 sm:p-2.5 rounded-xl border border-slate-100 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-900/40 hover:bg-teal-50/70 dark:hover:bg-teal-950/40 hover:border-teal-200 dark:hover:border-teal-800/80 hover:shadow-xs transition-all duration-200 flex items-center gap-2.5 sm:gap-3 group/item"
+                          title={n.title}
+                        >
+                          {noticeContent}
+                        </div>
+                      )}
                     </li>
                   );
                 })}
               </ul>
             </div>
 
-            {/* Footer */}
-            <div className="bg-slate-50/90 dark:bg-slate-900/80 py-2 px-3 sm:py-2.5 text-center border-t border-slate-100 dark:border-slate-800 mt-auto">
-              <Link to="/notices" className="ui-touch-target inline-flex items-center justify-center gap-1.5 text-xs font-bold text-teal-800 dark:text-teal-400 hover:text-teal-950 dark:hover:text-teal-300 hover:underline tracking-wide uppercase group">
-                <span>View All Archives</span>
-                <ArrowRight size={13} className="transition-transform duration-200 group-hover:translate-x-1" />
+            {/* Footer: Full-Width Executive Action Button */}
+            <div className="bg-slate-50/90 dark:bg-slate-900/90 p-2.5 sm:p-3 text-center border-t border-slate-100 dark:border-slate-800 mt-auto">
+              <Link
+                to="/notices"
+                className="w-full py-2 px-3 rounded-xl bg-teal-50 hover:bg-teal-100/90 dark:bg-teal-950/60 dark:hover:bg-teal-900/60 border border-teal-200/80 dark:border-teal-800/80 text-teal-800 dark:text-teal-300 hover:text-teal-950 dark:hover:text-teal-200 font-extrabold text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-2xs hover:shadow-xs group/btn cursor-pointer"
+              >
+                <span>Browse Notice Archive</span>
+                <ArrowRight size={14} className="transition-transform duration-200 group-hover/btn:translate-x-1" />
               </Link>
             </div>
           </div>

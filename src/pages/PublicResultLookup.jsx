@@ -9,7 +9,7 @@ import { collection, getDocs, doc, getDoc, onSnapshot } from 'firebase/firestore
 import { db, auth } from '../services/firebase';
 import { publicLookup } from '../services/backendEndpoint';
 import SEO from '../components/SEO';
-import { DEFAULT_SCHOOL_EVALUATIONS, SUBJECT_CONFIG_DEFS } from '../utils/practicalsSettingsManager';
+import { DEFAULT_SCHOOL_EVALUATIONS, SUBJECT_CONFIG_DEFS, getSubjectOverride } from '../utils/practicalsSettingsManager';
 import verifiedCatalog from '../data/verifiedStudentsCatalog.json';
 import { getCachedCollection, fetchStudentPhotoOnDemand } from '../services/dbCache';
 import { identityKey, classKey, sessionKey, formatConsistentName } from '../utils/recordIdentity';
@@ -491,6 +491,10 @@ export function computeScorecardSubjects({
     }
   }
 
+  const stuClass = matchedStudent?.className || matchedStudent?.class || '11th';
+  const evalTypeStr = String(evalConfig?.evalType || evalConfig?.title || '').toLowerCase();
+  const isPreBoard = evalTypeStr.includes('pre-board') || evalTypeStr.includes('preboard') || evalConfig?.normalizeTo50 === true;
+
   const normClass = String(matchedStudent?.className || '').toLowerCase().trim();
   const isSecondary = ['10th', '9th', '10', '9', 'x', 'ix'].includes(classKey(normClass)) || normClass.includes('10') || normClass.includes('9');
   const isScience = !isSecondary && String(streamName || '').toLowerCase().includes('scien');
@@ -622,8 +626,10 @@ export function computeScorecardSubjects({
       } else {
         const boRaw = botanyRec ? (botanyRec.totalMarks ?? botanyRec.practicalMarks) : null;
         const zoRaw = zoologyRec ? (zoologyRec.totalMarks ?? zoologyRec.practicalMarks) : null;
-        const boMax = Number(botanySec?.maxMarks) || Number(evalConfig?.subjectOverrides?.['BO']?.maxMarks) || 25;
-        const zoMax = Number(zoologySec?.maxMarks) || Number(evalConfig?.subjectOverrides?.['ZO']?.maxMarks) || 25;
+        const boOverride = getSubjectOverride(evalConfig?.subjectOverrides, 'BO', stuClass);
+        const zoOverride = getSubjectOverride(evalConfig?.subjectOverrides, 'ZO', stuClass);
+        const boMax = Number(botanySec?.maxMarks) || Number(boOverride?.maxMarks) || 25;
+        const zoMax = Number(zoologySec?.maxMarks) || Number(zoOverride?.maxMarks) || 50;
 
         const boIsAb = boRaw !== null && /^(a|ab|absent)$/i.test(String(boRaw).trim());
         const zoIsAb = zoRaw !== null && /^(a|ab|absent)$/i.test(String(zoRaw).trim());
@@ -685,15 +691,18 @@ export function computeScorecardSubjects({
       // SEPARATE BOTANY & ZOOLOGY
       if (botanyRec) {
         const boRaw = botanyRec.totalMarks ?? botanyRec.practicalMarks;
-        const boMax = Number(botanySec?.maxMarks) || Number(evalConfig?.subjectOverrides?.['BO']?.maxMarks) || 25;
-        const norm = normalizeMarksToScale(boRaw, boMax, 50);
-        const desc = getSubjectPerformanceDescriptor(norm.normalizedMarks, 50, 18, norm.isAbsent);
+        const boOverride = getSubjectOverride(evalConfig?.subjectOverrides, 'BO', stuClass);
+        const boMax = Number(botanySec?.maxMarks) || Number(boOverride?.maxMarks) || 25;
+        const boTargetMax = isPreBoard ? 50 : boMax;
+        const boTargetMin = Math.ceil(boTargetMax * 0.36);
+        const norm = normalizeMarksToScale(boRaw, boMax, boTargetMax);
+        const desc = getSubjectPerformanceDescriptor(norm.normalizedMarks, boTargetMax, boTargetMin, norm.isAbsent);
 
         finalSubjectsList.push({
           subjectCode: 'BO',
           subjectName: 'Botany',
-          maxMarks: 50,
-          minMarks: 18,
+          maxMarks: boTargetMax,
+          minMarks: boTargetMin,
           marksObtained: norm.normalizedMarks,
           rawScore: norm.rawScore,
           rawMax: boMax,
@@ -703,14 +712,17 @@ export function computeScorecardSubjects({
           status: desc.status,
           statusTone: desc.tone,
           badgeClass: desc.badgeClass,
-          componentNote: norm.rawScore && boMax !== 50 ? `Raw Paper: ${norm.rawScore}` : null
+          componentNote: norm.rawScore && boMax !== boTargetMax ? `Raw Paper: ${norm.rawScore}` : null
         });
       } else {
+        const boOverride = getSubjectOverride(evalConfig?.subjectOverrides, 'BO', stuClass);
+        const boTargetMax = isPreBoard ? 50 : (Number(boOverride?.maxMarks) || 25);
+        const boTargetMin = Math.ceil(boTargetMax * 0.36);
         finalSubjectsList.push({
           subjectCode: 'BO',
           subjectName: 'Botany',
-          maxMarks: 50,
-          minMarks: 18,
+          maxMarks: boTargetMax,
+          minMarks: boTargetMin,
           marksObtained: '—',
           isAbsent: false,
           isPass: false,
@@ -724,15 +736,18 @@ export function computeScorecardSubjects({
 
       if (zoologyRec) {
         const zoRaw = zoologyRec.totalMarks ?? zoologyRec.practicalMarks;
-        const zoMax = Number(zoologySec?.maxMarks) || Number(evalConfig?.subjectOverrides?.['ZO']?.maxMarks) || 25;
-        const norm = normalizeMarksToScale(zoRaw, zoMax, 50);
-        const desc = getSubjectPerformanceDescriptor(norm.normalizedMarks, 50, 18, norm.isAbsent);
+        const zoOverride = getSubjectOverride(evalConfig?.subjectOverrides, 'ZO', stuClass);
+        const zoMax = Number(zoologySec?.maxMarks) || Number(zoOverride?.maxMarks) || 50;
+        const zoTargetMax = isPreBoard ? 50 : zoMax;
+        const zoTargetMin = Math.ceil(zoTargetMax * 0.36);
+        const norm = normalizeMarksToScale(zoRaw, zoMax, zoTargetMax);
+        const desc = getSubjectPerformanceDescriptor(norm.normalizedMarks, zoTargetMax, zoTargetMin, norm.isAbsent);
 
         finalSubjectsList.push({
           subjectCode: 'ZO',
           subjectName: 'Zoology',
-          maxMarks: 50,
-          minMarks: 18,
+          maxMarks: zoTargetMax,
+          minMarks: zoTargetMin,
           marksObtained: norm.normalizedMarks,
           rawScore: norm.rawScore,
           rawMax: zoMax,
@@ -742,14 +757,17 @@ export function computeScorecardSubjects({
           status: desc.status,
           statusTone: desc.tone,
           badgeClass: desc.badgeClass,
-          componentNote: norm.rawScore && zoMax !== 50 ? `Raw Paper: ${norm.rawScore}` : null
+          componentNote: norm.rawScore && zoMax !== zoTargetMax ? `Raw Paper: ${norm.rawScore}` : null
         });
       } else {
+        const zoOverride = getSubjectOverride(evalConfig?.subjectOverrides, 'ZO', stuClass);
+        const zoTargetMax = isPreBoard ? 50 : (Number(zoOverride?.maxMarks) || 50);
+        const zoTargetMin = Math.ceil(zoTargetMax * 0.36);
         finalSubjectsList.push({
           subjectCode: 'ZO',
           subjectName: 'Zoology',
-          maxMarks: 50,
-          minMarks: 18,
+          maxMarks: zoTargetMax,
+          minMarks: zoTargetMin,
           marksObtained: '—',
           isAbsent: false,
           isPass: false,
@@ -803,15 +821,18 @@ export function computeScorecardSubjects({
     if (foundRec && foundSec) {
       const rawMark = foundRec.totalMarks ?? foundRec.practicalMarks;
       const defaultAssessmentMax = Number(evalConfig?.maxMarks) > 0 ? Number(evalConfig.maxMarks) : 50;
-      const docMax = Number(foundSec.maxMarks) || Number(evalConfig?.subjectOverrides?.[tpl.code]?.maxMarks) || defaultAssessmentMax;
-      const norm = normalizeMarksToScale(rawMark, docMax, 50);
-      const desc = getSubjectPerformanceDescriptor(norm.normalizedMarks, 50, 18, norm.isAbsent);
+      const subjOverride = getSubjectOverride(evalConfig?.subjectOverrides, tpl.code, stuClass);
+      const docMax = Number(foundSec.maxMarks) || Number(subjOverride?.maxMarks) || defaultAssessmentMax;
+      const targetScale = isPreBoard ? 50 : docMax;
+      const targetMin = Math.ceil(targetScale * 0.36);
+      const norm = normalizeMarksToScale(rawMark, docMax, targetScale);
+      const desc = getSubjectPerformanceDescriptor(norm.normalizedMarks, targetScale, targetMin, norm.isAbsent);
 
       finalSubjectsList.push({
         subjectCode: tpl.code,
         subjectName: tpl.name,
-        maxMarks: 50,
-        minMarks: 18,
+        maxMarks: targetScale,
+        minMarks: targetMin,
         marksObtained: norm.normalizedMarks,
         rawScore: norm.rawScore,
         rawMax: docMax,
@@ -821,14 +842,18 @@ export function computeScorecardSubjects({
         status: desc.status,
         statusTone: desc.tone,
         badgeClass: desc.badgeClass,
-        componentNote: norm.rawScore && docMax !== 50 ? `Raw Paper: ${norm.rawScore}` : null
+        componentNote: norm.rawScore && docMax !== targetScale ? `Raw Paper: ${norm.rawScore}` : null
       });
     } else {
+      const defaultAssessmentMax = Number(evalConfig?.maxMarks) > 0 ? Number(evalConfig.maxMarks) : 50;
+      const subjOverride = getSubjectOverride(evalConfig?.subjectOverrides, tpl.code, stuClass);
+      const targetScale = isPreBoard ? 50 : (Number(subjOverride?.maxMarks) || defaultAssessmentMax);
+      const targetMin = Math.ceil(targetScale * 0.36);
       finalSubjectsList.push({
         subjectCode: tpl.code,
         subjectName: tpl.name,
-        maxMarks: 50,
-        minMarks: 18,
+        maxMarks: targetScale,
+        minMarks: targetMin,
         marksObtained: '—',
         isAbsent: false,
         isPass: false,
