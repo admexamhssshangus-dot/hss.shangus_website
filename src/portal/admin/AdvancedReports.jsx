@@ -5922,7 +5922,8 @@ export default function AdvancedReports({
   onTriggerActionHandled,
   enableQuickCellEdit: parentQuickCellEdit,
   setEnableQuickCellEdit: parentSetQuickCellEdit,
-  isActive = true
+  isActive = true,
+  onPrefetchModule
 }) {
   // Clear legacy cache keys on initial render to prevent stale dataset from sticking in sessionStorage
   useEffect(() => {
@@ -10577,6 +10578,14 @@ export default function AdvancedReports({
                   setIsToolsOpen(nextState);
                   if (nextState) handleMarkToolsSeen();
                 }}
+                onMouseEnter={() => {
+                  if (onPrefetchModule) {
+                    onPrefetchModule('controls');
+                    onPrefetchModule('customRoster');
+                    onPrefetchModule('idCards');
+                    onPrefetchModule('admRegisterSuite');
+                  }
+                }}
                 title="Administrative Tools Suite"
                 className="compact-btn relative p-1 sm:p-1.5 rounded-lg sm:rounded-xl flex items-center justify-center transition-all whitespace-nowrap cursor-pointer bg-indigo-700 hover:bg-indigo-600 text-white shadow-sm font-extrabold text-xs !min-h-0"
                 style={{ minHeight: 'unset', height: '28px', width: '28px' }}
@@ -10595,6 +10604,7 @@ export default function AdvancedReports({
                 activeTab="reports"
                 setActiveTab={setActiveTab}
                 user={user}
+                onPrefetchModule={onPrefetchModule}
                 onOpenCustomRoster={() => setShowCustomRosterModal(true)}
                 onOpenAnalytics={() => setShowAnalyticsModal(true)}
                 onOpenDirectEntry={() => {

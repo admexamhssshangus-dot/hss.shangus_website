@@ -71,6 +71,7 @@ export default function AdminToolsDropdown({
   onOpenBoardSync,
   enableQuickCellEdit,
   setEnableQuickCellEdit,
+  onPrefetchModule,
   align = 'left'
 }) {
   const dropdownRef = useRef(null);
@@ -136,6 +137,7 @@ export default function AdminToolsDropdown({
         maturity: m.maturity,
         maturityNote: m.maturityNote,
         isActive: activeTab === m.id,
+        onMouseEnter: () => onPrefetchModule && onPrefetchModule(m.id),
         onClick: () => {
           if (m.id === 'boardSync' && onOpenBoardSync) {
             onOpenBoardSync();
@@ -170,6 +172,7 @@ export default function AdminToolsDropdown({
         desc: 'View gender breakdown, stream stats and intake reports',
         category: 'Quick Actions',
         icon: BarChart2,
+        onMouseEnter: () => onPrefetchModule && onPrefetchModule('reports'),
         onClick: () => {
           if (onOpenAnalytics) onOpenAnalytics();
           else if (setActiveTab) setActiveTab('reports');
@@ -185,6 +188,7 @@ export default function AdminToolsDropdown({
         desc: 'Add a single student application directly into active intake',
         category: 'Quick Actions',
         icon: PlusCircle,
+        onMouseEnter: () => onPrefetchModule && onPrefetchModule('reports'),
         onClick: () => {
           if (onOpenDirectEntry) onOpenDirectEntry();
           else if (setActiveTab) setActiveTab('reports');
@@ -200,6 +204,7 @@ export default function AdminToolsDropdown({
         desc: 'Bulk status updates, photo batch exports and recovery',
         category: 'Quick Actions',
         icon: Wrench,
+        onMouseEnter: () => onPrefetchModule && onPrefetchModule('reports'),
         onClick: () => {
           if (onOpenBulkTools) onOpenBulkTools();
           else if (setActiveTab) setActiveTab('reports');
@@ -223,6 +228,7 @@ export default function AdminToolsDropdown({
     onOpenDirectEntry,
     canBulk,
     onOpenBulkTools,
+    onPrefetchModule,
     setIsOpen,
   ]);
 
@@ -365,6 +371,7 @@ export default function AdminToolsDropdown({
         key={item.id}
         type="button"
         onClick={item.onClick}
+        onMouseEnter={item.onMouseEnter}
         aria-current={isActive ? 'page' : undefined}
         title={item.maturityNote || item.desc}
         className={`w-full text-left p-1 sm:p-2.5 rounded-lg sm:rounded-xl flex items-center justify-between gap-1.5 sm:gap-3 transition-all cursor-pointer group ${
