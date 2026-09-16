@@ -376,7 +376,8 @@ export default function TeacherDashboard() {
                               selectedClass: cleanCls,
                               selectedSubject: item.subject !== 'N/A' ? item.subject : 'Physics',
                               practicalType: item.practicalType,
-                              yearSuffix: item.yearSuffix
+                              yearSuffix: item.yearSuffix,
+                              loadedRecord: item
                             }
                           });
                         }}
