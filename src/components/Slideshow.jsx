@@ -18,7 +18,7 @@ export default function Slideshow({
   const [slides, setSlides] = useState(() => {
     if (customSlides && customSlides.length > 0) return customSlides;
     if (images && images.length > 0 && !configUrl) {
-      return images.map((src) => ({ image: src, title: '', caption: '', fit: 'ambient', animation: 'kenburns' }));
+      return images.map((src) => ({ image: src, title: '', caption: '', fit: 'cover', animation: 'kenburns' }));
     }
     return [];
   });
@@ -51,7 +51,7 @@ export default function Slideshow({
   // Build slides from images prop if provided
   useEffect(() => {
     if (images && images.length > 0 && !configUrl && (!customSlides || customSlides.length === 0)) {
-      setSlides(images.map((src) => ({ image: src, title: '', caption: '', fit: 'ambient', animation: 'kenburns' })));
+      setSlides(images.map((src) => ({ image: src, title: '', caption: '', fit: 'cover', animation: 'kenburns' })));
     }
   }, [images, configUrl, customSlides]);
 
@@ -80,7 +80,7 @@ export default function Slideshow({
                 image: imageUrl,
                 title: s.title || '',
                 caption: s.caption || '',
-                fit: s.fit || 'ambient',
+                fit: (s.fit && s.fit !== 'ambient') ? s.fit : 'cover',
                 animation: s.animation || 'kenburns'
               };
             });
@@ -103,13 +103,13 @@ export default function Slideshow({
             const imageUrl = (image.startsWith('http://') || image.startsWith('https://') || image.startsWith('data:'))
               ? image
               : (image.startsWith('/') ? image : imageFolder + image);
-            return { image: imageUrl, title, caption, fit: 'ambient', animation: 'kenburns' };
+            return { image: imageUrl, title, caption, fit: 'cover', animation: 'kenburns' };
           }
           // Otherwise, treat line as `title,caption` and image as numbered file
           const title = (parts[0] || '').trim();
           const caption = (parts.slice(1).join(',') || '').trim();
           const image = `${imageFolder}${idx + 1}${imageExt}`;
-          return { image, title, caption, fit: 'ambient', animation: 'kenburns' };
+          return { image, title, caption, fit: 'cover', animation: 'kenburns' };
         });
 
         if (!cancelled) setSlides(mapped);
@@ -148,7 +148,7 @@ export default function Slideshow({
       {slides.map((s, i) => {
         const isLoaded = loadedIndices.has(i);
         const isActive = i === index;
-        const fitMode = s.fit || 'ambient'; // 'ambient' | 'cover' | 'contain'
+        const fitMode = (s.fit && s.fit !== 'ambient') ? s.fit : 'cover'; // Default to full-bleed cover
         const animMode = s.animation !== undefined ? s.animation : 'kenburns';
 
         // Determine animation class
@@ -232,22 +232,17 @@ export default function Slideshow({
                   </>
                 )}
 
-                {/* 2. COVER MODE: Widescreen filled banner */}
+                {/* 2. COVER MODE: Widescreen filled banner (full-bleed edge-to-edge) */}
                 {fitMode === 'cover' && (
-                  <div
-                    className={`absolute inset-0 bg-cover bg-center ${imageAnimClass}`}
-                    style={{ backgroundImage: `url(${s.image})` }}
-                  >
-                    {i === 0 && (
-                      <img
-                        src={s.image}
-                        alt={s.title || "Govt HSS Shangus"}
-                        fetchPriority="high"
-                        decoding="sync"
-                        loading="eager"
-                        className="w-full h-full object-cover opacity-0 pointer-events-none"
-                      />
-                    )}
+                  <div className="absolute inset-0 overflow-hidden">
+                    <img
+                      src={s.image}
+                      alt={s.title || "Govt HSS Shangus"}
+                      fetchPriority={i === 0 ? "high" : "auto"}
+                      decoding={i === 0 ? "sync" : "async"}
+                      loading={i === 0 ? "eager" : "lazy"}
+                      className={`w-full h-full object-cover object-center ${imageAnimClass}`}
+                    />
                   </div>
                 )}
 
