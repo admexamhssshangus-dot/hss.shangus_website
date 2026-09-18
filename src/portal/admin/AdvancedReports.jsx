@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback, useDeferredValue } from 'react';
 import { createPortal } from 'react-dom';
 import JSZip from 'jszip';
-import { RefreshCw, Search, SearchX, Wrench, Columns, Printer, Check, X, Play, ChevronDown, ChevronLeft, ChevronRight, CheckSquare, Square, FileSpreadsheet, FileText, Maximize2, Settings, Hash, Layers, Mail, CreditCard, Camera, Upload, Image as ImageIcon, Download, Copy, Save, RotateCcw, Lock, LogOut, Unlock, Eye, History, Key, MessageSquare, AlertOctagon, Trash2, CheckCircle2, ClipboardCheck, CalendarCheck, Calendar, List, Edit3, UserCheck, User, BookOpen, Landmark, CheckCircle, Loader2, PlusCircle, ShieldCheck, ShieldAlert, BarChart2, Building2, Database, Zap, Sliders, Sparkles, Star, FolderDown } from 'lucide-react';
+import { RefreshCw, Search, SearchX, Wrench, Columns, Printer, Check, X, Play, ChevronDown, ChevronLeft, ChevronRight, CheckSquare, Square, FileSpreadsheet, FileText, Maximize2, Settings, Hash, Layers, Mail, CreditCard, Camera, Upload, Image as ImageIcon, Download, Copy, Save, RotateCcw, Lock, LogOut, Unlock, Eye, History, Key, MessageSquare, AlertOctagon, Trash2, CheckCircle2, ClipboardCheck, CalendarCheck, Calendar, List, Edit3, UserCheck, User, Users, BookOpen, Landmark, CheckCircle, Loader2, PlusCircle, ShieldCheck, ShieldAlert, BarChart2, Building2, Database, Zap, Sliders, Sparkles, Star, FolderDown } from 'lucide-react';
 import appsScriptApi from '../../services/appsScriptApi';
 import { db, auth, ensureFirestoreConnected } from '../../services/firebase';
 import { sendPasswordResetEmail } from 'firebase/auth';
@@ -34,6 +34,7 @@ import { resolveCcDcVal, extractReappearCodes, getClassTier, areClassTiersCompat
 import JkboseFieldBadge from './JkboseFieldBadge';
 import { getJkboseFieldStatus, computeStudentJkboseStatusMap, loadRecentJkboseBatchTraceability, normalizeKey } from '../../utils/jkboseTraceability';
 import { applyRecordPatch, completeMutationJob } from '../../services/recordMutationService';
+import { toPublicFacultyList } from '../../utils/facultyPrivacy';
 
 const BULK_FORM_ROW_BATCH_SIZE = 100;
 
@@ -7094,6 +7095,20 @@ export default function AdvancedReports({
     }
   }, [isActive]);
 
+  // Open tools suite directly if deep-link URL parameter is present
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const toolsParam = params.get('tools') || params.get('openTools');
+      if (toolsParam) {
+        setShowToolsModal(true);
+        if (['bulk_forms', 'db_editor', 'photo_export', 'photo_manager', 'db_backup'].includes(toolsParam)) {
+          setActiveToolsTab(toolsParam);
+        }
+      }
+    } catch (_) {}
+  }, []);
+
   const handleDirectRecordAdded = (newRecord) => {
     setCurrentAdmissions(prev => [newRecord, ...prev]);
     setToast({ message: `⚡ Direct Record Ingested for "${newRecord.studentName}"!`, type: 'success' });
@@ -7252,7 +7267,7 @@ export default function AdvancedReports({
   const [isBackingUpPdfs, setIsBackingUpPdfs] = useState(false);
 
   // Photo Exporter States (Session / Class / Roll No Range / Selected)
-  const [photoExportSession, setPhotoExportSession] = useState('ALL');
+  const [photoExportSelectedSessions, setPhotoExportSelectedSessions] = useState(() => new Set(['2025-26']));
   const [photoExportClass, setPhotoExportClass] = useState('ALL');
   const [photoExportStream, setPhotoExportStream] = useState('ALL');
   const [photoExportMode, setPhotoExportMode] = useState('all_filtered'); // 'all_filtered' | 'roll_range' | 'selected_table'
@@ -7275,6 +7290,12 @@ export default function AdvancedReports({
   const [isExportingDbExcel, setIsExportingDbExcel] = useState(false);
   const [isExportingDbJson, setIsExportingDbJson] = useState(false);
   const [isRestoringDb, setIsRestoringDb] = useState(false);
+
+  // Master Register & CMS Public Configurations Exporter States
+  const [masterExportSelectedSessions, setMasterExportSelectedSessions] = useState(() => new Set(['2025-26']));
+  const [masterExportClass, setMasterExportClass] = useState('ALL');
+  const [masterExportStream, setMasterExportStream] = useState('ALL');
+  const [isExportingMasterRegister, setIsExportingMasterRegister] = useState(false);
 
   // Auto-sync photos from Cloud Firestore when Photo Exporter tab is active
   useEffect(() => {
@@ -7704,6 +7725,385 @@ export default function AdvancedReports({
       showToast('Failed to initialize Google Drive PDF backup: ' + (err.message || 'Server error'), 'error');
     } finally {
       setIsBackingUpPdfs(false);
+    }
+  };
+
+  // ─── Automated Hydration & Checkbox Session Handlers ───
+  const ensureFullHistoryLoaded = useCallback(async () => {
+    if (window._hssMasterRegistersIsFull) return;
+    try {
+      showToast('Hydrating complete 2006–2026 historical archives from Cloud Firestore...', 'info');
+      setIsHydratingMasterRegisters(true);
+      const fullChunks = await getMasterRegistersScoped({ forceAll: true });
+      if (Array.isArray(fullChunks) && fullChunks.length > 0) {
+        setMasterHistoricalRecords(flattenAndFormatMasterRegisters(fullChunks));
+        showToast('All 20+ years of historical school records loaded successfully!', 'success');
+      }
+    } catch (e) {
+      console.warn('Historical hydration note:', e);
+    } finally {
+      setIsHydratingMasterRegisters(false);
+    }
+  }, []);
+
+  const handleTogglePhotoExportSession = (sess) => {
+    setPhotoExportSelectedSessions(prev => {
+      const next = new Set(prev);
+      if (next.has(sess)) {
+        next.delete(sess);
+      } else {
+        next.add(sess);
+        const yrMatch = String(sess).match(/\d{4}/);
+        const yr = yrMatch ? parseInt(yrMatch[0], 10) : 2025;
+        if (yr < 2022 && !window._hssMasterRegistersIsFull) {
+          ensureFullHistoryLoaded();
+        }
+      }
+      return next;
+    });
+  };
+
+  const handleSelectAllPhotoExportSessions = async () => {
+    setPhotoExportSelectedSessions(new Set(allKnownSessions));
+    if (!window._hssMasterRegistersIsFull) {
+      await ensureFullHistoryLoaded();
+    }
+  };
+
+  const handleDeselectAllPhotoExportSessions = () => {
+    setPhotoExportSelectedSessions(new Set());
+  };
+
+  const handleToggleMasterExportSession = (sess) => {
+    setMasterExportSelectedSessions(prev => {
+      const next = new Set(prev);
+      if (next.has(sess)) {
+        next.delete(sess);
+      } else {
+        next.add(sess);
+        const yrMatch = String(sess).match(/\d{4}/);
+        const yr = yrMatch ? parseInt(yrMatch[0], 10) : 2025;
+        if (yr < 2022 && !window._hssMasterRegistersIsFull) {
+          ensureFullHistoryLoaded();
+        }
+      }
+      return next;
+    });
+  };
+
+  const handleSelectAllMasterExportSessions = async () => {
+    setMasterExportSelectedSessions(new Set(allKnownSessions));
+    if (!window._hssMasterRegistersIsFull) {
+      await ensureFullHistoryLoaded();
+    }
+  };
+
+  const handleDeselectAllMasterExportSessions = () => {
+    setMasterExportSelectedSessions(new Set());
+  };
+
+  // ─── Session Master Register Data Export (.xlsx) ───
+  const handleDownloadSessionMasterRegister = async () => {
+    if (masterExportSelectedSessions.size === 0) {
+      showToast('Please select at least one academic session to export.', 'warning');
+      return;
+    }
+
+    setIsExportingMasterRegister(true);
+    try {
+      const needsFull = Array.from(masterExportSelectedSessions).some(s => {
+        const m = String(s).match(/\d{4}/);
+        return m && parseInt(m[0], 10) < 2022;
+      });
+
+      let candidatePool = allStudents;
+      if (needsFull && !window._hssMasterRegistersIsFull) {
+        showToast('Hydrating complete 2006–2026 master register archives...', 'info');
+        const fullChunks = await getMasterRegistersScoped({ forceAll: true });
+        if (Array.isArray(fullChunks) && fullChunks.length > 0) {
+          const formatted = flattenAndFormatMasterRegisters(fullChunks);
+          setMasterHistoricalRecords(formatted);
+          const histMap = new Map();
+          formatted.forEach((item, idx) => {
+            const key = item.boardRegNo || item.formNo || item.classRollNo ? `${item.session || ''}_${item.class || ''}_${item.boardRegNo || item.formNo || item.classRollNo}_${idx}` : `h_${idx}`;
+            histMap.set(key, item);
+          });
+          candidatePool = [...(currentAdmissions || []), ...Array.from(histMap.values())];
+        }
+      }
+
+      const normSelectedSessions = new Set(Array.from(masterExportSelectedSessions).map(s => String(s).trim().toLowerCase()));
+      let matchedStudents = candidatePool.filter(s => {
+        const sSess = String(s.session || '').trim().toLowerCase();
+        if (!normSelectedSessions.has(sSess)) return false;
+        if (masterExportClass !== 'ALL') {
+          if (normalizeClassVal(s.class) !== normalizeClassVal(masterExportClass)) return false;
+        }
+        if (masterExportStream !== 'ALL') {
+          if (String(s.stream || '').trim().toLowerCase() !== String(masterExportStream).trim().toLowerCase()) return false;
+        }
+        return true;
+      });
+
+      if (matchedStudents.length === 0) {
+        showToast('No student records found matching the selected session(s) and filter criteria.', 'warning');
+        setIsExportingMasterRegister(false);
+        return;
+      }
+
+      // Sort naturally by Session (descending), then Class (11th before 12th), then numeric Class Roll No
+      matchedStudents.sort((a, b) => {
+        const numA = parseInt(String(a.session || '').match(/\d{4}/)?.[0] || '0', 10);
+        const numB = parseInt(String(b.session || '').match(/\d{4}/)?.[0] || '0', 10);
+        if (numA !== numB) return numB - numA;
+
+        const clsA = normalizeClassVal(a.class);
+        const clsB = normalizeClassVal(b.class);
+        if (clsA !== clsB) return clsA.localeCompare(clsB);
+
+        const rA = parseInt(String(a.classRollNo || a['Class Roll No'] || a.rollNo || '0').replace(/\D/g, ''), 10) || 0;
+        const rB = parseInt(String(b.classRollNo || b['Class Roll No'] || b.rollNo || '0').replace(/\D/g, ''), 10) || 0;
+        if (rA !== rB) return rA - rB;
+
+        const fA = parseInt(String(a.formNo || a['Form Number'] || '0').replace(/\D/g, ''), 10) || 0;
+        const fB = parseInt(String(b.formNo || b['Form Number'] || '0').replace(/\D/g, ''), 10) || 0;
+        return fA - fB;
+      });
+
+      const cleanVal = (val) => {
+        if (val === undefined || val === null || val === '—' || val === 'N/A' || val === '-' || val === 'null' || val === 'undefined') return '';
+        if (typeof val === 'object') return JSON.stringify(val);
+        return String(val).trim();
+      };
+
+      const masterHeaders = [
+        'S.No.', 'Class Roll No', 'Admission No', 'Form No', 'Class', 'Session',
+        'Stream', 'Board Reg No', "Student's Name", "Father's Name", "Mother's Name",
+        'Date of Birth', 'Gender', 'Category', 'PEN No', 'Aadhaar No', "Father's Aadhaar",
+        'Address / Village', 'Mobile (Student)', 'Mobile (Parent)', 'Subjects',
+        'Subject 1', 'Subject 2', 'Subject 3', 'Subject 4', 'Subject 5', 'Subject 6',
+        'Prev Exam Roll No', 'Prev Marks', 'Prev Max Marks', 'Prev %', 'Prev Division',
+        'Current Exam Roll No', 'Current Result', 'Current Marks / Reappear',
+        'Admission Date', 'Status', 'Remarks'
+      ];
+
+      const formatStudentRow = (s, idx) => [
+        idx + 1,
+        cleanVal(s.classRollNo || s['Class Roll No']),
+        cleanVal(s.admNo || s['Admission No']),
+        cleanVal(s.formNo || s['Form Number']),
+        cleanVal(s.class || s['Class']),
+        cleanVal(s.session || s['Session']),
+        cleanVal(s.stream || s['Stream']),
+        cleanVal(s.boardRegNo || s['Board Registration Number']),
+        cleanVal(s.studentName || s["Student's Name"]),
+        cleanVal(s.fatherName || s["Father's Name"]),
+        cleanVal(s.motherName || s["Mother's Name"]),
+        cleanVal(s.dob || s['Date of Birth']),
+        cleanVal(s.gender || s['Gender']),
+        cleanVal(s.category || s['Category']),
+        cleanVal(s.penNo || s['PEN No.']),
+        cleanVal(s.aadhar || s['Aadhaar Card No.']),
+        cleanVal(s.fatherAadhar || s["Father's Aadhaar Card No."]),
+        cleanVal(s.village || s.residence || s['Residence (Village, District)']),
+        cleanVal(s.mobile || s['Mobile (Student)']),
+        cleanVal(s.parentContact || s["Parent's Contact"]),
+        cleanVal(s.subs || s['Subjects']),
+        cleanVal(s.subjects1 || s['Subjects1']),
+        cleanVal(s.subjects2 || s['Subjects2']),
+        cleanVal(s.subjects3 || s['Subjects3']),
+        cleanVal(s.subjects4 || s['Subjects4']),
+        cleanVal(s.subjects5 || s['Subjects5']),
+        cleanVal(s.subjects6 || s['Subjects6']),
+        cleanVal(s.prevExamRollNo || s['Exam R.No. (Prev.)']),
+        cleanVal(s.prevMarksObt || s['Marks Obt. (Prev.)']),
+        cleanVal(s.prevMaxMarks || s['Max. Marks (Prev.)']),
+        cleanVal(s.prevPercentage || s['%age (Prev.)']),
+        cleanVal(s.prevDivision || s['Div/Distinc (Prev.)']),
+        cleanVal(s.currExamRollNo || s['Exam R.No. (Current)']),
+        cleanVal(s.currResult || s['Result (Current)']),
+        cleanVal(s.currMarksReapp || s['Marks/Reapp (Current)']),
+        cleanVal(s.admissionDate || s.admDate || s.timestamp || s.created_at),
+        cleanVal(s.status || s['Status'] || 'Active'),
+        cleanVal(s.remarks || s['Remarks'])
+      ];
+
+      const autoColWidths = (headers, rows) => {
+        return headers.map((h, colIdx) => {
+          let maxLen = h.length;
+          rows.forEach(row => {
+            const cell = row[colIdx];
+            if (cell) {
+              const len = String(cell).length;
+              if (len > maxLen) maxLen = len;
+            }
+          });
+          return { wch: Math.min(Math.max(maxLen + 3, 10), 45) };
+        });
+      };
+
+      const wb = XLSX.utils.book_new();
+      const isMultiSession = masterExportSelectedSessions.size > 1;
+
+      if (isMultiSession) {
+        // 1. Consolidated Tab
+        const consolidatedRows = matchedStudents.map((s, idx) => formatStudentRow(s, idx));
+        const wsConsolidated = XLSX.utils.aoa_to_sheet([masterHeaders, ...consolidatedRows]);
+        wsConsolidated['!cols'] = autoColWidths(masterHeaders, consolidatedRows);
+        XLSX.utils.book_append_sheet(wb, wsConsolidated, 'All_Selected_Consolidated');
+
+        // 2. Individual Session Tabs
+        const groupedBySession = new Map();
+        matchedStudents.forEach(s => {
+          const sess = String(s.session || 'Unknown_Session').trim();
+          if (!groupedBySession.has(sess)) groupedBySession.set(sess, []);
+          groupedBySession.get(sess).push(s);
+        });
+
+        groupedBySession.forEach((stList, sessName) => {
+          const sRows = stList.map((s, idx) => formatStudentRow(s, idx));
+          const wsSess = XLSX.utils.aoa_to_sheet([masterHeaders, ...sRows]);
+          wsSess['!cols'] = autoColWidths(masterHeaders, sRows);
+          const safeSheetName = sessName.replace(/[:\\/?*[\]]/g, '_').substring(0, 31);
+          XLSX.utils.book_append_sheet(wb, wsSess, safeSheetName);
+        });
+      } else {
+        // Single Session Tab
+        const singleSessName = Array.from(masterExportSelectedSessions)[0];
+        const sRows = matchedStudents.map((s, idx) => formatStudentRow(s, idx));
+        const wsSingle = XLSX.utils.aoa_to_sheet([masterHeaders, ...sRows]);
+        wsSingle['!cols'] = autoColWidths(masterHeaders, sRows);
+        const safeSheetName = singleSessName.replace(/[:\\/?*[\]]/g, '_').substring(0, 31);
+        XLSX.utils.book_append_sheet(wb, wsSingle, safeSheetName);
+      }
+
+      let filename = '';
+      if (masterExportSelectedSessions.size === allKnownSessions.length) {
+        filename = 'HSS_Shangus_Complete_Master_Register_2006-2026.xlsx';
+      } else if (masterExportSelectedSessions.size === 1) {
+        const sessClean = Array.from(masterExportSelectedSessions)[0].replace(/[^a-zA-Z0-9_-]/g, '_');
+        filename = `HSS_Shangus_Master_Register_${sessClean}.xlsx`;
+      } else {
+        filename = `HSS_Shangus_Master_Register_${masterExportSelectedSessions.size}_Sessions.xlsx`;
+      }
+
+      XLSX.writeFile(wb, filename);
+
+      logAdminActivity('Session Master Register Exported', `Exported Master Register Excel (${filename}) with ${matchedStudents.length} records across ${masterExportSelectedSessions.size} session(s).`);
+      showToast(`✅ Master Register successfully downloaded (${filename}) with ${matchedStudents.length} records!`, 'success');
+    } catch (err) {
+      console.error('Session master register export error:', err);
+      showToast('Error exporting session master register: ' + (err.message || 'Unknown error'), 'error');
+    } finally {
+      setIsExportingMasterRegister(false);
+    }
+  };
+
+  // ─── Public Website Configuration Files Exporters (public/slides/) ───
+  const downloadFileBlob = (filename, content, mimeType) => {
+    const blob = new Blob([content], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleDownloadSettingsJson = async () => {
+    try {
+      showToast('Preparing settings.json...', 'info');
+      let settingsObj = null;
+      try {
+        const local = localStorage.getItem('site_settings');
+        if (local) settingsObj = JSON.parse(local);
+      } catch (_) {}
+
+      if (!settingsObj) {
+        const setSnap = await getDoc(doc(db, 'site', 'settings'));
+        if (setSnap.exists()) settingsObj = setSnap.data();
+      }
+
+      if (!settingsObj) {
+        const res = await fetch('/slides/settings.json');
+        if (res.ok) settingsObj = await res.json();
+      }
+
+      const content = JSON.stringify(settingsObj || {}, null, 2);
+      downloadFileBlob('settings.json', content, 'application/json');
+      showToast('✅ settings.json downloaded successfully!', 'success');
+    } catch (err) {
+      showToast('Error downloading settings.json: ' + err.message, 'error');
+    }
+  };
+
+  const handleDownloadNoticesTxt = async () => {
+    try {
+      showToast('Preparing notices.txt...', 'info');
+      let noticesList = [];
+      try {
+        const local = localStorage.getItem('site_notices');
+        if (local) noticesList = JSON.parse(local);
+      } catch (_) {}
+
+      if (!noticesList.length) {
+        const notSnap = await getDoc(doc(db, 'site', 'notices'));
+        if (notSnap.exists()) {
+          const nData = notSnap.data();
+          noticesList = Array.isArray(nData?.items) ? nData.items : (Array.isArray(nData?.notices) ? nData.notices : []);
+        }
+      }
+
+      if (!noticesList.length) {
+        const res = await fetch('/slides/notices.txt');
+        if (res.ok) {
+          const text = await res.text();
+          downloadFileBlob('notices.txt', text, 'text/plain');
+          showToast('✅ notices.txt downloaded successfully!', 'success');
+          return;
+        }
+      }
+
+      const content = noticesList.map(n => `${n.date || ''},${n.title || ''},${n.link || '#'}${n.days ? ',' + n.days : ''}`).join('\n');
+      downloadFileBlob('notices.txt', content, 'text/plain');
+      showToast('✅ notices.txt downloaded successfully!', 'success');
+    } catch (err) {
+      showToast('Error downloading notices.txt: ' + err.message, 'error');
+    }
+  };
+
+  const handleDownloadFacultyJson = async () => {
+    try {
+      showToast('Preparing faculty.json...', 'info');
+      let facultyList = [];
+      try {
+        const local = localStorage.getItem('hss_public_faculty') || localStorage.getItem('site_faculty');
+        if (local) facultyList = JSON.parse(local);
+      } catch (_) {}
+
+      if (!facultyList.length) {
+        const facSnap = await getDoc(doc(db, 'systemSettings', 'facultyPrivate'));
+        if (facSnap.exists()) {
+          facultyList = facSnap.data()?.members || facSnap.data()?.faculty || [];
+        } else {
+          const facSnap2 = await getDoc(doc(db, 'site', 'faculty'));
+          if (facSnap2.exists()) facultyList = facSnap2.data()?.members || facSnap2.data()?.faculty || [];
+        }
+      }
+
+      if (!facultyList.length) {
+        const res = await fetch('/slides/faculty.json');
+        if (res.ok) facultyList = await res.json();
+      }
+
+      const cleanedFaculty = toPublicFacultyList(facultyList);
+      const content = JSON.stringify(cleanedFaculty, null, 2);
+      downloadFileBlob('faculty.json', content, 'application/json');
+      showToast('✅ faculty.json downloaded successfully!', 'success');
+    } catch (err) {
+      showToast('Error downloading faculty.json: ' + err.message, 'error');
     }
   };
 
@@ -9094,6 +9494,28 @@ export default function AdvancedReports({
     };
   }, [allStudents]);
 
+  // Canonical 20-year sessions (2006 to 2026) for complete historical coverage
+  const CANONICAL_ACADEMIC_SESSIONS = useMemo(() => [
+    '2025-26', '2024-25', '2023-24', '2022-23', '2021-22',
+    '2020-21', '2019-20', '2018-19', '2017-18', '2016-17',
+    '2015-16', '2014-15', '2013-14', '2012-13', '2011-12',
+    '2010-11', '2009-10', '2008-09', '2007-08', '2006-07'
+  ], []);
+
+  const allKnownSessions = useMemo(() => {
+    const set = new Set([...availableSessions, ...CANONICAL_ACADEMIC_SESSIONS]);
+    return Array.from(set).sort((a, b) => {
+      const aIsBian = /bian|bi-annual|apr/i.test(a);
+      const bIsBian = /bian|bi-annual|apr/i.test(b);
+      if (aIsBian && !bIsBian) return 1;
+      if (!aIsBian && bIsBian) return -1;
+      const numA = parseInt(String(a).match(/\d{4}/)?.[0] || '0', 10);
+      const numB = parseInt(String(b).match(/\d{4}/)?.[0] || '0', 10);
+      if (numA !== numB) return numB - numA;
+      return b.localeCompare(a, undefined, { numeric: true });
+    });
+  }, [availableSessions, CANONICAL_ACADEMIC_SESSIONS]);
+
   // Helper set of recent sessions: current active session + previous 4 sessions (e.g. 2022-23 through 2025-26)
   const defaultSearchSessionsLowerSet = useMemo(() => {
     const sessSet = new Set();
@@ -10456,10 +10878,12 @@ export default function AdvancedReports({
   const photoExportCandidates = useMemo(() => {
     let list = allStudents;
 
-    // 1. Session Filter
-    if (photoExportSession && photoExportSession !== 'ALL') {
-      const sLower = String(photoExportSession).trim().toLowerCase();
-      list = list.filter(s => String(s.session || '').trim().toLowerCase() === sLower);
+    // 1. Session Filter (Checkbox-style Multi-Session Selection)
+    if (photoExportSelectedSessions && photoExportSelectedSessions.size > 0) {
+      const normChecked = new Set(Array.from(photoExportSelectedSessions).map(s => String(s).trim().toLowerCase()));
+      list = list.filter(s => normChecked.has(String(s.session || '').trim().toLowerCase()));
+    } else {
+      list = [];
     }
 
     // 2. Class Filter
@@ -10513,7 +10937,7 @@ export default function AdvancedReports({
       const fB = parseInt(String(b.formNo || '0').replace(/\D/g, ''), 10) || 0;
       return fA - fB;
     });
-  }, [allStudents, photoExportSession, photoExportClass, photoExportStream, photoExportMode, photoExportRollStart, photoExportRollEnd, selectedBulkFormIds, selectedTableDocIds]);
+  }, [allStudents, photoExportSelectedSessions, photoExportClass, photoExportStream, photoExportMode, photoExportRollStart, photoExportRollEnd, selectedBulkFormIds, selectedTableDocIds]);
 
   const photoExportStats = useMemo(() => {
     let withPhoto = 0;
@@ -10635,7 +11059,7 @@ export default function AdvancedReports({
         `========================================================================================`,
         `GOVT. HIGHER SECONDARY SCHOOL SHANGUS — BULK STUDENT PHOTOS EXPORT MANIFEST`,
         `Generated At : ${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}`,
-        `Scope Filter : Session: ${photoExportSession} | Class: ${photoExportClass} | Stream: ${photoExportStream}`,
+        `Scope Filter : Sessions (${photoExportSelectedSessions.size}): ${Array.from(photoExportSelectedSessions).slice(0, 5).join(', ')}${photoExportSelectedSessions.size > 5 ? '...' : ''} | Class: ${photoExportClass} | Stream: ${photoExportStream}`,
         `Export Mode  : ${photoExportMode === 'roll_range' ? `Roll Range: ${photoExportRollStart} to ${photoExportRollEnd}` : photoExportMode === 'selected_table' ? 'Selected Records' : 'All In Scope'}`,
         `Total Records In Scope : ${targetList.length}`,
         `File Naming Template   : <ClassRollNo>_<BoardRegistrationNo>_<StudentName>_<Class>_<Session>.jpg`,
@@ -10746,7 +11170,8 @@ export default function AdvancedReports({
       });
 
       const cleanCls = String(photoExportClass !== 'ALL' ? photoExportClass : 'AllClasses').replace(/[^a-zA-Z0-9-]/g, '');
-      const cleanSess = String(photoExportSession !== 'ALL' ? photoExportSession : 'AllSessions').replace(/[^a-zA-Z0-9-]/g, '');
+      const sessCount = photoExportSelectedSessions.size;
+      const cleanSess = sessCount === allKnownSessions.length ? 'AllSessions_2006-2026' : (sessCount === 1 ? Array.from(photoExportSelectedSessions)[0].replace(/[^a-zA-Z0-9-]/g, '') : `${sessCount}_Sessions`);
       const zipFilename = `HSS_Shangus_Photos_${cleanCls}_${cleanSess}_${Date.now()}.zip`;
 
       const downloadUrl = URL.createObjectURL(zipBlob);
@@ -10762,7 +11187,7 @@ export default function AdvancedReports({
         logAdminActivity(
           user?.email || 'Admin',
           'PHOTO_EXPORT_ZIP',
-          `Exported ${successCount} student photos into ZIP archive (${zipFilename}). Scope: Class ${photoExportClass}, Session ${photoExportSession}, Mode ${photoExportMode}.`
+          `Exported ${successCount} student photos into ZIP archive (${zipFilename}). Scope: Class ${photoExportClass}, ${sessCount} Session(s), Mode ${photoExportMode}.`
         );
       } catch (_) {}
 
@@ -12048,36 +12473,59 @@ export default function AdvancedReports({
 
       {/* MODAL 2: Admin Tools (🛠 Tools) */}
       {showToolsModal && createPortal(
-        <div className="fixed inset-0 z-[99999] flex items-center justify-center p-2.5 sm:p-5 bg-slate-950/80 backdrop-blur-md animate-fadeIn overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="administrative-tools-title">
-          <div className="w-full max-w-4xl lg:max-w-5xl p-3.5 sm:p-6 rounded-2xl sm:rounded-3xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-2xl space-y-4 max-h-[94vh] sm:max-h-[92vh] overflow-y-auto my-auto">
-            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
-              <h3 id="administrative-tools-title" className="font-black text-base flex items-center gap-2 text-slate-900 dark:text-white">
-                <Wrench size={18} className="text-amber-600" /> Administrative Tools Suite
-              </h3>
-              <button type="button" onClick={() => setShowToolsModal(false)} className="p-1 hover:opacity-70 cursor-pointer">
-                <X size={18} />
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center p-1.5 sm:p-4 bg-slate-950/80 backdrop-blur-md animate-fadeIn overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="administrative-tools-title">
+          <div className="w-full max-w-5xl p-2.5 sm:p-4 rounded-xl sm:rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-2xl space-y-2.5 max-h-[96vh] sm:max-h-[92vh] overflow-y-auto my-auto">
+            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2">
+              <div className="flex items-center gap-2">
+                <div className="p-1 rounded-md bg-amber-500/15 text-amber-600 dark:text-amber-400">
+                  <Wrench size={16} />
+                </div>
+                <div>
+                  <h3 id="administrative-tools-title" className="font-black text-sm sm:text-base text-slate-900 dark:text-white leading-tight">
+                    Administrative Tools Suite
+                  </h3>
+                  <p className="text-[10.5px] text-slate-500 font-bold hidden sm:block">
+                    Bulk Processing, Master Register Exporters, Photos & Cloud Backups
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowToolsModal(false)}
+                className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 transition-all cursor-pointer"
+                title="Close Administrative Tools"
+              >
+                <X size={17} />
               </button>
             </div>
 
             {/* Tools Sub Navigation */}
-            <div className="flex items-center gap-1 p-1 rounded-2xl border border-slate-300 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 text-xs font-black overflow-x-auto">
+            <div className="flex items-center gap-1 p-0.5 sm:p-1 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-800/80 text-xs font-black overflow-x-auto no-scrollbar">
               {[
-                { id: 'bulk_forms', label: '📄 Bulk Forms Generator' },
-                { id: 'db_editor', label: '🔄 Bulk Class & Session' },
-                { id: 'photo_export', label: '📦 Bulk Photo Exporter (ZIP)' },
-                { id: 'photo_manager', label: '📷 Photo Upload & Sync' },
-                { id: 'db_backup', label: '💾 Database Backup & Excel' },
-              ].map(t => (
-                <button
-                  key={t.id}
-                  type="button"
-                  onClick={() => setActiveToolsTab(t.id)}
-                  className={`py-2 px-3 rounded-xl transition-all cursor-pointer ${activeToolsTab === t.id ? 'bg-amber-700 text-white shadow-sm font-black' : 'text-slate-800 dark:text-slate-200'
+                { id: 'bulk_forms', label: 'Bulk Forms Generator', icon: Printer },
+                { id: 'db_editor', label: 'Bulk Class & Session', icon: RefreshCw },
+                { id: 'photo_export', label: 'Bulk Photo Exporter (ZIP)', icon: Camera },
+                { id: 'photo_manager', label: 'Photo Upload & Sync', icon: Upload },
+                { id: 'db_backup', label: 'Database Backup & Excel', icon: Database },
+              ].map(t => {
+                const Icon = t.icon;
+                const isActive = activeToolsTab === t.id;
+                return (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => setActiveToolsTab(t.id)}
+                    className={`py-1.5 px-2 sm:px-2.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap text-[11px] sm:text-xs font-black select-none ${
+                      isActive
+                        ? 'bg-amber-600 text-white shadow-xs'
+                        : 'text-slate-700 dark:text-slate-300 hover:bg-slate-200/80 dark:hover:bg-slate-700/60'
                     }`}
-                >
-                  {t.label}
-                </button>
-              ))}
+                  >
+                    <Icon size={13} className={isActive ? 'text-white' : 'text-slate-500 dark:text-slate-400'} />
+                    <span>{t.label}</span>
+                  </button>
+                );
+              })}
             </div>
 
             {/* Tool Content 0: Bulk Forms Generator */}
@@ -12799,63 +13247,46 @@ export default function AdvancedReports({
 
             {/* Tool Content: Bulk Photo Exporter (ZIP) */}
             {activeToolsTab === 'photo_export' && (
-              <div className="space-y-4 p-4 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 animate-fadeIn">
-                <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3 flex-wrap gap-2">
+              <div className="space-y-2.5 p-2.5 sm:p-3 rounded-xl bg-slate-50/70 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 animate-fadeIn">
+                <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2 flex-wrap gap-1.5">
                   <div>
-                    <div className="font-black text-sm text-slate-900 dark:text-white flex items-center gap-2">
-                      <FolderDown size={18} className="text-amber-600" />
+                    <div className="font-black text-xs sm:text-sm text-slate-900 dark:text-white flex items-center gap-1.5">
+                      <FolderDown size={15} className="text-amber-600" />
                       Bulk Student Photo Downloader & ZIP Folder Exporter
                     </div>
-                    <p className="text-slate-600 dark:text-slate-400 text-xs font-bold mt-0.5">
-                      Export photos for any Session/Class (All or Roll No. Range) selected or bulk into a folder named <code className="bg-slate-200 dark:bg-slate-800 px-1.5 py-0.5 rounded text-purple-700 dark:text-purple-300 font-mono text-[11px]">class roll no_registration no_name_class_session.jpg</code>.
+                    <p className="text-slate-600 dark:text-slate-400 text-[10.5px] font-medium mt-0.5">
+                      Export photos for any Session/Class into a ZIP archive named <code className="bg-slate-200 dark:bg-slate-800 px-1 py-0.2 rounded text-purple-700 dark:text-purple-300 font-mono text-[10px]">roll_reg_name_class_session.jpg</code>.
                     </p>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setActiveToolsTab('photo_manager')}
-                      className="px-3 py-1.5 rounded-xl font-black text-xs text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 hover:bg-slate-100 cursor-pointer flex items-center gap-1.5"
-                    >
-                      <Camera size={13} />
-                      <span>Upload & Sync Photos</span>
-                    </button>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setActiveToolsTab('photo_manager')}
+                    className="px-2.5 py-1 rounded-lg font-black text-[11px] text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 hover:bg-slate-100 cursor-pointer flex items-center gap-1 transition-all"
+                  >
+                    <Camera size={12} />
+                    <span>Upload & Sync Photos</span>
+                  </button>
                 </div>
 
                 {/* ─── 1. SCOPE & FILTER CONTROLS ─── */}
-                <div className="p-3.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs space-y-3">
+                <div className="p-2.5 sm:p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xs space-y-2">
                   <div className="font-black text-xs text-slate-900 dark:text-white flex items-center gap-1.5">
-                    <Sliders size={14} className="text-amber-600" />
-                    <span>Select Target Session, Class & Export Range</span>
+                    <Sliders size={13} className="text-amber-600" />
+                    <span>Select Target Scope, Sessions & Export Range</span>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {/* Class & Stream Selectors */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
                     <div>
-                      <label className="block text-[11px] font-black text-slate-600 dark:text-slate-400 mb-1">
-                        Academic Session:
-                      </label>
-                      <select
-                        value={photoExportSession}
-                        onChange={(e) => setPhotoExportSession(e.target.value)}
-                        className="w-full p-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-xs font-black text-slate-900 dark:text-white"
-                      >
-                        <option value="ALL">All Academic Sessions</option>
-                        {availableSessions.map(s => (
-                          <option key={s} value={s}>Session {s}</option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-[11px] font-black text-slate-600 dark:text-slate-400 mb-1">
+                      <label className="block text-[10px] font-black text-slate-600 dark:text-slate-400 mb-0.5">
                         Target Class:
                       </label>
                       <select
                         value={photoExportClass}
                         onChange={(e) => setPhotoExportClass(e.target.value)}
-                        className="w-full p-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-xs font-black text-slate-900 dark:text-white"
+                        className="w-full p-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-xs font-bold text-slate-900 dark:text-white"
                       >
-                        <option value="ALL">All Classes</option>
+                        <option value="ALL">All Classes (11th & 12th)</option>
                         {availableClasses.map(c => (
                           <option key={c} value={c}>Class {c}</option>
                         ))}
@@ -12863,13 +13294,13 @@ export default function AdvancedReports({
                     </div>
 
                     <div>
-                      <label className="block text-[11px] font-black text-slate-600 dark:text-slate-400 mb-1">
+                      <label className="block text-[10px] font-black text-slate-600 dark:text-slate-400 mb-0.5">
                         Academic Stream:
                       </label>
                       <select
                         value={photoExportStream}
                         onChange={(e) => setPhotoExportStream(e.target.value)}
-                        className="w-full p-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-xs font-black text-slate-900 dark:text-white"
+                        className="w-full p-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-xs font-bold text-slate-900 dark:text-white"
                       >
                         <option value="ALL">All Streams</option>
                         {availableStreams.map(st => (
@@ -12879,13 +13310,64 @@ export default function AdvancedReports({
                     </div>
                   </div>
 
+                  {/* Checkbox Multi-Session Selector */}
+                  <div className="space-y-1.5 p-2 rounded-lg bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-800">
+                    <div className="flex items-center justify-between flex-wrap gap-1">
+                      <span className="text-[10.5px] font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1">
+                        <Calendar size={12} className="text-amber-600" />
+                        Academic Sessions ({photoExportSelectedSessions.size} of {allKnownSessions.length} Selected):
+                      </span>
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={handleSelectAllPhotoExportSessions}
+                          className="px-2 py-0.5 rounded bg-amber-500 hover:bg-amber-600 text-white text-[9.5px] font-black transition-all cursor-pointer"
+                        >
+                          Select All ({allKnownSessions.length})
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleDeselectAllPhotoExportSessions}
+                          className="px-2 py-0.5 rounded bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 text-[9.5px] font-black transition-all cursor-pointer"
+                        >
+                          Clear / None
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Dense wrapping badge grid */}
+                    <div className="flex flex-wrap gap-1 max-h-20 overflow-y-auto p-1 rounded-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                      {allKnownSessions.map(sess => {
+                        const isChecked = photoExportSelectedSessions.has(sess);
+                        return (
+                          <label
+                            key={sess}
+                            className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10.5px] font-bold cursor-pointer transition-all border select-none ${
+                              isChecked
+                                ? 'bg-amber-100 dark:bg-amber-950/70 border-amber-400 dark:border-amber-700 text-amber-900 dark:text-amber-200 font-black shadow-2xs'
+                                : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-200'
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={() => handleTogglePhotoExportSession(sess)}
+                              className="w-3 h-3 accent-amber-600 rounded cursor-pointer"
+                            />
+                            <span>{sess}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+
                   {/* Export Target Mode Selector */}
-                  <div className="pt-2 border-t border-slate-200 dark:border-slate-800 space-y-2">
-                    <label className="block text-[11px] font-black text-slate-600 dark:text-slate-400">
+                  <div className="pt-1 border-t border-slate-200 dark:border-slate-800 space-y-1.5">
+                    <label className="block text-[10.5px] font-black text-slate-600 dark:text-slate-400">
                       Export Scope / Mode:
                     </label>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                      <label className={`p-2.5 rounded-xl border flex items-center gap-2 cursor-pointer transition-all ${photoExportMode === 'all_filtered' ? 'border-amber-500 bg-amber-50 dark:bg-amber-950/40 text-amber-900 dark:text-amber-200 font-black' : 'border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 text-xs font-bold'}`}>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5">
+                      <label className={`p-1.5 sm:p-2 rounded-lg border flex items-center gap-1.5 cursor-pointer transition-all ${photoExportMode === 'all_filtered' ? 'border-amber-500 bg-amber-50 dark:bg-amber-950/40 text-amber-900 dark:text-amber-200 font-black' : 'border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 text-xs font-bold'}`}>
                         <input
                           type="radio"
                           name="photoExportMode"
@@ -12894,10 +13376,10 @@ export default function AdvancedReports({
                           onChange={() => setPhotoExportMode('all_filtered')}
                           className="accent-amber-600"
                         />
-                        <span className="text-xs">All Students in Filter ({photoExportCandidates.length})</span>
+                        <span className="text-[11px]">All In Filter ({photoExportCandidates.length})</span>
                       </label>
 
-                      <label className={`p-2.5 rounded-xl border flex items-center gap-2 cursor-pointer transition-all ${photoExportMode === 'roll_range' ? 'border-amber-500 bg-amber-50 dark:bg-amber-950/40 text-amber-900 dark:text-amber-200 font-black' : 'border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 text-xs font-bold'}`}>
+                      <label className={`p-1.5 sm:p-2 rounded-lg border flex items-center gap-1.5 cursor-pointer transition-all ${photoExportMode === 'roll_range' ? 'border-amber-500 bg-amber-50 dark:bg-amber-950/40 text-amber-900 dark:text-amber-200 font-black' : 'border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 text-xs font-bold'}`}>
                         <input
                           type="radio"
                           name="photoExportMode"
@@ -12906,10 +13388,10 @@ export default function AdvancedReports({
                           onChange={() => setPhotoExportMode('roll_range')}
                           className="accent-amber-600"
                         />
-                        <span className="text-xs">Roll Number Range (From - To)</span>
+                        <span className="text-[11px]">Roll Range (From - To)</span>
                       </label>
 
-                      <label className={`p-2.5 rounded-xl border flex items-center gap-2 cursor-pointer transition-all ${photoExportMode === 'selected_table' ? 'border-amber-500 bg-amber-50 dark:bg-amber-950/40 text-amber-900 dark:text-amber-200 font-black' : 'border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 text-xs font-bold'}`}>
+                      <label className={`p-1.5 sm:p-2 rounded-lg border flex items-center gap-1.5 cursor-pointer transition-all ${photoExportMode === 'selected_table' ? 'border-amber-500 bg-amber-50 dark:bg-amber-950/40 text-amber-900 dark:text-amber-200 font-black' : 'border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 text-xs font-bold'}`}>
                         <input
                           type="radio"
                           name="photoExportMode"
@@ -12918,21 +13400,21 @@ export default function AdvancedReports({
                           onChange={() => setPhotoExportMode('selected_table')}
                           className="accent-amber-600"
                         />
-                        <span className="text-xs">Table Selected ({selectedBulkFormIds.size > 0 ? selectedBulkFormIds.size : selectedTableDocIds.size})</span>
+                        <span className="text-[11px]">Table Selected ({selectedBulkFormIds.size > 0 ? selectedBulkFormIds.size : selectedTableDocIds.size})</span>
                       </label>
                     </div>
                   </div>
 
-                  {/* Roll Number Range Inputs (Shown when mode is 'roll_range') */}
+                  {/* Roll Number Range Inputs */}
                   {photoExportMode === 'roll_range' && (
-                    <div className="p-3 rounded-xl bg-amber-50/80 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-800 space-y-2 animate-fadeIn">
-                      <div className="flex items-center gap-2 text-xs font-black text-amber-900 dark:text-amber-200">
-                        <Hash size={14} className="text-amber-600" />
+                    <div className="p-2 rounded-lg bg-amber-50/80 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-800 space-y-1.5 animate-fadeIn">
+                      <div className="flex items-center gap-1 text-[11px] font-black text-amber-900 dark:text-amber-200">
+                        <Hash size={13} className="text-amber-600" />
                         <span>Specify Class Roll Number Range:</span>
                       </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="grid grid-cols-2 gap-2">
                         <div>
-                          <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">
+                          <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 mb-0.5">
                             From Roll No:
                           </label>
                           <input
@@ -12940,12 +13422,12 @@ export default function AdvancedReports({
                             min="1"
                             value={photoExportRollStart}
                             onChange={(e) => setPhotoExportRollStart(e.target.value)}
-                            placeholder="e.g. 1 or 101"
-                            className="w-full p-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-mono font-bold"
+                            placeholder="e.g. 1"
+                            className="w-full p-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-mono font-bold"
                           />
                         </div>
                         <div>
-                          <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">
+                          <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 mb-0.5">
                             To Roll No:
                           </label>
                           <input
@@ -12953,48 +13435,45 @@ export default function AdvancedReports({
                             min="1"
                             value={photoExportRollEnd}
                             onChange={(e) => setPhotoExportRollEnd(e.target.value)}
-                            placeholder="e.g. 150 or 250"
-                            className="w-full p-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-mono font-bold"
+                            placeholder="e.g. 250"
+                            className="w-full p-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-mono font-bold"
                           />
                         </div>
                       </div>
-                      <p className="text-[10px] text-amber-800 dark:text-amber-300 font-bold">
-                        Filters students whose assigned Class Roll Number falls between the starting and ending roll numbers.
-                      </p>
                     </div>
                   )}
 
                   {/* Option: Only With Photo */}
-                  <div className="pt-2 flex items-center justify-between flex-wrap gap-2 text-xs font-bold">
-                    <label className="flex items-center gap-2 cursor-pointer text-slate-800 dark:text-slate-200">
+                  <div className="pt-1 flex items-center justify-between flex-wrap gap-2 text-xs font-bold">
+                    <label className="flex items-center gap-1.5 cursor-pointer text-slate-800 dark:text-slate-200 text-[11px]">
                       <input
                         type="checkbox"
                         checked={photoExportOnlyWithPhoto}
                         onChange={(e) => setPhotoExportOnlyWithPhoto(e.target.checked)}
-                        className="w-4 h-4 accent-amber-600 rounded cursor-pointer"
+                        className="w-3.5 h-3.5 accent-amber-600 rounded cursor-pointer"
                       />
                       <span>Only include students who have an active passport photo</span>
                     </label>
 
-                    <div className="flex items-center gap-2 text-[11px] font-black">
+                    <div className="flex items-center gap-1.5 text-[10.5px] font-black">
                       <button
                         type="button"
                         onClick={handleRefreshCloudPhotos}
                         disabled={loadingPhotosFromCloud}
-                        className="px-2.5 py-1 rounded-lg bg-amber-100 hover:bg-amber-200 dark:bg-amber-950/80 dark:hover:bg-amber-900 border border-amber-300 dark:border-amber-700 text-amber-900 dark:text-amber-200 flex items-center gap-1 cursor-pointer disabled:opacity-50 transition-all font-bold"
-                        title="Scan & sync all photos from Cloud Firestore studentPhotos collection"
+                        className="px-2 py-0.5 rounded-md bg-amber-100 hover:bg-amber-200 dark:bg-amber-950/80 dark:hover:bg-amber-900 border border-amber-300 dark:border-amber-700 text-amber-900 dark:text-amber-200 flex items-center gap-1 cursor-pointer disabled:opacity-50 transition-all font-bold"
+                        title="Scan & sync photos from Firestore"
                       >
-                        <RefreshCw size={11} className={loadingPhotosFromCloud ? 'animate-spin text-amber-600' : ''} />
+                        <RefreshCw size={10} className={loadingPhotosFromCloud ? 'animate-spin text-amber-600' : ''} />
                         <span>{loadingPhotosFromCloud ? 'Syncing...' : 'Sync Cloud Photos'}</span>
                       </button>
-                      <span className="px-2 py-0.5 rounded-lg bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                      <span className="px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
                         Total: {photoExportCandidates.length}
                       </span>
-                      <span className="px-2 py-0.5 rounded-lg bg-teal-100 dark:bg-teal-950/80 text-teal-800 dark:text-teal-300 border border-teal-300 dark:border-teal-700">
+                      <span className="px-1.5 py-0.5 rounded bg-teal-100 dark:bg-teal-950/80 text-teal-800 dark:text-teal-300 border border-teal-300 dark:border-teal-700">
                         Ready: {photoExportStats.withPhoto}
                       </span>
                       {photoExportStats.missingPhoto > 0 && (
-                        <span className="px-2 py-0.5 rounded-lg bg-rose-100 dark:bg-rose-950/80 text-rose-800 dark:text-rose-300 border border-rose-300 dark:border-rose-700">
+                        <span className="px-1.5 py-0.5 rounded bg-rose-100 dark:bg-rose-950/80 text-rose-800 dark:text-rose-300 border border-rose-300 dark:border-rose-700">
                           Missing: {photoExportStats.missingPhoto}
                         </span>
                       )}
@@ -13003,70 +13482,65 @@ export default function AdvancedReports({
                 </div>
 
                 {/* ─── 2. LIVE FILENAME FORMAT PREVIEW ─── */}
-                <div className="p-3 rounded-2xl bg-purple-50 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800 text-xs space-y-1.5">
-                  <div className="flex items-center justify-between flex-wrap gap-2">
-                    <span className="font-black text-purple-900 dark:text-purple-200 flex items-center gap-1.5">
-                      <FileText size={14} className="text-purple-600" />
+                <div className="p-2 sm:p-2.5 rounded-xl bg-purple-50/80 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800 text-xs space-y-1">
+                  <div className="flex items-center justify-between flex-wrap gap-1.5">
+                    <span className="font-black text-[11px] text-purple-900 dark:text-purple-200 flex items-center gap-1">
+                      <FileText size={12} className="text-purple-600" />
                       File Naming Standard:
                     </span>
-                    <span className="text-[11px] font-mono text-purple-800 dark:text-purple-300 bg-purple-100 dark:bg-purple-900/60 px-2 py-0.5 rounded-md font-bold">
+                    <span className="text-[10px] font-mono text-purple-800 dark:text-purple-300 bg-purple-100 dark:bg-purple-900/60 px-1.5 py-0.2 rounded font-bold">
                       &lt;ClassRollNo&gt;_&lt;RegistrationNo&gt;_&lt;StudentName&gt;_&lt;Class&gt;_&lt;Session&gt;.jpg
                     </span>
                   </div>
-                  <div className="text-[11px] font-bold text-slate-600 dark:text-slate-400">
-                    Sample Output File:{' '}
-                    <span className="font-mono text-purple-700 dark:text-purple-300 font-extrabold break-all">
-                      {photoExportCandidates[0] ? formatPhotoExportFilename(photoExportCandidates[0]) : '101_22N-123456_Aadil Ahmad_11th_2024-25.jpg'}
-                    </span>
+                  <div className="text-[10.5px] font-bold text-slate-600 dark:text-slate-400">
+                    Sample: <span className="font-mono text-purple-700 dark:text-purple-300 font-extrabold break-all">{photoExportCandidates[0] ? formatPhotoExportFilename(photoExportCandidates[0]) : '101_22N-123456_Aadil Ahmad_11th_2025-26.jpg'}</span>
                   </div>
                 </div>
 
-                {/* ─── 3. CANDIDATE PHOTO PREVIEW TABLE ─── */}
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between text-xs font-black text-slate-900 dark:text-white">
-                    <span>Target Students Preview (First {Math.min(photoExportCandidates.length, 6)} of {photoExportCandidates.length}):</span>
-                    <span className="text-[11px] text-slate-500 font-bold">
-                      Sorted naturally by Class & Roll No.
-                    </span>
+                {/* ─── 3. CANDIDATE PHOTO PREVIEW ─── */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between text-[11px] font-black text-slate-900 dark:text-white">
+                    <span>Target Students Preview ({Math.min(photoExportCandidates.length, 6)} of {photoExportCandidates.length}):</span>
+                    <span className="text-[10px] text-slate-500 font-bold">Sorted naturally by Class & Roll No.</span>
                   </div>
 
-                  <div className="max-h-56 overflow-y-auto space-y-1.5 p-2 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                  <div className="max-h-44 overflow-y-auto space-y-1 p-1.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
                     {photoExportCandidates.length === 0 ? (
-                      <div className="py-6 text-center text-xs font-bold text-slate-400">
-                        No students match the current filter criteria.
+                      <div className="py-4 text-center text-xs font-bold text-slate-400">
+                        No students match the current session & filter criteria.
                       </div>
                     ) : (
-                      photoExportCandidates.slice(0, 8).map((st, idx) => {
+                      photoExportCandidates.slice(0, 6).map((st, idx) => {
                         const pUrl = getStudentPhotoUrl(st);
                         const hasPhoto = pUrl && typeof pUrl === 'string' && pUrl.length > 20 && pUrl !== '/logo.png';
                         const computedFilename = formatPhotoExportFilename(st);
 
                         return (
-                          <div key={idx} className="flex items-center justify-between p-2 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800 text-xs font-bold gap-2">
-                            <div className="flex items-center gap-2.5 min-w-0">
-                              <div className="w-8 h-10 rounded-md border border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 overflow-hidden shrink-0 flex items-center justify-center">
+                          <div key={idx} className="flex items-center justify-between p-1.5 rounded-lg bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800 text-[11px] font-bold gap-2">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <div className="w-7 h-8 rounded border border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 overflow-hidden shrink-0 flex items-center justify-center">
                                 {hasPhoto ? (
                                   <img src={pUrl} alt="" className="w-full h-full object-cover" />
                                 ) : (
-                                  <User size={14} className="text-slate-400" />
+                                  <User size={12} className="text-slate-400" />
                                 )}
                               </div>
                               <div className="min-w-0">
-                                <div className="font-black text-slate-900 dark:text-white truncate">
-                                  {st.studentName || st["Student's Name (as per school records)"] || 'Student'}
+                                <div className="font-black text-slate-900 dark:text-white truncate text-[11px]">
+                                  {st.studentName || st["Student's Name"] || 'Student'}
                                 </div>
-                                <div className="text-[10px] text-slate-500 font-mono truncate">
+                                <div className="text-[9.5px] text-slate-500 font-mono truncate">
                                   Roll: <strong className="text-slate-700 dark:text-slate-300">{st.classRollNo || st['Class Roll No'] || '—'}</strong> • Reg: <strong className="text-slate-700 dark:text-slate-300">{st.boardRegNo || '—'}</strong> • {st.class} ({st.session})
                                 </div>
                               </div>
                             </div>
 
                             <div className="text-right shrink-0">
-                              <div className="text-[10px] font-mono text-purple-700 dark:text-purple-300 font-black truncate max-w-[240px]">
+                              <div className="text-[9.5px] font-mono text-purple-700 dark:text-purple-300 font-black truncate max-w-[200px]">
                                 {computedFilename}
                               </div>
-                              <span className={`text-[9px] font-black px-1.5 py-0.2 rounded ${hasPhoto ? 'bg-teal-100 dark:bg-teal-950/80 text-teal-800 dark:text-teal-300' : 'bg-rose-100 dark:bg-rose-950/80 text-rose-800 dark:text-rose-300'}`}>
-                                {hasPhoto ? '✅ Photo Ready' : '⚠️ No Photo'}
+                              <span className={`text-[8.5px] font-black px-1 py-0.2 rounded ${hasPhoto ? 'bg-teal-100 dark:bg-teal-950/80 text-teal-800 dark:text-teal-300' : 'bg-rose-100 dark:bg-rose-950/80 text-rose-800 dark:text-rose-300'}`}>
+                                {hasPhoto ? '✅ Ready' : '⚠️ No Photo'}
                               </span>
                             </div>
                           </div>
@@ -13076,42 +13550,42 @@ export default function AdvancedReports({
                   </div>
                 </div>
 
-                {/* Real-time Progress HUD */}
+                {/* Progress HUD */}
                 {photoExportProgress.active && (
-                  <div className="p-3.5 rounded-2xl bg-amber-500/15 border border-amber-500/30 space-y-2 animate-fadeIn">
-                    <div className="flex justify-between items-center text-xs font-black text-amber-900 dark:text-amber-200">
-                      <span>⏳ Packaging Photo {photoExportProgress.current} of {photoExportProgress.total} ({photoExportProgress.percent}%)</span>
-                      <span className="truncate max-w-[220px]">{photoExportProgress.currentName}</span>
+                  <div className="p-2.5 rounded-xl bg-amber-500/15 border border-amber-500/30 space-y-1.5 animate-fadeIn">
+                    <div className="flex justify-between items-center text-[11px] font-black text-amber-900 dark:text-amber-200">
+                      <span>⏳ Packaging {photoExportProgress.current} of {photoExportProgress.total} ({photoExportProgress.percent}%)</span>
+                      <span className="truncate max-w-[200px] text-[10px]">{photoExportProgress.currentName}</span>
                     </div>
-                    <div className="w-full h-2.5 bg-amber-950/20 rounded-full overflow-hidden">
+                    <div className="w-full h-2 bg-amber-950/20 rounded-full overflow-hidden">
                       <div
                         className="h-full bg-amber-500 transition-all duration-150 rounded-full"
                         style={{ width: `${photoExportProgress.percent}%` }}
                       />
                     </div>
-                    <div className="flex justify-between items-center text-[10px] font-bold text-slate-500">
-                      <span>Exported: {photoExportProgress.successCount} photos</span>
+                    <div className="flex justify-between items-center text-[9.5px] font-bold text-slate-500">
+                      <span>Exported: {photoExportProgress.successCount}</span>
                       <span>Skipped: {photoExportProgress.skippedCount}</span>
                     </div>
                   </div>
                 )}
 
                 {/* ─── 4. DOWNLOAD ACTION BUTTON ─── */}
-                <div className="pt-2">
+                <div className="pt-1">
                   <button
                     type="button"
                     onClick={handleExportPhotosZip}
                     disabled={photoExporting || (photoExportOnlyWithPhoto ? photoExportStats.withPhoto === 0 : photoExportCandidates.length === 0)}
-                    className="w-full py-3.5 rounded-xl font-black text-white bg-amber-700 hover:bg-amber-600 shadow-md flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 transition-all text-xs"
+                    className="w-full py-2.5 rounded-xl font-black text-white bg-amber-700 hover:bg-amber-600 shadow-md flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 transition-all text-xs"
                   >
                     {photoExporting ? (
                       <>
-                        <RefreshCw size={16} className="animate-spin" />
-                        <span>Compiling ZIP Folder Archive...</span>
+                        <RefreshCw size={14} className="animate-spin" />
+                        <span>Compiling ZIP Archive...</span>
                       </>
                     ) : (
                       <>
-                        <FolderDown size={16} />
+                        <FolderDown size={14} />
                         <span>
                           Download {photoExportOnlyWithPhoto ? photoExportStats.withPhoto : photoExportCandidates.length} Student Photos as ZIP Folder
                         </span>
@@ -13273,45 +13747,187 @@ export default function AdvancedReports({
 
             {/* Tool Content 4: Database Backup & Excel Suite */}
             {activeToolsTab === 'db_backup' && (
-              <div className="space-y-4 p-4 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800">
-                <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3 flex-wrap gap-2">
+              <div className="space-y-2.5 p-2.5 sm:p-3 rounded-xl bg-slate-50/70 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 animate-fadeIn">
+                <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2 flex-wrap gap-1.5">
                   <div>
-                    <div className="font-black text-sm text-slate-900 dark:text-white flex items-center gap-2">
-                      <Database size={18} className="text-amber-600" />
-                      Database Backup & Multi-Sheet Excel Suite
+                    <div className="font-black text-xs sm:text-sm text-slate-900 dark:text-white flex items-center gap-1.5">
+                      <Database size={15} className="text-amber-600" />
+                      <span>Database Backup, Session Master Register & CMS Suite</span>
                     </div>
-                    <div className="text-xs text-slate-500 font-bold">
-                      Export complete, consolidated Excel (.xlsx) workbooks and disaster recovery JSON backups across all website and school collections.
-                    </div>
+                    <p className="text-slate-600 dark:text-slate-400 text-[10.5px] font-medium mt-0.5">
+                      Export multi-session master registers (2006–2026), full database workbooks, public website configs, or disaster recovery archives.
+                    </p>
                   </div>
-                  <div className="flex items-center gap-2 text-xs font-black">
-                    <span className="px-2.5 py-1 rounded-xl bg-amber-100 dark:bg-amber-950/80 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-700">
+                  <div className="flex items-center gap-1.5 text-[11px] font-black">
+                    <span className="px-2 py-0.5 rounded-lg bg-amber-100 dark:bg-amber-950/80 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-700">
                       Total Students: {allStudents.length}
                     </span>
-                    <span className="px-2.5 py-1 rounded-xl bg-teal-100 dark:bg-teal-950/80 text-teal-900 dark:text-teal-200 border border-teal-300 dark:border-teal-700">
+                    <span className="px-2 py-0.5 rounded-lg bg-teal-100 dark:bg-teal-950/80 text-teal-900 dark:text-teal-200 border border-teal-300 dark:border-teal-700">
                       Filtered: {filteredStudents.length}
                     </span>
                   </div>
                 </div>
 
-                {/* 1. Master Multi-Sheet Excel Backup Card */}
-                <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-amber-500/30 dark:border-amber-500/20 shadow-xs space-y-3">
-                  <div className="flex items-start justify-between flex-wrap gap-3">
-                    <div className="flex items-start gap-3">
-                      <div className="p-2.5 rounded-xl bg-teal-100 dark:bg-teal-950/80 text-teal-800 dark:text-teal-300 font-black shrink-0">
-                        <FileSpreadsheet size={20} />
+                {/* ─── 1. SESSION MASTER REGISTER EXPORTER (2006–2026 MULTI-SESSION CHECKBOX) ─── */}
+                <div className="p-2.5 sm:p-3 rounded-xl bg-white dark:bg-slate-900 border border-amber-500/30 dark:border-amber-500/20 shadow-2xs space-y-2">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div className="font-black text-xs text-slate-900 dark:text-white flex items-center gap-1.5">
+                      <FileSpreadsheet size={14} className="text-amber-600" />
+                      <span>Historical & Current Session Master Register (.xlsx)</span>
+                      <span className="text-[9.5px] px-1.5 py-0.2 rounded-full bg-amber-500/15 text-amber-800 dark:text-amber-300 font-extrabold uppercase">
+                        2006–2026 Digitized
+                      </span>
+                    </div>
+                    <span className="text-[10px] text-slate-500 dark:text-slate-400 font-bold">
+                      Multi-sheet workbook: 1 consolidated tab + 1 tab per selected session (38 standardized columns)
+                    </span>
+                  </div>
+
+                  {/* Class & Stream Filters */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                    <div>
+                      <label className="block text-[10px] font-black text-slate-600 dark:text-slate-400 mb-0.5">
+                        Target Class:
+                      </label>
+                      <select
+                        value={masterExportClass}
+                        onChange={(e) => setMasterExportClass(e.target.value)}
+                        className="w-full p-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-xs font-bold text-slate-900 dark:text-white"
+                      >
+                        <option value="ALL">All Classes (11th & 12th)</option>
+                        {availableClasses.map(c => (
+                          <option key={c} value={c}>Class {c}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-black text-slate-600 dark:text-slate-400 mb-0.5">
+                        Academic Stream:
+                      </label>
+                      <select
+                        value={masterExportStream}
+                        onChange={(e) => setMasterExportStream(e.target.value)}
+                        className="w-full p-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-xs font-bold text-slate-900 dark:text-white"
+                      >
+                        <option value="ALL">All Streams</option>
+                        {availableStreams.map(st => (
+                          <option key={st} value={st}>{st}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Checkbox Multi-Session Selector */}
+                  <div className="space-y-1.5 p-2 rounded-lg bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-800">
+                    <div className="flex items-center justify-between flex-wrap gap-1">
+                      <span className="text-[10.5px] font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1">
+                        <Calendar size={12} className="text-amber-600" />
+                        Select Sessions ({masterExportSelectedSessions.size} of {allKnownSessions.length} Selected):
+                      </span>
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={handleSelectAllMasterExportSessions}
+                          className="px-2 py-0.5 rounded bg-amber-500 hover:bg-amber-600 text-white text-[9.5px] font-black transition-all cursor-pointer"
+                        >
+                          Select All ({allKnownSessions.length})
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleDeselectAllMasterExportSessions}
+                          className="px-2 py-0.5 rounded bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 text-[9.5px] font-black transition-all cursor-pointer"
+                        >
+                          Clear / None
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setMasterExportSelectedSessions(new Set(['2025-26']))}
+                          className="px-2 py-0.5 rounded bg-teal-600 hover:bg-teal-500 text-white text-[9.5px] font-black transition-all cursor-pointer"
+                        >
+                          Active (2025–26)
+                        </button>
                       </div>
-                      <div className="space-y-1">
-                        <div className="font-black text-sm text-slate-900 dark:text-white flex items-center gap-2">
-                          Master Multi-Sheet Excel Database Backup (.xlsx)
-                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-teal-500/15 text-teal-700 dark:text-teal-300 font-extrabold uppercase">
+                    </div>
+
+                    {/* Dense wrapping badge grid */}
+                    <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto p-1 rounded-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                      {allKnownSessions.map(sess => {
+                        const isChecked = masterExportSelectedSessions.has(sess);
+                        return (
+                          <label
+                            key={sess}
+                            className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10.5px] font-bold cursor-pointer transition-all border select-none ${
+                              isChecked
+                                ? 'bg-amber-100 dark:bg-amber-950/70 border-amber-400 dark:border-amber-700 text-amber-900 dark:text-amber-200 font-black shadow-2xs'
+                                : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-200'
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={() => handleToggleMasterExportSession(sess)}
+                              className="w-3 h-3 accent-amber-600 rounded cursor-pointer"
+                            />
+                            <span>{sess}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Export Trigger */}
+                  <div className="flex items-center justify-between flex-wrap gap-2 pt-1 border-t border-slate-200 dark:border-slate-800">
+                    <div className="text-[11px] text-slate-600 dark:text-slate-400 font-medium">
+                      Scope:{' '}
+                      <span className="font-black text-slate-900 dark:text-white">
+                        {masterExportSelectedSessions.size === allKnownSessions.length
+                          ? 'All Historical Sessions (2006–2026)'
+                          : `${masterExportSelectedSessions.size} Session(s)`}
+                      </span>
+                      {' • '}Class: <span className="font-black text-slate-900 dark:text-white">{masterExportClass === 'ALL' ? 'All Classes' : `Class ${masterExportClass}`}</span>
+                      {' • '}Stream: <span className="font-black text-slate-900 dark:text-white">{masterExportStream}</span>
+                    </div>
+
+                    <button
+                      type="button"
+                      disabled={isExportingMasterRegister || masterExportSelectedSessions.size === 0}
+                      onClick={handleDownloadSessionMasterRegister}
+                      className="px-3.5 py-1.5 rounded-lg bg-teal-700 hover:bg-teal-600 text-white font-black text-xs shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50 transition-all"
+                    >
+                      {isExportingMasterRegister ? (
+                        <>
+                          <RefreshCw size={13} className="animate-spin" />
+                          <span>Generating Register...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Download size={13} />
+                          <span>Download Master Register Excel (.xlsx)</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                {/* ─── 2. MASTER MULTI-SHEET DATABASE BACKUP CARD ─── */}
+                <div className="p-2.5 sm:p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xs space-y-2">
+                  <div className="flex items-start justify-between flex-wrap gap-2">
+                    <div className="flex items-start gap-2.5">
+                      <div className="p-2 rounded-lg bg-teal-100 dark:bg-teal-950/80 text-teal-800 dark:text-teal-300 font-black shrink-0">
+                        <FileSpreadsheet size={16} />
+                      </div>
+                      <div className="space-y-0.5">
+                        <div className="font-black text-xs text-slate-900 dark:text-white flex items-center gap-1.5">
+                          <span>Master Multi-Sheet Excel Database Backup (.xlsx)</span>
+                          <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-teal-500/15 text-teal-700 dark:text-teal-300 font-extrabold uppercase">
                             Recommended
                           </span>
                         </div>
-                        <p className="text-xs text-slate-600 dark:text-slate-400 font-medium leading-relaxed">
+                        <p className="text-[10.5px] text-slate-500 dark:text-slate-400 font-medium">
                           Compiles a single, comprehensive Microsoft Excel workbook containing <strong>7 dedicated tabs</strong>:
                         </p>
-                        <div className="flex flex-wrap gap-1.5 pt-1">
+                        <div className="flex flex-wrap gap-1 pt-0.5">
                           {[
                             '1. Student_Admissions',
                             '2. Faculty_Directory',
@@ -13321,7 +13937,7 @@ export default function AdvancedReports({
                             '6. Practicals_Awards',
                             '7. System_Metadata'
                           ].map(t => (
-                            <span key={t} className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-[10.5px] font-mono font-bold">
+                            <span key={t} className="px-1.5 py-0.2 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-[9.5px] font-mono font-bold">
                               {t}
                             </span>
                           ))}
@@ -13333,16 +13949,16 @@ export default function AdvancedReports({
                       type="button"
                       disabled={isExportingDbExcel}
                       onClick={handleDownloadFullDatabaseExcel}
-                      className="px-4 py-2.5 rounded-xl bg-teal-700 hover:bg-teal-600 text-white font-black text-xs shadow-md flex items-center gap-2 cursor-pointer disabled:opacity-50 transition-all shrink-0"
+                      className="px-3.5 py-1.5 rounded-lg bg-teal-700 hover:bg-teal-600 text-white font-black text-xs shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50 transition-all shrink-0"
                     >
                       {isExportingDbExcel ? (
                         <>
-                          <RefreshCw size={14} className="animate-spin" />
-                          <span>Compiling Multi-Sheet Workbook...</span>
+                          <RefreshCw size={13} className="animate-spin" />
+                          <span>Compiling Multi-Sheet...</span>
                         </>
                       ) : (
                         <>
-                          <Download size={14} />
+                          <Download size={13} />
                           <span>Download Master Excel (.xlsx)</span>
                         </>
                       )}
@@ -13350,88 +13966,153 @@ export default function AdvancedReports({
                   </div>
                 </div>
 
-                {/* 2. Filtered Roster Export Card */}
-                <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs space-y-3">
-                  <div className="flex items-center justify-between flex-wrap gap-3">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 rounded-xl bg-blue-100 dark:bg-blue-950/80 text-blue-800 dark:text-blue-300 font-black shrink-0">
-                        <FileSpreadsheet size={18} />
-                      </div>
+                {/* ─── 3. PUBLIC WEBSITE CONFIGURATION FILES (public/slides/) ─── */}
+                <div className="p-2.5 sm:p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xs space-y-2">
+                  <div className="flex items-center justify-between flex-wrap gap-1">
+                    <div className="font-black text-xs text-slate-900 dark:text-white flex items-center gap-1.5">
+                      <FolderDown size={14} className="text-indigo-600" />
+                      <span>Public Website Static Configuration Backups (CMS public/slides/)</span>
+                    </div>
+                    <span className="text-[10px] text-slate-500 font-bold">
+                      Direct downloads for frontend JSON and text configuration mirrors
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+                    {/* settings.json */}
+                    <div className="p-2 rounded-lg bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-750 flex flex-col justify-between gap-1.5">
                       <div>
-                        <div className="font-black text-xs text-slate-900 dark:text-white">
-                          Export Currently Filtered Cohort to Excel (.xlsx)
+                        <div className="font-black text-[11px] text-slate-900 dark:text-white flex items-center gap-1">
+                          <Settings size={12} className="text-amber-600" />
+                          <span>settings.json</span>
                         </div>
-                        <div className="text-[11px] text-slate-500 font-bold">
-                          Exports only the {filteredStudents.length} students currently visible in your active report filter with auto-spaced columns.
-                        </div>
+                        <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
+                          School metadata, banner carousel, vision & contact info.
+                        </p>
                       </div>
+                      <button
+                        type="button"
+                        onClick={handleDownloadSettingsJson}
+                        className="w-full py-1 rounded-md bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-black text-[10.5px] flex items-center justify-center gap-1 cursor-pointer transition-all"
+                      >
+                        <Download size={11} />
+                        <span>Download settings.json</span>
+                      </button>
+                    </div>
+
+                    {/* notices.txt */}
+                    <div className="p-2 rounded-lg bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-750 flex flex-col justify-between gap-1.5">
+                      <div>
+                        <div className="font-black text-[11px] text-slate-900 dark:text-white flex items-center gap-1">
+                          <FileText size={12} className="text-blue-600" />
+                          <span>notices.txt</span>
+                        </div>
+                        <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
+                          Live announcement board ticker and notifications feed.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleDownloadNoticesTxt}
+                        className="w-full py-1 rounded-md bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-black text-[10.5px] flex items-center justify-center gap-1 cursor-pointer transition-all"
+                      >
+                        <Download size={11} />
+                        <span>Download notices.txt</span>
+                      </button>
+                    </div>
+
+                    {/* faculty.json */}
+                    <div className="p-2 rounded-lg bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-750 flex flex-col justify-between gap-1.5">
+                      <div>
+                        <div className="font-black text-[11px] text-slate-900 dark:text-white flex items-center gap-1">
+                          <Users size={12} className="text-emerald-600" />
+                          <span>faculty.json</span>
+                          <span className="text-[8.5px] px-1 py-0.2 rounded bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 font-extrabold">
+                            Sanitized
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
+                          Public directory with private salary/tax/PAN data stripped.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleDownloadFacultyJson}
+                        className="w-full py-1 rounded-md bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-black text-[10.5px] flex items-center justify-center gap-1 cursor-pointer transition-all"
+                      >
+                        <Download size={11} />
+                        <span>Download faculty.json</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* ─── 4. FILTERED COHORT EXCEL & DISASTER RECOVERY JSON ─── */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                  {/* Filtered Roster Export */}
+                  <div className="p-2.5 sm:p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xs space-y-2 flex flex-col justify-between">
+                    <div>
+                      <div className="flex items-center gap-1.5 text-slate-900 dark:text-white font-black text-xs">
+                        <FileSpreadsheet size={14} className="text-blue-600" />
+                        <span>Export Filtered Cohort to Excel (.xlsx)</span>
+                      </div>
+                      <p className="text-[10.5px] text-slate-500 font-medium leading-relaxed mt-0.5">
+                        Exports the {filteredStudents.length} students currently matching your active filter criteria with auto-spaced columns.
+                      </p>
                     </div>
                     <button
                       type="button"
                       onClick={handleExportExcel}
-                      className="px-3.5 py-2 rounded-xl bg-blue-700 hover:bg-blue-600 text-white font-black text-xs shadow-xs flex items-center gap-1.5 cursor-pointer transition-all"
+                      className="w-full py-1.5 rounded-lg bg-blue-700 hover:bg-blue-600 text-white font-black text-xs shadow-xs flex items-center justify-center gap-1.5 cursor-pointer transition-all"
                     >
-                      <Download size={13} />
+                      <Download size={12} />
                       <span>Export {filteredStudents.length} Filtered Records</span>
                     </button>
                   </div>
-                </div>
 
-                {/* 3. Disaster Recovery JSON Backup & Restore Card */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {/* JSON Backup */}
-                  <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs space-y-2.5 flex flex-col justify-between">
+                  {/* JSON Backup & Restore in 2 sub-columns */}
+                  <div className="p-2.5 sm:p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xs space-y-2 flex flex-col justify-between">
                     <div>
-                      <div className="flex items-center gap-2 text-slate-900 dark:text-white font-black text-xs">
-                        <Save size={15} className="text-amber-600" />
-                        <span>Full JSON Disaster Recovery Backup</span>
+                      <div className="flex items-center gap-1.5 text-slate-900 dark:text-white font-black text-xs">
+                        <Save size={14} className="text-amber-600" />
+                        <span>Full JSON Disaster Recovery Backup & Restore</span>
                       </div>
-                      <p className="text-[11px] text-slate-500 font-medium leading-relaxed mt-1">
-                        Exports the entire raw Firestore document tree (all students, faculty, circulars, rules, and admin roles) into a machine-readable JSON archive.
+                      <p className="text-[10.5px] text-slate-500 font-medium leading-relaxed mt-0.5">
+                        Complete raw Firestore document tree (all collections, rules & accounts) for disaster recovery or migration.
                       </p>
                     </div>
-                    <button
-                      type="button"
-                      disabled={isExportingDbJson}
-                      onClick={handleDownloadFullDatabaseJson}
-                      className="w-full py-2 rounded-xl bg-amber-700 hover:bg-amber-600 text-white font-black text-xs shadow-xs flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 transition-all"
-                    >
-                      {isExportingDbJson ? (
-                        <>
-                          <RefreshCw size={13} className="animate-spin" />
-                          <span>Generating JSON...</span>
-                        </>
-                      ) : (
-                        <>
-                          <Download size={13} />
-                          <span>Download Full Backup (.json)</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      <button
+                        type="button"
+                        disabled={isExportingDbJson}
+                        onClick={handleDownloadFullDatabaseJson}
+                        className="w-full py-1.5 rounded-lg bg-amber-700 hover:bg-amber-600 text-white font-black text-[11px] shadow-xs flex items-center justify-center gap-1 cursor-pointer disabled:opacity-50 transition-all"
+                      >
+                        {isExportingDbJson ? (
+                          <>
+                            <RefreshCw size={11} className="animate-spin" />
+                            <span>Exporting...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Download size={11} />
+                            <span>Export (.json)</span>
+                          </>
+                        )}
+                      </button>
 
-                  {/* JSON Restore */}
-                  <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs space-y-2.5 flex flex-col justify-between">
-                    <div>
-                      <div className="flex items-center gap-2 text-slate-900 dark:text-white font-black text-xs">
-                        <Upload size={15} className="text-rose-600" />
-                        <span>Restore Database from JSON Archive</span>
-                      </div>
-                      <p className="text-[11px] text-slate-500 font-medium leading-relaxed mt-1">
-                        Upload a previously generated full backup JSON file. You will be prompted with a review summary before changes are committed to Firestore.
-                      </p>
+                      <label className="w-full py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-black text-[11px] shadow-xs flex items-center justify-center gap-1 cursor-pointer transition-all text-center">
+                        <Upload size={11} />
+                        <span>{isRestoringDb ? 'Restoring...' : 'Restore JSON'}</span>
+                        <input
+                          type="file"
+                          accept=".json"
+                          disabled={isRestoringDb}
+                          onChange={handleRestoreDatabaseJson}
+                          className="hidden"
+                        />
+                      </label>
                     </div>
-                    <label className="w-full py-2 rounded-xl bg-slate-850 hover:bg-slate-750 text-slate-200 border border-slate-700 font-black text-xs shadow-xs flex items-center justify-center gap-1.5 cursor-pointer transition-all text-center">
-                      <Upload size={13} />
-                      <span>{isRestoringDb ? 'Restoring to Cloud...' : 'Choose JSON Backup File'}</span>
-                      <input
-                        type="file"
-                        accept=".json"
-                        disabled={isRestoringDb}
-                        onChange={handleRestoreDatabaseJson}
-                        className="hidden"
-                      />
-                    </label>
                   </div>
                 </div>
               </div>
