@@ -9178,9 +9178,27 @@ function AdminPortalContent({ embeddedUser, onEmbeddedLogout, initialTab }) {
             {/* TAB 4: EXPORT FILES */}
             {activeTab === 'export' && allowedTabs.includes('export') && (
               <div className="space-y-4 animate-in fade-in duration-200">
-                <div>
-                  <h3 className="text-base font-bold text-slate-200">Export & Update Public Slides Folder</h3>
-                  <p className="text-xs text-slate-400 mt-1">Generate and download updated configuration files to copy into your repository/server.</p>
+                <div className="p-3.5 rounded-xl bg-gradient-to-r from-amber-950/40 via-slate-900/60 to-teal-950/40 border border-amber-500/30 flex items-center justify-between flex-wrap gap-3">
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2">
+                      <Download size={16} className="text-amber-400" />
+                      <span>CMS & Database Exports Centralized</span>
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-extrabold uppercase">
+                        Administrative Tools Suite
+                      </span>
+                    </h3>
+                    <p className="text-xs text-slate-400 mt-1">
+                      Full 2006–2026 Session Master Registers, ZIP photo downloader, public CMS configs (<code className="text-slate-300 font-mono">settings.json</code>, <code className="text-slate-300 font-mono">notices.txt</code>, <code className="text-slate-300 font-mono">faculty.json</code>), and Excel backups are now centrally available in the Administrative Tools Suite.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => { window.location.href = '/portal/admin?tab=reports&openTools=db_backup'; }}
+                    className="px-3.5 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs transition-all flex items-center gap-1.5 cursor-pointer shadow-sm shrink-0"
+                  >
+                    <span>Launch Administrative Tools Suite</span>
+                    <ExternalLink size={12} />
+                  </button>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -9300,10 +9318,10 @@ function AdminPortalContent({ embeddedUser, onEmbeddedLogout, initialTab }) {
                     </div>
                     <button
                       type="button"
-                      onClick={() => { window.location.href = '/portal/admin?tab=reports'; }}
+                      onClick={() => { window.location.href = '/portal/admin?tab=reports&openTools=db_backup'; }}
                       className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs transition-all flex items-center gap-1.5 cursor-pointer shadow-md shrink-0"
                     >
-                      <span>Open Master Reports Suite</span>
+                      <span>Launch Tools Suite (Backup & Master Register)</span>
                       <ExternalLink size={13} />
                     </button>
                   </div>
