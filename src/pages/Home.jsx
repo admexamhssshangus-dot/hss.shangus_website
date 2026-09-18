@@ -238,12 +238,12 @@ export default function Home() {
                   const image = parts[0].trim();
                   const title = (parts[1] || '').trim();
                   const caption = (parts.slice(2).join(',') || '').trim();
-                  return { image: '/slides/' + image, title, caption };
+                  return { image: '/slides/' + image, title, caption, fit: 'cover', animation: 'kenburns' };
                 }
                 const title = (parts[0] || '').trim();
                 const caption = (parts.slice(1).join(',') || '').trim();
                 const image = `/slides/${idx + 1}.jpg`;
-                return { image, title, caption };
+                return { image, title, caption, fit: 'cover', animation: 'kenburns' };
               });
               if (mapped.length > 0) {
                 setSlides(mapped);
@@ -263,8 +263,12 @@ export default function Home() {
           if (snap.exists() && active) {
             const data = snap.data();
             if (data && Array.isArray(data.items) && data.items.length > 0) {
-              setSlides(data.items);
-              localStorage.setItem('site_slides', JSON.stringify(data.items));
+              const normalized = data.items.map((item) => ({
+                ...item,
+                fit: (item.fit && item.fit !== 'ambient') ? item.fit : 'cover'
+              }));
+              setSlides(normalized);
+              localStorage.setItem('site_slides', JSON.stringify(normalized));
             }
           }
         } catch (err) {
@@ -399,7 +403,7 @@ export default function Home() {
             try {
               const parsed = JSON.parse(localSlides);
               if (Array.isArray(parsed)) {
-                setSlides(parsed);
+                setSlides(parsed.map(item => ({ ...item, fit: (item.fit && item.fit !== 'ambient') ? item.fit : 'cover' })));
               }
             } catch (err) {
               console.warn('Sync site_slides error:', err);

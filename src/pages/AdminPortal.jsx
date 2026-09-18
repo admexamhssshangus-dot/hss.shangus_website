@@ -1241,8 +1241,8 @@ function AdminPortalContent({ embeddedUser, onEmbeddedLogout, initialTab }) {
   // Slideshow States
   const [slides, setSlides] = useState([]);
   const [editingSlideIdx, setEditingSlideIdx] = useState(null);
-  const [editSlideData, setEditSlideData] = useState({ image: '', title: '', caption: '', fit: 'ambient', animation: 'kenburns' });
-  const [newSlide, setNewSlide] = useState({ image: '', title: '', caption: '', fit: 'ambient', animation: 'kenburns' });
+  const [editSlideData, setEditSlideData] = useState({ image: '', title: '', caption: '', fit: 'cover', animation: 'kenburns' });
+  const [newSlide, setNewSlide] = useState({ image: '', title: '', caption: '', fit: 'cover', animation: 'kenburns' });
   const [newSlidePhotoFile, setNewSlidePhotoFile] = useState(null);
   const [newSlidePhotoPreviewUrl, setNewSlidePhotoPreviewUrl] = useState('');
   const [newSlidePhotoName, setNewSlidePhotoName] = useState('');
@@ -3033,12 +3033,12 @@ function AdminPortalContent({ embeddedUser, onEmbeddedLogout, initialTab }) {
       image: photoPath,
       title: newSlide.title.trim(),
       caption: newSlide.caption.trim(),
-      fit: newSlide.fit || 'ambient',
+      fit: newSlide.fit || 'cover',
       animation: newSlide.animation || 'kenburns'
     };
 
     setSlides((prev) => [...prev, addedSlide]);
-    setNewSlide({ image: '', title: '', caption: '', fit: 'ambient', animation: 'kenburns' });
+    setNewSlide({ image: '', title: '', caption: '', fit: 'cover', animation: 'kenburns' });
     setNewSlidePhotoFile(null);
     setNewSlidePhotoPreviewUrl('');
     setNewSlidePhotoName('');
@@ -3082,7 +3082,7 @@ function AdminPortalContent({ embeddedUser, onEmbeddedLogout, initialTab }) {
     setEditingSlideIdx(idx);
     setEditSlideData({
       ...slides[idx],
-      fit: slides[idx].fit || 'ambient',
+      fit: slides[idx].fit || 'cover',
       animation: slides[idx].animation || 'kenburns'
     });
     setEditSlidePhotoFile(null);
@@ -3136,7 +3136,7 @@ function AdminPortalContent({ embeddedUser, onEmbeddedLogout, initialTab }) {
       updated[idx] = {
         ...editSlideData,
         image: photoPath,
-        fit: editSlideData.fit || 'ambient',
+        fit: editSlideData.fit || 'cover',
         animation: editSlideData.animation || 'kenburns'
       };
       return updated;
@@ -7126,13 +7126,13 @@ function AdminPortalContent({ embeddedUser, onEmbeddedLogout, initialTab }) {
                     <div className="w-[165px] shrink-0">
                       <label className="block text-[8.5px] font-bold text-slate-400 uppercase mb-0.5">Image Fit Mode</label>
                       <select
-                        value={newSlide.fit || 'ambient'}
+                        value={newSlide.fit || 'cover'}
                         onChange={(e) => setNewSlide({ ...newSlide, fit: e.target.value })}
                         className="w-full px-2 py-1 rounded bg-slate-950 border border-slate-800 text-[11px] text-slate-200 focus:outline-none focus:border-orange-500"
                       >
-                        <option value="ambient">🖼️ Full Image (Ambient Glow) - No Crop</option>
+                        <option value="cover">📐 Fill Screen (Cover / Full Bleed) - Recommended</option>
+                        <option value="ambient">🖼️ Framed Image (Ambient Glow)</option>
                         <option value="stretch">↔️ Stretch to Fill (100% Space)</option>
-                        <option value="cover">📐 Fill Screen (Cover / Crop)</option>
                         <option value="contain">🎯 Fit Centered (Letterbox)</option>
                       </select>
                     </div>
@@ -7368,13 +7368,13 @@ function AdminPortalContent({ embeddedUser, onEmbeddedLogout, initialTab }) {
                                     <div>
                                       <label className="block text-[8px] font-bold text-slate-500 uppercase mb-0.5">Fit Mode</label>
                                       <select
-                                        value={editSlideData.fit || 'ambient'}
+                                        value={editSlideData.fit || 'cover'}
                                         onChange={(e) => setEditSlideData({ ...editSlideData, fit: e.target.value })}
                                         className="w-full px-1.5 py-0.5 rounded bg-slate-950 border border-slate-800 text-[10.5px] text-slate-200 focus:outline-none focus:border-orange-500"
                                       >
-                                        <option value="ambient">🖼️ Full (Ambient Glow) - No Crop</option>
+                                        <option value="cover">📐 Fill Screen (Cover / Full Bleed) - Recommended</option>
+                                        <option value="ambient">🖼️ Framed (Ambient Glow)</option>
                                         <option value="stretch">↔️ Stretch to Fill (100% Space)</option>
-                                        <option value="cover">📐 Fill Screen (Cover)</option>
                                         <option value="contain">🎯 Fit (Letterbox)</option>
                                       </select>
                                     </div>
