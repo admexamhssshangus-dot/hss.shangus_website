@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback, useDeferredValue } from 'react';
 import { createPortal } from 'react-dom';
 import JSZip from 'jszip';
-import { RefreshCw, Search, SearchX, Wrench, Columns, Printer, Check, X, Play, ChevronDown, ChevronLeft, ChevronRight, CheckSquare, Square, FileSpreadsheet, FileText, Maximize2, Settings, Hash, Layers, Mail, CreditCard, Camera, Upload, Image as ImageIcon, Download, Copy, Save, RotateCcw, Lock, LogOut, Unlock, Eye, History, Key, MessageSquare, AlertOctagon, Trash2, CheckCircle2, ClipboardCheck, CalendarCheck, Calendar, List, Edit3, UserCheck, User, Users, BookOpen, Landmark, CheckCircle, Loader2, PlusCircle, ShieldCheck, ShieldAlert, BarChart2, Building2, Database, Zap, Sliders, Sparkles, Star, FolderDown } from 'lucide-react';
+import { RefreshCw, Search, SearchX, Wrench, Columns, Printer, Check, X, Play, ChevronDown, ChevronLeft, ChevronRight, CheckSquare, Square, FileSpreadsheet, FileText, Maximize2, Settings, Hash, Layers, Mail, CreditCard, Camera, Upload, Image as ImageIcon, Download, Copy, Save, RotateCcw, Lock, LogOut, Unlock, Eye, History, Key, MessageSquare, AlertOctagon, Trash2, CheckCircle2, ClipboardCheck, CalendarCheck, Calendar, List, Edit3, UserCheck, User, Users, BookOpen, Landmark, CheckCircle, Loader2, PlusCircle, ShieldCheck, ShieldAlert, BarChart2, Building2, Database, Zap, Sliders, Sparkles, Star, FolderDown, Globe } from 'lucide-react';
 import appsScriptApi from '../../services/appsScriptApi';
 import { db, auth, ensureFirestoreConnected } from '../../services/firebase';
 import { sendPasswordResetEmail } from 'firebase/auth';
@@ -35,6 +35,7 @@ import JkboseFieldBadge from './JkboseFieldBadge';
 import { getJkboseFieldStatus, computeStudentJkboseStatusMap, loadRecentJkboseBatchTraceability, normalizeKey } from '../../utils/jkboseTraceability';
 import { applyRecordPatch, completeMutationJob } from '../../services/recordMutationService';
 import { toPublicFacultyList } from '../../utils/facultyPrivacy';
+import StandardTooltip from '../../components/StandardTooltip';
 
 const BULK_FORM_ROW_BATCH_SIZE = 100;
 
@@ -11438,7 +11439,7 @@ export default function AdvancedReports({
                 onKeyDown={() => {
                   if (showSearchHelp) setShowSearchHelp(false);
                 }}
-                className="admin-search-input w-full pl-6 sm:pl-7 pr-9 sm:pr-11 h-7 sm:h-7.5 rounded-lg sm:rounded-xl border border-slate-300 dark:border-slate-700 font-extrabold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1.5 focus:ring-amber-500 text-[11px] sm:text-xs bg-slate-50 dark:bg-slate-950 shadow-2xs leading-none !min-h-0"
+                className="admin-search-input w-full pl-6 sm:pl-7 pr-10 sm:pr-12 h-7 sm:h-7.5 rounded-lg sm:rounded-xl border border-slate-300 dark:border-slate-700 font-extrabold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1.5 focus:ring-amber-500 text-[11px] sm:text-xs bg-slate-50 dark:bg-slate-950 shadow-2xs leading-none !min-h-0"
                 style={{ minHeight: 'unset', height: '28px' }}
               />
               <div className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-0.5">
@@ -11545,32 +11546,37 @@ export default function AdvancedReports({
             </div>
 
             {/* Interactive Real-Time Data Sync & Records Counter Badge */}
-            <div className="compact-btn relative overflow-hidden flex items-center px-1.5 sm:px-2 rounded-lg sm:rounded-xl border text-[10px] sm:text-[11px] font-black bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 shadow-2xs flex-shrink-0 gap-1 text-slate-800 dark:text-slate-100 transition-all !min-h-0" style={{ minHeight: 'unset', height: '28px' }}>
+            <div 
+              className="compact-btn relative overflow-hidden flex items-center px-1.5 sm:px-2 rounded-lg sm:rounded-xl border text-[10px] sm:text-[11px] font-black bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 shadow-2xs flex-shrink-0 gap-1 text-slate-800 dark:text-slate-100 transition-all !min-h-0" 
+              style={{ minHeight: 'unset', height: '28px' }}
+              title={`Live records: ${filteredStudents.length} matching / ${allStudents.length} total loaded`}
+            >
               {isFetchingData || loading ? (
                 <div className="flex items-center gap-1 sm:gap-1.5 text-amber-700 dark:text-amber-400 animate-pulse">
                   <RefreshCw size={11} className="animate-spin text-amber-600 shrink-0" />
-                  <span>Syncing...</span>
+                  <span className="hidden sm:inline">Syncing...</span>
                   <span className="font-mono text-slate-900 dark:text-white font-extrabold">({filteredStudents.length})</span>
                 </div>
               ) : (isSearching || searchTerm !== deferredSearchTerm) ? (
                 <div className="flex items-center gap-1 sm:gap-1.5 text-amber-700 dark:text-amber-400 animate-pulse">
                   <RefreshCw size={11} className="animate-spin text-amber-600 shrink-0" />
-                  <span>Searching...</span>
+                  <span className="hidden sm:inline">Searching...</span>
                   <span className="font-mono text-slate-900 dark:text-white font-extrabold">({filteredStudents.length})</span>
                 </div>
               ) : searchTerm.trim() ? (
                 <div className="flex items-center gap-0.5 sm:gap-1 text-sky-700 dark:text-sky-400">
-                  <span className="font-black">🔍 Records:</span>
+                  <span className="font-black hidden sm:inline">🔍 Records:</span>
+                  <span className="sm:hidden font-bold text-[9px] text-sky-600 dark:text-sky-400">🔍</span>
                   <span className="font-mono text-slate-900 dark:text-white font-extrabold">{filteredStudents.length}</span>
-                  <span className="text-[9px] sm:text-[10px] text-slate-400 font-mono">/ {allStudents.length}</span>
+                  <span className="text-[9px] sm:text-[10px] text-slate-400 font-mono hidden sm:inline">/ {allStudents.length}</span>
                 </div>
               ) : (
-                <div className="flex items-center gap-1 sm:gap-1.5 text-emerald-700 dark:text-emerald-400" title="Connected to Cloud Firestore in Real-Time">
+                <div className="flex items-center gap-1 sm:gap-1.5 text-emerald-700 dark:text-emerald-400">
                   <span className="relative flex h-1.5 w-1.5 sm:h-2 sm:w-2 shrink-0">
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                     <span className="relative inline-flex rounded-full h-1.5 w-1.5 sm:h-2 sm:w-2 bg-emerald-500"></span>
                   </span>
-                  <span className="font-black">Live:</span>
+                  <span className="font-black hidden sm:inline">Live:</span>
                   <span className="font-mono font-black text-slate-900 dark:text-slate-50">{filteredStudents.length}</span>
                 </div>
               )}
@@ -11578,25 +11584,68 @@ export default function AdvancedReports({
 
             {/* Global Search Scope Tag (Previous 4 Sessions by default vs Full History) */}
             {searchTerm.trim() && (
-              <div className="flex items-center gap-1 flex-shrink-0">
+              <div className="flex items-center gap-0.5 sm:gap-1 flex-shrink-0">
                 {fullHistoryRequested ? (
-                  <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-lg text-[9px] sm:text-[10px] font-extrabold bg-purple-100 dark:bg-purple-950/80 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 shadow-2xs">
-                    🌐 Full History (2006–26)
-                  </span>
+                  <div className="inline-flex items-center gap-0.5">
+                    <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-lg text-[9px] sm:text-[10px] font-extrabold bg-purple-100 dark:bg-purple-950/80 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 shadow-2xs">
+                      <span className="sm:hidden">🌐 All</span>
+                      <span className="hidden sm:inline">🌐 Full History (2006–26)</span>
+                    </span>
+                    <div className="sm:hidden">
+                      <StandardTooltip
+                        title="Search Scope: Full Archive"
+                        content={`Searching across all 20 historical sessions (2006–2026). Displaying ${filteredStudents.length} matching students.`}
+                        position="bottom"
+                      />
+                    </div>
+                  </div>
                 ) : (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setFullHistoryRequested(true);
-                      setHistoryLoadRequested(true);
-                    }}
-                    title="By default, search is scoped to active admissions + previous 4 sessions (2022-2026). Click to load full 20-year history."
-                    className="inline-flex items-center gap-1 px-1.5 sm:px-2 py-0.5 rounded-lg text-[9px] sm:text-[10px] font-extrabold bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/70 dark:hover:bg-amber-900/80 text-amber-800 dark:text-amber-200 border border-amber-300 dark:border-amber-700 shadow-2xs transition-all cursor-pointer whitespace-nowrap !min-h-0"
-                    style={{ height: '28px' }}
-                  >
-                    <span>Scope: 4 Sessions</span>
-                    <span className="text-amber-600 dark:text-amber-400 font-black underline decoration-dotted ml-0.5">+ All History</span>
-                  </button>
+                  <>
+                    {/* Desktop: Full descriptive button */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFullHistoryRequested(true);
+                        setHistoryLoadRequested(true);
+                      }}
+                      title="By default, search is scoped to active admissions + previous 4 sessions (2022-2026). Click to load full 20-year history."
+                      className="hidden sm:inline-flex items-center gap-1 px-1.5 sm:px-2 py-0.5 rounded-lg text-[9px] sm:text-[10px] font-extrabold bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/70 dark:hover:bg-amber-900/80 text-amber-800 dark:text-amber-200 border border-amber-300 dark:border-amber-700 shadow-2xs transition-all cursor-pointer whitespace-nowrap !min-h-0"
+                      style={{ height: '28px' }}
+                    >
+                      <span>Scope: 4 Sessions</span>
+                      <span className="text-amber-600 dark:text-amber-400 font-black underline decoration-dotted ml-0.5">+ All History</span>
+                    </button>
+
+                    {/* Mobile: Ultra-compact trigger button with small tooltip icon */}
+                    <div className="flex sm:hidden items-center gap-0.5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setFullHistoryRequested(true);
+                          setHistoryLoadRequested(true);
+                        }}
+                        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-lg text-[9.5px] font-black bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/70 dark:hover:bg-amber-900/80 text-amber-800 dark:text-amber-200 border border-amber-300 dark:border-amber-700 shadow-2xs transition-all cursor-pointer whitespace-nowrap !min-h-0"
+                        style={{ height: '28px' }}
+                        aria-label="Load full 20-year history"
+                      >
+                        <Globe size={11} className="text-amber-600 dark:text-amber-400 shrink-0" />
+                        <span>+All</span>
+                      </button>
+                      <StandardTooltip
+                        title="Search Scope & Records"
+                        content={
+                          <div className="space-y-1 text-[11px]">
+                            <div><strong>Results:</strong> {filteredStudents.length} matching students out of {allStudents.length} loaded.</div>
+                            <div><strong>Current Scope:</strong> Scoped to recent 4 sessions (2022–2026) for faster results.</div>
+                            <div className="pt-1 border-t border-slate-700/60 text-amber-300">
+                              Tap <strong>+All</strong> to search the complete 20-year historical archive (2006–2026).
+                            </div>
+                          </div>
+                        }
+                        position="bottom"
+                      />
+                    </div>
+                  </>
                 )}
               </div>
             )}
