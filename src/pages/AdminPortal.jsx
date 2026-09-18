@@ -2276,21 +2276,7 @@ function AdminPortalContent({ embeddedUser, onEmbeddedLogout, initialTab }) {
 
     // 2b. Load slideshow configuration
     (async () => {
-      // Check localStorage first
-      const local = localStorage.getItem('site_slides');
-      if (local) {
-        try {
-          const parsed = JSON.parse(local);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            setSlides(parsed);
-            return;
-          }
-        } catch (e) {
-          console.warn('Error reading site_slides from localStorage:', e);
-        }
-      }
-
-      // Try Firestore next
+      // Try Firestore first (Live Cloud Data across all devices)
       try {
         const snap = await getDoc(doc(db, 'site', 'slideshow'));
         if (snap.exists()) {
@@ -2303,6 +2289,20 @@ function AdminPortalContent({ embeddedUser, onEmbeddedLogout, initialTab }) {
         }
       } catch (e) {
         console.warn('Firestore slideshow read failed, falling back:', e);
+      }
+
+      // Check localStorage fallback
+      const local = localStorage.getItem('site_slides');
+      if (local) {
+        try {
+          const parsed = JSON.parse(local);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setSlides(parsed);
+            return;
+          }
+        } catch (e) {
+          console.warn('Error reading site_slides from localStorage:', e);
+        }
       }
 
       // Fallback: static file
@@ -7178,7 +7178,7 @@ function AdminPortalContent({ embeddedUser, onEmbeddedLogout, initialTab }) {
                                     image: newSlidePhotoPreviewUrl,
                                     title: newSlide.title || 'New Slide',
                                     caption: newSlide.caption || 'New Caption',
-                                    fit: newSlide.fit || 'ambient',
+                                    fit: newSlide.fit || 'cover',
                                     animation: newSlide.animation || 'kenburns',
                                     order: slides.length + 1,
                                     x: e.clientX,
@@ -7243,7 +7243,7 @@ function AdminPortalContent({ embeddedUser, onEmbeddedLogout, initialTab }) {
                       ) : (
                         slides.map((s, idx) => {
                           const isEditing = editingSlideIdx === idx;
-                          const slideFit = s.fit || 'ambient';
+                          const slideFit = s.fit || 'cover';
                           const slideAnim = s.animation || 'kenburns';
                           return (
                             <tr key={idx} className="hover:bg-slate-900/20">
@@ -7344,7 +7344,7 @@ function AdminPortalContent({ embeddedUser, onEmbeddedLogout, initialTab }) {
                                                   image: editSlidePhotoPreviewUrl,
                                                   title: editSlideData.title,
                                                   caption: editSlideData.caption,
-                                                  fit: editSlideData.fit || 'ambient',
+                                                  fit: editSlideData.fit || 'cover',
                                                   animation: editSlideData.animation || 'kenburns',
                                                   order: idx + 1,
                                                   x: e.clientX,
