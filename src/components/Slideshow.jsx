@@ -80,7 +80,7 @@ export default function Slideshow({
                 image: imageUrl,
                 title: s.title || '',
                 caption: s.caption || '',
-                fit: (s.fit && s.fit !== 'ambient') ? s.fit : 'cover',
+                fit: s.fit || 'cover',
                 animation: s.animation || 'kenburns'
               };
             });
@@ -148,7 +148,7 @@ export default function Slideshow({
       {slides.map((s, i) => {
         const isLoaded = loadedIndices.has(i);
         const isActive = i === index;
-        const fitMode = (s.fit && s.fit !== 'ambient') ? s.fit : 'cover'; // Default to full-bleed cover
+        const fitMode = s.fit || 'cover'; // Respects explicit setting from Firebase; defaults to full-bleed cover
         const animMode = s.animation !== undefined ? s.animation : 'kenburns';
 
         // Determine animation class

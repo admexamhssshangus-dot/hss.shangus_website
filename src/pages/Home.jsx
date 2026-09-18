@@ -235,7 +235,7 @@ export default function Home() {
             if (data && Array.isArray(data.items) && data.items.length > 0) {
               const normalized = data.items.map((item) => ({
                 ...item,
-                fit: (item.fit && item.fit !== 'ambient') ? item.fit : 'cover'
+                fit: item.fit || 'cover'
               }));
               setSlides(normalized);
               localStorage.setItem('site_slides', JSON.stringify(normalized));
@@ -405,7 +405,7 @@ export default function Home() {
             try {
               const parsed = JSON.parse(localSlides);
               if (Array.isArray(parsed)) {
-                setSlides(parsed.map(item => ({ ...item, fit: (item.fit && item.fit !== 'ambient') ? item.fit : 'cover' })));
+                setSlides(parsed.map(item => ({ ...item, fit: item.fit || 'cover' })));
               }
             } catch (err) {
               console.warn('Sync site_slides error:', err);
