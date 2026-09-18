@@ -1496,21 +1496,17 @@ html, body, #root {
 }
 
 /* Progress Pages, Dark Overlays & Inverted Surfaces Text Protection */
-.theme-light [class*="bg-slate-9"] .text-slate-100,
-.theme-light [class*="bg-slate-9"] .text-slate-200,
-.theme-light [class*="bg-slate-9"] .text-slate-300,
-.theme-light [class*="bg-slate-8"] .text-slate-100,
-.theme-light [class*="bg-slate-8"] .text-slate-200,
-.theme-light [class*="bg-slate-8"] .text-slate-300,
 .theme-light .modern-loader-inverted .text-slate-100,
 .theme-light .modern-loader-inverted .text-slate-200,
-.theme-light .modern-loader-inverted .text-slate-300 {
+.theme-light .modern-loader-inverted .text-slate-300,
+.theme-light .tax-rules-modal .text-slate-100,
+.theme-light .tax-rules-modal .text-slate-200,
+.theme-light .tax-rules-modal .text-slate-300 {
   color: #f8fafc !important;
 }
 
-.theme-light [class*="bg-slate-9"] .text-slate-400,
-.theme-light [class*="bg-slate-8"] .text-slate-400,
-.theme-light .modern-loader-inverted .text-slate-400 {
+.theme-light .modern-loader-inverted .text-slate-400,
+.theme-light .tax-rules-modal .text-slate-400 {
   color: #94a3b8 !important;
 }
 
@@ -1998,12 +1994,41 @@ html, body, #root {
 
 
 /* High contrast overrides for Tax Calculator table under light theme */
-.theme-light .tax-table thead tr,
-.theme-light .tax-table thead th {
-  color: #ffffff !important;
+.theme-light .tax-table {
+  background-color: #ffffff !important;
 }
-.theme-light .tax-table .text-slate-400 {
-  color: #94a3b8 !important;
+.theme-light .tax-table thead tr {
+  background-color: #f1f5f9 !important;
+  border-bottom: 2px solid #cbd5e1 !important;
+}
+.theme-light .tax-table thead th {
+  color: #0f172a !important;
+  font-weight: 800 !important;
+}
+.theme-light .tax-table tbody tr {
+  background-color: #ffffff !important;
+  border-bottom: 1px solid #e2e8f0 !important;
+}
+.theme-light .tax-table tbody tr:hover {
+  background-color: #f8fafc !important;
+}
+.theme-light .tax-table td {
+  color: #0f172a !important;
+}
+.theme-light .tax-table .text-slate-100,
+.theme-light .tax-table .text-slate-200 {
+  color: #0f172a !important;
+}
+.theme-light .tax-table .text-slate-300 {
+  color: #334155 !important;
+}
+.theme-light .tax-table .text-slate-400,
+.theme-light .tax-table .text-slate-500 {
+  color: #64748b !important;
+}
+.theme-light .tax-table .tax-total-highlight {
+  color: #0f172a !important;
+  font-weight: 800 !important;
 }
 
 .badge-blue-custom {
