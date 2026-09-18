@@ -511,30 +511,54 @@ export function computeScorecardSubjects({
   let rawTemplate = [];
   if (enrolledSubs.length > 0) {
     rawTemplate = enrolledSubs.map(s => {
+      let rawCode = '';
+      let rawName = '';
+      let defaultMax = 50;
       if (typeof s === 'string') {
-        const sClean = s.trim();
-        const sLower = sClean.toLowerCase();
-        const foundDef = SUBJECT_CONFIG_DEFS.find(d => 
-          d.code.toLowerCase() === sLower || 
-          d.name.toLowerCase() === sLower ||
-          (d.code === 'SC' && /^(science|sci|general science)$/i.test(sLower)) ||
-          (d.code === 'SS' && /^(social science|social studies|sst|soc)$/i.test(sLower)) ||
-          (d.code === 'MA' && /^(math|maths|mathematics)$/i.test(sLower)) ||
-          (d.code === 'EN' && /^(english|general english|gen eng|ge)$/i.test(sLower)) ||
-          (d.code === 'UR' && /^(urdu)$/i.test(sLower)) ||
-          (d.code === 'HTC' && /^(healthcare|health care|hc)$/i.test(sLower)) ||
-          (d.code === 'ITE' && /^(it and ites|it & ites|ites|it)$/i.test(sLower))
-        );
-        return {
-          code: foundDef?.code || (sClean.length <= 4 ? sClean.toUpperCase() : sClean.substring(0, 3).toUpperCase()),
-          name: foundDef?.name || sClean,
-          defaultMax: 50
-        };
+        rawCode = s.trim();
+        rawName = s.trim();
+      } else if (s && typeof s === 'object') {
+        rawCode = s.code || s.subjectCode || '';
+        rawName = s.name || s.subjectName || rawCode;
+        if (s.defaultMax) defaultMax = s.defaultMax;
       }
+
+      const sClean = (rawName || rawCode || '').trim();
+      const sLower = sClean.toLowerCase();
+      const cUpper = (rawCode || rawName || '').trim().toUpperCase();
+
+      const foundDef = SUBJECT_CONFIG_DEFS.find(d => 
+        d.code.toUpperCase() === cUpper || 
+        d.code.toLowerCase() === sLower ||
+        d.name.toLowerCase() === sLower ||
+        (d.code === 'SC' && /^(science|sci|general science)$/i.test(sLower)) ||
+        (d.code === 'SS' && /^(social science|social studies|sst|soc)$/i.test(sLower)) ||
+        (d.code === 'MA' && /^(math|maths|mathematics)$/i.test(sLower)) ||
+        ((d.code === 'EN' || d.code === 'GE') && /^(english|general english|gen eng|ge|en)$/i.test(sLower)) ||
+        ((d.code === 'EN' || d.code === 'GE') && (cUpper === 'GE' || cUpper === 'EN')) ||
+        (d.code === 'UR' && /^(urdu)$/i.test(sLower)) ||
+        (d.code === 'HTC' && /^(healthcare|health care|hc)$/i.test(sLower)) ||
+        (d.code === 'ITE' && /^(it and ites|it & ites|ites|it)$/i.test(sLower))
+      );
+
+      let canonicalName = foundDef?.name;
+      if (!canonicalName || canonicalName === 'GE' || canonicalName === 'EN') {
+        if (/^(ge|en|gen eng|general english|english)$/i.test(sLower) || cUpper === 'GE' || cUpper === 'EN') {
+          canonicalName = 'General English';
+        } else {
+          canonicalName = rawName || rawCode || 'General Subject';
+        }
+      }
+
+      let canonicalCode = cUpper || foundDef?.code || 'GEN';
+      if (cUpper === 'EN' || sLower === 'english' || sLower === 'general english') {
+        canonicalCode = rawCode === 'GE' ? 'GE' : (foundDef?.code || 'EN');
+      }
+
       return {
-        code: s.code || (s.name ? s.name.substring(0, 3).toUpperCase() : ''),
-        name: s.name || s.code || '',
-        defaultMax: s.defaultMax || 50
+        code: canonicalCode,
+        name: canonicalName,
+        defaultMax
       };
     });
 
@@ -793,7 +817,7 @@ export function computeScorecardSubjects({
       const n = String(sec.subjectName || sec.subject || '').toLowerCase();
       const tplName = (tpl.name || '').toLowerCase();
       const isMatch = c === tpl.code || (tplName && n === tplName) ||
-        (tpl.code === 'EN' && (c === 'GE' || n.includes('english'))) ||
+        ((tpl.code === 'EN' || tpl.code === 'GE') && (c === 'GE' || c === 'EN' || n.includes('english'))) ||
         (tpl.code === 'PH' && (c === 'PHY' || n.includes('physics'))) ||
         (tpl.code === 'CH' && (c === 'CHEM' || n.includes('chemistry'))) ||
         (tpl.code === 'MA' && (c === 'MATH' || c === 'MATHS' || n.includes('mathematics') || n.includes('math'))) ||
@@ -2264,7 +2288,7 @@ export default function PublicResultLookup() {
                           {idx + 1}
                         </td>
                         <td className="py-1 px-2 print:py-0.5 print:px-1.5 font-medium text-slate-800 dark:text-slate-200 print:text-black">
-                          <span className="font-semibold">{sub.subjectName}</span>
+                          <span className="font-semibold">{sub.subjectName === 'GE' || sub.subjectName === 'EN' ? 'General English' : sub.subjectName}</span>
                           <span className="text-[9px] text-slate-400 print:text-slate-500 font-mono ml-1">[{sub.subjectCode}]</span>
                           {sub.componentNote && (
                             <div className="text-[8.5px] sm:text-[9px] text-teal-700 dark:text-teal-400 font-mono font-medium print:text-slate-600 leading-tight">
