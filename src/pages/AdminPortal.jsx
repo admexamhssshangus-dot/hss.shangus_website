@@ -5975,25 +5975,16 @@ function AdminPortalContent({ embeddedUser, onEmbeddedLogout, initialTab }) {
     });
   };
 
-  const cmsNavigationGroups = [
-    { id: 'enrollment', label: 'Admissions & People', tabs: [
-      { id: 'admissions', label: 'Admissions & Fees', icon: FileText },
-      { id: 'faculty', label: 'Faculty Directory', icon: Users },
-    ] },
-    { id: 'website', label: 'Website Content', tabs: [
-      { id: 'notices', label: 'Notices & Updates', icon: RefreshCw },
-      { id: 'slideshow', label: 'Hero Slideshow', icon: Image },
-      { id: 'hero_buttons', label: 'Hero Action Buttons', icon: Compass },
-      { id: 'pages_cms', label: 'Page Content', icon: FolderOpen },
-    ] },
-    { id: 'administration', label: 'Recycle Bin', tabs: [
-      { id: 'trash', label: 'Recycle Bin', icon: Trash2 },
-    ] },
-  ].map((group) => ({
-    ...group,
-    tabs: group.tabs.filter((tab) => allowedTabs.includes(tab.id)),
-  })).filter((group) => group.tabs.length > 0);
-  const activeCmsGroup = cmsNavigationGroups.find((group) => group.tabs.some((tab) => tab.id === activeTab)) || cmsNavigationGroups[0];
+  const cmsTabs = [
+    { id: 'admissions', label: 'Admissions & Fees', shortLabel: 'Admissions', icon: FileText },
+    { id: 'faculty', label: 'Faculty Directory', shortLabel: 'Faculty', icon: Users },
+    { id: 'notices', label: 'Notices & Updates', shortLabel: 'Notices', icon: RefreshCw },
+    { id: 'slideshow', label: 'Hero Slideshow', shortLabel: 'Slideshow', icon: Image },
+    { id: 'hero_buttons', label: 'Hero Action Buttons', shortLabel: 'Action Buttons', icon: Compass },
+    { id: 'pages_cms', label: 'Page Content', shortLabel: 'Pages', icon: FolderOpen },
+    { id: 'trash', label: 'Recycle Bin', shortLabel: 'Recycle Bin', icon: Trash2 },
+  ].filter((tab) => allowedTabs.includes(tab.id));
+
   const openCmsTab = (tabId) => {
     setActiveTab(tabId);
     sessionStorage.setItem('activeAdminTab', tabId);
@@ -6381,67 +6372,65 @@ function AdminPortalContent({ embeddedUser, onEmbeddedLogout, initialTab }) {
           </div>
         )}
 
-        {/* Compact grouped module navigation */}
-        {(cmsNavigationGroups.length > 1 || (activeCmsGroup?.tabs || []).length > 1) && (
-          <div className="flex flex-col xl:flex-row xl:flex-nowrap xl:items-center gap-2 border-b border-slate-200 dark:border-slate-800 mb-2 pb-2">
-            <div className="flex min-w-0 items-center gap-2 overflow-x-auto custom-scrollbar pb-0.5 xl:pb-0">
-              {cmsNavigationGroups.length > 1 && (
-                <>
-                  <label htmlFor="cms-module-group" className="sr-only">CMS module group</label>
-                  <select
-                    id="cms-module-group"
-                    value={activeCmsGroup?.id || ''}
-                    onChange={(event) => {
-                      const group = cmsNavigationGroups.find((item) => item.id === event.target.value);
-                      if (group?.tabs[0]) openCmsTab(group.tabs[0].id);
-                    }}
-                    className="h-8 min-w-[156px] rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-2.5 text-[10px] font-black uppercase tracking-wide text-orange-600 dark:text-orange-300 outline-none focus:border-orange-500"
+        {/* Compact & Minimal CMS Navigation Bar */}
+        {cmsTabs.length > 1 && (
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 dark:border-slate-800/80 mb-2 pb-2">
+            <div className="flex items-center gap-1 p-0.5 rounded-xl bg-slate-100/90 dark:bg-slate-900/80 border border-slate-200/90 dark:border-slate-800 overflow-x-auto custom-scrollbar flex-nowrap min-w-0">
+              {cmsTabs.map((tab) => {
+                const Icon = tab.icon;
+                const active = activeTab === tab.id;
+                const isTrash = tab.id === 'trash';
+                const trashCount = isTrash ? recycleBin.length : 0;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => openCmsTab(tab.id)}
+                    className={`flex h-7 items-center gap-1.5 px-2.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer flex-shrink-0 ${
+                      active
+                        ? 'bg-white dark:bg-slate-800 text-teal-700 dark:text-teal-300 shadow-xs border border-slate-200/90 dark:border-slate-700 font-bold'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-white/60 dark:hover:bg-slate-800/60 border border-transparent'
+                    }`}
                   >
-                    {cmsNavigationGroups.map((group) => (
-                      <option key={group.id} value={group.id}>{group.label} · {group.tabs.length}</option>
-                    ))}
-                  </select>
-                </>
-              )}
-              <div className="flex items-center gap-1 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900/50 p-1">
-                {(activeCmsGroup?.tabs || []).map((tab) => {
-                  const Icon = tab.icon;
-                  const active = activeTab === tab.id;
-                  const label = tab.id === 'trash' && recycleBin.length ? `${tab.label} (${recycleBin.length})` : tab.label;
-                  return (
-                    <button
-                      key={tab.id}
-                      onClick={() => openCmsTab(tab.id)}
-                      className={`flex h-7 items-center gap-1.5 rounded-lg px-2.5 text-[10px] font-black transition-all flex-shrink-0 ${active ? 'bg-orange-500 text-white dark:text-slate-950 shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100'}`}
-                    >
-                      <Icon size={13} />
-                      {label}
-                    </button>
-                  );
-                })}
-              </div>
+                    <Icon size={12.5} className={active ? 'text-teal-600 dark:text-teal-400' : 'text-slate-400 dark:text-slate-500'} />
+                    <span className="hidden md:inline">{tab.label}</span>
+                    <span className="md:hidden">{tab.shortLabel}</span>
+                    {isTrash && trashCount > 0 && (
+                      <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${active ? 'bg-rose-500 text-white' : 'bg-rose-100 dark:bg-rose-950/80 text-rose-600 dark:text-rose-400'}`}>
+                        {trashCount}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
             </div>
+
             {embeddedUser && (
-              <div className="flex w-full flex-shrink-0 items-center gap-2 xl:ml-auto xl:w-auto xl:pl-2">
+              <div className="flex items-center gap-1.5 flex-shrink-0 self-end sm:self-auto">
                 {activeTab === 'slideshow' && (
                   <button
                     type="button"
                     onClick={handleLinkFolder}
-                    className={`flex h-8 flex-1 xl:flex-none items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border px-3 text-[10px] font-black transition-all ${folderHandle ? 'border-emerald-500/50 bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-400' : 'border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 hover:border-orange-500/50 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
+                    className={`flex h-7.5 items-center gap-1.5 whitespace-nowrap rounded-lg border px-2.5 text-xs font-semibold transition-all cursor-pointer ${
+                      folderHandle
+                        ? 'border-emerald-500/50 bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400'
+                        : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
+                    }`}
                     title="Select the public/slides folder for direct file updates"
                   >
-                    <FolderOpen size={13} />
-                    {folderHandle ? 'Slides Folder Linked' : 'Link Slides Folder'}
+                    <FolderOpen size={12.5} />
+                    <span>{folderHandle ? 'Folder Linked' : 'Link Slides'}</span>
                   </button>
                 )}
                 {activeTab !== 'trash' && (
                   <button
                     type="button"
                     onClick={() => handleSaveToLocalStorage()}
-                    className="flex h-8 flex-1 xl:flex-none items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-emerald-500 bg-emerald-500 px-3.5 text-[10px] font-black text-white dark:text-slate-950 shadow-sm transition-all hover:bg-emerald-400 active:scale-[0.98]"
+                    className="flex h-7.5 items-center gap-1.5 whitespace-nowrap rounded-lg bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-semibold text-xs px-3 shadow-xs transition-all cursor-pointer"
+                    title="Save all changes to database"
                   >
-                    <Save size={13} strokeWidth={2.5} />
-                    Save Changes
+                    <Save size={12.5} strokeWidth={2.2} />
+                    <span>Save Changes</span>
                   </button>
                 )}
               </div>
