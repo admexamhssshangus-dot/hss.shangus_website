@@ -171,6 +171,16 @@ export const ADMIN_MODULE_CATALOG = Object.freeze([
     launcher: true,
   },
   {
+    id: 'accounts',
+    label: 'School Accounts, Salaries & Staff Tax',
+    shortLabel: 'Accounts',
+    description: 'Staff income tax calculator, salary statements, fiscal planning and accounts clerk workflows',
+    category: 'Operations & Automation',
+    maturity: 'optimized',
+    maturityNote: 'Dedicated accounts clerk workspace, IT calculation engine, tax deductions and salary record management.',
+    launcher: true,
+  },
+  {
     id: 'cms',
     label: 'Website CMS & Administration',
     shortLabel: 'Website CMS',
