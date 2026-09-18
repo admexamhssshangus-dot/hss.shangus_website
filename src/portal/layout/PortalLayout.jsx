@@ -27,13 +27,14 @@ async function resolveUserProfile(firebaseUser) {
   const normalizedRole = role.toLowerCase();
   if (normalizedRole.includes('admin')) await requireVerifiedAdminSession(firebaseUser);
 
-  const perms = isBootstrapAdmin || role === 'SuperAdmin'
+  const isSuper = isBootstrapSuperAdminEmail(emailLower) || role === 'SuperAdmin';
+  const perms = isSuper
     ? ['*']
     : Array.isArray(staffProfile?.perms)
       ? staffProfile.perms
       : Array.isArray(claims.permissions)
         ? claims.permissions
-        : [];
+        : (isBootstrapAdmin ? ['reports'] : []);
 
   const userSubject = staffProfile?.subject || staffProfile?.teachingSubject || '';
   const userTeachingSubject = staffProfile?.teachingSubject || staffProfile?.subject || '';

@@ -17,7 +17,8 @@ import {
   createStaffAccount, 
   updateStaffAccount, 
   sendStaffPasswordReset, 
-  deleteStaffAccount 
+  deleteStaffAccount,
+  clearStaffProfileCache
 } from '../../services/staffAuthService';
 import { 
   DEFAULT_FEEDER_SCHOOLS, 
@@ -795,6 +796,7 @@ export default function ControlsAndSubjects() {
         }
       }));
 
+      clearStaffProfileCache();
       setAlert({ type: 'success', text: '✨ Staff permissions & accounts updated successfully in School Database!' });
       logAdminActivity({
         actionType: 'update',
