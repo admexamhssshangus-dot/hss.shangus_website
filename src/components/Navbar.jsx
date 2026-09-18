@@ -34,8 +34,6 @@ function handleEmailClick(e, email) {
 
 export default function Navbar() {
   const navigate = useNavigate();
-  // State for smart scrolling
-  const [isVisible, setIsVisible] = useState(true);
   // Mobile menu open
   const [mobileOpen, setMobileOpen] = useState(false);
   const [dynamicLinks, setDynamicLinks] = useState(() => {
@@ -203,37 +201,6 @@ export default function Navbar() {
     return location.pathname.startsWith(path);
   }
 
-  useEffect(() => {
-    let lastScrollY = window.scrollY;
-    const delta = 30; // require a small scroll to trigger hide/show
-    let ticking = false;
-
-    const controlNavbar = () => {
-      if (typeof window === 'undefined') return;
-      const currentScrollY = window.scrollY;
-      const diff = currentScrollY - lastScrollY;
-
-      if (diff > delta && currentScrollY > 100) {
-        setIsVisible(false);
-      } else if (diff < -delta) {
-        setIsVisible(true);
-      }
-
-      lastScrollY = currentScrollY;
-      ticking = false;
-    };
-
-    const onScroll = () => {
-      if (!ticking) {
-        window.requestAnimationFrame(controlNavbar);
-        ticking = true;
-      }
-    };
-
-    window.addEventListener('scroll', onScroll, { passive: true });
-    return () => window.removeEventListener('scroll', onScroll);
-  }, []);
-
   const headerRef = useRef(null);
 
   // Measure header height and expose as CSS variable so pages can offset correctly
@@ -251,7 +218,7 @@ export default function Navbar() {
     updateHeaderHeight();
     window.addEventListener('resize', updateHeaderHeight);
     return () => window.removeEventListener('resize', updateHeaderHeight);
-  }, [mobileOpen, isVisible]);
+  }, [mobileOpen]);
 
   const profileInputRef = useRef(null);
   const [profilePhoto, setProfilePhoto] = useState(() => {
@@ -323,7 +290,7 @@ export default function Navbar() {
 
   return (
     <>
-      <header ref={headerRef} className={`w-full shadow-md z-50 fixed top-0 left-0 right-0 bg-white transition-all duration-200 ease-out print:hidden ${isVisible ? 'translate-y-0' : '-translate-y-full'}`}>
+      <header ref={headerRef} className="w-full shadow-md z-50 fixed top-0 left-0 right-0 bg-white print:hidden">
         {/* WRAPPER: keep content in flow; header is transformed to hide/show to avoid layout jitter */}
         <div className="overflow-hidden">
           {/* ROW 1: Top Contact Bar (hidden on small screens) */}

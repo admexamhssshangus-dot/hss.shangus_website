@@ -29,6 +29,7 @@ export const SUBJECT_CONFIG_DEFS = [
 
   // ─── 2. COMPULSORY & PHYSICAL EDUCATION ────────────────────────────────
   { code: 'EN',   name: 'General English',                 stream: 'All Streams',              isLab: false },
+  { code: 'GE',   name: 'General English',                 stream: 'All Streams',              isLab: false },
   { code: 'PD',   name: 'Physical Education',              stream: 'All Streams',              isLab: true },
 
   // ─── 3. VOCATIONAL STREAM (NSQF / SSC) ─────────────────────────────────
