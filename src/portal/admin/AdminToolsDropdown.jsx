@@ -28,7 +28,7 @@ const MODULE_ICONS = {
   automations: Mail,
   funds: CreditCard,
   accounts: Calculator,
-  cms: Trash2,
+  cms: PanelsTopLeft,
   boardSync: FileSpreadsheet,
   docStudio: FileSpreadsheet,
 };

@@ -983,7 +983,7 @@ export default function AdminDashboard() {
                       style={activeTab === 'cms' ? undefined : { display: 'none' }}
                       aria-hidden={activeTab !== 'cms'}
                     >
-                      <AdministrativeCms embeddedUser={user} onEmbeddedLogout={handleLogoutRequest} initialTab="trash" />
+                      <AdministrativeCms embeddedUser={user} onEmbeddedLogout={handleLogoutRequest} />
                     </div>
                   )}
                 </React.Suspense>

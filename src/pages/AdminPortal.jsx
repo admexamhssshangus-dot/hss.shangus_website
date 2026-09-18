@@ -5986,7 +5986,7 @@ function AdminPortalContent({ embeddedUser, onEmbeddedLogout, initialTab }) {
       { id: 'hero_buttons', label: 'Hero Action Buttons', icon: Compass },
       { id: 'pages_cms', label: 'Page Content', icon: FolderOpen },
     ] },
-    { id: 'administration', label: 'Settings & Governance', tabs: [
+    { id: 'administration', label: 'Recycle Bin', tabs: [
       { id: 'trash', label: 'Recycle Bin', icon: Trash2 },
     ] },
   ].map((group) => ({
@@ -6381,8 +6381,8 @@ function AdminPortalContent({ embeddedUser, onEmbeddedLogout, initialTab }) {
           </div>
         )}
 
-        {/* Compact grouped module navigation - omitted on standalone Recycle Bin view */}
-        {activeTab !== 'trash' && (cmsNavigationGroups.length > 1 || (activeCmsGroup?.tabs || []).length > 1) && (
+        {/* Compact grouped module navigation */}
+        {(cmsNavigationGroups.length > 1 || (activeCmsGroup?.tabs || []).length > 1) && (
           <div className="flex flex-col xl:flex-row xl:flex-nowrap xl:items-center gap-2 border-b border-slate-200 dark:border-slate-800 mb-2 pb-2">
             <div className="flex min-w-0 items-center gap-2 overflow-x-auto custom-scrollbar pb-0.5 xl:pb-0">
               {cmsNavigationGroups.length > 1 && (

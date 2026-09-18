@@ -182,12 +182,12 @@ export const ADMIN_MODULE_CATALOG = Object.freeze([
   },
   {
     id: 'cms',
-    label: 'Recycle Bin',
-    shortLabel: 'Recycle Bin',
-    description: 'Safe recovery and permanent cleanup for deleted announcements, slides, faculty, and custom pages',
+    label: 'Website CMS & Administration',
+    shortLabel: 'Website CMS',
+    description: 'Public website content, hero slideshow, notices, custom pages and recycle bin',
     category: 'Operations & Automation',
     maturity: 'optimized',
-    maturityNote: 'Centralized recovery bin for deleted website announcements, hero slides, faculty profiles, and pages.',
+    maturityNote: 'Public and private website controls, notices, slideshow, custom pages, and central recycle bin.',
     launcher: true,
   },
   {
