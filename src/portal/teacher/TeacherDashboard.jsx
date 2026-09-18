@@ -2,13 +2,16 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useOutletContext, Link, useNavigate } from 'react-router-dom';
 import { 
   History, CalendarCheck, LogOut,
-  ArrowRight, Award, X, Clock, RefreshCw, Search
+  ArrowRight, Award, X, Clock, RefreshCw, Search, Printer
 } from 'lucide-react';
 import SEO from '../../components/SEO';
 import LogoutConfirmModal from '../components/LogoutConfirmModal';
 import { getCachedCollection, invalidateCollectionCache } from '../../services/dbCache';
-import { db } from '../../services/firebase';
+import { db, auth } from '../../services/firebase';
 import { collection, getDocs, getCountFromServer } from 'firebase/firestore';
+import { printHistoricalSubmission, isSubmissionOwnedByTeacher } from '../../utils/practicalsPdfGenerator';
+import { isBootstrapAdminEmail, isBootstrapSuperAdminEmail } from '../../utils/authRoles';
+import { showToast } from '../../components/common/GlobalToast';
 
 export default function TeacherDashboard() {
   const { user, onLogout } = useOutletContext();
@@ -16,6 +19,11 @@ export default function TeacherDashboard() {
 
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const handleLogoutRequest = () => setShowLogoutConfirm(true);
+
+  // Determine administrator status (teachers only see their own submissions; admins can view all)
+  const userEmail = (user?.email || auth.currentUser?.email || '').toLowerCase().trim();
+  const isAdmin = user?.role === 'admin' || user?.role === 'superadmin' || isBootstrapAdminEmail(userEmail) || isBootstrapSuperAdminEmail(userEmail);
+  const [adminShowAllFaculty, setAdminShowAllFaculty] = useState(false);
 
   // Server-side practical count (0 docs downloaded)
   const [practicalCount, setPracticalCount] = useState(null);
@@ -125,9 +133,16 @@ export default function TeacherDashboard() {
           }
         }
 
-        setSubmissionHistory(deduped);
+        // Filter to only this teacher's submissions (unless administrator toggles to view all faculty)
+        const filteredList = (isAdmin && adminShowAllFaculty)
+          ? deduped
+          : deduped.filter(item => isSubmissionOwnedByTeacher(item, user, auth.currentUser));
+
+        setSubmissionHistory(filteredList);
+        setPracticalCount(filteredList.length);
       } else {
         setSubmissionHistory([]);
+        setPracticalCount(0);
       }
     } catch (e) {
       console.error('Failed to load submissions history:', e);
@@ -135,12 +150,18 @@ export default function TeacherDashboard() {
     } finally {
       setLoadingHistory(false);
     }
-  }, []);
+  }, [user, isAdmin, adminShowAllFaculty]);
 
   const filteredSubmissions = useMemo(() => {
-    if (!historySearch.trim()) return submissionHistory;
+    let list = submissionHistory;
+    // Extra safety guarantee: enforce teacher ownership
+    if (!isAdmin || !adminShowAllFaculty) {
+      list = list.filter(item => isSubmissionOwnedByTeacher(item, user, auth.currentUser));
+    }
+
+    if (!historySearch.trim()) return list;
     const q = historySearch.toLowerCase().trim();
-    return submissionHistory.filter(item => {
+    return list.filter(item => {
       const className = String(item.className || '').toLowerCase();
       const subject = String(item.subject || '').toLowerCase();
       const practicalType = String(item.practicalType || '').toLowerCase();
@@ -148,7 +169,7 @@ export default function TeacherDashboard() {
       const year = String(item.yearSuffix || '').toLowerCase();
       return className.includes(q) || subject.includes(q) || practicalType.includes(q) || displayDate.includes(q) || year.includes(q);
     });
-  }, [submissionHistory, historySearch]);
+  }, [submissionHistory, historySearch, user, isAdmin, adminShowAllFaculty]);
 
   useEffect(() => {
     if (showHistoryModal) {
@@ -299,8 +320,25 @@ export default function TeacherDashboard() {
               <div className="flex items-center gap-2 min-w-0 flex-1">
                 <History className="text-indigo-600 dark:text-indigo-400 shrink-0" size={18} />
                 <div className="min-w-0">
-                  <h3 className="font-black text-xs sm:text-sm text-slate-900 dark:text-white truncate">Assessment & Evaluation Submissions Log</h3>
-                  <p className="text-[10px] text-slate-400 font-medium">All evaluations (Pre-Board, Practicals, Term End & Unit Tests)</p>
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-black text-xs sm:text-sm text-slate-900 dark:text-white truncate">
+                      {isAdmin && adminShowAllFaculty ? 'All Faculty Submissions Log' : 'My Assessment Submissions Log'}
+                    </h3>
+                    {isAdmin && (
+                      <button
+                        type="button"
+                        onClick={() => setAdminShowAllFaculty(prev => !prev)}
+                        className="text-[9.5px] px-2 py-0.5 rounded-full font-bold bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100 cursor-pointer transition-colors shrink-0"
+                      >
+                        {adminShowAllFaculty ? 'Switch to: Only My Submissions' : 'Switch to: All Faculty'}
+                      </button>
+                    )}
+                  </div>
+                  <p className="text-[10px] text-slate-400 font-medium">
+                    {isAdmin && adminShowAllFaculty
+                      ? 'All school evaluations (Pre-Board, Practicals, Term End & Unit Tests)'
+                      : 'Showing your own submitted evaluations only (Pre-Board, Practicals, Term End & Unit Tests)'}
+                  </p>
                 </div>
               </div>
               <button
@@ -381,26 +419,44 @@ export default function TeacherDashboard() {
                         </div>
                       </div>
 
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setShowHistoryModal(false);
-                          const rawCls = String(item.className || '');
-                          const cleanCls = rawCls.includes('11') ? '11th' : (rawCls.includes('12') ? '12th' : (rawCls.includes('10') ? '10th' : (rawCls.includes('9') ? '9th' : '11th')));
-                          navigate('/portal/teacher/practicals', {
-                            state: {
-                              selectedClass: cleanCls,
-                              selectedSubject: item.subject !== 'N/A' ? item.subject : 'Physics',
-                              practicalType: item.practicalType,
-                              yearSuffix: item.yearSuffix,
-                              loadedRecord: item
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {/* Direct Print or Save as PDF button */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const ok = printHistoricalSubmission(item);
+                            if (!ok) {
+                              showToast('No student records found in this submission.', 'warning');
                             }
-                          });
-                        }}
-                        className="px-2.5 py-1.5 rounded-lg text-[10px] font-black bg-indigo-600 hover:bg-indigo-500 text-white shadow-2xs transition-all cursor-pointer shrink-0 active:scale-95"
-                      >
-                        Load Record
-                      </button>
+                          }}
+                          className="h-7 px-2.5 rounded-lg text-[10.5px] font-bold bg-white dark:bg-slate-900 hover:bg-indigo-50 dark:hover:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-slate-300 dark:border-slate-700 shadow-2xs transition-all cursor-pointer flex items-center gap-1 active:scale-95"
+                          title="Print or Save/Download PDF of Official Award Roll"
+                        >
+                          <Printer size={12} className="text-indigo-600 dark:text-indigo-400" />
+                          <span>Print / PDF</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowHistoryModal(false);
+                            const rawCls = String(item.className || '');
+                            const cleanCls = rawCls.includes('11') ? '11th' : (rawCls.includes('12') ? '12th' : (rawCls.includes('10') ? '10th' : (rawCls.includes('9') ? '9th' : '11th')));
+                            navigate('/portal/teacher/practicals', {
+                              state: {
+                                selectedClass: cleanCls,
+                                selectedSubject: item.subject !== 'N/A' ? item.subject : 'Physics',
+                                practicalType: item.practicalType,
+                                yearSuffix: item.yearSuffix,
+                                loadedRecord: item
+                              }
+                            });
+                          }}
+                          className="h-7 px-2.5 rounded-lg text-[10.5px] font-black bg-indigo-600 hover:bg-indigo-500 text-white shadow-2xs transition-all cursor-pointer flex items-center gap-1 active:scale-95"
+                        >
+                          Load Record
+                        </button>
+                      </div>
                     </div>
                   );
                 })}
