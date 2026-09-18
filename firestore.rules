@@ -107,7 +107,8 @@ service cloud.firestore {
         documentId in ['attendanceConfig', 'attendanceSummary'] ? 'attendanceMgmt' :
         documentId == 'admission_register_layout' ? 'admRegisterSuite' :
         documentId == 'rosterFeeRules' ? 'customRoster' :
-        documentId == 'idCardConfig' ? 'idCards' : 'controls';
+        documentId == 'idCardConfig' ? 'idCards' :
+        documentId in ['facultyPrivate', 'taxConfig'] ? 'accounts' : 'controls';
     }
     function collectionModule(collectionName) {
       return collectionName in ['registerdata', 'recycleBin', 'deletedFormsHistory', 'csvImportBatches'] ? 'reports' :
@@ -421,7 +422,7 @@ service cloud.firestore {
     match /site/{documentId} {
       allow get: if documentId in ['settings', 'notices', 'facultySummary', 'slideshow', 'pages'] ||
         documentId.matches('^page_[a-zA-Z0-9_-]{1,64}$');
-      allow get: if documentId in ['faculty', 'recycle_bin'] && canUseAny(['controls', 'cms']);
+      allow get: if documentId in ['faculty', 'recycle_bin'] && canUseAny(['controls', 'cms', 'accounts']);
       allow list: if canUseAny(['controls', 'cms']);
       allow create, update: if canUseAny(['controls', 'cms']) && (
         (documentId == 'facultySummary' && validFacultySummary(request.resource.data)) ||

@@ -226,13 +226,75 @@ export default function SchoolAccountsManager({ user }) {
   const [showTaxRules, setShowTaxRules] = useState(false);
 
   // Load Settings & Faculty Data
-  const loadAccountsData = async () => {
+  const loadAccountsData = async (forceRefresh = false) => {
     setLoading(true);
     try {
       const loaded = await loadSiteSettings();
       setSettings(loaded);
-      if (Array.isArray(loaded.faculty)) {
-        setFaculty(loaded.faculty);
+
+      let facultyList = [];
+
+      // 1. Try systemSettings/facultyPrivate (Authoritative private staff records)
+      try {
+        const snap = await getDoc(doc(db, 'systemSettings', 'facultyPrivate'));
+        if (snap.exists()) {
+          const data = snap.data();
+          const list = data?.items || data?.members || data?.faculty;
+          if (Array.isArray(list) && list.length > 0) {
+            facultyList = list;
+          }
+        }
+      } catch (e) {
+        console.warn('Could not load systemSettings/facultyPrivate:', e);
+      }
+
+      // 2. Try site/faculty fallback (Legacy private staff records)
+      if (facultyList.length === 0) {
+        try {
+          const legacySnap = await getDoc(doc(db, 'site', 'faculty'));
+          if (legacySnap.exists()) {
+            const legacyData = legacySnap.data();
+            const list = legacyData?.items || legacyData?.members || legacyData?.faculty;
+            if (Array.isArray(list) && list.length > 0) {
+              facultyList = list;
+            }
+          }
+        } catch (e) {
+          console.warn('Could not load site/faculty:', e);
+        }
+      }
+
+      // 3. Try localStorage cache
+      if (facultyList.length === 0) {
+        try {
+          const cached = localStorage.getItem('site_faculty');
+          if (cached) {
+            const parsed = JSON.parse(cached);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              facultyList = parsed;
+            }
+          }
+        } catch (e) {
+          console.warn('Could not parse localStorage site_faculty:', e);
+        }
+      }
+
+      // 4. Try /slides/faculty.json fallback
+      if (facultyList.length === 0) {
+        try {
+          const r = await fetch('/slides/faculty.json?t=' + Date.now(), { cache: 'no-cache' });
+          const data = await r.json();
+          if (Array.isArray(data) && data.length > 0) {
+            facultyList = data;
+          }
+        } catch (e) {
+          console.warn('Could not load /slides/faculty.json:', e);
+        }
+      }
+
+      setFaculty(facultyList);
+      if (forceRefresh) {
+        showToast(`Loaded ${facultyList.length} staff records successfully!`, 'success');
       }
     } catch (err) {
       console.error('Error loading school accounts data:', err);
@@ -938,37 +1000,37 @@ export default function SchoolAccountsManager({ user }) {
   };
 
   return (
-    <div className="space-y-3 p-2 sm:p-4 bg-slate-950 text-slate-100 min-h-screen rounded-2xl animate-fadeIn">
+    <div className="space-y-3 p-2 sm:p-4 bg-slate-50/70 dark:bg-slate-950 text-slate-800 dark:text-slate-100 min-h-screen rounded-2xl animate-fadeIn">
       {/* ─── TOP MODULE BANNER & ACCOUNTS SUITE TABS ─── */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3 sm:p-4 rounded-2xl bg-gradient-to-r from-slate-900 via-slate-900 to-amber-950/40 border border-slate-800 shadow-md">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3 sm:p-4 rounded-2xl bg-gradient-to-r from-white via-amber-50/40 to-indigo-50/30 dark:from-slate-900 dark:via-slate-900 dark:to-amber-950/30 border border-slate-200/90 dark:border-slate-800 shadow-xs">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-400 flex items-center justify-center shrink-0 shadow-inner">
-            <Calculator size={22} className="animate-pulse" />
+          <div className="w-10 h-10 rounded-xl bg-amber-500/10 dark:bg-amber-500/15 border border-amber-500/25 dark:border-amber-500/30 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0 shadow-2xs">
+            <Calculator size={22} />
           </div>
           <div>
             <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="text-base sm:text-lg font-black text-white tracking-tight">
+              <h1 className="text-base sm:text-lg font-black text-slate-900 dark:text-white tracking-tight">
                 School Accounts, Salaries & Staff Tax
               </h1>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-500/15 text-amber-300 border border-amber-500/30">
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-100 dark:bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-500/30">
                 Accounts Clerk Workspace
               </span>
             </div>
-            <p className="text-xs text-slate-400 font-medium mt-0.5">
+            <p className="text-xs text-slate-600 dark:text-slate-400 font-medium mt-0.5">
               Autonomous fiscal suite: Staff income tax auto-generator, salary bills, and school accounts records.
             </p>
           </div>
         </div>
 
         {/* Global Tab Switcher */}
-        <div className="flex items-center gap-1.5 p-1 rounded-xl bg-slate-950/80 border border-slate-800 self-stretch sm:self-auto overflow-x-auto">
+        <div className="flex items-center gap-1.5 p-1 rounded-xl bg-slate-100/90 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800 self-stretch sm:self-auto overflow-x-auto">
           <button
             type="button"
             onClick={() => setActiveTab('tax_calculator')}
             className={`px-3 py-1.5 rounded-lg text-xs font-black flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
               activeTab === 'tax_calculator'
                 ? 'bg-amber-600 text-white shadow-xs'
-                : 'text-slate-400 hover:text-white hover:bg-slate-850'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-slate-800'
             }`}
           >
             <Calculator size={14} />
@@ -981,12 +1043,12 @@ export default function SchoolAccountsManager({ user }) {
             className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
               activeTab === 'salary_statements'
                 ? 'bg-amber-600 text-white shadow-xs'
-                : 'text-slate-400 hover:text-white hover:bg-slate-850'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-slate-800'
             }`}
           >
             <Briefcase size={14} />
             <span>Salary & Pay Heads</span>
-            <span className="px-1 py-0.2 rounded text-[9px] bg-slate-800 text-amber-400 font-extrabold">Upcoming</span>
+            <span className="px-1 py-0.2 rounded text-[9px] bg-slate-200 dark:bg-slate-800 text-amber-700 dark:text-amber-400 font-extrabold">Upcoming</span>
           </button>
 
           <button
@@ -995,12 +1057,12 @@ export default function SchoolAccountsManager({ user }) {
             className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
               activeTab === 'school_ledgers'
                 ? 'bg-amber-600 text-white shadow-xs'
-                : 'text-slate-400 hover:text-white hover:bg-slate-850'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-slate-800'
             }`}
           >
             <Landmark size={14} />
             <span>School Contingency</span>
-            <span className="px-1 py-0.2 rounded text-[9px] bg-slate-800 text-amber-400 font-extrabold">Upcoming</span>
+            <span className="px-1 py-0.2 rounded text-[9px] bg-slate-200 dark:bg-slate-800 text-amber-700 dark:text-amber-400 font-extrabold">Upcoming</span>
           </button>
         </div>
       </div>
@@ -1009,11 +1071,11 @@ export default function SchoolAccountsManager({ user }) {
       {activeTab === 'tax_calculator' && (
         <div className="space-y-2.5 animate-fadeIn">
           {/* Row 1: Action Bar */}
-          <div className="flex flex-wrap items-center justify-between gap-2 bg-slate-900/90 px-3 sm:px-4 py-2.5 rounded-xl border border-slate-800 shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-2 bg-white dark:bg-slate-900/90 px-3 sm:px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-2xs">
             <div className="flex items-center gap-2 min-w-0">
-              <Calculator className="text-amber-500 shrink-0" size={16} />
-              <span className="font-bold text-white text-xs sm:text-sm">Income Tax Auto-Generator</span>
-              <span className="text-slate-400 text-[11px] font-mono bg-slate-800/80 px-2 py-0.5 rounded-md border border-slate-700/60">
+              <Calculator className="text-amber-600 dark:text-amber-500 shrink-0" size={16} />
+              <span className="font-bold text-slate-900 dark:text-white text-xs sm:text-sm">Income Tax Auto-Generator</span>
+              <span className="text-slate-600 dark:text-slate-400 text-[11px] font-mono bg-slate-100 dark:bg-slate-800/80 px-2 py-0.5 rounded-md border border-slate-200 dark:border-slate-700/60">
                 FY {taxConfig.financialYearLabel} • AY {taxConfig.assessmentYearLabel}
               </span>
             </div>
@@ -1021,17 +1083,28 @@ export default function SchoolAccountsManager({ user }) {
             <div className="flex items-center gap-1.5 flex-wrap">
               <button
                 type="button"
-                onClick={() => setShowTaxRules(true)}
-                className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5 border border-slate-700 cursor-pointer shadow-xs"
+                onClick={() => loadAccountsData(true)}
+                disabled={loading}
+                className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5 border border-slate-200 dark:border-slate-700 cursor-pointer shadow-2xs active:scale-95"
+                title="Refresh staff and salary data from database"
               >
-                <Settings size={13} className="text-amber-400" />
+                <RefreshCw size={13} className={loading ? 'animate-spin text-amber-600' : 'text-slate-500 dark:text-slate-400'} />
+                <span className="hidden sm:inline">Refresh</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setShowTaxRules(true)}
+                className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5 border border-slate-200 dark:border-slate-700 cursor-pointer shadow-2xs active:scale-95"
+              >
+                <Settings size={13} className="text-amber-600 dark:text-amber-400" />
                 <span>Edit Tax Rules</span>
               </button>
 
               <button
                 type="button"
                 onClick={exportTaxSummaryCsv}
-                className="px-2.5 py-1.5 bg-teal-800 hover:bg-teal-700 text-white rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5 border border-teal-700 cursor-pointer shadow-xs"
+                className="px-2.5 py-1.5 bg-teal-600 hover:bg-teal-700 dark:bg-teal-800 dark:hover:bg-teal-700 text-white rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5 border border-teal-600 dark:border-teal-700 cursor-pointer shadow-2xs active:scale-95"
               >
                 <Download size={13} />
                 <span>Export CSV</span>
@@ -1049,7 +1122,7 @@ export default function SchoolAccountsManager({ user }) {
                   }
                   printTaxSheets(toPrint);
                 }}
-                className="px-3 py-1.5 bg-amber-700 hover:bg-amber-600 text-white rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5 border border-amber-600 cursor-pointer shadow-xs"
+                className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5 border border-amber-600 cursor-pointer shadow-2xs active:scale-95"
               >
                 <Printer size={13} />
                 <span>Print Selected ({selectedTaxEmployeeIndices.length})</span>
@@ -1058,14 +1131,14 @@ export default function SchoolAccountsManager({ user }) {
           </div>
 
           {/* Row 2: Live Tax Thresholds & Regime Preview */}
-          <div className="flex flex-wrap items-center justify-between gap-2 bg-slate-900/50 px-3 sm:px-4 py-2 rounded-xl border border-slate-800/80 text-xs">
+          <div className="flex flex-wrap items-center justify-between gap-2 bg-white/95 dark:bg-slate-900/50 px-3 sm:px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-800/80 text-xs shadow-2xs">
             <div className="flex items-center gap-2 flex-wrap">
-              <div className="flex rounded-lg overflow-hidden border border-slate-700 p-0.5 bg-slate-950">
+              <div className="flex rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 p-0.5 bg-slate-100 dark:bg-slate-950">
                 <button
                   type="button"
                   onClick={() => setActiveTaxPreviewRegime('new')}
                   className={`px-2.5 py-0.5 rounded text-[11px] font-black transition-all cursor-pointer ${
-                    activeTaxPreviewRegime === 'new' ? 'bg-amber-600 text-white' : 'text-slate-400 hover:text-white'
+                    activeTaxPreviewRegime === 'new' ? 'bg-amber-600 text-white shadow-2xs' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                   }`}
                 >
                   New Regime
@@ -1074,52 +1147,52 @@ export default function SchoolAccountsManager({ user }) {
                   type="button"
                   onClick={() => setActiveTaxPreviewRegime('old')}
                   className={`px-2.5 py-0.5 rounded text-[11px] font-black transition-all cursor-pointer ${
-                    activeTaxPreviewRegime === 'old' ? 'bg-amber-600 text-white' : 'text-slate-400 hover:text-white'
+                    activeTaxPreviewRegime === 'old' ? 'bg-amber-600 text-white shadow-2xs' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                   }`}
                 >
                   Old Regime
                 </button>
               </div>
 
-              <div className="flex items-center gap-3 font-mono text-[11px] text-slate-300 flex-wrap">
-                <span>Nil-tax: <strong className="text-emerald-400">₹{(previewRegimeConfig.rebateThreshold + previewRegimeConfig.standardDeduction).toLocaleString('en-IN')}</strong></span>
-                <span>87A Rebate: <strong className="text-teal-400">₹{previewRegimeConfig.rebateMax.toLocaleString('en-IN')}</strong></span>
-                <span>Std. Deduction: <strong className="text-amber-400">₹{previewRegimeConfig.standardDeduction.toLocaleString('en-IN')}</strong></span>
+              <div className="flex items-center gap-3 font-mono text-[11px] text-slate-700 dark:text-slate-300 flex-wrap">
+                <span>Nil-tax: <strong className="text-emerald-700 dark:text-emerald-400">₹{(previewRegimeConfig.rebateThreshold + previewRegimeConfig.standardDeduction).toLocaleString('en-IN')}</strong></span>
+                <span>87A Rebate: <strong className="text-teal-700 dark:text-teal-400">₹{previewRegimeConfig.rebateMax.toLocaleString('en-IN')}</strong></span>
+                <span>Std. Deduction: <strong className="text-amber-700 dark:text-amber-400">₹{previewRegimeConfig.standardDeduction.toLocaleString('en-IN')}</strong></span>
                 {previewRegimeConfig.marginalReliefEnabled && (
-                  <span className="px-1.5 py-0.2 rounded bg-emerald-950 border border-emerald-800 text-emerald-400 text-[10px] font-bold">
+                  <span className="px-1.5 py-0.2 rounded bg-emerald-50 dark:bg-emerald-950 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400 text-[10px] font-bold">
                     Marginal Relief ✓ ON
                   </span>
                 )}
               </div>
             </div>
 
-            <div className="text-[11px] text-slate-400">
-              Total Staff in Scope: <strong className="text-white">{filteredFaculty.length}</strong>
+            <div className="text-[11px] text-slate-600 dark:text-slate-400">
+              Total Staff in Scope: <strong className="text-slate-900 dark:text-white font-extrabold">{filteredFaculty.length}</strong>
             </div>
           </div>
 
           {/* Row 3: Filter & Search Bar */}
-          <div className="flex flex-wrap items-center justify-between gap-2 bg-slate-900/70 p-2.5 rounded-xl border border-slate-800">
+          <div className="flex flex-wrap items-center justify-between gap-2 bg-white dark:bg-slate-900/70 p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-2xs">
             <div className="flex items-center gap-2 flex-wrap">
               {/* Category Filter Multi-Select Dropdown */}
               <div className="relative">
                 <button
                   type="button"
                   onClick={() => setIsTaxFilterDropdownOpen(!isTaxFilterDropdownOpen)}
-                  className="px-3 py-1.5 bg-slate-800 hover:bg-slate-750 text-slate-200 rounded-lg text-xs font-bold border border-slate-700 flex items-center gap-1.5 cursor-pointer shadow-xs"
+                  className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-750 text-slate-800 dark:text-slate-200 rounded-lg text-xs font-bold border border-slate-200 dark:border-slate-700 flex items-center gap-1.5 cursor-pointer shadow-2xs"
                 >
                   <span>Filter Categories ({selectedTaxCategories.length})</span>
                   <ChevronDown size={13} className={`transition-transform ${isTaxFilterDropdownOpen ? 'rotate-180' : ''}`} />
                 </button>
 
                 {isTaxFilterDropdownOpen && (
-                  <div className="absolute left-0 mt-1 w-64 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl p-2 z-50 space-y-1 animate-fadeIn">
-                    <div className="text-[10px] font-black text-slate-400 uppercase tracking-wider px-1 pb-1 border-b border-slate-800 flex justify-between items-center">
+                  <div className="absolute left-0 mt-1 w-64 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-2xl p-2 z-50 space-y-1 animate-fadeIn">
+                    <div className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-wider px-1 pb-1 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
                       <span>Staff Classification</span>
                       <button
                         type="button"
                         onClick={() => setSelectedTaxCategories(TAX_CATEGORIES.map(c => c.key))}
-                        className="text-amber-400 hover:underline"
+                        className="text-amber-600 dark:text-amber-400 hover:underline cursor-pointer"
                       >
                         All
                       </button>
@@ -1129,7 +1202,7 @@ export default function SchoolAccountsManager({ user }) {
                       return (
                         <label
                           key={cat.key}
-                          className="flex items-center gap-2 px-2 py-1 rounded-lg hover:bg-slate-800 cursor-pointer text-xs font-medium text-slate-300 select-none"
+                          className="flex items-center gap-2 px-2 py-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer text-xs font-medium text-slate-700 dark:text-slate-300 select-none"
                         >
                           <input
                             type="checkbox"
@@ -1141,7 +1214,7 @@ export default function SchoolAccountsManager({ user }) {
                                 setSelectedTaxCategories([...selectedTaxCategories, cat.key]);
                               }
                             }}
-                            className="w-3.5 h-3.5 accent-amber-600 rounded"
+                            className="w-3.5 h-3.5 accent-amber-600 rounded cursor-pointer"
                           />
                           <span>{cat.label}</span>
                         </label>
@@ -1155,12 +1228,12 @@ export default function SchoolAccountsManager({ user }) {
               <button
                 type="button"
                 onClick={() => handleSelectAllTaxVisible(filteredFaculty)}
-                className="px-2.5 py-1.5 bg-slate-800/80 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-bold border border-slate-700/60 flex items-center gap-1.5 cursor-pointer"
+                className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800/80 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg text-xs font-bold border border-slate-200 dark:border-slate-700/60 flex items-center gap-1.5 cursor-pointer shadow-2xs"
               >
-                {filteredFaculty.every(emp => selectedTaxEmployeeIndices.includes(faculty.indexOf(emp))) ? (
-                  <CheckSquare size={13} className="text-amber-400" />
+                {filteredFaculty.length > 0 && filteredFaculty.every(emp => selectedTaxEmployeeIndices.includes(faculty.indexOf(emp))) ? (
+                  <CheckSquare size={13} className="text-amber-600 dark:text-amber-400" />
                 ) : (
-                  <Square size={13} className="text-slate-400" />
+                  <Square size={13} className="text-slate-400 dark:text-slate-500" />
                 )}
                 <span>Select All Filtered</span>
               </button>
@@ -1168,19 +1241,19 @@ export default function SchoolAccountsManager({ user }) {
 
             {/* Search Input */}
             <div className="relative flex-1 max-w-md min-w-[200px]">
-              <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
+              <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 pointer-events-none" />
               <input
                 type="text"
                 value={taxSearch}
                 onChange={(e) => setTaxSearch(e.target.value)}
                 placeholder="Search by name, designation, PAN or CPIS..."
-                className="w-full pl-8 pr-3 py-1.5 bg-slate-950 border border-slate-800 rounded-lg text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-amber-500"
+                className="w-full pl-8 pr-3 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-amber-500 focus:border-amber-500 shadow-2xs"
               />
               {taxSearch && (
                 <button
                   type="button"
                   onClick={() => setTaxSearch('')}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
                 >
                   <X size={12} />
                 </button>
@@ -1189,10 +1262,10 @@ export default function SchoolAccountsManager({ user }) {
           </div>
 
           {/* ─── EMPLOYEES TAX DATA TABLE ─── */}
-          <div className="rounded-xl border border-slate-800 bg-slate-900/60 overflow-hidden shadow-sm">
+          <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60 overflow-hidden shadow-2xs">
             <div className="overflow-x-auto max-h-[620px]">
               <table className="w-full text-left text-xs border-collapse">
-                <thead className="bg-slate-950 text-[10.5px] font-black uppercase tracking-wider text-slate-400 sticky top-0 z-10 border-b border-slate-800">
+                <thead className="bg-slate-100/90 dark:bg-slate-950 text-[10.5px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-400 sticky top-0 z-10 border-b border-slate-200 dark:border-slate-800 backdrop-blur-xs">
                   <tr>
                     <th className="p-2.5 w-10 text-center">
                       <input
@@ -1212,18 +1285,60 @@ export default function SchoolAccountsManager({ user }) {
                     <th className="p-2.5 text-center">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-800/60 text-slate-200 font-medium">
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 text-slate-800 dark:text-slate-200 font-medium">
                   {loading ? (
                     <tr>
-                      <td colSpan={9} className="p-8 text-center text-slate-400">
-                        <RefreshCw size={20} className="animate-spin mx-auto text-amber-500 mb-2" />
-                        <span>Loading staff tax records and accounts data...</span>
+                      <td colSpan={9} className="p-10 text-center text-slate-500 dark:text-slate-400">
+                        <RefreshCw size={22} className="animate-spin mx-auto text-amber-600 dark:text-amber-500 mb-2.5" />
+                        <span className="font-bold text-xs">Loading staff tax records and accounts directory...</span>
                       </td>
                     </tr>
                   ) : filteredFaculty.length === 0 ? (
                     <tr>
-                      <td colSpan={9} className="p-8 text-center text-slate-500 font-bold">
-                        No staff members found matching search or category filters.
+                      <td colSpan={9} className="p-10 text-center">
+                        <div className="max-w-md mx-auto space-y-3">
+                          <div className="w-12 h-12 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/50 flex items-center justify-center mx-auto text-amber-600 dark:text-amber-400">
+                            <Users size={22} />
+                          </div>
+                          {faculty.length === 0 ? (
+                            <>
+                              <div className="text-sm font-bold text-slate-800 dark:text-slate-200">
+                                No staff records loaded
+                              </div>
+                              <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                                Staff members have not been loaded into the Accounts module yet. Click below to fetch from the master directory.
+                              </p>
+                              <button
+                                type="button"
+                                onClick={loadAccountsData}
+                                className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-bold transition-all shadow-md inline-flex items-center gap-1.5 cursor-pointer"
+                              >
+                                <RefreshCw size={13} />
+                                <span>Fetch Staff Directory</span>
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <div className="text-sm font-bold text-slate-800 dark:text-slate-200">
+                                No staff matching current search or filters
+                              </div>
+                              <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                                We found {faculty.length} staff members, but none matched your search query or selected categories.
+                              </p>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setTaxSearch('');
+                                  setSelectedTaxCategories(TAX_CATEGORIES.map(c => c.key));
+                                }}
+                                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold transition-all border border-slate-200 dark:border-slate-700 shadow-2xs inline-flex items-center gap-1.5 cursor-pointer"
+                              >
+                                <X size={13} />
+                                <span>Reset Search & Filters</span>
+                              </button>
+                            </>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ) : (
@@ -1240,7 +1355,7 @@ export default function SchoolAccountsManager({ user }) {
 
                       return (
                         <React.Fragment key={origIdx}>
-                          <tr className={`hover:bg-slate-800/40 transition-colors ${isSelected ? 'bg-amber-950/10' : ''}`}>
+                          <tr className={`hover:bg-amber-50/60 dark:hover:bg-slate-800/40 transition-colors ${isSelected ? 'bg-amber-100/50 dark:bg-amber-950/20' : ''}`}>
                             <td className="p-2.5 text-center">
                               <input
                                 type="checkbox"
@@ -1249,40 +1364,40 @@ export default function SchoolAccountsManager({ user }) {
                                 className="accent-amber-600 cursor-pointer rounded"
                               />
                             </td>
-                            <td className="p-2.5 text-center font-mono text-[11px] text-slate-500">
+                            <td className="p-2.5 text-center font-mono text-[11px] text-slate-400 dark:text-slate-500">
                               {idx + 1}
                             </td>
                             <td className="p-2.5">
-                              <div className="font-mono text-slate-200 font-bold">{emp.cpis_no || '—'}</div>
-                              <div className="font-mono text-[10.5px] text-amber-400 font-semibold">{pan || 'NO PAN'}</div>
+                              <div className="font-mono text-slate-800 dark:text-slate-200 font-bold">{emp.cpis_no || '—'}</div>
+                              <div className="font-mono text-[10.5px] text-amber-600 dark:text-amber-400 font-semibold">{pan || 'NO PAN'}</div>
                             </td>
                             <td className="p-2.5">
                               <div className="flex items-center gap-1.5">
-                                <span className="font-bold text-white text-[12px]">{emp.name}</span>
+                                <span className="font-bold text-slate-900 dark:text-white text-[12px]">{emp.name}</span>
                                 <span className={`text-[8.5px] font-black uppercase px-1.5 py-0.2 rounded ${
                                   regime === 'new' 
-                                    ? 'bg-teal-950 border border-teal-800 text-teal-300' 
-                                    : 'bg-rose-950 border border-rose-800 text-rose-300'
+                                    ? 'bg-teal-50 dark:bg-teal-950 border border-teal-200 dark:border-teal-800 text-teal-700 dark:text-teal-300' 
+                                    : 'bg-rose-50 dark:bg-rose-950 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300'
                                 }`}>
                                   {regime === 'new' ? 'New Regime' : 'Old Regime'}
                                 </span>
                               </div>
-                              <div className="text-[11px] text-slate-400">{emp.designation || 'Staff Member'}</div>
+                              <div className="text-[11px] text-slate-500 dark:text-slate-400">{emp.designation || 'Staff Member'}</div>
                             </td>
-                            <td className="p-2.5 text-right font-mono font-bold text-slate-200">
+                            <td className="p-2.5 text-right font-mono font-bold text-slate-800 dark:text-slate-200">
                               ₹{gross.toLocaleString('en-IN')}
                             </td>
-                            <td className="p-2.5 text-right font-mono font-bold text-slate-300">
+                            <td className="p-2.5 text-right font-mono font-bold text-slate-700 dark:text-slate-300">
                               ₹{calc.totalTax.toLocaleString('en-IN')}
                             </td>
-                            <td className="p-2.5 text-right font-mono text-slate-400">
+                            <td className="p-2.5 text-right font-mono text-slate-600 dark:text-slate-400">
                               ₹{tds.toLocaleString('en-IN')}
                             </td>
                             <td className="p-2.5 text-right font-mono font-bold">
                               {calc.taxPayableNow > 0 ? (
-                                <span className="text-rose-400 font-black">₹{calc.taxPayableNow.toLocaleString('en-IN')}</span>
+                                <span className="text-rose-600 dark:text-rose-400 font-black">₹{calc.taxPayableNow.toLocaleString('en-IN')}</span>
                               ) : (
-                                <span className="text-emerald-400 font-black">NIL</span>
+                                <span className="text-emerald-600 dark:text-emerald-400 font-black">NIL</span>
                               )}
                             </td>
                             <td className="p-2.5 text-center">
@@ -1302,7 +1417,7 @@ export default function SchoolAccountsManager({ user }) {
                                       otherDeductions: getEmployeeOtherDeductions(emp).toString()
                                     });
                                   }}
-                                  className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 text-[10.5px] font-bold transition-colors border border-slate-700 cursor-pointer"
+                                  className="px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-[10.5px] font-bold transition-colors border border-slate-200 dark:border-slate-700 cursor-pointer shadow-2xs"
                                 >
                                   Edit
                                 </button>
@@ -1310,7 +1425,7 @@ export default function SchoolAccountsManager({ user }) {
                                 <button
                                   type="button"
                                   onClick={() => printTaxSheets([emp])}
-                                  className="px-2 py-1 rounded bg-amber-700 hover:bg-amber-600 text-white text-[10.5px] font-bold transition-colors flex items-center gap-0.5 cursor-pointer shadow-2xs"
+                                  className="px-2 py-1 rounded bg-amber-600 hover:bg-amber-500 text-white text-[10.5px] font-bold transition-colors flex items-center gap-0.5 cursor-pointer shadow-2xs"
                                 >
                                   <Printer size={11} />
                                   <span>Print</span>
@@ -1321,18 +1436,18 @@ export default function SchoolAccountsManager({ user }) {
 
                           {/* Inline Deduction & Tax Edit Form Drawer */}
                           {isEditing && (
-                            <tr className="bg-slate-950 border-y-2 border-amber-500/80 animate-fadeIn">
+                            <tr className="bg-amber-50/40 dark:bg-slate-950 border-y-2 border-amber-500/80 animate-fadeIn">
                               <td colSpan={9} className="p-3 sm:p-4">
                                 <div className="space-y-3">
-                                  <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-                                    <div className="font-bold text-amber-400 text-xs flex items-center gap-1.5">
+                                  <div className="flex items-center justify-between border-b border-amber-200 dark:border-slate-800 pb-2">
+                                    <div className="font-bold text-amber-700 dark:text-amber-400 text-xs flex items-center gap-1.5">
                                       <Edit3 size={14} />
                                       <span>Edit Salary, PAN & Tax Deductions for: <strong>{emp.name}</strong></span>
                                     </div>
                                     <button
                                       type="button"
                                       onClick={() => setEditingTaxIdx(null)}
-                                      className="text-slate-400 hover:text-white"
+                                      className="text-slate-400 hover:text-slate-600 dark:hover:text-white cursor-pointer"
                                     >
                                       <X size={15} />
                                     </button>
@@ -1340,22 +1455,22 @@ export default function SchoolAccountsManager({ user }) {
 
                                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 text-xs">
                                     <div>
-                                      <label className="block text-[10.5px] font-bold text-slate-400 mb-0.5">PAN Number:</label>
+                                      <label className="block text-[10.5px] font-bold text-slate-600 dark:text-slate-400 mb-0.5">PAN Number:</label>
                                       <input
                                         type="text"
                                         value={editTaxData.pan}
                                         onChange={(e) => setEditTaxData({ ...editTaxData, pan: e.target.value.toUpperCase() })}
                                         placeholder="e.g. ABCDE1234F"
-                                        className="w-full p-1.5 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono uppercase font-bold"
+                                        className="w-full p-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-mono uppercase font-bold focus:outline-none focus:ring-1 focus:ring-amber-500"
                                       />
                                     </div>
 
                                     <div>
-                                      <label className="block text-[10.5px] font-bold text-slate-400 mb-0.5">Tax Regime:</label>
+                                      <label className="block text-[10.5px] font-bold text-slate-600 dark:text-slate-400 mb-0.5">Tax Regime:</label>
                                       <select
                                         value={editTaxData.regime}
                                         onChange={(e) => setEditTaxData({ ...editTaxData, regime: e.target.value })}
-                                        className="w-full p-1.5 rounded-lg bg-slate-900 border border-slate-700 text-white font-bold"
+                                        className="w-full p-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-bold focus:outline-none focus:ring-1 focus:ring-amber-500"
                                       >
                                         <option value="new">New Tax Regime</option>
                                         <option value="old">Old Tax Regime</option>
@@ -1363,83 +1478,83 @@ export default function SchoolAccountsManager({ user }) {
                                     </div>
 
                                     <div>
-                                      <label className="block text-[10.5px] font-bold text-slate-400 mb-0.5">Gross Salary (Annual):</label>
+                                      <label className="block text-[10.5px] font-bold text-slate-600 dark:text-slate-400 mb-0.5">Gross Salary (Annual):</label>
                                       <input
                                         type="number"
                                         value={editTaxData.grossSalary}
                                         onChange={(e) => setEditTaxData({ ...editTaxData, grossSalary: e.target.value })}
                                         placeholder="e.g. 1250000"
-                                        className="w-full p-1.5 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono font-bold"
+                                        className="w-full p-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-mono font-bold focus:outline-none focus:ring-1 focus:ring-amber-500"
                                       />
                                     </div>
 
                                     <div>
-                                      <label className="block text-[10.5px] font-bold text-slate-400 mb-0.5">TDS Deducted Up-to-Date:</label>
+                                      <label className="block text-[10.5px] font-bold text-slate-600 dark:text-slate-400 mb-0.5">TDS Deducted Up-to-Date:</label>
                                       <input
                                         type="number"
                                         value={editTaxData.tds}
                                         onChange={(e) => setEditTaxData({ ...editTaxData, tds: e.target.value })}
                                         placeholder="e.g. 50000"
-                                        className="w-full p-1.5 rounded-lg bg-slate-900 border border-slate-700 text-white font-mono font-bold"
+                                        className="w-full p-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-mono font-bold focus:outline-none focus:ring-1 focus:ring-amber-500"
                                       />
                                     </div>
                                   </div>
 
                                   {/* Deductions Specific to Old vs New Regime */}
-                                  <div className="p-2.5 rounded-xl bg-slate-900/90 border border-slate-800 space-y-1.5">
-                                    <div className="text-[11px] font-bold text-slate-300">
+                                  <div className="p-2.5 rounded-xl bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 space-y-1.5">
+                                    <div className="text-[11px] font-bold text-slate-700 dark:text-slate-300">
                                       {editTaxData.regime === 'old' ? 'Old Regime Deductions (80C, 80D, HRA):' : 'New Regime Deductions (80CCD(2) Employer NPS Share):'}
                                     </div>
                                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 text-xs">
                                       {editTaxData.regime === 'old' ? (
                                         <>
                                           <div>
-                                            <label className="block text-[10px] font-bold text-slate-400 mb-0.5">80C (Max ₹1.5 Lakh):</label>
+                                            <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 mb-0.5">80C (Max ₹1.5 Lakh):</label>
                                             <input
                                               type="number"
                                               value={editTaxData.deduction80C}
                                               onChange={(e) => setEditTaxData({ ...editTaxData, deduction80C: e.target.value })}
-                                              className="w-full p-1.5 rounded-lg bg-slate-950 border border-slate-700 text-white font-mono font-bold"
+                                              className="w-full p-1.5 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-mono font-bold focus:outline-none focus:ring-1 focus:ring-amber-500"
                                             />
                                           </div>
                                           <div>
-                                            <label className="block text-[10px] font-bold text-slate-400 mb-0.5">80D (Health Insurance):</label>
+                                            <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 mb-0.5">80D (Health Insurance):</label>
                                             <input
                                               type="number"
                                               value={editTaxData.deduction80D}
                                               onChange={(e) => setEditTaxData({ ...editTaxData, deduction80D: e.target.value })}
-                                              className="w-full p-1.5 rounded-lg bg-slate-950 border border-slate-700 text-white font-mono font-bold"
+                                              className="w-full p-1.5 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-mono font-bold focus:outline-none focus:ring-1 focus:ring-amber-500"
                                             />
                                           </div>
                                           <div>
-                                            <label className="block text-[10px] font-bold text-slate-400 mb-0.5">HRA Exemption:</label>
+                                            <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 mb-0.5">HRA Exemption:</label>
                                             <input
                                               type="number"
                                               value={editTaxData.hraExemption}
                                               onChange={(e) => setEditTaxData({ ...editTaxData, hraExemption: e.target.value })}
-                                              className="w-full p-1.5 rounded-lg bg-slate-950 border border-slate-700 text-white font-mono font-bold"
+                                              className="w-full p-1.5 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-mono font-bold focus:outline-none focus:ring-1 focus:ring-amber-500"
                                             />
                                           </div>
                                         </>
                                       ) : null}
                                       <div>
-                                        <label className="block text-[10px] font-bold text-slate-400 mb-0.5">80CCD(2) (Employer NPS Contribution):</label>
+                                        <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 mb-0.5">80CCD(2) (Employer NPS Contribution):</label>
                                         <input
                                           type="number"
                                           value={editTaxData.otherDeductions}
                                           onChange={(e) => setEditTaxData({ ...editTaxData, otherDeductions: e.target.value })}
                                           placeholder="e.g. NPS share"
-                                          className="w-full p-1.5 rounded-lg bg-slate-950 border border-slate-700 text-white font-mono font-bold"
+                                          className="w-full p-1.5 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-mono font-bold focus:outline-none focus:ring-1 focus:ring-amber-500"
                                         />
                                       </div>
                                     </div>
                                   </div>
 
-                                  <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
+                                  <div className="flex items-center justify-end gap-2 pt-2 border-t border-amber-200 dark:border-slate-800">
                                     <button
                                       type="button"
                                       onClick={() => setEditingTaxIdx(null)}
-                                      className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs cursor-pointer"
+                                      className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs cursor-pointer"
                                     >
                                       Cancel
                                     </button>
@@ -1483,89 +1598,89 @@ export default function SchoolAccountsManager({ user }) {
 
       {/* ─── TAB 2: SALARY & PAY HEADS (ROADMAP & UPCOMING) ─── */}
       {activeTab === 'salary_statements' && (
-        <div className="p-4 sm:p-6 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-4 animate-fadeIn">
+        <div className="p-4 sm:p-6 rounded-2xl bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 space-y-4 shadow-2xs animate-fadeIn">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-blue-500/15 border border-blue-500/30 text-blue-400 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-500/15 border border-blue-200 dark:border-blue-500/30 text-blue-600 dark:text-blue-400 flex items-center justify-center">
               <Briefcase size={20} />
             </div>
             <div>
-              <h2 className="text-base font-bold text-white">Staff Salary Registers & Monthly Bill Generator</h2>
-              <p className="text-xs text-slate-400">
+              <h2 className="text-base font-bold text-slate-900 dark:text-white">Staff Salary Registers & Monthly Bill Generator</h2>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
                 Automated monthly salary bills, basic pay bands, DA/HRA allowances, and J&K Bank disbursement ledgers.
               </p>
             </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-1">
-              <div className="text-xs font-bold text-amber-400 flex items-center gap-1">
+            <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-1.5">
+              <div className="text-xs font-bold text-amber-700 dark:text-amber-400 flex items-center gap-1">
                 <TrendingUp size={13} />
                 <span>Pay Heads Configuration</span>
               </div>
-              <p className="text-[11px] text-slate-400 leading-relaxed">
+              <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed">
                 Configure Level 1 to Level 13 Pay Bands, active Dearness Allowance rates (currently 50%+), HRA percentages (9%/18%), and Medical Allowance.
               </p>
             </div>
 
-            <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-1">
-              <div className="text-xs font-bold text-teal-400 flex items-center gap-1">
+            <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-1.5">
+              <div className="text-xs font-bold text-teal-700 dark:text-teal-400 flex items-center gap-1">
                 <Wallet size={13} />
                 <span>Deduction Schedules</span>
               </div>
-              <p className="text-[11px] text-slate-400 leading-relaxed">
+              <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed">
                 Auto-calculate 10% Employee NPS + 14% Government Contribution, SLI policy tiers, GPF subscriptions, and festive advance deductions.
               </p>
             </div>
 
-            <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-1">
-              <div className="text-xs font-bold text-purple-400 flex items-center gap-1">
+            <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-1.5">
+              <div className="text-xs font-bold text-purple-700 dark:text-purple-400 flex items-center gap-1">
                 <FileSpreadsheet size={13} />
                 <span>Bank Credit Statements</span>
               </div>
-              <p className="text-[11px] text-slate-400 leading-relaxed">
+              <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed">
                 Generate 1-click official monthly bank salary disbursement schedules in J&K Bank electronic format with account numbers and IFSC.
               </p>
             </div>
           </div>
 
-          <div className="p-3 rounded-xl bg-blue-950/20 border border-blue-800/40 text-xs text-blue-200 flex items-center justify-between flex-wrap gap-2">
+          <div className="p-3 rounded-xl bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800/40 text-xs text-blue-900 dark:text-blue-200 flex items-center justify-between flex-wrap gap-2">
             <span>✨ The Accounts Clerk workspace is being actively connected to CPIS and salary profiles.</span>
-            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-blue-900/60 font-bold">Planned Release: Phase 2</span>
+            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-blue-100 dark:bg-blue-900/60 text-blue-800 dark:text-blue-200 font-bold">Planned Release: Phase 2</span>
           </div>
         </div>
       )}
 
       {/* ─── TAB 3: SCHOOL CONTINGENCY LEDGERS (UPCOMING) ─── */}
       {activeTab === 'school_ledgers' && (
-        <div className="p-4 sm:p-6 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-4 animate-fadeIn">
+        <div className="p-4 sm:p-6 rounded-2xl bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 space-y-4 shadow-2xs animate-fadeIn">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-500/15 border border-emerald-200 dark:border-emerald-500/30 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
               <Landmark size={20} />
             </div>
             <div>
-              <h2 className="text-base font-bold text-white">School Accounts, Contingency & Local Fund Ledgers</h2>
-              <p className="text-xs text-slate-400">
+              <h2 className="text-base font-bold text-slate-900 dark:text-white">School Accounts, Contingency & Local Fund Ledgers</h2>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
                 Institutional budget tracking, examination grants, practicals contingency, and school developmental funds.
               </p>
             </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-1">
-              <div className="text-xs font-bold text-emerald-400">Local School Fund</div>
-              <p className="text-[11px] text-slate-400">
+            <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-1.5">
+              <div className="text-xs font-bold text-emerald-700 dark:text-emerald-400">Local School Fund</div>
+              <p className="text-[11px] text-slate-600 dark:text-slate-400">
                 Audit trail and ledger entries for school local fund collections, developmental projects, and official expenditures.
               </p>
             </div>
-            <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-1">
-              <div className="text-xs font-bold text-amber-400">Examination Contingency</div>
-              <p className="text-[11px] text-slate-400">
+            <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-1.5">
+              <div className="text-xs font-bold text-amber-700 dark:text-amber-400">Examination Contingency</div>
+              <p className="text-[11px] text-slate-600 dark:text-slate-400">
                 JKBOSE centre superintendence allocations, question paper stationery grants, and invigilation remuneration logs.
               </p>
             </div>
-            <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-1">
-              <div className="text-xs font-bold text-teal-400">Science Lab & IT Maintenance</div>
-              <p className="text-[11px] text-slate-400">
+            <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-1.5">
+              <div className="text-xs font-bold text-teal-700 dark:text-teal-400">Science Lab & IT Maintenance</div>
+              <p className="text-[11px] text-slate-600 dark:text-slate-400">
                 Reagent purchases, CAL / ICT lab electricity and broadband reimbursements, and asset register maintenance.
               </p>
             </div>
@@ -1575,17 +1690,17 @@ export default function SchoolAccountsManager({ user }) {
 
       {/* ─── MODAL: EDIT TAX RULES (ADMIN / ACCOUNTS CONFIG) ─── */}
       {showTaxRules && (
-        <div className="fixed inset-0 z-[999999] bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-3">
-          <div className="w-full max-w-xl bg-slate-900 border border-slate-700 rounded-2xl p-4 sm:p-5 shadow-2xl space-y-4 animate-scaleUp">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+        <div className="fixed inset-0 z-[999999] bg-slate-950/60 dark:bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-3">
+          <div className="w-full max-w-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl p-4 sm:p-5 shadow-2xl space-y-4 animate-scaleUp">
+            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2">
               <div className="flex items-center gap-2">
-                <Settings size={18} className="text-amber-500" />
-                <h3 className="text-sm sm:text-base font-black text-white">Edit Income Tax Slabs & Rules</h3>
+                <Settings size={18} className="text-amber-600 dark:text-amber-500" />
+                <h3 className="text-sm sm:text-base font-black text-slate-900 dark:text-white">Edit Income Tax Slabs & Rules</h3>
               </div>
               <button
                 type="button"
                 onClick={() => setShowTaxRules(false)}
-                className="text-slate-400 hover:text-white"
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-white cursor-pointer"
               >
                 <X size={16} />
               </button>
@@ -1593,31 +1708,31 @@ export default function SchoolAccountsManager({ user }) {
 
             <div className="grid grid-cols-2 gap-3 text-xs">
               <div>
-                <label className="block text-[10.5px] font-bold text-slate-400 mb-0.5">Financial Year (FY):</label>
+                <label className="block text-[10.5px] font-bold text-slate-600 dark:text-slate-400 mb-0.5">Financial Year (FY):</label>
                 <input
                   type="text"
                   value={taxConfig.financialYearLabel}
                   onChange={(e) => handleTaxConfigFieldChange('financialYearLabel', e.target.value)}
-                  className="w-full p-2 rounded-lg bg-slate-950 border border-slate-700 text-white font-mono font-bold"
+                  className="w-full p-2 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-mono font-bold focus:outline-none focus:ring-1 focus:ring-amber-500"
                 />
               </div>
               <div>
-                <label className="block text-[10.5px] font-bold text-slate-400 mb-0.5">Assessment Year (AY):</label>
+                <label className="block text-[10.5px] font-bold text-slate-600 dark:text-slate-400 mb-0.5">Assessment Year (AY):</label>
                 <input
                   type="text"
                   value={taxConfig.assessmentYearLabel}
                   onChange={(e) => handleTaxConfigFieldChange('assessmentYearLabel', e.target.value)}
-                  className="w-full p-2 rounded-lg bg-slate-950 border border-slate-700 text-white font-mono font-bold"
+                  className="w-full p-2 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-mono font-bold focus:outline-none focus:ring-1 focus:ring-amber-500"
                 />
               </div>
             </div>
 
-            <div className="flex rounded-lg overflow-hidden border border-slate-700 p-0.5 bg-slate-950">
+            <div className="flex rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 p-0.5 bg-slate-100 dark:bg-slate-950">
               <button
                 type="button"
                 onClick={() => setActiveRegimeSettingsTab('new')}
                 className={`flex-1 py-1 rounded text-xs font-bold transition-all cursor-pointer ${
-                  activeRegimeSettingsTab === 'new' ? 'bg-amber-600 text-white' : 'text-slate-400 hover:text-white'
+                  activeRegimeSettingsTab === 'new' ? 'bg-amber-600 text-white shadow-2xs' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                 }`}
               >
                 New Regime Settings
@@ -1626,7 +1741,7 @@ export default function SchoolAccountsManager({ user }) {
                 type="button"
                 onClick={() => setActiveRegimeSettingsTab('old')}
                 className={`flex-1 py-1 rounded text-xs font-bold transition-all cursor-pointer ${
-                  activeRegimeSettingsTab === 'old' ? 'bg-amber-600 text-white' : 'text-slate-400 hover:text-white'
+                  activeRegimeSettingsTab === 'old' ? 'bg-amber-600 text-white shadow-2xs' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                 }`}
               >
                 Old Regime Settings
@@ -1635,48 +1750,48 @@ export default function SchoolAccountsManager({ user }) {
 
             <div className="grid grid-cols-2 gap-3 text-xs">
               <div>
-                <label className="block text-[10.5px] font-bold text-slate-400 mb-0.5">Standard Deduction (₹):</label>
+                <label className="block text-[10.5px] font-bold text-slate-600 dark:text-slate-400 mb-0.5">Standard Deduction (₹):</label>
                 <input
                   type="number"
                   value={activeRegimeConfig.standardDeduction}
                   onChange={(e) => handleTaxConfigFieldChange('standardDeduction', e.target.value, true)}
-                  className="w-full p-2 rounded-lg bg-slate-950 border border-slate-700 text-white font-mono font-bold"
+                  className="w-full p-2 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-mono font-bold focus:outline-none focus:ring-1 focus:ring-amber-500"
                 />
               </div>
               <div>
-                <label className="block text-[10.5px] font-bold text-slate-400 mb-0.5">87A Rebate Threshold (₹):</label>
+                <label className="block text-[10.5px] font-bold text-slate-600 dark:text-slate-400 mb-0.5">87A Rebate Threshold (₹):</label>
                 <input
                   type="number"
                   value={activeRegimeConfig.rebateThreshold}
                   onChange={(e) => handleTaxConfigFieldChange('rebateThreshold', e.target.value, true)}
-                  className="w-full p-2 rounded-lg bg-slate-950 border border-slate-700 text-white font-mono font-bold"
+                  className="w-full p-2 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-mono font-bold focus:outline-none focus:ring-1 focus:ring-amber-500"
                 />
               </div>
               <div>
-                <label className="block text-[10.5px] font-bold text-slate-400 mb-0.5">87A Max Rebate (₹):</label>
+                <label className="block text-[10.5px] font-bold text-slate-600 dark:text-slate-400 mb-0.5">87A Max Rebate (₹):</label>
                 <input
                   type="number"
                   value={activeRegimeConfig.rebateMax}
                   onChange={(e) => handleTaxConfigFieldChange('rebateMax', e.target.value, true)}
-                  className="w-full p-2 rounded-lg bg-slate-950 border border-slate-700 text-white font-mono font-bold"
+                  className="w-full p-2 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-mono font-bold focus:outline-none focus:ring-1 focus:ring-amber-500"
                 />
               </div>
               <div>
-                <label className="block text-[10.5px] font-bold text-slate-400 mb-0.5">Health & Edu Cess Rate (%):</label>
+                <label className="block text-[10.5px] font-bold text-slate-600 dark:text-slate-400 mb-0.5">Health & Edu Cess Rate (%):</label>
                 <input
                   type="number"
                   value={taxConfig.cessRate}
                   onChange={(e) => handleTaxConfigFieldChange('cessRate', e.target.value, true)}
-                  className="w-full p-2 rounded-lg bg-slate-950 border border-slate-700 text-white font-mono font-bold"
+                  className="w-full p-2 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-mono font-bold focus:outline-none focus:ring-1 focus:ring-amber-500"
                 />
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-800">
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-200 dark:border-slate-800">
               <button
                 type="button"
                 onClick={() => setShowTaxRules(false)}
-                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs cursor-pointer"
+                className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs cursor-pointer"
               >
                 Cancel
               </button>
