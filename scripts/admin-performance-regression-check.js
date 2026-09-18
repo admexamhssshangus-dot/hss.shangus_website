@@ -120,7 +120,7 @@ forbidMatch(
 );
 requireMatch(
   'src/portal/admin/AdvancedReports.jsx',
-  /filteredStudents\.slice\(0, bulkFormsRenderLimit\)/,
+  /(?:filteredStudents|bulkFormsCandidateStudents)\.slice\(0, bulkFormsRenderLimit\)/,
   'Bulk Forms must render records in bounded batches.'
 );
 requireMatch(

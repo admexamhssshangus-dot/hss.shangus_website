@@ -106,8 +106,12 @@
     <link rel="dns-prefetch" href="https://firestore.googleapis.com" />
     <!-- Preload the hero slide image — the single most impactful LCP resource -->
     <link rel="preload" as="image" href="%PUBLIC_URL%/slides/6.jpg" fetchpriority="high" />
-    <!-- Google Fonts (Plus Jakarta Sans, Inter, Outfit, Playfair Display, Cinzel) -->
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@400;500;600;700;800&family=Playfair+Display:wght@600;700&family=Cinzel:wght@600;700;800&display=swap" />
+    <!-- Google Fonts (Plus Jakarta Sans, Inter, Outfit, Playfair Display, Cinzel) — Asynchronous Non-Render-Blocking -->
+    <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&family=Outfit:wght@500;600;700&family=Playfair+Display:wght@600;700&family=Cinzel:wght@600;700;800&display=swap" />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&family=Outfit:wght@500;600;700&family=Playfair+Display:wght@600;700&family=Cinzel:wght@600;700;800&display=swap" media="print" onload="this.media='all'" />
+    <noscript>
+      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&family=Outfit:wght@500;600;700&family=Playfair+Display:wght@600;700&family=Cinzel:wght@600;700;800&display=swap" />
+    </noscript>
 
     <meta name="application-name" content="HSS Shangus" />
     <meta name="apple-mobile-web-app-title" content="HSS Shangus" />

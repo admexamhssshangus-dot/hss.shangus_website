@@ -6,18 +6,16 @@ import Footer from './components/Footer';
 import ThemeSelector from './components/ThemeSelector';
 import PublicPageSkeleton from './components/PublicPageSkeleton';
 import SEOHead from './components/SEOHead';
-import Home from './pages/Home';
 import GlobalToast from './components/common/GlobalToast';
 import GlobalTooltip from './components/common/GlobalTooltip';
 import { initSecurityGuardrails } from './utils/securityGuardrails';
 import { isBootstrapSuperAdminEmail } from './utils/authRoles';
-import './portal/portal.css';
 import './styles/ui-system.css';
 
-// Core Portal components — statically imported for 100% render reliability & instant navigation
-
+// Lazy-loaded route components with chunk recovery
 import { lazyWithChunkRecovery } from './utils/lazyWithChunkRecovery';
 
+const Home = lazyWithChunkRecovery(() => import('./pages/Home'), 'home');
 const About = lazyWithChunkRecovery(() => import('./pages/About'), 'about');
 const Academics = lazyWithChunkRecovery(() => import('./pages/Academics'), 'academics');
 const Admissions = lazyWithChunkRecovery(() => import('./pages/Admissions'), 'admissions');

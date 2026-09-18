@@ -5,7 +5,7 @@ import { Link } from 'react-router-dom';
 import Slideshow from '../components/Slideshow';
 import SEO from '../components/SEO';
 import { formatTitleWithBrackets } from '../utils/textFormatting';
-import { DEFAULT_HERO_BUTTONS } from '../utils/settingsLoader';
+import { DEFAULT_HERO_BUTTONS, getCachedSiteSettings } from '../utils/settingsLoader';
 
 // Modern Counter Animation Component
 const AnimatedCounter = ({ end, prefix = '', suffix = '' }) => {
@@ -177,7 +177,7 @@ export default function Home() {
       { date: 'Nov 23', title: 'Admit Cards', link: '#' }
     ];
   });
-  const [settings, setSettings] = useState(null);
+  const [settings, setSettings] = useState(getCachedSiteSettings);
   const [tickerPaused, setTickerPaused] = useState(false);
   const [tickerHidden, setTickerHidden] = useState(false);
   const [principalName, setPrincipalName] = useState("Mr. Aijaz Ahmad Wagay");
@@ -219,29 +219,13 @@ export default function Home() {
     const runBackgroundSync = () => {
       if (!active) return;
 
-      // 1. Site Settings
+      // 1. Site Settings (reads fast static CDN json first)
       import('../utils/settingsLoader').then(({ loadSiteSettings }) => {
         if (active) loadSiteSettings().then(setSettings);
       }).catch(() => {});
 
-      // 2. Slideshow updates
+      // 2. Slideshow updates (fast static file first, avoids pulling heavy Firestore SDK)
       (async () => {
-        try {
-          const { db } = await import('../firebase');
-          const { doc, getDoc } = await import('firebase/firestore');
-          const snap = await getDoc(doc(db, 'site', 'slideshow'));
-          if (snap.exists() && active) {
-            const data = snap.data();
-            if (data && Array.isArray(data.items) && data.items.length > 0) {
-              setSlides(data.items);
-              localStorage.setItem('site_slides', JSON.stringify(data.items));
-              return;
-            }
-          }
-        } catch (err) {
-          console.warn('Failed to load slides from Firestore:', err);
-        }
-
         try {
           const res = await fetch('/slides/slides.txt?t=' + Date.now(), { cache: 'no-cache' });
           if (res.ok && active) {
@@ -261,17 +245,51 @@ export default function Home() {
                 const image = `/slides/${idx + 1}.jpg`;
                 return { image, title, caption };
               });
-              setSlides(mapped);
-              localStorage.setItem('site_slides', JSON.stringify(mapped));
+              if (mapped.length > 0) {
+                setSlides(mapped);
+                localStorage.setItem('site_slides', JSON.stringify(mapped));
+                return;
+              }
             }
           }
         } catch (err) {
           console.warn('Failed to fetch slides.txt fallback:', err);
         }
+
+        try {
+          const { db } = await import('../firebase');
+          const { doc, getDoc } = await import('firebase/firestore');
+          const snap = await getDoc(doc(db, 'site', 'slideshow'));
+          if (snap.exists() && active) {
+            const data = snap.data();
+            if (data && Array.isArray(data.items) && data.items.length > 0) {
+              setSlides(data.items);
+              localStorage.setItem('site_slides', JSON.stringify(data.items));
+            }
+          }
+        } catch (err) {
+          console.warn('Failed to load slides from Firestore:', err);
+        }
       })();
 
-      // 3. Faculty summary
+      // 3. Faculty summary (fast static file first)
       (async () => {
+        try {
+          const res = await fetch('/slides/faculty.json?t=' + Date.now(), { cache: 'no-cache' });
+          if (res.ok && active) {
+            const data = await res.json();
+            if (Array.isArray(data)) {
+              const principal = data.find(f => f.designation?.toLowerCase() === 'principal');
+              if (principal && principal.name) {
+                setPrincipalName(principal.name);
+                return;
+              }
+            }
+          }
+        } catch (err) {
+          console.warn('Failed to fetch faculty.json:', err);
+        }
+
         try {
           const { db } = await import('../firebase');
           const { doc, getDoc } = await import('firebase/firestore');
@@ -279,47 +297,14 @@ export default function Home() {
           const principal = snapshot.data()?.principalName;
           if (typeof principal === 'string' && principal.trim() && active) {
             setPrincipalName(principal.trim());
-            return;
           }
         } catch (err) {
           console.warn('Failed to load faculty from Firestore:', err);
         }
-
-        try {
-          const res = await fetch('/slides/faculty.json?t=' + Date.now(), { cache: 'no-cache' });
-          if (res.ok && active) {
-            const data = await res.json();
-            if (Array.isArray(data)) {
-              const principal = data.find(f => f.designation?.toLowerCase() === 'principal');
-              if (principal) setPrincipalName(principal.name);
-            }
-          }
-        } catch (err) {
-          console.warn('Failed to fetch faculty.json:', err);
-        }
       })();
 
-      // 4. Latest notices
+      // 4. Latest notices (fast static notices.txt first)
       (async () => {
-        try {
-          const { db } = await import('../firebase');
-          const { doc, getDoc } = await import('firebase/firestore');
-          const snap = await getDoc(doc(db, 'site', 'notices'));
-          if (snap.exists() && active) {
-            const data = snap.data();
-            if (data && data.text) {
-              const parsed = parseNotices(data.text);
-              if (parsed.length > 0) {
-                setNotices(parsed);
-                localStorage.setItem('site_notices', data.text);
-                return;
-              }
-            }
-          }
-        } catch (err) {
-          console.warn('Firestore notices fetch failed, checking fallbacks:', err);
-        }
-
         try {
           const res = await fetch('/slides/notices.txt?t=' + Date.now(), { cache: 'no-cache' });
           if (res.ok && active) {
@@ -337,6 +322,25 @@ export default function Home() {
           console.warn('Server notices.txt fetch failed:', err);
         }
 
+        try {
+          const { db } = await import('../firebase');
+          const { doc, getDoc } = await import('firebase/firestore');
+          const snap = await getDoc(doc(db, 'site', 'notices'));
+          if (snap.exists() && active) {
+            const data = snap.data();
+            if (data && data.text) {
+              const parsed = parseNotices(data.text);
+              if (parsed.length > 0) {
+                setNotices(parsed);
+                localStorage.setItem('site_notices', data.text);
+                return;
+              }
+            }
+          }
+        } catch (err) {
+          console.warn('Firestore notices fetch failed:', err);
+        }
+
         const local = localStorage.getItem('site_notices');
         if (local && active) {
           const parsed = parseNotices(local);
@@ -347,10 +351,11 @@ export default function Home() {
       })();
     };
 
+    // Defer background sync until browser is truly idle and initial paint/LCP is complete
     if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
-      idleId = window.requestIdleCallback(runBackgroundSync, { timeout: 2000 });
+      idleId = window.requestIdleCallback(runBackgroundSync, { timeout: 4000 });
     } else if (typeof window !== 'undefined') {
-      timerId = setTimeout(runBackgroundSync, 150);
+      timerId = setTimeout(runBackgroundSync, 2500);
     }
 
     return () => {

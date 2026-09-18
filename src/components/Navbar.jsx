@@ -38,7 +38,13 @@ export default function Navbar() {
   const [isVisible, setIsVisible] = useState(true);
   // Mobile menu open
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [dynamicLinks, setDynamicLinks] = useState([]);
+  const [dynamicLinks, setDynamicLinks] = useState(() => {
+    try {
+      const cached = localStorage.getItem('site_dynamic_pages');
+      if (cached) return JSON.parse(cached);
+    } catch (_) {}
+    return [];
+  });
   const [currentUser, setCurrentUser] = useState(null);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
@@ -142,6 +148,9 @@ export default function Navbar() {
           .filter(p => p.isActive && !p.isSystem)
           .sort((a, b) => (a.order || 0) - (b.order || 0));
         setDynamicLinks(activeCustom);
+        try {
+          localStorage.setItem('site_dynamic_pages', JSON.stringify(activeCustom));
+        } catch (_) {}
       }
     } catch (err) {
       console.warn("Failed to load dynamic pages for navbar:", err);
@@ -149,7 +158,19 @@ export default function Navbar() {
   };
 
   useEffect(() => {
-    loadDynamicPages();
+    let timerId = null;
+    let idleId = null;
+
+    const run = () => {
+      loadDynamicPages();
+    };
+
+    if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+      idleId = window.requestIdleCallback(run, { timeout: 3500 });
+    } else if (typeof window !== 'undefined') {
+      timerId = setTimeout(run, 2000);
+    }
+
     try {
       const channel = new BroadcastChannel('hss_data_sync');
       channel.onmessage = (e) => {
@@ -157,9 +178,20 @@ export default function Navbar() {
           loadDynamicPages();
         }
       };
-      return () => channel.close();
+      return () => {
+        if (idleId && typeof window !== 'undefined' && 'cancelIdleCallback' in window) {
+          window.cancelIdleCallback(idleId);
+        }
+        if (timerId) clearTimeout(timerId);
+        channel.close();
+      };
     } catch (err) {
-      // ignore
+      return () => {
+        if (idleId && typeof window !== 'undefined' && 'cancelIdleCallback' in window) {
+          window.cancelIdleCallback(idleId);
+        }
+        if (timerId) clearTimeout(timerId);
+      };
     }
   }, []);
 
