@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { BookOpen, X, Mail, Info, Lock, Unlock, Code, Terminal, Sparkles, Cpu, GraduationCap, Plane, Wallet, Zap, Globe, ExternalLink, ShieldCheck, MapPin, Layers, Building2, FileText, RefreshCw } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { loadSiteSettings, DEFAULT_SETTINGS } from '../utils/settingsLoader';
+import { loadSiteSettings, DEFAULT_SETTINGS, getCachedSiteSettings } from '../utils/settingsLoader';
 
 
 // Social Media Custom SVG Icons (since brand icons are not exported in this Lucide version)
@@ -54,11 +54,22 @@ export default function Footer() {
   // This state controls which popup is open ('privacy', 'terms', or null for closed)
   const [activeModal, setActiveModal] = useState(null);
   // Contact form state is handled by ContactForm component
-  const [settings, setSettings] = useState(DEFAULT_SETTINGS);
+  const [settings, setSettings] = useState(getCachedSiteSettings);
   const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
-    loadSiteSettings().then(setSettings);
+    let timerId = null;
+    let idleId = null;
+
+    const runSync = () => {
+      loadSiteSettings().then(setSettings);
+    };
+
+    if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+      idleId = window.requestIdleCallback(runSync, { timeout: 4000 });
+    } else if (typeof window !== 'undefined') {
+      timerId = setTimeout(runSync, 2500);
+    }
 
     const checkAdmin = () => {
       const isAuth = sessionStorage.getItem('isAdminAuthenticated') === 'true' || localStorage.getItem('hss_auth_state');
@@ -74,10 +85,19 @@ export default function Footer() {
         }
       };
       return () => {
+        if (idleId && typeof window !== 'undefined' && 'cancelIdleCallback' in window) {
+          window.cancelIdleCallback(idleId);
+        }
+        if (timerId) clearTimeout(timerId);
         channel.close();
       };
     } catch (err) {
-      // ignore
+      return () => {
+        if (idleId && typeof window !== 'undefined' && 'cancelIdleCallback' in window) {
+          window.cancelIdleCallback(idleId);
+        }
+        if (timerId) clearTimeout(timerId);
+      };
     }
   }, []);
 

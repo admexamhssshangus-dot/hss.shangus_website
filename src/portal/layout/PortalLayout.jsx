@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { sessionManager } from '../../services/sessionManager';
 import ModernLoader from '../../components/ModernLoader';
+import '../portal.css';
 
 import { auth } from '../../services/firebase';
 import { getIdTokenResult, onAuthStateChanged, signOut } from 'firebase/auth';

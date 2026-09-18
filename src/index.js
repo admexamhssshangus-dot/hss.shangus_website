@@ -85,7 +85,8 @@ if (typeof window !== 'undefined') {
     return origConsoleError.apply(console, args);
   };
 
-  if (typeof MutationObserver !== 'undefined') {
+  // Dev-only overlay cleanup for transient React Refresh overlays
+  if (typeof MutationObserver !== 'undefined' && process.env.NODE_ENV !== 'production') {
     const overlayObserver = new MutationObserver((mutations) => {
       for (const m of mutations) {
         for (const node of m.addedNodes) {

@@ -223,8 +223,44 @@ export function getCachedSiteSettings() {
   return DEFAULT_SETTINGS;
 }
 
-export async function loadSiteSettings() {
-  // 1. Primary: Always fetch fresh live settings directly from Firebase Firestore
+export async function loadSiteSettings({ forceFirestore = false } = {}) {
+  // 1. Instant Cache: Return cached settings if available to ensure 0ms main thread delay
+  if (!forceFirestore) {
+    try {
+      const local = localStorage.getItem('site_settings');
+      if (local) {
+        const cached = mergeSiteSettings(JSON.parse(local));
+        // Refresh silently from static CDN JSON in the background without loading heavy Firestore SDK
+        fetch('/slides/settings.json?t=' + Date.now(), { cache: 'no-cache' })
+          .then((res) => (res.ok ? res.json() : null))
+          .then((data) => {
+            if (data) {
+              const fresh = mergeSiteSettings(data);
+              try { localStorage.setItem('site_settings', JSON.stringify(fresh)); } catch (_) {}
+            }
+          })
+          .catch(() => {});
+        return cached;
+      }
+    } catch (e) {
+      console.warn('Error reading cached site_settings:', e);
+    }
+
+    // 2. Fast Static JSON Fallback: Avoid importing Firebase on public page visits
+    try {
+      const res = await fetch('/slides/settings.json?t=' + Date.now(), { cache: 'no-cache' });
+      if (res.ok) {
+        const data = await res.json();
+        const merged = mergeSiteSettings(data);
+        try { localStorage.setItem('site_settings', JSON.stringify(merged)); } catch (_) {}
+        return merged;
+      }
+    } catch (e) {
+      console.warn('Could not load settings.json static fallback:', e);
+    }
+  }
+
+  // 3. Firestore (used when forceFirestore=true e.g. in AdminPortal or when static fallback unavailable)
   try {
     const { db } = await import('../firebase');
     const { doc, getDoc } = await import('firebase/firestore');
@@ -237,30 +273,7 @@ export async function loadSiteSettings() {
       return merged;
     }
   } catch (e) {
-    console.warn('Firestore settings fetch error, checking offline fallbacks:', e);
-  }
-
-  // 2. Fallback: Local storage cache (only when Firebase is unreachable/offline)
-  try {
-    const local = localStorage.getItem('site_settings');
-    if (local) {
-      return mergeSiteSettings(JSON.parse(local));
-    }
-  } catch (e) {
-    console.warn('Error reading fallback from localStorage:', e);
-  }
-
-  // 3. Fallback: Static settings.json with cache buster
-  try {
-    const res = await fetch('/slides/settings.json?t=' + Date.now(), { cache: 'no-cache' });
-    if (res.ok) {
-      const data = await res.json();
-      const merged = mergeSiteSettings(data);
-      try { localStorage.setItem('site_settings', JSON.stringify(merged)); } catch (_) {}
-      return merged;
-    }
-  } catch (e) {
-    console.warn('Could not load settings.json fallback:', e);
+    console.warn('Firestore settings fetch error:', e);
   }
 
   return DEFAULT_SETTINGS;

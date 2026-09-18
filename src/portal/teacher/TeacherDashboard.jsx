@@ -8,7 +8,7 @@ import SEO from '../../components/SEO';
 import LogoutConfirmModal from '../components/LogoutConfirmModal';
 import { getCachedCollection, invalidateCollectionCache } from '../../services/dbCache';
 import { db } from '../../services/firebase';
-import { collection, getDocs } from 'firebase/firestore';
+import { collection, getDocs, getCountFromServer } from 'firebase/firestore';
 
 export default function TeacherDashboard() {
   const { user, onLogout } = useOutletContext();
@@ -16,6 +16,22 @@ export default function TeacherDashboard() {
 
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const handleLogoutRequest = () => setShowLogoutConfirm(true);
+
+  // Server-side practical count (0 docs downloaded)
+  const [practicalCount, setPracticalCount] = useState(null);
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const countSnap = await getCountFromServer(collection(db, 'practicalsData'));
+        if (active && countSnap?.data) {
+          setPracticalCount(countSnap.data().count || 0);
+        }
+      } catch (_) {}
+    })();
+    return () => { active = false; };
+  }, []);
 
   // Submission History Modal State
   const [showHistoryModal, setShowHistoryModal] = useState(false);
@@ -261,7 +277,7 @@ export default function TeacherDashboard() {
                 title="Click to view all practical award submission history & records"
               >
                 <History size={13} className="text-indigo-600 dark:text-indigo-400 group-hover:rotate-[-20deg] transition-transform" />
-                <span className="font-extrabold">Submissions History</span>
+                <span className="font-extrabold">Submissions History{practicalCount !== null ? ` (${practicalCount})` : ''}</span>
               </button>
               <Link
                 to="/portal/teacher/practicals"
