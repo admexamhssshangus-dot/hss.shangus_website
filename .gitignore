@@ -64,3 +64,4 @@ scripts/*.json
 src/data/masterSeedData.json
 desktop.ini
 *.ini
+~$*

@@ -9251,11 +9251,39 @@ function AdminPortalContent({ embeddedUser, onEmbeddedLogout, initialTab }) {
                   <div>
                     <h3 className="text-base font-bold text-slate-200 flex items-center gap-2">
                       <Save className="text-orange-400" size={18} />
-                      Full Database Backup & Restore
+                      Full Database Backup & Disaster Recovery
                     </h3>
                     <p className="text-xs text-slate-400 mt-1">
-                      Download a single unified backup JSON file containing all settings, notices, faculty members, admin accounts, and slideshow configurations. Restore it at any time to recover the full state of the website in Firebase.
+                      Quick configuration backup and disaster recovery. For comprehensive, multi-sheet Microsoft Excel backups covering all student admissions, practicals, faculty, and site settings, use the centralized Administrative Tools Suite.
                     </p>
+                  </div>
+
+                  {/* Centralized Suite Notification Card */}
+                  <div className="mt-4 p-4 rounded-xl bg-gradient-to-r from-amber-950/30 to-teal-950/30 border border-amber-500/30 flex items-center justify-between flex-wrap gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2.5 rounded-xl bg-amber-500/20 text-amber-400 font-black shrink-0">
+                        <FileSpreadsheet size={20} />
+                      </div>
+                      <div>
+                        <div className="text-xs font-black text-slate-100">
+                          Centralized Multi-Sheet Excel & Full Database Backup Suite
+                        </div>
+                        <div className="text-[11px] text-slate-400 font-medium mt-0.5">
+                          The comprehensive database backup suite (covering all students, faculty, circulars, rules, and practicals) is now centralized in:
+                          <span className="block font-mono text-amber-300 font-bold mt-0.5">
+                            Master Register & Reports &rarr; 🛠 Administrative Tools Suite &rarr; 💾 Database Backup & Excel
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => { window.location.href = '/portal/admin?tab=reports'; }}
+                      className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs transition-all flex items-center gap-1.5 cursor-pointer shadow-md shrink-0"
+                    >
+                      <span>Open Master Reports Suite</span>
+                      <ExternalLink size={13} />
+                    </button>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">

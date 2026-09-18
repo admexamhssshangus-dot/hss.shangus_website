@@ -5,8 +5,9 @@ import { RefreshCw, Search, SearchX, Wrench, Columns, Printer, Check, X, Play, C
 import appsScriptApi from '../../services/appsScriptApi';
 import { db, auth, ensureFirestoreConnected } from '../../services/firebase';
 import { sendPasswordResetEmail } from 'firebase/auth';
-import { collection, getDocs, doc, updateDoc, setDoc, deleteDoc, deleteField, writeBatch, query, where } from 'firebase/firestore';
-import { invalidateCache, updateCachedItem, getCachedCollectionSync, getCachedCollection, getMasterRegistersScoped, getPhotoUrlFromCache, preloadStudentPhotosCache, fetchStudentPhotoOnDemand, fetchAllMatchingStudentPhotos, syncStudentPhotoOnRegUpdate, reconcileAllStudentPhotosInDatabase } from '../../services/dbCache';
+import { collection, getDocs, doc, getDoc, updateDoc, setDoc, deleteDoc, deleteField, writeBatch, query, where } from 'firebase/firestore';
+import * as XLSX from 'xlsx';
+import { invalidateCache, updateCachedItem, getCachedCollectionSync, getCachedCollection, getMasterRegistersScoped, getPhotoUrlFromCache, preloadStudentPhotosCache, fetchStudentPhotoOnDemand, fetchAllMatchingStudentPhotos, syncStudentPhotoOnRegUpdate, reconcileAllStudentPhotosInDatabase, loadCentralStudentPhotosFromFirestore } from '../../services/dbCache';
 import { compressImageFile, parsePhotoFilename, getStudentPhotoUrl } from '../../utils/imageCompressor';
 import ApplicationReviewModal from './ApplicationReviewModal';
 import ConfirmDialogModal from '../components/ConfirmDialogModal';
@@ -1262,7 +1263,7 @@ function MoreActionsDropdown({
             className="w-full text-left px-1.5 sm:px-2.5 py-1 sm:py-1.5 rounded-lg sm:rounded-xl hover:bg-teal-50/70 dark:hover:bg-slate-800/70 flex items-center gap-1.5 sm:gap-2 text-teal-600 dark:text-teal-400 font-bold sm:font-extrabold text-[10.5px] sm:text-xs cursor-pointer transition-colors"
           >
             <FileSpreadsheet size={12} className="sm:w-3.5 sm:h-3.5 shrink-0" />
-            <span>Export to Excel / CSV</span>
+            <span>Export to Excel (.xlsx)</span>
           </button>
 
           <button
@@ -7269,6 +7270,425 @@ export default function AdvancedReports({
     skippedCount: 0
   });
 
+  const [photoSyncVersion, setPhotoSyncVersion] = useState(0);
+  const [loadingPhotosFromCloud, setLoadingPhotosFromCloud] = useState(false);
+  const [isExportingDbExcel, setIsExportingDbExcel] = useState(false);
+  const [isExportingDbJson, setIsExportingDbJson] = useState(false);
+  const [isRestoringDb, setIsRestoringDb] = useState(false);
+
+  // Auto-sync photos from Cloud Firestore when Photo Exporter tab is active
+  useEffect(() => {
+    if (showToolsModal && activeToolsTab === 'photo_export') {
+      let isMounted = true;
+      setLoadingPhotosFromCloud(true);
+      loadCentralStudentPhotosFromFirestore()
+        .then(() => {
+          if (isMounted) {
+            setPhotoSyncVersion(v => v + 1);
+            setLoadingPhotosFromCloud(false);
+          }
+        })
+        .catch(err => {
+          console.warn('Could not load central photos from cloud:', err);
+          if (isMounted) setLoadingPhotosFromCloud(false);
+        });
+      return () => { isMounted = false; };
+    }
+  }, [showToolsModal, activeToolsTab]);
+
+  const handleRefreshCloudPhotos = async () => {
+    setLoadingPhotosFromCloud(true);
+    try {
+      await loadCentralStudentPhotosFromFirestore();
+      setPhotoSyncVersion(v => v + 1);
+      showToast('Successfully synchronized all student photos from Cloud Firestore!', 'success');
+    } catch (err) {
+      showToast('Error synchronizing photos from Cloud Firestore.', 'error');
+    } finally {
+      setLoadingPhotosFromCloud(false);
+    }
+  };
+
+  const handleDownloadFullDatabaseExcel = async () => {
+    setIsExportingDbExcel(true);
+    try {
+      showToast('Compiling Full Multi-Sheet Database Backup into Excel (.xlsx)...', 'info');
+
+      // 1. Fetch auxiliary collections from Cloud Firestore
+      let facultyList = [];
+      let noticesList = [];
+      let settingsObj = {};
+      let adminsList = [];
+      let practicalsList = [];
+
+      try {
+        const facSnap = await getDoc(doc(db, 'systemSettings', 'facultyPrivate'));
+        if (facSnap.exists()) {
+          facultyList = facSnap.data()?.members || facSnap.data()?.faculty || [];
+        } else {
+          const facSnap2 = await getDoc(doc(db, 'site', 'faculty'));
+          if (facSnap2.exists()) facultyList = facSnap2.data()?.members || facSnap2.data()?.faculty || [];
+        }
+      } catch (e) {
+        console.warn('Faculty fetch note for backup:', e);
+      }
+
+      try {
+        const notSnap = await getDoc(doc(db, 'site', 'notices'));
+        if (notSnap.exists()) {
+          const nData = notSnap.data();
+          noticesList = Array.isArray(nData?.items) ? nData.items : (Array.isArray(nData?.notices) ? nData.notices : []);
+          if (!noticesList.length && nData?.text) {
+            noticesList = [{ title: 'Main Circular Text', text: nData.text, date: new Date().toISOString() }];
+          }
+        }
+      } catch (e) {
+        console.warn('Notices fetch note for backup:', e);
+      }
+
+      try {
+        const setSnap = await getDoc(doc(db, 'site', 'settings'));
+        if (setSnap.exists()) {
+          settingsObj = setSnap.data() || {};
+        }
+      } catch (e) {
+        console.warn('Settings fetch note for backup:', e);
+      }
+
+      try {
+        const admSnap = await getDoc(doc(db, 'systemSettings', 'adminDirectory'));
+        if (admSnap.exists()) {
+          adminsList = admSnap.data()?.admins || admSnap.data()?.users || [];
+        } else {
+          const admSnap2 = await getDoc(doc(db, 'site', 'admins'));
+          if (admSnap2.exists()) adminsList = admSnap2.data()?.admins || [];
+        }
+      } catch (e) {
+        console.warn('Admins fetch note for backup:', e);
+      }
+
+      try {
+        const pracSnap = await getDocs(collection(db, 'practicalsData'));
+        pracSnap.forEach(d => {
+          const pData = d.data();
+          practicalsList.push({ id: d.id, ...pData });
+        });
+      } catch (e) {
+        console.warn('Practicals fetch note for backup:', e);
+      }
+
+      const cleanVal = (val) => {
+        if (val === undefined || val === null || val === '—' || val === 'N/A' || val === '-' || val === 'null' || val === 'undefined') return '';
+        if (typeof val === 'object') return JSON.stringify(val);
+        return String(val).trim();
+      };
+
+      const autoColWidths = (headers, rows) => {
+        return headers.map((h, colIdx) => {
+          let maxLen = h.length;
+          rows.forEach(row => {
+            const cell = row[colIdx];
+            if (cell) {
+              const len = String(cell).length;
+              if (len > maxLen) maxLen = len;
+            }
+          });
+          return { wch: Math.min(Math.max(maxLen + 3, 10), 45) };
+        });
+      };
+
+      const wb = XLSX.utils.book_new();
+
+      // --- SHEET 1: Student_Admissions ---
+      const studentHeaders = [
+        'S.No.', 'Class Roll No', 'Admission No', 'Form No', 'Class', 'Session',
+        'Board Reg No', "Student's Name", "Father's Name", "Mother's Name",
+        'Aadhaar No', "Father's Aadhaar", 'PEN No', 'Date of Birth', 'Address / Village',
+        'Gender', 'Category', 'Stream', 'Subjects', 'Mobile (Student)', 'Mobile (Parent)',
+        'Admission Date', 'Status'
+      ];
+      const studentRows = (allStudents || []).map((s, idx) => [
+        s.sno || idx + 1,
+        cleanVal(s.classRollNo),
+        cleanVal(s.admNo),
+        cleanVal(s.formNo),
+        cleanVal(s.class),
+        cleanVal(s.session),
+        cleanVal(s.boardRegNo),
+        cleanVal(s.studentName),
+        cleanVal(s.fatherName),
+        cleanVal(s.motherName),
+        cleanVal(s.aadhar),
+        cleanVal(s.fatherAadhar),
+        cleanVal(s.penNo),
+        cleanVal(s.dob),
+        cleanVal(s.village),
+        cleanVal(s.gender),
+        cleanVal(s.category),
+        cleanVal(s.stream),
+        cleanVal(s.subs),
+        cleanVal(s.mobile),
+        cleanVal(s.parentContact),
+        cleanVal(s.admissionDate || s.timestamp || s.created_at),
+        cleanVal(s.status || 'Active')
+      ]);
+      const wsStudents = XLSX.utils.aoa_to_sheet([studentHeaders, ...studentRows]);
+      wsStudents['!cols'] = autoColWidths(studentHeaders, studentRows);
+      XLSX.utils.book_append_sheet(wb, wsStudents, 'Student_Admissions');
+
+      // --- SHEET 2: Faculty_Directory ---
+      const facultyHeaders = ['S.No.', 'Full Name', 'Designation', 'Department / Stream', 'Qualification', 'Phone Number', 'Email Address', 'Status'];
+      const facultyRows = facultyList.map((f, idx) => [
+        idx + 1,
+        cleanVal(f.name || f.fullName),
+        cleanVal(f.designation || f.post),
+        cleanVal(f.department || f.stream || f.subject),
+        cleanVal(f.qualification || f.highestDegree),
+        cleanVal(f.phone || f.mobile || f.contact),
+        cleanVal(f.email),
+        cleanVal(f.status || 'Active')
+      ]);
+      const wsFaculty = XLSX.utils.aoa_to_sheet([facultyHeaders, ...facultyRows]);
+      wsFaculty['!cols'] = autoColWidths(facultyHeaders, facultyRows);
+      XLSX.utils.book_append_sheet(wb, wsFaculty, 'Faculty_Directory');
+
+      // --- SHEET 3: Notices_Circulars ---
+      const noticeHeaders = ['S.No.', 'Title / Subject', 'Category', 'Publication Date', 'Description / Text', 'Attachment URL', 'Status'];
+      const noticeRows = noticesList.map((n, idx) => [
+        idx + 1,
+        cleanVal(n.title || n.subject || 'Circular'),
+        cleanVal(n.category || 'General'),
+        cleanVal(n.date || n.timestamp || ''),
+        cleanVal(n.text || n.description || n.content || ''),
+        cleanVal(n.url || n.link || n.pdfUrl || ''),
+        cleanVal(n.status || (n.archived ? 'Archived' : 'Active'))
+      ]);
+      const wsNotices = XLSX.utils.aoa_to_sheet([noticeHeaders, ...noticeRows]);
+      wsNotices['!cols'] = autoColWidths(noticeHeaders, noticeRows);
+      XLSX.utils.book_append_sheet(wb, wsNotices, 'Notices_Circulars');
+
+      // --- SHEET 4: Site_Settings ---
+      const settingHeaders = ['Configuration Parameter', 'Configured Value'];
+      const settingRows = Object.entries(settingsObj).map(([k, v]) => [
+        cleanVal(k),
+        cleanVal(v)
+      ]);
+      const wsSettings = XLSX.utils.aoa_to_sheet([settingHeaders, ...settingRows]);
+      wsSettings['!cols'] = autoColWidths(settingHeaders, settingRows);
+      XLSX.utils.book_append_sheet(wb, wsSettings, 'Site_Settings');
+
+      // --- SHEET 5: Admin_Accounts ---
+      const adminHeaders = ['S.No.', 'Admin Email', 'Assigned Role', 'Allowed Console Tabs', 'Account Status'];
+      const adminRows = adminsList.map((a, idx) => [
+        idx + 1,
+        cleanVal(a.email || (typeof a === 'string' ? a : '')),
+        cleanVal(a.role || 'Administrator'),
+        cleanVal(Array.isArray(a.tabs) ? a.tabs.join(', ') : (a.allowedTabs || 'All Tabs')),
+        cleanVal(a.status || 'Active')
+      ]);
+      const wsAdmins = XLSX.utils.aoa_to_sheet([adminHeaders, ...adminRows]);
+      wsAdmins['!cols'] = autoColWidths(adminHeaders, adminRows);
+      XLSX.utils.book_append_sheet(wb, wsAdmins, 'Admin_Accounts');
+
+      // --- SHEET 6: Practicals_Awards ---
+      const practicalHeaders = ['S.No.', 'Record ID / Session', 'Class', 'Subject', 'Total Records Enrolled', 'Evaluator Email', 'Last Updated'];
+      const practicalRows = practicalsList.map((p, idx) => [
+        idx + 1,
+        cleanVal(p.id || p.session),
+        cleanVal(p.class || p.className),
+        cleanVal(p.subject || p.subjectName),
+        cleanVal(Array.isArray(p.students) ? p.students.length : (p.count || 0)),
+        cleanVal(p.evaluator || p.teacherEmail || p.updatedBy),
+        cleanVal(p.updatedAt || p.timestamp || '')
+      ]);
+      const wsPracticals = XLSX.utils.aoa_to_sheet([practicalHeaders, ...practicalRows]);
+      wsPracticals['!cols'] = autoColWidths(practicalHeaders, practicalRows);
+      XLSX.utils.book_append_sheet(wb, wsPracticals, 'Practicals_Awards');
+
+      // --- SHEET 7: System_Metadata ---
+      const metaHeaders = ['Audit Attribute', 'System Value'];
+      const metaRows = [
+        ['Institution Name', 'Govt. Higher Secondary School Shangus'],
+        ['Portal System', 'Enterprise School Management & Admission Suite'],
+        ['Export Timestamp', new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })],
+        ['Total Students in Database', String((allStudents || []).length)],
+        ['Total Faculty Members', String(facultyList.length)],
+        ['Total Notices & Circulars', String(noticesList.length)],
+        ['Total Practicals Batches', String(practicalsList.length)],
+        ['Platform Architecture', 'React 19, Cloud Firestore, SheetJS Enterprise Engine'],
+        ['Backup Engine Version', '2026.1 (Multi-Sheet Consolidated XLSX)']
+      ];
+      const wsMeta = XLSX.utils.aoa_to_sheet([metaHeaders, ...metaRows]);
+      wsMeta['!cols'] = autoColWidths(metaHeaders, metaRows);
+      XLSX.utils.book_append_sheet(wb, wsMeta, 'System_Metadata');
+
+      // Write file
+      const dateStr = new Date().toISOString().slice(0, 10);
+      const filename = `HSS_Shangus_Full_Database_Backup_${dateStr}.xlsx`;
+      XLSX.writeFile(wb, filename);
+
+      logAdminActivity('Full Database Backup Exported', `Generated complete multi-sheet Excel backup (${filename}) containing ${(allStudents || []).length} students, ${facultyList.length} faculty, ${noticesList.length} notices, and system settings.`);
+      showToast(`✅ Master Database Backup successfully generated & downloaded (${filename})!`, 'success');
+    } catch (err) {
+      console.error('Database backup error:', err);
+      showToast('Error generating full database backup: ' + (err.message || 'Unknown error'), 'error');
+    } finally {
+      setIsExportingDbExcel(false);
+    }
+  };
+
+  const handleDownloadFullDatabaseJson = async () => {
+    setIsExportingDbJson(true);
+    try {
+      showToast('Compiling Full JSON Disaster Recovery Backup...', 'info');
+
+      let facultyList = [];
+      let noticesList = [];
+      let settingsObj = {};
+      let adminsList = [];
+      let practicalsList = [];
+
+      try {
+        const facSnap = await getDoc(doc(db, 'systemSettings', 'facultyPrivate'));
+        if (facSnap.exists()) facultyList = facSnap.data()?.members || [];
+        else {
+          const facSnap2 = await getDoc(doc(db, 'site', 'faculty'));
+          if (facSnap2.exists()) facultyList = facSnap2.data()?.members || [];
+        }
+      } catch (_) {}
+
+      try {
+        const notSnap = await getDoc(doc(db, 'site', 'notices'));
+        if (notSnap.exists()) noticesList = notSnap.data();
+      } catch (_) {}
+
+      try {
+        const setSnap = await getDoc(doc(db, 'site', 'settings'));
+        if (setSnap.exists()) settingsObj = setSnap.data() || {};
+      } catch (_) {}
+
+      try {
+        const admSnap = await getDoc(doc(db, 'systemSettings', 'adminDirectory'));
+        if (admSnap.exists()) adminsList = admSnap.data()?.admins || [];
+        else {
+          const admSnap2 = await getDoc(doc(db, 'site', 'admins'));
+          if (admSnap2.exists()) adminsList = admSnap2.data()?.admins || [];
+        }
+      } catch (_) {}
+
+      try {
+        const pracSnap = await getDocs(collection(db, 'practicalsData'));
+        pracSnap.forEach(d => practicalsList.push({ id: d.id, ...d.data() }));
+      } catch (_) {}
+
+      const fullBackupPayload = {
+        meta: {
+          institution: 'Govt. Higher Secondary School Shangus',
+          system: 'GHSS Shangus Enterprise Portal',
+          version: '2026.1',
+          exportTimestamp: new Date().toISOString(),
+          totalStudents: (allStudents || []).length
+        },
+        students: allStudents || [],
+        faculty: facultyList,
+        notices: noticesList,
+        settings: settingsObj,
+        admins: adminsList,
+        practicals: practicalsList
+      };
+
+      const dateStr = new Date().toISOString().slice(0, 10);
+      const jsonStr = JSON.stringify(fullBackupPayload, null, 2);
+      const blob = new Blob([jsonStr], { type: 'application/json;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `HSS_Shangus_Disaster_Recovery_Backup_${dateStr}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      logAdminActivity('Full JSON Disaster Recovery Backup', `Exported full database JSON containing ${(allStudents || []).length} students, faculty, notices, and system rules.`);
+      showToast('✅ Full JSON Disaster Recovery Backup downloaded successfully!', 'success');
+    } catch (err) {
+      console.error('JSON backup error:', err);
+      showToast('Failed to export JSON disaster recovery backup.', 'error');
+    } finally {
+      setIsExportingDbJson(false);
+    }
+  };
+
+  const handleRestoreDatabaseJson = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      try {
+        const backupData = JSON.parse(event.target.result);
+        if (!backupData || typeof backupData !== 'object') {
+          throw new Error('Invalid file format. Backup must be a valid JSON object.');
+        }
+
+        const hasStudents = Array.isArray(backupData.students) && backupData.students.length > 0;
+        const hasSettings = backupData.settings && typeof backupData.settings === 'object';
+        const hasFaculty = Array.isArray(backupData.faculty);
+        const hasNotices = Boolean(backupData.notices);
+        const hasAdmins = Array.isArray(backupData.admins);
+
+        if (!hasStudents && !hasSettings && !hasFaculty && !hasNotices && !hasAdmins) {
+          throw new Error('No recognized collections (students, settings, faculty, notices, admins) found in this JSON backup.');
+        }
+
+        setConfirmModalConfig({
+          title: 'Confirm Database Restore',
+          message: `WARNING: You are about to restore data from this JSON backup file.\n\n` +
+            `• Students: ${hasStudents ? `${backupData.students.length} records detected` : 'Not present'}\n` +
+            `• Settings: ${hasSettings ? 'Present' : 'Not present'}\n` +
+            `• Faculty: ${hasFaculty ? `${backupData.faculty.length} records detected` : 'Not present'}\n` +
+            `• Notices: ${hasNotices ? 'Present' : 'Not present'}\n` +
+            `• Admins: ${hasAdmins ? `${backupData.admins.length} records detected` : 'Not present'}\n\n` +
+            `Do you wish to proceed with writing/merging these configurations to Cloud Firestore?`,
+          type: 'warning',
+          confirmText: 'Restore to Cloud',
+          onConfirm: async () => {
+            setConfirmModalConfig(null);
+            setIsRestoringDb(true);
+            try {
+              if (hasSettings) {
+                await setDoc(doc(db, 'site', 'settings'), backupData.settings, { merge: true });
+              }
+              if (hasFaculty) {
+                await setDoc(doc(db, 'systemSettings', 'facultyPrivate'), { members: backupData.faculty }, { merge: true });
+                await setDoc(doc(db, 'site', 'faculty'), { members: backupData.faculty }, { merge: true });
+              }
+              if (hasNotices) {
+                const nPayload = typeof backupData.notices === 'object' ? backupData.notices : { text: String(backupData.notices) };
+                await setDoc(doc(db, 'site', 'notices'), nPayload, { merge: true });
+              }
+              if (hasAdmins) {
+                await setDoc(doc(db, 'systemSettings', 'adminDirectory'), { admins: backupData.admins }, { merge: true });
+              }
+              logAdminActivity('Database Restore Executed', 'Restored database configurations from JSON backup file.');
+              showToast('✅ Database configurations successfully restored to Cloud Firestore!', 'success');
+              loadReportsData();
+            } catch (err) {
+              console.error('Restore error:', err);
+              showToast('Error restoring database: ' + err.message, 'error');
+            } finally {
+              setIsRestoringDb(false);
+            }
+          }
+        });
+      } catch (parseErr) {
+        showToast('Failed to parse backup file: ' + parseErr.message, 'error');
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  };
+
   const handleBackupPdfsToDrive = async () => {
     setIsBackingUpPdfs(true);
     try {
@@ -9690,55 +10110,76 @@ export default function AdvancedReports({
     handleExportCSV();
   };
 
-  // Export Filtered Table to CSV/Excel
-  const handleExportCSV = () => {
+  // Export Filtered Table to Microsoft Excel (.xlsx)
+  const handleExportExcel = () => {
     if (filteredStudents.length === 0) {
       setToast({ message: '⚠️ No student records match current filters to export.', type: 'error' });
       setTimeout(() => setToast(null), 3000);
       return;
     }
-    const headers = ['S.No.', 'Roll No.', 'Adm. No.', 'Form No.', 'Class', 'Session', 'Board Reg. No.', "Student's Name", "Father's Name", "Mother's Name", 'Aadhaar No.', "Father's Aadhaar", 'PEN No.', 'DoB', 'Village/Town', 'Gender', 'Category', 'Stream', 'Subjects', 'Mobile (S)', 'Mobile (P)'];
 
     const cleanVal = (val) => {
       if (!val || val === '—' || val === 'N/A' || val === 'undefined' || val === 'null' || val === '-') return '';
       return String(val).trim();
     };
 
-    const rows = filteredStudents.map(s => [
-      s.sno,
-      `"${cleanVal(s.classRollNo)}"`,
-      `"${cleanVal(s.admNo)}"`,
-      `"${cleanVal(s.formNo)}"`,
-      `"${cleanVal(s.class)}"`,
-      `"${cleanVal(s.session)}"`,
-      `"${cleanVal(s.boardRegNo)}"`,
-      `"${cleanVal(s.studentName)}"`,
-      `"${cleanVal(s.fatherName)}"`,
-      `"${cleanVal(s.motherName)}"`,
-      `"${cleanVal(s.aadhar)}"`,
-      `"${cleanVal(s.fatherAadhar)}"`,
-      `"${cleanVal(s.penNo)}"`,
-      `"${cleanVal(s.dob)}"`,
-      `"${cleanVal(s.village)}"`,
-      `"${cleanVal(s.gender)}"`,
-      `"${cleanVal(s.category)}"`,
-      `"${cleanVal(s.stream)}"`,
-      `"${cleanVal(s.subs)}"`,
-      `"${cleanVal(s.mobile)}"`,
-      `"${cleanVal(s.parentContact)}"`,
+    const headers = [
+      'S.No.', 'Roll No.', 'Adm. No.', 'Form No.', 'Class', 'Session',
+      'Board Reg. No.', "Student's Name", "Father's Name", "Mother's Name",
+      'Aadhaar No.', "Father's Aadhaar", 'PEN No.', 'DoB', 'Village/Town',
+      'Gender', 'Category', 'Stream', 'Subjects', 'Mobile (Student)', 'Mobile (Parent)'
+    ];
+
+    const dataRows = filteredStudents.map((s, idx) => [
+      s.sno || idx + 1,
+      cleanVal(s.classRollNo),
+      cleanVal(s.admNo),
+      cleanVal(s.formNo),
+      cleanVal(s.class),
+      cleanVal(s.session),
+      cleanVal(s.boardRegNo),
+      cleanVal(s.studentName),
+      cleanVal(s.fatherName),
+      cleanVal(s.motherName),
+      cleanVal(s.aadhar),
+      cleanVal(s.fatherAadhar),
+      cleanVal(s.penNo),
+      cleanVal(s.dob),
+      cleanVal(s.village),
+      cleanVal(s.gender),
+      cleanVal(s.category),
+      cleanVal(s.stream),
+      cleanVal(s.subs),
+      cleanVal(s.mobile),
+      cleanVal(s.parentContact),
     ]);
 
-    const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `HSS_Shangus_Master_Register_${new Date().toISOString().slice(0, 10)}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    setToast({ message: `✅ Exported ${filteredStudents.length} student records to CSV/Excel!`, type: 'success' });
+    const worksheet = XLSX.utils.aoa_to_sheet([headers, ...dataRows]);
+
+    // Auto-calculate column widths
+    const colWidths = headers.map((h, colIdx) => {
+      let maxLen = h.length;
+      dataRows.forEach(row => {
+        const cell = row[colIdx];
+        if (cell) {
+          const len = String(cell).length;
+          if (len > maxLen) maxLen = len;
+        }
+      });
+      return { wch: Math.min(Math.max(maxLen + 3, 10), 45) };
+    });
+    worksheet['!cols'] = colWidths;
+
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Master_Register');
+
+    const dateStr = new Date().toISOString().slice(0, 10);
+    XLSX.writeFile(workbook, `HSS_Shangus_Master_Register_${dateStr}.xlsx`);
+
+    setToast({ message: `✅ Exported ${filteredStudents.length} student records to Excel (.xlsx)!`, type: 'success' });
     setTimeout(() => setToast(null), 3500);
   };
+  const handleExportCSV = handleExportExcel;
 
   // Dedicated Print Register Generator with full data rendering
   const handlePrintRegister = () => {
@@ -10086,7 +10527,7 @@ export default function AdvancedReports({
       }
     }
     return { total: photoExportCandidates.length, withPhoto, missingPhoto };
-  }, [photoExportCandidates]);
+  }, [photoExportCandidates, photoSyncVersion]);
 
   // Strict Naming Format requested: class roll no_registration no_name_class_session.ext
   const formatPhotoExportFilename = (student, ext = 'jpg') => {
@@ -10147,6 +10588,22 @@ export default function AdvancedReports({
   };
 
   const handleExportPhotosZip = async () => {
+    setPhotoExporting(true);
+    setPhotoExportProgress({
+      active: true,
+      current: 0,
+      total: photoExportCandidates.length,
+      percent: 0,
+      currentName: 'Syncing all student photos from Cloud Firestore...',
+      successCount: 0,
+      skippedCount: 0
+    });
+
+    try {
+      await loadCentralStudentPhotosFromFirestore();
+      setPhotoSyncVersion(v => v + 1);
+    } catch (_) {}
+
     let targetList = photoExportCandidates;
     if (photoExportOnlyWithPhoto) {
       targetList = targetList.filter(s => {
@@ -10157,10 +10614,11 @@ export default function AdvancedReports({
 
     if (!targetList || targetList.length === 0) {
       showToast('No student photos found matching the selected export parameters.', 'warning');
+      setPhotoExporting(false);
+      setPhotoExportProgress({ active: false, current: 0, total: 0, percent: 0, currentName: '', successCount: 0, skippedCount: 0 });
       return;
     }
 
-    setPhotoExporting(true);
     setPhotoExportProgress({
       active: true,
       current: 0,
@@ -10205,7 +10663,11 @@ export default function AdvancedReports({
         }));
 
         try {
-          const rawPhoto = getStudentPhotoUrl(student);
+          let rawPhoto = getStudentPhotoUrl(student);
+          if (!rawPhoto || typeof rawPhoto !== 'string' || rawPhoto.length < 20 || rawPhoto === '/logo.png') {
+            rawPhoto = await fetchStudentPhotoOnDemand(student);
+          }
+
           if (!rawPhoto || typeof rawPhoto !== 'string' || rawPhoto.length < 20 || rawPhoto === '/logo.png') {
             skippedCount++;
             manifestLines.push(`[SKIPPED - NO PHOTO] Roll: ${sRoll} | Name: ${sName} | Class: ${sClass} | Reg: ${student.boardRegNo || '—'} | Form: #${student.formNo || '—'}`);
@@ -11604,6 +12066,7 @@ export default function AdvancedReports({
                 { id: 'db_editor', label: '🔄 Bulk Class & Session' },
                 { id: 'photo_export', label: '📦 Bulk Photo Exporter (ZIP)' },
                 { id: 'photo_manager', label: '📷 Photo Upload & Sync' },
+                { id: 'db_backup', label: '💾 Database Backup & Excel' },
               ].map(t => (
                 <button
                   key={t.id}
@@ -12514,6 +12977,16 @@ export default function AdvancedReports({
                     </label>
 
                     <div className="flex items-center gap-2 text-[11px] font-black">
+                      <button
+                        type="button"
+                        onClick={handleRefreshCloudPhotos}
+                        disabled={loadingPhotosFromCloud}
+                        className="px-2.5 py-1 rounded-lg bg-amber-100 hover:bg-amber-200 dark:bg-amber-950/80 dark:hover:bg-amber-900 border border-amber-300 dark:border-amber-700 text-amber-900 dark:text-amber-200 flex items-center gap-1 cursor-pointer disabled:opacity-50 transition-all font-bold"
+                        title="Scan & sync all photos from Cloud Firestore studentPhotos collection"
+                      >
+                        <RefreshCw size={11} className={loadingPhotosFromCloud ? 'animate-spin text-amber-600' : ''} />
+                        <span>{loadingPhotosFromCloud ? 'Syncing...' : 'Sync Cloud Photos'}</span>
+                      </button>
                       <span className="px-2 py-0.5 rounded-lg bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
                         Total: {photoExportCandidates.length}
                       </span>
@@ -12795,6 +13268,172 @@ export default function AdvancedReports({
                     </button>
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* Tool Content 4: Database Backup & Excel Suite */}
+            {activeToolsTab === 'db_backup' && (
+              <div className="space-y-4 p-4 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800">
+                <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3 flex-wrap gap-2">
+                  <div>
+                    <div className="font-black text-sm text-slate-900 dark:text-white flex items-center gap-2">
+                      <Database size={18} className="text-amber-600" />
+                      Database Backup & Multi-Sheet Excel Suite
+                    </div>
+                    <div className="text-xs text-slate-500 font-bold">
+                      Export complete, consolidated Excel (.xlsx) workbooks and disaster recovery JSON backups across all website and school collections.
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs font-black">
+                    <span className="px-2.5 py-1 rounded-xl bg-amber-100 dark:bg-amber-950/80 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-700">
+                      Total Students: {allStudents.length}
+                    </span>
+                    <span className="px-2.5 py-1 rounded-xl bg-teal-100 dark:bg-teal-950/80 text-teal-900 dark:text-teal-200 border border-teal-300 dark:border-teal-700">
+                      Filtered: {filteredStudents.length}
+                    </span>
+                  </div>
+                </div>
+
+                {/* 1. Master Multi-Sheet Excel Backup Card */}
+                <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-amber-500/30 dark:border-amber-500/20 shadow-xs space-y-3">
+                  <div className="flex items-start justify-between flex-wrap gap-3">
+                    <div className="flex items-start gap-3">
+                      <div className="p-2.5 rounded-xl bg-teal-100 dark:bg-teal-950/80 text-teal-800 dark:text-teal-300 font-black shrink-0">
+                        <FileSpreadsheet size={20} />
+                      </div>
+                      <div className="space-y-1">
+                        <div className="font-black text-sm text-slate-900 dark:text-white flex items-center gap-2">
+                          Master Multi-Sheet Excel Database Backup (.xlsx)
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-teal-500/15 text-teal-700 dark:text-teal-300 font-extrabold uppercase">
+                            Recommended
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-600 dark:text-slate-400 font-medium leading-relaxed">
+                          Compiles a single, comprehensive Microsoft Excel workbook containing <strong>7 dedicated tabs</strong>:
+                        </p>
+                        <div className="flex flex-wrap gap-1.5 pt-1">
+                          {[
+                            '1. Student_Admissions',
+                            '2. Faculty_Directory',
+                            '3. Notices_Circulars',
+                            '4. Site_Settings',
+                            '5. Admin_Accounts',
+                            '6. Practicals_Awards',
+                            '7. System_Metadata'
+                          ].map(t => (
+                            <span key={t} className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-[10.5px] font-mono font-bold">
+                              {t}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      disabled={isExportingDbExcel}
+                      onClick={handleDownloadFullDatabaseExcel}
+                      className="px-4 py-2.5 rounded-xl bg-teal-700 hover:bg-teal-600 text-white font-black text-xs shadow-md flex items-center gap-2 cursor-pointer disabled:opacity-50 transition-all shrink-0"
+                    >
+                      {isExportingDbExcel ? (
+                        <>
+                          <RefreshCw size={14} className="animate-spin" />
+                          <span>Compiling Multi-Sheet Workbook...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Download size={14} />
+                          <span>Download Master Excel (.xlsx)</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                {/* 2. Filtered Roster Export Card */}
+                <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs space-y-3">
+                  <div className="flex items-center justify-between flex-wrap gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 rounded-xl bg-blue-100 dark:bg-blue-950/80 text-blue-800 dark:text-blue-300 font-black shrink-0">
+                        <FileSpreadsheet size={18} />
+                      </div>
+                      <div>
+                        <div className="font-black text-xs text-slate-900 dark:text-white">
+                          Export Currently Filtered Cohort to Excel (.xlsx)
+                        </div>
+                        <div className="text-[11px] text-slate-500 font-bold">
+                          Exports only the {filteredStudents.length} students currently visible in your active report filter with auto-spaced columns.
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleExportExcel}
+                      className="px-3.5 py-2 rounded-xl bg-blue-700 hover:bg-blue-600 text-white font-black text-xs shadow-xs flex items-center gap-1.5 cursor-pointer transition-all"
+                    >
+                      <Download size={13} />
+                      <span>Export {filteredStudents.length} Filtered Records</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* 3. Disaster Recovery JSON Backup & Restore Card */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {/* JSON Backup */}
+                  <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs space-y-2.5 flex flex-col justify-between">
+                    <div>
+                      <div className="flex items-center gap-2 text-slate-900 dark:text-white font-black text-xs">
+                        <Save size={15} className="text-amber-600" />
+                        <span>Full JSON Disaster Recovery Backup</span>
+                      </div>
+                      <p className="text-[11px] text-slate-500 font-medium leading-relaxed mt-1">
+                        Exports the entire raw Firestore document tree (all students, faculty, circulars, rules, and admin roles) into a machine-readable JSON archive.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      disabled={isExportingDbJson}
+                      onClick={handleDownloadFullDatabaseJson}
+                      className="w-full py-2 rounded-xl bg-amber-700 hover:bg-amber-600 text-white font-black text-xs shadow-xs flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 transition-all"
+                    >
+                      {isExportingDbJson ? (
+                        <>
+                          <RefreshCw size={13} className="animate-spin" />
+                          <span>Generating JSON...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Download size={13} />
+                          <span>Download Full Backup (.json)</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+
+                  {/* JSON Restore */}
+                  <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs space-y-2.5 flex flex-col justify-between">
+                    <div>
+                      <div className="flex items-center gap-2 text-slate-900 dark:text-white font-black text-xs">
+                        <Upload size={15} className="text-rose-600" />
+                        <span>Restore Database from JSON Archive</span>
+                      </div>
+                      <p className="text-[11px] text-slate-500 font-medium leading-relaxed mt-1">
+                        Upload a previously generated full backup JSON file. You will be prompted with a review summary before changes are committed to Firestore.
+                      </p>
+                    </div>
+                    <label className="w-full py-2 rounded-xl bg-slate-850 hover:bg-slate-750 text-slate-200 border border-slate-700 font-black text-xs shadow-xs flex items-center justify-center gap-1.5 cursor-pointer transition-all text-center">
+                      <Upload size={13} />
+                      <span>{isRestoringDb ? 'Restoring to Cloud...' : 'Choose JSON Backup File'}</span>
+                      <input
+                        type="file"
+                        accept=".json"
+                        disabled={isRestoringDb}
+                        onChange={handleRestoreDatabaseJson}
+                        className="hidden"
+                      />
+                    </label>
+                  </div>
+                </div>
               </div>
             )}
           </div>
