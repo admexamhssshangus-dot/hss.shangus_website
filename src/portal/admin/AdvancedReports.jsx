@@ -57,6 +57,26 @@ export function getStudentRollVal(st) {
   return '';
 }
 
+// ─── Global Helper to resolve standardized admission status ('Approved', 'Submitted', 'Provisional', 'Draft', etc.) ───
+export function getStudentEffectiveStatus(st) {
+  if (!st) return 'Submitted';
+  const roll = getStudentRollVal(st);
+  const hasRollNo = roll !== '' && roll !== '—' && roll !== '-' && roll !== 'N/A' && roll !== 'null' && roll !== 'undefined';
+  const raw = String(st.status || st.Status || '').trim();
+  const rawLower = raw.toLowerCase();
+
+  if (hasRollNo || rawLower === 'approved' || rawLower === 'active' || st.isApproved === true) {
+    return 'Approved';
+  }
+  if (rawLower.includes('provisional')) return 'Provisional';
+  if (rawLower.includes('reject') || rawLower.includes('rejt')) return 'Rejected';
+  if (rawLower.includes('draft')) return 'Draft';
+  if (rawLower.includes('pending')) return 'Pending';
+  if (rawLower.includes('cancel')) return 'Cancelled';
+  if (raw) return raw.charAt(0).toUpperCase() + raw.slice(1);
+  return 'Submitted';
+}
+
 // ─── Global Helper to normalize class names to canonical values ('11th', '12th', '10th', '9th') ───
 export function normalizeClassVal(cls) {
   if (!cls) return '';
@@ -872,8 +892,8 @@ function MultiSelectCheckboxDropdown({ label, options = [], selected = [], onCha
     ? `All ${label}`
     : isNoneSelected
       ? `No ${label}`
-      : localSelected.length === 1
-        ? localSelected[0]
+      : localSelected.length <= 2
+        ? localSelected.join(', ')
         : `${label} (${localSelected.length})`;
 
   return (
@@ -881,9 +901,9 @@ function MultiSelectCheckboxDropdown({ label, options = [], selected = [], onCha
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className={`w-full px-2 py-1 rounded-xl text-[11px] sm:text-xs font-black flex items-center justify-between gap-1 transition-all cursor-pointer shadow-sm ${!isAllSelected
-          ? 'bg-amber-700 text-white border border-amber-800'
-          : 'bg-white text-slate-900 dark:bg-slate-900 dark:text-slate-100 border border-slate-300 dark:border-slate-700 hover:border-amber-500 hover:bg-slate-50'
+        className={`w-full p-1.5 rounded-lg text-xs font-bold flex items-center justify-between gap-1 transition-all cursor-pointer shadow-2xs ${!isAllSelected
+          ? 'bg-amber-600 text-white border border-amber-700'
+          : 'bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 border border-slate-300 dark:border-slate-700 hover:border-amber-500'
           }`}
       >
         <span className="truncate flex-1 min-w-0 text-left">{displayText}</span>
@@ -7254,6 +7274,7 @@ export default function AdvancedReports({
   const [bulkPreviewSession, setBulkPreviewSession] = useState('CURRENT_FILTER');
   const [bulkPreviewClass, setBulkPreviewClass] = useState('ALL');
   const [bulkPreviewSearch, setBulkPreviewSearch] = useState('');
+  const [bulkPreviewStatuses, setBulkPreviewStatuses] = useState(() => []);
   const [quickEditStudent, setQuickEditStudent] = useState(null);
   const [quickEditSaving, setQuickEditSaving] = useState(false);
   const [toolExecuting, setToolExecuting] = useState(false);
@@ -7266,10 +7287,11 @@ export default function AdvancedReports({
   const [reconcileProgress, setReconcileProgress] = useState({ active: false, current: 0, total: 0, percent: 0, stats: null });
   const [isBackingUpPdfs, setIsBackingUpPdfs] = useState(false);
 
-  // Photo Exporter States (Session / Class / Roll No Range / Selected)
+  // Photo Exporter States (Session / Class / Stream / Status / Roll No Range / Selected)
   const [photoExportSelectedSessions, setPhotoExportSelectedSessions] = useState(() => new Set(['2025-26']));
   const [photoExportClass, setPhotoExportClass] = useState('ALL');
   const [photoExportStream, setPhotoExportStream] = useState('ALL');
+  const [photoExportSelectedStatuses, setPhotoExportSelectedStatuses] = useState(() => ['Approved', 'Submitted']);
   const [photoExportMode, setPhotoExportMode] = useState('all_filtered'); // 'all_filtered' | 'roll_range' | 'selected_table'
   const [photoExportRollStart, setPhotoExportRollStart] = useState('');
   const [photoExportRollEnd, setPhotoExportRollEnd] = useState('');
@@ -7295,6 +7317,7 @@ export default function AdvancedReports({
   const [masterExportSelectedSessions, setMasterExportSelectedSessions] = useState(() => new Set(['2025-26']));
   const [masterExportClass, setMasterExportClass] = useState('ALL');
   const [masterExportStream, setMasterExportStream] = useState('ALL');
+  const [masterExportSelectedStatuses, setMasterExportSelectedStatuses] = useState(() => ['Approved', 'Submitted']);
   const [isExportingMasterRegister, setIsExportingMasterRegister] = useState(false);
 
   // Auto-sync photos from Cloud Firestore when Photo Exporter tab is active
@@ -7841,6 +7864,12 @@ export default function AdvancedReports({
         }
         if (masterExportStream !== 'ALL') {
           if (String(s.stream || '').trim().toLowerCase() !== String(masterExportStream).trim().toLowerCase()) return false;
+        }
+        if (masterExportSelectedStatuses && masterExportSelectedStatuses.length > 0) {
+          if (masterExportSelectedStatuses.includes('__NONE__')) return false;
+          const normStatuses = new Set(masterExportSelectedStatuses.map(st => String(st).trim().toLowerCase()));
+          const eff = getStudentEffectiveStatus(s).toLowerCase();
+          if (!normStatuses.has(eff)) return false;
         }
         return true;
       });
@@ -9457,7 +9486,8 @@ export default function AdvancedReports({
     const genderSet = new Set();
     const streamSet = new Set();
     const categorySet = new Set();
-    const statusSet = new Set();
+    const canonicalStatuses = ['Approved', 'Submitted', 'Provisional', 'Pending', 'Draft', 'Rejected'];
+    const statusSet = new Set(canonicalStatuses);
     let maxAdmNo = 0;
 
     for (let i = 0; i < allStudents.length; i++) {
@@ -9467,7 +9497,8 @@ export default function AdvancedReports({
       if (s.gender && s.gender !== '—') genderSet.add(s.gender);
       if (s.stream && s.stream !== '—') streamSet.add(s.stream);
       if (s.category && s.category !== '—') categorySet.add(s.category);
-      if (s.status && s.status !== '—') statusSet.add(s.status);
+      const eff = getStudentEffectiveStatus(s);
+      if (eff) statusSet.add(eff);
 
       if (s._admNum && s._admNum !== Infinity && s._admNum > maxAdmNo && s._admNum < 100000) {
         maxAdmNo = s._admNum;
@@ -9483,13 +9514,21 @@ export default function AdvancedReports({
       return b.localeCompare(a, undefined, { numeric: true });
     });
 
+    const statusPriority = { 'Approved': 1, 'Submitted': 2, 'Provisional': 3, 'Pending': 4, 'Draft': 5, 'Rejected': 6, 'Cancelled': 7 };
+    const sortedStatuses = Array.from(statusSet).sort((a, b) => {
+      const pA = statusPriority[a] || 99;
+      const pB = statusPriority[b] || 99;
+      if (pA !== pB) return pA - pB;
+      return a.localeCompare(b);
+    });
+
     return {
       availableSessions: sessList,
       availableClasses: Array.from(classSet).sort(),
       availableGenders: Array.from(genderSet).sort(),
       availableStreams: Array.from(streamSet).sort(),
       availableCategories: Array.from(categorySet).sort(),
-      availableStatuses: Array.from(statusSet).sort(),
+      availableStatuses: sortedStatuses,
       calculatedNextAdmNo: maxAdmNo > 0 ? String(maxAdmNo + 1) : '5476'
     };
   }, [allStudents]);
@@ -9640,26 +9679,11 @@ export default function AdvancedReports({
       if (!sel || sel.length === 0) return true;
       if (sel.includes('__NONE__')) return false;
 
-      const roll = String(s.classRollNo || s['Class Roll No'] || s.rollNo || '').trim();
-      const hasRollNo = roll !== '' && roll !== '—' && roll !== '-' && roll !== 'N/A' && roll !== 'null' && roll !== 'undefined';
-      const rawStat = String(s.status || s.Status || '').trim().toLowerCase();
-
-      let effStatus = 'Submitted';
-      if (hasRollNo) {
-        effStatus = 'Approved';
-      } else if (rawStat.includes('reject') || rawStat.includes('rejt')) {
-        effStatus = 'Rejected';
-      } else if (rawStat.includes('draft')) {
-        effStatus = 'Draft';
-      }
+      const eff = getStudentEffectiveStatus(s).toLowerCase();
 
       return sel.some(item => {
         const strItem = String(item ?? '').trim().toLowerCase();
-        if (strItem === 'approved') return effStatus === 'Approved';
-        if (strItem === 'submitted') return effStatus === 'Submitted';
-        if (strItem === 'draft') return effStatus === 'Draft';
-        if (strItem === 'rejected') return effStatus === 'Rejected';
-        return strItem === effStatus.toLowerCase();
+        return strItem === eff;
       });
     };
 
@@ -10026,6 +10050,15 @@ export default function AdvancedReports({
       pool = pool.filter(s => String(s.class || '').trim().toLowerCase() === matchCls);
     }
 
+    if (bulkPreviewStatuses && bulkPreviewStatuses.length > 0) {
+      if (bulkPreviewStatuses.includes('__NONE__')) {
+        pool = [];
+      } else {
+        const normStatus = new Set(bulkPreviewStatuses.map(st => String(st).trim().toLowerCase()));
+        pool = pool.filter(s => normStatus.has(getStudentEffectiveStatus(s).toLowerCase()));
+      }
+    }
+
     if (bulkPreviewSearch && bulkPreviewSearch.trim()) {
       const q = bulkPreviewSearch.trim().toLowerCase();
       pool = pool.filter(s => {
@@ -10040,7 +10073,7 @@ export default function AdvancedReports({
     }
 
     return pool;
-  }, [bulkPreviewSession, bulkPreviewClass, bulkPreviewSearch, filteredStudents, allStudents]);
+  }, [bulkPreviewSession, bulkPreviewClass, bulkPreviewStatuses, bulkPreviewSearch, filteredStudents, allStudents]);
 
   // Synchronize selection checkboxes whenever bulk candidate pool changes
   useEffect(() => {
@@ -10898,7 +10931,20 @@ export default function AdvancedReports({
       list = list.filter(s => String(s.stream || '').trim().toLowerCase() === stLower);
     }
 
-    // 4. Target Mode Filter
+    // 4. Admission Status Filter (Multi-select)
+    if (photoExportSelectedStatuses && photoExportSelectedStatuses.length > 0) {
+      if (photoExportSelectedStatuses.includes('__NONE__')) {
+        list = [];
+      } else {
+        const normStatuses = new Set(photoExportSelectedStatuses.map(st => String(st).trim().toLowerCase()));
+        list = list.filter(s => {
+          const eff = getStudentEffectiveStatus(s).toLowerCase();
+          return normStatuses.has(eff);
+        });
+      }
+    }
+
+    // 5. Target Mode Filter
     if (photoExportMode === 'selected_table') {
       const activeSelected = selectedBulkFormIds.size > 0 ? selectedBulkFormIds : selectedTableDocIds;
       if (activeSelected.size > 0) {
@@ -10909,7 +10955,7 @@ export default function AdvancedReports({
       const maxRoll = parseInt(photoExportRollEnd, 10);
       if (!isNaN(minRoll) || !isNaN(maxRoll)) {
         list = list.filter(s => {
-          const rawRoll = String(s.classRollNo || s['Class Roll No'] || s['Class Roll No.'] || s.rollNo || '').trim();
+          const rawRoll = getStudentRollVal(s);
           const rNum = parseInt(rawRoll.replace(/\D/g, ''), 10);
           if (isNaN(rNum)) return false;
           if (!isNaN(minRoll) && rNum < minRoll) return false;
@@ -10929,15 +10975,15 @@ export default function AdvancedReports({
       const sessB = String(b.session || '');
       if (sessA !== sessB) return sessA.localeCompare(sessB);
 
-      const rA = parseInt(String(a.classRollNo || a.rollNo || '0').replace(/\D/g, ''), 10) || 0;
-      const rB = parseInt(String(b.classRollNo || b.rollNo || '0').replace(/\D/g, ''), 10) || 0;
+      const rA = parseInt(String(getStudentRollVal(a) || '0').replace(/\D/g, ''), 10) || 0;
+      const rB = parseInt(String(getStudentRollVal(b) || '0').replace(/\D/g, ''), 10) || 0;
       if (rA !== rB) return rA - rB;
 
       const fA = parseInt(String(a.formNo || '0').replace(/\D/g, ''), 10) || 0;
       const fB = parseInt(String(b.formNo || '0').replace(/\D/g, ''), 10) || 0;
       return fA - fB;
     });
-  }, [allStudents, photoExportSelectedSessions, photoExportClass, photoExportStream, photoExportMode, photoExportRollStart, photoExportRollEnd, selectedBulkFormIds, selectedTableDocIds]);
+  }, [allStudents, photoExportSelectedSessions, photoExportClass, photoExportStream, photoExportSelectedStatuses, photoExportMode, photoExportRollStart, photoExportRollEnd, selectedBulkFormIds, selectedTableDocIds]);
 
   const photoExportStats = useMemo(() => {
     let withPhoto = 0;
@@ -10953,7 +10999,7 @@ export default function AdvancedReports({
     return { total: photoExportCandidates.length, withPhoto, missingPhoto };
   }, [photoExportCandidates, photoSyncVersion]);
 
-  // Strict Naming Format requested: class roll no_registration no_name_class_session.ext
+  // Strict Naming Format: <ClassRollNo>_<RegistrationNo>_<StudentName>_<Class>_<Session>.ext
   const formatPhotoExportFilename = (student, ext = 'jpg') => {
     const cleanSegment = (val, fallback) => {
       if (!val) return fallback;
@@ -10965,17 +11011,9 @@ export default function AdvancedReports({
       return (s && s !== '—' && s !== 'N/A' && s !== 'null' && s !== 'undefined' && s !== '-') ? s : fallback;
     };
 
-    const roll = cleanSegment(
-      student.classRollNo || 
-      student['Class Roll No'] || 
-      student['Class Roll No.'] || 
-      student.rollNo || 
-      student['RL. NO.'] || 
-      student['RL. NO'], 
-      'NoRoll'
-    );
-
+    const roll = cleanSegment(getStudentRollVal(student), 'NoRoll');
     const reg = cleanSegment(
+      extractRegNoClean(student) || 
       student.boardRegNo || 
       student['Board Registration Number'] || 
       student['Board Registration No.'] || 
@@ -10984,29 +11022,9 @@ export default function AdvancedReports({
       student.registrationNo, 
       'NoReg'
     );
-
-    const name = cleanSegment(
-      student.studentName || 
-      student["Student's Name (as per school records)"] || 
-      student["Student's Name"] || 
-      student['Student Name'] || 
-      student.name, 
-      'Student'
-    );
-
-    const cls = cleanSegment(
-      student.class || 
-      student.Class || 
-      student['Admission sought for class'], 
-      'Class'
-    );
-
-    const session = cleanSegment(
-      student.session || 
-      student.Session || 
-      student['Academic Session'], 
-      'Session'
-    );
+    const name = cleanSegment(getStudentName(student), 'Student');
+    const cls = cleanSegment(normalizeClassVal(student.class || student.Class || student['Admission sought for class']), 'Class');
+    const session = cleanSegment(student.session || student.Session || student['Academic Session'], 'Session');
 
     return `${roll}_${reg}_${name}_${cls}_${session}.${ext}`;
   };
@@ -12530,55 +12548,55 @@ export default function AdvancedReports({
 
             {/* Tool Content 0: Bulk Forms Generator */}
             {activeToolsTab === 'bulk_forms' && (
-              <div className="space-y-4 p-4 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800">
-                <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3 flex-wrap gap-2">
+              <div className="space-y-2.5 p-2.5 sm:p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800">
+                <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2 flex-wrap gap-2">
                   <div>
-                    <div className="font-black text-sm text-slate-900 dark:text-white flex items-center gap-2">
-                      <Printer size={18} className="text-amber-600" />
+                    <div className="font-black text-xs sm:text-sm text-slate-900 dark:text-white flex items-center gap-1.5">
+                      <Printer size={15} className="text-amber-600" />
                       Bulk Official Form Generator & Section Configurator
                     </div>
-                    <p className="text-slate-600 dark:text-slate-400 text-xs font-bold mt-0.5">
+                    <p className="text-slate-600 dark:text-slate-400 text-[10.5px] font-medium mt-0.5">
                       Select target student applications and configure form sections (Admission Form, Library Form, Anti-Drug Undertaking) for bulk printing.
                     </p>
                   </div>
-                  <div className="px-3 py-1 rounded-xl bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 text-xs font-black border border-amber-300 dark:border-amber-700">
+                  <div className="px-2.5 py-0.5 rounded-lg bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 text-xs font-black border border-amber-300 dark:border-amber-700">
                     {selectedFilteredBulkFormCount} Selected / {filteredStudents.length} Filtered
                   </div>
                 </div>
 
                 {/* Section Configurator (Super Admin / Admin Control) */}
-                <div className="p-3.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-2">
-                  <div className="text-xs font-black text-slate-900 dark:text-white flex items-center gap-2">
-                    <Settings size={14} className="text-indigo-600" />
-                    <span>Super Admin Form Section Selector (Toggle pages to generate):</span>
+                <div className="p-2 sm:p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-1.5 shadow-2xs">
+                  <div className="text-[11px] font-black text-slate-900 dark:text-white flex items-center gap-1.5">
+                    <Settings size={13} className="text-indigo-600" />
+                    <span>Form Sections to Generate:</span>
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1 text-xs font-bold text-slate-800 dark:text-slate-200">
-                    <label className="flex items-center gap-2 p-2 rounded-lg bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 cursor-pointer">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-0.5 text-xs font-bold text-slate-800 dark:text-slate-200">
+                    <label className="flex items-center gap-1.5 p-1.5 rounded-lg bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 cursor-pointer text-[11px]">
                       <input
                         type="checkbox"
                         checked={printSections.includeAdmissionForm}
                         onChange={(e) => setPrintSections(prev => ({ ...prev, includeAdmissionForm: e.target.checked }))}
-                        className="w-4 h-4 accent-amber-600 rounded cursor-pointer"
+                        className="w-3.5 h-3.5 accent-amber-600 rounded cursor-pointer"
                       />
                       <span>📋 Admission Form (Pages 1 & 2)</span>
                     </label>
 
-                    <label className="flex items-center gap-2 p-2 rounded-lg bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 cursor-pointer">
+                    <label className="flex items-center gap-1.5 p-1.5 rounded-lg bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 cursor-pointer text-[11px]">
                       <input
                         type="checkbox"
                         checked={printSections.includeLibraryForm}
                         onChange={(e) => setPrintSections(prev => ({ ...prev, includeLibraryForm: e.target.checked }))}
-                        className="w-4 h-4 accent-amber-600 rounded cursor-pointer"
+                        className="w-3.5 h-3.5 accent-amber-600 rounded cursor-pointer"
                       />
                       <span>📚 Library Form (Page 3)</span>
                     </label>
 
-                    <label className="flex items-center gap-2 p-2 rounded-lg bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 cursor-pointer">
+                    <label className="flex items-center gap-1.5 p-1.5 rounded-lg bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 cursor-pointer text-[11px]">
                       <input
                         type="checkbox"
                         checked={printSections.includeConductDeclaration}
                         onChange={(e) => setPrintSections(prev => ({ ...prev, includeConductDeclaration: e.target.checked }))}
-                        className="w-4 h-4 accent-amber-600 rounded cursor-pointer"
+                        className="w-3.5 h-3.5 accent-amber-600 rounded cursor-pointer"
                       />
                       <span>📜 Conduct & Anti-Drug (Page 4)</span>
                     </label>
@@ -12586,19 +12604,19 @@ export default function AdvancedReports({
                 </div>
 
                 {/* Selection Action Toolbar */}
-                <div className="flex items-center justify-between gap-2 flex-wrap text-xs">
-                  <div className="flex items-center gap-2">
+                <div className="flex items-center justify-between gap-1.5 flex-wrap text-xs">
+                  <div className="flex items-center gap-1.5">
                     <button
                       type="button"
                       onClick={() => setSelectedBulkFormIds(new Set(filteredStudents.map(s => s.id || s.formNo || s['Form Number'])))}
-                      className="px-3 py-1.5 rounded-xl bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-extrabold cursor-pointer"
+                      className="px-2.5 py-1 rounded-lg bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-black cursor-pointer text-[11px]"
                     >
                       Select All Filtered ({filteredStudents.length})
                     </button>
                     <button
                       type="button"
                       onClick={() => setSelectedBulkFormIds(new Set())}
-                      className="px-3 py-1.5 rounded-xl bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400 font-extrabold cursor-pointer"
+                      className="px-2.5 py-1 rounded-lg bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400 font-black cursor-pointer text-[11px]"
                     >
                       Deselect All
                     </button>
@@ -12716,84 +12734,95 @@ export default function AdvancedReports({
 
             {/* Tool Content 3: Bulk Class & Session Updater */}
             {activeToolsTab === 'db_editor' && (
-              <div className="space-y-4 p-4 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800">
-                <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3 flex-wrap gap-2">
+              <div className="space-y-2.5 p-2.5 sm:p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800">
+                <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2 flex-wrap gap-2">
                   <div>
-                    <div className="font-black text-sm text-slate-900 dark:text-white flex items-center gap-2">
-                      <RefreshCw size={18} className="text-amber-600" />
+                    <div className="font-black text-xs sm:text-sm text-slate-900 dark:text-white flex items-center gap-1.5">
+                      <RefreshCw size={15} className="text-amber-600" />
                       Bulk Class, Academic Session & Stream Updater
                     </div>
-                    <p className="text-slate-600 dark:text-slate-400 text-xs font-bold mt-0.5">
+                    <p className="text-slate-600 dark:text-slate-400 text-[10.5px] font-medium mt-0.5">
                       Preview any academic session, select individual or all applications, and batch update or edit individual records.
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
-                    <div className="px-3 py-1 rounded-xl bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 text-xs font-black border border-amber-300 dark:border-amber-700 shadow-2xs">
+                    <div className="px-2.5 py-0.5 rounded-lg bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 text-xs font-black border border-amber-300 dark:border-amber-700 shadow-2xs">
                       {selectedBulkFormIds.size} of {bulkCandidateStudents.length} Selected
                     </div>
                   </div>
                 </div>
 
                 {/* ─── 1. SESSION & CLASS PREVIEW TOOLBAR ─── */}
-                <div className="p-3 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-2.5 shadow-2xs">
+                <div className="p-2.5 sm:p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-2 shadow-2xs">
                   <div className="text-[11px] font-black text-amber-700 dark:text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
                     <span>🔍</span>
                     <span>1. Preview Session & Filter Candidate Students:</span>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2 text-xs">
                     {/* Session Selector */}
                     <div>
-                      <label className="block text-[10px] font-black text-slate-600 dark:text-slate-400 mb-1">
+                      <label className="block text-[10px] font-black text-slate-600 dark:text-slate-400 mb-0.5">
                         Academic Session Preview:
                       </label>
                       <select
                         value={bulkPreviewSession}
                         onChange={(e) => setBulkPreviewSession(e.target.value)}
-                        className="w-full p-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 font-bold bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-amber-500"
+                        className="w-full p-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-700 font-bold bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-amber-500"
                       >
-                        <option value="CURRENT_FILTER">Current Table Filter ({filteredStudents.length} Students)</option>
+                        <option value="CURRENT_FILTER">Current Table Filter ({filteredStudents.length})</option>
                         {availableSessions.map(sess => (
                           <option key={sess} value={sess}>Session: {sess}</option>
                         ))}
-                        <option value="ALL">All School History ({allStudents.length} Students)</option>
+                        <option value="ALL">All School History ({allStudents.length})</option>
                       </select>
                     </div>
 
                     {/* Class Selector */}
                     <div>
-                      <label className="block text-[10px] font-black text-slate-600 dark:text-slate-400 mb-1">
+                      <label className="block text-[10px] font-black text-slate-600 dark:text-slate-400 mb-0.5">
                         Class Scope:
                       </label>
                       <select
                         value={bulkPreviewClass}
                         onChange={(e) => setBulkPreviewClass(e.target.value)}
-                        className="w-full p-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 font-bold bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-amber-500"
+                        className="w-full p-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-700 font-bold bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-amber-500"
                       >
                         <option value="ALL">All Classes</option>
-                        <option value="9th">9th</option>
-                        <option value="10th">10th</option>
                         <option value="11th">11th</option>
                         <option value="12th">12th</option>
-                        <option value="6th">6th</option>
-                        <option value="7th">7th</option>
-                        <option value="8th">8th</option>
+                        <option value="10th">10th</option>
+                        <option value="9th">9th</option>
                       </select>
+                    </div>
+
+                    {/* Status Multi-Select Filter */}
+                    <div>
+                      <label className="block text-[10px] font-black text-slate-600 dark:text-slate-400 mb-0.5">
+                        Admission Status:
+                      </label>
+                      <MultiSelectCheckboxDropdown
+                        label="Status"
+                        options={availableStatuses}
+                        selected={bulkPreviewStatuses}
+                        onChange={(val) => setBulkPreviewStatuses(val)}
+                        align="left"
+                      />
                     </div>
 
                     {/* Quick Search within Candidate Pool */}
                     <div>
-                      <label className="block text-[10px] font-black text-slate-600 dark:text-slate-400 mb-1">
+                      <label className="block text-[10px] font-black text-slate-600 dark:text-slate-400 mb-0.5">
                         Quick Filter:
                       </label>
                       <div className="relative">
-                        <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                        <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                         <input
                           type="text"
                           placeholder="Search name, roll, form..."
                           value={bulkPreviewSearch}
                           onChange={(e) => setBulkPreviewSearch(e.target.value)}
-                          className="w-full pl-7 pr-3 p-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 font-bold bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-amber-500"
+                          className="w-full pl-6 pr-2 p-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-700 font-bold bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-amber-500"
                         />
                       </div>
                     </div>
@@ -13275,8 +13304,8 @@ export default function AdvancedReports({
                     <span>Select Target Scope, Sessions & Export Range</span>
                   </div>
 
-                  {/* Class & Stream Selectors */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                  {/* Class, Stream & Status Selectors */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
                     <div>
                       <label className="block text-[10px] font-black text-slate-600 dark:text-slate-400 mb-0.5">
                         Target Class:
@@ -13307,6 +13336,19 @@ export default function AdvancedReports({
                           <option key={st} value={st}>{st}</option>
                         ))}
                       </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-black text-slate-600 dark:text-slate-400 mb-0.5">
+                        Admission Status:
+                      </label>
+                      <MultiSelectCheckboxDropdown
+                        label="Status"
+                        options={availableStatuses}
+                        selected={photoExportSelectedStatuses}
+                        onChange={(val) => setPhotoExportSelectedStatuses(val)}
+                        align="right"
+                      />
                     </div>
                   </div>
 
@@ -13510,13 +13552,19 @@ export default function AdvancedReports({
                         No students match the current session & filter criteria.
                       </div>
                     ) : (
-                      photoExportCandidates.slice(0, 6).map((st, idx) => {
+                      photoExportCandidates.slice(0, 8).map((st, idx) => {
                         const pUrl = getStudentPhotoUrl(st);
                         const hasPhoto = pUrl && typeof pUrl === 'string' && pUrl.length > 20 && pUrl !== '/logo.png';
                         const computedFilename = formatPhotoExportFilename(st);
+                        const sName = getStudentName(st) || 'Student';
+                        const sRoll = getStudentRollVal(st) || '—';
+                        const sReg = extractRegNoClean(st) || st.boardRegNo || '—';
+                        const sClass = normalizeClassVal(st.class || st.Class || '11th');
+                        const sSession = st.session || st.Session || '2025-26';
+                        const sStatus = getStudentEffectiveStatus(st);
 
                         return (
-                          <div key={idx} className="flex items-center justify-between p-1.5 rounded-lg bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800 text-[11px] font-bold gap-2">
+                          <div key={idx} className="flex items-center justify-between p-1.5 rounded-lg bg-slate-50 dark:bg-slate-800/40 border border-slate-200/80 dark:border-slate-800 text-[11px] font-bold gap-2">
                             <div className="flex items-center gap-2 min-w-0">
                               <div className="w-7 h-8 rounded border border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 overflow-hidden shrink-0 flex items-center justify-center">
                                 {hasPhoto ? (
@@ -13526,17 +13574,26 @@ export default function AdvancedReports({
                                 )}
                               </div>
                               <div className="min-w-0">
-                                <div className="font-black text-slate-900 dark:text-white truncate text-[11px]">
-                                  {st.studentName || st["Student's Name"] || 'Student'}
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span className="font-black text-slate-900 dark:text-white truncate text-[11px]">
+                                    {sName}
+                                  </span>
+                                  <span className={`text-[8.5px] font-black px-1.5 py-0.2 rounded-full border ${
+                                    sStatus.toLowerCase() === 'approved'
+                                      ? 'bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-950/80 dark:text-emerald-300 dark:border-emerald-700'
+                                      : 'bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-950/80 dark:text-amber-300 dark:border-amber-700'
+                                  }`}>
+                                    {sStatus}
+                                  </span>
                                 </div>
                                 <div className="text-[9.5px] text-slate-500 font-mono truncate">
-                                  Roll: <strong className="text-slate-700 dark:text-slate-300">{st.classRollNo || st['Class Roll No'] || '—'}</strong> • Reg: <strong className="text-slate-700 dark:text-slate-300">{st.boardRegNo || '—'}</strong> • {st.class} ({st.session})
+                                  Roll: <strong className="text-slate-700 dark:text-slate-300">{sRoll}</strong> • Reg: <strong className="text-slate-700 dark:text-slate-300">{sReg}</strong> • {sClass} ({sSession})
                                 </div>
                               </div>
                             </div>
 
                             <div className="text-right shrink-0">
-                              <div className="text-[9.5px] font-mono text-purple-700 dark:text-purple-300 font-black truncate max-w-[200px]">
+                              <div className="text-[9.5px] font-mono text-purple-700 dark:text-purple-300 font-black truncate max-w-[210px]">
                                 {computedFilename}
                               </div>
                               <span className={`text-[8.5px] font-black px-1 py-0.2 rounded ${hasPhoto ? 'bg-teal-100 dark:bg-teal-950/80 text-teal-800 dark:text-teal-300' : 'bg-rose-100 dark:bg-rose-950/80 text-rose-800 dark:text-rose-300'}`}>
@@ -13598,44 +13655,44 @@ export default function AdvancedReports({
 
             {/* Tool Content 6: Photo Sync & Manager */}
             {activeToolsTab === 'photo_manager' && (
-              <div className="space-y-4 p-4 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800">
-                <div className="font-black text-sm text-slate-900 dark:text-white flex items-center justify-between flex-wrap gap-2">
-                  <span className="flex items-center gap-2">
-                    <Camera size={18} className="text-amber-600" />
+              <div className="space-y-2.5 p-2.5 sm:p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800">
+                <div className="font-black text-xs sm:text-sm text-slate-900 dark:text-white flex items-center justify-between flex-wrap gap-2 border-b border-slate-200 dark:border-slate-800 pb-2">
+                  <span className="flex items-center gap-1.5">
+                    <Camera size={15} className="text-amber-600" />
                     Student Photo Synchronization & Database Manager
                   </span>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5">
                     <button
                       type="button"
                       onClick={() => setActiveToolsTab('photo_export')}
-                      className="px-3 py-1.5 rounded-xl font-black text-xs text-amber-900 dark:text-amber-200 bg-amber-100 dark:bg-amber-950/80 border border-amber-300 dark:border-amber-700 hover:bg-amber-200 cursor-pointer flex items-center gap-1.5"
+                      className="px-2.5 py-1 rounded-lg font-black text-xs text-amber-900 dark:text-amber-200 bg-amber-100 dark:bg-amber-950/80 border border-amber-300 dark:border-amber-700 hover:bg-amber-200 cursor-pointer flex items-center gap-1"
                     >
-                      <FolderDown size={13} />
+                      <FolderDown size={12} />
                       <span>Bulk Export Photos (ZIP)</span>
                     </button>
                     <button
                       type="button"
                       onClick={handleDownloadMissingPhotosReport}
-                      className="px-3 py-1.5 rounded-xl font-black text-xs text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 hover:bg-slate-100 cursor-pointer flex items-center gap-1.5"
+                      className="px-2.5 py-1 rounded-lg font-black text-xs text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 hover:bg-slate-100 cursor-pointer flex items-center gap-1"
                     >
-                      <Download size={13} />
+                      <Download size={12} />
                       <span>Missing Photos List (.txt)</span>
                     </button>
                   </div>
                 </div>
 
                 {/* 1. Database Reconciliation & Deduplication Card */}
-                <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-amber-500/30 dark:border-amber-500/20 shadow-xs space-y-3">
+                <div className="p-2.5 sm:p-3 rounded-xl bg-white dark:bg-slate-900 border border-amber-500/30 dark:border-amber-500/20 shadow-2xs space-y-2">
                   <div className="flex items-center justify-between flex-wrap gap-2">
                     <div className="flex items-center gap-2">
-                      <div className="p-2 rounded-xl bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 font-black">
-                        <Database size={16} />
+                      <div className="p-1.5 rounded-lg bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 font-black">
+                        <Database size={15} />
                       </div>
                       <div>
                         <div className="font-black text-xs text-slate-900 dark:text-white">
                           Pure Firebase Photo Database Reconciliation & Deduplication
                         </div>
-                        <div className="text-[11px] text-slate-500 font-bold">
+                        <div className="text-[10.5px] text-slate-500 font-medium">
                           Matches all {allStudents.length} loaded records against processed <code className="text-purple-600 dark:text-purple-400 font-bold">studentPhotos</code>, sets official passport photos as active, and purges deprecated Google Drive URLs.
                         </div>
                       </div>
@@ -13644,25 +13701,25 @@ export default function AdvancedReports({
                       type="button"
                       disabled={reconcilingPhotos || allStudents.length === 0}
                       onClick={handleRunPhotoReconciliation}
-                      className="px-4 py-2 rounded-xl bg-amber-700 hover:bg-amber-600 text-white font-black text-xs shadow-md flex items-center gap-2 cursor-pointer disabled:opacity-50 transition-all"
+                      className="px-3 py-1.5 rounded-lg bg-amber-700 hover:bg-amber-600 text-white font-black text-xs shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50 transition-all"
                     >
-                      {reconcilingPhotos ? <RefreshCw size={14} className="animate-spin" /> : <Sparkles size={14} />}
+                      {reconcilingPhotos ? <RefreshCw size={13} className="animate-spin" /> : <Sparkles size={13} />}
                       <span>{reconcilingPhotos ? 'Reconciling Database...' : 'Run Photo Reconciliation (1-Click Heal)'}</span>
                     </button>
                   </div>
 
                   {/* Real-time Reconciliation Progress HUD */}
                   {reconcileProgress.active && (
-                    <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 space-y-2 animate-fadeIn">
+                    <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 space-y-1.5 animate-fadeIn">
                       <div className="flex justify-between items-center text-xs font-black text-amber-900 dark:text-amber-200">
                         <span>⏳ Reconciling Record {reconcileProgress.current} of {reconcileProgress.total} ({reconcileProgress.percent}%)</span>
                         {reconcileProgress.stats && (
-                          <span className="text-[11px]">
+                          <span className="text-[10.5px]">
                             ✅ Matched: {reconcileProgress.stats.matchedCount} • Updated: {reconcileProgress.stats.updatedCount}
                           </span>
                         )}
                       </div>
-                      <div className="w-full h-2.5 bg-amber-950/20 rounded-full overflow-hidden">
+                      <div className="w-full h-2 bg-amber-950/20 rounded-full overflow-hidden">
                         <div
                           className="h-full bg-amber-500 transition-all duration-150 rounded-full"
                           style={{ width: `${reconcileProgress.percent}%` }}
@@ -13672,12 +13729,12 @@ export default function AdvancedReports({
                   )}
                 </div>
 
-                <p className="text-slate-600 dark:text-slate-400 text-xs font-bold leading-relaxed">
-                  Bulk upload processed passport photos (naming format: <code className="bg-slate-200 dark:bg-slate-800 px-1 rounded text-purple-700 dark:text-purple-300">Class_Session_RegNo_Name.jpg</code>). The system automatically compresses images in-browser to ~5–10 KB JPEGs and syncs them directly to Cloud Firestore.
+                <p className="text-slate-600 dark:text-slate-400 text-[10.5px] font-medium leading-relaxed">
+                  Bulk upload processed passport photos (naming format: <code className="bg-slate-200 dark:bg-slate-800 px-1 rounded text-purple-700 dark:text-purple-300 font-mono">Class_Session_RegNo_Name.jpg</code>). The system automatically compresses images in-browser to ~5–10 KB JPEGs and syncs them directly to Cloud Firestore.
                 </p>
 
                 {/* File Picker */}
-                <div className="p-4 rounded-2xl border-2 border-dashed border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-center space-y-2">
+                <div className="p-3 sm:p-3.5 rounded-xl border-2 border-dashed border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-center space-y-1.5">
                   <input
                     type="file"
                     multiple
@@ -13783,8 +13840,8 @@ export default function AdvancedReports({
                     </span>
                   </div>
 
-                  {/* Class & Stream Filters */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                  {/* Class, Stream & Status Filters */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
                     <div>
                       <label className="block text-[10px] font-black text-slate-600 dark:text-slate-400 mb-0.5">
                         Target Class:
@@ -13815,6 +13872,19 @@ export default function AdvancedReports({
                           <option key={st} value={st}>{st}</option>
                         ))}
                       </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-black text-slate-600 dark:text-slate-400 mb-0.5">
+                        Admission Status:
+                      </label>
+                      <MultiSelectCheckboxDropdown
+                        label="Status"
+                        options={availableStatuses}
+                        selected={masterExportSelectedStatuses}
+                        onChange={(val) => setMasterExportSelectedStatuses(val)}
+                        align="right"
+                      />
                     </div>
                   </div>
 
@@ -13887,6 +13957,7 @@ export default function AdvancedReports({
                       </span>
                       {' • '}Class: <span className="font-black text-slate-900 dark:text-white">{masterExportClass === 'ALL' ? 'All Classes' : `Class ${masterExportClass}`}</span>
                       {' • '}Stream: <span className="font-black text-slate-900 dark:text-white">{masterExportStream}</span>
+                      {' • '}Status: <span className="font-black text-slate-900 dark:text-white">{masterExportSelectedStatuses.length === 0 ? 'All Status' : masterExportSelectedStatuses.includes('__NONE__') ? 'None' : masterExportSelectedStatuses.join(', ')}</span>
                     </div>
 
                     <button
