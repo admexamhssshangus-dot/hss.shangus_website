@@ -8596,24 +8596,24 @@ function AdminPortalContent({ embeddedUser, onEmbeddedLogout, initialTab }) {
             {activeTab === 'tax' && allowedTabs.includes('tax') && (
               <div className="space-y-2.5 animate-in fade-in duration-200">
                 {/* ── Row 1: Title bar + action buttons ── */}
-                <div className="flex flex-wrap items-center justify-between gap-2 bg-slate-900/50 px-4 py-2.5 rounded-xl border border-slate-700/60 shadow-sm">
+                <div className="flex flex-wrap items-center justify-between gap-2 bg-white dark:bg-slate-900/50 px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700/60 shadow-sm">
                   <div className="flex items-center gap-2 min-w-0">
-                    <Calculator className="text-orange-400 shrink-0" size={15} />
-                    <span className="font-bold text-slate-100 text-sm">Income Tax Auto-Generator</span>
-                    <span className="hidden sm:inline text-slate-500 text-[11px] font-mono">FY {taxConfig.financialYearLabel} · AY {taxConfig.assessmentYearLabel}</span>
+                    <Calculator className="text-orange-500 dark:text-orange-400 shrink-0" size={15} />
+                    <span className="font-bold text-slate-900 dark:text-slate-100 text-sm">Income Tax Auto-Generator</span>
+                    <span className="hidden sm:inline text-slate-500 dark:text-slate-400 text-[11px] font-mono">FY {taxConfig.financialYearLabel} · AY {taxConfig.assessmentYearLabel}</span>
                   </div>
                   <div className="flex items-center gap-1.5 flex-shrink-0">
                     <button
                       type="button"
                       onClick={() => setShowTaxRules(!showTaxRules)}
-                      className={`px-3 py-1.5 font-bold text-[11px] rounded-lg transition-all flex items-center gap-1.5 border ${showTaxRules ? 'bg-orange-600 hover:bg-orange-500 text-white border-orange-500' : 'bg-slate-700/80 hover:bg-slate-600 text-slate-200 border-slate-600'}`}
+                      className={`px-3 py-1.5 font-bold text-[11px] rounded-lg transition-all flex items-center gap-1.5 border shadow-sm ${showTaxRules ? 'bg-orange-600 hover:bg-orange-500 text-white border-orange-500' : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-300 dark:bg-slate-700/80 dark:hover:bg-slate-600 dark:text-slate-200 dark:border-slate-600'}`}
                     >
                       <Settings size={12} />
                       {showTaxRules ? 'Hide Rules' : 'Edit Tax Rules'}
                     </button>
                     <button
                       onClick={handleTaxCSVExport}
-                      className="px-3 py-1.5 bg-sky-600 hover:bg-sky-500 text-white font-bold text-[11px] rounded-lg transition-all flex items-center gap-1.5 border border-sky-500"
+                      className="px-3 py-1.5 bg-sky-600 hover:bg-sky-500 text-white font-bold text-[11px] rounded-lg transition-all flex items-center gap-1.5 border border-sky-500 shadow-sm"
                     >
                       <Download size={12} />
                       Export CSV
@@ -8621,9 +8621,9 @@ function AdminPortalContent({ embeddedUser, onEmbeddedLogout, initialTab }) {
                     <button
                       onClick={() => printTaxSheets(getSelectedVisibleTaxFaculty())}
                       disabled={getSelectedVisibleTaxFaculty().length === 0}
-                      className={`px-3 py-1.5 font-bold text-[11px] rounded-lg transition-all flex items-center gap-1.5 border border-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed ${getSelectedVisibleTaxFaculty().length > 0
+                      className={`px-3 py-1.5 font-bold text-[11px] rounded-lg transition-all flex items-center gap-1.5 border border-emerald-500 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed ${getSelectedVisibleTaxFaculty().length > 0
                           ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
-                          : 'bg-slate-800 text-slate-500 border-slate-700'
+                          : 'bg-slate-100 text-slate-400 border-slate-300 dark:bg-slate-800 dark:text-slate-500 dark:border-slate-700'
                         }`}
                     >
                       <Printer size={12} />
@@ -8633,31 +8633,49 @@ function AdminPortalContent({ embeddedUser, onEmbeddedLogout, initialTab }) {
                 </div>
 
                 {/* ── Row 2: Compact stats + regime toggle + search ── */}
-                <div className="flex flex-wrap items-center gap-2 bg-slate-900/30 px-3 py-2 rounded-xl border border-slate-800/50">
-                  {/* Regime pills — hardcoded dark so visible in any theme */}
+                <div className="flex flex-wrap items-center gap-2 bg-white dark:bg-slate-900/30 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800/50 shadow-sm">
+                  {/* Regime pills */}
                   <div className="flex gap-1 shrink-0">
-                    <button onClick={() => setActiveTaxPreviewRegime('new')} style={activeTaxPreviewRegime === 'new' ? { background: '#f97316', color: '#0f172a', border: '1px solid #fb923c', fontWeight: 800 } : { background: '#334155', color: '#94a3b8', border: '1px solid #475569' }} className="px-2.5 py-1 text-[10px] font-extrabold rounded-md transition-colors">New</button>
-                    <button onClick={() => setActiveTaxPreviewRegime('old')} style={activeTaxPreviewRegime === 'old' ? { background: '#f97316', color: '#0f172a', border: '1px solid #fb923c', fontWeight: 800 } : { background: '#334155', color: '#94a3b8', border: '1px solid #475569' }} className="px-2.5 py-1 text-[10px] font-extrabold rounded-md transition-colors">Old</button>
+                    <button
+                      onClick={() => setActiveTaxPreviewRegime('new')}
+                      className={`px-2.5 py-1 text-[10px] font-extrabold rounded-md transition-all border ${
+                        activeTaxPreviewRegime === 'new'
+                          ? 'bg-orange-500 text-white border-orange-600 shadow-sm'
+                          : 'bg-slate-100 hover:bg-slate-200 text-slate-600 border-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-400 dark:border-slate-700'
+                      }`}
+                    >
+                      New
+                    </button>
+                    <button
+                      onClick={() => setActiveTaxPreviewRegime('old')}
+                      className={`px-2.5 py-1 text-[10px] font-extrabold rounded-md transition-all border ${
+                        activeTaxPreviewRegime === 'old'
+                          ? 'bg-orange-500 text-white border-orange-600 shadow-sm'
+                          : 'bg-slate-100 hover:bg-slate-200 text-slate-600 border-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-400 dark:border-slate-700'
+                      }`}
+                    >
+                      Old
+                    </button>
                   </div>
                   {/* Divider */}
-                  <div className="w-px h-5 bg-slate-700 shrink-0" />
+                  <div className="w-px h-5 bg-slate-200 dark:bg-slate-700 shrink-0" />
                   {/* Inline stats */}
                   <div className="flex flex-wrap items-center gap-3 text-[11px] flex-1 min-w-0">
-                    <span className="text-slate-400 font-mono whitespace-nowrap">Nil-tax: <strong className="text-slate-200 font-extrabold">₹{previewTaxFreeGross.toLocaleString('en-IN')}</strong></span>
-                    <span className="text-slate-400 font-mono whitespace-nowrap">87A Rebate: <strong className="text-slate-200 font-extrabold">₹{previewRegimeConfig.rebateMax.toLocaleString('en-IN')}</strong></span>
-                    <span className="text-slate-400 font-mono whitespace-nowrap">Std. Deduction: <strong className="text-slate-200 font-extrabold">₹{previewRegimeConfig.standardDeduction.toLocaleString('en-IN')}</strong></span>
-                    <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full border ${previewRegimeConfig.marginalReliefEnabled ? 'bg-emerald-900/50 text-emerald-400 border-emerald-700/60' : 'bg-slate-800/60 text-slate-500 border-slate-700/60'}`}>
+                    <span className="text-slate-600 dark:text-slate-400 font-mono whitespace-nowrap">Nil-tax: <strong className="text-slate-900 dark:text-slate-200 font-extrabold">₹{previewTaxFreeGross.toLocaleString('en-IN')}</strong></span>
+                    <span className="text-slate-600 dark:text-slate-400 font-mono whitespace-nowrap">87A Rebate: <strong className="text-slate-900 dark:text-slate-200 font-extrabold">₹{previewRegimeConfig.rebateMax.toLocaleString('en-IN')}</strong></span>
+                    <span className="text-slate-600 dark:text-slate-400 font-mono whitespace-nowrap">Std. Deduction: <strong className="text-slate-900 dark:text-slate-200 font-extrabold">₹{previewRegimeConfig.standardDeduction.toLocaleString('en-IN')}</strong></span>
+                    <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full border ${previewRegimeConfig.marginalReliefEnabled ? 'bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-900/50 dark:text-emerald-400 dark:border-emerald-700/60' : 'bg-slate-100 text-slate-600 border-slate-300 dark:bg-slate-800/60 dark:text-slate-500 dark:border-slate-700/60'}`}>
                       Marginal Relief {previewRegimeConfig.marginalReliefEnabled ? '✓ ON' : '✗ OFF'}
                     </span>
                   </div>
                   {/* Divider */}
-                  <div className="w-px h-5 bg-slate-700 shrink-0 hidden sm:block" />
+                  <div className="w-px h-5 bg-slate-200 dark:bg-slate-700 shrink-0 hidden sm:block" />
                   {/* Category filters Dropdown Checklist */}
                   <div className="relative shrink-0">
                     <button
                       type="button"
                       onClick={() => setIsTaxFilterDropdownOpen(!isTaxFilterDropdownOpen)}
-                      className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-md text-[10px] font-bold transition-all flex items-center gap-1.5 shadow-sm"
+                      className="px-2.5 py-1 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 dark:border-slate-700 rounded-md text-[10px] font-bold transition-all flex items-center gap-1.5 shadow-sm"
                     >
                       <span>Filter Categories ({selectedTaxCategories.length})</span>
                       <ChevronDown size={10} className={`transition-transform duration-200 ${isTaxFilterDropdownOpen ? 'rotate-180' : ''}`} />
@@ -8669,13 +8687,13 @@ function AdminPortalContent({ embeddedUser, onEmbeddedLogout, initialTab }) {
                         <div className="fixed inset-0 z-40 bg-transparent" onClick={() => setIsTaxFilterDropdownOpen(false)} />
 
                         {/* Dropdown panel */}
-                        <div className="absolute right-0 mt-1.5 z-50 w-64 bg-slate-900 border border-slate-700 text-slate-200 rounded-xl shadow-2xl p-3 animate-in fade-in slide-in-from-top-2 duration-150 text-left">
-                          <div className="flex items-center justify-between pb-1.5 border-b border-slate-800 mb-2">
-                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Select Categories</span>
+                        <div className="absolute right-0 mt-1.5 z-50 w-64 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 rounded-xl shadow-2xl p-3 animate-in fade-in slide-in-from-top-2 duration-150 text-left">
+                          <div className="flex items-center justify-between pb-1.5 border-b border-slate-200 dark:border-slate-800 mb-2">
+                            <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Select Categories</span>
                             <button
                               type="button"
                               onClick={() => setSelectedTaxCategories(['teaching_regular', 'non_teaching_regular'])}
-                              className="text-[9px] text-orange-400 hover:text-orange-300 font-extrabold uppercase"
+                              className="text-[9px] text-orange-500 hover:text-orange-600 dark:text-orange-400 dark:hover:text-orange-300 font-extrabold uppercase"
                             >
                               Reset Default
                             </button>
@@ -8687,7 +8705,7 @@ function AdminPortalContent({ embeddedUser, onEmbeddedLogout, initialTab }) {
                               return (
                                 <label
                                   key={cat.key}
-                                  className="flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-slate-800/60 cursor-pointer transition-colors text-[11px] select-none"
+                                  className="flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800/60 cursor-pointer transition-colors text-[11px] select-none"
                                 >
                                   <input
                                     type="checkbox"
@@ -8701,10 +8719,10 @@ function AdminPortalContent({ embeddedUser, onEmbeddedLogout, initialTab }) {
                                         setSelectedTaxCategories([...selectedTaxCategories, cat.key]);
                                       }
                                     }}
-                                    className="rounded border-slate-700 text-orange-500 focus:ring-orange-500 bg-slate-950 w-3.5 h-3.5"
+                                    className="rounded border-slate-300 dark:border-slate-700 text-orange-500 focus:ring-orange-500 bg-white dark:bg-slate-950 w-3.5 h-3.5"
                                   />
                                   <div className="flex-1 flex items-center justify-between min-w-0">
-                                    <span className="truncate font-semibold text-slate-200">{cat.label}</span>
+                                    <span className="truncate font-semibold text-slate-800 dark:text-slate-200">{cat.label}</span>
                                     <span className={`w-1.5 h-1.5 rounded-full ${cat.color.split(' ')[0]}`} />
                                   </div>
                                 </label>
@@ -8721,14 +8739,14 @@ function AdminPortalContent({ embeddedUser, onEmbeddedLogout, initialTab }) {
                     placeholder="Search employees…"
                     value={taxSearch}
                     onChange={(e) => setTaxSearch(e.target.value)}
-                    className="flex-1 min-w-[110px] max-w-[220px] px-2.5 py-1 rounded-lg bg-slate-800/70 border border-slate-700 text-[11px] text-slate-100 placeholder-slate-500 focus:outline-none focus:border-orange-400 transition-colors"
+                    className="flex-1 min-w-[110px] max-w-[220px] px-2.5 py-1 rounded-lg bg-white dark:bg-slate-800/70 border border-slate-300 dark:border-slate-700 text-[11px] text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors shadow-sm"
                   />
                 </div>
 
                 {showTaxRules && (
                   <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto">
                     {/* Modal Card */}
-                    <div className="theme-dark bg-slate-900 border border-slate-700 rounded-xl max-w-4xl w-full p-6 shadow-2xl relative animate-in fade-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto custom-scrollbar">
+                    <div className="theme-dark bg-slate-900 border border-slate-700 rounded-xl max-w-4xl w-full p-6 shadow-2xl relative animate-in fade-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto custom-scrollbar tax-rules-modal">
                       {/* Close button */}
                       <button
                         onClick={() => setShowTaxRules(false)}
@@ -8905,7 +8923,7 @@ function AdminPortalContent({ embeddedUser, onEmbeddedLogout, initialTab }) {
 
 
                 {/* Database Table — with Teaching / Non-Teaching categories */}
-                <div className="border border-slate-500/50 rounded-xl overflow-hidden bg-slate-900/40 shadow-sm ring-1 ring-slate-500/20">
+                <div className="border border-slate-200 dark:border-slate-700/60 rounded-xl overflow-hidden bg-white dark:bg-slate-900/40 shadow-sm">
                   <div className="overflow-x-auto custom-scrollbar pb-1.5">
                     {(() => {
                       // Show all non-hidden employees matching search, excluding inactive and deployed in by default
@@ -8947,11 +8965,11 @@ function AdminPortalContent({ embeddedUser, onEmbeddedLogout, initialTab }) {
                         const calc = calculateTax(gross, tds, taxConfig, getEmployeeTaxOptions(emp));
 
                         return (
-                          <tr key={origIdx} className="border-b border-slate-700/40 hover:bg-slate-800/30 transition-colors">
+                          <tr key={origIdx} className="border-b border-slate-200 dark:border-slate-700/40 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
                             <td className="p-3 text-center w-10">
                               <input
                                 type="checkbox"
-                                className="rounded bg-slate-950 border-slate-700 text-teal-600 focus:ring-teal-500 cursor-pointer w-4 h-4"
+                                className="rounded bg-white dark:bg-slate-950 border-slate-300 dark:border-slate-700 text-teal-600 focus:ring-teal-500 cursor-pointer w-4 h-4"
                                 checked={selectedTaxEmployeeIndices.includes(origIdx)}
                                 onChange={() => toggleEmployeeTaxSelection(emp)}
                               />
@@ -8960,22 +8978,22 @@ function AdminPortalContent({ embeddedUser, onEmbeddedLogout, initialTab }) {
                               <span className="inline-flex items-center justify-center w-6 h-6 rounded-lg bg-teal-700 text-white text-[10px] font-bold shadow-sm select-none">{catIndex + 1}</span>
                             </td>
                             <td className="p-3">
-                              <div className="font-semibold text-slate-100 font-mono">{emp.cpis_no || '-'}</div>
+                              <div className="font-semibold text-slate-900 dark:text-slate-100 font-mono">{emp.cpis_no || '-'}</div>
                               {isEditing ? (
                                 <div className="flex flex-col gap-1.5 mt-1">
-                                  <input type="text" value={editTaxData.pan} onChange={e => setEditTaxData({ ...editTaxData, pan: e.target.value.toUpperCase() })} placeholder="PAN NO" className="w-28 px-1.5 py-0.5 rounded bg-slate-950 border border-slate-700 text-[11px] text-slate-100 font-mono focus:outline-none focus:border-orange-400" />
-                                  <select value={editTaxData.regime} onChange={e => setEditTaxData({ ...editTaxData, regime: e.target.value })} className="w-28 px-1 py-0.5 rounded bg-slate-950 border border-slate-700 text-[10px] text-slate-100 focus:outline-none focus:border-orange-400 font-bold">
+                                  <input type="text" value={editTaxData.pan} onChange={e => setEditTaxData({ ...editTaxData, pan: e.target.value.toUpperCase() })} placeholder="PAN NO" className="w-28 px-1.5 py-0.5 rounded bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-[11px] text-slate-900 dark:text-slate-100 font-mono focus:outline-none focus:border-orange-400 shadow-sm" />
+                                  <select value={editTaxData.regime} onChange={e => setEditTaxData({ ...editTaxData, regime: e.target.value })} className="w-28 px-1 py-0.5 rounded bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-[10px] text-slate-900 dark:text-slate-100 focus:outline-none focus:border-orange-400 font-bold shadow-sm">
                                     <option value="new">New Regime</option>
                                     <option value="old">Old Regime</option>
                                   </select>
                                 </div>
                               ) : (
-                                <div className="text-[10px] text-slate-300 font-mono font-semibold">{pan || 'NO PAN'}</div>
+                                <div className="text-[10px] text-slate-500 dark:text-slate-300 font-mono font-semibold">{pan || 'NO PAN'}</div>
                               )}
                             </td>
                             <td className="p-3">
                               <div className="flex items-center gap-1.5 flex-wrap">
-                                <span className="font-bold text-slate-100">{emp.name}</span>
+                                <span className="font-bold text-slate-900 dark:text-slate-100">{emp.name}</span>
                                 {!isEditing && (
                                   <span className={`px-1.5 py-0.5 rounded text-[8.5px] font-extrabold uppercase tracking-wider ${calc.regimeType === 'old' ? 'regime-badge-old' : 'regime-badge-new'}`}>{calc.regimeConfig.label}</span>
                                 )}
@@ -8993,64 +9011,68 @@ function AdminPortalContent({ embeddedUser, onEmbeddedLogout, initialTab }) {
                                   </span>
                                 )}
                               </div>
-                              <div className="text-[10px] text-slate-300 font-medium">{emp.designation}{emp.subject ? ` (${emp.subject})` : ''}</div>
+                              <div className="text-[10px] text-slate-600 dark:text-slate-300 font-medium">{emp.designation}{emp.subject ? ` (${emp.subject})` : ''}</div>
                               {isEditing ? (
                                 editTaxData.regime === 'old' ? (
-                                  <div className="grid grid-cols-2 gap-x-2 gap-y-1 mt-1.5 bg-slate-900/30 p-1.5 rounded border border-slate-700/60 w-[240px]">
-                                    <div><div className="text-[9px] text-slate-400 font-bold">80C (Max 1.5L)</div><input type="number" value={editTaxData.deduction80C} onChange={e => setEditTaxData({ ...editTaxData, deduction80C: e.target.value })} className="w-full px-1 py-0.5 rounded bg-slate-950 border border-slate-700 text-[10px] text-slate-100 font-mono text-right focus:outline-none focus:border-orange-400" /></div>
-                                    <div><div className="text-[9px] text-slate-400 font-bold">80D (Health)</div><input type="number" value={editTaxData.deduction80D} onChange={e => setEditTaxData({ ...editTaxData, deduction80D: e.target.value })} className="w-full px-1 py-0.5 rounded bg-slate-950 border border-slate-700 text-[10px] text-slate-100 font-mono text-right focus:outline-none focus:border-orange-400" /></div>
-                                    <div><div className="text-[9px] text-slate-400 font-bold">HRA Exemption</div><input type="number" value={editTaxData.hraExemption} onChange={e => setEditTaxData({ ...editTaxData, hraExemption: e.target.value })} className="w-full px-1 py-0.5 rounded bg-slate-950 border border-slate-700 text-[10px] text-slate-100 font-mono text-right focus:outline-none focus:border-orange-400" /></div>
-                                    <div><div className="text-[9px] text-slate-400 font-bold">Other Deduct.</div><input type="number" value={editTaxData.otherDeductions} onChange={e => setEditTaxData({ ...editTaxData, otherDeductions: e.target.value })} className="w-full px-1 py-0.5 rounded bg-slate-950 border border-slate-700 text-[10px] text-slate-100 font-mono text-right focus:outline-none focus:border-orange-400" /></div>
+                                  <div className="grid grid-cols-2 gap-x-2 gap-y-1 mt-1.5 bg-slate-50 dark:bg-slate-900/30 p-1.5 rounded border border-slate-200 dark:border-slate-700/60 w-[240px]">
+                                    <div><div className="text-[9px] text-slate-600 dark:text-slate-400 font-bold">80C (Max 1.5L)</div><input type="number" value={editTaxData.deduction80C} onChange={e => setEditTaxData({ ...editTaxData, deduction80C: e.target.value })} className="w-full px-1 py-0.5 rounded bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-[10px] text-slate-900 dark:text-slate-100 font-mono text-right focus:outline-none focus:border-orange-400" /></div>
+                                    <div><div className="text-[9px] text-slate-600 dark:text-slate-400 font-bold">80D (Health)</div><input type="number" value={editTaxData.deduction80D} onChange={e => setEditTaxData({ ...editTaxData, deduction80D: e.target.value })} className="w-full px-1 py-0.5 rounded bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-[10px] text-slate-900 dark:text-slate-100 font-mono text-right focus:outline-none focus:border-orange-400" /></div>
+                                    <div><div className="text-[9px] text-slate-600 dark:text-slate-400 font-bold">HRA Exemption</div><input type="number" value={editTaxData.hraExemption} onChange={e => setEditTaxData({ ...editTaxData, hraExemption: e.target.value })} className="w-full px-1 py-0.5 rounded bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-[10px] text-slate-900 dark:text-slate-100 font-mono text-right focus:outline-none focus:border-orange-400" /></div>
+                                    <div><div className="text-[9px] text-slate-600 dark:text-slate-400 font-bold">Other Deduct.</div><input type="number" value={editTaxData.otherDeductions} onChange={e => setEditTaxData({ ...editTaxData, otherDeductions: e.target.value })} className="w-full px-1 py-0.5 rounded bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-[10px] text-slate-900 dark:text-slate-100 font-mono text-right focus:outline-none focus:border-orange-400" /></div>
                                   </div>
                                 ) : (
-                                  <div className="mt-1.5 bg-slate-900/30 p-1.5 rounded border border-slate-700/60 w-[240px]">
-                                    <div className="text-[9px] text-slate-400 font-bold mb-1">80CCD(2) — NPS Employer Share</div>
-                                    <input type="number" value={editTaxData.otherDeductions} onChange={e => setEditTaxData({ ...editTaxData, otherDeductions: e.target.value })} className="w-full px-1 py-0.5 rounded bg-slate-950 border border-slate-700 text-[10px] text-slate-100 font-mono text-right focus:outline-none focus:border-orange-400" placeholder="Enter NPS employer contribution" />
-                                    <div className="text-[8.5px] text-slate-500 mt-0.5">Allowed under new regime. Standard deduction ₹75,000 applied automatically.</div>
+                                  <div className="mt-1.5 bg-slate-50 dark:bg-slate-900/30 p-1.5 rounded border border-slate-200 dark:border-slate-700/60 w-[240px]">
+                                    <div className="text-[9px] text-slate-600 dark:text-slate-400 font-bold mb-1">80CCD(2) — NPS Employer Share</div>
+                                    <input type="number" value={editTaxData.otherDeductions} onChange={e => setEditTaxData({ ...editTaxData, otherDeductions: e.target.value })} className="w-full px-1 py-0.5 rounded bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-[10px] text-slate-900 dark:text-slate-100 font-mono text-right focus:outline-none focus:border-orange-400" placeholder="Enter NPS employer contribution" />
+                                    <div className="text-[8.5px] text-slate-500 dark:text-slate-400 mt-0.5">Allowed under new regime. Standard deduction ₹75,000 applied automatically.</div>
                                   </div>
                                 )
                               ) : (
                                 <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
                                   {calc.regimeType === 'old' ? (
-                                    <span className="text-[9.5px] text-slate-400 font-semibold font-mono cursor-help" title={`80C: ₹${calc.deduction80C.toLocaleString('en-IN')} | 80D: ₹${calc.deduction80D.toLocaleString('en-IN')} | HRA: ₹${calc.hraExemption.toLocaleString('en-IN')} | 80CCD(2): ₹${calc.otherDeductions.toLocaleString('en-IN')}`}>Deductions: ₹{(calc.deduction80C + calc.deduction80D + calc.hraExemption + calc.otherDeductions).toLocaleString('en-IN')}</span>
+                                    <span className="text-[9.5px] text-slate-500 dark:text-slate-400 font-semibold font-mono cursor-help" title={`80C: ₹${calc.deduction80C.toLocaleString('en-IN')} | 80D: ₹${calc.deduction80D.toLocaleString('en-IN')} | HRA: ₹${calc.hraExemption.toLocaleString('en-IN')} | 80CCD(2): ₹${calc.otherDeductions.toLocaleString('en-IN')}`}>Deductions: ₹{(calc.deduction80C + calc.deduction80D + calc.hraExemption + calc.otherDeductions).toLocaleString('en-IN')}</span>
                                   ) : calc.otherDeductions > 0 ? (
-                                    <span className="text-[9.5px] text-teal-400 font-semibold font-mono">80CCD(2): ₹{calc.otherDeductions.toLocaleString('en-IN')}</span>
+                                    <span className="text-[9.5px] text-teal-600 dark:text-teal-400 font-semibold font-mono">80CCD(2): ₹{calc.otherDeductions.toLocaleString('en-IN')}</span>
                                   ) : null}
                                 </div>
                               )}
                             </td>
                             <td className="p-3 text-right">
                               {isEditing ? (
-                                <input type="number" value={editTaxData.grossSalary} onChange={e => setEditTaxData({ ...editTaxData, grossSalary: e.target.value })} className="w-28 px-1.5 py-0.5 rounded bg-slate-950 border border-slate-700 text-xs text-slate-100 text-right focus:outline-none focus:border-orange-400 font-mono" />
+                                <input type="number" value={editTaxData.grossSalary} onChange={e => setEditTaxData({ ...editTaxData, grossSalary: e.target.value })} className="w-28 px-1.5 py-0.5 rounded bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-xs text-slate-900 dark:text-slate-100 text-right focus:outline-none focus:border-orange-400 font-mono shadow-sm" />
                               ) : (
-                                <span className="font-semibold text-slate-100 font-mono">₹{gross.toLocaleString('en-IN')}</span>
+                                <span className="font-semibold text-slate-900 dark:text-slate-100 font-mono">₹{gross.toLocaleString('en-IN')}</span>
                               )}
                             </td>
-                            <td className="p-3 text-right font-semibold text-amber-200 tax-total-highlight font-mono">
+                            <td className="p-3 text-right font-bold text-slate-900 dark:text-amber-200 tax-total-highlight font-mono">
                               {calc.totalTax > 0 ? `₹${calc.totalTax.toLocaleString('en-IN')}` : 'NIL'}
                             </td>
                             <td className="p-3 text-right">
                               {isEditing ? (
-                                <input type="number" value={editTaxData.tds} onChange={e => setEditTaxData({ ...editTaxData, tds: e.target.value })} className="w-28 px-1.5 py-0.5 rounded bg-slate-950 border border-slate-700 text-xs text-slate-100 text-right focus:outline-none focus:border-orange-400 font-mono" />
+                                <input type="number" value={editTaxData.tds} onChange={e => setEditTaxData({ ...editTaxData, tds: e.target.value })} className="w-28 px-1.5 py-0.5 rounded bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-xs text-slate-900 dark:text-slate-100 text-right focus:outline-none focus:border-orange-400 font-mono shadow-sm" />
                               ) : (
-                                <span className="font-semibold text-slate-100 font-mono">₹{tds.toLocaleString('en-IN')}</span>
+                                <span className="font-semibold text-slate-700 dark:text-slate-100 font-mono">₹{tds.toLocaleString('en-IN')}</span>
                               )}
                             </td>
                             <td className="p-3 text-right">
-                              <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold font-mono border ${calc.taxPayableNow > 0 ? 'bg-red-900/50 text-red-200 border-red-700/60' : 'bg-emerald-900/50 text-emerald-200 border-emerald-700/60'}`}>
+                              <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold font-mono border ${
+                                calc.taxPayableNow > 0
+                                  ? 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-red-900/50 dark:text-red-200 dark:border-red-700/60'
+                                  : 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/50 dark:text-emerald-200 dark:border-emerald-700/60'
+                              }`}>
                                 {calc.taxPayableNow > 0 ? `₹${calc.taxPayableNow.toLocaleString('en-IN')}` : 'NIL'}
                               </span>
                             </td>
                             <td className="p-3 text-center">
                               {isEditing ? (
                                 <div className="flex justify-center gap-1.5">
-                                  <button onClick={() => { saveEmployeeTaxDetails(origIdx, editTaxData.pan, editTaxData.grossSalary, editTaxData.tds, editTaxData.regime, editTaxData.deduction80C, editTaxData.deduction80D, editTaxData.hraExemption, editTaxData.otherDeductions); setEditingTaxIdx(null); }} className="p-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded transition-colors border border-emerald-500" title="Save Details"><Check size={12} /></button>
-                                  <button onClick={() => setEditingTaxIdx(null)} className="p-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 hover:text-white rounded transition-colors border border-slate-500" title="Cancel"><X size={12} /></button>
+                                  <button onClick={() => { saveEmployeeTaxDetails(origIdx, editTaxData.pan, editTaxData.grossSalary, editTaxData.tds, editTaxData.regime, editTaxData.deduction80C, editTaxData.deduction80D, editTaxData.hraExemption, editTaxData.otherDeductions); setEditingTaxIdx(null); }} className="p-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded transition-colors border border-emerald-500 shadow-sm" title="Save Details"><Check size={12} /></button>
+                                  <button onClick={() => setEditingTaxIdx(null)} className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-700 dark:hover:bg-slate-600 dark:text-slate-200 rounded transition-colors border border-slate-300 dark:border-slate-500 shadow-sm" title="Cancel"><X size={12} /></button>
                                 </div>
                               ) : (
                                 <div className="flex justify-center gap-2">
-                                  <button onClick={() => { setEditingTaxIdx(origIdx); setEditTaxData({ pan, grossSalary: gross.toString(), tds: tds.toString(), regime: getEmployeeRegime(emp), deduction80C: getEmployee80C(emp).toString(), deduction80D: getEmployee80D(emp).toString(), hraExemption: getEmployeeHra(emp).toString(), otherDeductions: getEmployeeOtherDeductions(emp).toString() }); }} className="px-2.5 py-1 bg-slate-600 hover:bg-slate-500 text-white rounded text-[10px] font-bold uppercase tracking-wide transition-colors border border-slate-500">Edit</button>
-                                  <button onClick={() => printTaxSheets([emp])} className="px-2.5 py-1 bg-orange-600 hover:bg-orange-500 text-white rounded text-[10px] font-bold uppercase tracking-wide transition-all flex items-center gap-1 border border-orange-500"><Printer size={10} />Print</button>
+                                  <button onClick={() => { setEditingTaxIdx(origIdx); setEditTaxData({ pan, grossSalary: gross.toString(), tds: tds.toString(), regime: getEmployeeRegime(emp), deduction80C: getEmployee80C(emp).toString(), deduction80D: getEmployee80D(emp).toString(), hraExemption: getEmployeeHra(emp).toString(), otherDeductions: getEmployeeOtherDeductions(emp).toString() }); }} className="px-2.5 py-1 bg-slate-600 hover:bg-slate-500 text-white rounded text-[10px] font-bold uppercase tracking-wide transition-colors border border-slate-500 shadow-sm">Edit</button>
+                                  <button onClick={() => printTaxSheets([emp])} className="px-2.5 py-1 bg-orange-600 hover:bg-orange-500 text-white rounded text-[10px] font-bold uppercase tracking-wide transition-all flex items-center gap-1 border border-orange-500 shadow-sm"><Printer size={10} />Print</button>
                                 </div>
                               )}
                             </td>
@@ -9060,10 +9082,10 @@ function AdminPortalContent({ embeddedUser, onEmbeddedLogout, initialTab }) {
 
                       const CategoryHeader = ({ label, count, accent }) => (
                         <tr>
-                          <td colSpan="9" className="px-4 py-2.5 bg-slate-800 border-y border-slate-600">
+                          <td colSpan="9" className="px-4 py-2 bg-slate-100 dark:bg-slate-800 border-y border-slate-200 dark:border-slate-600">
                             <div className="flex items-center gap-2.5">
                               <span className={`px-3 py-0.5 rounded-full text-[9px] font-extrabold uppercase tracking-widest border ${accent}`}>{label}</span>
-                              <span className="text-[10px] text-slate-400 font-mono font-semibold">{count} member{count !== 1 ? 's' : ''}</span>
+                              <span className="text-[10px] text-slate-600 dark:text-slate-400 font-mono font-semibold">{count} member{count !== 1 ? 's' : ''}</span>
                             </div>
                           </td>
                         </tr>
@@ -9071,10 +9093,10 @@ function AdminPortalContent({ embeddedUser, onEmbeddedLogout, initialTab }) {
 
                       if (allFiltered.length === 0) {
                         return (
-                          <div className="p-10 text-center text-slate-400 italic text-sm">
+                          <div className="p-10 text-center text-slate-500 dark:text-slate-400 italic text-sm">
                             <div className="text-3xl mb-2">👤</div>
                             No employees found{taxSearch ? ' matching your search' : ''}.<br />
-                            <span className="text-[11px] text-slate-500">Add faculty members in the Faculty Directory to see them here.</span>
+                            <span className="text-[11px] text-slate-400 dark:text-slate-500">Add faculty members in the Faculty Directory to see them here.</span>
                           </div>
                         );
                       }
@@ -9082,23 +9104,23 @@ function AdminPortalContent({ embeddedUser, onEmbeddedLogout, initialTab }) {
                       return (
                         <table className="w-full text-left border-collapse tax-table">
                           <thead>
-                            <tr style={{ background: '#1e293b', color: '#fff', borderBottom: '2px solid #475569' }} className="uppercase text-[9px] font-bold tracking-wide">
-                              <th style={{ color: '#fff' }} className="p-3 w-10 text-center">
+                            <tr className="uppercase text-[9px] font-bold tracking-wider bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200 border-b-2 border-slate-200 dark:border-slate-700">
+                              <th className="p-3 w-10 text-center">
                                 <input
                                   type="checkbox"
-                                  className="rounded bg-slate-950 border-slate-700 text-teal-600 focus:ring-teal-500 cursor-pointer w-4 h-4"
+                                  className="rounded bg-white dark:bg-slate-950 border-slate-300 dark:border-slate-700 text-teal-600 focus:ring-teal-500 cursor-pointer w-4 h-4"
                                   checked={allFiltered.length > 0 && allFiltered.every(emp => selectedTaxEmployeeIndices.includes(faculty.indexOf(emp)))}
                                   onChange={() => handleSelectAllTaxVisible(allFiltered)}
                                 />
                               </th>
-                              <th style={{ color: '#fff' }} className="p-3 w-10 text-center">#</th>
-                              <th style={{ color: '#fff' }} className="p-3">CPIS / PAN</th>
-                              <th style={{ color: '#fff' }} className="p-3">Name / Designation</th>
-                              <th style={{ color: '#fff' }} className="p-3 text-right">Gross Salary (Annual)</th>
-                              <th style={{ color: '#fff' }} className="p-3 text-right">Total Tax</th>
-                              <th style={{ color: '#fff' }} className="p-3 text-right">TDS (Up-To-Date)</th>
-                              <th style={{ color: '#fff' }} className="p-3 text-right">Tax Payable Now</th>
-                              <th style={{ color: '#fff' }} className="p-3 text-center">Actions</th>
+                              <th className="p-3 w-10 text-center">#</th>
+                              <th className="p-3">CPIS / PAN</th>
+                              <th className="p-3">Name / Designation</th>
+                              <th className="p-3 text-right">Gross Salary (Annual)</th>
+                              <th className="p-3 text-right">Total Tax</th>
+                              <th className="p-3 text-right">TDS (Up-To-Date)</th>
+                              <th className="p-3 text-right">Tax Payable Now</th>
+                              <th className="p-3 text-center">Actions</th>
                             </tr>
                           </thead>
                           <tbody className="text-xs">
