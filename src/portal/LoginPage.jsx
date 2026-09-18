@@ -205,13 +205,14 @@ export default function LoginPage() {
     const normalizedRole = role.toLowerCase();
     if (normalizedRole.includes('admin')) await requireVerifiedAdminSession(activeUser);
 
-    const perms = isBootstrapAdmin || role === 'SuperAdmin'
+    const isSuper = (activeUser.emailVerified && isBootstrapSuperAdminEmail(emailLower)) || isSuperAdminEmail(emailLower) || role === 'SuperAdmin';
+    const perms = isSuper
       ? ['*']
-      : Array.isArray(staffProfile?.perms)
+      : (Array.isArray(staffProfile?.perms) && staffProfile.perms.length > 0)
         ? staffProfile.perms
-        : Array.isArray(claims.permissions)
+        : (Array.isArray(claims.permissions) && claims.permissions.length > 0)
           ? claims.permissions
-          : [];
+          : (isBootstrapAdmin ? ['reports'] : []);
 
     const sessionId = sessionManager.generateSessionId();
     sessionManager.setSessionId(sessionId);
@@ -310,7 +311,7 @@ export default function LoginPage() {
                 email: cleanEmail,
                 name: staffProfile?.name || cleanEmail.split('@')[0],
                 role: staffProfile?.role || 'Admin',
-                perms: staffProfile?.perms || ['*'],
+                perms: staffProfile?.perms || (isSuperAdminEmail(cleanEmail) ? ['*'] : ['reports']),
                 uid: auth.currentUser.uid,
               },
               token: await auth.currentUser.getIdToken().catch(() => 'verified_token'),
