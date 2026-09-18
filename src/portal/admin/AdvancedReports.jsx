@@ -828,7 +828,7 @@ export async function deleteStudentDocument(student) {
 }
 
 // ─── Reusable Multi-Select Checkbox Dropdown Component ───
-function MultiSelectCheckboxDropdown({ label, options = [], selected = [], onChange, align = 'left' }) {
+function MultiSelectCheckboxDropdown({ label, options = [], selected = [], onChange, align = 'left', presetAction = null }) {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef(null);
   const [localSelected, setLocalSelected] = useState(selected);
@@ -911,7 +911,7 @@ function MultiSelectCheckboxDropdown({ label, options = [], selected = [], onCha
       </button>
 
       {isOpen && (
-        <div className={`absolute ${align === 'right' ? 'right-0' : 'left-0'} mt-1 w-48 sm:w-52 max-w-[calc(100vw-32px)] rounded-2xl border border-slate-300 dark:border-slate-700 shadow-2xl z-[100000] p-2 space-y-1.5 animate-fadeIn bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100`}>
+        <div className={`absolute ${align === 'right' ? 'right-0' : 'left-0'} mt-1 w-52 sm:w-60 max-w-[calc(100vw-32px)] rounded-2xl border border-slate-300 dark:border-slate-700 shadow-2xl z-[100000] p-2 space-y-1.5 animate-fadeIn bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100`}>
           <div className="flex items-center justify-between px-1 py-0.5 border-b border-slate-200 dark:border-slate-800 text-[11px] font-black gap-1">
             <span className="text-[10px] text-amber-700 dark:text-amber-400 uppercase tracking-wider font-extrabold truncate flex-1 min-w-0">{label}</span>
             <div className="flex items-center gap-1 flex-shrink-0">
@@ -919,6 +919,7 @@ function MultiSelectCheckboxDropdown({ label, options = [], selected = [], onCha
                 type="button"
                 onClick={handleSelectAll}
                 className="px-1.5 py-0.5 rounded-lg bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-200 text-[10px] font-black cursor-pointer transition-colors shadow-2xs"
+                title="Select All"
               >
                 All
               </button>
@@ -926,9 +927,25 @@ function MultiSelectCheckboxDropdown({ label, options = [], selected = [], onCha
                 type="button"
                 onClick={handleDeselectAll}
                 className="px-1.5 py-0.5 rounded-lg bg-rose-100 dark:bg-rose-950/80 text-rose-800 dark:text-rose-300 hover:bg-rose-200 text-[10px] font-black cursor-pointer transition-colors shadow-2xs"
+                title="Deselect All"
               >
                 None
               </button>
+              {presetAction && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLocalSelected(presetAction.value);
+                    React.startTransition(() => {
+                      onChange(presetAction.value);
+                    });
+                  }}
+                  className="px-1.5 py-0.5 rounded-lg bg-teal-100 dark:bg-teal-950/80 text-teal-800 dark:text-teal-300 hover:bg-teal-200 text-[10px] font-black cursor-pointer transition-colors shadow-2xs"
+                  title={presetAction.title || presetAction.label}
+                >
+                  {presetAction.label}
+                </button>
+              )}
             </div>
           </div>
 
@@ -7288,7 +7305,7 @@ export default function AdvancedReports({
   const [isBackingUpPdfs, setIsBackingUpPdfs] = useState(false);
 
   // Photo Exporter States (Session / Class / Stream / Status / Roll No Range / Selected)
-  const [photoExportSelectedSessions, setPhotoExportSelectedSessions] = useState(() => new Set(['2025-26']));
+  const [photoExportSelectedSessions, setPhotoExportSelectedSessions] = useState(() => ['2025-26']);
   const [photoExportClass, setPhotoExportClass] = useState('ALL');
   const [photoExportStream, setPhotoExportStream] = useState('ALL');
   const [photoExportSelectedStatuses, setPhotoExportSelectedStatuses] = useState(() => ['Approved', 'Submitted']);
@@ -7314,7 +7331,7 @@ export default function AdvancedReports({
   const [isRestoringDb, setIsRestoringDb] = useState(false);
 
   // Master Register & CMS Public Configurations Exporter States
-  const [masterExportSelectedSessions, setMasterExportSelectedSessions] = useState(() => new Set(['2025-26']));
+  const [masterExportSelectedSessions, setMasterExportSelectedSessions] = useState(() => ['2025-26']);
   const [masterExportClass, setMasterExportClass] = useState('ALL');
   const [masterExportStream, setMasterExportStream] = useState('ALL');
   const [masterExportSelectedStatuses, setMasterExportSelectedStatuses] = useState(() => ['Approved', 'Submitted']);
@@ -7769,72 +7786,49 @@ export default function AdvancedReports({
     }
   }, []);
 
-  const handleTogglePhotoExportSession = (sess) => {
-    setPhotoExportSelectedSessions(prev => {
-      const next = new Set(prev);
-      if (next.has(sess)) {
-        next.delete(sess);
-      } else {
-        next.add(sess);
-        const yrMatch = String(sess).match(/\d{4}/);
-        const yr = yrMatch ? parseInt(yrMatch[0], 10) : 2025;
-        if (yr < 2022 && !window._hssMasterRegistersIsFull) {
-          ensureFullHistoryLoaded();
-        }
-      }
-      return next;
+  const handlePhotoExportSessionsChange = (val) => {
+    setPhotoExportSelectedSessions(val);
+    const list = val.length === 0 ? allKnownSessions : val;
+    const hasHistorical = list.some(s => {
+      const yr = parseInt(String(s).match(/\d{4}/)?.[0] || '2025', 10);
+      return yr < 2022;
     });
-  };
-
-  const handleSelectAllPhotoExportSessions = async () => {
-    setPhotoExportSelectedSessions(new Set(allKnownSessions));
-    if (!window._hssMasterRegistersIsFull) {
-      await ensureFullHistoryLoaded();
+    if (hasHistorical && !window._hssMasterRegistersIsFull) {
+      ensureFullHistoryLoaded();
     }
   };
 
-  const handleDeselectAllPhotoExportSessions = () => {
-    setPhotoExportSelectedSessions(new Set());
-  };
-
-  const handleToggleMasterExportSession = (sess) => {
-    setMasterExportSelectedSessions(prev => {
-      const next = new Set(prev);
-      if (next.has(sess)) {
-        next.delete(sess);
-      } else {
-        next.add(sess);
-        const yrMatch = String(sess).match(/\d{4}/);
-        const yr = yrMatch ? parseInt(yrMatch[0], 10) : 2025;
-        if (yr < 2022 && !window._hssMasterRegistersIsFull) {
-          ensureFullHistoryLoaded();
-        }
-      }
-      return next;
+  const handleMasterExportSessionsChange = (val) => {
+    setMasterExportSelectedSessions(val);
+    const list = val.length === 0 ? allKnownSessions : val;
+    const hasHistorical = list.some(s => {
+      const yr = parseInt(String(s).match(/\d{4}/)?.[0] || '2025', 10);
+      return yr < 2022;
     });
-  };
-
-  const handleSelectAllMasterExportSessions = async () => {
-    setMasterExportSelectedSessions(new Set(allKnownSessions));
-    if (!window._hssMasterRegistersIsFull) {
-      await ensureFullHistoryLoaded();
+    if (hasHistorical && !window._hssMasterRegistersIsFull) {
+      ensureFullHistoryLoaded();
     }
-  };
-
-  const handleDeselectAllMasterExportSessions = () => {
-    setMasterExportSelectedSessions(new Set());
   };
 
   // ─── Session Master Register Data Export (.xlsx) ───
   const handleDownloadSessionMasterRegister = async () => {
-    if (masterExportSelectedSessions.size === 0) {
+    if (masterExportSelectedSessions.includes('__NONE__')) {
+      showToast('Please select at least one academic session to export.', 'warning');
+      return;
+    }
+
+    const activeSessList = masterExportSelectedSessions.length === 0
+      ? allKnownSessions
+      : masterExportSelectedSessions.filter(s => s !== '__NONE__');
+
+    if (activeSessList.length === 0) {
       showToast('Please select at least one academic session to export.', 'warning');
       return;
     }
 
     setIsExportingMasterRegister(true);
     try {
-      const needsFull = Array.from(masterExportSelectedSessions).some(s => {
+      const needsFull = activeSessList.some(s => {
         const m = String(s).match(/\d{4}/);
         return m && parseInt(m[0], 10) < 2022;
       });
@@ -7855,10 +7849,11 @@ export default function AdvancedReports({
         }
       }
 
-      const normSelectedSessions = new Set(Array.from(masterExportSelectedSessions).map(s => String(s).trim().toLowerCase()));
+      const isAllSess = masterExportSelectedSessions.length === 0;
+      const normSelectedSessions = new Set(activeSessList.map(s => String(s).trim().toLowerCase()));
       let matchedStudents = candidatePool.filter(s => {
         const sSess = String(s.session || '').trim().toLowerCase();
-        if (!normSelectedSessions.has(sSess)) return false;
+        if (!isAllSess && !normSelectedSessions.has(sSess)) return false;
         if (masterExportClass !== 'ALL') {
           if (normalizeClassVal(s.class) !== normalizeClassVal(masterExportClass)) return false;
         }
@@ -7899,57 +7894,89 @@ export default function AdvancedReports({
         return fA - fB;
       });
 
-      const cleanVal = (val) => {
-        if (val === undefined || val === null || val === '—' || val === 'N/A' || val === '-' || val === 'null' || val === 'undefined') return '';
-        if (typeof val === 'object') return JSON.stringify(val);
-        return String(val).trim();
-      };
-
       const masterHeaders = [
-        'S.No.', 'Class Roll No', 'Admission No', 'Form No', 'Class', 'Session',
-        'Stream', 'Board Reg No', "Student's Name", "Father's Name", "Mother's Name",
-        'Date of Birth', 'Gender', 'Category', 'PEN No', 'Aadhaar No', "Father's Aadhaar",
-        'Address / Village', 'Mobile (Student)', 'Mobile (Parent)', 'Subjects',
-        'Subject 1', 'Subject 2', 'Subject 3', 'Subject 4', 'Subject 5', 'Subject 6',
-        'Prev Exam Roll No', 'Prev Marks', 'Prev Max Marks', 'Prev %', 'Prev Division',
-        'Current Exam Roll No', 'Current Result', 'Current Marks / Reappear',
-        'Admission Date', 'Status', 'Remarks'
+        'S.No.',
+        'Class Roll No',
+        'Admission No',
+        'Form No',
+        'Class',
+        'Session',
+        'Stream',
+        'Board Reg No',
+        "Student's Name",
+        "Father's Name",
+        "Mother's Name",
+        'Date of Birth',
+        'Gender',
+        'Category',
+        'PEN No',
+        'Aadhaar No',
+        'Mobile No',
+        'Alternate Mobile No',
+        'Email',
+        'Permanent Address',
+        'Tehsil',
+        'District',
+        'Pincode',
+        'Subjects 1',
+        'Subjects 2',
+        'Subjects 3',
+        'Subjects 4',
+        'Subjects 5',
+        'Subjects 6',
+        'Previous School',
+        'Previous Class',
+        'Previous Session',
+        'Previous Roll No',
+        'Previous Result / Marks',
+        'Current Result',
+        'Marks/Reappear (Current)',
+        'Admission Date',
+        'Status',
+        'Remarks'
       ];
+
+      const cleanVal = (v) => {
+        if (v === null || v === undefined || v === '') return '—';
+        const str = String(v).trim();
+        return (str === '' || str === 'null' || str === 'undefined') ? '—' : str;
+      };
 
       const formatStudentRow = (s, idx) => [
         idx + 1,
-        cleanVal(s.classRollNo || s['Class Roll No']),
-        cleanVal(s.admNo || s['Admission No']),
-        cleanVal(s.formNo || s['Form Number']),
-        cleanVal(s.class || s['Class']),
-        cleanVal(s.session || s['Session']),
-        cleanVal(s.stream || s['Stream']),
-        cleanVal(s.boardRegNo || s['Board Registration Number']),
-        cleanVal(s.studentName || s["Student's Name"]),
+        cleanVal(getStudentRollVal(s)),
+        cleanVal(s.admNo || s.admissionNo || s['Admission No']),
+        cleanVal(s.formNo || s['Form Number'] || s['Form No']),
+        cleanVal(normalizeClassVal(s.class || s.Class)),
+        cleanVal(s.session || s.Session),
+        cleanVal(s.stream || s.Stream),
+        cleanVal(extractRegNoClean(s) || s.boardRegNo || s['Board Registration Number']),
+        cleanVal(getStudentName(s)),
         cleanVal(s.fatherName || s["Father's Name"]),
         cleanVal(s.motherName || s["Mother's Name"]),
         cleanVal(s.dob || s['Date of Birth']),
         cleanVal(s.gender || s['Gender']),
         cleanVal(s.category || s['Category']),
-        cleanVal(s.penNo || s['PEN No.']),
-        cleanVal(s.aadhar || s['Aadhaar Card No.']),
-        cleanVal(s.fatherAadhar || s["Father's Aadhaar Card No."]),
-        cleanVal(s.village || s.residence || s['Residence (Village, District)']),
-        cleanVal(s.mobile || s['Mobile (Student)']),
-        cleanVal(s.parentContact || s["Parent's Contact"]),
-        cleanVal(s.subs || s['Subjects']),
+        cleanVal(s.penNo || s['PEN No'] || s['PEN No.'] || s['PEN']),
+        cleanVal(s.aadhaarNo || s['Aadhaar Number'] || s['Aadhaar No.']),
+        cleanVal(s.mobile || s.phone || s['Mobile No.'] || s['Mobile Number']),
+        cleanVal(s.alternateMobile || s['Alternate Mobile No.']),
+        cleanVal(s.email || s['Email Address']),
+        cleanVal(s.address || s['Permanent Address']),
+        cleanVal(s.tehsil || s['Tehsil']),
+        cleanVal(s.district || s['District']),
+        cleanVal(s.pincode || s['Pincode']),
         cleanVal(s.subjects1 || s['Subjects1']),
         cleanVal(s.subjects2 || s['Subjects2']),
         cleanVal(s.subjects3 || s['Subjects3']),
         cleanVal(s.subjects4 || s['Subjects4']),
         cleanVal(s.subjects5 || s['Subjects5']),
-        cleanVal(s.subjects6 || s['Subjects6']),
-        cleanVal(s.prevExamRollNo || s['Exam R.No. (Prev.)']),
-        cleanVal(s.prevMarksObt || s['Marks Obt. (Prev.)']),
-        cleanVal(s.prevMaxMarks || s['Max. Marks (Prev.)']),
-        cleanVal(s.prevPercentage || s['%age (Prev.)']),
-        cleanVal(s.prevDivision || s['Div/Distinc (Prev.)']),
-        cleanVal(s.currExamRollNo || s['Exam R.No. (Current)']),
+        cleanVal(s.subjects6 || s.subject6 || s['Subjects6']),
+        cleanVal(s.prevSchool || s['Previous School Name']),
+        cleanVal(s.prevClass || s['Previous Class']),
+        cleanVal(s.prevSession || s['Previous Session']),
+        cleanVal(s.prevRollNo || s['Previous Roll No']),
+        cleanVal(s.prevResultMarks || s['Previous Result / Marks']),
         cleanVal(s.currResult || s['Result (Current)']),
         cleanVal(s.currMarksReapp || s['Marks/Reapp (Current)']),
         cleanVal(s.admissionDate || s.admDate || s.timestamp || s.created_at),
@@ -7972,7 +7999,7 @@ export default function AdvancedReports({
       };
 
       const wb = XLSX.utils.book_new();
-      const isMultiSession = masterExportSelectedSessions.size > 1;
+      const isMultiSession = activeSessList.length > 1;
 
       if (isMultiSession) {
         // 1. Consolidated Tab
@@ -7998,7 +8025,7 @@ export default function AdvancedReports({
         });
       } else {
         // Single Session Tab
-        const singleSessName = Array.from(masterExportSelectedSessions)[0];
+        const singleSessName = activeSessList[0];
         const sRows = matchedStudents.map((s, idx) => formatStudentRow(s, idx));
         const wsSingle = XLSX.utils.aoa_to_sheet([masterHeaders, ...sRows]);
         wsSingle['!cols'] = autoColWidths(masterHeaders, sRows);
@@ -8007,18 +8034,18 @@ export default function AdvancedReports({
       }
 
       let filename = '';
-      if (masterExportSelectedSessions.size === allKnownSessions.length) {
+      if (masterExportSelectedSessions.length === 0 || activeSessList.length === allKnownSessions.length) {
         filename = 'HSS_Shangus_Complete_Master_Register_2006-2026.xlsx';
-      } else if (masterExportSelectedSessions.size === 1) {
-        const sessClean = Array.from(masterExportSelectedSessions)[0].replace(/[^a-zA-Z0-9_-]/g, '_');
+      } else if (activeSessList.length === 1) {
+        const sessClean = activeSessList[0].replace(/[^a-zA-Z0-9_-]/g, '_');
         filename = `HSS_Shangus_Master_Register_${sessClean}.xlsx`;
       } else {
-        filename = `HSS_Shangus_Master_Register_${masterExportSelectedSessions.size}_Sessions.xlsx`;
+        filename = `HSS_Shangus_Master_Register_${activeSessList.length}_Sessions.xlsx`;
       }
 
       XLSX.writeFile(wb, filename);
 
-      logAdminActivity('Session Master Register Exported', `Exported Master Register Excel (${filename}) with ${matchedStudents.length} records across ${masterExportSelectedSessions.size} session(s).`);
+      logAdminActivity('Session Master Register Exported', `Exported Master Register Excel (${filename}) with ${matchedStudents.length} records across ${activeSessList.length} session(s).`);
       showToast(`✅ Master Register successfully downloaded (${filename}) with ${matchedStudents.length} records!`, 'success');
     } catch (err) {
       console.error('Session master register export error:', err);
@@ -10912,11 +10939,13 @@ export default function AdvancedReports({
     let list = allStudents;
 
     // 1. Session Filter (Checkbox-style Multi-Session Selection)
-    if (photoExportSelectedSessions && photoExportSelectedSessions.size > 0) {
-      const normChecked = new Set(Array.from(photoExportSelectedSessions).map(s => String(s).trim().toLowerCase()));
-      list = list.filter(s => normChecked.has(String(s.session || '').trim().toLowerCase()));
-    } else {
-      list = [];
+    if (photoExportSelectedSessions && photoExportSelectedSessions.length > 0) {
+      if (photoExportSelectedSessions.includes('__NONE__')) {
+        list = [];
+      } else {
+        const normChecked = new Set(photoExportSelectedSessions.map(s => String(s).trim().toLowerCase()));
+        list = list.filter(s => normChecked.has(String(s.session || '').trim().toLowerCase()));
+      }
     }
 
     // 2. Class Filter
@@ -11073,11 +11102,13 @@ export default function AdvancedReports({
 
     try {
       const zip = new JSZip();
+      const activePhotoSessions = photoExportSelectedSessions.length === 0 ? allKnownSessions : photoExportSelectedSessions.filter(s => s !== '__NONE__');
+      const sessSummary = photoExportSelectedSessions.length === 0 ? 'All (2006–2026)' : activePhotoSessions.slice(0, 5).join(', ') + (activePhotoSessions.length > 5 ? '...' : '');
       const manifestLines = [
         `========================================================================================`,
         `GOVT. HIGHER SECONDARY SCHOOL SHANGUS — BULK STUDENT PHOTOS EXPORT MANIFEST`,
         `Generated At : ${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}`,
-        `Scope Filter : Sessions (${photoExportSelectedSessions.size}): ${Array.from(photoExportSelectedSessions).slice(0, 5).join(', ')}${photoExportSelectedSessions.size > 5 ? '...' : ''} | Class: ${photoExportClass} | Stream: ${photoExportStream}`,
+        `Scope Filter : Sessions (${activePhotoSessions.length}): ${sessSummary} | Class: ${photoExportClass} | Stream: ${photoExportStream}`,
         `Export Mode  : ${photoExportMode === 'roll_range' ? `Roll Range: ${photoExportRollStart} to ${photoExportRollEnd}` : photoExportMode === 'selected_table' ? 'Selected Records' : 'All In Scope'}`,
         `Total Records In Scope : ${targetList.length}`,
         `File Naming Template   : <ClassRollNo>_<BoardRegistrationNo>_<StudentName>_<Class>_<Session>.jpg`,
@@ -11188,8 +11219,10 @@ export default function AdvancedReports({
       });
 
       const cleanCls = String(photoExportClass !== 'ALL' ? photoExportClass : 'AllClasses').replace(/[^a-zA-Z0-9-]/g, '');
-      const sessCount = photoExportSelectedSessions.size;
-      const cleanSess = sessCount === allKnownSessions.length ? 'AllSessions_2006-2026' : (sessCount === 1 ? Array.from(photoExportSelectedSessions)[0].replace(/[^a-zA-Z0-9-]/g, '') : `${sessCount}_Sessions`);
+      const sessCount = activePhotoSessions.length;
+      const cleanSess = photoExportSelectedSessions.length === 0 || sessCount === allKnownSessions.length
+        ? 'AllSessions_2006-2026'
+        : (sessCount === 1 ? activePhotoSessions[0].replace(/[^a-zA-Z0-9-]/g, '') : `${sessCount}_Sessions`);
       const zipFilename = `HSS_Shangus_Photos_${cleanCls}_${cleanSess}_${Date.now()}.zip`;
 
       const downloadUrl = URL.createObjectURL(zipBlob);
@@ -13304,8 +13337,8 @@ export default function AdvancedReports({
                     <span>Select Target Scope, Sessions & Export Range</span>
                   </div>
 
-                  {/* Class, Stream & Status Selectors */}
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+                  {/* Class, Stream, Sessions & Status in ONE Row */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 text-xs">
                     <div>
                       <label className="block text-[10px] font-black text-slate-600 dark:text-slate-400 mb-0.5">
                         Target Class:
@@ -13340,6 +13373,20 @@ export default function AdvancedReports({
 
                     <div>
                       <label className="block text-[10px] font-black text-slate-600 dark:text-slate-400 mb-0.5">
+                        Academic Sessions:
+                      </label>
+                      <MultiSelectCheckboxDropdown
+                        label="Sessions"
+                        options={allKnownSessions}
+                        selected={photoExportSelectedSessions}
+                        onChange={handlePhotoExportSessionsChange}
+                        align="left"
+                        presetAction={{ label: 'Active', value: ['2025-26'], title: 'Select Active Session 2025-26' }}
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-black text-slate-600 dark:text-slate-400 mb-0.5">
                         Admission Status:
                       </label>
                       <MultiSelectCheckboxDropdown
@@ -13349,57 +13396,6 @@ export default function AdvancedReports({
                         onChange={(val) => setPhotoExportSelectedStatuses(val)}
                         align="right"
                       />
-                    </div>
-                  </div>
-
-                  {/* Checkbox Multi-Session Selector */}
-                  <div className="space-y-1.5 p-2 rounded-lg bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-800">
-                    <div className="flex items-center justify-between flex-wrap gap-1">
-                      <span className="text-[10.5px] font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1">
-                        <Calendar size={12} className="text-amber-600" />
-                        Academic Sessions ({photoExportSelectedSessions.size} of {allKnownSessions.length} Selected):
-                      </span>
-                      <div className="flex items-center gap-1">
-                        <button
-                          type="button"
-                          onClick={handleSelectAllPhotoExportSessions}
-                          className="px-2 py-0.5 rounded bg-amber-500 hover:bg-amber-600 text-white text-[9.5px] font-black transition-all cursor-pointer"
-                        >
-                          Select All ({allKnownSessions.length})
-                        </button>
-                        <button
-                          type="button"
-                          onClick={handleDeselectAllPhotoExportSessions}
-                          className="px-2 py-0.5 rounded bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 text-[9.5px] font-black transition-all cursor-pointer"
-                        >
-                          Clear / None
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Dense wrapping badge grid */}
-                    <div className="flex flex-wrap gap-1 max-h-20 overflow-y-auto p-1 rounded-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-                      {allKnownSessions.map(sess => {
-                        const isChecked = photoExportSelectedSessions.has(sess);
-                        return (
-                          <label
-                            key={sess}
-                            className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10.5px] font-bold cursor-pointer transition-all border select-none ${
-                              isChecked
-                                ? 'bg-amber-100 dark:bg-amber-950/70 border-amber-400 dark:border-amber-700 text-amber-900 dark:text-amber-200 font-black shadow-2xs'
-                                : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-200'
-                            }`}
-                          >
-                            <input
-                              type="checkbox"
-                              checked={isChecked}
-                              onChange={() => handleTogglePhotoExportSession(sess)}
-                              className="w-3 h-3 accent-amber-600 rounded cursor-pointer"
-                            />
-                            <span>{sess}</span>
-                          </label>
-                        );
-                      })}
                     </div>
                   </div>
 
@@ -13840,8 +13836,8 @@ export default function AdvancedReports({
                     </span>
                   </div>
 
-                  {/* Class, Stream & Status Filters */}
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+                  {/* Class, Stream, Sessions & Status in ONE Row */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 text-xs">
                     <div>
                       <label className="block text-[10px] font-black text-slate-600 dark:text-slate-400 mb-0.5">
                         Target Class:
@@ -13876,6 +13872,20 @@ export default function AdvancedReports({
 
                     <div>
                       <label className="block text-[10px] font-black text-slate-600 dark:text-slate-400 mb-0.5">
+                        Academic Sessions:
+                      </label>
+                      <MultiSelectCheckboxDropdown
+                        label="Sessions"
+                        options={allKnownSessions}
+                        selected={masterExportSelectedSessions}
+                        onChange={handleMasterExportSessionsChange}
+                        align="left"
+                        presetAction={{ label: 'Active', value: ['2025-26'], title: 'Select Active Session 2025-26' }}
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-black text-slate-600 dark:text-slate-400 mb-0.5">
                         Admission Status:
                       </label>
                       <MultiSelectCheckboxDropdown
@@ -13888,72 +13898,16 @@ export default function AdvancedReports({
                     </div>
                   </div>
 
-                  {/* Checkbox Multi-Session Selector */}
-                  <div className="space-y-1.5 p-2 rounded-lg bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-800">
-                    <div className="flex items-center justify-between flex-wrap gap-1">
-                      <span className="text-[10.5px] font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1">
-                        <Calendar size={12} className="text-amber-600" />
-                        Select Sessions ({masterExportSelectedSessions.size} of {allKnownSessions.length} Selected):
-                      </span>
-                      <div className="flex items-center gap-1">
-                        <button
-                          type="button"
-                          onClick={handleSelectAllMasterExportSessions}
-                          className="px-2 py-0.5 rounded bg-amber-500 hover:bg-amber-600 text-white text-[9.5px] font-black transition-all cursor-pointer"
-                        >
-                          Select All ({allKnownSessions.length})
-                        </button>
-                        <button
-                          type="button"
-                          onClick={handleDeselectAllMasterExportSessions}
-                          className="px-2 py-0.5 rounded bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 text-[9.5px] font-black transition-all cursor-pointer"
-                        >
-                          Clear / None
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setMasterExportSelectedSessions(new Set(['2025-26']))}
-                          className="px-2 py-0.5 rounded bg-teal-600 hover:bg-teal-500 text-white text-[9.5px] font-black transition-all cursor-pointer"
-                        >
-                          Active (2025–26)
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Dense wrapping badge grid */}
-                    <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto p-1 rounded-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-                      {allKnownSessions.map(sess => {
-                        const isChecked = masterExportSelectedSessions.has(sess);
-                        return (
-                          <label
-                            key={sess}
-                            className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10.5px] font-bold cursor-pointer transition-all border select-none ${
-                              isChecked
-                                ? 'bg-amber-100 dark:bg-amber-950/70 border-amber-400 dark:border-amber-700 text-amber-900 dark:text-amber-200 font-black shadow-2xs'
-                                : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-200'
-                            }`}
-                          >
-                            <input
-                              type="checkbox"
-                              checked={isChecked}
-                              onChange={() => handleToggleMasterExportSession(sess)}
-                              className="w-3 h-3 accent-amber-600 rounded cursor-pointer"
-                            />
-                            <span>{sess}</span>
-                          </label>
-                        );
-                      })}
-                    </div>
-                  </div>
-
                   {/* Export Trigger */}
                   <div className="flex items-center justify-between flex-wrap gap-2 pt-1 border-t border-slate-200 dark:border-slate-800">
                     <div className="text-[11px] text-slate-600 dark:text-slate-400 font-medium">
                       Scope:{' '}
                       <span className="font-black text-slate-900 dark:text-white">
-                        {masterExportSelectedSessions.size === allKnownSessions.length
+                        {masterExportSelectedSessions.length === 0 || masterExportSelectedSessions.length === allKnownSessions.length
                           ? 'All Historical Sessions (2006–2026)'
-                          : `${masterExportSelectedSessions.size} Session(s)`}
+                          : masterExportSelectedSessions.includes('__NONE__')
+                            ? 'No Sessions'
+                            : `${masterExportSelectedSessions.length} Session(s)`}
                       </span>
                       {' • '}Class: <span className="font-black text-slate-900 dark:text-white">{masterExportClass === 'ALL' ? 'All Classes' : `Class ${masterExportClass}`}</span>
                       {' • '}Stream: <span className="font-black text-slate-900 dark:text-white">{masterExportStream}</span>
@@ -13962,7 +13916,7 @@ export default function AdvancedReports({
 
                     <button
                       type="button"
-                      disabled={isExportingMasterRegister || masterExportSelectedSessions.size === 0}
+                      disabled={isExportingMasterRegister || masterExportSelectedSessions.includes('__NONE__')}
                       onClick={handleDownloadSessionMasterRegister}
                       className="px-3.5 py-1.5 rounded-lg bg-teal-700 hover:bg-teal-600 text-white font-black text-xs shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50 transition-all"
                     >
@@ -14118,63 +14072,46 @@ export default function AdvancedReports({
                   </div>
                 </div>
 
-                {/* ─── 4. FILTERED COHORT EXCEL & DISASTER RECOVERY JSON ─── */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
-                  {/* Filtered Roster Export */}
-                  <div className="p-2.5 sm:p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xs space-y-2 flex flex-col justify-between">
-                    <div>
-                      <div className="flex items-center gap-1.5 text-slate-900 dark:text-white font-black text-xs">
-                        <FileSpreadsheet size={14} className="text-blue-600" />
-                        <span>Export Filtered Cohort to Excel (.xlsx)</span>
+                {/* ─── 4. FULL JSON DISASTER RECOVERY BACKUP & RESTORE ─── */}
+                <div className="p-2.5 sm:p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xs space-y-2">
+                  <div className="flex items-start justify-between flex-wrap gap-2">
+                    <div className="flex items-start gap-2.5">
+                      <div className="p-2 rounded-lg bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 font-black shrink-0">
+                        <Save size={16} />
                       </div>
-                      <p className="text-[10.5px] text-slate-500 font-medium leading-relaxed mt-0.5">
-                        Exports the {filteredStudents.length} students currently matching your active filter criteria with auto-spaced columns.
-                      </p>
+                      <div className="space-y-0.5">
+                        <div className="font-black text-xs text-slate-900 dark:text-white flex items-center gap-1.5">
+                          <span>Full JSON Disaster Recovery Backup & Database Restore</span>
+                        </div>
+                        <p className="text-[10.5px] text-slate-500 dark:text-slate-400 font-medium">
+                          Complete raw Firestore document tree (all collections, rules & accounts) for offline disaster recovery, server backup, or cross-environment database migration.
+                        </p>
+                      </div>
                     </div>
-                    <button
-                      type="button"
-                      onClick={handleExportExcel}
-                      className="w-full py-1.5 rounded-lg bg-blue-700 hover:bg-blue-600 text-white font-black text-xs shadow-xs flex items-center justify-center gap-1.5 cursor-pointer transition-all"
-                    >
-                      <Download size={12} />
-                      <span>Export {filteredStudents.length} Filtered Records</span>
-                    </button>
-                  </div>
 
-                  {/* JSON Backup & Restore in 2 sub-columns */}
-                  <div className="p-2.5 sm:p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xs space-y-2 flex flex-col justify-between">
-                    <div>
-                      <div className="flex items-center gap-1.5 text-slate-900 dark:text-white font-black text-xs">
-                        <Save size={14} className="text-amber-600" />
-                        <span>Full JSON Disaster Recovery Backup & Restore</span>
-                      </div>
-                      <p className="text-[10.5px] text-slate-500 font-medium leading-relaxed mt-0.5">
-                        Complete raw Firestore document tree (all collections, rules & accounts) for disaster recovery or migration.
-                      </p>
-                    </div>
-                    <div className="grid grid-cols-2 gap-1.5">
+                    <div className="flex items-center gap-1.5 shrink-0">
                       <button
                         type="button"
                         disabled={isExportingDbJson}
                         onClick={handleDownloadFullDatabaseJson}
-                        className="w-full py-1.5 rounded-lg bg-amber-700 hover:bg-amber-600 text-white font-black text-[11px] shadow-xs flex items-center justify-center gap-1 cursor-pointer disabled:opacity-50 transition-all"
+                        className="px-3.5 py-1.5 rounded-lg bg-amber-700 hover:bg-amber-600 text-white font-black text-xs shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50 transition-all"
                       >
                         {isExportingDbJson ? (
                           <>
-                            <RefreshCw size={11} className="animate-spin" />
+                            <RefreshCw size={13} className="animate-spin" />
                             <span>Exporting...</span>
                           </>
                         ) : (
                           <>
-                            <Download size={11} />
-                            <span>Export (.json)</span>
+                            <Download size={13} />
+                            <span>Export JSON Backup (.json)</span>
                           </>
                         )}
                       </button>
 
-                      <label className="w-full py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-black text-[11px] shadow-xs flex items-center justify-center gap-1 cursor-pointer transition-all text-center">
-                        <Upload size={11} />
-                        <span>{isRestoringDb ? 'Restoring...' : 'Restore JSON'}</span>
+                      <label className="px-3.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-black text-xs shadow-xs flex items-center gap-1.5 cursor-pointer transition-all">
+                        <Upload size={13} />
+                        <span>{isRestoringDb ? 'Restoring...' : 'Restore from JSON'}</span>
                         <input
                           type="file"
                           accept=".json"
