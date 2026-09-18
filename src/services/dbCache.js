@@ -1144,6 +1144,86 @@ export async function preloadStudentPhotosCache() {
 export { preloadStudentPhotosCache as preloadCentralStudentPhotos };
 
 /**
+ * Loads and indexes all processed student photos directly from the Cloud Firestore 'studentPhotos' collection.
+ * Populates window._hss_central_photo_map across registration numbers, form numbers, document IDs, and class-band tags.
+ * Dispatches 'hss-photos-loaded' event so all active components and exporter counters update instantaneously.
+ */
+export async function loadCentralStudentPhotosFromFirestore() {
+  if (typeof window === 'undefined') return {};
+  try {
+    window._hss_central_photo_map = window._hss_central_photo_map || {};
+    const photoMap = window._hss_central_photo_map;
+
+    const photosSnap = await getDocs(collection(db, 'studentPhotos'));
+    let indexedCount = 0;
+
+    photosSnap.forEach(docSnap => {
+      const d = docSnap.data();
+      const rawP = d.photo_id || d.photoData || d.photo || d.photoUrl || d.data || d.url || '';
+      const p = formatPhotoDisplayUrl(rawP) || (typeof rawP === 'string' ? rawP.trim() : '');
+      if (p && p.length > 20 && p !== '/logo.png' && !p.includes('drive.google.com')) {
+        indexedCount++;
+        const docId = docSnap.id;
+        photoMap[docId] = p;
+        const cleanDocId = docId.replace(/^photo_/, '').replace(/^form_/, '').trim();
+        photoMap[cleanDocId] = p;
+
+        const reg = extractUniversalRegNo(d);
+        if (reg) {
+          photoMap[reg] = p;
+          photoMap[`photo_${reg}`] = p;
+          photoMap[`reg_${reg}`] = p;
+        }
+        if (d.regNo) {
+          const cReg = normalizeRegNoKey(d.regNo);
+          photoMap[cReg] = p;
+          photoMap[`photo_${cReg}`] = p;
+        }
+        if (d.boardRegNo) {
+          const cBoardReg = normalizeRegNoKey(d.boardRegNo);
+          photoMap[cBoardReg] = p;
+          photoMap[`photo_${cBoardReg}`] = p;
+        }
+        if (d.formNo) {
+          const cleanFNo = String(d.formNo).trim();
+          photoMap[cleanFNo] = p;
+          photoMap[`photo_form_${cleanFNo}`] = p;
+          photoMap[`photo_${cleanFNo}`] = p;
+        }
+
+        const dClass = normalizeCanonicalClass(d.selectedClass || d.class || d['Class'] || '');
+        if (reg && dClass) {
+          photoMap[`${reg}_${dClass}`] = p;
+          photoMap[`photo_${reg}_${dClass}`] = p;
+        }
+
+        if (Array.isArray(d.photoHistory)) {
+          d.photoHistory.forEach(h => {
+            const hUrl = formatPhotoDisplayUrl(h.url || h.photo_id || h.photoData || h.photo || '');
+            if (hUrl && hUrl.length > 20 && hUrl !== '/logo.png') {
+              const hClass = normalizeCanonicalClass(h.class || h.selectedClass || '');
+              const r = reg || d.boardRegNo || d.regNo;
+              if (r && hClass) {
+                photoMap[`${r}_${hClass}`] = hUrl;
+                photoMap[`photo_${r}_${hClass}`] = hUrl;
+              }
+            }
+          });
+        }
+      }
+    });
+
+    window._hss_central_photo_map = photoMap;
+    window.dispatchEvent(new CustomEvent('hss-photos-loaded', { detail: { count: indexedCount } }));
+    return photoMap;
+  } catch (err) {
+    console.warn('Could not load central student photos from Firestore:', err);
+    return window._hss_central_photo_map || {};
+  }
+}
+
+
+/**
  * Robust synchronous photo resolver cross-referencing all fields, in-memory central photo map, and localStorage.
  * Ensures if a photo exists for a registration number in ANY session or class, it is automatically returned.
  * STRICT: Matches ONLY by unique Registration Number, Form Number, or Document ID (NEVER by student name).
