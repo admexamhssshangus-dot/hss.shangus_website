@@ -1708,3 +1708,109 @@ export function printFailList({
   triggerPrintWindow(html, `Absentee & Fail List (${examType}) — Class ${className}`);
   return true;
 }
+
+/**
+ * Directly triggers the official JKBOSE award roll print dialogue / PDF generator
+ * for any historical practical/evaluation record object loaded from Firestore.
+ */
+export function printHistoricalSubmission(item) {
+  if (!item) return false;
+  const records = Array.isArray(item.records) ? item.records : (Array.isArray(item.students) ? item.students : []);
+  if (records.length === 0) return false;
+
+  const pType = item.practicalType || item.evaluationType || item.examTitle || 'Assessment';
+  const isExternal = String(pType).toLowerCase().includes('external');
+  const ySuffix = String(item.yearSuffix || item.sessionCanonical || item.session || '');
+  const isBiAnnual = /\b(oct|nov|bian|private|bi-annual|mar-apr)\b/i.test(ySuffix);
+  const sessionStr = isBiAnnual
+    ? `Annual Private / Bi-Annual (${ySuffix})`
+    : (ySuffix.toLowerCase().includes('annual') ? ySuffix : (ySuffix ? `Annual Regular ${ySuffix}` : 'Annual Regular 2025-26'));
+
+  const formattedRecords = records.map(st => {
+    const rawP = st.practicalMarks !== undefined && st.practicalMarks !== null ? String(st.practicalMarks).trim() : '';
+    const rawV = st.vivaMarks !== undefined && st.vivaMarks !== null ? String(st.vivaMarks).trim() : '';
+    const rawTot = st.totalMarks !== undefined && st.totalMarks !== null ? String(st.totalMarks).trim() : '';
+    const isAbsent = rawP.toUpperCase() === 'AB' || rawTot.toUpperCase() === 'AB' || rawP.toUpperCase() === 'A';
+
+    return {
+      rollNo: String(st.rollNo || st.classRollNo || st.roll || '').trim(),
+      name: String(st.name || st.studentName || '').trim(),
+      formNo: String(st.formNo || st.form || '').trim(),
+      regNo: String(st.regNo || st.boardRegNo || '').trim(),
+      examRollNo: String(st.examRollNo || st.rollNo || '').trim(),
+      practicalMarks: isAbsent ? 'AB' : (rawP || '—'),
+      vivaMarks: isAbsent ? '—' : (rawV || '—'),
+      totalMarks: isAbsent ? 'AB' : (rawTot || rawP || '—'),
+    };
+  });
+
+  return printIndividualAwardRoll({
+    subjectCode: item.subjectCode || (item.subject && item.subject.length <= 4 ? item.subject.toUpperCase() : item.subject?.substring(0, 3).toUpperCase()) || 'GEN',
+    subjectName: item.subject || 'Subject',
+    className: item.className || item.class || '11th',
+    session: sessionStr,
+    records: formattedRecords,
+    isExternal,
+    evaluationType: pType,
+    practicalType: pType,
+    examTitle: pType,
+    maxMarks: Number(item.maxMarks) || 50,
+    minMarks: Number(item.minMarks) || 18,
+  });
+}
+
+/**
+ * Checks whether an evaluation submission document was created by the currently authenticated teacher.
+ */
+export function isSubmissionOwnedByTeacher(item, user, authUser) {
+  if (!item) return false;
+
+  const currentEmail = String(user?.email || authUser?.email || '').toLowerCase().trim();
+  const currentName = String(user?.name || user?.displayName || authUser?.displayName || '').toLowerCase().trim();
+  const currentUid = String(user?.uid || authUser?.uid || '').trim();
+  const currentSubject = String(user?.subject || user?.assignedSubject || user?.teachingSubject || '').toLowerCase().trim();
+
+  // If no auth identity at all, return false
+  if (!currentEmail && !currentName && !currentUid) return false;
+
+  const itemEmail = String(item.submittedByEmail || item.teacherEmail || item.createdByEmail || item.userEmail || '').toLowerCase().trim();
+  const itemName = String(item.submittedByName || item.teacherName || item.createdByName || item.authorName || '').toLowerCase().trim();
+  const itemBy = String(item.submittedBy || '').toLowerCase().trim();
+  const itemUid = String(item.submittedByUid || item.teacherId || item.userId || item.uid || '').trim();
+
+  // 1. Email match (exact or substring)
+  if (currentEmail) {
+    if (itemEmail && (itemEmail === currentEmail || itemEmail.includes(currentEmail) || currentEmail.includes(itemEmail))) {
+      return true;
+    }
+    if (itemBy && (itemBy === currentEmail || itemBy.includes(currentEmail))) {
+      return true;
+    }
+  }
+
+  // 2. UID match
+  if (currentUid && itemUid && itemUid === currentUid) {
+    return true;
+  }
+
+  // 3. Name match (if length >= 3)
+  if (currentName && currentName.length >= 3) {
+    if (itemName && (itemName === currentName || itemName.includes(currentName) || currentName.includes(itemName))) {
+      return true;
+    }
+    if (itemBy && (itemBy === currentName || itemBy.includes(currentName))) {
+      return true;
+    }
+  }
+
+  // 4. Fallback: If item has no submitter email or name recorded, but registered subject matches teacher
+  if (!itemEmail && !itemName && !itemBy && currentSubject) {
+    const itemSubj = String(item.teacherRegisteredSubject || item.subject || '').toLowerCase().trim();
+    if (itemSubj && (itemSubj === currentSubject || itemSubj.includes(currentSubject) || currentSubject.includes(itemSubj))) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
