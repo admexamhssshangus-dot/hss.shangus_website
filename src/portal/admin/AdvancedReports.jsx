@@ -7118,6 +7118,11 @@ export default function AdvancedReports({
   const [showToolsModal, setShowToolsModal] = useState(false);
   const [activeToolsTab, setActiveToolsTab] = useState('bulk_forms');
   const [bulkFormsRenderLimit, setBulkFormsRenderLimit] = useState(BULK_FORM_ROW_BATCH_SIZE);
+  const [bulkFormsClass, setBulkFormsClass] = useState('ALL');
+  const [bulkFormsStream, setBulkFormsStream] = useState('ALL');
+  const [bulkFormsSelectedSessions, setBulkFormsSelectedSessions] = useState(() => ['2025-26']);
+  const [bulkFormsSelectedStatuses, setBulkFormsSelectedStatuses] = useState(() => ['Approved', 'Submitted']);
+  const [bulkFormsSearch, setBulkFormsSearch] = useState('');
 
   // Global Custom Confirmation Modal State
   const [confirmModalConfig, setConfirmModalConfig] = useState(null);
@@ -7785,6 +7790,18 @@ export default function AdvancedReports({
       setIsHydratingMasterRegisters(false);
     }
   }, []);
+
+  const handleBulkFormsSessionsChange = (val) => {
+    setBulkFormsSelectedSessions(val);
+    const list = val.length === 0 ? allKnownSessions : val;
+    const hasHistorical = list.some(s => {
+      const yr = parseInt(String(s).match(/\d{4}/)?.[0] || '2025', 10);
+      return yr < 2022;
+    });
+    if (hasHistorical && !window._hssMasterRegistersIsFull) {
+      ensureFullHistoryLoaded();
+    }
+  };
 
   const handlePhotoExportSessionsChange = (val) => {
     setPhotoExportSelectedSessions(val);
@@ -9816,25 +9833,92 @@ export default function AdvancedReports({
     return list;
   }, [targetDataset, deferredSearchTerm, selectedSessions, selectedClasses, selectedGenders, selectedStreams, selectedCategories, selectedStatuses, sortBy, sortOrder]);
 
+  const bulkFormsCandidateStudents = useMemo(() => {
+    let list = allStudents;
+
+    // 1. Session Filter (Checkbox-style Multi-Session Selection)
+    if (bulkFormsSelectedSessions && bulkFormsSelectedSessions.length > 0) {
+      if (bulkFormsSelectedSessions.includes('__NONE__')) {
+        list = [];
+      } else {
+        const normChecked = new Set(bulkFormsSelectedSessions.map(s => String(s).trim().toLowerCase()));
+        list = list.filter(s => normChecked.has(String(s.session || '').trim().toLowerCase()));
+      }
+    }
+
+    // 2. Class Filter
+    if (bulkFormsClass && bulkFormsClass !== 'ALL') {
+      const cNorm = normalizeClassVal(bulkFormsClass);
+      list = list.filter(s => normalizeClassVal(s.class) === cNorm);
+    }
+
+    // 3. Stream Filter
+    if (bulkFormsStream && bulkFormsStream !== 'ALL') {
+      const stLower = String(bulkFormsStream).trim().toLowerCase();
+      list = list.filter(s => String(s.stream || '').trim().toLowerCase() === stLower);
+    }
+
+    // 4. Admission Status Filter (Multi-select)
+    if (bulkFormsSelectedStatuses && bulkFormsSelectedStatuses.length > 0) {
+      if (bulkFormsSelectedStatuses.includes('__NONE__')) {
+        list = [];
+      } else {
+        const normStatuses = new Set(bulkFormsSelectedStatuses.map(st => String(st).trim().toLowerCase()));
+        list = list.filter(s => {
+          const eff = getStudentEffectiveStatus(s).toLowerCase();
+          return normStatuses.has(eff);
+        });
+      }
+    }
+
+    // 5. Quick Search
+    if (bulkFormsSearch && bulkFormsSearch.trim()) {
+      const q = bulkFormsSearch.toLowerCase().trim();
+      list = list.filter(s => {
+        const name = String(getStudentName(s)).toLowerCase();
+        const roll = String(getStudentRollVal(s)).toLowerCase();
+        const form = String(s.formNo || s['Form Number'] || '').toLowerCase();
+        const parent = String(s.fatherName || s["Father's Name"] || '').toLowerCase();
+        return name.includes(q) || roll.includes(q) || form.includes(q) || parent.includes(q);
+      });
+    }
+
+    // Sort naturally by Class, then Session, then numeric Roll No
+    return [...list].sort((a, b) => {
+      const clsA = normalizeClassVal(a.class);
+      const clsB = normalizeClassVal(b.class);
+      if (clsA !== clsB) return clsA.localeCompare(clsB);
+
+      const rA = parseInt(String(getStudentRollVal(a) || '0').replace(/\D/g, ''), 10) || 0;
+      const rB = parseInt(String(getStudentRollVal(b) || '0').replace(/\D/g, ''), 10) || 0;
+      if (rA !== rB) return rA - rB;
+
+      const fA = parseInt(String(a.formNo || '0').replace(/\D/g, ''), 10) || 0;
+      const fB = parseInt(String(b.formNo || '0').replace(/\D/g, ''), 10) || 0;
+      return fA - fB;
+    });
+  }, [allStudents, bulkFormsSelectedSessions, bulkFormsClass, bulkFormsStream, bulkFormsSelectedStatuses, bulkFormsSearch]);
+
   const bulkFormRows = useMemo(
-    () => filteredStudents.slice(0, bulkFormsRenderLimit),
-    [filteredStudents, bulkFormsRenderLimit]
+    () => bulkFormsCandidateStudents.slice(0, bulkFormsRenderLimit),
+    [bulkFormsCandidateStudents, bulkFormsRenderLimit]
   );
 
   const selectedFilteredBulkFormCount = useMemo(() => {
     let count = 0;
-    filteredStudents.forEach(student => {
+    bulkFormsCandidateStudents.forEach(student => {
       const id = student.id || student.formNo || student['Form Number'];
       if (selectedBulkFormIds.has(id)) count += 1;
     });
     return count;
-  }, [filteredStudents, selectedBulkFormIds]);
+  }, [bulkFormsCandidateStudents, selectedBulkFormIds]);
 
   useEffect(() => {
     if (showToolsModal && activeToolsTab === 'bulk_forms') {
       setBulkFormsRenderLimit(BULK_FORM_ROW_BATCH_SIZE);
+      setSelectedBulkFormIds(new Set(bulkFormsCandidateStudents.map(s => s.id || s.formNo || s['Form Number'])));
     }
-  }, [showToolsModal, activeToolsTab, filteredStudents]);
+  }, [showToolsModal, activeToolsTab, bulkFormsCandidateStudents]);
 
   // Paginated Students (with 500 row safety cap if 'All' is chosen on massive datasets)
   const paginatedStudents = useMemo(() => {
@@ -12589,11 +12673,91 @@ export default function AdvancedReports({
                       Bulk Official Form Generator & Section Configurator
                     </div>
                     <p className="text-slate-600 dark:text-slate-400 text-[10.5px] font-medium mt-0.5">
-                      Select target student applications and configure form sections (Admission Form, Library Form, Anti-Drug Undertaking) for bulk printing.
+                      Filter student applications by Class, Stream, Session, and Status, then configure sections (Admission Form, Library Form, Anti-Drug Undertaking) for bulk printing.
                     </p>
                   </div>
                   <div className="px-2.5 py-0.5 rounded-lg bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 text-xs font-black border border-amber-300 dark:border-amber-700">
-                    {selectedFilteredBulkFormCount} Selected / {filteredStudents.length} Filtered
+                    {selectedFilteredBulkFormCount} Selected / {bulkFormsCandidateStudents.length} Filtered
+                  </div>
+                </div>
+
+                {/* ─── 1. SCOPE & FILTER CONTROLS IN ONE ROW ─── */}
+                <div className="p-2 sm:p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xs space-y-1.5">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-2 text-xs">
+                    <div>
+                      <label className="block text-[10px] font-black text-slate-600 dark:text-slate-400 mb-0.5">
+                        Target Class:
+                      </label>
+                      <select
+                        value={bulkFormsClass}
+                        onChange={(e) => setBulkFormsClass(e.target.value)}
+                        className="w-full p-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-xs font-bold text-slate-900 dark:text-white"
+                      >
+                        <option value="ALL">All Classes (11th & 12th)</option>
+                        {availableClasses.map(c => (
+                          <option key={c} value={c}>Class {c}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-black text-slate-600 dark:text-slate-400 mb-0.5">
+                        Academic Stream:
+                      </label>
+                      <select
+                        value={bulkFormsStream}
+                        onChange={(e) => setBulkFormsStream(e.target.value)}
+                        className="w-full p-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-xs font-bold text-slate-900 dark:text-white"
+                      >
+                        <option value="ALL">All Streams</option>
+                        {availableStreams.map(st => (
+                          <option key={st} value={st}>{st}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-black text-slate-600 dark:text-slate-400 mb-0.5">
+                        Academic Sessions:
+                      </label>
+                      <MultiSelectCheckboxDropdown
+                        label="Sessions"
+                        options={allKnownSessions}
+                        selected={bulkFormsSelectedSessions}
+                        onChange={handleBulkFormsSessionsChange}
+                        align="left"
+                        presetAction={{ label: 'Active', value: ['2025-26'], title: 'Select Active Session 2025-26' }}
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-black text-slate-600 dark:text-slate-400 mb-0.5">
+                        Admission Status:
+                      </label>
+                      <MultiSelectCheckboxDropdown
+                        label="Status"
+                        options={availableStatuses}
+                        selected={bulkFormsSelectedStatuses}
+                        onChange={(val) => setBulkFormsSelectedStatuses(val)}
+                        align="right"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-black text-slate-600 dark:text-slate-400 mb-0.5">
+                        Quick Search:
+                      </label>
+                      <div className="relative">
+                        <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                        <input
+                          type="text"
+                          placeholder="Name, roll, form..."
+                          value={bulkFormsSearch}
+                          onChange={(e) => setBulkFormsSearch(e.target.value)}
+                          className="w-full pl-6 pr-2 p-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-700 font-bold bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-amber-500"
+                        />
+                      </div>
+                    </div>
                   </div>
                 </div>
 
@@ -12641,10 +12805,10 @@ export default function AdvancedReports({
                   <div className="flex items-center gap-1.5">
                     <button
                       type="button"
-                      onClick={() => setSelectedBulkFormIds(new Set(filteredStudents.map(s => s.id || s.formNo || s['Form Number'])))}
+                      onClick={() => setSelectedBulkFormIds(new Set(bulkFormsCandidateStudents.map(s => s.id || s.formNo || s['Form Number'])))}
                       className="px-2.5 py-1 rounded-lg bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-black cursor-pointer text-[11px]"
                     >
-                      Select All Filtered ({filteredStudents.length})
+                      Select All Filtered ({bulkFormsCandidateStudents.length})
                     </button>
                     <button
                       type="button"
@@ -12660,7 +12824,7 @@ export default function AdvancedReports({
                       type="button"
                       disabled={selectedFilteredBulkFormCount === 0 || (!printSections.includeAdmissionForm && !printSections.includeLibraryForm && !printSections.includeConductDeclaration)}
                       onClick={() => {
-                        const selectedList = filteredStudents.filter(s => selectedBulkFormIds.has(s.id || s.formNo || s['Form Number']));
+                        const selectedList = bulkFormsCandidateStudents.filter(s => selectedBulkFormIds.has(s.id || s.formNo || s['Form Number']) || (s.id && selectedBulkFormIds.has(s.id)) || (s.formNo && selectedBulkFormIds.has(s.formNo)));
                         generateBulkAdmissionPdf(selectedList, printSections);
                       }}
                       className="px-3.5 py-2 rounded-xl font-black text-xs text-white bg-teal-700 hover:bg-teal-600 shadow-md flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
@@ -12679,10 +12843,10 @@ export default function AdvancedReports({
                         <th className="p-2.5 w-10 text-center">
                           <input
                             type="checkbox"
-                            checked={filteredStudents.length > 0 && selectedFilteredBulkFormCount === filteredStudents.length}
+                            checked={bulkFormsCandidateStudents.length > 0 && selectedFilteredBulkFormCount === bulkFormsCandidateStudents.length}
                             onChange={(e) => {
                               if (e.target.checked) {
-                                setSelectedBulkFormIds(new Set(filteredStudents.map(s => s.id || s.formNo || s['Form Number'])));
+                                setSelectedBulkFormIds(new Set(bulkFormsCandidateStudents.map(s => s.id || s.formNo || s['Form Number'])));
                               } else {
                                 setSelectedBulkFormIds(new Set());
                               }
@@ -12701,6 +12865,9 @@ export default function AdvancedReports({
                       {bulkFormRows.map((st, idx) => {
                         const stId = st.id || st.docId || `${st.formNo || st['Form Number'] || 'st'}_${idx}`;
                         const isChecked = selectedBulkFormIds.has(stId) || selectedBulkFormIds.has(st.id) || (st.formNo && selectedBulkFormIds.has(st.formNo));
+                        const effStatus = getStudentEffectiveStatus(st);
+                        const isApproved = effStatus.toLowerCase() === 'approved';
+                        const isSubmitted = effStatus.toLowerCase() === 'submitted';
                         return (
                           <tr
                             key={`bulk_form_row_${st.id || st.docId || ''}_${st.formNo || ''}_${idx}`}
@@ -12724,24 +12891,37 @@ export default function AdvancedReports({
                               />
                             </td>
                             <td className="p-2.5 font-mono font-black text-amber-700 dark:text-amber-400">
-                              {st['Form Number'] || st.formNo || '—'}
+                              <div className="flex items-center gap-1 flex-wrap">
+                                <span>{st['Form Number'] || st.formNo || '—'}</span>
+                                {getStudentRollVal(st) && (
+                                  <span className="text-[10px] text-slate-500 font-bold bg-slate-100 dark:bg-slate-800 px-1 py-0.2 rounded">
+                                    Roll: {getStudentRollVal(st)}
+                                  </span>
+                                )}
+                              </div>
                             </td>
                             <td className="p-2.5 font-black text-slate-900 dark:text-white">
-                              {st["Student's Name"] || st["Student's Name (as per school records)"] || st.studentName || st.name || '—'}
+                              {getStudentName(st) || '—'}
                             </td>
                             <td className="p-2.5 text-slate-600 dark:text-slate-400 font-extrabold">
-                              <div className="grid gap-1 leading-tight">
+                              <div className="grid gap-0.5 leading-tight">
                                 <div title="Father's name">{st["Father's Name"] || st["Father's/Guardian's Name (as per school records)"] || st.fatherName || '—'}</div>
-                                <div className="border-t border-slate-200/70 pt-1 dark:border-slate-700/70" title="Mother's name">{st["Mother's Name"] || st["Mother's Name (as per school records)"] || st.motherName || '—'}</div>
+                                <div className="border-t border-slate-200/70 pt-0.5 dark:border-slate-700/70 text-slate-500 text-[10.5px]" title="Mother's name">{st["Mother's Name"] || st["Mother's Name (as per school records)"] || st.motherName || '—'}</div>
                               </div>
                             </td>
                             <td className="p-2.5 font-extrabold text-teal-700 dark:text-teal-400">
-                              {st["Admission sought for class"] || st.class || '11th'} ({st.stream || st["Stream for Class 11th"] || 'General'})
+                              <div>{normalizeClassVal(st["Admission sought for class"] || st.class || '11th')} ({st.stream || st["Stream for Class 11th"] || 'General'})</div>
+                              <div className="text-[10px] text-slate-400 font-medium">{st.session || st.Session || ''}</div>
                             </td>
                             <td className="p-2.5 text-center">
-                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${(st.status || st.Status || '').toLowerCase() === 'approved' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
-                                }`}>
-                                {st.status || st.Status || 'Submitted'}
+                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
+                                isApproved
+                                  ? 'bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300'
+                                  : isSubmitted
+                                    ? 'bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300'
+                                    : 'bg-blue-100 dark:bg-blue-950/80 text-blue-800 dark:text-blue-300'
+                              }`}>
+                                {effStatus}
                               </span>
                             </td>
                           </tr>
@@ -12750,13 +12930,13 @@ export default function AdvancedReports({
                     </tbody>
                   </table>
                 </div>
-                {bulkFormRows.length < filteredStudents.length && (
+                {bulkFormRows.length < bulkFormsCandidateStudents.length && (
                   <div className="flex items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white p-2 text-xs font-bold text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300">
-                    <span>Showing {bulkFormRows.length} of {filteredStudents.length} records. Selection and printing still apply to all filtered records.</span>
+                    <span>Showing {bulkFormRows.length} of {bulkFormsCandidateStudents.length} records. Selection and printing still apply to all filtered records.</span>
                     <button
                       type="button"
-                      onClick={() => setBulkFormsRenderLimit(limit => Math.min(limit + BULK_FORM_ROW_BATCH_SIZE, filteredStudents.length))}
-                      className="shrink-0 rounded-lg bg-slate-800 px-3 py-1.5 font-black text-white hover:bg-slate-700 dark:bg-slate-100 dark:text-slate-900"
+                      onClick={() => setBulkFormsRenderLimit(limit => Math.min(limit + BULK_FORM_ROW_BATCH_SIZE, bulkFormsCandidateStudents.length))}
+                      className="shrink-0 rounded-lg bg-slate-800 px-3 py-1.5 font-black text-white hover:bg-slate-700 dark:bg-slate-100 dark:text-slate-900 cursor-pointer"
                     >
                       Show more
                     </button>

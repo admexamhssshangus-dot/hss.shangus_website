@@ -22,8 +22,8 @@ export {
 // Fallback staff directory to ensure foundational staff are always recognized
 export const FALLBACK_STAFF_PROFILES = {
   'adm.exam.hss.shangus@gmail.com': { name: 'Sheikh Gulfam (SuperAdmin)', role: 'SuperAdmin', isSuperAdmin: true, isAdmin: true, perms: ['*'] },
-  'e.educational.24@gmail.com': { name: 'Sheikh Gulfam', role: 'Admin', isAdmin: true, perms: ['*'] },
-  'ghssshangus74@gmail.com': { name: 'GHSS Shangus (Admin)', role: 'Admin', isAdmin: true, perms: ['*'] },
+  'e.educational.24@gmail.com': { name: 'Sheikh Gulfam', role: 'Admin', isAdmin: true, perms: ['reports'] },
+  'ghssshangus74@gmail.com': { name: 'GHSS Shangus (Admin)', role: 'Admin', isAdmin: true, perms: ['reports'] },
   'socialshiftz@gmail.com': { 
     name: 'Technical Admin / Faculty', 
     role: 'Teacher', 
@@ -33,12 +33,12 @@ export const FALLBACK_STAFF_PROFILES = {
     subject: 'Botany',
     teachingSubject: 'Botany',
     assignedClasses: ['11th', '12th'],
-    perms: ['*'] 
+    perms: ['reports'] 
   },
-  'shahnawaz13678@gmail.com': { name: 'Nawaz Ahmad Shah (Admin)', role: 'Admin', isAdmin: true, perms: ['*'] },
-  'shahnawaz@gmail.com': { name: 'Nawaz Ahmad Shah (Admin)', role: 'Admin', isAdmin: true, perms: ['*'] },
-  'bilalhcu@gmail.com': { name: 'Bilal Ahmad Khandy (Admin)', role: 'Admin', isAdmin: true, perms: ['*'] },
-  'majidhassannajar@gmail.com': { name: 'Majid Hassan Najar (Admin)', role: 'Admin', isAdmin: true, perms: ['*'] },
+  'shahnawaz13678@gmail.com': { name: 'Nawaz Ahmad Shah (Admin)', role: 'Admin', isAdmin: true, perms: ['reports'] },
+  'shahnawaz@gmail.com': { name: 'Nawaz Ahmad Shah (Admin)', role: 'Admin', isAdmin: true, perms: ['reports'] },
+  'bilalhcu@gmail.com': { name: 'Bilal Ahmad Khandy (Admin)', role: 'Admin', isAdmin: true, perms: ['reports'] },
+  'majidhassannajar@gmail.com': { name: 'Majid Hassan Najar (Admin)', role: 'Admin', isAdmin: true, perms: ['reports'] },
 };
 
 // High-speed in-memory cache for resolved staff profiles (0ms resolution across navigations)
@@ -195,7 +195,7 @@ export async function resolveStaffRoleAndPerms(emailOrUser, forceFresh = false) 
   if (!profile && FALLBACK_STAFF_PROFILES[email]) {
     profile = FALLBACK_STAFF_PROFILES[email];
   } else if (!profile && isBootstrapAdminEmail(email)) {
-    profile = { name: email.split('@')[0], role: 'Admin', perms: ['*'] };
+    profile = { name: email.split('@')[0], role: 'Admin', perms: ['reports'] };
   }
 
   if (!profile) return null;
@@ -216,7 +216,9 @@ export async function resolveStaffRoleAndPerms(emailOrUser, forceFresh = false) 
     uid: user?.uid || profile.uid || null,
     email,
     role: isSuper ? 'SuperAdmin' : role,
-    perms: (isSuper || isBootstrap) ? ['*'] : (profile.perms || ['reports']),
+    perms: isSuper
+      ? ['*']
+      : (Array.isArray(profile.perms) ? profile.perms : ['reports']),
     isSuperAdmin: isSuper,
     isAdmin,
     isTeacher,
@@ -424,6 +426,7 @@ export async function deleteStaffAccount(email) {
     staffCallable('manageStaffAccount')({ email: cleanEmail, action: 'deactivate' }).catch(() => {});
   } catch (_) {}
 
+  clearStaffProfileCache(cleanEmail);
   return { success: true };
 }
 
@@ -533,6 +536,7 @@ export async function createStaffAccount({
     }
   }
 
+  clearStaffProfileCache(cleanEmail);
   return { 
     success: true, 
     email: cleanEmail,
@@ -644,5 +648,9 @@ export async function updateStaffAccount({
     }
   }
 
+  clearStaffProfileCache(cleanOld);
+  if (cleanOld !== cleanNew) {
+    clearStaffProfileCache(cleanNew);
+  }
   return { success: true, email: cleanNew };
 }

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { LogOut, Lock, Unlock, Save, Download, Plus, Trash2, FileText, Users, AlertCircle, CheckCircle2, UserPlus, RefreshCw, FolderOpen, Edit2, Check, X, Calendar, Upload, ArrowUpCircle, Printer, FileSpreadsheet, BookOpen, Calculator, Settings, Image, ChevronDown, Loader2, XCircle, Clock, Circle, ArrowUp, ArrowDown, Eye, EyeOff, Layers, Mail, CreditCard, QrCode, RotateCcw, ExternalLink, Compass } from 'lucide-react';
+import { LogOut, Lock, Unlock, Save, Download, Plus, Trash2, FileText, Users, AlertCircle, CheckCircle2, UserPlus, RefreshCw, FolderOpen, Edit2, Check, X, Calendar, Upload, ArrowUpCircle, Printer, FileSpreadsheet, BookOpen, Calculator, Settings, Image, ChevronDown, Loader2, XCircle, Clock, Circle, ArrowUp, ArrowDown, Eye, EyeOff, Layers, Mail, CreditCard, QrCode, RotateCcw, ExternalLink, Compass, Database } from 'lucide-react';
 import { DEFAULT_SETTINGS, DEFAULT_HERO_BUTTONS, loadSiteSettings, mergeSiteSettings } from '../utils/settingsLoader';
 import HeroButtonsManager from '../portal/admin/HeroButtonsManager';
 import { db, storage, auth } from '../firebase';
@@ -5979,7 +5979,6 @@ function AdminPortalContent({ embeddedUser, onEmbeddedLogout, initialTab }) {
     { id: 'enrollment', label: 'Admissions & People', tabs: [
       { id: 'admissions', label: 'Admissions & Fees', icon: FileText },
       { id: 'faculty', label: 'Faculty Directory', icon: Users },
-      { id: 'export', label: 'Data Exports', icon: Download },
     ] },
     { id: 'website', label: 'Website Content', tabs: [
       { id: 'notices', label: 'Notices & Updates', icon: RefreshCw },
@@ -5989,7 +5988,6 @@ function AdminPortalContent({ embeddedUser, onEmbeddedLogout, initialTab }) {
     ] },
     { id: 'administration', label: 'Settings & Governance', tabs: [
       { id: 'tax', label: 'Staff Tax Calculator', icon: Calculator },
-      { id: 'admins', label: 'Admin Access', icon: Settings },
       { id: 'trash', label: 'Recycle Bin', icon: Trash2 },
     ] },
   ].map((group) => ({
@@ -9175,439 +9173,60 @@ function AdminPortalContent({ embeddedUser, onEmbeddedLogout, initialTab }) {
               </div>
             )}
 
-            {/* TAB 4: EXPORT FILES */}
-            {activeTab === 'export' && allowedTabs.includes('export') && (
+            {/* TAB 4: EXPORT FILES (CENTRALIZED IN ADMINISTRATIVE TOOLS SUITE) */}
+            {activeTab === 'export' && (
               <div className="space-y-4 animate-in fade-in duration-200">
-                <div className="p-3.5 rounded-xl bg-gradient-to-r from-amber-950/40 via-slate-900/60 to-teal-950/40 border border-amber-500/30 flex items-center justify-between flex-wrap gap-3">
+                <div className="p-6 sm:p-8 rounded-2xl bg-gradient-to-br from-amber-950/40 via-slate-900/80 to-teal-950/40 border border-amber-500/30 text-center max-w-2xl mx-auto space-y-4 shadow-xl">
+                  <div className="w-14 h-14 mx-auto rounded-2xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400 shadow-md">
+                    <Download size={28} />
+                  </div>
                   <div>
-                    <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2">
-                      <Download size={16} className="text-amber-400" />
-                      <span>CMS & Database Exports Centralized</span>
-                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-extrabold uppercase">
-                        Administrative Tools Suite
-                      </span>
+                    <h3 className="text-lg font-black text-slate-100 flex items-center justify-center gap-2">
+                      <span>Data Exports Centralized in Administrative Tools Suite</span>
                     </h3>
-                    <p className="text-xs text-slate-400 mt-1">
-                      Full 2006–2026 Session Master Registers, ZIP photo downloader, public CMS configs (<code className="text-slate-300 font-mono">settings.json</code>, <code className="text-slate-300 font-mono">notices.txt</code>, <code className="text-slate-300 font-mono">faculty.json</code>), and Excel backups are now centrally available in the Administrative Tools Suite.
+                    <p className="text-xs text-slate-400 mt-2 leading-relaxed">
+                      All data export functionalities — including the Historical & Current Session Master Registers (2006–2026), ZIP Student Photo Downloader, Multi-Sheet Database Excel Backups, and Public Website Static Configurations (<code className="text-slate-300 font-mono">settings.json</code>, <code className="text-slate-300 font-mono">notices.txt</code>, <code className="text-slate-300 font-mono">faculty.json</code>) — are centrally integrated inside the <strong>Administrative Tools Suite</strong>.
                     </p>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => { window.location.href = '/portal/admin?tab=reports&openTools=db_backup'; }}
-                    className="px-3.5 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs transition-all flex items-center gap-1.5 cursor-pointer shadow-sm shrink-0"
-                  >
-                    <span>Launch Administrative Tools Suite</span>
-                    <ExternalLink size={12} />
-                  </button>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-
-                  {/* settings.json card */}
-                  <div className="bg-slate-900/40 p-4 rounded-lg border border-slate-800 flex flex-col justify-between items-start gap-3">
-                    <div>
-                      <div className="flex items-center gap-2 mb-2">
-                        <FileText size={18} className="text-orange-400" />
-                        <h4 className="font-bold text-slate-200 text-sm">settings.json</h4>
-                      </div>
-                      <p className="text-xs text-slate-400 leading-relaxed">
-                        Contains class-wise admission open/closed flags and the updated fee schedules. Place inside:
-                      </p>
-                      <code className="block text-[10.5px] font-mono bg-slate-950 p-1.5 rounded border border-slate-800 text-slate-300 mt-2 text-center select-all">
-                        public/slides/settings.json
-                      </code>
-                    </div>
-                    <button
-                      onClick={downloadSettingsJson}
-                      className="w-full py-2 bg-orange-500 hover:bg-orange-400 text-slate-950 font-extrabold text-xs rounded transition-all hover:scale-[1.01] active:scale-[0.99] flex items-center justify-center gap-1.5 border border-orange-400 shadow"
-                    >
-                      <Download size={14} />
-                      Download settings.json
-                    </button>
-                  </div>
-
-                  {/* notices.txt card */}
-                  <div className="bg-slate-900/40 p-4 rounded-lg border border-slate-800 flex flex-col justify-between items-start gap-3">
-                    <div>
-                      <div className="flex items-center gap-2 mb-2">
-                        <RefreshCw size={18} className="text-emerald-400" />
-                        <h4 className="font-bold text-slate-200 text-sm">notices.txt</h4>
-                      </div>
-                      <p className="text-xs text-slate-400 leading-relaxed">
-                        Contains the comma-separated date, notice title, and link array. Place inside:
-                      </p>
-                      <code className="block text-[10.5px] font-mono bg-slate-950 p-1.5 rounded border border-slate-800 text-slate-300 mt-2 text-center select-all">
-                        public/slides/notices.txt
-                      </code>
-                    </div>
-                    <button
-                      onClick={downloadNoticesTxt}
-                      className="w-full py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-xs rounded transition-all hover:scale-[1.01] active:scale-[0.99] flex items-center justify-center gap-1.5 border border-emerald-400 shadow"
-                    >
-                      <Download size={14} />
-                      Download notices.txt
-                    </button>
-                  </div>
-
-                  {/* faculty.json card */}
-                  <div className="bg-slate-900/40 p-4 rounded-lg border border-slate-800 flex flex-col justify-between items-start gap-3">
-                    <div>
-                      <div className="flex items-center gap-2 mb-2">
-                        <Users size={18} className="text-sky-400" />
-                        <h4 className="font-bold text-slate-200 text-sm">faculty.json</h4>
-                      </div>
-                      <p className="text-xs text-slate-400 leading-relaxed">
-                        Contains only the public faculty directory fields (name, designation, subject, department and approved photo URL). Place inside:
-                      </p>
-                      <code className="block text-[10.5px] font-mono bg-slate-950 p-1.5 rounded border border-slate-800 text-slate-300 mt-2 text-center select-all">
-                        public/slides/faculty.json
-                      </code>
-                    </div>
-                    <button
-                      onClick={downloadFacultyJson}
-                      className="w-full py-2 bg-sky-500 hover:bg-sky-400 text-slate-950 font-extrabold text-xs rounded transition-all hover:scale-[1.01] active:scale-[0.99] flex items-center justify-center gap-1.5 border border-sky-400 shadow"
-                    >
-                      <Download size={14} />
-                      Download faculty.json
-                    </button>
-                  </div>
-
-                </div>
-
-                {/* Instructions banner */}
-                <div className="bg-slate-900/20 border border-slate-800/80 p-4 rounded-lg text-xs leading-relaxed text-slate-400">
-                  <h4 className="font-bold text-slate-300 mb-2 uppercase text-[10px] tracking-wider">How to Apply Changes Globally:</h4>
-                  <ol className="list-decimal pl-4 space-y-2">
-                    <li>Make modifications in the Admissions, Notices, and Faculty tabs.</li>
-                    <li>Click <strong className="text-emerald-400">"Apply & Save"</strong> in the top header. This updates the local storage in your current browser immediately so you can verify the layout.</li>
-                    <li>Click the respective download buttons above to download the updated configuration files.</li>
-                    <li>Copy and replace these files inside your project's <code className="bg-slate-950 p-0.5 rounded px-1 font-mono text-slate-300">public/slides/</code> directory.</li>
-                    <li>Commit/push the files to your repository or rebuild the Netlify site. Once deployed, the updates will be visible to all users globally!</li>
-                  </ol>
-                </div>
-
-                {/* Full Database Backup & Restore Section */}
-                <div className="border-t border-slate-800 pt-6 mt-6">
-                  <div>
-                    <h3 className="text-base font-bold text-slate-200 flex items-center gap-2">
-                      <Save className="text-orange-400" size={18} />
-                      Full Database Backup & Disaster Recovery
-                    </h3>
-                    <p className="text-xs text-slate-400 mt-1">
-                      Quick configuration backup and disaster recovery. For comprehensive, multi-sheet Microsoft Excel backups covering all student admissions, practicals, faculty, and site settings, use the centralized Administrative Tools Suite.
-                    </p>
-                  </div>
-
-                  {/* Centralized Suite Notification Card */}
-                  <div className="mt-4 p-4 rounded-xl bg-gradient-to-r from-amber-950/30 to-teal-950/30 border border-amber-500/30 flex items-center justify-between flex-wrap gap-3">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2.5 rounded-xl bg-amber-500/20 text-amber-400 font-black shrink-0">
-                        <FileSpreadsheet size={20} />
-                      </div>
-                      <div>
-                        <div className="text-xs font-black text-slate-100">
-                          Centralized Multi-Sheet Excel & Full Database Backup Suite
-                        </div>
-                        <div className="text-[11px] text-slate-400 font-medium mt-0.5">
-                          The comprehensive database backup suite (covering all students, faculty, circulars, rules, and practicals) is now centralized in:
-                          <span className="block font-mono text-amber-300 font-bold mt-0.5">
-                            Master Register & Reports &rarr; 🛠 Administrative Tools Suite &rarr; 💾 Database Backup & Excel
-                          </span>
-                        </div>
-                      </div>
-                    </div>
+                  <div className="pt-2">
                     <button
                       type="button"
                       onClick={() => { window.location.href = '/portal/admin?tab=reports&openTools=db_backup'; }}
-                      className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs transition-all flex items-center gap-1.5 cursor-pointer shadow-md shrink-0"
+                      className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs transition-all shadow-lg hover:scale-105 active:scale-95 cursor-pointer"
                     >
-                      <span>Launch Tools Suite (Backup & Master Register)</span>
+                      <Database size={15} />
+                      <span>Launch Administrative Tools Suite (Database & Exports)</span>
                       <ExternalLink size={13} />
                     </button>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                    {/* Backup Card */}
-                    <div className="bg-slate-900/40 p-4 rounded-lg border border-slate-800 flex flex-col justify-between items-start gap-3">
-                      <div>
-                        <h4 className="font-bold text-slate-200 text-sm">Download Full Backup</h4>
-                        <p className="text-xs text-slate-400 leading-relaxed mt-1">
-                          Creates a complete timestamped backup of the current database configuration.
-                        </p>
-                      </div>
-                      <button
-                        onClick={downloadFullBackup}
-                        className="w-full py-2 bg-orange-500 hover:bg-orange-400 text-slate-950 font-extrabold text-xs rounded transition-all hover:scale-[1.01] active:scale-[0.99] flex items-center justify-center gap-1.5 border border-orange-400 shadow"
-                      >
-                        <Download size={14} />
-                        Download Full Backup (.json)
-                      </button>
-                    </div>
-
-                    {/* Restore Card */}
-                    <div className="bg-slate-900/40 p-4 rounded-lg border border-slate-800 flex flex-col justify-between items-start gap-3 w-full">
-                      <div>
-                        <h4 className="font-bold text-slate-200 text-sm">Restore from Backup</h4>
-                        <p className="text-xs text-slate-400 leading-relaxed mt-1">
-                          Upload a previously downloaded full backup JSON file. This will overwrite current console states (remember to click "Apply & Save" to push it live).
-                        </p>
-                      </div>
-                      <div className="w-full flex items-center gap-2">
-                        <label className="flex-1 py-2 bg-slate-850 hover:bg-slate-750 text-slate-200 font-extrabold text-xs rounded cursor-pointer transition-all hover:scale-[1.01] active:scale-[0.99] flex items-center justify-center gap-1.5 border border-slate-700 shadow text-center">
-                          <Upload size={14} />
-                          Choose Backup File
-                          <input
-                            type="file"
-                            accept=".json"
-                            onChange={handleRestoreBackup}
-                            className="hidden"
-                          />
-                        </label>
-                      </div>
-                    </div>
                   </div>
                 </div>
               </div>
             )}
 
-            {/* TAB 6: ADMIN MANAGEMENT */}
-            {activeTab === 'admins' && allowedTabs.includes('admins') && (
-              <div className="space-y-6 animate-in fade-in duration-200">
-                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-slate-800 pb-3">
+            {/* TAB 6: ADMIN MANAGEMENT (CENTRALIZED IN ACADEMIC CONTROLS & SUBJECTS) */}
+            {activeTab === 'admins' && (
+              <div className="space-y-4 animate-in fade-in duration-200">
+                <div className="p-6 sm:p-8 rounded-2xl bg-gradient-to-br from-indigo-950/40 via-slate-900/80 to-purple-950/40 border border-indigo-500/30 text-center max-w-2xl mx-auto space-y-4 shadow-xl">
+                  <div className="w-14 h-14 mx-auto rounded-2xl bg-indigo-500/20 border border-indigo-500/40 flex items-center justify-center text-indigo-400 shadow-md">
+                    <Users size={28} />
+                  </div>
                   <div>
-                    <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
-                      <Settings className="text-orange-400" size={18} />
-                      Administrative Accounts Manager
+                    <h3 className="text-lg font-black text-slate-100 flex items-center justify-center gap-2">
+                      <span>Staff Accounts & Module Permissions Centralized</span>
                     </h3>
-                    <p className="text-[11px] text-slate-400 mt-0.5">
-                      Create, delete, and configure differential console tab access permissions for administrative accounts.
+                    <p className="text-xs text-slate-400 mt-2 leading-relaxed">
+                      Administrative accounts, faculty profiles, credential management, password setup links, and granular access to all 19 enterprise modules are now centrally managed under <strong>Academic Controls & Subjects &rarr; Staff Accounts & Permissions</strong>.
                     </p>
                   </div>
-                </div>
-
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                  {/* Left/Middle: Admins list */}
-                  <div className="lg:col-span-2 space-y-4">
-                    <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider">Active Admin Accounts</h4>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {admins.map((admin) => {
-                        const isSelf = currentUser && admin.email.toLowerCase() === currentUser.email.toLowerCase();
-
-                        // Custom styling for role badge
-                        let roleBadgeClass = "bg-slate-800 text-slate-300 border-slate-700";
-                        if (admin.role === 'Super Admin') {
-                          roleBadgeClass = "bg-amber-950/60 text-amber-400 border-amber-500/30";
-                        } else if (admin.role === 'Accounts Assistant') {
-                          roleBadgeClass = "bg-blue-950/60 text-blue-400 border-blue-500/30";
-                        } else if (admin.role === 'Admission Incharge') {
-                          roleBadgeClass = "bg-purple-950/60 text-purple-400 border-purple-500/30";
-                        } else if (admin.role === 'Notice Board Incharge') {
-                          roleBadgeClass = "bg-emerald-950/60 text-emerald-400 border-emerald-500/30";
-                        }
-
-                        return (
-                          <div
-                            key={admin.email}
-                            className={`p-4 rounded-xl border bg-slate-900/40 transition-all ${isSelf ? 'border-orange-500/40 shadow-sm shadow-orange-950/10' : 'border-slate-800 hover:border-slate-700'}`}
-                          >
-                            <div className="flex justify-between items-start gap-2">
-                              <div className="space-y-1 min-w-0">
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  <span className="text-xs font-bold text-slate-200 truncate" title={admin.email}>{admin.email}</span>
-                                  {isSelf && (
-                                    <span className="px-1.5 py-0.5 rounded text-[8px] font-extrabold uppercase bg-orange-950/50 text-orange-400 border border-orange-500/30">
-                                      You
-                                    </span>
-                                  )}
-                                </div>
-                                <span className={`inline-block px-2 py-0.5 rounded text-[9px] font-extrabold uppercase border ${roleBadgeClass}`}>
-                                  {admin.role}
-                                </span>
-                                {admin.phone && (
-                                  <span className="block text-[10px] text-slate-400 font-semibold mt-1">
-                                    Phone: {admin.phone}
-                                  </span>
-                                )}
-                              </div>
-                              <button
-                                type="button"
-                                disabled={isSelf}
-                                onClick={() => handleDeleteAdmin(admin.email)}
-                                className={`p-1.5 rounded transition-colors ${isSelf ? 'text-slate-600 cursor-not-allowed' : 'text-slate-400 hover:text-red-400 hover:bg-slate-800'}`}
-                                title={isSelf ? "You cannot delete your own active session" : "Delete administrative account"}
-                              >
-                                <Trash2 size={14} />
-                              </button>
-                            </div>
-
-                            <div className="mt-3 pt-3 border-t border-slate-800/80">
-                              <span className="block text-[9px] font-extrabold uppercase tracking-wider text-slate-500 mb-1.5">Tab Access Permissions:</span>
-                              <div className="flex flex-wrap gap-1">
-                                {(() => {
-                                  const tabs = Array.isArray(admin.allowedTabs) ? admin.allowedTabs : [];
-                                  if (tabs.length === 0) {
-                                    return <span className="text-[10px] text-slate-500 italic">No access granted</span>;
-                                  }
-                                  return tabs.map(t => {
-                                    let label = t;
-                                    if (t === 'admissions') label = 'Admissions';
-                                    if (t === 'notices') label = 'Notices';
-                                    if (t === 'faculty') label = 'Faculty';
-                                    if (t === 'tax') label = 'Tax';
-                                    if (t === 'export') label = 'Export';
-                                    if (t === 'admins') label = 'Admins';
-
-                                    return (
-                                      <span
-                                        key={t}
-                                        className="px-1.5 py-0.5 rounded text-[9px] font-semibold bg-slate-950 text-slate-400 border border-slate-850"
-                                      >
-                                        {label}
-                                      </span>
-                                    );
-                                  })
-                                })()}
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {/* Right: Add new account Form */}
-                  <div className="bg-slate-900/60 p-3.5 rounded-xl border border-slate-800 space-y-3.5 flex flex-col justify-between">
-                    <div>
-                      <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5 border-b border-slate-850 pb-1.5">
-                        <UserPlus size={15} className="text-orange-400" />
-                        Create Admin Account
-                      </h4>
-
-                      <div className="space-y-2.5 mt-2.5">
-                        <div>
-                          <label className="block text-[9px] font-extrabold uppercase tracking-wider text-slate-400 mb-0.5">Email Address</label>
-                          <input
-                            type="email"
-                            placeholder="e.g. user@shangus.com"
-                            value={newAdminEmail}
-                            onChange={(e) => setNewAdminEmail(e.target.value)}
-                            className="w-full px-2.5 py-1.5 rounded bg-slate-950 border border-slate-800 text-xs font-medium text-slate-200 placeholder-slate-650 focus:outline-none focus:border-orange-500"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-[9px] font-extrabold uppercase tracking-wider text-slate-400 mb-0.5">Password</label>
-                          <input
-                            type="password"
-                            placeholder="At least 6 characters..."
-                            value={newAdminPassword}
-                            onChange={(e) => setNewAdminPassword(e.target.value)}
-                            className="w-full px-2.5 py-1.5 rounded bg-slate-950 border border-slate-800 text-xs font-medium text-slate-200 placeholder-slate-650 focus:outline-none focus:border-orange-500"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-[9px] font-extrabold uppercase tracking-wider text-slate-400 mb-0.5">Phone Number (with country code e.g. +91)</label>
-                          <input
-                            type="text"
-                            placeholder="e.g. +919682547458"
-                            value={newAdminPhone}
-                            onChange={(e) => setNewAdminPhone(e.target.value)}
-                            className="w-full px-2.5 py-1.5 rounded bg-slate-950 border border-slate-800 text-xs font-medium text-slate-200 placeholder-slate-650 focus:outline-none focus:border-orange-500"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-[9px] font-extrabold uppercase tracking-wider text-slate-400 mb-0.5">Default Role Template</label>
-                          <select
-                            value={newAdminRole}
-                            onChange={(e) => {
-                              const role = e.target.value;
-                              setNewAdminRole(role);
-                              if (role === 'Super Admin') {
-                                setNewAdminPermissions(['admissions', 'notices', 'faculty', 'slideshow', 'tax', 'export', 'admins', 'pages_cms']);
-                              } else if (role === 'Accounts Assistant') {
-                                setNewAdminPermissions(['tax', 'faculty']);
-                              } else if (role === 'Admission Incharge') {
-                                setNewAdminPermissions(['admissions']);
-                              } else if (role === 'Notice Board Incharge') {
-                                setNewAdminPermissions(['notices']);
-                              }
-                            }}
-                            className="w-full px-2 py-1.5 rounded bg-slate-950 border border-slate-800 text-xs font-medium text-slate-200 focus:outline-none focus:border-orange-500"
-                          >
-                            <option value="Super Admin">Super Admin</option>
-                            <option value="Accounts Assistant">Accounts Assistant</option>
-                            <option value="Admission Incharge">Admission Incharge</option>
-                            <option value="Notice Board Incharge">Notice Board Incharge</option>
-                            <option value="Custom">Custom Permissions Only</option>
-                          </select>
-                        </div>
-
-                        <div>
-                          <label className="block text-[9px] font-extrabold uppercase tracking-wider text-slate-400 mb-1">Configure Tab Permissions</label>
-                          <div className="bg-slate-950 p-2 rounded border border-slate-850 grid grid-cols-2 gap-x-2 gap-y-1.5">
-                            {[
-                              { id: 'admissions', label: 'Admissions & Fees' },
-                              { id: 'notices', label: 'Latest Notices' },
-                              { id: 'faculty', label: 'Faculty Directory' },
-                              { id: 'slideshow', label: 'Home Slideshow' },
-                              { id: 'tax', label: 'Tax Calculator' },
-                              { id: 'export', label: 'Export files' },
-                              { id: 'pages_cms', label: 'Page CMS' },
-                              { id: 'admins', label: 'Admin Management' }
-                            ].map((perm) => {
-                              const checked = newAdminPermissions.includes(perm.id);
-                              return (
-                                <label key={perm.id} className="flex items-center gap-1.5 cursor-pointer select-none text-slate-300 hover:text-slate-200">
-                                  <input
-                                    type="checkbox"
-                                    checked={checked}
-                                    onChange={(e) => {
-                                      let updated;
-                                      if (e.target.checked) {
-                                        updated = [...newAdminPermissions, perm.id];
-                                      } else {
-                                        updated = newAdminPermissions.filter(p => p !== perm.id);
-                                      }
-                                      setNewAdminPermissions(updated);
-
-                                      // Set role to custom if it no longer matches templates
-                                      const matchSuper = updated.length === 8; // admissions, notices, faculty, slideshow, tax, export, admins, pages_cms
-                                      const matchAccounts = updated.length === 2 && updated.includes('tax') && updated.includes('faculty');
-                                      const matchAdmissions = updated.length === 1 && updated.includes('admissions');
-                                      const matchNotices = updated.length === 1 && updated.includes('notices');
-
-                                      if (matchSuper) {
-                                        setNewAdminRole('Super Admin');
-                                      } else if (matchAccounts) {
-                                        setNewAdminRole('Accounts Assistant');
-                                      } else if (matchAdmissions) {
-                                        setNewAdminRole('Admission Incharge');
-                                      } else if (matchNotices) {
-                                        setNewAdminRole('Notice Board Incharge');
-                                      } else {
-                                        setNewAdminRole('Custom');
-                                      }
-                                    }}
-                                    className="rounded border-slate-800 bg-slate-900 text-orange-600 focus:ring-orange-500 focus:ring-opacity-25 w-3 h-3"
-                                  />
-                                  <span className="text-[10px] font-semibold truncate" title={perm.label}>{perm.label}</span>
-                                </label>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
+                  <div className="pt-2">
                     <button
                       type="button"
-                      onClick={handleAddAdmin}
-                      className="w-full mt-3 py-2 rounded bg-orange-600 hover:bg-orange-500 text-white font-bold text-xs transition-all flex items-center justify-center gap-1.5 hover:scale-[1.01] active:scale-[0.99] border border-orange-500/20 shadow-md shadow-orange-950/20"
+                      onClick={() => { window.location.href = '/portal/admin?tab=controls&subtab=permissions'; }}
+                      className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-400 hover:to-purple-500 text-white font-black text-xs transition-all shadow-lg hover:scale-105 active:scale-95 cursor-pointer"
                     >
-                      <Plus size={14} className="stroke-[2.5px]" />
-                      Add Admin Account
+                      <Settings size={15} />
+                      <span>Open Staff Accounts & Permissions</span>
+                      <ExternalLink size={13} />
                     </button>
                   </div>
                 </div>
