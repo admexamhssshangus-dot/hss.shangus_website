@@ -164,6 +164,12 @@ export default function GlobalTooltip() {
   const showTooltipForElement = useCallback((targetEl) => {
     if (!targetEl || typeof window === 'undefined') return;
 
+    // EXCEPTION: Never show general tooltip for custom detailed popovers or badges
+    if (targetEl.closest('[data-tooltip-ignore], [data-jkbose-badge], [data-jkbose-popover], .jkbose-field-badge, .jkbose-badge-popover, .standard-tooltip-container')) {
+      hideTooltip();
+      return;
+    }
+
     // Check for title or data-tooltip
     let text = targetEl.getAttribute('data-tooltip');
 
@@ -209,8 +215,9 @@ export default function GlobalTooltip() {
     if (typeof window === 'undefined') return;
 
     // Convert existing elements with [title] on load to avoid any native popup delay
-    const initialTitles = document.querySelectorAll('[title]:not(iframe):not(svg)');
+    const initialTitles = document.querySelectorAll('[title]:not(iframe):not(svg):not([data-tooltip-ignore])');
     initialTitles.forEach(el => {
+      if (el.closest('[data-tooltip-ignore], [data-jkbose-badge], [data-jkbose-popover], .jkbose-field-badge, .jkbose-badge-popover, .standard-tooltip-container')) return;
       const val = el.getAttribute('title');
       if (val && val.trim()) {
         el.setAttribute('data-tooltip', val.trim());
@@ -226,7 +233,13 @@ export default function GlobalTooltip() {
       for (const m of mutations) {
         if (m.type === 'attributes' && m.attributeName === 'title') {
           const el = m.target;
-          if (el && el.hasAttribute && el.hasAttribute('title') && el.tagName !== 'IFRAME') {
+          if (
+            el &&
+            el.hasAttribute &&
+            el.hasAttribute('title') &&
+            el.tagName !== 'IFRAME' &&
+            !el.closest('[data-tooltip-ignore], [data-jkbose-badge], [data-jkbose-popover], .jkbose-field-badge, .jkbose-badge-popover, .standard-tooltip-container')
+          ) {
             const val = el.getAttribute('title');
             if (val && val.trim()) {
               el.setAttribute('data-tooltip', val.trim());
@@ -255,11 +268,23 @@ export default function GlobalTooltip() {
       // Don't activate on touch events
       if (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) return;
 
+      // EXCEPTION: If hovering directly over or inside a dedicated detailed popover/badge, immediately suppress general tooltip
+      if (e.target?.closest?.('[data-tooltip-ignore], [data-jkbose-badge], [data-jkbose-popover], .jkbose-field-badge, .jkbose-badge-popover, .standard-tooltip-container')) {
+        hideTooltip();
+        return;
+      }
+
       const trigger = e.target?.closest?.('[data-tooltip], [title]');
       if (!trigger || trigger.tagName === 'IFRAME') {
         if (activeTargetRef.current && !activeTargetRef.current.contains(e.target)) {
           hideTooltip();
         }
+        return;
+      }
+
+      // If the trigger itself is inside an ignored detailed popover or badge, suppress
+      if (trigger.closest('[data-tooltip-ignore], [data-jkbose-badge], [data-jkbose-popover], .jkbose-field-badge, .jkbose-badge-popover, .standard-tooltip-container')) {
+        hideTooltip();
         return;
       }
 
@@ -275,8 +300,12 @@ export default function GlobalTooltip() {
     };
 
     const handleFocusIn = (e) => {
+      if (e.target?.closest?.('[data-tooltip-ignore], [data-jkbose-badge], [data-jkbose-popover], .jkbose-field-badge, .jkbose-badge-popover, .standard-tooltip-container')) {
+        hideTooltip();
+        return;
+      }
       const trigger = e.target?.closest?.('[data-tooltip], [title]');
-      if (trigger && trigger.tagName !== 'IFRAME') {
+      if (trigger && trigger.tagName !== 'IFRAME' && !trigger.closest('[data-tooltip-ignore], [data-jkbose-badge], [data-jkbose-popover], .jkbose-field-badge, .jkbose-badge-popover, .standard-tooltip-container')) {
         showTooltipForElement(trigger);
       }
     };
