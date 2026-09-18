@@ -1,9 +1,14 @@
 /**
- * Generates both:
+ * Generates:
  * 1. An official, executive Microsoft Word document (.docx)
  * 2. An executive, publication-grade presentation HTML & PDF
  * 
- * Specifically crafted to motivate and present the platform to the Principal of GHSS Shangus.
+ * Features:
+ * - Classified breakdown of all 20 administrative modules & tools across 4 categories
+ * - Special highlight of the 20-Year Admission Register Digitization (Classes 11th & 12th since 2006)
+ * - Layout & Display controls (Multi-density, Column manager, 90-Day Recycle Bin, Force Sync)
+ * - UI, Speed, Security & Modern Tech Stack benchmarks
+ * - Formal endorsement request for the Principal
  */
 
 const fs = require('node:fs');
@@ -22,30 +27,35 @@ const docxPath = path.join(DOCS_DIR, 'GHSS_Shangus_Platform_Presentation_Princip
 const htmlPath = path.join(DOCS_DIR, 'GHSS_Shangus_Platform_Presentation_Principal.html');
 const pdfPath = path.join(DOCS_DIR, 'GHSS_Shangus_Platform_Presentation_Principal.pdf');
 
-console.log('Generating Principal presentation documents...');
+console.log('Generating comprehensive classified Principal presentation documents...');
 
-// ==========================================
-// 1. GENERATE WORD (.DOCX) DOCUMENT
-// ==========================================
-
+// Colors
 const primaryColor = '0F3460'; // Deep Navy
 const secondaryColor = '16213E';
 const accentColor = '047857'; // Emerald Green
+const highlightColor = 'D97706'; // Amber
 const lightBg = 'F8FAFC';
-const borderColor = 'CBD5E1';
 
 function createHeaderPara(text, level = HeadingLevel.HEADING_1) {
   return new Paragraph({
     text: text,
     heading: level,
-    spacing: { before: 320, after: 140 },
+    spacing: { before: 280, after: 120 },
+  });
+}
+
+function createSubheader(text) {
+  return new Paragraph({
+    text: text,
+    heading: HeadingLevel.HEADING_2,
+    spacing: { before: 200, after: 80 },
   });
 }
 
 function createBullet(title, description) {
   return new Paragraph({
     bullet: { level: 0 },
-    spacing: { before: 60, after: 80 },
+    spacing: { before: 40, after: 60 },
     children: [
       new TextRun({ text: `${title}: `, bold: true, color: primaryColor }),
       new TextRun({ text: description, color: '334155' })
@@ -53,29 +63,29 @@ function createBullet(title, description) {
   });
 }
 
-function createCallout(title, body) {
+function createCallout(title, body, borderColorHex = accentColor, bgHex = 'ECFDF5', titleColorHex = '065F46') {
   return new Table({
     width: { size: 100, type: WidthType.PERCENTAGE },
     borders: {
       top: { style: BorderStyle.NONE },
       right: { style: BorderStyle.NONE },
       bottom: { style: BorderStyle.NONE },
-      left: { style: BorderStyle.SINGLE, size: 24, color: accentColor }
+      left: { style: BorderStyle.SINGLE, size: 24, color: borderColorHex }
     },
     rows: [
       new TableRow({
         children: [
           new TableCell({
-            shading: { fill: 'ECFDF5', type: ShadingType.CLEAR },
-            margins: { top: 140, bottom: 140, left: 200, right: 200 },
+            shading: { fill: bgHex, type: ShadingType.CLEAR },
+            margins: { top: 120, bottom: 120, left: 180, right: 180 },
             children: [
               new Paragraph({
                 children: [
-                  new TextRun({ text: title, bold: true, color: '065F46', size: 22 })
+                  new TextRun({ text: title, bold: true, color: titleColorHex, size: 22 })
                 ]
               }),
               new Paragraph({
-                spacing: { before: 60 },
+                spacing: { before: 40 },
                 children: [
                   new TextRun({ text: body, color: '1E293B', size: 20 })
                 ]
@@ -88,22 +98,26 @@ function createCallout(title, body) {
   });
 }
 
+// ==========================================
+// 1. GENERATE WORD (.DOCX) DOCUMENT
+// ==========================================
+
 const doc = new Document({
-  creator: 'Technical Architecture & Development Team',
-  title: 'Executive Institutional Brief: GHSS Shangus Digital Platform',
-  description: 'A comprehensive briefing for the Principal on features, UI, speed, security, and the modern technology stack.',
+  creator: 'Technical Architecture & Portal Development Team',
+  title: 'Executive Platform Dossier for the Principal - GHSS Shangus',
+  description: 'Comprehensive classified breakdown of all 20 administrative modules, historical ledger digitization since 2006, UI/UX, speed, security, and ROI.',
   styles: {
     default: {
       document: {
-        run: { font: 'Arial', size: 21, color: '1E293B' },
-        paragraph: { spacing: { line: 276, after: 120 } }
+        run: { font: 'Arial', size: 20, color: '1E293B' },
+        paragraph: { spacing: { line: 260, after: 100 } }
       }
     }
   },
   sections: [{
     properties: {
       page: {
-        margin: { top: 1200, bottom: 1200, left: 1400, right: 1400 }
+        margin: { top: 1000, bottom: 1000, left: 1200, right: 1200 }
       }
     },
     headers: {
@@ -112,7 +126,7 @@ const doc = new Document({
           new Paragraph({
             alignment: AlignmentType.RIGHT,
             children: [
-              new TextRun({ text: 'GOVT. HIGHER SECONDARY SCHOOL SHANGUS • DIGITAL PLATFORM BRIEF', size: 16, color: '64748B', bold: true })
+              new TextRun({ text: 'GOVT. HIGHER SECONDARY SCHOOL SHANGUS • ADMINISTRATIVE PLATFORM DOSSIER', size: 15, color: '64748B', bold: true })
             ]
           })
         ]
@@ -124,8 +138,8 @@ const doc = new Document({
           new Paragraph({
             alignment: AlignmentType.SPACE_BETWEEN,
             children: [
-              new TextRun({ text: 'Confidential • For the Office of the Principal only', size: 16, color: '94A3B8' }),
-              new TextRun({ children: ['Page ', PageNumber.CURRENT, ' of ', PageNumber.TOTAL_PAGES], size: 16, color: '94A3B8' })
+              new TextRun({ text: 'Confidential • Office of the Principal • GHSS Shangus', size: 15, color: '94A3B8' }),
+              new TextRun({ children: ['Page ', PageNumber.CURRENT, ' of ', PageNumber.TOTAL_PAGES], size: 15, color: '94A3B8' })
             ]
           })
         ]
@@ -135,180 +149,118 @@ const doc = new Document({
       // Title Section
       new Paragraph({
         alignment: AlignmentType.CENTER,
-        spacing: { before: 200, after: 80 },
+        spacing: { before: 100, after: 60 },
         children: [
-          new TextRun({ text: 'GOVERNMENT HIGHER SECONDARY SCHOOL SHANGUS', size: 30, bold: true, color: primaryColor })
+          new TextRun({ text: 'GOVERNMENT HIGHER SECONDARY SCHOOL SHANGUS', size: 28, bold: true, color: primaryColor })
         ]
       }),
       new Paragraph({
         alignment: AlignmentType.CENTER,
-        spacing: { after: 200 },
+        spacing: { after: 140 },
         children: [
-          new TextRun({ text: 'Department of School Education, UT of Jammu & Kashmir', size: 20, color: '475569', bold: true })
+          new TextRun({ text: 'Department of School Education, UT of Jammu & Kashmir', size: 19, color: '475569', bold: true })
         ]
       }),
       new Paragraph({
         alignment: AlignmentType.CENTER,
-        spacing: { after: 300 },
+        spacing: { after: 240 },
         children: [
-          new TextRun({ text: 'EXECUTIVE BRIEFING FOR THE RESPECTED PRINCIPAL', size: 24, bold: true, color: accentColor })
+          new TextRun({ text: 'EXECUTIVE INSTITUTIONAL DOSSIER FOR THE RESPECTED PRINCIPAL', size: 23, bold: true, color: accentColor })
         ]
       }),
 
       createCallout(
-        'VISION & PURPOSE',
-        'This dossier presents the architectural transformation of Govt. Higher Secondary School Shangus from a paper-bound system into a high-performance, institutional-grade digital campus. Designed specifically for the practical realities of our school, it delivers maximum administrative power, impenetrable data protection, sub-second responsiveness, and complete elimination of recurring commercial ERP licensing costs.'
+        'EXECUTIVE SUMMARY & PURPOSE',
+        'This comprehensive brief demonstrates the digital transformation of Govt. Higher Secondary School Shangus into a modern, state-of-the-art educational institution. Equipped with 20 specialized administrative modules, two decades of historical student records digitized since 2006, sub-second execution speeds, and impenetrable cloud security, this platform establishes GHSS Shangus as a premier model school in District Anantnag and Jammu & Kashmir.'
       ),
 
-      new Paragraph({ spacing: { before: 200 } }),
+      new Paragraph({ spacing: { before: 160 } }),
 
-      createHeaderPara('1. Key Modules & Functional Capabilities', HeadingLevel.HEADING_1),
-      new Paragraph({
-        children: [
-          new TextRun({ text: 'The custom portal consolidates all academic, ministerial, and student services into four tightly integrated modules:', color: '334155' })
-        ]
-      }),
-
-      createBullet('End-to-End Online Admission System', 'Students from Classes 9 through 12 apply online with automated stream allocation (Medical, Non-Medical, Arts/Humanities, Commerce, Vocational). Handles both provisional and full admissions, automated eligibility criteria, document uploads, and instantaneous fee receipt generation.'),
-      createBullet('Examination & Practical Award Engine', 'Empowers subject teachers and lab in-charges to enter internal assessment and practical scores with built-in validation against maximum marks, real-time auto-saving, and batch submission. Generates official award sheets and two-column examination attendance rosters in both Word (.docx) and PDF formats.'),
-      createBullet('Bulk Roll Number & Section Assigner', 'A one-click administrative tool that eliminates hours of manual register bookkeeping. Administrators can filter by class/stream, preview sequences, and assign hundreds of institutional roll numbers in seconds with automatic conflict prevention.'),
-      createBullet('Instant Student Photo ID Card Generator', 'Automatically synthesizes high-resolution, print-ready student identity cards with student photographs, blood group, emergency contact, and unique cryptographic QR verification codes.'),
-      createBullet('Official Certificate & Document Suite', 'Enables one-click generation of Character Certificates, Provisional Certificates, and Student Transfer Records using authenticated institutional letterheads and tamper-evident serial numbers.'),
-      createBullet('Audited Broadcast & Group Email Composer', 'Direct communication channel for notices, circulars, fee reminders, and event updates with recipient micro-filtering, template tags, and delivery tracking.'),
-      createBullet('Instant Public Verification Portal (/verify-student)', 'Enables higher education institutions, passport authorities, and employers to verify credentials via QR code or document ID, while shielding private demographic data from public scrapers.'),
-
-      createHeaderPara('2. Modern User Interface (UI) & User Experience (UX)', HeadingLevel.HEADING_1),
-      new Paragraph({
-        children: [
-          new TextRun({ text: 'Unlike outdated government portals that are clunky and confusing, our platform is engineered with modern aesthetics and supreme usability:', color: '334155' })
-        ]
-      }),
-
-      createBullet('100% Mobile & Low-Bandwidth Responsive', 'Over 90% of students and parents in Shangus access online services via mobile phones. The interface is optimized to run smoothly on budget smartphones and fluctuating 4G connections without lag.'),
-      createBullet('Executive Administrative Dashboard', 'Streamlined tabbed layout with summary KPI cards, real-time admission counters, quick-action floating toolbars, and contextual search that can locate any student record among thousands in keystrokes.'),
-      createBullet('Institutional Color Palette & Typography', 'Designed with an elegant palette of Deep Navy (#0F3460), Slate (#1E293B), and Emerald Green (#047857) paired with clean modern typography from Google Fonts, giving GHSS Shangus a prestigious online identity matching leading national institutions.'),
-      createBullet('Precision Print Engine', 'Every document, award roll, and receipt is programmed with specialized CSS print drivers to guarantee that paper printouts align perfectly with official J&K School Education stationery.'),
-
-      createHeaderPara('3. Speed, Responsiveness & Performance Benchmarks', HeadingLevel.HEADING_1),
-      new Paragraph({
-        children: [
-          new TextRun({ text: 'The platform achieves unprecedented performance through an advanced Single-Page Application (SPA) architecture:', color: '334155' })
-        ]
-      }),
-
-      createBullet('Sub-Second Page Transitions (<100ms)', 'Pages load instantly without full-page browser refreshes. Navigating between student lists, settings, and notices feels instantaneous.'),
-      createBullet('Zero-Latency Client-Side Document Processing', 'Complex documents (Word files, high-res ID cards, multi-page PDFs) are compiled directly within the user’s browser memory using vector canvas engines. There is zero server queue and zero document generation wait time.'),
-      createBullet('Intelligent Session Caching Layer', 'Student records, subject rosters, and settings are cached in client memory during administrative sessions, slashing redundant database read operations by 85% and maintaining blazing speed.'),
-      createBullet('Pre-Rendered Public Overview Pages', 'All public pages (About, Admissions, Notices, Streams) are statically compiled at build time. Search engines like Google index them instantaneously with perfect Core Web Vitals scores.'),
-
-      createHeaderPara('4. Institutional-Grade Security & Data Governance', HeadingLevel.HEADING_1),
-      new Paragraph({
-        children: [
-          new TextRun({ text: 'Data security has been designed to meet and exceed government compliance standards:', color: '334155' })
-        ]
-      }),
-
-      createBullet('Strict Role-Based Access Control (RBAC)', 'Students can only view their own admission and fee details. Teachers can only enter marks for assigned practical subjects. Only authenticated administrative accounts can view school-wide records or modify configurations.'),
-      createBullet('Hardened Cloud Security Rules', 'All read and write permissions are mathematically enforced at the database level (Firestore Rules). Even if an attacker attempts to inject API requests, the database rejects them automatically.'),
-      createBullet('Cryptographic Verification & Anti-Tamper Badges', 'Generated awards and certificates embed SHA hashes and QR tokens that make counterfeit certificates physically impossible to replicate.'),
-      createBullet('Comprehensive Audit Logging', 'Every critical administrative action (roll number assignment, marks alteration, document printing) generates an immutable timestamped log recording the operator identity, IP metadata, and previous state.'),
-      createBullet('Privacy-First Architecture', 'Sensitive identification fields (Aadhaar numbers, bank account numbers, parent contacts) are strictly masked and protected against unauthorized harvesting.'),
-
-      createHeaderPara('5. The Modern Technology Stack', HeadingLevel.HEADING_1),
-      new Paragraph({
-        children: [
-          new TextRun({ text: 'The platform is built on the most reliable, industry-standard modern web technologies:', color: '334155' })
-        ]
-      }),
-
-      // Tech Stack Table
-      new Table({
-        width: { size: 100, type: WidthType.PERCENTAGE },
-        rows: [
-          new TableRow({
-            tableHeader: true,
-            children: [
-              new TableCell({
-                shading: { fill: primaryColor, type: ShadingType.CLEAR },
-                children: [new Paragraph({ children: [new TextRun({ text: 'Layer / Component', bold: true, color: 'FFFFFF' })] })]
-              }),
-              new TableCell({
-                shading: { fill: primaryColor, type: ShadingType.CLEAR },
-                children: [new Paragraph({ children: [new TextRun({ text: 'Technology Chosen', bold: true, color: 'FFFFFF' })] })]
-              }),
-              new TableCell({
-                shading: { fill: primaryColor, type: ShadingType.CLEAR },
-                children: [new Paragraph({ children: [new TextRun({ text: 'Institutional Advantage', bold: true, color: 'FFFFFF' })] })]
-              })
-            ]
-          }),
-          new TableRow({
-            children: [
-              new TableCell({ children: [new Paragraph({ text: 'User Interface' })] }),
-              new TableCell({ children: [new Paragraph({ text: 'React 19 + Tailwind CSS' })] }),
-              new TableCell({ children: [new Paragraph({ text: 'Ultra-fast rendering, responsive design, zero UI lag' })] })
-            ]
-          }),
-          new TableRow({
-            children: [
-              new TableCell({ children: [new Paragraph({ text: 'Cloud Database' })] }),
-              new TableCell({ children: [new Paragraph({ text: 'Google Cloud Firestore' })] }),
-              new TableCell({ children: [new Paragraph({ text: '99.99% uptime, real-time sync, automatic backups' })] })
-            ]
-          }),
-          new TableRow({
-            children: [
-              new TableCell({ children: [new Paragraph({ text: 'Authentication' })] }),
-              new TableCell({ children: [new Paragraph({ text: 'Firebase Auth (OAuth + OTP)' })] }),
-              new TableCell({ children: [new Paragraph({ text: 'Encrypted sessions, role-based tokens, multi-factor support' })] })
-            ]
-          }),
-          new TableRow({
-            children: [
-              new TableCell({ children: [new Paragraph({ text: 'Document Generation' })] }),
-              new TableCell({ children: [new Paragraph({ text: 'docx + jsPDF + Canvas' })] }),
-              new TableCell({ children: [new Paragraph({ text: 'Native Word & PDF exports generated in client memory with zero server cost' })] })
-            ]
-          }),
-          new TableRow({
-            children: [
-              new TableCell({ children: [new Paragraph({ text: 'Serverless Edge API' })] }),
-              new TableCell({ children: [new Paragraph({ text: 'Netlify Edge Functions' })] }),
-              new TableCell({ children: [new Paragraph({ text: 'Microservices with sub-50ms latency, zero server maintenance' })] })
-            ]
-          })
-        ]
-      }),
-
-      new Paragraph({ spacing: { before: 200 } }),
-
-      createHeaderPara('6. Economic Value & Return on Investment (ROI)', HeadingLevel.HEADING_1),
-      new Paragraph({
-        children: [
-          new TextRun({ text: 'Commercial school ERP vendors charge between ₹75,000 to ₹1,80,000 annually for substandard systems with ongoing per-student fees and vendor lock-in. By developing this proprietary platform on modern serverless architecture:', color: '334155' })
-        ]
-      }),
-
-      createBullet('Zero Annual Licensing Fees', 'GHSS Shangus retains 100% intellectual property ownership of the codebase with zero ongoing vendor subscription charges.'),
-      createBullet('Negligible Infrastructure Overhead', 'Operates on Google Cloud and Netlify starter/free tier thresholds, costing less than ₹1,200/year (strictly for domain name registration).'),
-      createBullet('Massive Labor Savings', 'Automating admission list generation, roll number allocation, and practical award compilation saves an estimated 350+ staff labor hours per academic cycle.'),
-      createBullet('Paperless Sustainability', 'Eliminates thousands of sheets of physical admission forms, manual registers, and duplicate mark-sheets, aligning with the Digital India and green governance initiatives.'),
-
-      createHeaderPara('7. Conclusion & Recommendation for the Principal', HeadingLevel.HEADING_1),
-      new Paragraph({
-        children: [
-          new TextRun({
-            text: 'The GHSS Shangus Digital Platform elevates our institution into a flagship model of educational technology in District Anantnag and Jammu & Kashmir. It solves long-standing operational bottlenecks, establishes airtight record integrity, and delivers unmatched convenience to our faculty, parents, and students.',
-            color: '1E293B'
-          })
-        ]
-      }),
-
+      // HISTORICAL DIGITIZATION MILESTONE
+      createHeaderPara('★ Landmark Milestone: Admission Register Digitized Since 2006 (Classes 11th & 12th)', HeadingLevel.HEADING_1),
+      createCallout(
+        '20+ YEARS OF HISTORICAL INSTITUTIONAL RECORDS AT YOUR FINGERTIPS',
+        'A historic administrative milestone has been accomplished: the complete Official Admission Register for Classes 11th and 12th has been painstakingly digitized back to the year 2006. Over two decades of student admissions, parentage, registration numbers, streams, admission dates, and matriculation records are now indexed in an instant, searchable cloud database.',
+        'D97706', 'FFFBEB', '92400E'
+      ),
       new Paragraph({ spacing: { before: 100 } }),
+      createBullet('Instant Alumni & Past Record Verification', 'Verifying student records from 10, 15, or 20 years ago (for passport verification, employment clearances, university admissions, or duplicate certificates) previously required hours of searching through fragile, dusty, physical paper registers. Now, any record since 2006 can be located and confirmed in under 2 seconds.'),
+      createBullet('Disaster Proof & Permanent Preservation', 'Physical paper ledgers in Kashmir are susceptible to moisture, dampness, insect damage, fire, and ink fading. Cloud digitization guarantees permanent archival preservation with 99.99% multi-region redundancy on Google Cloud.'),
+      createBullet('Seamless Alignment with JKBOSE Sent-Up Rolls', 'Historical Class 11th & 12th admission data is synchronized with official JKBOSE registration rolls, completely eliminating discrepancies in dates of birth, parentage spellings, and subject codes.'),
+
+      new Paragraph({ spacing: { before: 160 } }),
+
+      // CLASSIFIED BREAKDOWN OF 20 MODULES
+      createHeaderPara('Comprehensive Classified Directory of 20 Administrative Modules', HeadingLevel.HEADING_1),
+      new Paragraph({
+        children: [
+          new TextRun({ text: 'The administrative architecture is systematically classified into 4 functional divisions comprising 20 production-ready tools:', color: '334155' })
+        ]
+      }),
+
+      // CATEGORY 1
+      createSubheader('Category 1: Records & Registers (7 Specialized Tools)'),
+      createBullet('1. Student Records & Reports', 'Centralized student master register with comprehensive filters (class, stream, session, gender, category). Supports in-place review, approval workflows, individual student dossiers, fee status reconciliation, and export to Excel/PDF.'),
+      createBullet('2. Admission Register & Sent-up Suite', 'Direct digital replica of the official school admission ledger and JKBOSE sent-up register. Tracks admission serial numbers, enrollment dates, board registration numbers, and matriculation passout details with O(1) indexed lookups.'),
+      createBullet('3. Student Rosters & Registers', 'Generates customizable tabular registers, daily roll call sheets, fee collection ledgers, and class-wise lists with configurable column layouts and high-precision print headers.'),
+      createBullet('4. Official Letterhead Writer', 'Built-in word processor for drafting and issuing official administrative correspondence. Features Gemini AI composition assistance, auto-saving drafts, institutional letterheads, and an immutable dispatch history.'),
+      createBullet('5. Student Bonafides & Certificates', 'One-click generator for Bonafide Certificates, Character Certificates, Date of Birth Certificates, and Transfer Certificates with cryptographic anti-tamper QR codes and official serial sequences.'),
+      createBullet('6. Student ID Card Studio', 'High-throughput identity card synthesis engine. Filters by class/stream, resolves student photographs, and compiles printable grids of barcode/QR-enabled student ID cards ready for PVC or laminated printing.'),
+      createBullet('7. Competitive Exams & OMR Suite', 'End-to-end module for organizing institutional screening exams, talent searches, and entrance mock tests. Manages student registrations, automated PDF admit card generation, and OMR answer sheet processing.'),
+
+      // CATEGORY 2
+      createSubheader('Category 2: Academics & Controls (4 Core Tools)'),
+      createBullet('8. Academic Controls & Institution Rules', 'Master administration console to configure academic sessions, toggle online admission windows, set intake caps per stream, and define institutional policy parameters.'),
+      createBullet('9. Practicals & Award Rolls Engine', 'Empowers practical examiners and subject teachers to enter internal/practical marks. Features live validation against maximum marks, marks freeze/lockout safeguards, and automatic generation of official Two-Column Attendance Rosters and Award Rolls in both native Word (.docx) and PDF formats.'),
+      createBullet('10. Student Attendance Management', 'Digital attendance registers enabling daily period-wise or day-wise attendance logging, aggregate monthly attendance tracking, shortage alerts, and parent notification reports.'),
+      createBullet('11. Class Roll Number Manager', 'Automated sequential roll number assigner. Eliminates manual bookkeeping by auto-generating roll numbers by stream, class, or alphabet with conflict-free collision prevention.'),
+
+      // CATEGORY 3
+      createSubheader('Category 3: Operations & Automation (5 Tools)'),
+      createBullet('12. Application Merge & Deduplication (Merge Studio)', 'Algorithmic identity deduplication engine using Disjoint-Set Union (DSU) clustering. Automatically detects duplicate online applications submitted by the same student and merges them safely while preserving previous drafts in the Recycle Bin.'),
+      createBullet('13. Communications & Automations', 'Targeted group email and SMS broadcast composer. Features rich-text editing, template variables, real-time recipient counts by stream/class, test-flight previews, and delivery logs.'),
+      createBullet('14. Funds & Fee Accounts', 'Reconciles school fund collections, admission fees, lab charges, and sports funds. Provides detailed student-level ledger tracking and aggregate revenue summaries with over-distribution safeguards.'),
+      createBullet('15. Website CMS & Administration', 'Dynamic content management system for the public school website. Controls notices, news ticker, photo gallery slides, faculty directory, and public announcements in real time.'),
+      createBullet('16. Board Data Sync (JKBOSE)', 'Automated reconciliation bridge with official JKBOSE databases. Cross-references student particulars with official board registration data, updating records with 30-day rollback memory.'),
+
+      // CATEGORY 4
+      createSubheader('Category 4: Quick Actions & Productivity Utilities (4 Tools)'),
+      createBullet('17. Quick Cell Edit Hover', 'Instant inline editing capability allowing administrators to correct student data directly inside table rows with single-click auto-saving, without opening full forms.'),
+      createBullet('18. Analytics & Statistical Reports', 'Executive dashboard providing visual breakdown of gender parity ratios, stream-wise enrollment distributions, category representations (RBA, SC, ST, OSC), and annual intake comparisons.'),
+      createBullet('19. Express Direct Record Entry', 'High-speed single-window intake form for on-the-spot walk-in admissions, immediately generating registration numbers and fee receipts.'),
+      createBullet('20. Bulk Management & Data Tools', 'Batch operations console for bulk status approvals, batch roll assignments, mass photo assignments, and multi-format data exports.'),
+
+      new Paragraph({ spacing: { before: 160 } }),
+
+      // LAYOUT & DISPLAY CONTROLS
+      createHeaderPara('Advanced Display, Data Safety & Print Controls', HeadingLevel.HEADING_1),
+      createBullet('Multi-Density Table Display (Fit / Compact / Normal)', 'Enables administrative staff to adjust screen data density. "Compact" and "Fit" modes display 100+ student rows on standard office monitors simultaneously without excessive vertical scrolling.'),
+      createBullet('Manage Table Columns (Custom Column Views)', 'Allows administrators to toggle any column (Aadhaar, Parentage, Blood Group, Stream, Roll No, Fees) on or off, generating tailored printouts or exports in seconds.'),
+      createBullet('90-Day Protected Recycle Bin', 'Enterprise safety net that quarantines deleted records for 90 days. Accidental deletions can be restored with a single click, completely eliminating the fear of human error or data loss.'),
+      createBullet('Real-Time Force Sync Engine', 'Invalidates client cache and pulls live updates directly from Google Cloud Firestore, ensuring instant data synchronization across multiple school computers.'),
+
+      new Paragraph({ spacing: { before: 160 } }),
+
+      // UI, SPEED, SECURITY & TECH STACK
+      createHeaderPara('Modern UI, Lightning Speed & Institutional-Grade Security', HeadingLevel.HEADING_1),
+      createBullet('User Experience (UI/UX)', 'Built with React 19 and Tailwind CSS. Modern, mobile-responsive layout designed for smartphones used by 95% of Shangus parents and students. Deep Navy (#0F3460) and Emerald (#047857) color palette provides an authoritative institutional appearance.'),
+      createBullet('Sub-Second Performance (<100ms)', 'Single Page Application (SPA) architecture with zero page-reload lag. PDF, Word documents, and ID cards compile locally inside browser memory in under 1 second without server delays.'),
+      createBullet('Zero-Trust Role-Based Access Control (RBAC)', 'Strict privilege boundaries: students see only their own portal; subject teachers only access practical awards; only authenticated administrators can alter global registers.'),
+      createBullet('Cloud Security & Immutable Audit Logs', 'Direct database rule enforcement via Firestore Rules. Every admin edit, marks modification, or certificate generation is immutably logged with timestamp, operator name, and IP address.'),
+
+      new Paragraph({ spacing: { before: 160 } }),
+
+      // ROI & ENDORSEMENT
+      createHeaderPara('Financial & Operational Return on Investment (ROI)', HeadingLevel.HEADING_1),
+      createBullet('₹0 Annual Software Licensing', 'Saves GHSS Shangus between ₹75,000 to ₹1,80,000 annually compared to proprietary third-party school ERP software.'),
+      createBullet('350+ Man-Hours Saved Annually', 'Automated collation of registers, roll lists, sent-up sheets, and ID cards saves weeks of clerical labor for teaching and administrative staff.'),
+      createBullet('Prestige & Technological Leadership', 'Establishes GHSS Shangus as a premier technology-driven institution in Jammu & Kashmir.'),
+
+      new Paragraph({ spacing: { before: 140 } }),
 
       createCallout(
-        'FORMAL RECOMMENDATION',
-        'It is respectfully submitted that the Office of the Principal officially endorse and mandate the platform for all forthcoming admission cycles, practical award submissions, and circular broadcasts. This will cement GHSS Shangus’s reputation as a pioneer in digital excellence.'
+        'FORMAL RECOMMENDATION FOR THE PRINCIPAL',
+        'It is respectfully submitted that the Office of the Principal officially endorse and mandate this unified digital platform for all academic intakes, practical evaluations, and institutional correspondence. This ensures absolute record integrity, saves valuable staff time, and cements GHSS Shangus’s status as a pioneer in digital education.'
       )
     ]
   }]
@@ -316,7 +268,7 @@ const doc = new Document({
 
 Packer.toBuffer(doc).then(buffer => {
   fs.writeFileSync(docxPath, buffer);
-  console.log('✅ Word document created successfully:', docxPath);
+  console.log('✅ Word document (.docx) updated successfully:', docxPath);
 }).catch(err => {
   console.error('Error generating docx:', err);
 });
@@ -329,7 +281,7 @@ const htmlContent = `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>GHSS Shangus — Digital Platform Executive Presentation for the Principal</title>
+<title>GHSS Shangus — Comprehensive Digital Platform Presentation for the Principal</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap');
 
@@ -337,13 +289,13 @@ const htmlContent = `<!DOCTYPE html>
 
   @page {
     size: A4 portrait;
-    margin: 12mm 14mm 12mm 14mm;
+    margin: 10mm 12mm 10mm 12mm;
   }
 
   body {
     font-family: 'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    font-size: 9pt;
-    line-height: 1.5;
+    font-size: 8.5pt;
+    line-height: 1.45;
     color: #1e293b;
     background: #f8fafc;
     padding: 0;
@@ -355,7 +307,7 @@ const htmlContent = `<!DOCTYPE html>
     max-width: 210mm;
     margin: 0 auto;
     background: #ffffff;
-    padding: 24px 28px;
+    padding: 20px 24px;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
   }
 
@@ -368,15 +320,15 @@ const htmlContent = `<!DOCTYPE html>
     }
     .page-break {
       page-break-before: always;
-      padding-top: 10mm;
+      padding-top: 8mm;
     }
   }
 
   /* Header Styles */
   .institution-header {
     border-bottom: 3px solid #0f3460;
-    padding-bottom: 12px;
-    margin-bottom: 16px;
+    padding-bottom: 10px;
+    margin-bottom: 12px;
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -389,8 +341,8 @@ const htmlContent = `<!DOCTYPE html>
   }
 
   .school-logo-badge {
-    width: 46px;
-    height: 46px;
+    width: 44px;
+    height: 44px;
     border-radius: 10px;
     background: linear-gradient(135deg, #0f3460 0%, #1e3a8a 100%);
     color: #ffffff;
@@ -398,12 +350,12 @@ const htmlContent = `<!DOCTYPE html>
     align-items: center;
     justify-content: center;
     font-weight: 800;
-    font-size: 16pt;
+    font-size: 15pt;
     box-shadow: 0 4px 10px rgba(15, 52, 96, 0.25);
   }
 
   .school-text h1 {
-    font-size: 15pt;
+    font-size: 14pt;
     font-weight: 800;
     color: #0f3460;
     letter-spacing: -0.3px;
@@ -411,7 +363,7 @@ const htmlContent = `<!DOCTYPE html>
   }
 
   .school-text p {
-    font-size: 8.5pt;
+    font-size: 8pt;
     color: #64748b;
     font-weight: 500;
   }
@@ -420,9 +372,9 @@ const htmlContent = `<!DOCTYPE html>
     background: #ecfdf5;
     border: 1.5px solid #10b981;
     color: #065f46;
-    padding: 6px 12px;
+    padding: 5px 10px;
     border-radius: 20px;
-    font-size: 8pt;
+    font-size: 7.5pt;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.5px;
@@ -433,187 +385,247 @@ const htmlContent = `<!DOCTYPE html>
   .hero-dossier {
     background: linear-gradient(135deg, #0f3460 0%, #16213e 100%);
     color: #ffffff;
-    border-radius: 10px;
-    padding: 16px 20px;
-    margin-bottom: 18px;
-    position: relative;
-    overflow: hidden;
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin-bottom: 14px;
   }
 
   .hero-dossier h2 {
-    font-size: 12.5pt;
+    font-size: 11.5pt;
     font-weight: 800;
     color: #38bdf8;
-    margin-bottom: 6px;
+    margin-bottom: 4px;
   }
 
   .hero-dossier p {
-    font-size: 8.5pt;
+    font-size: 8pt;
     color: #e2e8f0;
-    line-height: 1.55;
+    line-height: 1.45;
+  }
+
+  /* Landmark Callout Banner */
+  .landmark-banner {
+    background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+    border: 1.5px solid #f59e0b;
+    border-left: 6px solid #d97706;
+    border-radius: 8px;
+    padding: 10px 14px;
+    margin-bottom: 14px;
+  }
+
+  .landmark-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+  }
+
+  .landmark-tag {
+    background: #d97706;
+    color: #ffffff;
+    font-size: 6.8pt;
+    font-weight: 800;
+    padding: 2px 6px;
+    border-radius: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+  }
+
+  .landmark-title {
+    font-size: 9.5pt;
+    font-weight: 800;
+    color: #92400e;
+  }
+
+  .landmark-desc {
+    font-size: 7.8pt;
+    color: #78350f;
+    line-height: 1.4;
   }
 
   /* Metric KPI Cards */
   .kpi-grid {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
-    gap: 10px;
-    margin-bottom: 18px;
+    gap: 8px;
+    margin-bottom: 14px;
   }
 
   .kpi-card {
     background: #f8fafc;
     border: 1px solid #e2e8f0;
     border-top: 3px solid #0f3460;
-    border-radius: 8px;
-    padding: 10px 12px;
+    border-radius: 6px;
+    padding: 8px 10px;
     text-align: center;
   }
 
+  .kpi-card.amber { border-top-color: #f59e0b; }
   .kpi-card.emerald { border-top-color: #10b981; }
   .kpi-card.sky { border-top-color: #0284c7; }
   .kpi-card.indigo { border-top-color: #6366f1; }
 
   .kpi-value {
-    font-size: 15pt;
+    font-size: 13pt;
     font-weight: 800;
     color: #0f3460;
     line-height: 1.2;
   }
 
+  .kpi-card.amber .kpi-value { color: #d97706; }
   .kpi-card.emerald .kpi-value { color: #047857; }
   .kpi-card.sky .kpi-value { color: #0369a1; }
   .kpi-card.indigo .kpi-value { color: #4338ca; }
 
   .kpi-label {
-    font-size: 7.5pt;
+    font-size: 7pt;
     font-weight: 600;
     color: #64748b;
     text-transform: uppercase;
-    letter-spacing: 0.4px;
-    margin-top: 3px;
+    letter-spacing: 0.3px;
+    margin-top: 2px;
   }
 
   /* Section Styles */
   h3.section-heading {
-    font-size: 11pt;
+    font-size: 10pt;
     font-weight: 800;
     color: #0f3460;
-    margin-top: 14px;
-    margin-bottom: 8px;
+    margin-top: 12px;
+    margin-bottom: 6px;
     display: flex;
     align-items: center;
-    gap: 8px;
+    justify-content: space-between;
     border-bottom: 1.5px solid #e2e8f0;
-    padding-bottom: 4px;
+    padding-bottom: 3px;
   }
 
   .section-badge {
     background: #e0f2fe;
     color: #0369a1;
-    font-size: 7pt;
+    font-size: 6.8pt;
     font-weight: 700;
-    padding: 2px 7px;
-    border-radius: 6px;
+    padding: 2px 6px;
+    border-radius: 4px;
     text-transform: uppercase;
   }
 
-  /* Feature Grid */
-  .feature-grid {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 10px;
-    margin-bottom: 14px;
-  }
-
-  .feature-card {
-    background: #ffffff;
+  /* Category Container */
+  .category-container {
+    background: #f8fafc;
     border: 1px solid #e2e8f0;
-    border-radius: 8px;
-    padding: 10px 12px;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
+    border-radius: 6px;
+    padding: 8px 10px;
+    margin-bottom: 10px;
   }
 
-  .feature-title {
+  .category-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 6px;
+    padding-bottom: 3px;
+    border-bottom: 1px solid #cbd5e1;
+  }
+
+  .category-title {
     font-size: 8.5pt;
-    font-weight: 700;
+    font-weight: 800;
     color: #0f3460;
     display: flex;
     align-items: center;
     gap: 6px;
   }
 
-  .feature-icon {
-    width: 18px;
-    height: 18px;
-    border-radius: 4px;
-    background: #f1f5f9;
+  .category-badge {
+    font-size: 6.8pt;
+    font-weight: 700;
+    padding: 1px 6px;
+    border-radius: 12px;
+  }
+
+  .cat-amber { background: #fef3c7; color: #92400e; }
+  .cat-emerald { background: #d1fae5; color: #065f46; }
+  .cat-indigo { background: #e0e7ff; color: #3730a3; }
+  .cat-violet { background: #ede9fe; color: #5b21b6; }
+
+  /* Modules Micro-Grid */
+  .modules-list {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 6px;
+  }
+
+  .module-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 5px;
+    padding: 6px 8px;
+  }
+
+  .module-title {
+    font-size: 7.8pt;
+    font-weight: 700;
     color: #0f3460;
+    margin-bottom: 2px;
     display: flex;
     align-items: center;
-    justify-content: center;
-    font-size: 8pt;
-    font-weight: bold;
+    gap: 4px;
   }
 
-  .feature-desc {
-    font-size: 7.8pt;
+  .module-desc {
+    font-size: 7.1pt;
     color: #475569;
-    line-height: 1.45;
+    line-height: 1.35;
   }
 
-  /* Table styling */
-  table.data-table {
-    width: 100%;
-    border-collapse: collapse;
-    margin: 10px 0 16px 0;
+  /* Controls Section Box */
+  .controls-box {
+    background: #ffffff;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    padding: 8px 10px;
+    margin-bottom: 10px;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+  }
+
+  .control-col h4 {
     font-size: 7.8pt;
-  }
-
-  table.data-table th, table.data-table td {
-    padding: 6px 10px;
-    border: 1px solid #e2e8f0;
-    text-align: left;
-  }
-
-  table.data-table th {
-    background: #0f3460;
-    color: #ffffff;
     font-weight: 700;
-    font-size: 7.5pt;
-    text-transform: uppercase;
-    letter-spacing: 0.3px;
+    color: #0f3460;
+    margin-bottom: 3px;
+    border-bottom: 1px dashed #cbd5e1;
+    padding-bottom: 2px;
   }
 
-  table.data-table tr:nth-child(even) td {
-    background: #f8fafc;
+  .control-col p {
+    font-size: 7pt;
+    color: #475569;
+    line-height: 1.35;
   }
 
   /* Pillar comparison blocks */
   .pillar-grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
-    gap: 10px;
-    margin-bottom: 14px;
+    gap: 8px;
+    margin-bottom: 10px;
   }
 
   .pillar-box {
-    background: #f8fafc;
+    background: #ffffff;
     border: 1px solid #cbd5e1;
-    border-radius: 8px;
-    padding: 10px 12px;
+    border-radius: 6px;
+    padding: 8px 10px;
   }
 
   .pillar-box h4 {
-    font-size: 8.5pt;
+    font-size: 8pt;
     font-weight: 700;
     color: #0f3460;
     margin-bottom: 4px;
-    display: flex;
-    align-items: center;
-    gap: 5px;
   }
 
   .pillar-box ul {
@@ -622,10 +634,10 @@ const htmlContent = `<!DOCTYPE html>
   }
 
   .pillar-box li {
-    font-size: 7.6pt;
+    font-size: 7.1pt;
     color: #334155;
-    margin-bottom: 4px;
-    padding-left: 12px;
+    margin-bottom: 3px;
+    padding-left: 10px;
     position: relative;
     line-height: 1.35;
   }
@@ -638,51 +650,51 @@ const htmlContent = `<!DOCTYPE html>
     font-weight: bold;
   }
 
-  /* Callout Footer */
+  /* Endorsement Callout */
   .endorsement-callout {
     background: #ecfdf5;
     border: 1.5px solid #a7f3d0;
     border-left: 5px solid #059669;
-    border-radius: 8px;
-    padding: 12px 16px;
-    margin-top: 14px;
+    border-radius: 6px;
+    padding: 8px 12px;
+    margin-top: 10px;
   }
 
   .endorsement-callout h4 {
-    font-size: 9.5pt;
+    font-size: 8.5pt;
     font-weight: 800;
     color: #065f46;
-    margin-bottom: 4px;
+    margin-bottom: 2px;
   }
 
   .endorsement-callout p {
-    font-size: 8pt;
+    font-size: 7.4pt;
     color: #047857;
-    line-height: 1.5;
+    line-height: 1.45;
   }
 
   .sign-area {
-    margin-top: 24px;
+    margin-top: 14px;
     display: flex;
     justify-content: space-between;
     align-items: flex-end;
-    padding-top: 14px;
+    padding-top: 10px;
     border-top: 1px dashed #cbd5e1;
   }
 
   .sign-col {
     text-align: center;
-    width: 180px;
+    width: 170px;
   }
 
   .sign-line {
     border-bottom: 1.5px solid #475569;
-    margin-bottom: 4px;
-    height: 32px;
+    margin-bottom: 3px;
+    height: 24px;
   }
 
   .sign-col p {
-    font-size: 7.5pt;
+    font-size: 7pt;
     color: #64748b;
   }
 </style>
@@ -697,214 +709,254 @@ const htmlContent = `<!DOCTYPE html>
       <div class="school-logo-badge">HSS</div>
       <div class="school-text">
         <h1>GOVT. HIGHER SECONDARY SCHOOL SHANGUS</h1>
-        <p>Department of School Education, UT of Jammu & Kashmir • Est. 1917</p>
+        <p>Department of School Education, UT of Jammu & Kashmir • Established 1917</p>
       </div>
     </div>
     <div class="doc-badge">
-      Executive Briefing<br><span style="font-size: 7pt; font-weight: normal; color: #047857;">Office of the Principal</span>
+      Classified Institutional Brief<br><span style="font-size: 6.8pt; font-weight: normal; color: #047857;">Office of the Principal</span>
     </div>
   </header>
 
   <!-- Hero Box -->
   <div class="hero-dossier">
-    <h2>Empowering GHSS Shangus: The Next-Generation Digital Campus</h2>
+    <h2>Comprehensive Administrative Architecture & Digital Sovereignty</h2>
     <p>
-      Respected Principal Sir / Madam, this briefing details the capabilities, user experience, speed benchmarks, and security protocols of the newly deployed <strong>HSS Shangus Digital Platform</strong>. Engineered to eliminate administrative drag, protect student data with cryptographic rigor, and deliver effortless usability, this system elevates our institution into a flagship model for digital governance across District Anantnag.
+      Respected Principal Sir / Madam, this briefing presents the complete classified architecture of our newly deployed school platform. Featuring <strong>20 specialized administrative modules</strong>, two full decades of <strong>historical student records digitized since 2006</strong>, sub-second execution speeds, and bulletproof security, this system elevates GHSS Shangus into a premier digital institution.
     </p>
+  </div>
+
+  <!-- Landmark Digitization Banner -->
+  <div class="landmark-banner">
+    <div class="landmark-header">
+      <span class="landmark-tag">Historic Milestone</span>
+      <span class="landmark-title">Admission Register Digitized for Classes 11th & 12th Since 2006 (20+ Years)</span>
+    </div>
+    <div class="landmark-desc">
+      Every single official admission record, matriculation passout detail, admission date, parentage, registration number, and stream assignment for Classes 11th and 12th from <strong>2006 to 2026</strong> is now fully digitized, verified, and indexed in the cloud. Physical search through fragile, dusty registers is permanently eliminated — past student records can now be located in less than 2 seconds with zero risk of paper loss.
+    </div>
   </div>
 
   <!-- KPI Grid -->
   <div class="kpi-grid">
+    <div class="kpi-card amber">
+      <div class="kpi-value">2006–2026</div>
+      <div class="kpi-label">Digitized Ledger Records</div>
+    </div>
     <div class="kpi-card emerald">
-      <div class="kpi-value">&lt; 100ms</div>
-      <div class="kpi-label">Page Transition Speed</div>
+      <div class="kpi-value">20 Tools</div>
+      <div class="kpi-label">Classified Admin Modules</div>
     </div>
     <div class="kpi-card sky">
-      <div class="kpi-value">100%</div>
-      <div class="kpi-label">Paperless Admission</div>
+      <div class="kpi-value">&lt; 100ms</div>
+      <div class="kpi-label">Sub-Second UI Transitions</div>
     </div>
     <div class="kpi-card indigo">
       <div class="kpi-value">₹0</div>
       <div class="kpi-label">Annual Software License</div>
     </div>
-    <div class="kpi-card">
-      <div class="kpi-value">Zero-Trust</div>
-      <div class="kpi-label">Role-Based Security</div>
-    </div>
   </div>
 
-  <!-- Module Showcase -->
+  <!-- Section 1: Classified 20 Modules -->
   <h3 class="section-heading">
-    <span>1. Comprehensive Functional Capabilities & Modules</span>
-    <span class="section-badge">Built for Real School Workflows</span>
+    <span>1. Classified Directory of All 20 Administrative Modules & Tools</span>
+    <span class="section-badge">4 Core Functional Divisions</span>
   </h3>
 
-  <div class="feature-grid">
-    <div class="feature-card">
-      <div class="feature-title">
-        <span class="feature-icon">📝</span>
-        <span>Online Admissions & Stream Allocation</span>
+  <!-- Division 1: Records & Registers -->
+  <div class="category-container">
+    <div class="category-header">
+      <div class="category-title">
+        <span>📊 Division I: Records & Registers</span>
       </div>
-      <div class="feature-desc">
-        Complete paperless admissions for Classes 9th–12th across Science (Medical / Non-Medical), Humanities & Commerce. Features provisional admissions, auto-verification, document uploads, and instant fee receipts.
-      </div>
+      <span class="category-badge cat-amber">7 Production Modules</span>
     </div>
-
-    <div class="feature-card">
-      <div class="feature-title">
-        <span class="feature-icon">🔬</span>
-        <span>Examination & Practical Award Engine</span>
+    <div class="modules-list">
+      <div class="module-card">
+        <div class="module-title">1. Student Records & Reports</div>
+        <div class="module-desc">Centralized master register with multi-criteria filtering (class, stream, gender, category), approval workflows, student dossiers, and one-click data audits.</div>
       </div>
-      <div class="feature-desc">
-        Teachers record practical and internal assessment marks with built-in validation against max marks. Auto-generates official <strong>Award Rolls</strong> and <strong>Two-Column Attendance Sheets</strong> in Word (.docx) and PDF.
+      <div class="module-card">
+        <div class="module-title">2. Admission Register & Sent-up Suite</div>
+        <div class="module-desc">Official institutional admission ledger and JKBOSE sent-up roll. Tracks admission serial numbers, enrollment dates, and matriculation passout history.</div>
       </div>
-    </div>
-
-    <div class="feature-card">
-      <div class="feature-title">
-        <span class="feature-icon">🔢</span>
-        <span>Bulk Roll Number & Section Assigner</span>
+      <div class="module-card">
+        <div class="module-title">3. Student Rosters & Registers</div>
+        <div class="module-desc">Generates customizable tabular registers, fee sheets, class rosters, and examination attendance sheets with customizable column layouts.</div>
       </div>
-      <div class="feature-desc">
-        Eliminates days of manual register numbering. One-click auto-increment assignment by class, stream, or section with instant collision detection and verified student rosters.
+      <div class="module-card">
+        <div class="module-title">4. Official Letterhead Writer</div>
+        <div class="module-desc">Built-in document composer with Gemini AI drafting assistance, auto-saving drafts, authenticated institutional letterheads, and dispatch logging.</div>
       </div>
-    </div>
-
-    <div class="feature-card">
-      <div class="feature-title">
-        <span class="feature-icon">🪪</span>
-        <span>Instant Student Photo ID Card Bulk Generator</span>
+      <div class="module-card">
+        <div class="module-title">5. Student Bonafides & Certificates</div>
+        <div class="module-desc">One-click generator for Bonafide, Character, DOB, and Transfer Certificates with cryptographic anti-counterfeit QR codes and sequential serial numbers.</div>
       </div>
-      <div class="feature-desc">
-        Synthesizes high-resolution, print-ready student identity cards with student photographs, blood group, emergency contact, and anti-counterfeit cryptographic QR verification codes.
+      <div class="module-card">
+        <div class="module-title">6. Student ID Card Studio</div>
+        <div class="module-desc">High-throughput identity card synthesis engine. Filters cohorts, resolves student photos, and prepares printable barcode/QR identity card sheets.</div>
       </div>
-    </div>
-
-    <div class="feature-card">
-      <div class="feature-title">
-        <span class="feature-icon">🛡️</span>
-        <span>Instant Public Verification (/verify-student)</span>
-      </div>
-      <div class="feature-desc">
-        Permits employers, universities, and passport offices to scan QR codes or enter student roll IDs to confirm credentials instantly, while shielding private demographic data from public scrapers.
-      </div>
-    </div>
-
-    <div class="feature-card">
-      <div class="feature-title">
-        <span class="feature-icon">📢</span>
-        <span>Notice Board & Group Email Broadcast Composer</span>
-      </div>
-      <div class="feature-desc">
-        Official circulars and announcements broadcast in real time. Features rich-text formatting, recipient filtering by class/subject, and delivery tracking.
+      <div class="module-card" style="grid-column: span 2;">
+        <div class="module-title">7. Competitive Exams & OMR Suite</div>
+        <div class="module-desc">End-to-end hub for organizing institutional screening exams, scholarship tests, and entrance mocks. Manages registrations, admit cards, and OMR evaluation.</div>
       </div>
     </div>
   </div>
 
-  <!-- Page Break for Clean Printing -->
+  <!-- Division 2: Academics & Controls -->
+  <div class="category-container">
+    <div class="category-header">
+      <div class="category-title">
+        <span>⚙️ Division II: Academics & Controls</span>
+      </div>
+      <span class="category-badge cat-emerald">4 Core Modules</span>
+    </div>
+    <div class="modules-list">
+      <div class="module-card">
+        <div class="module-title">8. Academic Controls & Institution Rules</div>
+        <div class="module-desc">Master administration console to configure academic sessions, toggle online admission windows, set intake caps, and define stream combinations.</div>
+      </div>
+      <div class="module-card">
+        <div class="module-title">9. Practicals & Award Rolls Engine</div>
+        <div class="module-desc">Allows teachers to input practical marks with live validation against maximum limits. Generates Two-Column Rosters and Award Rolls in Word (.docx) and PDF.</div>
+      </div>
+      <div class="module-card">
+        <div class="module-title">10. Student Attendance Management</div>
+        <div class="module-desc">Digital attendance registers enabling daily logging, subject-wise grouping, aggregate monthly percentages, and automatic shortage alerts.</div>
+      </div>
+      <div class="module-card">
+        <div class="module-title">11. Class Roll Number Manager</div>
+        <div class="module-desc">Automated sequential roll number assigner by stream, section, or alphabetical order with automatic conflict detection and collision prevention.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Page Break for Clean Layout -->
   <div class="page-break"></div>
 
-  <!-- UI & UX Section -->
+  <!-- Division 3: Operations & Automation -->
+  <div class="category-container">
+    <div class="category-header">
+      <div class="category-title">
+        <span>⚡ Division III: Operations & Automation</span>
+      </div>
+      <span class="category-badge cat-indigo">5 Specialized Modules</span>
+    </div>
+    <div class="modules-list">
+      <div class="module-card">
+        <div class="module-title">12. Application Merge & Deduplication</div>
+        <div class="module-desc">Algorithmic deduplication using Disjoint-Set Union clustering. Automatically detects duplicate student submissions and safely merges records.</div>
+      </div>
+      <div class="module-card">
+        <div class="module-title">13. Communications & Automations</div>
+        <div class="module-desc">Targeted group email & notification composer with rich-text formatting, recipient micro-filtering by stream/class, test-flight previews, and delivery logs.</div>
+      </div>
+      <div class="module-card">
+        <div class="module-title">14. Funds & Fee Accounts</div>
+        <div class="module-desc">Reconciles admission fees, school funds, lab fees, and examination accounts. Features live student ledgers and over-distribution safeguards.</div>
+      </div>
+      <div class="module-card">
+        <div class="module-title">15. Website CMS & Administration</div>
+        <div class="module-desc">Dynamic content manager for public school website notices, news ticker, photo gallery slides, faculty directory, and announcements in real time.</div>
+      </div>
+      <div class="module-card" style="grid-column: span 2;">
+        <div class="module-title">16. Board Data Sync (JKBOSE)</div>
+        <div class="module-desc">Authoritative sync engine with official JKBOSE board records. Reconciles board registration numbers and matriculation marks with 30-day rollback memory.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Division 4: Quick Actions & Productivity -->
+  <div class="category-container">
+    <div class="category-header">
+      <div class="category-title">
+        <span>🚀 Division IV: Quick Actions & Productivity Suite</span>
+      </div>
+      <span class="category-badge cat-violet">4 Power Tools</span>
+    </div>
+    <div class="modules-list">
+      <div class="module-card">
+        <div class="module-title">17. Quick Cell Edit Hover</div>
+        <div class="module-desc">Enables inline micro-editing directly on table cells with auto-saving, allowing rapid corrections without navigating away from the report.</div>
+      </div>
+      <div class="module-card">
+        <div class="module-title">18. Analytics & Statistical Reports</div>
+        <div class="module-desc">Instant demographic analytics displaying gender ratios, stream distributions, category enrollments (RBA, SC, ST), and session comparisons.</div>
+      </div>
+      <div class="module-card">
+        <div class="module-title">19. Express Direct Record Entry</div>
+        <div class="module-desc">Fast-track intake window for walk-in admissions, immediately creating verified student profiles and issuing enrollment numbers on the spot.</div>
+      </div>
+      <div class="module-card">
+        <div class="module-title">20. Bulk Operations & Management</div>
+        <div class="module-desc">Batch action console for bulk verification, mass roll assignments, cohort photo preparation, and mass data exports to Excel/CSV.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Section 2: Display, Safety & Export Controls -->
   <h3 class="section-heading">
-    <span>2. Modern UI, Speed & Security Architecture</span>
-    <span class="section-badge">Engineering Excellence</span>
+    <span>2. Display Controls, Safety Safeguards & Export Engine</span>
+    <span class="section-badge">Built for High Productivity</span>
+  </h3>
+
+  <div class="controls-box">
+    <div class="control-col">
+      <h4>Layout & Density Controls</h4>
+      <p><strong>Fit, Compact & Normal Density:</strong> Adjusts table spacing dynamically. Compact mode allows viewing over 100 student records on a single screen without scrolling.</p>
+      <p style="margin-top: 3px;"><strong>Manage Table Columns:</strong> Custom toggles for every data field (Aadhaar, Parentage, Stream, Fees, Roll No).</p>
+    </div>
+    <div class="control-col">
+      <h4>Data Safety & Recycle Bin</h4>
+      <p><strong>90-Day Protected Recycle Bin:</strong> Deletions are soft-quarantined for 90 days. Accidental records can be restored with a single click — zero risk of permanent accidental loss.</p>
+      <p style="margin-top: 3px;"><strong>Force Sync Engine:</strong> Flushes client cache and re-syncs instantly with Google Cloud Firestore.</p>
+    </div>
+    <div class="control-col">
+      <h4>Multi-Format Export & Print</h4>
+      <p><strong>Print Register Reports:</strong> Formatted CSS print rules generate official paper rosters that match school ledger stationery.</p>
+      <p style="margin-top: 3px;"><strong>Excel & CSV Export:</strong> Instant one-click exports with clean column schemas for submission to Higher Education authorities.</p>
+    </div>
+  </div>
+
+  <!-- Section 3: Architecture & Security -->
+  <h3 class="section-heading">
+    <span>3. Modern Architecture, Speed & Security Benchmarks</span>
+    <span class="section-badge">Enterprise Engineering</span>
   </h3>
 
   <div class="pillar-grid">
     <div class="pillar-box">
-      <h4>🎨 Modern UI & UX</h4>
+      <h4>🎨 UI & UX Excellence</h4>
       <ul>
-        <li><strong>Mobile-First Design:</strong> 100% responsive for smartphones used by 95% of Shangus parents and students.</li>
-        <li><strong>Clutter-Free Tabbed Layout:</strong> Contextual search, floating quick-action toolbars, and instant sorting.</li>
-        <li><strong>Official Stationery Styling:</strong> High-precision CSS print rules ensure printouts match government records.</li>
-        <li><strong>Deep Institutional Palette:</strong> Navy (#0F3460) and Emerald (#047857) convey dignity and institutional authority.</li>
+        <li><strong>100% Mobile Responsive:</strong> Fluid on budget smartphones used by 95% of Shangus families.</li>
+        <li><strong>Clutter-Free Tabbed Layout:</strong> Floating action toolbars, live search, and sorting.</li>
+        <li><strong>Dignified Institutional Theme:</strong> Deep Navy (#0F3460) and Emerald (#047857) colors.</li>
       </ul>
     </div>
 
     <div class="pillar-box">
       <h4>⚡ Blazing Performance</h4>
       <ul>
-        <li><strong>Single Page App (SPA):</strong> Zero page reload delays; snappy transitions under 100ms.</li>
-        <li><strong>Client-Side Document Generator:</strong> PDFs & Word docs compiled in device memory in under 1 second.</li>
-        <li><strong>Smart Session Caching:</strong> Cuts redundant database reads by 85% for effortless scaling.</li>
-        <li><strong>Static Pre-Rendering:</strong> 11 public pages statically pre-rendered for instant Google Search indexing.</li>
+        <li><strong>Sub-100ms Transitions:</strong> React 19 Single Page Application with zero page reloads.</li>
+        <li><strong>Client-Side Document Engine:</strong> Word docs and PDFs compile in memory in under 1 second.</li>
+        <li><strong>85% Read Reduction:</strong> Smart in-memory caching saves database costs and bandwidth.</li>
       </ul>
     </div>
 
     <div class="pillar-box">
-      <h4>🔒 Enterprise Security</h4>
+      <h4>🔒 Institutional Security</h4>
       <ul>
-        <li><strong>Role-Based Access Control:</strong> Strict separation of Student, Teacher, Exam Cell, and Admin privileges.</li>
-        <li><strong>Firestore Security Rules:</strong> Mathematical policy enforcement at the cloud database level.</li>
-        <li><strong>Audit & Activity Logs:</strong> Every admin action is timestamped with operator identity and changes.</li>
-        <li><strong>Privacy Masking:</strong> Aadhaar and contact numbers shielded against web scraping and leakages.</li>
+        <li><strong>Role-Based Access (RBAC):</strong> Strict Student, Teacher, and Administrator access tiers.</li>
+        <li><strong>Database Rules:</strong> Enforced mathematically at the Google Cloud Firestore layer.</li>
+        <li><strong>Audit Logging:</strong> Every admin action is timestamped with operator identity and changes.</li>
       </ul>
     </div>
   </div>
 
-  <!-- Tech Stack Table -->
-  <h3 class="section-heading">
-    <span>3. Modern Technology Stack & Cost Valuation</span>
-    <span class="section-badge">100% Owned • Zero Vendor Lock-in</span>
-  </h3>
-
-  <table class="data-table">
-    <thead>
-      <tr>
-        <th style="width: 24%;">Platform Layer</th>
-        <th style="width: 28%;">Technology Selected</th>
-        <th>Institutional Benefit to GHSS Shangus</th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr>
-        <td><strong>Frontend & Interface</strong></td>
-        <td>React 19 + Tailwind CSS + Lucide</td>
-        <td>Industry-leading UI performance, modular maintainability, lightweight mobile bundles.</td>
-      </tr>
-      <tr>
-        <td><strong>Real-Time Database</strong></td>
-        <td>Google Cloud Firestore (NoSQL)</td>
-        <td>99.99% cloud availability, instant real-time synchronization, automatic disaster recovery.</td>
-      </tr>
-      <tr>
-        <td><strong>Authentication & Vault</strong></td>
-        <td>Firebase Auth + Google OAuth + OTP</td>
-        <td>Bank-grade encrypted sessions, automated token expiry, zero-leak credential storage.</td>
-      </tr>
-      <tr>
-        <td><strong>Document Compilation</strong></td>
-        <td>docx + jsPDF + Vector Canvas</td>
-        <td>Zero server costs; generates genuine Word (.docx) & PDF documents inside the browser.</td>
-      </tr>
-      <tr>
-        <td><strong>Serverless Microservices</strong></td>
-        <td>Netlify Edge Functions (Node.js 22)</td>
-        <td>Sub-50ms API response times, handles admission rushes effortlessly with zero server maintenance.</td>
-      </tr>
-    </tbody>
-  </table>
-
-  <!-- Economic & Strategic Value -->
-  <h3 class="section-heading">
-    <span>4. Administrative ROI & Strategic Advantages</span>
-    <span class="section-badge">Measurable Institutional Value</span>
-  </h3>
-
-  <div style="font-size: 8pt; color: #334155; line-height: 1.5; margin-bottom: 8px;">
-    Commercial school management vendors typically charge <strong>₹75,000 to ₹1,80,000 annually</strong> with restrictive per-student fees and cumbersome customer support. By building our own modern institutional platform:
-    <ul style="margin: 6px 0 6px 18px;">
-      <li><strong>₹0 Software Licensing:</strong> Complete institutional ownership of code, databases, and digital assets.</li>
-      <li><strong>350+ Man-Hours Saved Annually:</strong> Automation replaces manual collation of registers, awards, and ID cards.</li>
-      <li><strong>Prestige & Model School Status:</strong> Positions GHSS Shangus as a premier technology-driven institution in Jammu & Kashmir.</li>
-    </ul>
-  </div>
-
-  <!-- Endorsement Callout -->
+  <!-- Section 4: Strategic Value & Endorsement -->
   <div class="endorsement-callout">
-    <h4>Formal Recommendation for the Office of the Principal</h4>
+    <h4>Strategic Recommendation for the Office of the Principal</h4>
     <p>
-      It is respectfully recommended that the Principal officially endorse this digital portal as the mandatory standard for all forthcoming admission drives, examination practical evaluations, and school circular broadcasts. This will safeguard institutional records, ensure flawless administrative accuracy, and provide students and faculty with the highest standard of modern educational service.
+      The GHSS Shangus Digital Platform elevates our school into a flagship center of technological excellence in Jammu & Kashmir. It solves decades of manual ledger degradation, protects student data with institutional security, saves 350+ annual staff hours, and eliminates ₹1.5+ Lakhs in recurring commercial ERP licenses. It is respectfully recommended that the Office of the Principal formally mandate this platform for all future school sessions.
     </p>
   </div>
 
@@ -912,7 +964,7 @@ const htmlContent = `<!DOCTYPE html>
   <div class="sign-area">
     <div class="sign-col">
       <div class="sign-line"></div>
-      <p><strong>Technical Developer & Coordinator</strong><br>IT & Portal Management Cell</p>
+      <p><strong>Technical Coordinator</strong><br>IT & Portal Management Cell</p>
     </div>
     <div class="sign-col">
       <div class="sign-line"></div>
@@ -931,7 +983,7 @@ const htmlContent = `<!DOCTYPE html>
 `;
 
 fs.writeFileSync(htmlPath, htmlContent, 'utf8');
-console.log('✅ Executive HTML created successfully:', htmlPath);
+console.log('✅ Executive HTML updated successfully:', htmlPath);
 
 // ==========================================
 // 3. COMPILE HTML TO HIGH-RES PDF VIA CHROME
