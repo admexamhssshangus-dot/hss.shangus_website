@@ -6000,7 +6000,7 @@ function AdminPortalContent({ embeddedUser, onEmbeddedLogout, initialTab }) {
   };
 
   return (
-    <div className={`${embeddedUser ? 'min-h-[70vh] py-1 rounded-2xl' : 'min-h-screen py-4'} bg-slate-950 text-slate-100 admin-portal-container admin-portal-theme`}>
+    <div className={`${embeddedUser ? 'min-h-[70vh] py-1 rounded-2xl' : 'min-h-screen py-4'} bg-slate-50/70 dark:bg-slate-950 text-slate-800 dark:text-slate-100 admin-portal-container admin-portal-theme`}>
       <style dangerouslySetInnerHTML={{
         __html: `
         /* Theme-Aware Contrast Enhancements for Inputs */
@@ -6381,63 +6381,73 @@ function AdminPortalContent({ embeddedUser, onEmbeddedLogout, initialTab }) {
           </div>
         )}
 
-        {/* Compact grouped module navigation */}
-        <div className="flex flex-col xl:flex-row xl:flex-nowrap xl:items-center gap-2 border-b border-slate-800 mb-2 pb-2">
-          <div className="flex min-w-0 items-center gap-2 overflow-x-auto custom-scrollbar pb-0.5 xl:pb-0">
-          <label htmlFor="cms-module-group" className="sr-only">CMS module group</label>
-          <select
-            id="cms-module-group"
-            value={activeCmsGroup?.id || ''}
-            onChange={(event) => {
-              const group = cmsNavigationGroups.find((item) => item.id === event.target.value);
-              if (group?.tabs[0]) openCmsTab(group.tabs[0].id);
-            }}
-            className="h-8 min-w-[156px] rounded-lg border border-slate-700 bg-slate-900 px-2.5 text-[10px] font-black uppercase tracking-wide text-orange-300 outline-none focus:border-orange-500"
-          >
-            {cmsNavigationGroups.map((group) => (
-              <option key={group.id} value={group.id}>{group.label} · {group.tabs.length}</option>
-            ))}
-          </select>
-          <div className="flex items-center gap-1 rounded-xl border border-slate-800 bg-slate-900/50 p-1">
-          {(activeCmsGroup?.tabs || []).map((tab) => {
-            const Icon = tab.icon;
-            const active = activeTab === tab.id;
-            const label = tab.id === 'trash' && recycleBin.length ? `${tab.label} (${recycleBin.length})` : tab.label;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => openCmsTab(tab.id)}
-                className={`flex h-7 items-center gap-1.5 rounded-lg px-2.5 text-[10px] font-black transition-all flex-shrink-0 ${active ? 'bg-orange-500 text-slate-950 shadow-sm' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-100'}`}
-              >
-                <Icon size={13} />
-                {label}
-              </button>
-            );
-          })}
-          </div>
-          </div>
-          {embeddedUser && (
-            <div className="flex w-full flex-shrink-0 items-center gap-2 xl:ml-auto xl:w-auto xl:pl-2">
-              <button
-                type="button"
-                onClick={handleLinkFolder}
-                className={`flex h-8 flex-1 xl:flex-none items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border px-3 text-[10px] font-black transition-all ${folderHandle ? 'border-emerald-500/50 bg-emerald-950 text-emerald-400' : 'border-slate-700 bg-slate-900 text-slate-200 hover:border-orange-500/50 hover:bg-slate-800'}`}
-                title="Select the public/slides folder for direct file updates"
-              >
-                <FolderOpen size={13} />
-                {folderHandle ? 'Slides Folder Linked' : 'Link Slides Folder'}
-              </button>
-              <button
-                type="button"
-                onClick={() => handleSaveToLocalStorage()}
-                className="flex h-8 flex-1 xl:flex-none items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-emerald-400 bg-emerald-500 px-3.5 text-[10px] font-black text-slate-950 shadow-sm transition-all hover:bg-emerald-400 active:scale-[0.98]"
-              >
-                <Save size={13} strokeWidth={2.5} />
-                Save Changes
-              </button>
+        {/* Compact grouped module navigation - omitted on standalone Recycle Bin view */}
+        {activeTab !== 'trash' && (cmsNavigationGroups.length > 1 || (activeCmsGroup?.tabs || []).length > 1) && (
+          <div className="flex flex-col xl:flex-row xl:flex-nowrap xl:items-center gap-2 border-b border-slate-200 dark:border-slate-800 mb-2 pb-2">
+            <div className="flex min-w-0 items-center gap-2 overflow-x-auto custom-scrollbar pb-0.5 xl:pb-0">
+              {cmsNavigationGroups.length > 1 && (
+                <>
+                  <label htmlFor="cms-module-group" className="sr-only">CMS module group</label>
+                  <select
+                    id="cms-module-group"
+                    value={activeCmsGroup?.id || ''}
+                    onChange={(event) => {
+                      const group = cmsNavigationGroups.find((item) => item.id === event.target.value);
+                      if (group?.tabs[0]) openCmsTab(group.tabs[0].id);
+                    }}
+                    className="h-8 min-w-[156px] rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-2.5 text-[10px] font-black uppercase tracking-wide text-orange-600 dark:text-orange-300 outline-none focus:border-orange-500"
+                  >
+                    {cmsNavigationGroups.map((group) => (
+                      <option key={group.id} value={group.id}>{group.label} · {group.tabs.length}</option>
+                    ))}
+                  </select>
+                </>
+              )}
+              <div className="flex items-center gap-1 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900/50 p-1">
+                {(activeCmsGroup?.tabs || []).map((tab) => {
+                  const Icon = tab.icon;
+                  const active = activeTab === tab.id;
+                  const label = tab.id === 'trash' && recycleBin.length ? `${tab.label} (${recycleBin.length})` : tab.label;
+                  return (
+                    <button
+                      key={tab.id}
+                      onClick={() => openCmsTab(tab.id)}
+                      className={`flex h-7 items-center gap-1.5 rounded-lg px-2.5 text-[10px] font-black transition-all flex-shrink-0 ${active ? 'bg-orange-500 text-white dark:text-slate-950 shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100'}`}
+                    >
+                      <Icon size={13} />
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-          )}
-        </div>
+            {embeddedUser && (
+              <div className="flex w-full flex-shrink-0 items-center gap-2 xl:ml-auto xl:w-auto xl:pl-2">
+                {activeTab === 'slideshow' && (
+                  <button
+                    type="button"
+                    onClick={handleLinkFolder}
+                    className={`flex h-8 flex-1 xl:flex-none items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border px-3 text-[10px] font-black transition-all ${folderHandle ? 'border-emerald-500/50 bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-400' : 'border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 hover:border-orange-500/50 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
+                    title="Select the public/slides folder for direct file updates"
+                  >
+                    <FolderOpen size={13} />
+                    {folderHandle ? 'Slides Folder Linked' : 'Link Slides Folder'}
+                  </button>
+                )}
+                {activeTab !== 'trash' && (
+                  <button
+                    type="button"
+                    onClick={() => handleSaveToLocalStorage()}
+                    className="flex h-8 flex-1 xl:flex-none items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-emerald-500 bg-emerald-500 px-3.5 text-[10px] font-black text-white dark:text-slate-950 shadow-sm transition-all hover:bg-emerald-400 active:scale-[0.98]"
+                  >
+                    <Save size={13} strokeWidth={2.5} />
+                    Save Changes
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Console Body */}
         {loading ? (
@@ -6448,7 +6458,7 @@ function AdminPortalContent({ embeddedUser, onEmbeddedLogout, initialTab }) {
             className="py-16"
           />
         ) : (
-          <div className={`bg-slate-900/40 border border-slate-800 rounded-xl ${embeddedUser ? 'p-2.5 sm:p-3' : 'p-4 md:p-5'} shadow-xl`}>
+          <div className={`bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-xl ${embeddedUser ? 'p-2.5 sm:p-3' : 'p-4 md:p-5'} shadow-2xs dark:shadow-xl`}>
 
             {/* TAB 1: ADMISSIONS AND FEES */}
             {activeTab === 'admissions' && allowedTabs.includes('admissions') && (
@@ -9490,25 +9500,25 @@ function AdminPortalContent({ embeddedUser, onEmbeddedLogout, initialTab }) {
 
             {/* TAB 9: RECYCLE BIN (TRASH) */}
             {activeTab === 'trash' && allowedTabs.includes('trash') && (
-              <div className="space-y-5 animate-in fade-in duration-200 text-slate-200">
+              <div className="space-y-5 animate-in fade-in duration-200 text-slate-800 dark:text-slate-200">
                 {/* Header Bar */}
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-800 pb-3">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-200 dark:border-slate-800 pb-3">
                   <div>
-                    <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
-                      <Trash2 className="text-amber-400" size={18} />
+                    <h3 className="text-base font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                      <Trash2 className="text-amber-500" size={18} />
                       Recycle Bin & Data Cleanup
-                      <span className="ml-2 px-2 py-0.5 rounded-full text-xs font-extrabold bg-amber-950/80 text-amber-400 border border-amber-500/30">
+                      <span className="ml-2 px-2 py-0.5 rounded-full text-xs font-extrabold bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-400 border border-amber-300 dark:border-amber-500/30">
                         {recycleBin.length} {recycleBin.length === 1 ? 'item' : 'items'}
                       </span>
                     </h3>
-                    <p className="text-[11px] text-slate-400 mt-0.5">
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
                       Deleted notices, slideshow slides, faculty, and custom pages are safely held here. Restore them anytime or permanently purge them to eliminate zero-redundancy live storage.
                     </p>
                   </div>
                   {recycleBin.length > 0 && (
                     <button
                       onClick={handleEmptyRecycleBin}
-                      className="py-1.5 px-3 rounded-lg bg-red-950/80 hover:bg-red-900 text-red-300 font-bold text-xs transition-all flex items-center gap-1.5 border border-red-500/30 shadow-md flex-shrink-0"
+                      className="py-1.5 px-3 rounded-lg bg-red-50 hover:bg-red-100 dark:bg-red-950/80 dark:hover:bg-red-900 text-red-700 dark:text-red-300 font-bold text-xs transition-all flex items-center gap-1.5 border border-red-200 dark:border-red-500/30 shadow-2xs flex-shrink-0 cursor-pointer"
                     >
                       <Trash2 size={14} />
                       Empty Recycle Bin
@@ -9517,7 +9527,7 @@ function AdminPortalContent({ embeddedUser, onEmbeddedLogout, initialTab }) {
                 </div>
 
                 {/* Filter and Search Bar */}
-                <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 bg-slate-900/60 p-3 rounded-xl border border-slate-800">
+                <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 bg-slate-50 dark:bg-slate-900/60 p-3 rounded-xl border border-slate-200 dark:border-slate-800">
                   {/* Category Filter Pills */}
                   <div className="flex flex-wrap gap-1.5">
                     {['All', 'Latest Notice', 'Home Slideshow', 'Faculty Directory', 'Custom Page'].map(cat => {
@@ -9531,14 +9541,14 @@ function AdminPortalContent({ embeddedUser, onEmbeddedLogout, initialTab }) {
                           key={cat}
                           type="button"
                           onClick={() => setTrashFilterCategory(cat)}
-                          className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all flex items-center gap-1.5 ${
+                          className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
                             active
-                              ? 'bg-amber-500 text-slate-950 shadow-sm'
-                              : 'bg-slate-950 text-slate-400 hover:text-slate-200 border border-slate-800'
+                              ? 'bg-amber-500 text-slate-950 font-bold shadow-xs'
+                              : 'bg-white dark:bg-slate-950 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 border border-slate-200 dark:border-slate-800'
                           }`}
                         >
                           {cat}
-                          <span className={`px-1.5 py-0.2 rounded-full text-[9px] font-extrabold ${active ? 'bg-slate-950/20 text-slate-950' : 'bg-slate-800 text-slate-400'}`}>
+                          <span className={`px-1.5 py-0.2 rounded-full text-[9px] font-extrabold ${active ? 'bg-slate-950/20 text-slate-950' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'}`}>
                             {count}
                           </span>
                         </button>
@@ -9553,9 +9563,9 @@ function AdminPortalContent({ embeddedUser, onEmbeddedLogout, initialTab }) {
                       placeholder="Search trash..."
                       value={trashSearchQuery}
                       onChange={(e) => setTrashSearchQuery(e.target.value)}
-                      className="w-full pl-8 pr-3 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-xs font-medium text-slate-200 placeholder-slate-500 focus:outline-none focus:border-amber-500"
+                      className="w-full pl-8 pr-3 py-1.5 rounded-lg bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-medium text-slate-900 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-amber-500 shadow-2xs"
                     />
-                    <Trash2 size={13} className="absolute left-2.5 top-2.5 text-slate-500 pointer-events-none" />
+                    <Trash2 size={13} className="absolute left-2.5 top-2.5 text-slate-400 dark:text-slate-500 pointer-events-none" />
                   </div>
                 </div>
 
@@ -9571,12 +9581,12 @@ function AdminPortalContent({ embeddedUser, onEmbeddedLogout, initialTab }) {
 
                   if (filteredTrash.length === 0) {
                     return (
-                      <div className="py-16 text-center bg-slate-900/30 rounded-xl border border-slate-800/80 p-8 space-y-3">
-                        <div className="w-14 h-14 rounded-full bg-slate-800/80 border border-slate-700 flex items-center justify-center mx-auto text-slate-500">
+                      <div className="py-16 text-center bg-slate-50/60 dark:bg-slate-900/30 rounded-xl border border-slate-200 dark:border-slate-800/80 p-8 space-y-3">
+                        <div className="w-14 h-14 rounded-full bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 flex items-center justify-center mx-auto text-slate-400 dark:text-slate-500">
                           <Trash2 size={26} />
                         </div>
-                        <h4 className="text-sm font-bold text-slate-300">Recycle Bin is Empty</h4>
-                        <p className="text-xs text-slate-500 max-w-md mx-auto">
+                        <h4 className="text-sm font-bold text-slate-800 dark:text-slate-300">Recycle Bin is Empty</h4>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 max-w-md mx-auto">
                           No deleted items found in this view. When you delete announcements, faculty records, slides, or pages, they will be safely kept here for easy 1-click recovery.
                         </p>
                       </div>
@@ -9588,15 +9598,15 @@ function AdminPortalContent({ embeddedUser, onEmbeddedLogout, initialTab }) {
                       {filteredTrash.map(item => (
                         <div
                           key={item.id}
-                          className="bg-slate-900/60 border border-slate-800 hover:border-slate-700 p-4 rounded-xl space-y-3 flex flex-col justify-between transition-all shadow-md group"
+                          className="bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 p-4 rounded-xl space-y-3 flex flex-col justify-between transition-all shadow-2xs group"
                         >
                           <div className="space-y-2">
                             {/* Header row: category badge + deleted timestamp */}
                             <div className="flex items-center justify-between gap-2">
-                              <span className="px-2 py-0.5 rounded text-[9px] font-extrabold uppercase bg-amber-950/60 text-amber-400 border border-amber-500/30">
+                              <span className="px-2 py-0.5 rounded text-[9px] font-extrabold uppercase bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-400 border border-amber-200 dark:border-amber-500/30">
                                 {item.category}
                               </span>
-                              <span className="text-[9.5px] font-semibold text-slate-500 flex items-center gap-1">
+                              <span className="text-[9.5px] font-semibold text-slate-400 dark:text-slate-500 flex items-center gap-1">
                                 <Clock size={11} />
                                 {item.deletedAt || 'Recently'}
                               </span>
@@ -9608,15 +9618,15 @@ function AdminPortalContent({ embeddedUser, onEmbeddedLogout, initialTab }) {
                                 <img
                                   src={item.photo || item.image}
                                   alt=""
-                                  className="w-12 h-12 rounded-lg object-cover bg-slate-950 border border-slate-800 shrink-0"
+                                  className="w-12 h-12 rounded-lg object-cover bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 shrink-0"
                                   onError={(e) => e.target.style.display = 'none'}
                                 />
                               )}
                               <div className="min-w-0 flex-grow">
-                                <h4 className="text-xs font-bold text-slate-200 line-clamp-2" title={item.title}>
+                                <h4 className="text-xs font-bold text-slate-900 dark:text-slate-200 line-clamp-2" title={item.title}>
                                   {item.title}
                                 </h4>
-                                <p className="text-[11px] text-slate-400 line-clamp-2 mt-0.5" title={item.subtitle}>
+                                <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-2 mt-0.5" title={item.subtitle}>
                                   {item.subtitle}
                                 </p>
                               </div>
@@ -9624,11 +9634,11 @@ function AdminPortalContent({ embeddedUser, onEmbeddedLogout, initialTab }) {
                           </div>
 
                           {/* Action Buttons: Restore vs Purge */}
-                          <div className="pt-2 border-t border-slate-800/80 flex items-center justify-end gap-2">
+                          <div className="pt-2 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-end gap-2">
                             <button
                               type="button"
                               onClick={() => handleRestoreTrashItem(item.id)}
-                              className="px-3 py-1.5 rounded-lg bg-emerald-950/80 hover:bg-emerald-900 text-emerald-300 font-bold text-xs transition-all flex items-center gap-1.5 border border-emerald-500/30 shadow-sm"
+                              className="px-3 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/80 dark:hover:bg-emerald-900 text-emerald-700 dark:text-emerald-300 font-bold text-xs transition-all flex items-center gap-1.5 border border-emerald-200 dark:border-emerald-500/30 shadow-2xs cursor-pointer"
                               title="Restore back to live site lists"
                             >
                               <RotateCcw size={13} />
@@ -9638,7 +9648,7 @@ function AdminPortalContent({ embeddedUser, onEmbeddedLogout, initialTab }) {
                             <button
                               type="button"
                               onClick={() => handlePermanentDeleteTrashItem(item.id)}
-                              className="px-2.5 py-1.5 rounded-lg bg-red-950/60 hover:bg-red-900 text-red-400 hover:text-red-200 font-bold text-xs transition-all flex items-center gap-1 border border-red-500/20"
+                              className="px-2.5 py-1.5 rounded-lg bg-red-50 hover:bg-red-100 dark:bg-red-950/60 dark:hover:bg-red-900 text-red-700 dark:text-red-400 hover:text-red-900 dark:hover:text-red-200 font-bold text-xs transition-all flex items-center gap-1 border border-red-200 dark:border-red-500/20 cursor-pointer"
                               title="Permanently purge from cloud database"
                             >
                               <Trash2 size={13} />

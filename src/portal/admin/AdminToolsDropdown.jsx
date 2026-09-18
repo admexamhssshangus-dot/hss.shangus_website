@@ -4,7 +4,7 @@ import {
   BarChart2, Contact, ShieldCheck, Settings, ClipboardCheck, 
   CalendarCheck, Hash, Layers, Mail, CreditCard, Edit3, PlusCircle, 
   Wrench, Check, ChevronRight, Zap, PanelsTopLeft, FileSpreadsheet, FileText,
-  GitMerge, BookOpen, Award, X, Search, Calculator
+  GitMerge, BookOpen, Award, X, Search, Calculator, Trash2
 } from 'lucide-react';
 import {
   ADMIN_MODULE_CATALOG,
@@ -28,7 +28,7 @@ const MODULE_ICONS = {
   automations: Mail,
   funds: CreditCard,
   accounts: Calculator,
-  cms: PanelsTopLeft,
+  cms: Trash2,
   boardSync: FileSpreadsheet,
   docStudio: FileSpreadsheet,
 };
