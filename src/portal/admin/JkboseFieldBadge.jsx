@@ -169,6 +169,8 @@ export default function JkboseFieldBadge({
     return createPortal(
       <div
         ref={tooltipRef}
+        data-tooltip-ignore="true"
+        data-jkbose-popover="true"
         style={{
           position: 'fixed',
           top: `${coords.top}px`,
@@ -179,7 +181,7 @@ export default function JkboseFieldBadge({
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
         onClick={(e) => e.stopPropagation()}
-        className="max-w-[calc(100vw-24px)] p-2.5 rounded-xl bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-slate-200/90 dark:border-slate-800 shadow-xl text-slate-800 dark:text-slate-100 animate-in fade-in zoom-in-95 duration-100 font-sans pointer-events-auto select-text text-left relative"
+        className="max-w-[calc(100vw-24px)] p-2.5 rounded-xl bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-slate-200/90 dark:border-slate-800 shadow-xl text-slate-800 dark:text-slate-100 animate-in fade-in zoom-in-95 duration-100 font-sans pointer-events-auto select-text text-left relative jkbose-badge-popover"
       >
         {/* Dynamic Pointer Caret */}
         <div
@@ -220,7 +222,7 @@ export default function JkboseFieldBadge({
               <span className="text-[9.5px] font-bold uppercase tracking-wider text-slate-400 shrink-0">
                 Previous
               </span>
-              <span className="font-mono text-rose-500/90 line-through truncate text-right font-medium flex-1 min-w-0 max-w-[150px] sm:max-w-[190px]" title={displayOld}>
+              <span className="font-mono text-rose-500/90 line-through truncate text-right font-medium flex-1 min-w-0 max-w-[150px] sm:max-w-[190px]" data-tooltip-ignore="true">
                 {displayOld}
               </span>
             </div>
@@ -230,7 +232,7 @@ export default function JkboseFieldBadge({
               }`}>
                 <CheckCircle2 size={10} /> {isDirectEdit ? 'Updated' : 'Master'}
               </span>
-              <span className="font-mono font-black text-slate-900 dark:text-white truncate text-right flex-1 min-w-0 max-w-[150px] sm:max-w-[190px]" title={displayNew}>
+              <span className="font-mono font-black text-slate-900 dark:text-white truncate text-right flex-1 min-w-0 max-w-[150px] sm:max-w-[190px]" data-tooltip-ignore="true">
                 {displayNew}
               </span>
             </div>
@@ -245,7 +247,7 @@ export default function JkboseFieldBadge({
         {isDirectEdit ? (
           <div className="pt-1.5 border-t border-slate-100 dark:border-slate-800/80 space-y-1">
             <div className="flex items-center justify-between text-[9.5px] text-slate-500 dark:text-slate-400 font-medium gap-2">
-              <span className="flex items-center gap-1 truncate max-w-[170px]" title={info.userEmail || info.updatedBy}>
+              <span className="flex items-center gap-1 truncate max-w-[170px]" data-tooltip-ignore="true">
                 <span className="opacity-70">👤</span>
                 <span className="font-bold text-slate-800 dark:text-slate-200 truncate">
                   {info.updatedBy || 'Admin'}
@@ -258,7 +260,7 @@ export default function JkboseFieldBadge({
               )}
             </div>
             {info.reason && (
-              <div className="text-[9px] text-slate-600 dark:text-slate-300 bg-amber-50/50 dark:bg-amber-950/30 px-1.5 py-0.5 rounded border border-amber-200/50 dark:border-amber-900/40 truncate" title={info.reason}>
+              <div className="text-[9px] text-slate-600 dark:text-slate-300 bg-amber-50/50 dark:bg-amber-950/30 px-1.5 py-0.5 rounded border border-amber-200/50 dark:border-amber-900/40 truncate" data-tooltip-ignore="true">
                 <span className="text-amber-700 dark:text-amber-400 font-bold uppercase text-[8px] tracking-wide mr-1">Reason:</span>
                 <span>{info.reason}</span>
               </div>
@@ -267,7 +269,7 @@ export default function JkboseFieldBadge({
         ) : (
           <div className="pt-1.5 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-[9.5px] text-slate-500 dark:text-slate-400 font-medium gap-2">
             {sourceFilename ? (
-              <span className="truncate max-w-[170px]" title={info.source}>
+              <span className="truncate max-w-[170px]" data-tooltip-ignore="true">
                 📁 <span className="font-mono text-slate-700 dark:text-slate-300">{sourceFilename}</span>
               </span>
             ) : <span />}
@@ -288,10 +290,12 @@ export default function JkboseFieldBadge({
       <>
         <span
           ref={badgeRef}
+          data-tooltip-ignore="true"
+          data-jkbose-badge="true"
           onMouseEnter={handleMouseEnter}
           onMouseLeave={handleMouseLeave}
           onClick={handleClick}
-          className={`inline-flex items-center justify-center w-2.5 h-2.5 rounded-full cursor-pointer select-none shrink-0 align-middle ${
+          className={`jkbose-field-badge inline-flex items-center justify-center w-2.5 h-2.5 rounded-full cursor-pointer select-none shrink-0 align-middle ${
             isDirectEdit
               ? 'bg-amber-500 ring-2 ring-amber-200 dark:ring-amber-950'
               : 'bg-emerald-500 ring-2 ring-emerald-200 dark:ring-emerald-950'
@@ -310,10 +314,12 @@ export default function JkboseFieldBadge({
       <>
         <span
           ref={badgeRef}
+          data-tooltip-ignore="true"
+          data-jkbose-badge="true"
           onMouseEnter={handleMouseEnter}
           onMouseLeave={handleMouseLeave}
           onClick={handleClick}
-          className={`inline-flex items-center gap-1 px-1 sm:px-1.5 py-0.5 rounded-[4px] text-[7px] sm:text-[7.5px] md:text-[8px] font-black uppercase tracking-wider bg-amber-500/10 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 border border-amber-400/60 dark:border-amber-700/80 leading-none select-none cursor-pointer shadow-2xs hover:bg-amber-500/20 dark:hover:bg-amber-900/60 hover:scale-105 transition-all shrink-0 align-middle whitespace-nowrap ${className}`}
+          className={`jkbose-field-badge inline-flex items-center gap-1 px-1 sm:px-1.5 py-0.5 rounded-[4px] text-[7px] sm:text-[7.5px] md:text-[8px] font-black uppercase tracking-wider bg-amber-500/10 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 border border-amber-400/60 dark:border-amber-700/80 leading-none select-none cursor-pointer shadow-2xs hover:bg-amber-500/20 dark:hover:bg-amber-900/60 hover:scale-105 transition-all shrink-0 align-middle whitespace-nowrap ${className}`}
           aria-label="Directly edited by Admin"
         >
           <span className="w-1.5 h-1.5 rounded-full bg-amber-500 ring-1 ring-amber-300/70 dark:ring-amber-400/50 animate-pulse shrink-0" />
@@ -328,10 +334,12 @@ export default function JkboseFieldBadge({
     <>
       <span
         ref={badgeRef}
+        data-tooltip-ignore="true"
+        data-jkbose-badge="true"
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
         onClick={handleClick}
-        className={`inline-flex items-center gap-1 px-1 sm:px-1.5 py-0.5 rounded-[4px] text-[7px] sm:text-[7.5px] md:text-[8px] font-black uppercase tracking-wider bg-emerald-500/10 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 border border-emerald-400/60 dark:border-emerald-700/80 leading-none select-none cursor-pointer shadow-2xs hover:bg-emerald-500/20 dark:hover:bg-emerald-900/60 hover:scale-105 transition-all shrink-0 align-middle whitespace-nowrap ${className}`}
+        className={`jkbose-field-badge inline-flex items-center gap-1 px-1 sm:px-1.5 py-0.5 rounded-[4px] text-[7px] sm:text-[7.5px] md:text-[8px] font-black uppercase tracking-wider bg-emerald-500/10 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 border border-emerald-400/60 dark:border-emerald-700/80 leading-none select-none cursor-pointer shadow-2xs hover:bg-emerald-500/20 dark:hover:bg-emerald-900/60 hover:scale-105 transition-all shrink-0 align-middle whitespace-nowrap ${className}`}
         aria-label="Updated as per JKBOSE data"
       >
         <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 ring-1 ring-emerald-300/70 dark:ring-emerald-400/50 animate-pulse shrink-0" />

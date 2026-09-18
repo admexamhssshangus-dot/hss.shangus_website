@@ -76,7 +76,8 @@ export default function StandardTooltip({
   return (
     <div
       ref={containerRef}
-      className={`relative inline-flex items-center align-middle ${className}`}
+      data-tooltip-ignore="true"
+      className={`standard-tooltip-container relative inline-flex items-center align-middle ${className}`}
       onMouseEnter={() => {
         // Only open on hover for non-touch devices
         if (typeof window !== 'undefined' && window.matchMedia('(hover: hover)').matches) {
@@ -93,6 +94,7 @@ export default function StandardTooltip({
       {children ? (
         <span
           onClick={toggleOpen}
+          data-tooltip-ignore="true"
           className="cursor-pointer inline-flex items-center"
           role="button"
           tabIndex={0}
@@ -104,9 +106,9 @@ export default function StandardTooltip({
       ) : (
         <button
           type="button"
+          data-tooltip-ignore="true"
           onClick={toggleOpen}
           className="inline-flex items-center justify-center p-0.5 rounded-full text-teal-600 hover:text-teal-700 dark:text-teal-400 dark:hover:text-teal-300 bg-teal-50 hover:bg-teal-100 dark:bg-teal-950/60 dark:hover:bg-teal-900/80 border border-teal-200 dark:border-teal-800/80 cursor-pointer shadow-2xs transition-all active:scale-90 focus:outline-none focus:ring-1 focus:ring-teal-500"
-          title={title || 'Click for details'}
           aria-expanded={isOpen}
           aria-label={title || 'Information'}
         >
