@@ -52,25 +52,25 @@ const DEFAULT_ADMIN_USERS = [
     name: 'Sheikh Gulfam',
     email: 'e.educational.24@gmail.com',
     role: 'Admin',
-    perms: ALL_ADMIN_MODULES.map(m => m.code),
+    perms: ['reports'],
   },
   {
     name: 'Nawaz Ahmad Shah (Admin)',
     email: 'shahnawaz13678@gmail.com',
     role: 'Admin',
-    perms: ALL_ADMIN_MODULES.map(m => m.code),
+    perms: ['reports'],
   },
   {
     name: 'Bilal Ahmad Khandy',
     email: 'bilalhcu@gmail.com',
     role: 'Admin',
-    perms: ALL_ADMIN_MODULES.map(m => m.code),
+    perms: ['reports'],
   },
   {
     name: 'Majid Hassan Najar',
     email: 'majidhassannajar@gmail.com',
     role: 'Admin',
-    perms: ALL_ADMIN_MODULES.map(m => m.code),
+    perms: ['reports'],
   },
 ];
 
@@ -731,19 +731,24 @@ export default function ControlsAndSubjects() {
     );
   };
 
-  // Select / Deselect All Permissions for an Admin
-  const setAllPermissionsForUser = (userEmail, enableAll = true) => {
+  // Set explicit preset permissions array for an Admin
+  const setUserPermissions = (userEmail, permsArray = []) => {
     setAdminUsers((prev) =>
       prev.map((u) => {
         if (u.email.toLowerCase() === userEmail.toLowerCase()) {
           return {
             ...u,
-            perms: enableAll ? ALL_ADMIN_MODULES.map((m) => m.code) : []
+            perms: Array.isArray(permsArray) ? [...permsArray] : []
           };
         }
         return u;
       })
     );
+  };
+
+  // Select / Deselect All Permissions for an Admin
+  const setAllPermissionsForUser = (userEmail, enableAll = true) => {
+    setUserPermissions(userEmail, enableAll ? ALL_ADMIN_MODULES.map((m) => m.code) : []);
   };
 
   // Save/Apply Permissions to Firestore & Local Storage
@@ -2177,15 +2182,33 @@ export default function ControlsAndSubjects() {
                                 Module Permissions ({activeCount}/{ALL_ADMIN_MODULES.length})
                               </span>
                             </div>
-                            <div className="flex items-center gap-1.5 shrink-0">
+                            <div className="flex items-center gap-1.5 shrink-0 flex-wrap">
                               {!isSuper && (
-                                <button
-                                  type="button"
-                                  onClick={() => setAllPermissionsForUser(user.email, !allSelected)}
-                                  className="px-2 py-0.5 rounded text-[9.5px] font-black bg-indigo-50 dark:bg-indigo-950/80 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 border border-indigo-200 dark:border-indigo-800 cursor-pointer transition-colors"
-                                >
-                                  {allSelected ? 'Clear All' : 'Select All'}
-                                </button>
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => setUserPermissions(user.email, ['reports'])}
+                                    className="px-2 py-0.5 rounded text-[9.5px] font-black bg-amber-50 dark:bg-amber-950/80 text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/60 border border-amber-200 dark:border-amber-800 cursor-pointer transition-colors"
+                                    title="Set standard admin default: Records & Reports only"
+                                  >
+                                    Default (Records)
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setUserPermissions(user.email, ['accounts', 'funds'])}
+                                    className="px-2 py-0.5 rounded text-[9.5px] font-black bg-emerald-50 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 border border-emerald-200 dark:border-emerald-800 cursor-pointer transition-colors"
+                                    title="Set Accounts Clerk: School Accounts, Salaries, Tax & Fees (No admission records)"
+                                  >
+                                    Accounts Clerk
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setAllPermissionsForUser(user.email, !allSelected)}
+                                    className="px-2 py-0.5 rounded text-[9.5px] font-black bg-indigo-50 dark:bg-indigo-950/80 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 border border-indigo-200 dark:border-indigo-800 cursor-pointer transition-colors"
+                                  >
+                                    {allSelected ? 'Clear All' : 'Select All'}
+                                  </button>
+                                </>
                               )}
                               <button
                                 type="button"
@@ -2499,28 +2522,34 @@ export default function ControlsAndSubjects() {
                         </span>
                       </label>
                       {adminForm.role !== 'SuperAdmin' && (
-                        <div className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => setAdminForm({ ...adminForm, perms: ALL_ADMIN_MODULES.map(m => m.code) })}
-                            className="text-[10px] font-extrabold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
-                          >
-                            Select All
-                          </button>
-                          <span className="text-slate-300 dark:text-slate-700">|</span>
+                        <div className="flex items-center gap-1.5 flex-wrap">
                           <button
                             type="button"
                             onClick={() => setAdminForm({ ...adminForm, perms: ['reports'] })}
-                            className="text-[10px] font-extrabold text-amber-600 dark:text-amber-400 hover:underline cursor-pointer"
-                            title="Reset to Simple Admin default permissions (Reports & Register only)"
+                            className="px-1.5 py-0.5 rounded bg-amber-50 dark:bg-amber-950/60 text-[9.5px] font-extrabold text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800 hover:bg-amber-100 dark:hover:bg-amber-900/60 cursor-pointer transition-colors"
+                            title="Default standard admin permissions (Student Records & Reports only)"
                           >
-                            Default (Simple Admin)
+                            Default (Records & Reports)
                           </button>
-                          <span className="text-slate-300 dark:text-slate-700">|</span>
+                          <button
+                            type="button"
+                            onClick={() => setAdminForm({ ...adminForm, perms: ['accounts', 'funds'] })}
+                            className="px-1.5 py-0.5 rounded bg-emerald-50 dark:bg-emerald-950/60 text-[9.5px] font-extrabold text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 cursor-pointer transition-colors"
+                            title="Accounts Clerk: School Accounts, Salaries, Staff Tax and Fee Accounts (No admission records)"
+                          >
+                            Accounts Clerk
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setAdminForm({ ...adminForm, perms: ALL_ADMIN_MODULES.map(m => m.code) })}
+                            className="px-1.5 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950/60 text-[9.5px] font-extrabold text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 cursor-pointer transition-colors"
+                          >
+                            Select All
+                          </button>
                           <button
                             type="button"
                             onClick={() => setAdminForm({ ...adminForm, perms: [] })}
-                            className="text-[10px] font-extrabold text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 cursor-pointer"
+                            className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-[9.5px] font-extrabold text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 cursor-pointer transition-colors"
                           >
                             Clear All
                           </button>

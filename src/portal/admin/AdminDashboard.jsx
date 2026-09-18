@@ -241,6 +241,17 @@ export default function AdminDashboard() {
     } catch (_) {}
   }, [activeTab]);
 
+  // Auto-route to the first permitted module if current activeTab is not permitted for this user
+  useEffect(() => {
+    if (!user) return;
+    if (!isUserPermittedForModule(user, activeTab)) {
+      const firstPermitted = ADMIN_TOOL_MODULES.find(m => isUserPermittedForModule(user, m.id));
+      if (firstPermitted && firstPermitted.id !== activeTab) {
+        setActiveTab(firstPermitted.id);
+      }
+    }
+  }, [user, activeTab, setActiveTab]);
+
   const [isStudioSetupOpen, setIsStudioSetupOpen] = useState(false);
 
   // Automatically reset Studio Setup drawer/modal state when switching tabs
@@ -557,19 +568,23 @@ export default function AdminDashboard() {
                 
                 {/* Left Slot: Navigation Back to Records + Active Module Title */}
                 <div className="flex min-w-0 items-center gap-1 sm:gap-1.5 flex-1 mr-1">
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab('reports')}
-                    className="flex items-center justify-center h-6 w-6 sm:h-7 sm:w-auto p-0 sm:px-2 rounded sm:rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 hover:bg-teal-50 dark:hover:bg-teal-950/40 text-slate-700 dark:text-slate-200 hover:text-teal-700 dark:hover:text-teal-300 font-bold text-[10px] sm:text-xs shadow-2xs transition-all cursor-pointer group shrink-0 active:scale-95"
-                    title="Return to Student Records & Reports"
-                    aria-label="Return to Records"
-                  >
-                    <ArrowLeft size={11} className="sm:hidden text-slate-500 group-hover:text-teal-600 transition-transform" />
-                    <ArrowLeft size={12} className="hidden sm:inline text-slate-500 group-hover:text-teal-600 group-hover:-translate-x-0.5 transition-transform" />
-                    <span className="hidden sm:inline font-bold ml-1 text-xs">Records</span>
-                  </button>
+                  {isTabPermitted('reports') && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => setActiveTab('reports')}
+                        className="flex items-center justify-center h-6 w-6 sm:h-7 sm:w-auto p-0 sm:px-2 rounded sm:rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 hover:bg-teal-50 dark:hover:bg-teal-950/40 text-slate-700 dark:text-slate-200 hover:text-teal-700 dark:hover:text-teal-300 font-bold text-[10px] sm:text-xs shadow-2xs transition-all cursor-pointer group shrink-0 active:scale-95"
+                        title="Return to Student Records & Reports"
+                        aria-label="Return to Records"
+                      >
+                        <ArrowLeft size={11} className="sm:hidden text-slate-500 group-hover:text-teal-600 transition-transform" />
+                        <ArrowLeft size={12} className="hidden sm:inline text-slate-500 group-hover:text-teal-600 group-hover:-translate-x-0.5 transition-transform" />
+                        <span className="hidden sm:inline font-bold ml-1 text-xs">Records</span>
+                      </button>
 
-                  <span className="hidden sm:inline text-slate-300 dark:text-slate-700 font-bold text-xs select-none">/</span>
+                      <span className="hidden sm:inline text-slate-300 dark:text-slate-700 font-bold text-xs select-none">/</span>
+                    </>
+                  )}
 
                   {/* Active Module Title Pill */}
                   <div
@@ -700,13 +715,19 @@ export default function AdminDashboard() {
               <p className="text-xs font-bold text-slate-500 dark:text-slate-400 max-w-md mx-auto">
                 You do not have administrative permission to access this module. Please contact the Super Admin to request access.
               </p>
-              <button
-                type="button"
-                onClick={() => setActiveTab('reports')}
-                className="px-4 py-2 rounded-xl text-xs font-black text-white bg-indigo-700 hover:bg-indigo-600 cursor-pointer shadow-md"
-              >
-                Return to Master Register
-              </button>
+              {(() => {
+                const firstPermitted = ADMIN_TOOL_MODULES.find(m => isTabPermitted(m.id));
+                if (!firstPermitted) return null;
+                return (
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab(firstPermitted.id)}
+                    className="px-4 py-2 rounded-xl text-xs font-black text-white bg-indigo-700 hover:bg-indigo-600 cursor-pointer shadow-md transition-colors"
+                  >
+                    Go to Permitted Module ({firstPermitted.label})
+                  </button>
+                );
+              })()}
             </div>
           ) : (
             <div className="block w-full">
