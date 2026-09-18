@@ -4,7 +4,7 @@ import {
   BarChart2, Contact, ShieldCheck, Settings, ClipboardCheck, 
   CalendarCheck, Hash, Layers, Mail, CreditCard, Edit3, PlusCircle, 
   Wrench, Check, ChevronRight, Zap, PanelsTopLeft, FileSpreadsheet, FileText,
-  GitMerge, BookOpen, Award, X, Search
+  GitMerge, BookOpen, Award, X, Search, Calculator
 } from 'lucide-react';
 import {
   ADMIN_MODULE_CATALOG,
@@ -27,6 +27,7 @@ const MODULE_ICONS = {
   mergeStudio: GitMerge,
   automations: Mail,
   funds: CreditCard,
+  accounts: Calculator,
   cms: PanelsTopLeft,
   boardSync: FileSpreadsheet,
   docStudio: FileSpreadsheet,
@@ -372,7 +373,6 @@ export default function AdminToolsDropdown({
         onClick={item.onClick}
         onMouseEnter={item.onMouseEnter}
         aria-current={isActive ? 'page' : undefined}
-        title={item.maturityNote || item.desc}
         className={`w-full text-left p-1 sm:p-2.5 rounded-lg sm:rounded-xl flex items-center justify-between gap-1.5 sm:gap-3 transition-all cursor-pointer group ${
           isActive
             ? 'bg-teal-50/70 dark:bg-teal-950/40 text-teal-950 dark:text-teal-100 border border-teal-500/80 shadow-xs ring-1 ring-teal-500/20'

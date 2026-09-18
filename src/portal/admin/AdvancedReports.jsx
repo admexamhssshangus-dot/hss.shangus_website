@@ -7318,6 +7318,7 @@ export default function AdvancedReports({
   const [photoExportRollStart, setPhotoExportRollStart] = useState('');
   const [photoExportRollEnd, setPhotoExportRollEnd] = useState('');
   const [photoExportOnlyWithPhoto, setPhotoExportOnlyWithPhoto] = useState(true);
+  const [photoPreviewFilter, setPhotoPreviewFilter] = useState('all'); // 'all' | 'ready' | 'missing'
   const [photoExporting, setPhotoExporting] = useState(false);
   const [photoExportProgress, setPhotoExportProgress] = useState({
     active: false,
@@ -11112,6 +11113,22 @@ export default function AdvancedReports({
     return { total: photoExportCandidates.length, withPhoto, missingPhoto };
   }, [photoExportCandidates, photoSyncVersion]);
 
+  const displayedPhotoCandidates = useMemo(() => {
+    if (photoPreviewFilter === 'missing') {
+      return photoExportCandidates.filter(st => {
+        const pUrl = getStudentPhotoUrl(st);
+        return !(pUrl && typeof pUrl === 'string' && pUrl.length > 20 && pUrl !== '/logo.png');
+      });
+    }
+    if (photoPreviewFilter === 'ready') {
+      return photoExportCandidates.filter(st => {
+        const pUrl = getStudentPhotoUrl(st);
+        return pUrl && typeof pUrl === 'string' && pUrl.length > 20 && pUrl !== '/logo.png';
+      });
+    }
+    return photoExportCandidates;
+  }, [photoExportCandidates, photoPreviewFilter, photoSyncVersion]);
+
   // Strict Naming Format: <ClassRollNo>_<RegistrationNo>_<StudentName>_<Class>_<Session>.ext
   const formatPhotoExportFilename = (student, ext = 'jpg') => {
     const cleanSegment = (val, fallback) => {
@@ -13042,12 +13059,123 @@ export default function AdvancedReports({
                   </div>
                 </div>
 
-                {/* ─── 2. INTERACTIVE STUDENT PREVIEW & CHECKBOX TABLE ─── */}
+                {/* ─── 2. BATCH EDIT VALUES CONFIGURATION ─── */}
+                <div className="p-3 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-3 shadow-2xs">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div className="text-[11px] font-black text-amber-700 dark:text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+                      <span>⚡</span>
+                      <span>2. Choose Batch Updates to Apply to {selectedBulkFormIds.size} Selected Students:</span>
+                    </div>
+                    {selectedBulkFormIds.size > 0 && (
+                      <button
+                        type="button"
+                        onClick={handleRunBatchEdit}
+                        disabled={toolExecuting}
+                        className="px-3 py-1 rounded-xl font-black text-white bg-amber-700 hover:bg-amber-600 disabled:opacity-50 text-[11px] shadow-sm flex items-center gap-1.5 cursor-pointer transition-all"
+                      >
+                        {toolExecuting ? <RefreshCw size={12} className="animate-spin" /> : <Check size={12} />}
+                        <span>Apply Updates ({selectedBulkFormIds.size})</span>
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                    {/* Target Class */}
+                    <div>
+                      <label className="font-black block text-slate-700 dark:text-slate-300 mb-1 text-xs">
+                        🏫 New Admission Class:
+                      </label>
+                      <select
+                        value={bulkNewClass}
+                        onChange={(e) => setBulkNewClass(e.target.value)}
+                        className="w-full p-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 font-bold text-slate-900 dark:text-slate-100 bg-slate-50 dark:bg-slate-950"
+                      >
+                        <option value="KEEP">— Keep Current Class —</option>
+                        <option value="9th">9th</option>
+                        <option value="10th">10th</option>
+                        <option value="11th">11th</option>
+                        <option value="12th">12th</option>
+                        <option value="6th">6th</option>
+                        <option value="7th">7th</option>
+                        <option value="8th">8th</option>
+                      </select>
+                    </div>
+
+                    {/* Target Session */}
+                    <div>
+                      <label className="font-black block text-slate-700 dark:text-slate-300 mb-1 text-xs">
+                        📅 New Academic Session:
+                      </label>
+                      <select
+                        value={bulkNewSession}
+                        onChange={(e) => setBulkNewSession(e.target.value)}
+                        className="w-full p-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 font-bold text-slate-900 dark:text-slate-100 bg-slate-50 dark:bg-slate-950"
+                      >
+                        <option value="KEEP">— Keep Current Session —</option>
+                        <option value="2025-26">2025-26</option>
+                        <option value="2025-26 (Oct-Nov)">2025-26 (Oct-Nov)</option>
+                        <option value="2024-25">2024-25</option>
+                        <option value="2024-25 (Oct-Nov)">2024-25 (Oct-Nov)</option>
+                        <option value="2026-27">2026-27</option>
+                        <option value="2023-24">2023-24</option>
+                        <option value="CUSTOM">Custom Session (type below)...</option>
+                      </select>
+
+                      {bulkNewSession === 'CUSTOM' && (
+                        <input
+                          type="text"
+                          value={bulkCustomSession}
+                          onChange={(e) => setBulkCustomSession(e.target.value)}
+                          placeholder="e.g. 2025-26 (Nov-Dec)"
+                          className="mt-1.5 w-full p-1.5 rounded-xl border border-amber-400 font-bold text-xs bg-amber-50 dark:bg-amber-950/40 text-slate-900 dark:text-white"
+                        />
+                      )}
+                    </div>
+
+                    {/* Target Stream */}
+                    <div>
+                      <label className="font-black block text-slate-700 dark:text-slate-300 mb-1 text-xs">
+                        🔬 New Stream (Optional):
+                      </label>
+                      <select
+                        value={bulkNewStream}
+                        onChange={(e) => setBulkNewStream(e.target.value)}
+                        className="w-full p-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 font-bold text-slate-900 dark:text-slate-100 bg-slate-50 dark:bg-slate-950"
+                      >
+                        <option value="KEEP">— Keep Current Stream —</option>
+                        <option value="General">General (for junior classes 6th–10th)</option>
+                        <option value="Science">Science</option>
+                        <option value="Humanities">Humanities</option>
+                        <option value="Commerce">Commerce</option>
+                      </select>
+                    </div>
+
+                    {/* Target Status */}
+                    <div>
+                      <label className="font-black block text-slate-700 dark:text-slate-300 mb-1 text-xs">
+                        ✅ New Status (Optional):
+                      </label>
+                      <select
+                        value={bulkNewStatus}
+                        onChange={(e) => setBulkNewStatus(e.target.value)}
+                        className="w-full p-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 font-bold text-slate-900 dark:text-slate-100 bg-slate-50 dark:bg-slate-950"
+                      >
+                        <option value="KEEP">— Keep Current Status —</option>
+                        <option value="Approved">Approved</option>
+                        <option value="Submitted">Submitted (SUBM)</option>
+                        <option value="Draft">Draft</option>
+                        <option value="Rejected">Rejected</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                {/* ─── 3. INTERACTIVE STUDENT PREVIEW & CHECKBOX TABLE ─── */}
                 <div className="p-3 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-2 shadow-2xs">
                   <div className="flex items-center justify-between flex-wrap gap-2 pb-1 border-b border-slate-100 dark:border-slate-800">
                     <div className="flex items-center gap-2">
                       <span className="text-[11px] font-black text-slate-800 dark:text-slate-200 uppercase tracking-wider">
-                        2. Select Applications ({selectedBulkFormIds.size} / {bulkCandidateStudents.length}):
+                        3. Select Applications ({selectedBulkFormIds.size} / {bulkCandidateStudents.length}):
                       </span>
                     </div>
 
@@ -13197,104 +13325,6 @@ export default function AdvancedReports({
                       No students found matching the selected preview session and search filters.
                     </div>
                   )}
-                </div>
-
-                {/* ─── 3. BATCH EDIT VALUES CONFIGURATION ─── */}
-                <div className="p-3 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-3 shadow-2xs">
-                  <div className="text-[11px] font-black text-amber-700 dark:text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
-                    <span>⚡</span>
-                    <span>3. Choose Batch Updates to Apply to {selectedBulkFormIds.size} Selected Students:</span>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                    {/* Target Class */}
-                    <div>
-                      <label className="font-black block text-slate-700 dark:text-slate-300 mb-1 text-xs">
-                        🏫 New Admission Class:
-                      </label>
-                      <select
-                        value={bulkNewClass}
-                        onChange={(e) => setBulkNewClass(e.target.value)}
-                        className="w-full p-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 font-bold text-slate-900 dark:text-slate-100 bg-slate-50 dark:bg-slate-950"
-                      >
-                        <option value="KEEP">— Keep Current Class —</option>
-                        <option value="9th">9th</option>
-                        <option value="10th">10th</option>
-                        <option value="11th">11th</option>
-                        <option value="12th">12th</option>
-                        <option value="6th">6th</option>
-                        <option value="7th">7th</option>
-                        <option value="8th">8th</option>
-                      </select>
-                    </div>
-
-                    {/* Target Session */}
-                    <div>
-                      <label className="font-black block text-slate-700 dark:text-slate-300 mb-1 text-xs">
-                        📅 New Academic Session:
-                      </label>
-                      <select
-                        value={bulkNewSession}
-                        onChange={(e) => setBulkNewSession(e.target.value)}
-                        className="w-full p-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 font-bold text-slate-900 dark:text-slate-100 bg-slate-50 dark:bg-slate-950"
-                      >
-                        <option value="KEEP">— Keep Current Session —</option>
-                        <option value="2025-26">2025-26</option>
-                        <option value="2025-26 (Oct-Nov)">2025-26 (Oct-Nov)</option>
-                        <option value="2024-25">2024-25</option>
-                        <option value="2024-25 (Oct-Nov)">2024-25 (Oct-Nov)</option>
-                        <option value="2026-27">2026-27</option>
-                        <option value="2023-24">2023-24</option>
-                        <option value="CUSTOM">Custom Session (type below)...</option>
-                      </select>
-
-                      {bulkNewSession === 'CUSTOM' && (
-                        <input
-                          type="text"
-                          value={bulkCustomSession}
-                          onChange={(e) => setBulkCustomSession(e.target.value)}
-                          placeholder="e.g. 2025-26 (Nov-Dec)"
-                          className="mt-1.5 w-full p-1.5 rounded-xl border border-amber-400 font-bold text-xs bg-amber-50 dark:bg-amber-950/40 text-slate-900 dark:text-white"
-                        />
-                      )}
-                    </div>
-
-                    {/* Target Stream */}
-                    <div>
-                      <label className="font-black block text-slate-700 dark:text-slate-300 mb-1 text-xs">
-                        🔬 New Stream (Optional):
-                      </label>
-                      <select
-                        value={bulkNewStream}
-                        onChange={(e) => setBulkNewStream(e.target.value)}
-                        className="w-full p-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 font-bold text-slate-900 dark:text-slate-100 bg-slate-50 dark:bg-slate-950"
-                      >
-                        <option value="KEEP">— Keep Current Stream —</option>
-                        <option value="General">General (for junior classes 6th–10th)</option>
-                        <option value="Science">Science</option>
-                        <option value="Humanities">Humanities</option>
-                        <option value="Commerce">Commerce</option>
-                      </select>
-                    </div>
-
-                    {/* Target Status */}
-                    <div>
-                      <label className="font-black block text-slate-700 dark:text-slate-300 mb-1 text-xs">
-                        ✅ New Status (Optional):
-                      </label>
-                      <select
-                        value={bulkNewStatus}
-                        onChange={(e) => setBulkNewStatus(e.target.value)}
-                        className="w-full p-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 font-bold text-slate-900 dark:text-slate-100 bg-slate-50 dark:bg-slate-950"
-                      >
-                        <option value="KEEP">— Keep Current Status —</option>
-                        <option value="Approved">Approved</option>
-                        <option value="Submitted">Submitted (SUBM)</option>
-                        <option value="Draft">Draft</option>
-                        <option value="Rejected">Rejected</option>
-                      </select>
-                    </div>
-                  </div>
                 </div>
 
                 {/* Real-time Progress HUD */}
@@ -13673,7 +13703,7 @@ export default function AdvancedReports({
                       <span>Only include students who have an active passport photo</span>
                     </label>
 
-                    <div className="flex items-center gap-1.5 text-[10.5px] font-black">
+                    <div className="flex items-center gap-1.5 text-[10.5px] font-black flex-wrap">
                       <button
                         type="button"
                         onClick={handleRefreshCloudPhotos}
@@ -13684,16 +13714,46 @@ export default function AdvancedReports({
                         <RefreshCw size={10} className={loadingPhotosFromCloud ? 'animate-spin text-amber-600' : ''} />
                         <span>{loadingPhotosFromCloud ? 'Syncing...' : 'Sync Cloud Photos'}</span>
                       </button>
-                      <span className="px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+
+                      <button
+                        type="button"
+                        onClick={() => setPhotoPreviewFilter('all')}
+                        className={`px-2 py-0.5 rounded transition-all cursor-pointer ${
+                          photoPreviewFilter === 'all'
+                            ? 'bg-slate-800 dark:bg-slate-100 text-white dark:text-slate-900 ring-2 ring-slate-400 font-black shadow-xs'
+                            : 'bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-700'
+                        }`}
+                        title="Show all candidate students"
+                      >
                         Total: {photoExportCandidates.length}
-                      </span>
-                      <span className="px-1.5 py-0.5 rounded bg-teal-100 dark:bg-teal-950/80 text-teal-800 dark:text-teal-300 border border-teal-300 dark:border-teal-700">
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setPhotoPreviewFilter('ready')}
+                        className={`px-2 py-0.5 rounded border transition-all cursor-pointer ${
+                          photoPreviewFilter === 'ready'
+                            ? 'bg-teal-600 text-white border-teal-700 ring-2 ring-teal-400 font-black shadow-xs'
+                            : 'bg-teal-100 dark:bg-teal-950/80 text-teal-800 dark:text-teal-300 border-teal-300 dark:border-teal-700 hover:bg-teal-200 dark:hover:bg-teal-900'
+                        }`}
+                        title="Filter preview to show only students with valid photos"
+                      >
                         Ready: {photoExportStats.withPhoto}
-                      </span>
+                      </button>
+
                       {photoExportStats.missingPhoto > 0 && (
-                        <span className="px-1.5 py-0.5 rounded bg-rose-100 dark:bg-rose-950/80 text-rose-800 dark:text-rose-300 border border-rose-300 dark:border-rose-700">
-                          Missing: {photoExportStats.missingPhoto}
-                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setPhotoPreviewFilter('missing')}
+                          className={`px-2 py-0.5 rounded border transition-all cursor-pointer ${
+                            photoPreviewFilter === 'missing'
+                              ? 'bg-rose-600 text-white border-rose-700 ring-2 ring-rose-400 font-black shadow-xs'
+                              : 'bg-rose-100 dark:bg-rose-950/80 text-rose-800 dark:text-rose-300 border-rose-300 dark:border-rose-700 hover:bg-rose-200 dark:hover:bg-rose-900 font-black'
+                          }`}
+                          title="Click to view all students whose passport photos are missing"
+                        >
+                          ⚠️ Missing: {photoExportStats.missingPhoto}
+                        </button>
                       )}
                     </div>
                   </div>
@@ -13717,18 +13777,45 @@ export default function AdvancedReports({
 
                 {/* ─── 3. CANDIDATE PHOTO PREVIEW ─── */}
                 <div className="space-y-1.5">
-                  <div className="flex items-center justify-between text-[11px] font-black text-slate-900 dark:text-white">
-                    <span>Target Students Preview ({Math.min(photoExportCandidates.length, 6)} of {photoExportCandidates.length}):</span>
-                    <span className="text-[10px] text-slate-500 font-bold">Sorted naturally by Class & Roll No.</span>
+                  <div className="flex items-center justify-between text-[11px] font-black text-slate-900 dark:text-white flex-wrap gap-1">
+                    <div className="flex items-center gap-1.5">
+                      <span>
+                        Target Students Preview ({photoPreviewFilter === 'missing' ? `${displayedPhotoCandidates.length} Missing` : `${Math.min(displayedPhotoCandidates.length, 8)} of ${displayedPhotoCandidates.length}`}):
+                      </span>
+                      {photoPreviewFilter === 'missing' && (
+                        <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-rose-600 text-white font-black animate-pulse">
+                          Viewing Missing Photos Only
+                        </span>
+                      )}
+                      {photoPreviewFilter === 'ready' && (
+                        <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-teal-600 text-white font-black">
+                          Viewing Ready Photos Only
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {photoPreviewFilter !== 'all' && (
+                        <button
+                          type="button"
+                          onClick={() => setPhotoPreviewFilter('all')}
+                          className="text-[10px] text-amber-600 hover:underline font-bold cursor-pointer"
+                        >
+                          Show All Candidates
+                        </button>
+                      )}
+                      <span className="text-[10px] text-slate-500 font-bold">Sorted naturally by Class & Roll No.</span>
+                    </div>
                   </div>
 
-                  <div className="max-h-44 overflow-y-auto space-y-1 p-1.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-                    {photoExportCandidates.length === 0 ? (
+                  <div className="max-h-56 overflow-y-auto space-y-1 p-1.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                    {displayedPhotoCandidates.length === 0 ? (
                       <div className="py-4 text-center text-xs font-bold text-slate-400">
-                        No students match the current session & filter criteria.
+                        {photoPreviewFilter === 'missing' 
+                          ? '🎉 Excellent! No students in this scope are missing passport photos.' 
+                          : 'No students match the current session & filter criteria.'}
                       </div>
                     ) : (
-                      photoExportCandidates.slice(0, 8).map((st, idx) => {
+                      (photoPreviewFilter === 'missing' ? displayedPhotoCandidates : displayedPhotoCandidates.slice(0, 8)).map((st, idx) => {
                         const pUrl = getStudentPhotoUrl(st);
                         const hasPhoto = pUrl && typeof pUrl === 'string' && pUrl.length > 20 && pUrl !== '/logo.png';
                         const computedFilename = formatPhotoExportFilename(st);
@@ -13740,13 +13827,21 @@ export default function AdvancedReports({
                         const sStatus = getStudentEffectiveStatus(st);
 
                         return (
-                          <div key={idx} className="flex items-center justify-between p-1.5 rounded-lg bg-slate-50 dark:bg-slate-800/40 border border-slate-200/80 dark:border-slate-800 text-[11px] font-bold gap-2">
+                          <div key={idx} className={`flex items-center justify-between p-1.5 rounded-lg border text-[11px] font-bold gap-2 transition-all ${
+                            !hasPhoto 
+                              ? 'bg-rose-50/60 dark:bg-rose-950/30 border-rose-200 dark:border-rose-900/60' 
+                              : 'bg-slate-50 dark:bg-slate-800/40 border-slate-200/80 dark:border-slate-800'
+                          }`}>
                             <div className="flex items-center gap-2 min-w-0">
-                              <div className="w-7 h-8 rounded border border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 overflow-hidden shrink-0 flex items-center justify-center">
+                              <div className={`w-7 h-8 rounded border overflow-hidden shrink-0 flex items-center justify-center ${
+                                !hasPhoto 
+                                  ? 'border-rose-300 dark:border-rose-700 bg-rose-100 dark:bg-rose-950/60 text-rose-500' 
+                                  : 'border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800'
+                              }`}>
                                 {hasPhoto ? (
                                   <img src={pUrl} alt="" className="w-full h-full object-cover" />
                                 ) : (
-                                  <User size={12} className="text-slate-400" />
+                                  <User size={14} className="text-rose-400" />
                                 )}
                               </div>
                               <div className="min-w-0">
@@ -13768,13 +13863,26 @@ export default function AdvancedReports({
                               </div>
                             </div>
 
-                            <div className="text-right shrink-0">
+                            <div className="text-right shrink-0 flex flex-col items-end gap-0.5">
                               <div className="text-[9.5px] font-mono text-purple-700 dark:text-purple-300 font-black truncate max-w-[210px]">
                                 {computedFilename}
                               </div>
-                              <span className={`text-[8.5px] font-black px-1 py-0.2 rounded ${hasPhoto ? 'bg-teal-100 dark:bg-teal-950/80 text-teal-800 dark:text-teal-300' : 'bg-rose-100 dark:bg-rose-950/80 text-rose-800 dark:text-rose-300'}`}>
-                                {hasPhoto ? '✅ Ready' : '⚠️ No Photo'}
-                              </span>
+                              <div className="flex items-center gap-1">
+                                <span className={`text-[8.5px] font-black px-1 py-0.2 rounded ${hasPhoto ? 'bg-teal-100 dark:bg-teal-950/80 text-teal-800 dark:text-teal-300' : 'bg-rose-100 dark:bg-rose-950/80 text-rose-800 dark:text-rose-300 font-black'}`}>
+                                  {hasPhoto ? '✅ Ready' : '⚠️ No Photo'}
+                                </span>
+                                {!hasPhoto && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setActiveToolsTab('photo_manager')}
+                                    className="px-1.5 py-0.2 rounded bg-amber-600 hover:bg-amber-500 text-white font-black text-[9px] flex items-center gap-0.5 cursor-pointer shadow-2xs transition-all"
+                                    title="Open Photo Upload & Sync to upload photo for this student"
+                                  >
+                                    <Camera size={9} />
+                                    <span>Upload</span>
+                                  </button>
+                                )}
+                              </div>
                             </div>
                           </div>
                         );

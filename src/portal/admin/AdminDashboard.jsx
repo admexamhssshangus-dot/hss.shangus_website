@@ -28,6 +28,7 @@ const AdminGkTestManager = lazyWithChunkRecovery(() => import('./AdminGkTestMana
 const RollNoAssignment = lazyWithChunkRecovery(() => import('./RollNoAssignment'), 'admin-roll-no');
 const AutomationsPage = lazyWithChunkRecovery(() => import('./AutomationsPage'), 'admin-automations');
 const FundDistribution = lazyWithChunkRecovery(() => import('./FundDistribution'), 'admin-fund-dist');
+const SchoolAccountsManager = lazyWithChunkRecovery(() => import('./SchoolAccountsManager'), 'admin-accounts');
 const AdministrativeCms = lazyWithChunkRecovery(() => import('../../pages/AdminPortal'), 'admin-cms');
 
 // Module Loaders Map for High-Speed Dynamic Chunk Prefetching
@@ -48,6 +49,7 @@ export const MODULE_LOADERS = {
   rollNo: () => import('./RollNoAssignment'),
   automations: () => import('./AutomationsPage'),
   funds: () => import('./FundDistribution'),
+  accounts: () => import('./SchoolAccountsManager'),
   cms: () => import('../../pages/AdminPortal'),
   heroButtons: () => import('../../pages/AdminPortal'),
 };
@@ -913,6 +915,18 @@ export default function AdminDashboard() {
                       aria-hidden={activeTab !== 'funds'}
                     >
                       <FundDistribution />
+                    </div>
+                  )}
+
+                  {/* TAB: School Accounts, Salaries & Staff Tax */}
+                  {mountedTabs.has('accounts') && (
+                    <div
+                      key="accounts-container"
+                      className={activeTab === 'accounts' ? 'block w-full' : 'hidden'}
+                      style={activeTab === 'accounts' ? undefined : { display: 'none' }}
+                      aria-hidden={activeTab !== 'accounts'}
+                    >
+                      <SchoolAccountsManager user={user} />
                     </div>
                   )}
 
