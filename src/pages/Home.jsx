@@ -172,9 +172,9 @@ export default function Home() {
       }
     } catch (_) {}
     return [
-      { date: 'Nov 23', title: 'JKBOSE Datesheet', link: '#' },
-      { date: 'Nov 23', title: 'PreBoard Results', link: '#' },
-      { date: 'Nov 23', title: 'Admit Cards', link: '#' }
+      { date: 'Sep 12', title: 'Pre-Board Test_Result', link: '/results' },
+      { date: 'Sep 7', title: 'Pre-board Test_Date Sheet', link: 'https://drive.google.com/file/d/1veMmA8UXhv8BulukIXAzDuqeHyPSitZZ/view?usp=drive_link' },
+      { date: 'Jul 30', title: 'General Knowledge Quiz', link: '/gk-test' }
     ];
   });
   const [settings, setSettings] = useState(getCachedSiteSettings);
@@ -210,27 +210,115 @@ export default function Home() {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  // Coordinate background synchronization tasks during idle time to guarantee 0ms main-thread contention
+  // Real-time synchronization for site content directly from Firebase Firestore
   useEffect(() => {
     let active = true;
-    let timerId = null;
-    let idleId = null;
+    let unsubscribeNotices = null;
+    let unsubscribeSlides = null;
 
-    const runBackgroundSync = () => {
-      if (!active) return;
+    // 1. Site Settings (reads fresh Firestore settings in background)
+    import('../utils/settingsLoader').then(({ loadSiteSettings }) => {
+      if (active) loadSiteSettings({ forceFirestore: true }).then(setSettings);
+    }).catch(() => {});
 
-      // 1. Site Settings (reads fresh Firestore settings in background, fallback to static CDN json / cache)
-      import('../utils/settingsLoader').then(({ loadSiteSettings }) => {
-        if (active) loadSiteSettings({ forceFirestore: true }).then(setSettings);
-      }).catch(() => {});
+    // Helper: Static notices fallback
+    const fetchStaticNoticesFallback = async () => {
+      try {
+        const res = await fetch('/slides/notices.txt?t=' + Date.now(), { cache: 'no-cache' });
+        if (res.ok && active) {
+          const text = await res.text();
+          if (!text.trim().startsWith('<')) {
+            const parsed = parseNotices(text);
+            if (parsed.length > 0) {
+              setNotices(parsed);
+              try { localStorage.setItem('site_notices', text); } catch (_) {}
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('Static notices fallback failed:', e);
+      }
+    };
 
-      // 2. Slideshow updates (Live Firestore first, static file fallback second)
-      (async () => {
-        try {
-          const { db } = await import('../firebase');
-          const { doc, getDoc } = await import('firebase/firestore');
-          const snap = await getDoc(doc(db, 'site', 'slideshow'));
-          if (snap.exists() && active) {
+    // Helper: Static slides fallback
+    const fetchStaticSlidesFallback = async () => {
+      try {
+        const res = await fetch('/slides/slides.txt?t=' + Date.now(), { cache: 'no-cache' });
+        if (res.ok && active) {
+          const text = await res.text();
+          if (!text.trim().startsWith('<')) {
+            const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+            const mapped = lines.map((line, idx) => {
+              const parts = line.split(',');
+              if (parts[0] && parts[0].includes('.')) {
+                const image = parts[0].trim();
+                const title = (parts[1] || '').trim();
+                const caption = (parts.slice(2).join(',') || '').trim();
+                return { image: '/slides/' + image, title, caption, fit: 'cover', animation: 'kenburns' };
+              }
+              const title = (parts[0] || '').trim();
+              const caption = (parts.slice(1).join(',') || '').trim();
+              const image = `/slides/${idx + 1}.jpg`;
+              return { image, title, caption, fit: 'cover', animation: 'kenburns' };
+            });
+            if (mapped.length > 0) {
+              setSlides(mapped);
+              try { localStorage.setItem('site_slides', JSON.stringify(mapped)); } catch (_) {}
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('Static slides fallback failed:', e);
+      }
+    };
+
+    // 2. Real-time Firebase Firestore listeners for Notices and Slideshow
+    (async () => {
+      try {
+        const { db } = await import('../firebase');
+        const { doc, onSnapshot, getDoc } = await import('firebase/firestore');
+
+        // Faculty summary
+        getDoc(doc(db, 'site', 'facultySummary')).then((snapshot) => {
+          const principal = snapshot.data()?.principalName;
+          if (typeof principal === 'string' && principal.trim() && active) {
+            setPrincipalName(principal.trim());
+          }
+        }).catch(() => {
+          fetch('/slides/faculty.json?t=' + Date.now(), { cache: 'no-cache' })
+            .then(res => res.json())
+            .then(data => {
+              if (Array.isArray(data) && active) {
+                const principal = data.find(f => f.designation?.toLowerCase() === 'principal');
+                if (principal?.name) setPrincipalName(principal.name);
+              }
+            }).catch(() => {});
+        });
+
+        // Real-time listener: Notices
+        unsubscribeNotices = onSnapshot(doc(db, 'site', 'notices'), (snap) => {
+          if (!active) return;
+          if (snap.exists()) {
+            const data = snap.data();
+            if (data && data.text) {
+              const parsed = parseNotices(data.text);
+              if (parsed.length > 0) {
+                setNotices(parsed);
+                try { localStorage.setItem('site_notices', data.text); } catch (_) {}
+                return;
+              }
+            }
+          }
+          fetchStaticNoticesFallback();
+        }, (err) => {
+          console.warn('Real-time notices listener notice (fallback engaged):', err);
+          fetchStaticNoticesFallback();
+        });
+
+        // Real-time listener: Slideshow
+        unsubscribeSlides = onSnapshot(doc(db, 'site', 'slideshow'), (snap) => {
+          if (!active) return;
+          if (snap.exists()) {
             const data = snap.data();
             if (data && Array.isArray(data.items) && data.items.length > 0) {
               const normalized = data.items.map((item) => ({
@@ -238,138 +326,27 @@ export default function Home() {
                 fit: item.fit || 'cover'
               }));
               setSlides(normalized);
-              localStorage.setItem('site_slides', JSON.stringify(normalized));
+              try { localStorage.setItem('site_slides', JSON.stringify(normalized)); } catch (_) {}
               return;
             }
           }
-        } catch (err) {
-          console.warn('Failed to load slides from Firestore, checking fallback:', err);
-        }
+          fetchStaticSlidesFallback();
+        }, (err) => {
+          console.warn('Real-time slideshow listener notice (fallback engaged):', err);
+          fetchStaticSlidesFallback();
+        });
 
-        try {
-          const res = await fetch('/slides/slides.txt?t=' + Date.now(), { cache: 'no-cache' });
-          if (res.ok && active) {
-            const text = await res.text();
-            if (!text.trim().startsWith('<')) {
-              const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
-              const mapped = lines.map((line, idx) => {
-                const parts = line.split(',');
-                if (parts[0] && parts[0].includes('.')) {
-                  const image = parts[0].trim();
-                  const title = (parts[1] || '').trim();
-                  const caption = (parts.slice(2).join(',') || '').trim();
-                  return { image: '/slides/' + image, title, caption, fit: 'cover', animation: 'kenburns' };
-                }
-                const title = (parts[0] || '').trim();
-                const caption = (parts.slice(1).join(',') || '').trim();
-                const image = `/slides/${idx + 1}.jpg`;
-                return { image, title, caption, fit: 'cover', animation: 'kenburns' };
-              });
-              if (mapped.length > 0) {
-                setSlides(mapped);
-                localStorage.setItem('site_slides', JSON.stringify(mapped));
-                return;
-              }
-            }
-          }
-        } catch (err) {
-          console.warn('Failed to fetch slides.txt fallback:', err);
-        }
-      })();
-
-      // 3. Faculty summary (Live Firestore first, static file fallback second)
-      (async () => {
-        try {
-          const { db } = await import('../firebase');
-          const { doc, getDoc } = await import('firebase/firestore');
-          const snapshot = await getDoc(doc(db, 'site', 'facultySummary'));
-          const principal = snapshot.data()?.principalName;
-          if (typeof principal === 'string' && principal.trim() && active) {
-            setPrincipalName(principal.trim());
-            return;
-          }
-        } catch (err) {
-          console.warn('Failed to load faculty from Firestore, checking fallback:', err);
-        }
-
-        try {
-          const res = await fetch('/slides/faculty.json?t=' + Date.now(), { cache: 'no-cache' });
-          if (res.ok && active) {
-            const data = await res.json();
-            if (Array.isArray(data)) {
-              const principal = data.find(f => f.designation?.toLowerCase() === 'principal');
-              if (principal && principal.name) {
-                setPrincipalName(principal.name);
-                return;
-              }
-            }
-          }
-        } catch (err) {
-          console.warn('Failed to fetch faculty.json:', err);
-        }
-      })();
-
-      // 4. Latest notices (Live Firestore first, static notices.txt fallback second)
-      (async () => {
-        try {
-          const { db } = await import('../firebase');
-          const { doc, getDoc } = await import('firebase/firestore');
-          const snap = await getDoc(doc(db, 'site', 'notices'));
-          if (snap.exists() && active) {
-            const data = snap.data();
-            if (data && data.text) {
-              const parsed = parseNotices(data.text);
-              if (parsed.length > 0) {
-                setNotices(parsed);
-                localStorage.setItem('site_notices', data.text);
-                return;
-              }
-            }
-          }
-        } catch (err) {
-          console.warn('Firestore notices fetch failed, checking fallbacks:', err);
-        }
-
-        try {
-          const res = await fetch('/slides/notices.txt?t=' + Date.now(), { cache: 'no-cache' });
-          if (res.ok && active) {
-            const text = await res.text();
-            if (!text.trim().startsWith('<')) {
-              const parsed = parseNotices(text);
-              if (parsed.length > 0) {
-                setNotices(parsed);
-                localStorage.setItem('site_notices', text);
-                return;
-              }
-            }
-          }
-        } catch (err) {
-          console.warn('Server notices.txt fetch failed:', err);
-        }
-
-        const local = localStorage.getItem('site_notices');
-        if (local && active) {
-          const parsed = parseNotices(local);
-          if (parsed.length > 0) {
-            setNotices(parsed);
-          }
-        }
-      })();
-    };
-
-    // Run background sync promptly after initial paint without blocking LCP
-    if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
-      idleId = window.requestIdleCallback(runBackgroundSync, { timeout: 1000 });
-    } else if (typeof window !== 'undefined') {
-      timerId = setTimeout(runBackgroundSync, 100);
-    }
+      } catch (err) {
+        console.warn('Failed to attach Firebase listeners, using static fallback:', err);
+        fetchStaticNoticesFallback();
+        fetchStaticSlidesFallback();
+      }
+    })();
 
     return () => {
       active = false;
-      if (idleId && typeof window !== 'undefined' && 'cancelIdleCallback' in window) {
-        window.cancelIdleCallback(idleId);
-      }
-      if (timerId) clearTimeout(timerId);
+      if (typeof unsubscribeNotices === 'function') unsubscribeNotices();
+      if (typeof unsubscribeSlides === 'function') unsubscribeSlides();
     };
   }, []);
 
