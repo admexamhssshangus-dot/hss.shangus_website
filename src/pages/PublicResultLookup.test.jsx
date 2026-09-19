@@ -604,6 +604,141 @@ describe('Score Normalization and Flexible Biology Display', () => {
     expect(deduplicated.length).toBe(1);
     expect(deduplicated[0].subjectCode).toBe('BO');
   });
+
+  test('computeScorecardSubjects deduplicates GE and EN into a single General English row', () => {
+    const studentWithGE = {
+      name: 'Rutba Jan',
+      className: '12th',
+      classRollNo: '101',
+      formNo: '250291',
+      boardRegNo: '2301010001010059',
+      stream: 'Science',
+      subjects: [
+        { code: 'GE', name: 'General English' },
+        { code: 'PH', name: 'Physics' },
+        { code: 'CH', name: 'Chemistry' },
+        { code: 'BI', name: 'Biology (Botany & Zoology)' },
+        { code: 'ES', name: 'Environmental Science' }
+      ]
+    };
+
+    const sections = [
+      {
+        id: '12th_General English_Pre-Board Test_2025-26',
+        subjectCode: 'EN',
+        subjectName: 'General English',
+        maxMarks: 50,
+        minMarks: 18,
+        records: [
+          { rollNo: '101', formNo: '250291', totalMarks: 32 }
+        ]
+      },
+      {
+        id: '12th_Chemistry_Pre-Board Test_2025-26',
+        subjectCode: 'CH',
+        subjectName: 'Chemistry',
+        maxMarks: 50,
+        minMarks: 18,
+        records: [
+          { rollNo: '101', formNo: '250291', totalMarks: 27 }
+        ]
+      }
+    ];
+
+    const matchRecord = (rec) => rec.formNo === '250291' || rec.rollNo === '101';
+
+    const result = computeScorecardSubjects({
+      matchedStudent: studentWithGE,
+      streamName: 'Science',
+      matchingSections: sections,
+      matchRecord,
+      biologyDisplayMode: 'combined'
+    });
+
+    // Check subjects count and verify no duplicate GE
+    const englishSubjects = result.subjects.filter(s => s.subjectCode === 'EN' || s.subjectCode === 'GE');
+    expect(englishSubjects.length).toBe(1);
+    expect(englishSubjects[0].subjectCode).toBe('EN');
+    expect(englishSubjects[0].subjectName).toBe('General English');
+    expect(englishSubjects[0].marksObtained).toBe(32);
+    expect(englishSubjects[0].status).toBe('Good');
+
+    // Total subjects must be exactly 5 (EN, PH, CH, BI, ES)
+    expect(result.totalCount).toBe(5);
+    const codes = result.subjects.map(s => s.subjectCode);
+    expect(codes).toEqual(['EN', 'PH', 'CH', 'BI', 'ES']);
+  });
+
+  test('computeScorecardSubjects correctly reflects Political Science award for Tamana Manzoor', () => {
+    const tamana = {
+      name: 'Tamana Manzoor',
+      className: '11th',
+      classRollNo: '141',
+      formNo: '250085',
+      boardRegNo: '2401010000200028',
+      stream: 'Humanities',
+      subjects: [
+        { code: 'EN', name: 'General English' },
+        { code: 'ED', name: 'Education' },
+        { code: 'HT', name: 'History' },
+        { code: 'PS', name: 'Political Science' },
+        { code: 'ITE', name: 'IT & ITeS' }
+      ]
+    };
+
+    // Political Science document with both Mehreen Hussain (sharing 6-digit suffix 200028) and Tamana
+    const sections = [
+      {
+        id: '11th_Political Science_Pre-Board Test_2025-26',
+        subjectCode: 'PS',
+        subjectName: 'Political Science',
+        maxMarks: 50,
+        minMarks: 18,
+        records: [
+          { rollNo: '110', formNo: '250268', name: 'MEHREEN HUSSAIN', regNo: '2301013000200028', totalMarks: '' },
+          { rollNo: '141', formNo: '250085', name: 'Tamana Manzoor', regNo: '2401010000200028', totalMarks: 21 }
+        ]
+      }
+    ];
+
+    // Authoritative matching function from PublicResultLookup
+    const matchRecord = (rec) => {
+      if (!rec) return false;
+      const rReg = rec.regNo || rec.boardRegNo;
+      const sReg = tamana.boardRegNo;
+      if (rReg && sReg) {
+        const isFullReg = rReg.length >= 10 && sReg.length >= 10;
+        if (isFullReg ? rReg === sReg : (rReg === sReg || rReg.endsWith(sReg) || sReg.endsWith(rReg))) return true;
+      }
+      const rForm = rec.formNo;
+      const sForm = tamana.formNo;
+      if (rForm && sForm && rForm === sForm) return true;
+      const rRoll = rec.rollNo;
+      const sRoll = tamana.classRollNo;
+      if (rRoll && sRoll && rRoll === sRoll) return true;
+      return false;
+    };
+
+    const result = computeScorecardSubjects({
+      matchedStudent: tamana,
+      streamName: 'Humanities',
+      matchingSections: sections,
+      matchRecord,
+      biologyDisplayMode: 'combined'
+    });
+
+    const ps = result.subjects.find(s => s.subjectCode === 'PS');
+    expect(ps).toBeDefined();
+    expect(ps.marksObtained).toBe(21);
+    expect(ps.isEvaluated).toBe(true);
+    expect(ps.isPass).toBe(true);
+    expect(ps.status).toBe('Satisfactory');
+    expect(result.hasMarks).toBe(true);
+    expect(result.totalObtained).toBe(21);
+    expect(result.evaluatedCount).toBe(1);
+    expect(result.totalCount).toBe(5);
+    expect(result.resultStatus).toBe('IN PROGRESS');
+  });
 });
 
 

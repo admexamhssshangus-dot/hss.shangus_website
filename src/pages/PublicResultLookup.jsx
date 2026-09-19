@@ -442,7 +442,8 @@ export function filterAndDeduplicateSections(practicalDocs, targetClassName, tar
 
   const sectionsBySubj = new Map();
   for (const sec of matchingSectionsRaw) {
-    const sKey = (sec.subjectCode || sec.subject || '').toUpperCase().trim();
+    let sKey = (sec.subjectCode || sec.subject || '').toUpperCase().trim();
+    if (sKey === 'GE' || sKey === 'ENGLISH' || sKey === 'GENERAL ENGLISH') sKey = 'EN';
     if (!sKey) continue;
     const existing = sectionsBySubj.get(sKey);
     if (!existing) {
@@ -563,8 +564,9 @@ export function computeScorecardSubjects({
       }
 
       let canonicalCode = foundDef?.code || (cUpper.length <= 4 ? cUpper : 'GEN');
-      if (cUpper === 'EN' || sLower === 'english' || sLower === 'general english') {
-        canonicalCode = rawCode === 'GE' ? 'GE' : (foundDef?.code || 'EN');
+      if (cUpper === 'EN' || cUpper === 'GE' || /^(ge|en|gen eng|general english|english)$/i.test(sLower)) {
+        canonicalCode = 'EN';
+        canonicalName = 'General English';
       }
 
       return {
@@ -905,7 +907,7 @@ export function computeScorecardSubjects({
         rawMax: docMax,
         isAbsent: norm.isAbsent,
         isPass: desc.isPass,
-        isEvaluated: true,
+        isEvaluated: norm.isEvaluated,
         status: desc.status,
         statusTone: desc.tone,
         badgeClass: desc.badgeClass,
@@ -936,10 +938,15 @@ export function computeScorecardSubjects({
   // Additional electives found in sections
   matchingSections.forEach(sec => {
     if (!matchedSectionIds.has(sec.id || sec.docId)) {
-      const secCode = sec.subjectCode || '';
+      const secCode = (sec.subjectCode || '').toUpperCase().trim();
       const secName = sec.subjectName || sec.subject || '';
 
-      if (['BO', 'ZO', 'BI'].includes(secCode.toUpperCase()) || /biology|botany|zoology/i.test(secName)) return;
+      if (['BO', 'ZO', 'BI'].includes(secCode) || /biology|botany|zoology/i.test(secName)) return;
+
+      // Prevent duplicate General English from being added as an elective if already present
+      const isEnglishSec = secCode === 'EN' || secCode === 'GE' || /^(english|general english|gen eng)$/i.test(secName.trim());
+      const hasEnglishAlready = finalSubjectsList.some(s => s.subjectCode === 'EN' || s.subjectCode === 'GE' || /english/i.test(s.subjectName || ''));
+      if (isEnglishSec && hasEnglishAlready) return;
 
       if (!isSubjectCompatibleWithStream(secCode, secName, streamName)) return;
 
@@ -954,9 +961,12 @@ export function computeScorecardSubjects({
         const norm = normalizeMarksToScale(rawMark, docMax, 50);
         const desc = getSubjectPerformanceDescriptor(norm.normalizedMarks, 50, 18, norm.isAbsent);
 
+        const canonicalElectiveCode = isEnglishSec ? 'EN' : (sec.subjectCode || 'ELEC').toUpperCase();
+        const canonicalElectiveName = isEnglishSec ? 'General English' : (sec.subjectName || sec.subject || 'Elective Subject');
+
         finalSubjectsList.push({
-          subjectCode: (sec.subjectCode || 'ELEC').toUpperCase(),
-          subjectName: sec.subjectName || sec.subject || 'Elective Subject',
+          subjectCode: canonicalElectiveCode,
+          subjectName: canonicalElectiveName,
           maxMarks: 50,
           minMarks: 18,
           marksObtained: norm.normalizedMarks,
@@ -964,7 +974,7 @@ export function computeScorecardSubjects({
           rawMax: docMax,
           isAbsent: norm.isAbsent,
           isPass: desc.isPass,
-          isEvaluated: true,
+          isEvaluated: norm.isEvaluated,
           status: desc.status,
           statusTone: desc.tone,
           badgeClass: desc.badgeClass,
@@ -974,18 +984,45 @@ export function computeScorecardSubjects({
     }
   });
 
+  // Deduplicate any duplicate subject entries (e.g. GE vs EN, or duplicate elective rows)
+  const seenCanonical = new Set();
+  const deduplicatedList = [];
+  for (const sub of finalSubjectsList) {
+    let cKey = (sub.subjectCode || '').toUpperCase().trim();
+    if (cKey === 'GE' || /english/i.test(sub.subjectName || '')) {
+      cKey = 'EN';
+      sub.subjectCode = 'EN';
+      sub.subjectName = 'General English';
+    }
+    if (seenCanonical.has(cKey)) {
+      const existingIdx = deduplicatedList.findIndex(s => {
+        const sKey = (s.subjectCode === 'GE' || /english/i.test(s.subjectName || '')) ? 'EN' : (s.subjectCode || '').toUpperCase().trim();
+        return sKey === cKey;
+      });
+      if (existingIdx !== -1) {
+        const existing = deduplicatedList[existingIdx];
+        if (!existing.isEvaluated && sub.isEvaluated) {
+          deduplicatedList[existingIdx] = sub;
+        }
+      }
+      continue;
+    }
+    seenCanonical.add(cKey);
+    deduplicatedList.push(sub);
+  }
+
   const secondaryWeight = { EN: 1, MA: 2, UR: 3, HN: 3, SC: 4, SS: 5, ITE: 6, HTC: 6, HC: 6, IT: 6 };
   const codeWeight = { EN: 1, PH: 2, CH: 3, BI: 4, BO: 4, ZO: 5, MA: 6, ES: 7, ED: 8, HT: 9, PS: 10, UR: 11, SC: 12, SS: 13 };
-  finalSubjectsList.sort((a, b) => {
+  deduplicatedList.sort((a, b) => {
     if (isSecondary) {
       return (secondaryWeight[a.subjectCode] || 30) - (secondaryWeight[b.subjectCode] || 30);
     }
     return (codeWeight[a.subjectCode] || 30) - (codeWeight[b.subjectCode] || 30);
   });
 
-  const evaluatedSubjects = finalSubjectsList.filter(s => s.isEvaluated);
+  const evaluatedSubjects = deduplicatedList.filter(s => s.isEvaluated);
   const evaluatedCount = evaluatedSubjects.length;
-  const totalCount = finalSubjectsList.length;
+  const totalCount = deduplicatedList.length;
   const totalObtained = evaluatedSubjects.reduce((acc, s) => acc + (typeof s.marksObtained === 'number' ? s.marksObtained : 0), 0);
   const totalMax = evaluatedSubjects.reduce((acc, s) => acc + s.maxMarks, 0);
   const hasMarks = evaluatedCount > 0;
@@ -996,7 +1033,7 @@ export function computeScorecardSubjects({
   const overall = getOverallResultDescriptor(evaluatedCount, totalCount, totalObtained, totalMax, hasFail, allAbsent);
 
   return {
-    subjects: finalSubjectsList,
+    subjects: deduplicatedList,
     evaluatedCount,
     totalCount,
     totalObtained,
@@ -1311,8 +1348,16 @@ export default function PublicResultLookup() {
           const docMax = Number(sub.maxMarks) || 50;
           const norm = normalizeMarksToScale(rawM, docMax, 50);
           const desc = getSubjectPerformanceDescriptor(norm.normalizedMarks, 50, 18, isAb);
+          let sCode = (sub.subjectCode || '').toUpperCase().trim();
+          let sName = sub.subjectName || '';
+          if (sCode === 'GE' || /english/i.test(sName)) {
+            sCode = 'EN';
+            sName = 'General English';
+          }
           return {
             ...sub,
+            subjectCode: sCode,
+            subjectName: sName,
             maxMarks: 50,
             minMarks: 18,
             marksObtained: isAb ? 'AB' : norm.normalizedMarks,
@@ -1322,26 +1367,43 @@ export default function PublicResultLookup() {
             statusTone: desc.tone,
             badgeClass: desc.badgeClass,
             isPass: desc.isPass,
+            isEvaluated: norm.isEvaluated,
             componentNote: norm.rawScore && docMax !== 50 ? `Raw Paper: ${norm.rawScore}` : (sub.componentNote || null)
           };
         });
 
-        const evCount = res.evaluatedCount ?? sanitizedSubjects.filter(s => s.isEvaluated).length;
-        const totCount = res.totalCount ?? (sanitizedSubjects.length || 6);
-        const anyFail = sanitizedSubjects.some(s => s.isEvaluated && !s.isPass && !s.isAbsent);
-        const allAb = sanitizedSubjects.length > 0 && sanitizedSubjects.every(s => s.isAbsent);
-        const totalObt = sanitizedSubjects.reduce((acc, s) => acc + (typeof s.marksObtained === 'number' ? s.marksObtained : 0), 0);
-        const totalMx = sanitizedSubjects.reduce((acc, s) => acc + s.maxMarks, 0);
+        // Deduplicate any duplicate subjects in sanitizedSubjects (e.g. GE vs EN)
+        const seenServerless = new Set();
+        const deduplicatedServerless = [];
+        for (const sub of sanitizedSubjects) {
+          const cKey = sub.subjectCode;
+          if (seenServerless.has(cKey)) {
+            const existingIdx = deduplicatedServerless.findIndex(s => s.subjectCode === cKey);
+            if (existingIdx !== -1 && !deduplicatedServerless[existingIdx].isEvaluated && sub.isEvaluated) {
+              deduplicatedServerless[existingIdx] = sub;
+            }
+            continue;
+          }
+          seenServerless.add(cKey);
+          deduplicatedServerless.push(sub);
+        }
+
+        const evCount = res.evaluatedCount ?? deduplicatedServerless.filter(s => s.isEvaluated).length;
+        const totCount = res.totalCount ?? (deduplicatedServerless.length || 6);
+        const anyFail = deduplicatedServerless.some(s => s.isEvaluated && !s.isPass && !s.isAbsent);
+        const allAb = deduplicatedServerless.length > 0 && deduplicatedServerless.every(s => s.isAbsent);
+        const totalObt = deduplicatedServerless.reduce((acc, s) => acc + (typeof s.marksObtained === 'number' ? s.marksObtained : 0), 0);
+        const totalMx = deduplicatedServerless.reduce((acc, s) => acc + s.maxMarks, 0);
         const overall = getOverallResultDescriptor(evCount, totCount, totalObt, totalMx, anyFail, allAb);
 
-        const hasBioInServerless = sanitizedSubjects.some(s => ['BI', 'BO', 'ZO'].includes((s.subjectCode || '').toUpperCase()) || /biology|botany|zoology/i.test(s.subjectName || ''));
+        const hasBioInServerless = deduplicatedServerless.some(s => ['BI', 'BO', 'ZO'].includes((s.subjectCode || '').toUpperCase()) || /biology|botany|zoology/i.test(s.subjectName || ''));
 
         setStudentResult({
           ...res,
           name: formatConsistentName(res.name || res.studentName),
           fatherName: formatConsistentName(res.fatherName || res.parentage),
           photoUrl: cleanPhoto,
-          subjects: sanitizedSubjects.length > 0 ? sanitizedSubjects : res.subjects,
+          subjects: deduplicatedServerless.length > 0 ? deduplicatedServerless : res.subjects,
           totalObtained: totalObt,
           totalMax: totalMx,
           evaluatedCount: evCount,
