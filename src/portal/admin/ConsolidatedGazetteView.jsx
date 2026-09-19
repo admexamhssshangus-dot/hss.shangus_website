@@ -215,9 +215,14 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
       const rawId = String(section.id || section.docId || '');
       if (rawId.startsWith('history_') || rawId.startsWith('bin_') || (section.isDraft === true && section.status !== 'approved')) return false;
 
-      // Class matching
-      const docCls = classKey(section.className || section.class || section.selectedClass || section.docId || '');
-      if (docCls !== targetClass) return false;
+      // Class matching (handles exact, composite '11th,12th', and numerical aliases)
+      const rawCls = String(section.className || section.class || section.selectedClass || section.docId || '').toLowerCase();
+      const docCls = classKey(rawCls);
+      const isClassMatched = docCls === targetClass ||
+        (targetClass === '11' && (rawCls.includes('11') || rawCls.includes('xi'))) ||
+        (targetClass === '12' && (rawCls.includes('12') || rawCls.includes('xii'))) ||
+        (targetClass === '10' && (rawCls.includes('10') || rawCls.includes('x')));
+      if (!isClassMatched) return false;
 
       // Session matching (handles 2025-26, 2026, 2024-25, 2025)
       const rawSess = section.sessionCanonical || section.yearSuffix || section.session || section.Session || section.docId || '';

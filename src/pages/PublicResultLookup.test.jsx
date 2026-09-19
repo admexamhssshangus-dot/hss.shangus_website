@@ -534,6 +534,76 @@ describe('Score Normalization and Flexible Biology Display', () => {
     expect(deduplicated[0].id).toBe('pending_11th_ch_latest');
     expect(deduplicated[0].records[0].totalMarks).toBe(6);
   });
+
+  test('computeScorecardSubjects gracefully handles partial Biology evaluation (Botany 15/25 evaluated, Zoology awaiting)', () => {
+    const studentScience = {
+      name: 'Saira Jan',
+      className: '11th',
+      classRollNo: '4',
+      formNo: '250083',
+      boardRegNo: '2401010000200021',
+      stream: 'Science',
+      subjects: [
+        { code: 'EN', name: 'General English' },
+        { code: 'PH', name: 'Physics' },
+        { code: 'CH', name: 'Chemistry' },
+        { code: 'BO', name: 'Botany' },
+        { code: 'ZO', name: 'Zoology' }
+      ]
+    };
+
+    const sections = [
+      {
+        id: '11th_Botany_Pre-Board Test_2025-26',
+        subjectCode: 'BO',
+        subjectName: 'Botany',
+        maxMarks: 25,
+        minMarks: 9,
+        records: [
+          { rollNo: '4', formNo: '250083', totalMarks: 15 }
+        ]
+      }
+    ];
+
+    const matchRecord = (rec) => rec.formNo === '250083' || rec.rollNo === '4';
+
+    const result = computeScorecardSubjects({
+      matchedStudent: studentScience,
+      streamName: 'Science',
+      matchingSections: sections,
+      matchRecord,
+      biologyDisplayMode: 'combined'
+    });
+
+    const bio = result.subjects.find(s => s.subjectCode === 'BI');
+    expect(bio).toBeDefined();
+    expect(bio.marksObtained).toBe(15);
+    expect(bio.maxMarks).toBe(25);
+    expect(bio.minMarks).toBe(9);
+    expect(bio.isPass).toBe(true);
+    expect(bio.status).toBe('Good (ZO Awaiting)');
+    expect(bio.componentNote).toBe('BO: 15/25 • ZO: Awaiting');
+    expect(result.hasMarks).toBe(true);
+    expect(result.resultStatus).toBe('IN PROGRESS');
+  });
+
+  test('filterAndDeduplicateSections matches composite class strings like 11th,12th for 11th', () => {
+    const rawDocs = [
+      {
+        id: '11th,12th_Botany_Pre-Board Test_2025-26',
+        className: '11th,12th',
+        session: '2025-26',
+        practicalType: 'Pre-Board Test',
+        subjectCode: 'BO',
+        subjectName: 'Botany',
+        records: [{ rollNo: '4', totalMarks: 15 }]
+      }
+    ];
+
+    const deduplicated = filterAndDeduplicateSections(rawDocs, '11th', '2025-26', 'Pre-Board Test');
+    expect(deduplicated.length).toBe(1);
+    expect(deduplicated[0].subjectCode).toBe('BO');
+  });
 });
 
 
