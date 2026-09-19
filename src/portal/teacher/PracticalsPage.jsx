@@ -2380,13 +2380,16 @@ export default function PracticalsPage() {
         let pMarks = String(s.practicalMarks !== undefined && s.practicalMarks !== null ? s.practicalMarks : '').trim().toUpperCase();
         let vMarks = String(s.vivaMarks !== undefined && s.vivaMarks !== null ? s.vivaMarks : '').trim().toUpperCase();
 
-        // On final submission, any unfilled student MUST be treated as Absent (AB)
+        // If requested, auto-mark unfilled students as Absent (AB), otherwise keep them blank/pending
         if (pMarks === '' && vMarks === '') {
-          pMarks = 'AB';
-          vMarks = 'AB';
+          if (autoMarkAbsentForUnfilled) {
+            pMarks = 'AB';
+            vMarks = 'AB';
+          }
         }
 
         const isAbsent = pMarks === 'A' || vMarks === 'A' || pMarks === 'AB' || vMarks === 'AB';
+        const isBlank = pMarks === '' && vMarks === '';
         let pVal = isNaN(Number(pMarks)) ? 0 : Number(pMarks);
         let vVal = isNaN(Number(vMarks)) ? 0 : Number(vMarks);
         if (pVal < 0) pVal = 0;
@@ -2394,7 +2397,7 @@ export default function PracticalsPage() {
         if (vVal < 0) vVal = 0;
         if (vVal > subjectMaxMarks) vVal = subjectMaxMarks;
 
-        const total = isAbsent ? 'AB' : Math.min(subjectMaxMarks, pVal + vVal);
+        const total = isAbsent ? 'AB' : (isBlank ? '' : Math.min(subjectMaxMarks, pVal + vVal));
 
         return {
           rollNo: String(s.rollNo || '').trim(),
@@ -2405,7 +2408,7 @@ export default function PracticalsPage() {
           practicalMarks: isAbsent ? 'AB' : pMarks,
           vivaMarks: isAbsent ? 'AB' : vMarks,
           totalMarks: total,
-          marksInWords: isAbsent ? 'Absent' : numberToWords(total),
+          marksInWords: isAbsent ? 'Absent' : (isBlank ? '' : numberToWords(total)),
         };
       });
 
@@ -2455,15 +2458,17 @@ export default function PracticalsPage() {
       invalidateCollectionCache('practicalsData');
       setExistingAwardInfo(prev => ({ ...prev, pending: submissionPayload }));
 
-      // Update studentMarks in state so the table immediately displays 'AB' for any previously unfilled students
-      setStudentMarks(prev => prev.map(st => {
-        const p = String(st.practicalMarks !== undefined && st.practicalMarks !== null ? st.practicalMarks : '').trim().toUpperCase();
-        const v = String(st.vivaMarks !== undefined && st.vivaMarks !== null ? st.vivaMarks : '').trim().toUpperCase();
-        if (p === '' && v === '') {
-          return { ...st, practicalMarks: 'AB', vivaMarks: 'AB' };
-        }
-        return st;
-      }));
+      // Update studentMarks in state so the table immediately displays 'AB' for any previously unfilled students if opted
+      if (autoMarkAbsentForUnfilled) {
+        setStudentMarks(prev => prev.map(st => {
+          const p = String(st.practicalMarks !== undefined && st.practicalMarks !== null ? st.practicalMarks : '').trim().toUpperCase();
+          const v = String(st.vivaMarks !== undefined && st.vivaMarks !== null ? st.vivaMarks : '').trim().toUpperCase();
+          if (p === '' && v === '') {
+            return { ...st, practicalMarks: 'AB', vivaMarks: 'AB' };
+          }
+          return st;
+        }));
+      }
 
       // Clear local draft after successful final submission
       const clsNormKey = String(selectedClass).replace(/class/i, '').trim();
@@ -4146,13 +4151,22 @@ export default function PracticalsPage() {
               </button>
 
               {validationData.incompleteCount > 0 ? (
-                <button
-                  type="button"
-                  onClick={() => executeFinalSubmit(true)}
-                  className="w-full sm:w-auto px-4 py-2.5 sm:py-2 min-h-[42px] sm:min-h-[36px] rounded-xl text-xs font-black bg-amber-600 hover:bg-amber-500 text-white shadow-md cursor-pointer flex items-center justify-center gap-1.5 active:scale-98 transition-all"
-                >
-                  <AlertCircle size={14} /> Submit & Auto-Mark Unfilled as Absent
-                </button>
+                <>
+                  <button
+                    type="button"
+                    onClick={() => executeFinalSubmit(false)}
+                    className="w-full sm:w-auto px-4 py-2.5 sm:py-2 min-h-[42px] sm:min-h-[36px] rounded-xl text-xs font-black bg-indigo-600 hover:bg-indigo-500 text-white shadow-md cursor-pointer flex items-center justify-center gap-1.5 active:scale-98 transition-all"
+                  >
+                    <CheckCircle2 size={14} /> Submit Entered Marks (Keep Unfilled Pending)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => executeFinalSubmit(true)}
+                    className="w-full sm:w-auto px-4 py-2.5 sm:py-2 min-h-[42px] sm:min-h-[36px] rounded-xl text-xs font-bold bg-amber-600 hover:bg-amber-500 text-white shadow-md cursor-pointer flex items-center justify-center gap-1.5 active:scale-98 transition-all"
+                  >
+                    <AlertCircle size={14} /> Auto-Mark Unfilled as Absent & Submit
+                  </button>
+                </>
               ) : (
                 <button
                   type="button"

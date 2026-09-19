@@ -85,7 +85,7 @@ async function findStudent(db, body) {
           const rReg = normalize(student.boardRegNo);
           const rForm = normalize(student.formNo);
           const rRoll = normalize(student.classRollNo);
-          const isMatch = (rReg && (rReg === qNorm || (rReg.length >= 6 && qNorm.length >= 6 && (rReg.endsWith(qNorm.slice(-6)) || qNorm.endsWith(rReg.slice(-6)))))) ||
+          const isMatch = (rReg && (rReg === qNorm || (qNorm.length < 10 && rReg.length >= 6 && qNorm.length >= 6 && rReg.endsWith(qNorm)))) ||
                           (rForm && rForm === qNorm) ||
                           (rRoll && rRoll === qNorm);
           if (isMatch && (!body.className || classKey(student.className) === classKey(body.className)) &&

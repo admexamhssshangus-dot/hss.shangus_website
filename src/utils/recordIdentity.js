@@ -21,7 +21,7 @@ export function recordIdentity(student = {}) {
   const s = { ...(student.raw || {}), ...student };
   return {
     form: identityKey(s.formNo || s['Form Number'] || s['Form No.'] || s['Form No']),
-    reg: identityKey(s.boardRegNo || s.regNo || s.boardReg || s['Board Registration Number'] || s['Board Registration No.'] || s['Board Registration No'] || s['Board Reg. No.'] || s['Board Reg No'] || s['Registration No. (allotted by JKBOSE)'] || s['Registration No. (allotted by JKBOSE )'] || s['Registration No.'] || s['Registration No'] || s['Reg. No.'] || s['Reg No'] || s['REG. NO.'] || s['REG NO']),
+    reg: identityKey(s.boardRegNo || s.regNo || s.boardReg || s['Board Registration Number'] || s['Board Registration No.'] || s['Board Registration No'] || s['Board Reg. No.'] || s['Board Reg No'] || s['Registration No. (allotted by JKBOSE)'] || s['Registration No. (allotted by JKBOSE )'] || s['Registration No.'] || s['Registration No'] || s['Reg. No.'] || s['Reg No'] || s['REG. NO.'] || s['REG NO'] || s['Board Registration No. (Class 10th)'] || s['Board Registration No. (Class 11th)'] || s['Board Registration No. (Class 9th)'] || s['DIET Registration No.']),
     roll: identityKey(s.classRollNo || s['Class Roll No'] || s['Class Roll No.'] || s['RL. NO.'] || s['RL. NO'] || s['Class R.No.'] || s.rollNo),
     adm: identityKey(s.admNo || s['Admission No.'] || s['Admission No'] || s['Admission Number'] || s['Adm. No.'] || s['Adm No'] || s.admissionNo),
     className: classKey(s.classCanonical || s.selectedClass || s['Admission sought for class'] || s['Class for which Admission Sought'] || s.className || s.Class || s.class),

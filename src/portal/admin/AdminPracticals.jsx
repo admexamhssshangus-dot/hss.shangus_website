@@ -996,6 +996,7 @@ export default function AdminPracticals() {
             ...pendingData,
             id: targetDocId,
             status: 'approved',
+            isDraft: false,
             isPendingApproval: false,
             approvedAt: new Date().toISOString(),
             approvedBy: auth.currentUser?.email || 'Administrator',

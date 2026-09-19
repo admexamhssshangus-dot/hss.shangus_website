@@ -2,21 +2,34 @@ const subjectDefinitions = require('./subjectDefinitions.json');
 const key = value => String(value ?? '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
 function expectedSubjectCodes(student) {
   const raw = student.expectedSubjectCodes || student.selectedSubjects || student.subjects || student.subs || student.Subjects || student.Subs ||
-    Array.from({ length: 6 }, (_, index) => student[`Subjects${index + 1}`] || student[`subject${index + 1}`]).filter(Boolean);
+    student['Subjects to be taken in Class 11th'] || student['Subjects to be taken in Class 12th'] || student['Subjects to be taken in Class 10th'] ||
+    student['Subjects Studied in Class 11th'] || student['Subjects Studied in Class 12th'] || student['Subjects Studied in Class 10th'] ||
+    student['Subjects Offered'] ||
+    Array.from({ length: 6 }, (_, index) => student[`Subjects${index + 1}`] || student[`subject${index + 1}`] || student[`Subject ${index + 1}`]).filter(Boolean);
   const subjects = Array.isArray(raw) ? raw : String(raw || '').split(/[,;|+]/);
   const aliases = {
-    english: 'EN', generalenglish: 'EN',
+    english: 'EN', generalenglish: 'EN', ge: 'EN', en: 'EN',
     botany: 'BO', zoology: 'ZO', biology: 'BI',
     biotechnology: 'BT',
     physics: 'PH', chemistry: 'CH',
     math: 'MA', maths: 'MA', mathematics: 'MA',
-    environmentalscience: 'ES', evs: 'ES',
-    physicaleducation: 'PD', homescience: 'HSC', computerscience: 'CS',
+    environmentalscience: 'ES', evs: 'ES', es: 'ES',
+    physicaleducation: 'PD', pd: 'PD', pe: 'PD', pet: 'PD',
+    homescience: 'HSC', computerscience: 'CS',
+    politicalscience: 'PS', polscience: 'PS', polsci: 'PS', pol: 'PS', ps: 'PS',
+    education: 'ED', edu: 'ED', ed: 'ED',
+    history: 'HT', hist: 'HT', ht: 'HT',
+    economics: 'EC', eco: 'EC', ec: 'EC',
+    sociology: 'SO', soc: 'SO', so: 'SO',
+    geography: 'GG', gg: 'GG',
+    arabic: 'AR', ar: 'AR',
+    kashmiri: 'KS', ks: 'KS',
+    persian: 'PE',
     science: 'SC', sci: 'SC', generalscience: 'SC',
     socialscience: 'SS', socialstudies: 'SS', sst: 'SS',
     urdu: 'UR', hindi: 'HN',
-    healthcare: 'HTC', health: 'HTC',
-    it: 'ITE', ites: 'ITE', itandites: 'ITE'
+    healthcare: 'HTC', health: 'HTC', hc: 'HTC', htc: 'HTC',
+    it: 'ITE', ites: 'ITE', itandites: 'ITE', ite: 'ITE'
   };
   const codes = subjects.map(value => {
     const normalized = key(typeof value === 'object' ? (value.code || value.name) : value);
