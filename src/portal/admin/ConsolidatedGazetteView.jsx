@@ -98,22 +98,33 @@ export const STANDARD_7_CLASS_10TH_SUBJECTS = [
 function matchStudentRecord(rec, student, identity) {
   if (!rec) return false;
 
-  // 1. Board Registration Number (100% authoritative)
+  const rowName = String(rec.name || rec.studentName || '').toLowerCase().trim().replace(/[^a-z0-9]/g, '');
+  const stuName = String(student.studentName || student.name || student["Student's Name"] || student["Student's Name (as per school records)"] || '').toLowerCase().trim().replace(/[^a-z0-9]/g, '');
+  const isNameMatch = Boolean(rowName && stuName && rowName.length > 3 && (rowName === stuName || rowName.includes(stuName) || stuName.includes(rowName)));
+
+  // 1. Board Registration Number (100% authoritative exact match)
   const rowReg = identityKey(rec.regNo || rec.boardRegNo || rec.reg);
-  if (rowReg && identity.reg && rowReg === identity.reg) return true;
+  if (rowReg && identity.reg && rowReg === identity.reg) {
+    if (rowName && stuName && !isNameMatch) return false;
+    return true;
+  }
 
   // 2. Form Number
   const rowForm = identityKey(rec.formNo || rec.form || rec.id);
-  if (rowForm && identity.form && rowForm === identity.form) return true;
+  if (rowForm && identity.form && rowForm === identity.form) {
+    if (rowName && stuName && !isNameMatch) return false;
+    return true;
+  }
 
   // 3. Class Roll Number
   const rowRoll = identityKey(rec.rollNo || rec.classRollNo || rec.roll || rec.examRollNo);
-  if (rowRoll && identity.roll && rowRoll === identity.roll && rowRoll !== '-' && rowRoll !== '—' && rowRoll !== 'n/a') return true;
+  if (rowRoll && identity.roll && rowRoll === identity.roll && rowRoll !== '-' && rowRoll !== '—' && rowRoll !== 'n/a') {
+    if (rowName && stuName && !isNameMatch) return false;
+    return true;
+  }
 
   // 4. Candidate Name (clean alphanumeric match)
-  const rowName = String(rec.name || rec.studentName || '').toLowerCase().trim().replace(/[^a-z0-9]/g, '');
-  const stuName = String(student.studentName || student.name || student["Student's Name"] || student["Student's Name (as per school records)"] || '').toLowerCase().trim().replace(/[^a-z0-9]/g, '');
-  if (rowName && stuName && rowName.length > 3 && (rowName === stuName || rowName.includes(stuName) || stuName.includes(rowName))) return true;
+  if (isNameMatch) return true;
 
   return false;
 }
@@ -200,9 +211,9 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
       // Must contain student records
       if (!Array.isArray(section.records) || section.records.length === 0) return false;
 
-      // Exclude archived versions, trash bin items, and drafts
+      // Exclude archived versions, trash bin items, and unapproved drafts
       const rawId = String(section.id || section.docId || '');
-      if (rawId.startsWith('history_') || rawId.startsWith('bin_') || section.isDraft === true) return false;
+      if (rawId.startsWith('history_') || rawId.startsWith('bin_') || (section.isDraft === true && section.status !== 'approved')) return false;
 
       // Class matching
       const docCls = classKey(section.className || section.class || section.selectedClass || section.docId || '');

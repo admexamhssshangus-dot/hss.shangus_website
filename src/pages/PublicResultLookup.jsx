@@ -408,7 +408,7 @@ export function filterAndDeduplicateSections(practicalDocs, targetClassName, tar
   const matchingSectionsRaw = practicalDocs.filter(sec => {
     if (!Array.isArray(sec.records) || sec.records.length === 0) return false;
     if (String(sec.id || '').startsWith('history_') || String(sec.docId || '').startsWith('history_')) return false;
-    if (sec.isDraft === true || sec.status === 'draft' || sec.status === 'rejected') return false;
+    if ((sec.isDraft === true && sec.status !== 'approved') || (sec.status === 'draft' && sec.status !== 'approved') || sec.status === 'rejected') return false;
 
     const docCls = classKey(sec.className || sec.class || sec.selectedClass || sec.docId || '');
     if (docCls !== targetClass) return false;
@@ -1371,12 +1371,12 @@ export default function PublicResultLookup() {
         }
 
         // Match 4: Robust Registration Suffix or JKBOSE Reg Typo/Fuzzy Match (e.g. '2501010000610001' vs '2501100020610001' or suffix '610001')
-        if (!matchedStudent && cleanDigitsOnly.length >= 5) {
+        if (!matchedStudent && cleanDigitsOnly.length >= 5 && cleanDigitsOnly.length < 10) {
           matchedStudent = candidateMatches(s => {
             const rDigits = String(s.boardRegNo || '').replace(/\D/g, '');
             if (!rDigits || rDigits.length < 5) return false;
-            // Query is suffix of registration, or registration ends with query
-            if (rDigits.endsWith(cleanDigitsOnly) || cleanDigitsOnly.endsWith(rDigits) || (rDigits.length >= 6 && cleanDigitsOnly.endsWith(rDigits.slice(-6)))) {
+            // Short query is suffix of registration
+            if (rDigits.endsWith(cleanDigitsOnly)) {
               return !targetClsKey || classKey(s.className) === targetClsKey;
             }
             // 14-16 digit JKBOSE pattern: matching session prefix (first 4) & roll suffix (last 6)
@@ -1402,7 +1402,7 @@ export default function PublicResultLookup() {
                   const rForm = String(r.formNo || r.fNo || '').trim().toLowerCase();
                   const rRoll = String(r.classRollNo || r.roll || '').trim().toLowerCase();
                   const qClean = normQ.replace(/[^a-z0-9]/g, '');
-                  return (rReg && (rReg === qClean || (rReg.length >= 6 && qClean.length >= 6 && (rReg.endsWith(qClean.slice(-6)) || qClean.endsWith(rReg.slice(-6)))))) ||
+                  return (rReg && (rReg === qClean || (qClean.length < 10 && rReg.length >= 6 && qClean.length >= 6 && rReg.endsWith(qClean)))) ||
                          (rForm && rForm === normQ) ||
                          (rRoll && rRoll === normQ);
                 });
@@ -1455,7 +1455,7 @@ export default function PublicResultLookup() {
                 const rReg = String(r.regNo || r.boardRegNo || r.reg || '').replace(/[^a-z0-9]/g, '');
                 const rForm = String(r.formNo || r.fNo || '').trim().toLowerCase();
                 const rRoll = String(r.classRollNo || r.rollNo || r.roll || '').trim().toLowerCase();
-                const isRegMatch = Boolean(rReg && (rReg === qClean || (rReg.length >= 6 && qClean.length >= 6 && (rReg.endsWith(qClean.slice(-6)) || qClean.endsWith(rReg.slice(-6))))));
+                const isRegMatch = Boolean(rReg && (rReg === qClean || (qClean.length < 10 && rReg.length >= 6 && qClean.length >= 6 && rReg.endsWith(qClean))));
                 const isFormMatch = Boolean(rForm && rForm === normQ);
                 const isRollMatch = Boolean(rRoll && rRoll === normQ);
                 return isRegMatch || isFormMatch || isRollMatch;
@@ -1497,7 +1497,7 @@ export default function PublicResultLookup() {
                 const stReg = String(st.boardRegNo || st.regNo || st['Board Registration Number'] || st['Board Reg. No.'] || '').replace(/[^a-z0-9]/g, '');
                 const stForm = String(st.formNo || st['Form Number'] || '').trim().toLowerCase();
                 const stRoll = String(st.classRollNo || st['Class Roll No'] || '').trim().toLowerCase();
-                const isRegMatch = Boolean(stReg && (stReg === qClean || (stReg.length >= 6 && qClean.length >= 6 && (stReg.endsWith(qClean.slice(-6)) || qClean.endsWith(stReg.slice(-6))))));
+                const isRegMatch = Boolean(stReg && (stReg === qClean || (qClean.length < 10 && stReg.length >= 6 && qClean.length >= 6 && stReg.endsWith(qClean))));
                 const isFormMatch = Boolean(stForm && stForm === normQ);
                 const isRollMatch = Boolean(stRoll && stRoll === normQ);
                 return isRegMatch || isFormMatch || isRollMatch;
@@ -1636,30 +1636,42 @@ export default function PublicResultLookup() {
         // Multi-tier student record matcher against a teacher's section sheet
         const matchRecord = (rec) => {
           if (!rec) return false;
+          const rName = String(rec.name || rec.studentName || '').toLowerCase().trim().replace(/[^a-z0-9]/g, '');
+          const sName = String(matchedStudent.name || '').toLowerCase().trim().replace(/[^a-z0-9]/g, '');
+          const isNameMatch = Boolean(rName && sName && rName.length > 3 && (rName === sName || rName.includes(sName) || sName.includes(rName)));
+
+          // 1. Board Registration Number (100% authoritative exact match)
           const rReg = identityKey(rec.regNo || rec.boardRegNo || rec.reg);
           const sReg = identityKey(matchedStudent.boardRegNo || matchedStudent.regNo);
-          // If both registration numbers exist and match
           if (rReg && sReg) {
-            const isRegMatched = rReg === sReg || (rReg.length >= 6 && sReg.length >= 6 && (rReg.endsWith(sReg.slice(-6)) || sReg.endsWith(rReg.slice(-6))));
-            if (isRegMatched) return true;
+            const isFullReg = rReg.length >= 10 && sReg.length >= 10;
+            const isRegMatched = isFullReg ? rReg === sReg : (rReg === sReg || rReg.endsWith(sReg) || sReg.endsWith(rReg));
+            if (isRegMatched) {
+              if (rName && sName && !isNameMatch) {
+                // Name mismatch between different candidates; reject suffix collision
+              } else {
+                return true;
+              }
+            }
           }
 
+          // 2. Form Number
           const rForm = identityKey(rec.formNo || rec.fNo || rec.id);
           const sForm = identityKey(matchedStudent.fNo || matchedStudent.formNo);
-          // If both form numbers exist and match
           if (rForm && sForm && rForm === sForm) {
-            return true;
+            if (rName && sName && !isNameMatch) {
+              // Different student using same legacy form number; reject
+            } else {
+              return true;
+            }
           }
 
+          // 3. Class Roll Number or Exam Roll Number
           const rRoll = identityKey(rec.rollNo || rec.classRollNo || rec.roll || rec.examRollNo);
           const sRoll = identityKey(matchedStudent.classRollNo);
           const sExamRoll = identityKey(matchedStudent.examRollNo);
           const isRollMatch = (rRoll && sRoll && rRoll === sRoll && rRoll !== '-' && rRoll !== '—' && rRoll !== 'n/a') ||
                               (rRoll && sExamRoll && rRoll === sExamRoll && rRoll !== '-' && rRoll !== '—' && rRoll !== 'n/a');
-
-          const rName = String(rec.name || rec.studentName || '').toLowerCase().trim().replace(/[^a-z0-9]/g, '');
-          const sName = String(matchedStudent.name || '').toLowerCase().trim().replace(/[^a-z0-9]/g, '');
-          const isNameMatch = rName && sName && rName.length > 3 && (rName === sName || rName.includes(sName) || sName.includes(rName));
 
           // Prevent cross-stream / different student roll number collisions
           if (isRollMatch) {

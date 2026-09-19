@@ -29,7 +29,7 @@ async function lookupResult(db, body) {
   const sectionsBySubj = new Map();
   for (const snap of snapshot.docs) {
     const section = snap.data();
-    if (section.isDraft === true || section.status === 'draft' || section.status === 'rejected') continue;
+    if ((section.isDraft === true && section.status !== 'approved') || (section.status === 'draft' && section.status !== 'approved') || section.status === 'rejected') continue;
     if (String(snap.id || '').startsWith('history_') || String(section.docId || '').startsWith('history_')) continue;
     if (!Array.isArray(section.records) || section.records.length === 0) continue;
 
@@ -85,25 +85,36 @@ async function lookupResult(db, body) {
       const recName = normalize(first(record, ['name', 'studentName']));
       const stuName = normalize(student.name);
 
+      const isNameMatch = recName && stuName && recName.length > 3 && stuName.length > 3 && (recName === stuName || recName.includes(stuName) || stuName.includes(recName));
+
       if (reg && student.boardRegNo) {
         const cReg = normalize(reg);
         const cStuReg = normalize(student.boardRegNo);
-        if (cReg === cStuReg || (cReg.length >= 6 && cStuReg.length >= 6 && (cReg.endsWith(cStuReg.slice(-6)) || cStuReg.endsWith(cReg.slice(-6))))) {
-          return true;
+        const isFullReg = cReg.length >= 10 && cStuReg.length >= 10;
+        if (isFullReg ? cReg === cStuReg : (cReg === cStuReg || cReg.endsWith(cStuReg) || cStuReg.endsWith(cReg))) {
+          if (recName && stuName && !isNameMatch) {
+            // Suffix collision across different students; reject
+          } else {
+            return true;
+          }
         }
       }
       if (form && student.formNo && normalize(form) === normalize(student.formNo)) {
-        return true;
+        if (recName && stuName && !isNameMatch) {
+          // Cross-student form collision; reject
+        } else {
+          return true;
+        }
       }
       if (roll && student.classRollNo && normalize(roll) === normalize(student.classRollNo)) {
         if (recName && stuName && recName.length > 3 && stuName.length > 3) {
-          if (recName !== stuName && !recName.includes(stuName) && !stuName.includes(recName)) {
+          if (!isNameMatch) {
             return false;
           }
         }
         return true;
       }
-      if (recName && stuName && recName.length > 3 && stuName.length > 3 && (recName === stuName || recName.includes(stuName) || stuName.includes(recName))) {
+      if (isNameMatch) {
         return true;
       }
       return false;
