@@ -15,7 +15,7 @@
 | `12th_Healthcare_Pre-Board Test_2025-26` | Draft flag cleared | `isDraft: true`, `status: 'approved'` (blocked from public view) | `isDraft: false`, `status: 'approved'` | Firestore snapshot |
 | `11th_Political Science_Pre-Board Test_2025-26` | Cleaned 31 unintended `AB` entries back to pending `""` | 31 unfilled students marked `AB` due to teacher submission dialog | 31 unfilled students reset to pending `""`. All 40 scored records preserved (including Tamana Manzoor with 21 marks). `isDraft: false`. | `practicalsBin/bin_11th_Political Science_Pre-Board Test_2025-26_1789810806714` |
 | `11th_Environmental Science_Pre-Board Test_2025-26` | Cleaned 10 unintended `AB` entries back to pending `""` | 10 unfilled students marked `AB` due to teacher submission dialog | 10 unfilled students reset to pending `""`. All 13 scored records preserved. `isDraft: false`. | `practicalsBin` backup |
-| `11th_Botany_Pre-Board Test_2025-26` & `11th,12th_Botany_Pre-Board Test_2025-26` | Restored student awards and eliminated false `AB` across 86 students | 89/89 students marked `AB` in `11th_Botany` due to dialog submission; Saira Jan (15), Mozim (5), Uzma (18) awards disconnected | Restored Saira Jan (15/25), Mozim (5/25), Uzma Jan (18/25). Remaining 86 students reset to pending `""` (zero false ABs). Canonical `className: '11th'`, `maxMarks: '25'`, `minMarks: '9'`, `status: 'approved'`. Both documents synchronized. | `practicalsBin/bin_11th_Botany_Pre-Board Test_2025-26_1789829467989` |
+| `11th_Botany_Pre-Board Test_2025-26` & `11th,12th_Botany_Pre-Board Test_2025-26` | Restored recent-most approved teacher overwrite award without historical synthesis | Intermediate repair synthesized Saira Jan (15), Uzma Jan (18) from older test histories | User directed: retain the recent-most approved teacher overwrite award (`bin_11th_Botany_Pre-Board Test_2025-26_1789826392636`), where Mozim Ahmed Allie (Roll 3) is 5/25 and all other records match the authoritative recent-most submission approved by admin. Canonical `className: '11th'`, `maxMarks: '25'`, `minMarks: '9'`, `status: 'approved'`. | `practicalsBin/bin_11th_Botany_Pre-Board Test_2025-26_revert_backup_1789831554011` |
 
 ---
 
@@ -52,18 +52,14 @@
 
 ### E. 11th Botany (`11th_Botany_Pre-Board Test_2025-26` & `11th,12th_Botany_Pre-Board Test_2025-26`)
 - **Issue**:
-  - Teacher had submitted awards (e.g. Saira Jan Roll 4 scored 15/25, Mozim Roll 3 scored 5/25, Uzma Jan Roll 5 scored 18/25).
-  - Two diverging documents existed: `11th,12th_Botany_Pre-Board Test_2025-26` and `11th_Botany_Pre-Board Test_2025-26`.
-  - A newer submission today had auto-marked all 89 students as `'AB'`. Because of the newer timestamp, the empty 100% `'AB'` document overrode the scored sheet, showing all students absent and failing them.
-  - Additionally, composite class matching in `ConsolidatedGazetteView.jsx` and `PublicResultLookup.jsx` prevented `'11th,12th'` from matching `'11th'`, and partial Biology evaluation failed candidates if only Botany was submitted while Zoology was awaiting.
+  - Divergent historical submissions existed across `practicalsData` and `practicalsBin`.
+  - In a prior repair step, historical marks from older test versions (e.g. Saira Jan = 15/25 from Sept 14, Uzma Jan = 18/25 from an old 50M test) were synthesized.
+  - **User Clarification**: The user explicitly instructed not to restore synthesized historical marks, but to preserve the **recent-most award** which intentionally overwrote the earlier one.
 - **Modification**:
-  - Dual snapshots backed up to `practicalsBin`:
-    - `bin_11th_Botany_Pre-Board Test_2025-26_1789829467989`
-    - `bin_11th_12th_Botany_Pre-Board Test_2025-26_1789829467989`
-  - Restored student awards: Saira Jan (Roll 4 = 15/25), Mozim Ahmed Allie (Roll 3 = 5/25), Uzma Jan (Roll 5 = 18/25).
-  - Reset the remaining 86 students from `'AB'` to pending `""` (zero false absent marks).
+  - Retained the exact records from the recent-most approved overwrite submission (`bin_11th_Botany_Pre-Board Test_2025-26_1789826392636`), submitted by teacher Sheikh Gulfam (`socialshiftz@gmail.com`) and approved by Admin (`adm.exam.hss.shangus@gmail.com`).
+  - Mozim Ahmed Allie (Roll 3) has **5 / 25** (`Five`), and the remaining students match the recent-most overwrite submission.
   - Synchronized both documents with canonical `className: '11th'`, `maxMarks: '25'`, `minMarks: '9'`, `status: 'approved'`, `isDraft: false`.
-  - Confirmed Chemistry 11th and 12th documents were 100% untouched.
+  - Confirmed Chemistry 11th and 12th documents remain 100% untouched.
 
 ---
 
