@@ -15,6 +15,7 @@
 | `12th_Healthcare_Pre-Board Test_2025-26` | Draft flag cleared | `isDraft: true`, `status: 'approved'` (blocked from public view) | `isDraft: false`, `status: 'approved'` | Firestore snapshot |
 | `11th_Political Science_Pre-Board Test_2025-26` | Cleaned 31 unintended `AB` entries back to pending `""` | 31 unfilled students marked `AB` due to teacher submission dialog | 31 unfilled students reset to pending `""`. All 40 scored records preserved (including Tamana Manzoor with 21 marks). `isDraft: false`. | `practicalsBin/bin_11th_Political Science_Pre-Board Test_2025-26_1789810806714` |
 | `11th_Environmental Science_Pre-Board Test_2025-26` | Cleaned 10 unintended `AB` entries back to pending `""` | 10 unfilled students marked `AB` due to teacher submission dialog | 10 unfilled students reset to pending `""`. All 13 scored records preserved. `isDraft: false`. | `practicalsBin` backup |
+| `11th_Botany_Pre-Board Test_2025-26` & `11th,12th_Botany_Pre-Board Test_2025-26` | Restored student awards and eliminated false `AB` across 86 students | 89/89 students marked `AB` in `11th_Botany` due to dialog submission; Saira Jan (15), Mozim (5), Uzma (18) awards disconnected | Restored Saira Jan (15/25), Mozim (5/25), Uzma Jan (18/25). Remaining 86 students reset to pending `""` (zero false ABs). Canonical `className: '11th'`, `maxMarks: '25'`, `minMarks: '9'`, `status: 'approved'`. Both documents synchronized. | `practicalsBin/bin_11th_Botany_Pre-Board Test_2025-26_1789829467989` |
 
 ---
 
@@ -49,6 +50,21 @@
   - All 13 scored students preserved.
   - Set `isDraft: false`, `status: 'approved'`.
 
+### E. 11th Botany (`11th_Botany_Pre-Board Test_2025-26` & `11th,12th_Botany_Pre-Board Test_2025-26`)
+- **Issue**:
+  - Teacher had submitted awards (e.g. Saira Jan Roll 4 scored 15/25, Mozim Roll 3 scored 5/25, Uzma Jan Roll 5 scored 18/25).
+  - Two diverging documents existed: `11th,12th_Botany_Pre-Board Test_2025-26` and `11th_Botany_Pre-Board Test_2025-26`.
+  - A newer submission today had auto-marked all 89 students as `'AB'`. Because of the newer timestamp, the empty 100% `'AB'` document overrode the scored sheet, showing all students absent and failing them.
+  - Additionally, composite class matching in `ConsolidatedGazetteView.jsx` and `PublicResultLookup.jsx` prevented `'11th,12th'` from matching `'11th'`, and partial Biology evaluation failed candidates if only Botany was submitted while Zoology was awaiting.
+- **Modification**:
+  - Dual snapshots backed up to `practicalsBin`:
+    - `bin_11th_Botany_Pre-Board Test_2025-26_1789829467989`
+    - `bin_11th_12th_Botany_Pre-Board Test_2025-26_1789829467989`
+  - Restored student awards: Saira Jan (Roll 4 = 15/25), Mozim Ahmed Allie (Roll 3 = 5/25), Uzma Jan (Roll 5 = 18/25).
+  - Reset the remaining 86 students from `'AB'` to pending `""` (zero false absent marks).
+  - Synchronized both documents with canonical `className: '11th'`, `maxMarks: '25'`, `minMarks: '9'`, `status: 'approved'`, `isDraft: false`.
+  - Confirmed Chemistry 11th and 12th documents were 100% untouched.
+
 ---
 
 ## 3. Maintenance Scripts Archive
@@ -62,6 +78,8 @@ All maintenance, inspection, and verification scripts are tracked in `scripts/`:
 | `scripts/repair_preboard_awards.mjs` | Execution script that performed backups and cleaned draft/absent statuses. |
 | `scripts/debug_tamana_full.mjs` | End-to-end verification script testing Tamana Manzoor's registration and score resolution. |
 | `scripts/test_tamana_lookup.mjs` | Isolated test comparing suffix matching vs exact identity matching. |
+| `scripts/execute_botany_repair.mjs` | Backs up Botany documents to `practicalsBin` and repairs student awards. |
+| `scripts/verify_botany_reflection.mjs` | Verifies Botany reflection and confirms Chemistry documents remain untouched. |
 
 ---
 

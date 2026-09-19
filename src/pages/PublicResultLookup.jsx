@@ -410,8 +410,14 @@ export function filterAndDeduplicateSections(practicalDocs, targetClassName, tar
     if (String(sec.id || '').startsWith('history_') || String(sec.docId || '').startsWith('history_')) return false;
     if ((sec.isDraft === true && sec.status !== 'approved') || (sec.status === 'draft' && sec.status !== 'approved') || sec.status === 'rejected') return false;
 
-    const docCls = classKey(sec.className || sec.class || sec.selectedClass || sec.docId || '');
-    if (docCls !== targetClass) return false;
+    // Class matching (handles exact, composite '11th,12th', and numerical aliases)
+    const rawCls = String(sec.className || sec.class || sec.selectedClass || sec.docId || '').toLowerCase();
+    const docCls = classKey(rawCls);
+    const isClassMatched = docCls === targetClass ||
+      (targetClass === '11' && (rawCls.includes('11') || rawCls.includes('xi'))) ||
+      (targetClass === '12' && (rawCls.includes('12') || rawCls.includes('xii'))) ||
+      (targetClass === '10' && (rawCls.includes('10') || rawCls.includes('x')));
+    if (!isClassMatched) return false;
 
     const rawSess = sec.sessionCanonical || sec.yearSuffix || sec.session || sec.Session || sec.docId || '';
     const docSess = sessionKey(rawSess);
@@ -442,6 +448,12 @@ export function filterAndDeduplicateSections(practicalDocs, targetClassName, tar
     if (!existing) {
       sectionsBySubj.set(sKey, sec);
     } else {
+      const aExact = String(sec.className || '').trim().toLowerCase() === String(targetClassName || '').trim().toLowerCase() ? 1 : 0;
+      const bExact = String(existing.className || '').trim().toLowerCase() === String(targetClassName || '').trim().toLowerCase() ? 1 : 0;
+      if (aExact !== bExact) {
+        if (aExact > bExact) sectionsBySubj.set(sKey, sec);
+        continue;
+      }
       const isPending = (sec.id && sec.id.startsWith('pending_')) || sec.status === 'pending_approval';
       const existPending = (existing.id && existing.id.startsWith('pending_')) || existing.status === 'pending_approval';
       const secTime = Date.parse(sec.updatedAt || sec.submittedAt || sec.timestamp || 0) || 0;
@@ -493,7 +505,7 @@ export function computeScorecardSubjects({
 
   const stuClass = matchedStudent?.className || matchedStudent?.class || '11th';
   const evalTypeStr = String(evalConfig?.evalType || evalConfig?.title || '').toLowerCase();
-  const isPreBoard = evalTypeStr.includes('pre-board') || evalTypeStr.includes('preboard') || evalConfig?.normalizeTo50 === true;
+  const isPreBoard = !evalConfig || !evalTypeStr || evalTypeStr.includes('pre-board') || evalTypeStr.includes('preboard') || evalConfig?.normalizeTo50 === true;
 
   const normClass = String(matchedStudent?.className || '').toLowerCase().trim();
   const isSecondary = ['10th', '9th', '10', '9', 'x', 'ix'].includes(classKey(normClass)) || normClass.includes('10') || normClass.includes('9');
@@ -550,7 +562,7 @@ export function computeScorecardSubjects({
         }
       }
 
-      let canonicalCode = cUpper || foundDef?.code || 'GEN';
+      let canonicalCode = foundDef?.code || (cUpper.length <= 4 ? cUpper : 'GEN');
       if (cUpper === 'EN' || sLower === 'english' || sLower === 'general english') {
         canonicalCode = rawCode === 'GE' ? 'GE' : (foundDef?.code || 'EN');
       }
@@ -653,7 +665,7 @@ export function computeScorecardSubjects({
         const boOverride = getSubjectOverride(evalConfig?.subjectOverrides, 'BO', stuClass);
         const zoOverride = getSubjectOverride(evalConfig?.subjectOverrides, 'ZO', stuClass);
         const boMax = Number(botanySec?.maxMarks) || Number(boOverride?.maxMarks) || 25;
-        const zoMax = Number(zoologySec?.maxMarks) || Number(zoOverride?.maxMarks) || 50;
+        const zoMax = Number(zoologySec?.maxMarks) || Number(zoOverride?.maxMarks) || 25;
 
         const boIsAb = boRaw !== null && /^(a|ab|absent)$/i.test(String(boRaw).trim());
         const zoIsAb = zoRaw !== null && /^(a|ab|absent)$/i.test(String(zoRaw).trim());
@@ -674,13 +686,7 @@ export function computeScorecardSubjects({
 
         const isBothAbsent = boEvaluated && zoEvaluated && boIsAb && zoIsAb;
         const isAnyEvaluated = boEvaluated || zoEvaluated;
-
-        let marksObtained = '—';
-        if (isBothAbsent) {
-          marksObtained = 'AB';
-        } else if (isAnyEvaluated) {
-          marksObtained = Math.min(50, boPart + zoPart);
-        }
+        const isBothEvaluated = boEvaluated && zoEvaluated;
 
         let compParts = [];
         if (boEvaluated) {
@@ -694,13 +700,50 @@ export function computeScorecardSubjects({
           compParts.push(`ZO: Awaiting`);
         }
 
-        const desc = getSubjectPerformanceDescriptor(marksObtained, 50, 18, isBothAbsent);
+        let marksObtained = '—';
+        let targetMax = 50;
+        let targetMin = 18;
+        let desc;
+
+        if (!isAnyEvaluated) {
+          marksObtained = '—';
+          desc = {
+            status: 'Awaiting Award',
+            tone: 'neutral',
+            isPass: false,
+            badgeClass: 'bg-slate-50 text-slate-400 dark:bg-slate-800/60 dark:text-slate-500 border border-slate-200/60 dark:border-slate-700'
+          };
+        } else if (isBothEvaluated) {
+          marksObtained = isBothAbsent ? 'AB' : Math.min(50, boPart + zoPart);
+          desc = getSubjectPerformanceDescriptor(marksObtained, 50, 18, isBothAbsent);
+        } else {
+          // Exactly one component evaluated (e.g. Botany evaluated, Zoology awaiting)
+          if (boEvaluated) {
+            targetMax = boMax;
+            targetMin = Math.ceil(boMax * 0.36);
+            marksObtained = boIsAb ? 'AB' : Number(boRaw);
+            const baseDesc = getSubjectPerformanceDescriptor(marksObtained, targetMax, targetMin, boIsAb);
+            desc = {
+              ...baseDesc,
+              status: `${baseDesc.status} (ZO Awaiting)`
+            };
+          } else {
+            targetMax = zoMax;
+            targetMin = Math.ceil(zoMax * 0.36);
+            marksObtained = zoIsAb ? 'AB' : Number(zoRaw);
+            const baseDesc = getSubjectPerformanceDescriptor(marksObtained, targetMax, targetMin, zoIsAb);
+            desc = {
+              ...baseDesc,
+              status: `${baseDesc.status} (BO Awaiting)`
+            };
+          }
+        }
 
         finalSubjectsList.push({
           subjectCode: 'BI',
           subjectName: 'Biology (Botany & Zoology)',
-          maxMarks: 50,
-          minMarks: 18,
+          maxMarks: targetMax,
+          minMarks: targetMin,
           marksObtained,
           isAbsent: isBothAbsent,
           isPass: desc.isPass,
