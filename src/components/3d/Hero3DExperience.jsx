@@ -487,7 +487,8 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
     bookMeshGroup.add(ribbon);
 
     // Multi-Leaf Slipping Pages (Arching upward gracefully without turning fully to the left!)
-    const numFlippingLeaves = 4;
+    // Multi-Leaf Slipping Pages (Arching upward gracefully in cascading fan waves)
+    const numFlippingLeaves = 6;
     const flippingLeaves = [];
 
     const pageLeafGeo = new THREE.BoxGeometry(0.53, 0.006, 0.73);
@@ -505,7 +506,7 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
       leafGilt.position.set(0.525, 0, 0);
       leafPivot.add(leafGilt);
 
-      const restAngle = -Math.PI / 10 + (i * 0.015);
+      const restAngle = -Math.PI / 10 + (i * 0.011);
       leafPivot.rotation.z = restAngle;
 
       bookMeshGroup.add(leafPivot);
@@ -655,7 +656,7 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
     flaskMeshGroup.add(rodTipTop);
 
     // 3E. Effervescent Rising Micro-Bubbles
-    const bubbleCount = 8;
+    const bubbleCount = 10;
     const bubbleGeo = new THREE.SphereGeometry(0.022, 10, 10);
     const bubbleMat = new THREE.MeshStandardMaterial({
       color: 0x67e8f9,
@@ -669,24 +670,43 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
     const bubbles = [];
     for (let i = 0; i < bubbleCount; i++) {
       const bMesh = new THREE.Mesh(bubbleGeo, bubbleMat);
-      const bScale = 0.5 + Math.random() * 0.8;
+      const bScale = 0.4 + Math.random() * 0.7;
       bMesh.scale.setScalar(bScale);
       const bData = {
         mesh: bMesh,
-        baseX: (Math.random() - 0.5) * 0.25,
-        baseZ: (Math.random() - 0.5) * 0.25,
+        radius: 0.04 + Math.random() * 0.18,
+        angle: Math.random() * Math.PI * 2,
         y: -0.28 + Math.random() * 0.36,
-        speed: 0.20 + Math.random() * 0.24,
-        wobbleFreq: 2.0 + Math.random() * 3.5,
-        wobbleAmp: 0.014 + Math.random() * 0.018
+        speed: 0.22 + Math.random() * 0.26
       };
-      bMesh.position.set(bData.baseX, bData.y, bData.baseZ);
+      bMesh.position.set(Math.cos(bData.angle) * bData.radius, bData.y, Math.sin(bData.angle) * bData.radius);
       flaskMeshGroup.add(bMesh);
       bubbles.push(bData);
     }
 
-    // 3F. Internal Point Light (Luminescent Chemical Glow)
-    const flaskLight = new THREE.PointLight(0x06b6d4, 0.5, 2.5);
+    // 3F. Effervescent Reaction Vapor Micro-Particles (Rising from rim on hover)
+    const vaporCount = 4;
+    const vaporGeo = new THREE.SphereGeometry(0.016, 8, 8);
+    const vaporMat = new THREE.MeshBasicMaterial({
+      color: 0x67e8f9,
+      transparent: true,
+      opacity: 0
+    });
+    const vaporParticles = [];
+    for (let i = 0; i < vaporCount; i++) {
+      const vMesh = new THREE.Mesh(vaporGeo, vaporMat.clone());
+      vMesh.position.set(0, 0.66, 0);
+      flaskMeshGroup.add(vMesh);
+      vaporParticles.push({
+        mesh: vMesh,
+        y: 0.66 + i * 0.12,
+        speed: 0.28 + Math.random() * 0.15,
+        offset: Math.random() * Math.PI * 2
+      });
+    }
+
+    // 3G. Internal Point Light (Luminescent Chemical Glow)
+    const flaskLight = new THREE.PointLight(0x06b6d4, 0.5, 2.8);
     flaskLight.position.set(0, -0.05, 0.1);
     flaskMeshGroup.add(flaskLight);
 
@@ -905,23 +925,34 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
       carbonLabelMat.opacity = 0.86 + Math.sin(time * 0.002 * speedMult) * 0.08;
 
       // -----------------------------------------------------------------------
-      // 8B. BOOK: ON LEFT OF ADMISSIONS OPEN WITH DELICATE SLIPPING PAGES
+      // 8B. BOOK: ENHANCED HOVER RESPONSIVE CELEBRATION
       // -----------------------------------------------------------------------
       const isAdmissionsHovered = hoveredActionRef.current === 'admissions';
       const targetBookLift = isAdmissionsHovered ? 1 : 0;
-      bookLiftProgress += (targetBookLift - bookLiftProgress) * 0.08;
+      // Snappy spring-damped responsive lerp factor (0.14 vs old 0.08)
+      bookLiftProgress += (targetBookLift - bookLiftProgress) * 0.14;
 
       const bookIdleBob = Math.cos(time * 0.0015 * speedMult) * 0.04;
-      bookAnchor.position.y = bookHomePos.y + bookIdleBob + (bookLiftProgress * 0.12);
-      bookAnchor.position.z = bookHomePos.z + (bookLiftProgress * 0.1);
+      bookAnchor.position.y = bookHomePos.y + bookIdleBob + (bookLiftProgress * 0.28);
+      bookAnchor.position.z = bookHomePos.z + (bookLiftProgress * 0.32);
+      bookAnchor.position.x = bookHomePos.x + (bookLiftProgress * 0.10);
+
+      // Scale boost for dynamic focus
+      const bookScaleBoost = 1.0 + (bookLiftProgress * 0.12);
+      bookMeshGroup.scale.set(bookScaleBoost, bookScaleBoost, bookScaleBoost);
+
+      // Presentation tilt towards viewer to showcase open pages
+      bookMeshGroup.rotation.x = 0.38 - (bookLiftProgress * 0.20) + Math.sin(time * 0.002 * speedMult) * (0.03 * bookLiftProgress);
+      bookMeshGroup.rotation.y = 0.42 - (bookLiftProgress * 0.22);
+      bookMeshGroup.rotation.z = -0.18 + (bookLiftProgress * 0.10);
 
       if (isAdmissionsHovered) {
-        continuousPageTurnCycle += delta * 2.5 * speedMult;
+        continuousPageTurnCycle += delta * 3.6 * speedMult;
       }
 
-      // Page slipping motion: pages lift, arch up, and flutter WITHOUT turning flat to the left!
+      // Page slipping motion: pages lift, arch up, and flutter in a rich cascading wave
       const rightRestAngle = -Math.PI / 10;
-      const fanPeakAngle = -Math.PI / 42;
+      const fanPeakAngle = -Math.PI / 36;
 
       flippingLeaves.forEach((leaf) => {
         if (isAdmissionsHovered) {
@@ -930,59 +961,97 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
           const turnAngle = rightRestAngle + (fanPeakAngle - rightRestAngle) * flutterWave;
           leaf.pivot.rotation.z = turnAngle;
 
-          const archHeight = flutterWave * 0.04;
+          const archHeight = flutterWave * 0.075;
           leaf.pivot.position.y = 0.055 + archHeight;
-          leaf.mesh.rotation.y = flutterWave * 0.06;
+          leaf.mesh.rotation.y = flutterWave * 0.09;
+          leaf.mesh.rotation.x = Math.sin(leafPhase * Math.PI * 2) * 0.04;
         } else {
-          leaf.pivot.rotation.z += (leaf.restAngle - leaf.pivot.rotation.z) * 0.1;
-          leaf.pivot.position.y += (0.055 - leaf.pivot.position.y) * 0.1;
-          leaf.mesh.rotation.y += (0 - leaf.mesh.rotation.y) * 0.1;
+          leaf.pivot.rotation.z += (leaf.restAngle - leaf.pivot.rotation.z) * 0.12;
+          leaf.pivot.position.y += (0.055 - leaf.pivot.position.y) * 0.12;
+          leaf.mesh.rotation.y += (0 - leaf.mesh.rotation.y) * 0.12;
+          leaf.mesh.rotation.x += (0 - leaf.mesh.rotation.x) * 0.12;
         }
       });
 
-      bookLight.intensity = bookLiftProgress * 2.0;
-      activeFlippingPageMat.emissiveIntensity = 0.15 + (bookLiftProgress * 0.3);
-      ribbon.rotation.z = -0.1 + Math.sin(time * 0.0025 * speedMult) * (0.04 + bookLiftProgress * 0.12);
+      // Warm library knowledge illumination
+      bookLight.intensity = bookLiftProgress * 3.8;
+      activeFlippingPageMat.emissiveIntensity = 0.15 + (bookLiftProgress * 0.55);
+      goldGiltMat.emissiveIntensity = 0.45 + (bookLiftProgress * 0.55);
+
+      // Bookmark ribbon organic harmonic flutter
+      ribbon.rotation.z = -0.1 + Math.sin(time * 0.0035 * speedMult) * (0.05 + bookLiftProgress * 0.25);
+      ribbon.rotation.x = -0.25 + Math.cos(time * 0.003 * speedMult) * (0.03 + bookLiftProgress * 0.18);
 
       // -----------------------------------------------------------------------
-      // 8C. SCIENTIFIC FLASK: LABORATORY APPARATUS OF DISCOVERY & INQUIRY
+      // 8C. SCIENTIFIC FLASK: ENHANCED HOVER RESPONSIVE DISCOVERY REACTION
       // -----------------------------------------------------------------------
       const targetFlaskLift = isAdmissionsHovered ? 1 : 0;
-      flaskLiftProgress += (targetFlaskLift - flaskLiftProgress) * 0.1;
-
-      if (isAdmissionsHovered) {
-        flaskSwirlAngle += delta * 2.8 * speedMult;
-      } else {
-        flaskSwirlAngle += (0 - (flaskSwirlAngle % (Math.PI * 2))) * 0.08;
-      }
+      // Snappy spring-damped responsive lerp factor (0.14 vs old 0.10)
+      flaskLiftProgress += (targetFlaskLift - flaskLiftProgress) * 0.14;
 
       const flaskIdleBob = Math.sin(time * 0.0018 * speedMult) * 0.04;
-      flaskAnchor.position.y = flaskHomePos.y + flaskIdleBob + (flaskLiftProgress * 0.18);
-      flaskAnchor.position.x = flaskHomePos.x + (flaskLiftProgress * 0.04);
+      flaskAnchor.position.y = flaskHomePos.y + flaskIdleBob + (flaskLiftProgress * 0.28);
+      flaskAnchor.position.z = flaskHomePos.z + (flaskLiftProgress * 0.32);
+      flaskAnchor.position.x = flaskHomePos.x - (flaskLiftProgress * 0.10);
 
-      // Gentle idle bob and celebratory tilt/swirl on Admissions hover
-      flaskMeshGroup.rotation.y = -0.35 + Math.cos(time * 0.001 * speedMult) * 0.08 + (flaskSwirlAngle * 0.4);
-      flaskMeshGroup.rotation.x = 0.22 + (flaskLiftProgress * 0.14) + Math.sin(time * 0.0015 * speedMult) * 0.04;
-      flaskMeshGroup.rotation.z = 0.12 - (flaskLiftProgress * 0.08);
+      // Scale boost for dynamic focus
+      const flaskScaleBoost = 1.0 + (flaskLiftProgress * 0.12);
+      flaskMeshGroup.scale.set(flaskScaleBoost, flaskScaleBoost, flaskScaleBoost);
 
-      // Effervescent micro-bubble dynamics simulation
-      const bubbleSpeedMult = isAdmissionsHovered ? 2.8 : 1.0;
+      // Presentation tilt towards viewer to showcase chemical reaction
+      flaskMeshGroup.rotation.x = 0.22 + (flaskLiftProgress * 0.16) + Math.sin(time * 0.002 * speedMult) * (0.03 * flaskLiftProgress);
+      flaskMeshGroup.rotation.y = -0.35 + (flaskLiftProgress * 0.22);
+      flaskMeshGroup.rotation.z = 0.12 - (flaskLiftProgress * 0.15);
+
+      // Chemical solution vortex swirl inside flask
+      liquidMesh.rotation.y += delta * (isAdmissionsHovered ? 3.8 : 0.8) * speedMult;
+      meniscusMesh.rotation.y += delta * (isAdmissionsHovered ? 3.8 : 0.8) * speedMult;
+      meniscusMesh.position.y = 0.09 + Math.sin(time * 0.006 * speedMult) * (0.015 * flaskLiftProgress);
+
+      // Stirring rod active laboratory motion
+      rodMesh.rotation.z = 0.26 + Math.sin(time * 0.006 * speedMult) * (0.07 * flaskLiftProgress);
+      rodMesh.rotation.x = -0.12 + Math.cos(time * 0.006 * speedMult) * (0.05 * flaskLiftProgress);
+      rodTipTop.position.x = -0.16 + Math.sin(time * 0.006 * speedMult) * (0.035 * flaskLiftProgress);
+
+      // Effervescent micro-bubble spiral physics simulation
+      const bubbleSpeedMult = isAdmissionsHovered ? 3.8 : 1.0;
       bubbles.forEach((b) => {
         b.y += b.speed * delta * bubbleSpeedMult * speedMult;
-        if (b.y > 0.08) {
+        b.angle += delta * (isAdmissionsHovered ? 4.8 : 1.2) * speedMult;
+        if (b.y > 0.09) {
           b.y = -0.28;
-          b.baseX = (Math.random() - 0.5) * 0.25;
-          b.baseZ = (Math.random() - 0.5) * 0.25;
+          b.radius = 0.04 + Math.random() * 0.18;
+          b.angle = Math.random() * Math.PI * 2;
         }
         b.mesh.position.y = b.y;
-        b.mesh.position.x = b.baseX + Math.sin(time * 0.003 * b.wobbleFreq) * b.wobbleAmp;
-        b.mesh.position.z = b.baseZ + Math.cos(time * 0.003 * b.wobbleFreq) * b.wobbleAmp;
+        b.mesh.position.x = Math.sin(b.angle) * b.radius;
+        b.mesh.position.z = Math.cos(b.angle) * b.radius;
       });
 
-      // Luminescent discovery reaction glow
-      flaskLight.intensity = 0.5 + (flaskLiftProgress * 1.8);
-      liquidMat.emissiveIntensity = 0.5 + (flaskLiftProgress * 0.4);
-      meniscusMat.emissiveIntensity = 0.75 + (flaskLiftProgress * 0.35);
+      // Effervescent reaction vapor emerging from neck
+      vaporParticles.forEach((v) => {
+        if (flaskLiftProgress > 0.05) {
+          v.y += v.speed * delta * (1.0 + flaskLiftProgress * 1.5) * speedMult;
+          if (v.y > 1.25) {
+            v.y = 0.66;
+          }
+          v.mesh.position.y = v.y;
+          v.mesh.position.x = Math.sin(time * 0.004 + v.offset) * 0.05;
+          v.mesh.position.z = Math.cos(time * 0.004 + v.offset) * 0.05;
+          const normY = (v.y - 0.66) / 0.59;
+          const fade = Math.sin(normY * Math.PI);
+          v.mesh.material.opacity = fade * 0.85 * flaskLiftProgress;
+          v.mesh.scale.setScalar(0.8 + normY * 1.2);
+        } else {
+          v.mesh.material.opacity = 0;
+        }
+      });
+
+      // Luminescent chemical reaction glow
+      flaskLight.intensity = 0.5 + (flaskLiftProgress * 3.4);
+      const activeLiquidEmissive = 0.5 + (flaskLiftProgress * (0.65 + Math.sin(time * 0.008 * speedMult) * 0.18));
+      liquidMat.emissiveIntensity = activeLiquidEmissive;
+      meniscusMat.emissiveIntensity = 0.75 + (flaskLiftProgress * 0.55);
 
       // -----------------------------------------------------------------------
       // 8D. STARDUST PARTICLES
