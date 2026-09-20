@@ -30,15 +30,23 @@ import { isSuperAdminEmail } from '../../utils/authRoles';
 import { logAdminActivity } from '../../services/adminActivityLogger';
 import {
   ADMIN_MODULE_CATALOG,
+  ADMIN_CATEGORIES,
+  ROLE_PRESETS,
   getModuleMaturity,
+  getModulesByCategory,
+  getAllAdminModuleIds,
 } from './adminModuleCatalog';
 
 export const ALL_ADMIN_MODULES = ADMIN_MODULE_CATALOG.map(module => ({
   code: module.id,
   label: module.label,
+  shortLabel: module.shortLabel,
   desc: module.description,
+  category: module.category,
   maturity: module.maturity,
   maturityNote: module.maturityNote,
+  isNew: Boolean(module.isNew),
+  isQuickAction: Boolean(module.isQuickAction),
 }));
 
 const DEFAULT_ADMIN_USERS = [
@@ -2042,7 +2050,31 @@ export default function ControlsAndSubjects() {
                   </div>
 
                   {/* Actions in a single side-by-side row */}
-                  <div className="flex items-center gap-1.5 w-full sm:w-auto">
+                  <div className="flex items-center gap-1.5 w-full sm:w-auto flex-wrap sm:flex-nowrap">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const allCodes = ALL_ADMIN_MODULES.map((m) => m.code);
+                        setAdminUsers((prev) =>
+                          prev.map((u) => {
+                            const roleStr = String(u.role || '').toLowerCase();
+                            if (roleStr === 'teacher' || roleStr === 'faculty' || roleStr === 'staff') return u;
+                            return { ...u, perms: allCodes };
+                          })
+                        );
+                        setAlert({
+                          type: 'success',
+                          text: `✨ All administrators upgraded to all ${ALL_ADMIN_MODULES.length} modules! Click "Save Changes" to commit.`,
+                        });
+                      }}
+                      className="px-2.5 py-1.5 rounded-xl font-black text-[10px] sm:text-xs text-indigo-700 dark:text-indigo-200 bg-indigo-50 dark:bg-indigo-950/80 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 border border-indigo-200 dark:border-indigo-800 shadow-2xs flex items-center justify-center gap-1 cursor-pointer transition-all active:scale-95"
+                      title={`Grant all ${ALL_ADMIN_MODULES.length} modules to all active Admin accounts`}
+                    >
+                      <Sparkles size={12} className="text-indigo-600 dark:text-indigo-400" />
+                      <span className="hidden sm:inline">Upgrade All Admins (21)</span>
+                      <span className="sm:hidden">Upgrade All</span>
+                    </button>
+
                     <button
                       type="button"
                       onClick={handleOpenAddAdmin}
@@ -2077,6 +2109,7 @@ export default function ControlsAndSubjects() {
                   const activeCount = isSuper ? ALL_ADMIN_MODULES.length : userPerms.length;
                   const isSendingReset = sendingResetFor === cleanEmail;
                   const isOpen = openDropdownUser === cleanEmail;
+                  const hasOutdatedStatus = !isTeacher && !isSuper && activeCount < ALL_ADMIN_MODULES.length;
 
                   return (
                     <div 
@@ -2084,7 +2117,7 @@ export default function ControlsAndSubjects() {
                       className="p-2 sm:p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-950/60 hover:border-amber-500/40 transition-all space-y-1.5"
                     >
                       {/* Compact Single-Line User Header */}
-                      <div className="flex items-start sm:items-center justify-between gap-1.5">
+                      <div className="flex items-start sm:items-center justify-between gap-1.5 flex-wrap sm:flex-nowrap">
                         <div className="flex items-center gap-2 min-w-0 flex-1">
                           <div className={`w-6 h-6 sm:w-7 sm:h-7 rounded-lg flex items-center justify-center font-black shrink-0 ${
                             isSuper 
@@ -2110,6 +2143,11 @@ export default function ControlsAndSubjects() {
                                   {user.subject}
                                 </span>
                               )}
+                              {hasOutdatedStatus && (
+                                <span className="px-1.5 py-0.2 rounded text-[8px] font-black bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800 shrink-0">
+                                  Previous Status ({activeCount}/{ALL_ADMIN_MODULES.length})
+                                </span>
+                              )}
                             </div>
                             <div className="text-[9.5px] sm:text-[10px] text-slate-400 font-mono truncate max-w-[200px] sm:max-w-none">
                               {user.email}
@@ -2118,7 +2156,20 @@ export default function ControlsAndSubjects() {
                         </div>
 
                         {/* Controls & Action Buttons */}
-                        <div className="flex items-center gap-1 shrink-0">
+                        <div className="flex items-center gap-1 shrink-0 ml-auto sm:ml-0">
+                          {hasOutdatedStatus && (
+                            <button
+                              type="button"
+                              onClick={() => setAllPermissionsForUser(user.email, true)}
+                              className="px-2 py-0.5 rounded-lg text-[9px] font-black bg-indigo-600 hover:bg-indigo-500 text-white shadow-2xs transition-all flex items-center gap-1 cursor-pointer active:scale-95 shrink-0"
+                              title={`Upgrade ${user.name} to all ${ALL_ADMIN_MODULES.length} administrative modules`}
+                            >
+                              <Sparkles size={10} />
+                              <span className="hidden sm:inline">Upgrade (21)</span>
+                              <span className="sm:hidden">All</span>
+                            </button>
+                          )}
+
                           {!isTeacher && (
                             <button
                               type="button"
@@ -2174,42 +2225,15 @@ export default function ControlsAndSubjects() {
                       {/* Dropdown Checkbox Panel for Granular Modules */}
                       {!isTeacher && isOpen && (
                         <div className="pt-2 border-t border-slate-200 dark:border-slate-800 space-y-2 animate-fadeIn">
-                          {/* Dropdown Header Toolbar */}
-                          <div className="flex items-center justify-between gap-1.5 flex-wrap">
-                            <div className="flex items-center gap-1.5 min-w-0">
-                              <ShieldCheck size={13} className="text-indigo-600 dark:text-indigo-400 shrink-0" />
-                              <span className="text-xs font-black text-slate-900 dark:text-white truncate">
-                                Module Permissions ({activeCount}/{ALL_ADMIN_MODULES.length})
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-1.5 shrink-0 flex-wrap">
-                              {!isSuper && (
-                                <>
-                                  <button
-                                    type="button"
-                                    onClick={() => setUserPermissions(user.email, ['reports'])}
-                                    className="px-2 py-0.5 rounded text-[9.5px] font-black bg-amber-50 dark:bg-amber-950/80 text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/60 border border-amber-200 dark:border-amber-800 cursor-pointer transition-colors"
-                                    title="Set standard admin default: Records & Reports only"
-                                  >
-                                    Default (Records)
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => setUserPermissions(user.email, ['accounts', 'funds'])}
-                                    className="px-2 py-0.5 rounded text-[9.5px] font-black bg-emerald-50 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 border border-emerald-200 dark:border-emerald-800 cursor-pointer transition-colors"
-                                    title="Set Accounts Clerk: School Accounts, Salaries, Tax & Fees (No admission records)"
-                                  >
-                                    Accounts Clerk
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => setAllPermissionsForUser(user.email, !allSelected)}
-                                    className="px-2 py-0.5 rounded text-[9.5px] font-black bg-indigo-50 dark:bg-indigo-950/80 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 border border-indigo-200 dark:border-indigo-800 cursor-pointer transition-colors"
-                                  >
-                                    {allSelected ? 'Clear All' : 'Select All'}
-                                  </button>
-                                </>
-                              )}
+                          {/* Dropdown Header Toolbar & Role Presets */}
+                          <div className="space-y-1.5">
+                            <div className="flex items-center justify-between gap-1.5 flex-wrap">
+                              <div className="flex items-center gap-1.5 min-w-0">
+                                <ShieldCheck size={13} className="text-indigo-600 dark:text-indigo-400 shrink-0" />
+                                <span className="text-xs font-black text-slate-900 dark:text-white truncate">
+                                  Module Permissions ({activeCount}/{ALL_ADMIN_MODULES.length})
+                                </span>
+                              </div>
                               <button
                                 type="button"
                                 onClick={() => setOpenDropdownUser(null)}
@@ -2219,6 +2243,31 @@ export default function ControlsAndSubjects() {
                                 <X size={12} />
                               </button>
                             </div>
+
+                            {/* Role Presets Toolbar */}
+                            {!isSuper && (
+                              <div className="flex items-center gap-1 flex-wrap pt-0.5">
+                                <span className="text-[9px] font-black uppercase text-slate-400 mr-1">Presets:</span>
+                                {ROLE_PRESETS.map((preset) => (
+                                  <button
+                                    key={preset.id}
+                                    type="button"
+                                    onClick={() => setUserPermissions(user.email, preset.perms())}
+                                    className="px-2 py-0.5 rounded text-[9px] font-black bg-slate-100 hover:bg-indigo-50 dark:bg-slate-800 dark:hover:bg-indigo-950/60 text-slate-700 hover:text-indigo-700 dark:text-slate-300 dark:hover:text-indigo-300 border border-slate-200 dark:border-slate-700 transition-colors cursor-pointer"
+                                    title={preset.desc}
+                                  >
+                                    {preset.shortName || preset.name}
+                                  </button>
+                                ))}
+                                <button
+                                  type="button"
+                                  onClick={() => setAllPermissionsForUser(user.email, !allSelected)}
+                                  className="px-2 py-0.5 rounded text-[9px] font-black bg-indigo-50 dark:bg-indigo-950/80 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 border border-indigo-200 dark:border-indigo-800 cursor-pointer transition-colors"
+                                >
+                                  {allSelected ? 'Clear All' : 'Select All (21)'}
+                                </button>
+                              </div>
+                            )}
                           </div>
 
                           {/* Quick Search inside Dropdown */}
@@ -2226,7 +2275,7 @@ export default function ControlsAndSubjects() {
                             <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
                             <input
                               type="text"
-                              placeholder="Search modules (e.g. attendance, exams, reports)..."
+                              placeholder={`Search all ${ALL_ADMIN_MODULES.length} modules (e.g. attendance, exams, reports)...`}
                               value={dropdownSearch}
                               onChange={(e) => setDropdownSearch(e.target.value)}
                               className="w-full pl-7 pr-2.5 py-1 text-[11px] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-hidden focus:ring-1 focus:ring-indigo-500 text-slate-800 dark:text-slate-100 placeholder:text-slate-400"
@@ -2236,48 +2285,94 @@ export default function ControlsAndSubjects() {
                           {isSuper && (
                             <div className="p-2 rounded-lg bg-purple-500/10 border border-purple-500/20 text-purple-700 dark:text-purple-300 text-[10.5px] font-bold flex items-center gap-1.5">
                               <ShieldAlert size={13} className="shrink-0" />
-                              <span>SuperAdmins inherently retain global access to all 19 modules by default.</span>
+                              <span>SuperAdmins inherently retain global access to all {ALL_ADMIN_MODULES.length} system modules by default.</span>
                             </div>
                           )}
 
-                          {/* Scrollable Checkbox Checklist */}
-                          <div className="max-h-56 overflow-y-auto space-y-1 pr-0.5 scrollbar-thin">
-                            {filteredModules.map((mod) => {
-                              const checked = userPerms.includes(mod.code) || isSuper;
-                              const maturity = getModuleMaturity(mod.maturity);
+                          {/* Scrollable Checkbox Checklist Grouped by Categories */}
+                          <div className="max-h-64 overflow-y-auto space-y-3 pr-0.5 scrollbar-thin">
+                            {ADMIN_CATEGORIES.map((cat) => {
+                              const catModules = filteredModules.filter((m) => m.category === cat.key);
+                              if (catModules.length === 0) return null;
+                              const catCodes = catModules.map((m) => m.code);
+                              const catActiveCount = catCodes.filter((code) => userPerms.includes(code) || isSuper).length;
+                              const allCatActive = catActiveCount === catCodes.length;
 
                               return (
-                                <label
-                                  key={mod.code}
-                                  className={`flex items-start gap-2.5 p-2 rounded-lg border transition-all select-none cursor-pointer ${
-                                    checked
-                                      ? 'bg-indigo-50/70 dark:bg-indigo-950/40 border-indigo-200 dark:border-indigo-800/80 text-indigo-950 dark:text-indigo-100 font-bold'
-                                      : 'bg-white dark:bg-slate-900/60 border-slate-200/80 dark:border-slate-800/80 text-slate-700 dark:text-slate-300 hover:bg-slate-100/60 dark:hover:bg-slate-800/60'
-                                  } ${isSuper ? 'cursor-default' : ''}`}
-                                >
-                                  <input
-                                    type="checkbox"
-                                    checked={checked}
-                                    disabled={isSuper}
-                                    onChange={() => !isSuper && togglePermission(user.email, mod.code)}
-                                    className="mt-0.5 w-4 h-4 rounded border-slate-300 dark:border-slate-700 text-indigo-600 focus:ring-indigo-500 cursor-pointer disabled:cursor-default shrink-0"
-                                  />
-                                  <div className="min-w-0 flex-1 leading-tight">
-                                    <div className="flex items-center gap-1.5 flex-wrap">
-                                      <span className={`text-xs ${checked ? 'font-black' : 'font-semibold'}`}>
-                                        {mod.label}
+                                <div key={cat.key} className="space-y-1 bg-slate-100/50 dark:bg-slate-900/40 p-2 rounded-xl border border-slate-200/60 dark:border-slate-800/60">
+                                  {/* Category Header */}
+                                  <div className="flex items-center justify-between pb-1 border-b border-slate-200/60 dark:border-slate-800/60">
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="text-[10px] font-black uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                                        {cat.title}
                                       </span>
-                                      <span className={`rounded border px-1 py-0.2 text-[7.5px] font-black leading-none ${maturity.badgeClass}`}>
-                                        {maturity.label}
+                                      <span className="text-[8.5px] font-mono font-bold px-1.5 py-0.2 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
+                                        {catActiveCount}/{catModules.length}
                                       </span>
                                     </div>
-                                    {mod.desc && (
-                                      <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5 truncate">
-                                        {mod.desc}
-                                      </p>
+                                    {!isSuper && (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          const nextPerms = allCatActive
+                                            ? userPerms.filter((code) => !catCodes.includes(code))
+                                            : Array.from(new Set([...userPerms, ...catCodes]));
+                                          setUserPermissions(user.email, nextPerms);
+                                        }}
+                                        className="text-[9px] font-black text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
+                                      >
+                                        {allCatActive ? 'Deselect Group' : 'Select Group'}
+                                      </button>
                                     )}
                                   </div>
-                                </label>
+
+                                  {/* Modules in Category */}
+                                  <div className="space-y-1 pt-1">
+                                    {catModules.map((mod) => {
+                                      const checked = userPerms.includes(mod.code) || isSuper;
+                                      const maturity = getModuleMaturity(mod.maturity);
+
+                                      return (
+                                        <label
+                                          key={mod.code}
+                                          className={`flex items-start gap-2 p-1.5 rounded-lg border transition-all select-none cursor-pointer ${
+                                            checked
+                                              ? 'bg-indigo-50/70 dark:bg-indigo-950/40 border-indigo-200 dark:border-indigo-800/80 text-indigo-950 dark:text-indigo-100 font-bold'
+                                              : 'bg-white dark:bg-slate-900/60 border-slate-200/80 dark:border-slate-800/80 text-slate-700 dark:text-slate-300 hover:bg-slate-100/60 dark:hover:bg-slate-800/60'
+                                          } ${isSuper ? 'cursor-default' : ''}`}
+                                        >
+                                          <input
+                                            type="checkbox"
+                                            checked={checked}
+                                            disabled={isSuper}
+                                            onChange={() => !isSuper && togglePermission(user.email, mod.code)}
+                                            className="mt-0.5 w-3.5 h-3.5 rounded border-slate-300 dark:border-slate-700 text-indigo-600 focus:ring-indigo-500 cursor-pointer disabled:cursor-default shrink-0"
+                                          />
+                                          <div className="min-w-0 flex-1 leading-tight">
+                                            <div className="flex items-center gap-1.5 flex-wrap">
+                                              <span className={`text-[11px] ${checked ? 'font-black' : 'font-semibold'}`}>
+                                                {mod.label}
+                                              </span>
+                                              {mod.isNew && (
+                                                <span className="px-1 py-0.2 rounded text-[7px] font-black bg-emerald-500 text-white uppercase tracking-wider">
+                                                  NEW
+                                                </span>
+                                              )}
+                                              <span className={`rounded border px-1 py-0.2 text-[7px] font-black leading-none ${maturity.badgeClass}`}>
+                                                {maturity.label}
+                                              </span>
+                                            </div>
+                                            {mod.desc && (
+                                              <p className="text-[9.5px] text-slate-400 dark:text-slate-500 mt-0.5 truncate">
+                                                {mod.desc}
+                                              </p>
+                                            )}
+                                          </div>
+                                        </label>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
                               );
                             })}
 
@@ -2290,7 +2385,7 @@ export default function ControlsAndSubjects() {
 
                           {/* Dropdown Footer */}
                           <div className="flex items-center justify-between pt-1 text-[10px] font-bold text-slate-400 border-t border-slate-100 dark:border-slate-800">
-                            <span>Click checkbox to grant or revoke instantly.</span>
+                            <span>Click checkbox to grant or revoke immediately.</span>
                             <button
                               type="button"
                               onClick={() => setOpenDropdownUser(null)}
@@ -2522,36 +2617,32 @@ export default function ControlsAndSubjects() {
                         </span>
                       </label>
                       {adminForm.role !== 'SuperAdmin' && (
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <button
-                            type="button"
-                            onClick={() => setAdminForm({ ...adminForm, perms: ['reports'] })}
-                            className="px-1.5 py-0.5 rounded bg-amber-50 dark:bg-amber-950/60 text-[9.5px] font-extrabold text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800 hover:bg-amber-100 dark:hover:bg-amber-900/60 cursor-pointer transition-colors"
-                            title="Default standard admin permissions (Student Records & Reports only)"
-                          >
-                            Default (Records & Reports)
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setAdminForm({ ...adminForm, perms: ['accounts', 'funds'] })}
-                            className="px-1.5 py-0.5 rounded bg-emerald-50 dark:bg-emerald-950/60 text-[9.5px] font-extrabold text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 cursor-pointer transition-colors"
-                            title="Accounts Clerk: School Accounts, Salaries, Staff Tax and Fee Accounts (No admission records)"
-                          >
-                            Accounts Clerk
-                          </button>
+                        <div className="flex items-center gap-1 flex-wrap pt-0.5">
+                          <span className="text-[9px] font-black uppercase text-slate-400 mr-0.5">Presets:</span>
+                          {ROLE_PRESETS.map((preset) => (
+                            <button
+                              key={preset.id}
+                              type="button"
+                              onClick={() => setAdminForm({ ...adminForm, perms: preset.perms() })}
+                              className="px-2 py-0.5 rounded text-[9px] font-black bg-slate-100 hover:bg-indigo-50 dark:bg-slate-800 dark:hover:bg-indigo-950/60 text-slate-700 hover:text-indigo-700 dark:text-slate-300 dark:hover:text-indigo-300 border border-slate-200 dark:border-slate-700 transition-colors cursor-pointer"
+                              title={preset.desc}
+                            >
+                              {preset.shortName || preset.name}
+                            </button>
+                          ))}
                           <button
                             type="button"
                             onClick={() => setAdminForm({ ...adminForm, perms: ALL_ADMIN_MODULES.map(m => m.code) })}
-                            className="px-1.5 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950/60 text-[9.5px] font-extrabold text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 cursor-pointer transition-colors"
+                            className="px-2 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950/60 text-[9px] font-black text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 cursor-pointer transition-colors"
                           >
-                            Select All
+                            Select All (21)
                           </button>
                           <button
                             type="button"
                             onClick={() => setAdminForm({ ...adminForm, perms: [] })}
-                            className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-[9.5px] font-extrabold text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 cursor-pointer transition-colors"
+                            className="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-[9px] font-black text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 cursor-pointer transition-colors"
                           >
-                            Clear All
+                            Clear
                           </button>
                         </div>
                       )}
@@ -2563,47 +2654,84 @@ export default function ControlsAndSubjects() {
                         <span>Super Admins automatically have unrestricted access to all {ALL_ADMIN_MODULES.length} system modules.</span>
                       </div>
                     ) : (
-                      <div className="p-2 space-y-1.5 max-h-52 overflow-y-auto rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-950/40 scrollbar-thin">
-                        {ALL_ADMIN_MODULES.map((mod) => {
-                          const checked = adminForm.perms.includes(mod.code);
-                          const maturity = getModuleMaturity(mod.maturity);
+                      <div className="p-2 space-y-2.5 max-h-60 overflow-y-auto rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-950/40 scrollbar-thin">
+                        {ADMIN_CATEGORIES.map((cat) => {
+                          const catModules = ALL_ADMIN_MODULES.filter((m) => m.category === cat.key);
+                          if (catModules.length === 0) return null;
+                          const catCodes = catModules.map((m) => m.code);
+                          const catActiveCount = catCodes.filter((code) => adminForm.perms.includes(code)).length;
+                          const allCatActive = catActiveCount === catCodes.length;
+
                           return (
-                            <label
-                              key={mod.code}
-                              className={`flex items-start gap-2.5 p-2.5 rounded-xl border transition-all select-none cursor-pointer ${
-                                checked
-                                  ? 'bg-white dark:bg-slate-900 border-indigo-300 dark:border-indigo-700/80 shadow-xs ring-1 ring-indigo-400/20'
-                                  : 'bg-white/60 dark:bg-slate-900/60 border-slate-200/80 dark:border-slate-800/80 hover:bg-white dark:hover:bg-slate-900 opacity-80'
-                              }`}
-                            >
-                              <input
-                                type="checkbox"
-                                checked={checked}
-                                onChange={(e) => {
-                                  const updated = e.target.checked
-                                    ? [...adminForm.perms, mod.code]
-                                    : adminForm.perms.filter((p) => p !== mod.code);
-                                  setAdminForm({ ...adminForm, perms: updated });
-                                }}
-                                className="mt-0.5 w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                              />
-                              <div className="min-w-0 flex-1">
-                                <span className="flex min-w-0 items-center gap-1.5">
-                                  <span className={`min-w-0 truncate text-xs leading-tight ${checked ? 'font-black text-slate-900 dark:text-white' : 'font-semibold text-slate-700 dark:text-slate-300'}`}>
-                                    {mod.label}
-                                  </span>
-                                  <span
-                                    title={mod.maturityNote}
-                                    className={`flex-shrink-0 rounded border px-1 py-px text-[7.5px] font-black leading-none tracking-wide ${maturity.badgeClass}`}
-                                  >
-                                    {maturity.label}
-                                  </span>
+                            <div key={cat.key} className="space-y-1 bg-white/70 dark:bg-slate-900/70 p-2 rounded-xl border border-slate-200/80 dark:border-slate-800/80">
+                              <div className="flex items-center justify-between pb-1 border-b border-slate-100 dark:border-slate-800">
+                                <span className="text-[10px] font-black uppercase text-slate-700 dark:text-slate-300">
+                                  {cat.title} ({catActiveCount}/{catModules.length})
                                 </span>
-                                <span className="text-[10.5px] font-normal text-slate-500 dark:text-slate-400 block truncate mt-0.5">
-                                  {mod.desc}
-                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const updated = allCatActive
+                                      ? adminForm.perms.filter((c) => !catCodes.includes(c))
+                                      : Array.from(new Set([...adminForm.perms, ...catCodes]));
+                                    setAdminForm({ ...adminForm, perms: updated });
+                                  }}
+                                  className="text-[9px] font-black text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
+                                >
+                                  {allCatActive ? 'Deselect Group' : 'Select Group'}
+                                </button>
                               </div>
-                            </label>
+
+                              <div className="space-y-1 pt-0.5">
+                                {catModules.map((mod) => {
+                                  const checked = adminForm.perms.includes(mod.code);
+                                  const maturity = getModuleMaturity(mod.maturity);
+                                  return (
+                                    <label
+                                      key={mod.code}
+                                      className={`flex items-start gap-2 p-1.5 rounded-lg border transition-all select-none cursor-pointer ${
+                                        checked
+                                          ? 'bg-indigo-50/60 dark:bg-indigo-950/40 border-indigo-300 dark:border-indigo-700/80 shadow-2xs'
+                                          : 'bg-white/40 dark:bg-slate-900/40 border-slate-200/60 dark:border-slate-800/60 opacity-85 hover:opacity-100'
+                                      }`}
+                                    >
+                                      <input
+                                        type="checkbox"
+                                        checked={checked}
+                                        onChange={(e) => {
+                                          const updated = e.target.checked
+                                            ? [...adminForm.perms, mod.code]
+                                            : adminForm.perms.filter((p) => p !== mod.code);
+                                          setAdminForm({ ...adminForm, perms: updated });
+                                        }}
+                                        className="mt-0.5 w-3.5 h-3.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                                      />
+                                      <div className="min-w-0 flex-1 leading-tight">
+                                        <div className="flex items-center gap-1.5 flex-wrap">
+                                          <span className={`text-[11px] ${checked ? 'font-black text-slate-900 dark:text-white' : 'font-semibold text-slate-700 dark:text-slate-300'}`}>
+                                            {mod.label}
+                                          </span>
+                                          {mod.isNew && (
+                                            <span className="px-1 py-0.2 rounded text-[7px] font-black bg-emerald-500 text-white uppercase tracking-wider">
+                                              NEW
+                                            </span>
+                                          )}
+                                          <span
+                                            title={mod.maturityNote}
+                                            className={`rounded border px-1 py-0.2 text-[7px] font-black leading-none ${maturity.badgeClass}`}
+                                          >
+                                            {maturity.label}
+                                          </span>
+                                        </div>
+                                        <span className="text-[9.5px] text-slate-500 dark:text-slate-400 block truncate mt-0.5">
+                                          {mod.desc}
+                                        </span>
+                                      </div>
+                                    </label>
+                                  );
+                                })}
+                              </div>
+                            </div>
                           );
                         })}
                       </div>
