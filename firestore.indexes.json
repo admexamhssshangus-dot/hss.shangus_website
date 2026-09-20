@@ -1,0 +1,60 @@
+{
+  "indexes": [],
+  "fieldOverrides": [
+    {
+      "collectionGroup": "studentPhotos",
+      "fieldPath": "photo_id",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "studentPhotos",
+      "fieldPath": "photoData",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "studentPhotos",
+      "fieldPath": "photoHistory",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "masterRegisters",
+      "fieldPath": "items",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "masterRegisters",
+      "fieldPath": "students",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "masterRegisters",
+      "fieldPath": "records",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "attendance",
+      "fieldPath": "records",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "practicalsData",
+      "fieldPath": "records",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "generatedDocumentHistory",
+      "fieldPath": "bodyHtml",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "generatedDocumentHistory",
+      "fieldPath": "extraData",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "site",
+      "fieldPath": "items",
+      "indexes": []
+    }
+  ]
+}
