@@ -113,7 +113,7 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
     const atomAnchor = new THREE.Group();
     const atomHomePos = {
       x: 0,
-      y: isMobile ? 1.05 : 1.30,
+      y: isMobile ? 1.00 : 1.22,
       z: -0.1
     };
     atomAnchor.position.set(atomHomePos.x, atomHomePos.y, atomHomePos.z);
@@ -175,6 +175,7 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
 
     // -------------------------------------------------------------------------
     // 1B. CARBON INNER SHELL (1s² ORBITAL) — EXACTLY 2 ELECTRONS
+    // Pauli-paired core electrons diametrically opposite on n=1 ground state orbital
     // -------------------------------------------------------------------------
     const innerRingMat = new THREE.MeshStandardMaterial({
       color: 0x0ea5e9,
@@ -183,7 +184,8 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
       metalness: 0.9,
       roughness: 0.2
     });
-    const innerRingGeo = new THREE.TorusGeometry(0.56, 0.011, 12, 52);
+    const innerRingRadius = 0.50;
+    const innerRingGeo = new THREE.TorusGeometry(innerRingRadius, 0.010, 12, 52);
     const innerRing = new THREE.Mesh(innerRingGeo, innerRingMat);
     innerRing.rotation.x = Math.PI / 3.5;
     innerRing.rotation.y = Math.PI / 6;
@@ -191,19 +193,23 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
 
     // Electron 1 (Inner 1s electron, paired)
     const electronInnerMat1 = new THREE.MeshBasicMaterial({ color: 0x38bdf8 });
-    const electron1Geo = new THREE.SphereGeometry(0.048, 12, 12);
-    const electron1 = new THREE.Mesh(electron1Geo, electronInnerMat1);
+    const electronCoreGeo = new THREE.SphereGeometry(0.046, 12, 12);
+    const electron1 = new THREE.Mesh(electronCoreGeo, electronInnerMat1);
     innerRing.add(electron1);
 
-    // Electron 2 (Inner 1s electron, opposite phase)
+    // Electron 2 (Inner 1s electron, opposite phase / Pauli paired)
     const electronInnerMat2 = new THREE.MeshBasicMaterial({ color: 0x7dd3fc });
-    const electron2 = new THREE.Mesh(electron1Geo, electronInnerMat2);
+    const electron2 = new THREE.Mesh(electronCoreGeo, electronInnerMat2);
     innerRing.add(electron2);
 
     // -------------------------------------------------------------------------
     // 1C. CARBON OUTER VALENCE SHELL (2s² 2p² / sp³ ORBITALS) — EXACTLY 4 ELECTRONS
-    // 4 spatially oriented orbital rings forming the tetrahedral / orthogonal carbon geometry
+    // 4 degenerate sp³ quantum orbital planes oriented in authentic tetrahedral geometry (109.47°)
+    // Normals point along vertices of regular tetrahedron: (+1,+1,+1), (-1,-1,+1), (-1,+1,-1), (+1,-1,-1)
     // -------------------------------------------------------------------------
+    const valenceRadius = 0.94;
+    const valenceRingGeo = new THREE.TorusGeometry(valenceRadius, 0.009, 12, 56);
+
     const valenceRingMat1 = new THREE.MeshStandardMaterial({
       color: 0xf59e0b,
       emissive: 0xb45309,
@@ -233,156 +239,48 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
       roughness: 0.2
     });
 
-    const valenceRadiusA = 0.88;
-    const valenceRadiusB = 1.04;
-    const valenceRingGeoA = new THREE.TorusGeometry(valenceRadiusA, 0.010, 12, 52);
-    const valenceRingGeoB = new THREE.TorusGeometry(valenceRadiusB, 0.010, 12, 52);
+    const defaultNormalZ = new THREE.Vector3(0, 0, 1);
+    const electronValenceGeo = new THREE.SphereGeometry(0.048, 12, 12);
 
-    // Valence Orbital Ring 1 (Tetrahedral Lobes 1: +35° / +45°)
-    const ringV1 = new THREE.Mesh(valenceRingGeoA, valenceRingMat1);
-    ringV1.rotation.set(0.61, 0.78, 0); // ~35°, 45°
+    // Orbital Ring 1: (+1, +1, +1)
+    const ringV1 = new THREE.Mesh(valenceRingGeo, valenceRingMat1);
+    ringV1.quaternion.setFromUnitVectors(defaultNormalZ, new THREE.Vector3(1, 1, 1).normalize());
     atomInteractiveGroup.add(ringV1);
 
-    // Electron 3 (Valence electron)
+    // Electron 3 (Valence electron 1)
     const electronValenceMat1 = new THREE.MeshBasicMaterial({ color: 0xfde68a });
-    const electron3Geo = new THREE.SphereGeometry(0.052, 12, 12);
-    const electron3 = new THREE.Mesh(electron3Geo, electronValenceMat1);
+    const electron3 = new THREE.Mesh(electronValenceGeo, electronValenceMat1);
     ringV1.add(electron3);
 
-    // Valence Orbital Ring 2 (Tetrahedral Lobes 2: -35° / -45°)
-    const ringV2 = new THREE.Mesh(valenceRingGeoA, valenceRingMat2);
-    ringV2.rotation.set(-0.61, -0.78, 0);
+    // Orbital Ring 2: (-1, -1, +1)
+    const ringV2 = new THREE.Mesh(valenceRingGeo, valenceRingMat2);
+    ringV2.quaternion.setFromUnitVectors(defaultNormalZ, new THREE.Vector3(-1, -1, 1).normalize());
     atomInteractiveGroup.add(ringV2);
 
-    // Electron 4 (Valence electron)
+    // Electron 4 (Valence electron 2)
     const electronValenceMat2 = new THREE.MeshBasicMaterial({ color: 0x6ee7b7 });
-    const electron4 = new THREE.Mesh(electron3Geo, electronValenceMat2);
+    const electron4 = new THREE.Mesh(electronValenceGeo, electronValenceMat2);
     ringV2.add(electron4);
 
-    // Valence Orbital Ring 3 (Spatial Lobes 3: +70° / -30°)
-    const ringV3 = new THREE.Mesh(valenceRingGeoB, valenceRingMat3);
-    ringV3.rotation.set(1.22, -0.52, 0.35);
+    // Orbital Ring 3: (-1, +1, -1)
+    const ringV3 = new THREE.Mesh(valenceRingGeo, valenceRingMat3);
+    ringV3.quaternion.setFromUnitVectors(defaultNormalZ, new THREE.Vector3(-1, 1, -1).normalize());
     atomInteractiveGroup.add(ringV3);
 
-    // Electron 5 (Valence electron)
+    // Electron 5 (Valence electron 3)
     const electronValenceMat3 = new THREE.MeshBasicMaterial({ color: 0x67e8f9 });
-    const electron5 = new THREE.Mesh(electron3Geo, electronValenceMat3);
+    const electron5 = new THREE.Mesh(electronValenceGeo, electronValenceMat3);
     ringV3.add(electron5);
 
-    // Valence Orbital Ring 4 (Spatial Lobes 4: -70° / +30°)
-    const ringV4 = new THREE.Mesh(valenceRingGeoB, valenceRingMat4);
-    ringV4.rotation.set(-1.22, 0.52, -0.35);
+    // Orbital Ring 4: (+1, -1, -1)
+    const ringV4 = new THREE.Mesh(valenceRingGeo, valenceRingMat4);
+    ringV4.quaternion.setFromUnitVectors(defaultNormalZ, new THREE.Vector3(1, -1, -1).normalize());
     atomInteractiveGroup.add(ringV4);
 
-    // Electron 6 (Valence electron)
+    // Electron 6 (Valence electron 4)
     const electronValenceMat4 = new THREE.MeshBasicMaterial({ color: 0xd8b4fe });
-    const electron6 = new THREE.Mesh(electron3Geo, electronValenceMat4);
+    const electron6 = new THREE.Mesh(electronValenceGeo, electronValenceMat4);
     ringV4.add(electron6);
-
-    // -------------------------------------------------------------------------
-    // 1E. SCIENTIFIC HOLOGRAPHIC HUD BADGE: "CARBON-12 • Atom of Life (Z = 6)"
-    // -------------------------------------------------------------------------
-    function createCarbonLabelTexture() {
-      const canvas = document.createElement('canvas');
-      canvas.width = 640;
-      canvas.height = 180;
-      const ctx = canvas.getContext('2d');
-
-      const x = 12;
-      const y = 12;
-      const w = canvas.width - 24;
-      const h = canvas.height - 24;
-      const r = h / 2;
-
-      // Outer glowing ambient shadow
-      ctx.save();
-      ctx.shadowColor = 'rgba(56, 189, 248, 0.45)';
-      ctx.shadowBlur = 18;
-
-      // Dark glassmorphism capsule
-      const bgGrad = ctx.createLinearGradient(x, y, x + w, y + h);
-      bgGrad.addColorStop(0, 'rgba(15, 23, 42, 0.90)');
-      bgGrad.addColorStop(0.5, 'rgba(15, 23, 42, 0.84)');
-      bgGrad.addColorStop(1, 'rgba(15, 23, 42, 0.92)');
-
-      ctx.beginPath();
-      if (ctx.roundRect) {
-        ctx.roundRect(x, y, w, h, r);
-      } else {
-        ctx.moveTo(x + r, y);
-        ctx.arcTo(x + w, y, x + w, y + h, r);
-        ctx.arcTo(x + w, y + h, x, y + h, r);
-        ctx.arcTo(x, y + h, x, y, r);
-        ctx.arcTo(x, y, x + w, y, r);
-        ctx.closePath();
-      }
-      ctx.fillStyle = bgGrad;
-      ctx.fill();
-
-      // Border: Electric Cyan to Golden Amber gradient
-      const borderGrad = ctx.createLinearGradient(x, y, x + w, y);
-      borderGrad.addColorStop(0, 'rgba(56, 189, 248, 0.85)');
-      borderGrad.addColorStop(0.5, 'rgba(147, 197, 253, 0.50)');
-      borderGrad.addColorStop(1, 'rgba(245, 158, 11, 0.75)');
-
-      ctx.lineWidth = 3;
-      ctx.strokeStyle = borderGrad;
-      ctx.stroke();
-      ctx.restore();
-
-      // Chemical Element Insignia Circle: ₆C
-      const badgeX = x + 62;
-      const badgeY = y + h / 2;
-      const badgeR = 36;
-      ctx.save();
-      ctx.beginPath();
-      ctx.arc(badgeX, badgeY, badgeR, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(14, 165, 233, 0.28)';
-      ctx.fill();
-      ctx.strokeStyle = 'rgba(56, 189, 248, 0.75)';
-      ctx.lineWidth = 2.5;
-      ctx.stroke();
-
-      ctx.font = 'bold 36px "Outfit", "Inter", -apple-system, sans-serif';
-      ctx.fillStyle = '#38bdf8';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText('₆C', badgeX, badgeY - 1);
-      ctx.restore();
-
-      // Main Title: "CARBON-12"
-      ctx.save();
-      ctx.textAlign = 'left';
-      ctx.textBaseline = 'middle';
-      ctx.font = '800 42px "Outfit", "Inter", -apple-system, sans-serif';
-      ctx.fillStyle = '#ffffff';
-      ctx.shadowColor = 'rgba(56, 189, 248, 0.6)';
-      ctx.shadowBlur = 8;
-      ctx.fillText('CARBON-12', x + 118, y + 48);
-
-      // Subtitle: "Atom of Life • Z = 6"
-      ctx.font = '600 24px "Inter", -apple-system, sans-serif';
-      ctx.fillStyle = '#94a3b8';
-      ctx.shadowBlur = 0;
-      ctx.fillText('Atom of Life  •  Z = 6', x + 120, y + 96);
-      ctx.restore();
-
-      const texture = new THREE.CanvasTexture(canvas);
-      texture.colorSpace = THREE.SRGBColorSpace;
-      return texture;
-    }
-
-    const carbonLabelTexture = createCarbonLabelTexture();
-    const carbonLabelMat = new THREE.SpriteMaterial({
-      map: carbonLabelTexture,
-      transparent: true,
-      opacity: 0.0,
-      depthWrite: false
-    });
-    const carbonLabelSprite = new THREE.Sprite(carbonLabelMat);
-    carbonLabelSprite.position.set(0, 1.20, 0.1);
-    carbonLabelSprite.scale.set(1.30, 0.36, 1);
-    atomAnchor.add(carbonLabelSprite);
 
     masterGroup.add(atomAnchor);
 
@@ -834,7 +732,7 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
       masterGroup.scale.set(newBaseScale, newBaseScale, newBaseScale);
 
       // Reposition anchors with clean comfortable spacing
-      atomHomePos.y = mobileNow ? 1.05 : 1.30;
+      atomHomePos.y = mobileNow ? 1.00 : 1.22;
       atomAnchor.scale.setScalar(mobileNow ? 0.44 : 0.58);
 
       bookHomePos.x = mobileNow ? -1.60 : -2.35;
@@ -918,26 +816,21 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
         heroContainerEl.style.cursor = isDirectHover ? 'pointer' : '';
       }
 
-      // 3D HUD label appears on hover along with tooltip
-      const targetLabelOpacity = isAtomHovered ? (0.90 + Math.sin(time * 0.003 * speedMult) * 0.08) : 0.0;
-      carbonLabelMat.opacity += (targetLabelOpacity - carbonLabelMat.opacity) * 0.14;
-
-      // Position and update HTML scientific tooltip card
+      // Position and update HTML scientific tooltip card (strictly in empty top area above atom & all hero elements)
       if (tooltipEl) {
         if (isAtomHovered) {
-          const cardWidth = isMobile ? 310 : 380;
-          const cardHeight = isMobile ? 260 : 250;
+          const cardWidth = isMobile ? 265 : 295;
+          const cardHeight = isMobile ? 138 : 126;
 
           let targetX = atomScreenX - (cardWidth / 2);
           targetX = Math.max(12, Math.min(targetX, rect.width - cardWidth - 12));
 
-          let targetY;
-          if (atomScreenY > cardHeight + 40) {
-            targetY = atomScreenY - cardHeight - 35;
-          } else {
-            targetY = atomScreenY + 45;
+          // Position strictly in the clear empty area at top of hero, clearing atom and motto text completely
+          const minTopMargin = isMobile ? 8 : 12;
+          let targetY = atomScreenY - cardHeight - 50;
+          if (targetY < minTopMargin) {
+            targetY = minTopMargin;
           }
-          targetY = Math.max(10, Math.min(targetY, rect.height - cardHeight - 10));
 
           tooltipEl.style.transform = `translate3d(${Math.round(targetX)}px, ${Math.round(targetY)}px, 0)`;
           tooltipEl.style.opacity = '1';
@@ -987,29 +880,31 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
       const mouseSpeedBoost = 1.0 + Math.hypot(mouseNormX, mouseNormY) * 3.0;
 
       // 1. Inner Shell (1s²) Electrons Animation:
-      // High-speed paired quantum orbit (radius = 0.56)
+      // High-speed paired quantum orbit (radius = 0.50), diametrically opposite (180° Pauli paired)
+      // Speed is ~3.2 rad/s, exactly 2x valence speed obeying Bohr velocity v_n ∝ 1/n
       innerElectronAngle += 3.2 * delta * speedMult * mouseSpeedBoost;
-      electron1.position.set(Math.cos(innerElectronAngle) * 0.56, Math.sin(innerElectronAngle) * 0.56, 0);
-      electron2.position.set(Math.cos(innerElectronAngle + Math.PI) * 0.56, Math.sin(innerElectronAngle + Math.PI) * 0.56, 0);
+      electron1.position.set(Math.cos(innerElectronAngle) * 0.50, Math.sin(innerElectronAngle) * 0.50, 0);
+      electron2.position.set(Math.cos(innerElectronAngle + Math.PI) * 0.50, Math.sin(innerElectronAngle + Math.PI) * 0.50, 0);
 
       // 2. Outer Valence Shell (2s² 2p² / sp³) Electrons Animation:
-      // 4 electrons in distinct spatial orbital planes with quantum nodal precession
-      valenceElectronAngle1 += 1.8 * delta * speedMult * mouseSpeedBoost;
-      valenceElectronAngle2 += 1.7 * delta * speedMult * mouseSpeedBoost;
-      valenceElectronAngle3 += 1.5 * delta * speedMult * mouseSpeedBoost;
+      // 4 electrons in distinct tetrahedral orbital planes with staggered phases (0, π/2, π, 3π/2)
+      // Moving at quantum orbital speed ~1.6 rad/s on their respective planes
+      valenceElectronAngle1 += 1.6 * delta * speedMult * mouseSpeedBoost;
+      valenceElectronAngle2 += 1.6 * delta * speedMult * mouseSpeedBoost;
+      valenceElectronAngle3 += 1.6 * delta * speedMult * mouseSpeedBoost;
       valenceElectronAngle4 += 1.6 * delta * speedMult * mouseSpeedBoost;
 
-      electron3.position.set(Math.cos(valenceElectronAngle1) * valenceRadiusA, Math.sin(valenceElectronAngle1) * valenceRadiusA, 0);
-      electron4.position.set(Math.cos(valenceElectronAngle2) * valenceRadiusA, Math.sin(valenceElectronAngle2) * valenceRadiusA, 0);
-      electron5.position.set(Math.cos(valenceElectronAngle3) * valenceRadiusB, Math.sin(valenceElectronAngle3) * valenceRadiusB, 0);
-      electron6.position.set(Math.cos(valenceElectronAngle4) * valenceRadiusB, Math.sin(valenceElectronAngle4) * valenceRadiusB, 0);
+      electron3.position.set(Math.cos(valenceElectronAngle1) * valenceRadius, Math.sin(valenceElectronAngle1) * valenceRadius, 0);
+      electron4.position.set(Math.cos(valenceElectronAngle2) * valenceRadius, Math.sin(valenceElectronAngle2) * valenceRadius, 0);
+      electron5.position.set(Math.cos(valenceElectronAngle3) * valenceRadius, Math.sin(valenceElectronAngle3) * valenceRadius, 0);
+      electron6.position.set(Math.cos(valenceElectronAngle4) * valenceRadius, Math.sin(valenceElectronAngle4) * valenceRadius, 0);
 
-      // Nodal orbital precession
-      ringV1.rotation.z += 0.22 * delta * speedMult;
-      ringV2.rotation.z -= 0.20 * delta * speedMult;
-      ringV3.rotation.z += 0.17 * delta * speedMult;
-      ringV4.rotation.z -= 0.19 * delta * speedMult;
-      innerRing.rotation.z += 0.35 * delta * speedMult;
+      // Quantum relativistic orbital precession within orbital planes
+      ringV1.rotateZ(0.18 * delta * speedMult);
+      ringV2.rotateZ(-0.16 * delta * speedMult);
+      ringV3.rotateZ(0.14 * delta * speedMult);
+      ringV4.rotateZ(-0.15 * delta * speedMult);
+      innerRing.rotateZ(0.28 * delta * speedMult);
 
       // -----------------------------------------------------------------------
       // 8B. BOOK: ENHANCED HOVER RESPONSIVE CELEBRATION
@@ -1169,7 +1064,6 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
       intersectionObserver.disconnect();
 
       if (logoTexture) logoTexture.dispose();
-      if (carbonLabelTexture) carbonLabelTexture.dispose();
 
       scene.traverse((child) => {
         if (child.isMesh || child.isPoints || child.isSprite) {
@@ -1201,37 +1095,37 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
     <div
       ref={containerRef}
       aria-hidden="true"
-      className={`hero-3d-canvas-container absolute inset-0 w-full h-full pointer-events-none z-10 overflow-hidden ${className}`}
+      className={`hero-3d-canvas-container absolute inset-0 w-full h-full pointer-events-none z-30 overflow-visible ${className}`}
       style={{ opacity: 0.94 }}
     >
-      {/* Interactive Carbon Atom & School Seal Scientific Tooltip Card */}
+      {/* Compact Interactive Carbon Atom & School Seal Scientific Tooltip Card (Placed strictly above all) */}
       <div
         ref={tooltipRef}
         role="tooltip"
         aria-hidden={!pinnedTooltip}
-        className="absolute transition-opacity duration-300 pointer-events-none opacity-0 z-30"
+        className="absolute transition-opacity duration-300 pointer-events-none opacity-0 z-50"
         style={{
           top: 0,
           left: 0,
           transform: 'translate3d(-9999px, -9999px, 0)'
         }}
       >
-        <div className="relative w-[310px] sm:w-[380px] bg-slate-900/95 backdrop-blur-xl border border-cyan-500/40 rounded-2xl shadow-2xl shadow-cyan-950/70 p-3.5 sm:p-4 text-left pointer-events-auto text-slate-100 ring-1 ring-white/10">
+        <div className="relative w-[265px] sm:w-[295px] bg-slate-950/95 backdrop-blur-xl border border-cyan-500/40 rounded-xl shadow-2xl shadow-cyan-950/80 p-2 sm:p-2.5 text-left pointer-events-auto text-slate-100 ring-1 ring-white/10">
           {/* Top glowing accent hairline */}
-          <div className="absolute top-0 inset-x-4 h-[2px] bg-gradient-to-r from-cyan-400 via-amber-400 to-sky-400 rounded-full" />
+          <div className="absolute top-0 inset-x-3 h-[2px] bg-gradient-to-r from-cyan-400 via-amber-400 to-emerald-400 rounded-full" />
           
-          {/* Header */}
-          <div className="flex items-center justify-between gap-2 pb-2 mb-2 border-b border-slate-700/60">
-            <div className="flex items-center gap-2">
-              <span className="w-7 h-7 rounded-lg bg-cyan-500/20 border border-cyan-400/40 flex items-center justify-center text-cyan-300 font-bold text-xs sm:text-sm shadow-xs shadow-cyan-500/30 font-mono">
+          {/* Compact Header */}
+          <div className="flex items-center justify-between gap-1.5 pb-1.5 mb-1.5 border-b border-slate-700/60">
+            <div className="flex items-center gap-1.5">
+              <span className="w-5 h-5 rounded bg-cyan-500/20 border border-cyan-400/40 flex items-center justify-center text-cyan-300 font-bold text-[10px] shadow-xs shadow-cyan-500/30 font-mono">
                 ₆C
               </span>
               <div>
-                <h4 className="font-bold text-white text-xs sm:text-sm tracking-wide flex items-center gap-1.5 leading-tight font-heading">
-                  Carbon-12 Atom Orbitals
+                <h4 className="font-bold text-white text-[11px] sm:text-xs tracking-wide flex items-center gap-1 leading-none font-heading">
+                  Carbon-12 Orbitals
                 </h4>
-                <span className="text-[10px] text-cyan-300/90 font-mono tracking-wider">
-                  Atomic Number: Z = 6
+                <span className="text-[9px] sm:text-[9.5px] text-cyan-300/90 font-mono">
+                  Z = 6 • 1s² 2s² 2p² (sp³)
                 </span>
               </div>
             </div>
@@ -1244,45 +1138,45 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
                   tooltipRef.current.style.pointerEvents = 'none';
                 }
               }}
-              className="text-slate-400 hover:text-white p-1 rounded-md text-xs sm:hidden"
+              className="text-slate-400 hover:text-white p-0.5 rounded text-xs sm:hidden leading-none"
               aria-label="Close details"
             >
               ✕
             </button>
           </div>
 
-          {/* 3 Detail Blocks */}
-          <div className="space-y-2 text-[11px] sm:text-xs text-slate-300 leading-relaxed">
+          {/* 3 Compact Micro Detail Blocks */}
+          <div className="space-y-1.5 text-[9.5px] sm:text-[10px] text-slate-300 leading-snug">
             {/* 1. Carbon */}
-            <div className="bg-slate-800/60 rounded-lg p-2 border border-slate-700/50">
-              <div className="font-semibold text-cyan-300 flex items-center gap-1 text-[11.5px] mb-0.5">
-                <span>⚛️</span> The Carbon Atom of Life
+            <div className="flex items-start gap-1.5 bg-slate-900/80 rounded-md p-1.5 border border-slate-800/80">
+              <span className="text-cyan-400 text-xs shrink-0 mt-0.5">⚛️</span>
+              <div>
+                <span className="font-semibold text-cyan-200">Carbon of Life:</span>{' '}
+                <span className="text-slate-300">2 inner 1s² core + 4 valence sp³ electrons; fundamental foundation of organic life.</span>
               </div>
-              <p className="text-slate-300/95 text-[10.5px] sm:text-[11px]">
-                Six electrons in exact quantum orbitals: 2 inner <code className="text-amber-300 bg-amber-950/60 px-1 py-0.5 rounded font-mono">1s²</code> paired core electrons and 4 outer valence <code className="text-cyan-300 bg-cyan-950/60 px-1 py-0.5 rounded font-mono">sp³</code> electrons. As the elemental building block of organic life, Carbon embodies adaptability and diamond-like strength achieved through perseverance.
-              </p>
             </div>
 
             {/* 2. School Logo */}
-            <div className="bg-slate-800/60 rounded-lg p-2 border border-slate-700/50">
-              <div className="font-semibold text-amber-300 flex items-center gap-1 text-[11.5px] mb-0.5">
-                <span>🏫</span> HSS Shangus Institutional Nucleus
+            <div className="flex items-start gap-1.5 bg-slate-900/80 rounded-md p-1.5 border border-slate-800/80">
+              <span className="text-amber-400 text-xs shrink-0 mt-0.5">🏫</span>
+              <div>
+                <span className="font-semibold text-amber-200">HSS Shangus Nucleus:</span>{' '}
+                <span className="text-slate-300">Official seal at atomic core — source of knowledge, ethics & discipline.</span>
               </div>
-              <p className="text-slate-300/95 text-[10.5px] sm:text-[11px]">
-                Enshrined at the atomic nucleus is the official seal of Govt. Higher Secondary School Shangus — the moral and academic core from which curiosity, discipline, and scientific wonder radiate.
-              </p>
             </div>
 
             {/* 3. Overall Theme */}
-            <div className="bg-slate-800/60 rounded-lg p-2 border border-slate-700/50">
-              <div className="font-semibold text-emerald-300 flex items-center gap-1 text-[11.5px] mb-0.5">
-                <span>🌌</span> Overall Educational Theme
+            <div className="flex items-start gap-1.5 bg-slate-900/80 rounded-md p-1.5 border border-slate-800/80">
+              <span className="text-emerald-400 text-xs shrink-0 mt-0.5">🌌</span>
+              <div>
+                <span className="font-semibold text-emerald-200">Educational Theme:</span>{' '}
+                <span className="text-slate-300">Patrolling over <em className="text-white not-italic font-semibold font-slogan">"nurturing minds, shaping futures"</em> to ignite potential.</span>
               </div>
-              <p className="text-slate-300/95 text-[10.5px] sm:text-[11px]">
-                Patrolling end-to-end over <em className="text-white not-italic font-semibold font-slogan">"nurturing minds, shaping futures"</em>, this asset unites natural science with human potential, reminding every student that learning transforms elemental sparks into brilliant futures.
-              </p>
             </div>
           </div>
+
+          {/* Subtle downward directional pip connecting the card to the atom below */}
+          <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-slate-950 border-r border-b border-cyan-500/40 rotate-45" />
         </div>
       </div>
     </div>
