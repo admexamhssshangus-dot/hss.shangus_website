@@ -183,6 +183,7 @@ export default function Home() {
   const [tickerPaused, setTickerPaused] = useState(false);
   const [tickerHidden, setTickerHidden] = useState(false);
   const [principalName, setPrincipalName] = useState("Mr. Aijaz Ahmad Wagay");
+  const [hoveredHeroAction, setHoveredHeroAction] = useState(null);
   const [slides, setSlides] = useState(() => {
     try {
       const local = localStorage.getItem('site_slides');
@@ -411,7 +412,7 @@ export default function Home() {
         {/* Dynamic 3D Hero Experience (Lazy-loaded, strictly rendered only when enabled in CMS) */}
         {Boolean(settings?.enable3dHeroAssets) && (
           <React.Suspense fallback={null}>
-            <Hero3DExperience />
+            <Hero3DExperience hoveredAction={hoveredHeroAction} />
           </React.Suspense>
         )}
         
@@ -445,6 +446,12 @@ export default function Home() {
                     btn.openInNewTab
                   )
                 );
+                // Classify action for 3D asset micro-interaction:
+                // Primary/Admissions button triggers Book of Wisdom
+                // Secondary/Learn More button triggers Graduation Cap
+                const actionKey = (btn.trackAdmissionStatus || idx === 0 || (btn.label && btn.label.toLowerCase().includes('admission')))
+                  ? 'admissions'
+                  : 'learn';
 
                 const styleClassMap = {
                   primary: 'btn-hero-primary',
@@ -466,6 +473,8 @@ export default function Home() {
                       target={btn.openInNewTab ? '_blank' : undefined}
                       rel={btn.openInNewTab ? 'noopener noreferrer' : undefined}
                       className={baseClasses}
+                      onMouseEnter={() => setHoveredHeroAction(actionKey)}
+                      onMouseLeave={() => setHoveredHeroAction(null)}
                     >
                       {displayText}
                     </a>
@@ -477,6 +486,8 @@ export default function Home() {
                     key={btn.id || `hero-btn-${idx}`}
                     to={btn.link || '/'}
                     className={baseClasses}
+                    onMouseEnter={() => setHoveredHeroAction(actionKey)}
+                    onMouseLeave={() => setHoveredHeroAction(null)}
                   >
                     {displayText}
                   </Link>

@@ -405,7 +405,7 @@ function ToggleSwitch({ checked, onChange, disabled = false, labelLeft = '', lab
   return (
     <div className="flex items-center gap-1.5 select-none">
       {labelLeft && (
-        <span className={`text-[10px] font-bold uppercase tracking-wider transition-colors ${!checked ? 'text-emerald-400' : 'text-slate-500'}`}>
+        <span className={`text-[10px] font-black uppercase tracking-wider transition-colors ${!checked ? 'text-emerald-700 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-500'}`}>
           {labelLeft}
         </span>
       )}
@@ -413,14 +413,14 @@ function ToggleSwitch({ checked, onChange, disabled = false, labelLeft = '', lab
         type="button"
         disabled={disabled}
         onClick={() => onChange(!checked)}
-        className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none disabled:opacity-40 disabled:cursor-not-allowed ${checked ? 'bg-emerald-600' : 'bg-slate-700'}`}
+        className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border border-slate-300 dark:border-slate-700 transition-colors duration-200 ease-in-out focus:outline-none disabled:opacity-40 disabled:cursor-not-allowed ${checked ? 'bg-emerald-600 dark:bg-emerald-500' : 'bg-slate-300 dark:bg-slate-700'}`}
       >
         <span
-          className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${checked ? 'translate-x-4' : 'translate-x-0'}`}
+          className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${checked ? 'translate-x-4' : 'translate-x-0'}`}
         />
       </button>
       {labelRight && (
-        <span className={`text-[10px] font-bold uppercase tracking-wider transition-colors ${checked ? 'text-red-400' : 'text-slate-500'}`}>
+        <span className={`text-[10px] font-black uppercase tracking-wider transition-colors ${checked ? 'text-rose-700 dark:text-rose-400' : 'text-slate-400 dark:text-slate-500'}`}>
           {labelRight}
         </span>
       )}
@@ -1366,6 +1366,17 @@ function AdminPortalContent({ embeddedUser, onEmbeddedLogout, initialTab }) {
   const [saveStages, setSaveStages] = useState([]); // array of stage objects
   const [savePopupResult, setSavePopupResult] = useState(null); // success/error popup content
   const [dataIssues, setDataIssues] = useState([]);
+
+  // Auto-dismiss save success banner after 3.5s so it never clutters the interface
+  useEffect(() => {
+    if (savePopupResult?.success) {
+      const timer = setTimeout(() => {
+        setSaveProgress(null);
+        setSavePopupResult(null);
+      }, 3500);
+      return () => clearTimeout(timer);
+    }
+  }, [savePopupResult]);
   const [showIssuesList, setShowIssuesList] = useState(false);
   // Map of faculty index => { severity: 'error'|'warning', messages: string[] }
   const [facultyIssueMap, setFacultyIssueMap] = useState({});
@@ -5994,19 +6005,62 @@ function AdminPortalContent({ embeddedUser, onEmbeddedLogout, initialTab }) {
     <div className={`${embeddedUser ? 'min-h-[70vh] py-1 rounded-2xl' : 'min-h-screen py-4'} bg-slate-50/70 dark:bg-slate-950 text-slate-800 dark:text-slate-100 admin-portal-container admin-portal-theme`}>
       <style dangerouslySetInnerHTML={{
         __html: `
-        /* Theme-Aware Contrast Enhancements for Inputs */
+        /* Theme-Aware Contrast Enhancements for Inputs & Surfaces */
         /* Light Theme overrides */
+        .theme-light .admin-portal-container {
+          background-color: #f8fafc !important;
+          color: #0f172a !important;
+        }
+        .theme-light .admin-portal-container .bg-slate-900\/60,
+        .theme-light .admin-portal-container .bg-slate-900\/40,
+        .theme-light .admin-portal-container .bg-slate-900\/30,
+        .theme-light .admin-portal-container .bg-slate-900\/50,
+        .theme-light .admin-portal-container .bg-slate-900\/70 {
+          background-color: #ffffff !important;
+          border-color: #cbd5e1 !important;
+          box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04) !important;
+          color: #0f172a !important;
+        }
+        .theme-light .admin-portal-container .bg-slate-950,
+        .theme-light .admin-portal-container .bg-slate-900 {
+          background-color: #f1f5f9 !important;
+          border-color: #cbd5e1 !important;
+          color: #0f172a !important;
+        }
+        .theme-light .admin-portal-container h1,
+        .theme-light .admin-portal-container h2,
+        .theme-light .admin-portal-container h3,
+        .theme-light .admin-portal-container h4,
+        .theme-light .admin-portal-container h5 {
+          color: #0f172a !important;
+          font-weight: 800 !important;
+        }
+        .theme-light .admin-portal-container p,
+        .theme-light .admin-portal-container .text-slate-400,
+        .theme-light .admin-portal-container .text-slate-500 {
+          color: #475569 !important; /* high-contrast dark slate */
+        }
+        .theme-light .admin-portal-container .text-slate-300,
+        .theme-light .admin-portal-container .text-slate-200,
+        .theme-light .admin-portal-container .text-slate-100 {
+          color: #0f172a !important;
+        }
+        .theme-light .admin-portal-container .border-slate-800,
+        .theme-light .admin-portal-container .border-slate-700 {
+          border-color: #cbd5e1 !important;
+        }
         .theme-light .admin-portal-container input:not([type="checkbox"]):not([type="radio"]), 
         .theme-light .admin-portal-container select, 
         .theme-light .admin-portal-container textarea {
-          border-color: #64748b !important; /* slate-500 border for high contrast */
+          border-color: #94a3b8 !important; /* slate-400 border for high contrast */
           color: #0f172a !important; /* slate-900 text */
           background-color: #ffffff !important; /* white background */
+          font-weight: 600 !important;
         }
         .theme-light .admin-portal-container input::placeholder, 
         .theme-light .admin-portal-container textarea::placeholder {
           color: #64748b !important;
-          opacity: 0.85 !important;
+          opacity: 0.9 !important;
         }
 
 
@@ -6210,107 +6264,89 @@ function AdminPortalContent({ embeddedUser, onEmbeddedLogout, initialTab }) {
           </div>
         </div>}
         
-        {/* Save & Sync Minimal Status Banner */}
+        {/* Save & Sync Compact Status Banner */}
         {saveProgress !== null && (
-          <div className="bg-slate-900 border border-teal-500/50 dark:border-teal-500/40 rounded-xl p-3 sm:px-4 sm:py-2.5 mb-3 shadow-2xl animate-in fade-in slide-in-from-top-2 duration-200 relative overflow-hidden">
-            {/* Minimal top indicator accent line */}
+          <div className="bg-slate-900 border border-teal-500/50 rounded-lg px-3 py-2 mb-2.5 shadow-lg animate-in fade-in slide-in-from-top-1 duration-200 relative overflow-hidden text-xs">
             <div
-              className={`absolute top-0 left-0 right-0 h-[2.5px] transition-all duration-500 ${
+              className={`absolute top-0 left-0 right-0 h-[2px] transition-all duration-300 ${
                 !savePopupResult
                   ? 'bg-gradient-to-r from-teal-400 via-emerald-300 to-cyan-400 animate-pulse'
                   : savePopupResult.success
-                  ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]'
-                  : 'bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.8)]'
+                  ? 'bg-emerald-400'
+                  : 'bg-rose-500'
               }`}
             />
-
-            <div className="flex items-center justify-between gap-3">
-              {/* Left: Icon, Title & Concise Subtext */}
-              <div className="flex items-center gap-2.5 min-w-0">
-                <div className="flex-shrink-0">
-                  {!savePopupResult ? (
-                    <Loader2 className="w-4 h-4 text-teal-300 animate-spin" />
-                  ) : savePopupResult.success ? (
-                    <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                  ) : (
-                    <XCircle className="w-4 h-4 text-rose-400" />
-                  )}
-                </div>
-
-                <div className="min-w-0 flex flex-col justify-center">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-xs sm:text-sm font-extrabold !text-white tracking-tight">
-                      {!savePopupResult ? 'Saving Changes...' : savePopupResult.title}
+            <div className="flex items-center justify-between gap-2.5">
+              <div className="flex items-center gap-2 min-w-0 flex-1">
+                {!savePopupResult ? (
+                  <Loader2 className="w-3.5 h-3.5 text-teal-300 animate-spin shrink-0" />
+                ) : savePopupResult.success ? (
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                ) : (
+                  <XCircle className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+                )}
+                <div className="min-w-0 flex items-center gap-2 flex-wrap">
+                  <span className="font-extrabold text-white text-xs whitespace-nowrap">
+                    {!savePopupResult ? 'Saving Changes...' : savePopupResult.title}
+                  </span>
+                  {!savePopupResult && (
+                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-teal-500/20 text-teal-300 font-bold text-[10px] truncate max-w-xs">
+                      {saveStages.find(s => s.status === 'loading')?.label || 'Pushing changes live to Cloud Database'}
                     </span>
-
-                    {/* In-progress active stage hint */}
-                    {!savePopupResult && (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-teal-500/20 border border-teal-400/40 !text-teal-300 font-bold text-[10px] sm:text-[11px]">
-                        <span className="w-1.5 h-1.5 rounded-full bg-teal-400 animate-pulse" />
-                        {saveStages.find(s => s.status === 'loading')?.label || 'Pushing changes live to Cloud Database'}
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Concise subtext message */}
-                  {savePopupResult && savePopupResult.message && (
-                    <p className="text-[11px] !text-slate-300 mt-0.5 leading-relaxed font-medium">
+                  )}
+                  {savePopupResult?.message && (
+                    <span className="text-[11px] text-slate-300 truncate max-w-sm">
                       {savePopupResult.message}
-                    </p>
+                    </span>
                   )}
                 </div>
               </div>
 
-              {/* Right: Progress Bar & Action */}
-              <div className="flex items-center gap-2.5 flex-shrink-0">
+              <div className="flex items-center gap-2 shrink-0">
                 {!savePopupResult && (
-                  <div className="flex items-center gap-2">
-                    <div className="w-20 sm:w-36 h-2 bg-slate-800 rounded-full overflow-hidden border border-slate-700/60">
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-16 sm:w-24 h-1.5 bg-slate-800 rounded-full overflow-hidden">
                       <div
-                        className="h-full bg-gradient-to-r from-teal-400 via-emerald-400 to-cyan-400 rounded-full transition-all duration-300 ease-out shadow-[0_0_8px_rgba(45,212,191,0.6)]"
+                        className="h-full bg-emerald-400 transition-all duration-300"
                         style={{ width: `${saveProgress}%` }}
                       />
                     </div>
-                    <span className="text-xs font-mono font-black !text-emerald-300 w-8 text-right">
+                    <span className="text-[11px] font-mono font-bold text-emerald-300">
                       {saveProgress}%
                     </span>
                   </div>
                 )}
-
                 {savePopupResult && (
-                  <div className="flex items-center gap-1.5">
-                    {!savePopupResult.success && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSaveProgress(null);
-                          setSavePopupResult(null);
-                        }}
-                        className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 !text-slate-200 text-xs font-bold transition-all border border-slate-700"
-                      >
-                        Dismiss
-                      </button>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (savePopupResult.success) {
-                          setSaveProgress(null);
-                          setSavePopupResult(null);
-                        } else {
-                          handleSaveToLocalStorage();
-                        }
-                      }}
-                      className={`px-3 py-1 rounded-lg text-xs font-extrabold transition-all cursor-pointer ${
-                        savePopupResult.success
-                          ? 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-md shadow-emerald-900/30'
-                          : 'bg-rose-600 hover:bg-rose-500 text-white shadow-md shadow-rose-900/30'
-                      }`}
-                    >
-                      {savePopupResult.success ? 'OK' : 'Retry'}
-                    </button>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (savePopupResult.success) {
+                        setSaveProgress(null);
+                        setSavePopupResult(null);
+                      } else {
+                        handleSaveToLocalStorage();
+                      }
+                    }}
+                    className={`px-2 py-0.5 rounded text-[11px] font-bold cursor-pointer transition-all ${
+                      savePopupResult.success
+                        ? 'bg-emerald-500 text-slate-950 hover:bg-emerald-400'
+                        : 'bg-rose-600 text-white hover:bg-rose-500'
+                    }`}
+                  >
+                    {savePopupResult.success ? 'OK' : 'Retry'}
+                  </button>
                 )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSaveProgress(null);
+                    setSavePopupResult(null);
+                  }}
+                  className="p-1 rounded text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+                  title="Dismiss"
+                >
+                  <X size={13} />
+                </button>
               </div>
             </div>
           </div>
@@ -6452,71 +6488,68 @@ function AdminPortalContent({ embeddedUser, onEmbeddedLogout, initialTab }) {
             {/* TAB 1: ADMISSIONS AND FEES */}
             {activeTab === 'admissions' && allowedTabs.includes('admissions') && (
               <div className="space-y-3 animate-in fade-in duration-200">
-                {/* Global admissions open/close */}
-                <div className="bg-slate-900/60 p-2.5 rounded-lg border border-slate-800 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
-                  <div>
-                    <h3 className="text-sm font-bold text-slate-200">Global Enrollment System</h3>
-                    <p className="text-[11px] text-slate-400 mt-0.5">Enable or disable registration online across all streams and classes.</p>
-                  </div>
-                  <ToggleSwitch
-                    checked={settings.globalAdmissionsClosed}
-                    onChange={handleGlobalToggle}
-                    labelLeft="Open"
-                    labelRight="Closed"
-                  />
-                </div>
-
-                {/* Interactive 3D Educational Assets Toggle */}
-                <div className="bg-slate-900/60 p-3 rounded-lg border border-indigo-500/30 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-                  <div className="flex items-start gap-2.5">
-                    <div className="p-2 rounded-lg bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 mt-0.5 shrink-0">
-                      <Sparkles size={16} />
+                {/* Top Controls: Global Enrollment & 3D Visual Experience in 2-column responsive grid */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                  {/* Global Enrollment System */}
+                  <div className="bg-white dark:bg-slate-900/60 p-3 rounded-xl border border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3 shadow-xs">
+                    <div className="min-w-0 pr-1">
+                      <h3 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-slate-100">Global Enrollment System</h3>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">Enable or disable registration online across all streams.</p>
                     </div>
-                    <div>
+                    <div className="shrink-0">
+                      <ToggleSwitch
+                        checked={settings.globalAdmissionsClosed}
+                        onChange={handleGlobalToggle}
+                        labelLeft="Open"
+                        labelRight="Closed"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Interactive 3D Educational Assets Toggle */}
+                  <div className="bg-white dark:bg-slate-900/60 p-3 rounded-xl border border-indigo-200 dark:border-indigo-500/30 flex items-center justify-between gap-3 shadow-xs">
+                    <div className="min-w-0 pr-1">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <h3 className="text-sm font-bold text-slate-200">Interactive 3D Visual Experience (Hero Banner)</h3>
-                        <span className={`text-[9.5px] uppercase font-extrabold px-2 py-0.5 rounded-full border ${
+                        <div className="p-1 rounded-md bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 shrink-0">
+                          <Sparkles size={14} />
+                        </div>
+                        <h3 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-slate-100">Hero 3D Experience</h3>
+                        <span className={`text-[9px] uppercase font-black px-1.5 py-0.5 rounded-md border ${
                           settings.enable3dHeroAssets
-                            ? 'bg-indigo-950/90 text-indigo-300 border-indigo-600/50'
-                            : 'bg-slate-800 text-slate-400 border-slate-700'
+                            ? 'bg-indigo-100 dark:bg-indigo-950/90 text-indigo-700 dark:text-indigo-300 border-indigo-300 dark:border-indigo-600/50'
+                            : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-300 dark:border-slate-700'
                         }`}>
-                          {settings.enable3dHeroAssets ? '3D Active' : 'Classic 2D Mode'}
+                          {settings.enable3dHeroAssets ? '3D Active' : '2D Mode'}
                         </span>
                       </div>
-                      <p className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">
-                        Toggle lightweight, mobile-responsive 3D educational assets (Knowledge Core, Floating Book of Wisdom & Constellation) on the homepage. When disabled, the website instantly loads the standard 2D layout with zero 3D code.
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight line-clamp-2">
+                        Toggle 3D educational assets on homepage. Disabled mode loads standard 2D layout.
                       </p>
                     </div>
-                  </div>
-                  <div className="self-end sm:self-center shrink-0">
-                    <ToggleSwitch
-                      checked={Boolean(settings.enable3dHeroAssets)}
-                      onChange={(val) => setSettings((s) => ({ ...s, enable3dHeroAssets: val }))}
-                      labelLeft="Off"
-                      labelRight="On"
-                    />
+                    <div className="shrink-0">
+                      <ToggleSwitch
+                        checked={Boolean(settings.enable3dHeroAssets)}
+                        onChange={(val) => setSettings((s) => ({ ...s, enable3dHeroAssets: val }))}
+                        labelLeft="Off"
+                        labelRight="On"
+                      />
+                    </div>
                   </div>
                 </div>
 
                 {/* Class admissions flags */}
                 <div>
-                  <h3 className="text-xs font-semibold uppercase text-slate-400 tracking-wider mb-2">Class-Wise Admission Flags</h3>
+                  <h3 className="text-[11px] font-bold uppercase text-slate-500 dark:text-slate-400 tracking-wider mb-1.5">Class-Wise Admission Flags</h3>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                     {['9th', '10th', '11th', '12th'].map((cls) => {
-                      const isClosed = settings.globalAdmissionsClosed || settings.admissionsClosed[cls];
                       return (
-                        <div key={cls} className="bg-slate-900/30 px-2.5 py-1.5 rounded-lg border border-slate-800 flex items-center justify-between gap-2">
-                          <span className="font-bold text-xs text-slate-300 whitespace-nowrap">{cls} Class</span>
-                          <div className="flex items-center gap-2">
-                            <span className={`text-[9px] uppercase font-bold px-2 py-0.5 rounded-full whitespace-nowrap ${isClosed ? 'bg-red-950 text-red-400 border border-red-900' : 'bg-emerald-950 text-emerald-400 border border-emerald-900'}`}>
-                              {isClosed ? 'Closed' : 'Open'}
-                            </span>
-                            <ToggleSwitch
-                              checked={settings.admissionsClosed[cls]}
-                              onChange={() => handleClassToggle(cls)}
-                              disabled={settings.globalAdmissionsClosed}
-                            />
-                          </div>
+                        <div key={cls} className="bg-white dark:bg-slate-900/40 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2 shadow-xs">
+                          <span className="font-bold text-xs text-slate-800 dark:text-slate-200 whitespace-nowrap">{cls} Class</span>
+                          <ToggleSwitch
+                            checked={settings.admissionsClosed[cls]}
+                            onChange={() => handleClassToggle(cls)}
+                            disabled={settings.globalAdmissionsClosed}
+                          />
                         </div>
                       );
                     })}
@@ -6525,33 +6558,33 @@ function AdminPortalContent({ embeddedUser, onEmbeddedLogout, initialTab }) {
 
                 {/* Fee structure configuration */}
                 <div>
-                  <h3 className="text-xs font-semibold uppercase text-slate-400 tracking-wider mb-2">Fee Structure Configuration (INR)</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <h3 className="text-[11px] font-bold uppercase text-slate-500 dark:text-slate-400 tracking-wider mb-1.5">Fee Structure Configuration (INR)</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
                     {/* Science Stream Card */}
-                    <div className="bg-slate-900/30 p-3.5 rounded-xl border border-teal-500/20 shadow-sm relative overflow-hidden transition-all hover:border-teal-500/40">
-                      <div className="absolute top-0 left-0 w-1.5 h-full bg-teal-500"></div>
-                      <div className="flex items-center gap-1.5 mb-3">
-                        <span className="p-1 rounded-md bg-teal-500/10 text-teal-500">
-                          <Users size={14} className="stroke-[2.5px]" />
+                    <div className="bg-white dark:bg-slate-900/40 p-3 rounded-xl border border-teal-200 dark:border-teal-500/20 shadow-xs relative overflow-hidden transition-all hover:border-teal-500/40">
+                      <div className="absolute top-0 left-0 w-1 h-full bg-teal-500"></div>
+                      <div className="flex items-center gap-1.5 mb-2.5">
+                        <span className="p-1 rounded-md bg-teal-50 dark:bg-teal-500/10 text-teal-600 dark:text-teal-400">
+                          <Users size={13} className="stroke-[2.5px]" />
                         </span>
-                        <h4 className="font-extrabold text-slate-200 text-xs uppercase tracking-wider">Science Stream</h4>
+                        <h4 className="font-extrabold text-slate-900 dark:text-slate-100 text-xs uppercase tracking-wider">Science Stream</h4>
                       </div>
-                      <div className="space-y-2.5">
+                      <div className="space-y-2">
                         {[
                           { key: '11th_science_boys', label: '11th Science (Boys)' },
                           { key: '11th_science_girls', label: '11th Science (Girls)' },
                           { key: '12th_science_boys', label: '12th Science (Boys)' },
                           { key: '12th_science_girls', label: '12th Science (Girls)' }
                         ].map((feeItem) => (
-                          <div key={feeItem.key} className="flex justify-between items-center gap-3 text-xs">
-                            <span className="text-slate-400 font-medium">{feeItem.label}</span>
-                            <div className="flex items-center bg-slate-950 border border-teal-500/35 rounded px-2 w-28 transition-colors focus-within:border-teal-500">
-                              <span className="text-[10px] text-teal-500/70 font-bold mr-1">Rs.</span>
+                          <div key={feeItem.key} className="flex justify-between items-center gap-2 text-xs">
+                            <span className="text-slate-700 dark:text-slate-300 font-medium truncate">{feeItem.label}</span>
+                            <div className="flex items-center bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-teal-500/35 rounded-md px-2 py-1 w-24 shrink-0 transition-colors focus-within:border-teal-500 focus-within:ring-1 focus-within:ring-teal-500/30">
+                              <span className="text-xs text-slate-500 dark:text-teal-400/80 font-bold select-none pr-1">₹</span>
                               <input
                                 type="number"
                                 value={settings.fees[feeItem.key] || 0}
                                 onChange={(e) => handleFeeChange(feeItem.key, e.target.value)}
-                                className="w-full bg-transparent border-none py-1 text-right text-xs font-mono text-white focus:outline-none focus:ring-0"
+                                className="w-full bg-transparent border-none p-0 text-right text-xs font-bold font-mono text-slate-900 dark:text-white focus:outline-none focus:ring-0"
                               />
                             </div>
                           </div>
@@ -6560,30 +6593,30 @@ function AdminPortalContent({ embeddedUser, onEmbeddedLogout, initialTab }) {
                     </div>
 
                     {/* Humanities Stream Card */}
-                    <div className="bg-slate-900/30 p-3.5 rounded-xl border border-amber-500/20 shadow-sm relative overflow-hidden transition-all hover:border-amber-500/40">
-                      <div className="absolute top-0 left-0 w-1.5 h-full bg-amber-500"></div>
-                      <div className="flex items-center gap-1.5 mb-3">
-                        <span className="p-1 rounded-md bg-amber-500/10 text-amber-500">
-                          <BookOpen size={14} className="stroke-[2.5px]" />
+                    <div className="bg-white dark:bg-slate-900/40 p-3 rounded-xl border border-amber-200 dark:border-amber-500/20 shadow-xs relative overflow-hidden transition-all hover:border-amber-500/40">
+                      <div className="absolute top-0 left-0 w-1 h-full bg-amber-500"></div>
+                      <div className="flex items-center gap-1.5 mb-2.5">
+                        <span className="p-1 rounded-md bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                          <BookOpen size={13} className="stroke-[2.5px]" />
                         </span>
-                        <h4 className="font-extrabold text-slate-200 text-xs uppercase tracking-wider">Humanities Stream</h4>
+                        <h4 className="font-extrabold text-slate-900 dark:text-slate-100 text-xs uppercase tracking-wider">Humanities Stream</h4>
                       </div>
-                      <div className="space-y-2.5">
+                      <div className="space-y-2">
                         {[
                           { key: '11th_humanities_boys', label: '11th Humanities (Boys)' },
                           { key: '11th_humanities_girls', label: '11th Humanities (Girls)' },
                           { key: '12th_humanities_boys', label: '12th Humanities (Boys)' },
                           { key: '12th_humanities_girls', label: '12th Humanities (Girls)' }
                         ].map((feeItem) => (
-                          <div key={feeItem.key} className="flex justify-between items-center gap-3 text-xs">
-                            <span className="text-slate-400 font-medium">{feeItem.label}</span>
-                            <div className="flex items-center bg-slate-950 border border-amber-500/35 rounded px-2 w-28 transition-colors focus-within:border-amber-500">
-                              <span className="text-[10px] text-amber-500/70 font-bold mr-1">Rs.</span>
+                          <div key={feeItem.key} className="flex justify-between items-center gap-2 text-xs">
+                            <span className="text-slate-700 dark:text-slate-300 font-medium truncate">{feeItem.label}</span>
+                            <div className="flex items-center bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-amber-500/35 rounded-md px-2 py-1 w-24 shrink-0 transition-colors focus-within:border-amber-500 focus-within:ring-1 focus-within:ring-amber-500/30">
+                              <span className="text-xs text-slate-500 dark:text-amber-400/80 font-bold select-none pr-1">₹</span>
                               <input
                                 type="number"
                                 value={settings.fees[feeItem.key] || 0}
                                 onChange={(e) => handleFeeChange(feeItem.key, e.target.value)}
-                                className="w-full bg-transparent border-none py-1 text-right text-xs font-mono text-white focus:outline-none focus:ring-0"
+                                className="w-full bg-transparent border-none p-0 text-right text-xs font-bold font-mono text-slate-900 dark:text-white focus:outline-none focus:ring-0"
                               />
                             </div>
                           </div>
@@ -6592,28 +6625,28 @@ function AdminPortalContent({ embeddedUser, onEmbeddedLogout, initialTab }) {
                     </div>
 
                     {/* Secondary Classes Card */}
-                    <div className="bg-slate-900/30 p-3.5 rounded-xl border border-indigo-500/20 shadow-sm relative overflow-hidden transition-all hover:border-indigo-500/40">
-                      <div className="absolute top-0 left-0 w-1.5 h-full bg-indigo-500"></div>
-                      <div className="flex items-center gap-1.5 mb-3">
-                        <span className="p-1 rounded-md bg-indigo-500/10 text-indigo-500">
-                          <Plus size={14} className="stroke-[2.5px]" />
+                    <div className="bg-white dark:bg-slate-900/40 p-3 rounded-xl border border-indigo-200 dark:border-indigo-500/20 shadow-xs relative overflow-hidden transition-all hover:border-indigo-500/40">
+                      <div className="absolute top-0 left-0 w-1 h-full bg-indigo-500"></div>
+                      <div className="flex items-center gap-1.5 mb-2.5">
+                        <span className="p-1 rounded-md bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400">
+                          <Plus size={13} className="stroke-[2.5px]" />
                         </span>
-                        <h4 className="font-extrabold text-slate-200 text-xs uppercase tracking-wider">Secondary Classes</h4>
+                        <h4 className="font-extrabold text-slate-900 dark:text-slate-100 text-xs uppercase tracking-wider">Secondary Classes</h4>
                       </div>
-                      <div className="space-y-2.5">
+                      <div className="space-y-2">
                         {[
                           { key: '9th', label: '9th Class Subjects' },
                           { key: '10th', label: '10th Class Subjects' }
                         ].map((feeItem) => (
-                          <div key={feeItem.key} className="flex justify-between items-center gap-3 text-xs">
-                            <span className="text-slate-400 font-medium">{feeItem.label}</span>
-                            <div className="flex items-center bg-slate-950 border border-indigo-500/35 rounded px-2 w-28 transition-colors focus-within:border-indigo-500">
-                              <span className="text-[10px] text-indigo-500/70 font-bold mr-1">Rs.</span>
+                          <div key={feeItem.key} className="flex justify-between items-center gap-2 text-xs">
+                            <span className="text-slate-700 dark:text-slate-300 font-medium truncate">{feeItem.label}</span>
+                            <div className="flex items-center bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-indigo-500/35 rounded-md px-2 py-1 w-24 shrink-0 transition-colors focus-within:border-indigo-500 focus-within:ring-1 focus-within:ring-indigo-500/30">
+                              <span className="text-xs text-slate-500 dark:text-indigo-400/80 font-bold select-none pr-1">₹</span>
                               <input
                                 type="number"
                                 value={settings.fees[feeItem.key] || 0}
                                 onChange={(e) => handleFeeChange(feeItem.key, e.target.value)}
-                                className="w-full bg-transparent border-none py-1 text-right text-xs font-mono text-white focus:outline-none focus:ring-0"
+                                className="w-full bg-transparent border-none p-0 text-right text-xs font-bold font-mono text-slate-900 dark:text-white focus:outline-none focus:ring-0"
                               />
                             </div>
                           </div>
@@ -6624,32 +6657,32 @@ function AdminPortalContent({ embeddedUser, onEmbeddedLogout, initialTab }) {
                 </div>
 
                 {/* Payment Gateway & Online Fee Collection Configuration */}
-                <div className="bg-slate-900/30 p-4 rounded-xl border border-teal-500/20 shadow-sm space-y-4 text-left">
-                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-slate-800 pb-3">
+                <div className="bg-white dark:bg-slate-900/30 p-3.5 rounded-xl border border-slate-200 dark:border-teal-500/20 shadow-xs space-y-3 text-left">
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-2.5">
                     <div className="flex items-center gap-2">
-                      <span className="p-1.5 rounded-md bg-teal-500/10 text-teal-400">
-                        <CreditCard size={18} />
+                      <span className="p-1 rounded-md bg-teal-50 dark:bg-teal-500/10 text-teal-600 dark:text-teal-400">
+                        <CreditCard size={16} />
                       </span>
                       <div>
-                        <h4 className="font-extrabold text-slate-200 text-xs uppercase tracking-wider">Payment Gateway & Fee Collection Mode</h4>
-                        <p className="text-[11px] text-slate-400 mt-0.5">
-                          Select the active payment mode. Enabling Cashfree or Razorpay takes over the payment UI fully and hides manual QR/Ref inputs.
+                        <h4 className="font-extrabold text-slate-900 dark:text-slate-100 text-xs uppercase tracking-wider">Payment Gateway & Fee Collection Mode</h4>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                          Select the active payment mode. Cashfree or Razorpay handles online checkout directly.
                         </p>
                       </div>
                     </div>
-                    <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold border ${
+                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
                       (settings.paymentGatewayConfig?.gatewayMode === 'cashfree' || settings.paymentGatewayConfig?.gatewayMode === 'razorpay')
-                        ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
+                        ? 'bg-emerald-50 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 border-emerald-300 dark:border-emerald-500/40'
                         : settings.paymentGatewayConfig?.gatewayMode === 'manual'
-                        ? 'bg-amber-500/20 text-amber-400 border-amber-500/40'
-                        : 'bg-slate-800 text-slate-400 border-slate-700'
+                        ? 'bg-amber-50 dark:bg-amber-500/20 text-amber-700 dark:text-amber-400 border-amber-300 dark:border-amber-500/40'
+                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700'
                     }`}>
                       Active Mode: {(settings.paymentGatewayConfig?.gatewayMode || 'off').toUpperCase()}
                     </span>
                   </div>
 
                   {/* Mode Selector Options */}
-                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
                     {[
                       { id: 'off', label: '🚫 Disabled / Free', desc: 'No fee payment required during submission' },
                       { id: 'manual', label: '🏦 Manual Bank & UPI', desc: 'Student scans QR code & enters Ref / UTR No' },
@@ -6658,10 +6691,10 @@ function AdminPortalContent({ embeddedUser, onEmbeddedLogout, initialTab }) {
                     ].map((mode) => (
                       <label
                         key={mode.id}
-                        className={`p-3 rounded-xl border cursor-pointer transition-all flex flex-col justify-between ${
+                        className={`p-2.5 rounded-lg border cursor-pointer transition-all flex flex-col justify-between ${
                           (settings.paymentGatewayConfig?.gatewayMode || 'off') === mode.id
-                            ? 'bg-teal-950/60 border-teal-500 text-slate-100 shadow-md ring-1 ring-teal-500/50'
-                            : 'bg-slate-950/40 border-slate-800 text-slate-400 hover:border-slate-700'
+                            ? 'bg-teal-50 dark:bg-teal-950/60 border-teal-500 text-teal-950 dark:text-slate-100 shadow-xs ring-1 ring-teal-500/50'
+                            : 'bg-slate-50/70 dark:bg-slate-950/40 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-700'
                         }`}
                       >
                         <div className="flex items-center justify-between mb-1">
@@ -6672,79 +6705,79 @@ function AdminPortalContent({ embeddedUser, onEmbeddedLogout, initialTab }) {
                             value={mode.id}
                             checked={(settings.paymentGatewayConfig?.gatewayMode || 'off') === mode.id}
                             onChange={(e) => handlePaymentGatewayChange('gatewayMode', e.target.value)}
-                            className="accent-teal-500"
+                            className="accent-teal-600"
                           />
                         </div>
-                        <span className="text-[10px] text-slate-400 leading-tight">{mode.desc}</span>
+                        <span className="text-[10px] text-slate-500 dark:text-slate-400 leading-tight">{mode.desc}</span>
                       </label>
                     ))}
                   </div>
 
                   {/* 1. Manual Bank & UPI Details */}
                   {settings.paymentGatewayConfig?.gatewayMode === 'manual' && (
-                    <div className="bg-slate-950/70 p-4 rounded-xl border border-slate-800 space-y-3 text-left animate-in fade-in duration-200">
-                      <h5 className="text-xs font-bold text-amber-400 flex items-center gap-1.5 uppercase tracking-wider">
+                    <div className="bg-slate-50/80 dark:bg-slate-950/70 p-3 rounded-xl border border-slate-200 dark:border-slate-800 space-y-2.5 text-left animate-in fade-in duration-200">
+                      <h5 className="text-xs font-bold text-amber-600 dark:text-amber-400 flex items-center gap-1.5 uppercase tracking-wider">
                         <QrCode size={14} /> Manual Bank & UPI QR Code Configuration
                       </h5>
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
                         <div>
-                          <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Bank Name</label>
+                          <label className="block text-[10px] font-bold uppercase text-slate-600 dark:text-slate-400 mb-1">Bank Name</label>
                           <input
                             type="text"
                             placeholder="J&K Bank Ltd."
                             value={settings.paymentGatewayConfig?.bankDetails?.bankName || ''}
                             onChange={(e) => handlePaymentGatewayChange('bankDetails.bankName', e.target.value)}
-                            className="w-full px-3 py-1.5 rounded bg-slate-900 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-amber-500"
+                            className="w-full px-2.5 py-1 rounded bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-xs text-slate-900 dark:text-slate-200 focus:outline-none focus:border-amber-500"
                           />
                         </div>
                         <div>
-                          <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Account Holder Name</label>
+                          <label className="block text-[10px] font-bold uppercase text-slate-600 dark:text-slate-400 mb-1">Account Holder Name</label>
                           <input
                             type="text"
                             placeholder="Govt. HSS Shangus"
                             value={settings.paymentGatewayConfig?.bankDetails?.accountName || ''}
                             onChange={(e) => handlePaymentGatewayChange('bankDetails.accountName', e.target.value)}
-                            className="w-full px-3 py-1.5 rounded bg-slate-900 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-amber-500"
+                            className="w-full px-2.5 py-1 rounded bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-xs text-slate-900 dark:text-slate-200 focus:outline-none focus:border-amber-500"
                           />
                         </div>
                         <div>
-                          <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Account Number</label>
+                          <label className="block text-[10px] font-bold uppercase text-slate-600 dark:text-slate-400 mb-1">Account Number</label>
                           <input
                             type="text"
                             placeholder="0123010100000000"
                             value={settings.paymentGatewayConfig?.bankDetails?.accountNumber || ''}
                             onChange={(e) => handlePaymentGatewayChange('bankDetails.accountNumber', e.target.value)}
-                            className="w-full px-3 py-1.5 rounded bg-slate-900 border border-slate-800 text-xs font-mono text-slate-200 focus:outline-none focus:border-amber-500"
+                            className="w-full px-2.5 py-1 rounded bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-xs font-mono text-slate-900 dark:text-slate-200 focus:outline-none focus:border-amber-500"
                           />
                         </div>
                         <div>
-                          <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">IFSC Code</label>
+                          <label className="block text-[10px] font-bold uppercase text-slate-600 dark:text-slate-400 mb-1">IFSC Code</label>
                           <input
                             type="text"
                             placeholder="JAKA0SHANGU"
                             value={settings.paymentGatewayConfig?.bankDetails?.ifscCode || ''}
                             onChange={(e) => handlePaymentGatewayChange('bankDetails.ifscCode', e.target.value)}
-                            className="w-full px-3 py-1.5 rounded bg-slate-900 border border-slate-800 text-xs font-mono text-slate-200 focus:outline-none focus:border-amber-500"
+                            className="w-full px-2.5 py-1 rounded bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-xs font-mono text-slate-900 dark:text-slate-200 focus:outline-none focus:border-amber-500"
                           />
                         </div>
                         <div>
-                          <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">UPI ID</label>
+                          <label className="block text-[10px] font-bold uppercase text-slate-600 dark:text-slate-400 mb-1">UPI ID</label>
                           <input
                             type="text"
                             placeholder="hssshangus@jkb"
                             value={settings.paymentGatewayConfig?.bankDetails?.upiId || ''}
                             onChange={(e) => handlePaymentGatewayChange('bankDetails.upiId', e.target.value)}
-                            className="w-full px-3 py-1.5 rounded bg-slate-900 border border-slate-800 text-xs font-mono text-slate-200 focus:outline-none focus:border-amber-500"
+                            className="w-full px-2.5 py-1 rounded bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-xs font-mono text-slate-900 dark:text-slate-200 focus:outline-none focus:border-amber-500"
                           />
                         </div>
                         <div>
-                          <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">UPI QR Code Image URL</label>
+                          <label className="block text-[10px] font-bold uppercase text-slate-600 dark:text-slate-400 mb-1">UPI QR Code Image URL</label>
                           <input
                             type="text"
                             placeholder="https://example.com/qr.png"
                             value={settings.paymentGatewayConfig?.bankDetails?.qrCodeUrl || ''}
                             onChange={(e) => handlePaymentGatewayChange('bankDetails.qrCodeUrl', e.target.value)}
-                            className="w-full px-3 py-1.5 rounded bg-slate-900 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-amber-500"
+                            className="w-full px-2.5 py-1 rounded bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-xs text-slate-900 dark:text-slate-200 focus:outline-none focus:border-amber-500"
                           />
                         </div>
                       </div>
@@ -6753,36 +6786,36 @@ function AdminPortalContent({ embeddedUser, onEmbeddedLogout, initialTab }) {
 
                   {/* 2. Cashfree Configuration */}
                   {settings.paymentGatewayConfig?.gatewayMode === 'cashfree' && (
-                    <div className="bg-slate-950/70 p-4 rounded-xl border border-slate-800 space-y-3 text-left animate-in fade-in duration-200">
+                    <div className="bg-slate-50/80 dark:bg-slate-950/70 p-3 rounded-xl border border-slate-200 dark:border-slate-800 space-y-2.5 text-left animate-in fade-in duration-200">
                       <div className="flex justify-between items-center">
-                        <h5 className="text-xs font-bold text-emerald-400 flex items-center gap-1.5 uppercase tracking-wider">
+                        <h5 className="text-xs font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5 uppercase tracking-wider">
                           ⚡ Cashfree Gateway API Credentials
                         </h5>
-                        <span className="text-[10px] text-emerald-400/80 italic font-semibold">
+                        <span className="text-[10px] text-emerald-700 dark:text-emerald-400/80 italic font-semibold">
                           Exclusive Gateway Takeover Mode Active
                         </span>
                       </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                         <div>
-                          <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Cashfree App ID (Client ID)</label>
+                          <label className="block text-[10px] font-bold uppercase text-slate-600 dark:text-slate-400 mb-1">Cashfree App ID (Client ID)</label>
                           <input
                             type="text"
                             placeholder="CF_APP_ID_..."
                             value={settings.paymentGatewayConfig?.cashfree?.appId || ''}
                             onChange={(e) => handlePaymentGatewayChange('cashfree.appId', e.target.value)}
-                            className="w-full px-3 py-1.5 rounded bg-slate-900 border border-slate-800 text-xs font-mono text-slate-200 focus:outline-none focus:border-emerald-500"
+                            className="w-full px-2.5 py-1 rounded bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-xs font-mono text-slate-900 dark:text-slate-200 focus:outline-none focus:border-emerald-500"
                           />
                         </div>
-                        <div className="rounded-lg border border-emerald-800/70 bg-emerald-950/30 px-3 py-2">
-                          <div className="text-[10px] font-black uppercase tracking-wide text-emerald-300">Secret: server managed</div>
-                          <p className="mt-1 text-[9.5px] leading-snug text-slate-400">Configure the Cashfree secret only as a protected Netlify environment variable; it is never stored in website settings.</p>
+                        <div className="rounded-lg border border-emerald-300 dark:border-emerald-800/70 bg-emerald-50 dark:bg-emerald-950/30 px-3 py-1.5">
+                          <div className="text-[10px] font-black uppercase tracking-wide text-emerald-800 dark:text-emerald-300">Secret: server managed</div>
+                          <p className="mt-0.5 text-[9.5px] leading-snug text-slate-600 dark:text-slate-400">Configure secret via Netlify environment variables.</p>
                         </div>
                         <div>
-                          <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Environment</label>
+                          <label className="block text-[10px] font-bold uppercase text-slate-600 dark:text-slate-400 mb-1">Environment</label>
                           <select
                             value={settings.paymentGatewayConfig?.cashfree?.environment || 'sandbox'}
                             onChange={(e) => handlePaymentGatewayChange('cashfree.environment', e.target.value)}
-                            className="w-full px-3 py-1.5 rounded bg-slate-900 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-emerald-500"
+                            className="w-full px-2.5 py-1 rounded bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-xs text-slate-900 dark:text-slate-200 focus:outline-none focus:border-emerald-500"
                           >
                             <option value="sandbox">Sandbox (Testing / Test Mode)</option>
                             <option value="production">Production (Live Payments)</option>
@@ -6794,36 +6827,36 @@ function AdminPortalContent({ embeddedUser, onEmbeddedLogout, initialTab }) {
 
                   {/* 3. Razorpay Configuration */}
                   {settings.paymentGatewayConfig?.gatewayMode === 'razorpay' && (
-                    <div className="bg-slate-950/70 p-4 rounded-xl border border-slate-800 space-y-3 text-left animate-in fade-in duration-200">
+                    <div className="bg-slate-50/80 dark:bg-slate-950/70 p-3 rounded-xl border border-slate-200 dark:border-slate-800 space-y-2.5 text-left animate-in fade-in duration-200">
                       <div className="flex justify-between items-center">
-                        <h5 className="text-xs font-bold text-sky-400 flex items-center gap-1.5 uppercase tracking-wider">
+                        <h5 className="text-xs font-bold text-sky-600 dark:text-sky-400 flex items-center gap-1.5 uppercase tracking-wider">
                           💳 Razorpay Gateway API Credentials
                         </h5>
-                        <span className="text-[10px] text-sky-400/80 italic font-semibold">
+                        <span className="text-[10px] text-sky-700 dark:text-sky-400/80 italic font-semibold">
                           Exclusive Gateway Takeover Mode Active
                         </span>
                       </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                         <div>
-                          <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Razorpay Key ID</label>
+                          <label className="block text-[10px] font-bold uppercase text-slate-600 dark:text-slate-400 mb-1">Razorpay Key ID</label>
                           <input
                             type="text"
                             placeholder="rzp_test_... or rzp_live_..."
                             value={settings.paymentGatewayConfig?.razorpay?.keyId || ''}
                             onChange={(e) => handlePaymentGatewayChange('razorpay.keyId', e.target.value)}
-                            className="w-full px-3 py-1.5 rounded bg-slate-900 border border-slate-800 text-xs font-mono text-slate-200 focus:outline-none focus:border-sky-500"
+                            className="w-full px-2.5 py-1 rounded bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-xs font-mono text-slate-900 dark:text-slate-200 focus:outline-none focus:border-sky-500"
                           />
                         </div>
-                        <div className="rounded-lg border border-sky-800/70 bg-sky-950/30 px-3 py-2">
-                          <div className="text-[10px] font-black uppercase tracking-wide text-sky-300">Secret: server managed</div>
-                          <p className="mt-1 text-[9.5px] leading-snug text-slate-400">Configure the Razorpay secret only as a protected Netlify environment variable; it is never stored in website settings.</p>
+                        <div className="rounded-lg border border-sky-300 dark:border-sky-800/70 bg-sky-50 dark:bg-sky-950/30 px-3 py-1.5">
+                          <div className="text-[10px] font-black uppercase tracking-wide text-sky-800 dark:text-sky-300">Secret: server managed</div>
+                          <p className="mt-0.5 text-[9.5px] leading-snug text-slate-600 dark:text-slate-400">Configure secret via Netlify environment variables.</p>
                         </div>
                         <div>
-                          <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Environment</label>
+                          <label className="block text-[10px] font-bold uppercase text-slate-600 dark:text-slate-400 mb-1">Environment</label>
                           <select
                             value={settings.paymentGatewayConfig?.razorpay?.environment || 'test'}
                             onChange={(e) => handlePaymentGatewayChange('razorpay.environment', e.target.value)}
-                            className="w-full px-3 py-1.5 rounded bg-slate-900 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-sky-500"
+                            className="w-full px-2.5 py-1 rounded bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-xs text-slate-900 dark:text-slate-200 focus:outline-none focus:border-sky-500"
                           >
                             <option value="test">Test Mode (Sandbox)</option>
                             <option value="live">Live Mode (Production)</option>
@@ -6835,23 +6868,23 @@ function AdminPortalContent({ embeddedUser, onEmbeddedLogout, initialTab }) {
                 </div>
 
                 {/* Social Media Links Configuration */}
-                <div className="bg-slate-900/30 p-3.5 rounded-xl border border-indigo-500/20 shadow-sm relative overflow-hidden transition-all hover:border-indigo-500/40">
-                  <div className="absolute top-0 left-0 w-1.5 h-full bg-indigo-500"></div>
-                  <div className="flex items-center gap-1.5 mb-3">
-                    <span className="p-1 rounded-md bg-indigo-500/10 text-indigo-500">
-                      <BookOpen size={14} className="stroke-[2.5px]" />
+                <div className="bg-white dark:bg-slate-900/30 p-3 rounded-xl border border-slate-200 dark:border-indigo-500/20 shadow-xs relative overflow-hidden transition-all hover:border-indigo-500/40">
+                  <div className="absolute top-0 left-0 w-1 h-full bg-indigo-500"></div>
+                  <div className="flex items-center gap-1.5 mb-2.5">
+                    <span className="p-1 rounded-md bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400">
+                      <BookOpen size={13} className="stroke-[2.5px]" />
                     </span>
-                    <h4 className="font-extrabold text-slate-200 text-xs uppercase tracking-wider">Social Media Links</h4>
+                    <h4 className="font-extrabold text-slate-900 dark:text-slate-100 text-xs uppercase tracking-wider">Social Media Links</h4>
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                     {['facebook', 'youtube', 'twitter', 'instagram'].map((platform) => {
                       const value = (settings.socialLinks && settings.socialLinks[platform]) || '#';
                       return (
                         <div key={platform} className="flex flex-col gap-1">
-                          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">
+                          <label className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wide">
                             {platform === 'twitter' ? 'Twitter / X Link' : `${platform.charAt(0).toUpperCase() + platform.slice(1)} Link`}
                           </label>
-                          <div className="flex items-center bg-slate-950 border border-slate-800 rounded px-2 transition-colors focus-within:border-indigo-500">
+                          <div className="flex items-center bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-md px-2 transition-colors focus-within:border-indigo-500">
                             <input
                               type="text"
                               value={value}
@@ -6865,7 +6898,7 @@ function AdminPortalContent({ embeddedUser, onEmbeddedLogout, initialTab }) {
                                   }
                                 }));
                               }}
-                              className="w-full bg-transparent border-none py-1.5 text-xs text-white focus:outline-none focus:ring-0"
+                              className="w-full bg-transparent border-none py-1 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-0"
                               placeholder="e.g. # or full URL"
                             />
                           </div>
@@ -6881,16 +6914,16 @@ function AdminPortalContent({ embeddedUser, onEmbeddedLogout, initialTab }) {
 
             {/* TAB 2: LATEST NOTICES */}
             {activeTab === 'notices' && allowedTabs.includes('notices') && (
-              <div className="space-y-3 animate-in fade-in duration-200">
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-1 border-b border-slate-800 pb-2.5">
+              <div className="space-y-2.5 animate-in fade-in duration-200">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-1 border-b border-slate-200 dark:border-slate-800 pb-2">
                   <div>
-                    <h3 className="text-sm font-bold text-slate-200">Latest Notices Configuration</h3>
-                    <p className="text-[11px] text-slate-400">Add, edit, or delete items on the school's dynamic announcement board.</p>
+                    <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">Latest Notices Configuration</h3>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">Add, edit, or delete items on the school's dynamic announcement board.</p>
                   </div>
                   {/* Inline Notice Expiry Setting */}
-                  <div className="flex items-center gap-2 bg-slate-900 border border-slate-800 rounded px-2 py-1 w-full sm:w-auto">
-                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wide">New tag tag expiry:</span>
-                    <div className="flex items-center gap-1 bg-slate-950 border border-slate-800 rounded px-1.5 py-0.5">
+                  <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-md px-2 py-1 w-full sm:w-auto">
+                    <span className="text-[9.5px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wide">&quot;New&quot; badge expiry:</span>
+                    <div className="flex items-center gap-1 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded px-1.5 py-0.5">
                       <input
                         type="number"
                         min="1"
@@ -6900,7 +6933,7 @@ function AdminPortalContent({ embeddedUser, onEmbeddedLogout, initialTab }) {
                           const val = parseInt(e.target.value, 10);
                           setSettings(s => ({ ...s, defaultNewNoticeDays: isNaN(val) ? 7 : val }));
                         }}
-                        className="w-10 bg-transparent border-none text-center text-xs font-mono text-white focus:outline-none focus:ring-0"
+                        className="w-10 bg-transparent border-none text-center text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-0"
                       />
                       <span className="text-[9px] text-slate-500 font-extrabold uppercase">days</span>
                     </div>
@@ -6908,16 +6941,16 @@ function AdminPortalContent({ embeddedUser, onEmbeddedLogout, initialTab }) {
                 </div>
 
                 {/* Add new notice form */}
-                <div className="bg-slate-900/30 p-1.5 rounded-lg border border-slate-800 flex flex-col md:flex-row gap-1.5 items-stretch md:items-end">
+                <div className="bg-slate-50/80 dark:bg-slate-900/30 p-2 rounded-lg border border-slate-200 dark:border-slate-800 flex flex-col md:flex-row gap-2 items-stretch md:items-end">
                   <div className="w-full md:w-32 flex-shrink-0">
-                    <label className="block text-[9px] font-bold text-slate-400 uppercase mb-0.5">Date</label>
-                    <div className="relative flex items-center bg-slate-950 border border-slate-800 rounded focus-within:border-teal-500 transition-colors w-full h-[28px]">
+                    <label className="block text-[9px] font-bold text-slate-600 dark:text-slate-400 uppercase mb-0.5">Date</label>
+                    <div className="relative flex items-center bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-md focus-within:border-teal-500 transition-colors w-full h-[28px]">
                       <input
                         type="text"
                         placeholder="e.g. Nov 23"
                         value={newNotice.date}
                         onChange={(e) => setNewNotice({ ...newNotice, date: e.target.value })}
-                        className="w-full bg-transparent border-none px-2 py-1 text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:ring-0"
+                        className="w-full bg-transparent border-none px-2 py-1 text-xs text-slate-900 dark:text-slate-200 placeholder-slate-400 focus:outline-none focus:ring-0"
                       />
                       <button
                         type="button"
@@ -6925,7 +6958,7 @@ function AdminPortalContent({ embeddedUser, onEmbeddedLogout, initialTab }) {
                           const dateEl = e.currentTarget.parentElement.querySelector('input[type="date"]');
                           if (dateEl) dateEl.showPicker();
                         }}
-                        className="p-1 text-slate-400 hover:text-orange-400 transition-colors mr-0.5"
+                        className="p-1 text-slate-400 hover:text-orange-500 transition-colors mr-0.5"
                         title="Choose date"
                       >
                         <Calendar size={12} />
@@ -6942,38 +6975,38 @@ function AdminPortalContent({ embeddedUser, onEmbeddedLogout, initialTab }) {
                     </div>
                   </div>
                   <div className="flex-1">
-                    <label className="block text-[9px] font-bold text-slate-400 uppercase mb-0.5">Title</label>
+                    <label className="block text-[9px] font-bold text-slate-600 dark:text-slate-400 uppercase mb-0.5">Title</label>
                     <input
                       type="text"
                       placeholder="Notice Title Description"
                       value={newNotice.title}
                       onChange={(e) => setNewNotice({ ...newNotice, title: e.target.value })}
-                      className="w-full px-2 py-1 rounded bg-slate-950 border border-slate-800 text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:border-orange-500"
+                      className="w-full px-2 py-1 rounded-md bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-800 text-xs text-slate-900 dark:text-slate-200 placeholder-slate-400 focus:outline-none focus:border-orange-500 h-[28px]"
                     />
                   </div>
                   <div className="flex-1">
-                    <label className="block text-[9px] font-bold text-slate-400 uppercase mb-0.5">Link (Optional)</label>
+                    <label className="block text-[9px] font-bold text-slate-600 dark:text-slate-400 uppercase mb-0.5">Link (Optional)</label>
                     <input
                       type="text"
                       placeholder="e.g. /admissions, https://jkbose.nic.in, or #"
                       value={newNotice.link}
                       onChange={(e) => setNewNotice({ ...newNotice, link: e.target.value })}
-                      className="w-full px-2 py-1 rounded bg-slate-950 border border-slate-800 text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:border-orange-500"
+                      className="w-full px-2 py-1 rounded-md bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-800 text-xs text-slate-900 dark:text-slate-200 placeholder-slate-400 focus:outline-none focus:border-orange-500 h-[28px]"
                     />
                   </div>
                   <div className="w-full md:w-20 flex-shrink-0">
-                    <label className="block text-[9px] font-bold text-slate-400 uppercase mb-0.5">New Days</label>
+                    <label className="block text-[9px] font-bold text-slate-600 dark:text-slate-400 uppercase mb-0.5">New Days</label>
                     <input
                       type="number"
                       placeholder="Default"
                       value={newNotice.days || ''}
                       onChange={(e) => setNewNotice({ ...newNotice, days: e.target.value })}
-                      className="w-full px-2 py-1 rounded bg-slate-950 border border-slate-800 text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:border-orange-500 text-center"
+                      className="w-full px-2 py-1 rounded-md bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-800 text-xs text-slate-900 dark:text-slate-200 placeholder-slate-400 focus:outline-none focus:border-orange-500 text-center h-[28px]"
                     />
                   </div>
                   <button
                     onClick={handleAddNotice}
-                    className="px-2.5 py-1 rounded bg-orange-500 hover:bg-orange-400 text-slate-950 font-extrabold text-xs flex items-center justify-center gap-1 w-full md:w-auto flex-shrink-0 border border-orange-400 transition-all hover:scale-[1.02] active:scale-[0.98] h-[28px]"
+                    className="px-3 py-1 rounded-md bg-orange-500 hover:bg-orange-400 text-slate-950 font-extrabold text-xs flex items-center justify-center gap-1 w-full md:w-auto flex-shrink-0 border border-orange-400 transition-all hover:scale-[1.02] active:scale-[0.98] h-[28px] cursor-pointer"
                   >
                     <Plus size={12} />
                     Add Notice
@@ -6981,18 +7014,18 @@ function AdminPortalContent({ embeddedUser, onEmbeddedLogout, initialTab }) {
                 </div>
 
                 {/* Notices List Table */}
-                <div className="overflow-x-auto custom-scrollbar pb-1 border border-slate-800 rounded-lg min-w-0">
+                <div className="overflow-x-auto custom-scrollbar pb-1 border border-slate-200 dark:border-slate-800 rounded-lg min-w-0 bg-white dark:bg-slate-900/30">
                   <table className="w-full text-xs text-left border-collapse" style={{ minWidth: '480px' }}>
                     <thead>
-                      <tr className="bg-slate-900 border-b border-slate-800 text-slate-400 uppercase text-[9px] font-bold">
-                        <th className="p-1 px-1.5 w-24">Date</th>
-                        <th className="p-1 px-1.5">Notice Title</th>
-                        <th className="p-1 px-1.5 w-48">Link</th>
-                        <th className="p-1 px-1.5 w-20 text-center">New Days</th>
-                        <th className="p-1 px-1.5 w-24 text-center">Action</th>
+                      <tr className="bg-slate-100 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 uppercase text-[9px] font-bold">
+                        <th className="p-1.5 px-2 w-24">Date</th>
+                        <th className="p-1.5 px-2">Notice Title</th>
+                        <th className="p-1.5 px-2 w-48">Link</th>
+                        <th className="p-1.5 px-2 w-20 text-center">New Days</th>
+                        <th className="p-1.5 px-2 w-24 text-center">Action</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-800/60">
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
                       {notices.length === 0 ? (
                         <tr>
                           <td colSpan={5} className="p-3 text-center text-slate-500 italic text-[11px]">No notices configured. Add some above.</td>
@@ -7001,16 +7034,16 @@ function AdminPortalContent({ embeddedUser, onEmbeddedLogout, initialTab }) {
                         notices.map((n, i) => {
                           const isEditing = editingNoticeIdx === i;
                           return (
-                            <tr key={i} className="hover:bg-slate-900/20">
+                            <tr key={i} className="hover:bg-slate-50 dark:hover:bg-slate-900/20">
                               {isEditing ? (
                                 <>
                                   <td className="p-1 w-32">
-                                    <div className="relative flex items-center bg-slate-950 border border-slate-800 rounded focus-within:border-teal-500 transition-colors w-full h-[28px]">
+                                    <div className="relative flex items-center bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded focus-within:border-teal-500 transition-colors w-full h-[28px]">
                                       <input
                                         type="text"
                                         value={editNoticeData.date}
                                         onChange={(e) => setEditNoticeData({ ...editNoticeData, date: e.target.value })}
-                                        className="w-full bg-transparent border-none px-1.5 py-1 text-xs text-slate-200 font-semibold focus:outline-none focus:ring-0"
+                                        className="w-full bg-transparent border-none px-1.5 py-1 text-xs text-slate-900 dark:text-slate-200 font-semibold focus:outline-none focus:ring-0"
                                       />
                                       <button
                                         type="button"
@@ -7018,7 +7051,7 @@ function AdminPortalContent({ embeddedUser, onEmbeddedLogout, initialTab }) {
                                           const dateEl = e.currentTarget.parentElement.querySelector('input[type="date"]');
                                           if (dateEl) dateEl.showPicker();
                                         }}
-                                        className="p-1 text-slate-400 hover:text-orange-400 transition-colors mr-0.5"
+                                        className="p-1 text-slate-400 hover:text-orange-500 transition-colors mr-0.5"
                                         title="Choose date"
                                       >
                                         <Calendar size={12} />
@@ -7039,10 +7072,10 @@ function AdminPortalContent({ embeddedUser, onEmbeddedLogout, initialTab }) {
                                       type="text"
                                       value={editNoticeData.title}
                                       onChange={(e) => setEditNoticeData({ ...editNoticeData, title: e.target.value })}
-                                      className="w-full px-1.5 py-1 rounded bg-slate-950 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-orange-500"
+                                      className="w-full px-1.5 py-1 rounded bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-800 text-xs text-slate-900 dark:text-slate-200 focus:outline-none focus:border-orange-500"
                                     />
                                     {/* Small preview indicator */}
-                                    <div className="mt-1 text-[9px] text-orange-500 font-mono truncate border-t border-dashed border-orange-500 pt-1">
+                                    <div className="mt-1 text-[9px] text-orange-600 dark:text-orange-400 font-mono truncate border-t border-dashed border-orange-300 dark:border-orange-500 pt-1">
                                       {editNoticeData.title || 'Preview...'}
                                     </div>
                                   </td>
@@ -7051,7 +7084,7 @@ function AdminPortalContent({ embeddedUser, onEmbeddedLogout, initialTab }) {
                                       type="text"
                                       value={editNoticeData.link}
                                       onChange={(e) => setEditNoticeData({ ...editNoticeData, link: e.target.value })}
-                                      className="w-full px-1.5 py-1 rounded bg-slate-950 border border-slate-800 text-xs text-slate-200 font-mono focus:outline-none focus:border-orange-500"
+                                      className="w-full px-1.5 py-1 rounded bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-800 text-xs text-slate-900 dark:text-slate-200 font-mono focus:outline-none focus:border-orange-500"
                                     />
                                   </td>
                                   <td className="p-1 w-20">
@@ -7060,20 +7093,20 @@ function AdminPortalContent({ embeddedUser, onEmbeddedLogout, initialTab }) {
                                       value={editNoticeData.days || ''}
                                       onChange={(e) => setEditNoticeData({ ...editNoticeData, days: e.target.value })}
                                       placeholder="Default"
-                                      className="w-full px-1.5 py-1 rounded bg-slate-950 border border-slate-800 text-xs text-slate-200 text-center focus:outline-none focus:border-orange-500"
+                                      className="w-full px-1.5 py-1 rounded bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-800 text-xs text-slate-900 dark:text-slate-200 text-center focus:outline-none focus:border-orange-500"
                                     />
                                   </td>
                                   <td className="p-1 text-center flex items-center justify-center gap-1.5">
                                     <button
                                       onClick={() => saveNoticeEdit(i)}
-                                      className="p-1 rounded bg-emerald-950 text-emerald-400 hover:bg-emerald-900 transition-colors"
+                                      className="p-1 rounded bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-200 dark:hover:bg-emerald-900 transition-colors"
                                       title="Save"
                                     >
                                       <Check size={13} />
                                     </button>
                                     <button
                                       onClick={cancelNoticeEdit}
-                                      className="p-1 rounded bg-slate-950 text-slate-400 hover:bg-slate-900 transition-colors"
+                                      className="p-1 rounded bg-slate-200 dark:bg-slate-950 text-slate-600 dark:text-slate-400 hover:bg-slate-300 dark:hover:bg-slate-900 transition-colors"
                                       title="Cancel"
                                     >
                                       <X size={13} />
@@ -7082,21 +7115,21 @@ function AdminPortalContent({ embeddedUser, onEmbeddedLogout, initialTab }) {
                                 </>
                               ) : (
                                 <>
-                                  <td className="p-1 px-1.5 font-semibold text-slate-200">{n.date}</td>
-                                  <td className="p-1 px-1.5 text-slate-200">{n.title}</td>
-                                  <td className="p-1 px-1.5 text-slate-500 truncate max-w-xs font-mono">{n.link || '#'}</td>
-                                  <td className="p-1 px-1.5 text-center text-slate-400 font-mono">{n.days !== undefined && n.days !== '' ? `${n.days}d` : 'Default'}</td>
-                                  <td className="p-1 px-1.5 text-center flex items-center justify-center gap-1">
+                                  <td className="p-1.5 px-2 font-bold text-slate-900 dark:text-slate-200">{n.date}</td>
+                                  <td className="p-1.5 px-2 font-medium text-slate-800 dark:text-slate-200">{n.title}</td>
+                                  <td className="p-1.5 px-2 text-slate-500 font-mono text-[11px] truncate max-w-xs">{n.link || '#'}</td>
+                                  <td className="p-1.5 px-2 text-center text-slate-600 dark:text-slate-400 font-mono text-[11px]">{n.days !== undefined && n.days !== '' ? `${n.days}d` : 'Default'}</td>
+                                  <td className="p-1.5 px-2 text-center flex items-center justify-center gap-1">
                                     <button
                                       onClick={() => startEditNotice(i)}
-                                      className="p-1 rounded text-orange-400 hover:bg-orange-950/40 hover:text-orange-300 transition-colors"
+                                      className="p-1 rounded text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-950/40 transition-colors"
                                       title="Edit inline"
                                     >
                                       <Edit2 size={13} />
                                     </button>
                                     <button
                                       onClick={() => handleDeleteNotice(i)}
-                                      className="p-1 rounded text-red-400 hover:bg-red-950/40 hover:text-red-300 transition-colors"
+                                      className="p-1 rounded text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors"
                                       title="Delete"
                                     >
                                       <Trash2 size={13} />
