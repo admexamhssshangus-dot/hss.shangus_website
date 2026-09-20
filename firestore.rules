@@ -427,8 +427,8 @@ service cloud.firestore {
       allow get: if documentId in ['settings', 'notices', 'facultySummary', 'slideshow', 'pages'] ||
         documentId.matches('^page_[a-zA-Z0-9_-]{1,64}$');
       allow get: if documentId in ['faculty', 'recycle_bin'] && canUseAny(['controls', 'cms', 'accounts']);
-      allow list: if canUseAny(['controls', 'cms']);
-      allow create, update: if canUseAny(['controls', 'cms']) && (
+      allow list: if canUseAny(['controls', 'cms', 'accounts']);
+      allow create, update: if canUseAny(['controls', 'cms', 'accounts']) && (
         (documentId == 'facultySummary' && validFacultySummary(request.resource.data)) ||
         (documentId != 'facultySummary' && validPublicSiteDocument(documentId, request.resource.data))
       );
@@ -437,7 +437,7 @@ service cloud.firestore {
 
     match /siteSettings/{documentId} {
       allow read: if true;
-      allow create, update: if canUseAny(['controls', 'cms']) && hasNoCredentialFields(request.resource.data) &&
+      allow create, update: if canUseAny(['controls', 'cms', 'accounts']) && hasNoCredentialFields(request.resource.data) &&
         hasNoAiSecretFields(request.resource.data) && hasNoNestedPaymentSecrets(request.resource.data);
       allow delete: if canUseAny(['controls', 'cms']);
     }
@@ -502,7 +502,7 @@ service cloud.firestore {
     }
 
     match /activityLogs/{documentId} {
-      allow create: if isTeacher() && validStaffDocument(request.resource.data);
+      allow create: if (isTeacher() || isAuthenticated()) && validStaffDocument(request.resource.data);
       allow read, delete: if isAdmin();
       allow update: if false;
     }

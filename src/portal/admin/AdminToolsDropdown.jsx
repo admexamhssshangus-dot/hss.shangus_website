@@ -4,7 +4,7 @@ import {
   BarChart2, Contact, ShieldCheck, Settings, ClipboardCheck, 
   CalendarCheck, Hash, Layers, Mail, CreditCard, Edit3, PlusCircle, 
   Wrench, Check, ChevronRight, Zap, PanelsTopLeft, FileSpreadsheet, FileText,
-  GitMerge, BookOpen, Award, X, Search, Calculator, Trash2
+  GitMerge, BookOpen, Award, X, Search, Calculator, Trash2, History
 } from 'lucide-react';
 import {
   ADMIN_MODULE_CATALOG,
@@ -31,6 +31,7 @@ const MODULE_ICONS = {
   cms: PanelsTopLeft,
   boardSync: FileSpreadsheet,
   docStudio: FileSpreadsheet,
+  activityAudit: History,
 };
 
 export const ADMIN_TOOL_MODULES = ADMIN_MODULE_CATALOG
@@ -64,6 +65,9 @@ export const isUserPermittedForModule = (user, moduleId) => {
   }
   if (moduleId === 'quickCellEdit' || moduleId === 'analyticsReports') {
     return perms.includes('quickCellEdit') || perms.includes('analyticsReports') || perms.includes('reports');
+  }
+  if (moduleId === 'activityAudit') {
+    return role === 'superadmin' || perms.includes('*') || perms.includes('activityAudit') || perms.includes('controls') || perms.includes('reports');
   }
   return perms.includes(moduleId);
 };

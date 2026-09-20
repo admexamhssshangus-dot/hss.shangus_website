@@ -498,7 +498,12 @@ export default function SchoolAccountsManager({ user }) {
       } catch (_) {}
 
       showToast(`Tax details updated for ${emp.name || 'Official'}!`, 'success');
-      logAdminActivity('Staff Tax Updated', `Updated income tax and salary record for ${emp.name} (${emp.designation || 'Staff'})`);
+      logAdminActivity({
+        actionType: 'update',
+        actionTitle: 'Staff Tax Updated',
+        details: `Updated income tax and salary record for ${emp.name} (${emp.designation || 'Staff'})`,
+        metadata: { employeeName: emp.name, pan: emp.pan, regime: emp.regime }
+      });
     } catch (err) {
       console.error('Error persisting employee tax details:', err);
       showToast(`Saved locally, but cloud sync encountered an issue: ${err.message}`, 'warning');
@@ -526,16 +531,32 @@ export default function SchoolAccountsManager({ user }) {
 
   const handleSaveTaxRulesToCloud = async () => {
     try {
+      setSavingTax(true);
       await setDoc(doc(db, 'site', 'settings'), {
-        ...settings,
         taxConfig
       }, { merge: true });
+      setSettings((prev) => ({ ...prev, taxConfig }));
+      try {
+        const cached = JSON.parse(localStorage.getItem('site_settings') || '{}');
+        localStorage.setItem('site_settings', JSON.stringify({ ...cached, taxConfig }));
+      } catch (_) {}
       showToast('Income Tax Rules & FY/AY definitions saved to School Database!', 'success');
       setShowTaxRules(false);
-      logAdminActivity('Tax Rules Updated', `Updated tax rules for FY ${taxConfig.financialYearLabel}, AY ${taxConfig.assessmentYearLabel}`);
+      logAdminActivity({
+        actionType: 'update',
+        actionTitle: 'Tax Rules Updated',
+        details: `Updated tax rules for FY ${taxConfig.financialYearLabel}, AY ${taxConfig.assessmentYearLabel}`,
+        metadata: {
+          financialYearLabel: taxConfig.financialYearLabel,
+          assessmentYearLabel: taxConfig.assessmentYearLabel,
+          cessRate: taxConfig.cessRate
+        }
+      });
     } catch (err) {
       console.error('Error saving tax rules:', err);
       showToast(`Error saving tax rules: ${err.message}`, 'error');
+    } finally {
+      setSavingTax(false);
     }
   };
 

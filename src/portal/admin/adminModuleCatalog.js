@@ -264,6 +264,18 @@ export const ADMIN_MODULE_CATALOG = Object.freeze([
     isNew: true,
     aliases: ['boardSync', 'jkboseSync'],
   },
+  {
+    id: 'activityAudit',
+    label: 'Activity Audit & Dispute Trail',
+    shortLabel: 'Activity Audit',
+    description: 'Track, inspect, and verify immutable audit trails across student, teacher & admin actions for dispute resolution',
+    category: 'Operations & Automation',
+    maturity: 'optimized',
+    maturityNote: 'On-demand paginated reads with multi-filter query indexing to minimize Firestore costs.',
+    launcher: true,
+    isNew: true,
+    aliases: ['activityAudit', 'auditLogs', 'activityLogs'],
+  },
 
   // CATEGORY 4: Quick Actions & Ingestion Tools (4 Tools)
   {
