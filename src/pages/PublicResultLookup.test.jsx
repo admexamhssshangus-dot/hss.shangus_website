@@ -739,6 +739,98 @@ describe('Score Normalization and Flexible Biology Display', () => {
     expect(result.totalCount).toBe(5);
     expect(result.resultStatus).toBe('IN PROGRESS');
   });
+
+  test('computeScorecardSubjects correctly reflects Chemistry (9) and Botany (34) awards for Saira Jan (2401010000200021)', () => {
+    const saira = {
+      name: 'Saira Jan',
+      className: '11th',
+      classRollNo: '4',
+      formNo: '250083',
+      boardRegNo: '2401010000200021',
+      stream: 'Science',
+      subjects: [
+        { code: 'EN', name: 'General English' },
+        { code: 'PH', name: 'Physics' },
+        { code: 'CH', name: 'Chemistry' },
+        { code: 'BI', name: 'Biology' },
+        { code: 'ITE', name: 'IT & ITeS' }
+      ]
+    };
+
+    const rawDocs = [
+      // 1. Chemistry document originally with composite class 11th,12th
+      {
+        id: '11th,12th_Chemistry_Pre-Board Test_2025-26',
+        className: '11th,12th',
+        subjectCode: 'CH',
+        subjectName: 'Chemistry',
+        session: '2025-26',
+        practicalType: 'Pre-Board Test',
+        status: 'approved',
+        maxMarks: 50,
+        records: [
+          { rollNo: '4', name: 'Saira Jan', regNo: '2401010000200021', formNo: '250083', totalMarks: 9, practicalMarks: '09' }
+        ]
+      },
+      // 2. Draft/empty Chemistry document with AB that should be overridden
+      {
+        id: '11th_Chemistry_Pre-Board Test_2025-26',
+        className: '11th',
+        subjectCode: 'CH',
+        subjectName: 'Chemistry',
+        session: '2025-26',
+        practicalType: 'Pre-Board Test',
+        status: 'submitted',
+        maxMarks: 50,
+        records: [
+          { rollNo: '4', name: 'Saira Jan', regNo: '2401010000200021', formNo: '250083', totalMarks: 'AB', practicalMarks: 'AB' }
+        ]
+      },
+      // 3. Botany document with evaluated marks
+      {
+        id: '11th_Botany_Pre-Board Test_2025-26',
+        className: '11th',
+        subjectCode: 'BO',
+        subjectName: 'Botany',
+        session: '2025-26',
+        practicalType: 'Pre-Board Test',
+        status: 'approved',
+        maxMarks: 50,
+        records: [
+          { rollNo: '4', name: 'Saira Jan', regNo: '2401010000200021', formNo: '250083', totalMarks: 34, practicalMarks: '34' }
+        ]
+      }
+    ];
+
+    const deduplicated = filterAndDeduplicateSections(rawDocs, '11th', '2025-26', 'Pre-Board Test');
+    const matchRecord = (rec) => rec.formNo === '250083' || rec.rollNo === '4' || rec.regNo === '2401010000200021';
+
+    const result = computeScorecardSubjects({
+      matchedStudent: saira,
+      streamName: 'Science',
+      matchingSections: deduplicated,
+      matchRecord,
+      biologyDisplayMode: 'combined'
+    });
+
+    const chem = result.subjects.find(s => s.subjectCode === 'CH');
+    expect(chem).toBeDefined();
+    expect(chem.marksObtained).toBe(9);
+    expect(chem.isAbsent).toBe(false);
+    expect(chem.isEvaluated).toBe(true);
+
+    const bio = result.subjects.find(s => s.subjectCode === 'BI');
+    expect(bio).toBeDefined();
+    expect(bio.marksObtained).toBe(34);
+    expect(bio.isAbsent).toBe(false);
+    expect(bio.isEvaluated).toBe(true);
+    expect(bio.isPass).toBe(true);
+    expect(bio.componentNote).toContain('BO: 34');
+
+    expect(result.hasMarks).toBe(true);
+    expect(result.totalObtained).toBe(43);
+    expect(result.evaluatedCount).toBe(2);
+  });
 });
 
 

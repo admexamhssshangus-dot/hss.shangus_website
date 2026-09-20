@@ -440,6 +440,22 @@ export function filterAndDeduplicateSections(practicalDocs, targetClassName, tar
     return true;
   });
 
+  const countEvaluated = (sec) => {
+    if (!Array.isArray(sec?.records)) return 0;
+    return sec.records.filter(r => {
+      const m = r.totalMarks ?? r.practicalMarks;
+      return m !== null && m !== undefined && m !== '' && !/^(a|ab|absent)$/i.test(String(m).trim());
+    }).length;
+  };
+
+  const isExactClassMatch = (cls, target) => {
+    const c = String(cls || '').trim().toLowerCase();
+    const t = String(target || '').trim().toLowerCase();
+    if (c === t) return true;
+    if (t === '11th' && (c === '11th,12th' || c === '11th, 12th' || c === '12th,11th')) return true;
+    return false;
+  };
+
   const sectionsBySubj = new Map();
   for (const sec of matchingSectionsRaw) {
     let sKey = (sec.subjectCode || sec.subject || '').toUpperCase().trim();
@@ -449,19 +465,63 @@ export function filterAndDeduplicateSections(practicalDocs, targetClassName, tar
     if (!existing) {
       sectionsBySubj.set(sKey, sec);
     } else {
-      const aExact = String(sec.className || '').trim().toLowerCase() === String(targetClassName || '').trim().toLowerCase() ? 1 : 0;
-      const bExact = String(existing.className || '').trim().toLowerCase() === String(targetClassName || '').trim().toLowerCase() ? 1 : 0;
-      if (aExact !== bExact) {
-        if (aExact > bExact) sectionsBySubj.set(sKey, sec);
-        continue;
+      const aExact = isExactClassMatch(sec.className, targetClassName) ? 1 : 0;
+      const bExact = isExactClassMatch(existing.className, targetClassName) ? 1 : 0;
+      const aEval = countEvaluated(sec);
+      const bEval = countEvaluated(existing);
+
+      let winner = existing;
+      let loser = sec;
+      if (aExact !== bExact && Math.abs(aEval - bEval) <= 1) {
+        if (aExact > bExact) {
+          winner = sec;
+          loser = existing;
+        }
+      } else if (aEval !== bEval) {
+        if (aEval > bEval) {
+          winner = sec;
+          loser = existing;
+        }
+      } else {
+        const isPending = (sec.id && sec.id.startsWith('pending_')) || sec.status === 'pending_approval';
+        const existPending = (existing.id && existing.id.startsWith('pending_')) || existing.status === 'pending_approval';
+        const secTime = Date.parse(sec.updatedAt || sec.submittedAt || sec.timestamp || 0) || 0;
+        const existTime = Date.parse(existing.updatedAt || existing.submittedAt || existing.timestamp || 0) || 0;
+        if ((isPending && !existPending) || secTime > existTime) {
+          winner = sec;
+          loser = existing;
+        }
       }
-      const isPending = (sec.id && sec.id.startsWith('pending_')) || sec.status === 'pending_approval';
-      const existPending = (existing.id && existing.id.startsWith('pending_')) || existing.status === 'pending_approval';
-      const secTime = Date.parse(sec.updatedAt || sec.submittedAt || sec.timestamp || 0) || 0;
-      const existTime = Date.parse(existing.updatedAt || existing.submittedAt || existing.timestamp || 0) || 0;
-      if ((isPending && !existPending) || secTime > existTime) {
-        sectionsBySubj.set(sKey, sec);
-      }
+
+      // Merge records so students who have evaluated marks in loser are not lost to an 'AB' in winner
+      const mergedRecords = (winner.records || []).map(r => {
+        const rawM = r.totalMarks ?? r.practicalMarks;
+        const isAb = rawM === null || rawM === undefined || rawM === '' || /^(a|ab|absent)$/i.test(String(rawM).trim());
+        if (isAb) {
+          const loserMatch = (loser.records || []).find(lr => {
+            const rReg = String(r.regNo || '').replace(/[^0-9]/g, '');
+            const lrReg = String(lr.regNo || '').replace(/[^0-9]/g, '');
+            if (rReg && lrReg && rReg.length >= 10 && rReg === lrReg) return true;
+            const rForm = String(r.formNo || '').trim();
+            const lrForm = String(lr.formNo || '').trim();
+            if (rForm && lrForm && rForm === lrForm) return true;
+            const rRoll = String(r.rollNo || '').trim();
+            const lrRoll = String(lr.rollNo || '').trim();
+            if (rRoll && lrRoll && rRoll === lrRoll && rRoll !== '-' && rRoll !== '') return true;
+            return false;
+          });
+          if (loserMatch) {
+            const lRawM = loserMatch.totalMarks ?? loserMatch.practicalMarks;
+            const isLAb = lRawM === null || lRawM === undefined || lRawM === '' || /^(a|ab|absent)$/i.test(String(lRawM).trim());
+            if (!isLAb) {
+              return { ...r, ...loserMatch };
+            }
+          }
+        }
+        return r;
+      });
+
+      sectionsBySubj.set(sKey, { ...winner, records: mergedRecords });
     }
   }
   return Array.from(sectionsBySubj.values());
@@ -492,15 +552,27 @@ export function computeScorecardSubjects({
     const rec = (sec.records || []).find(matchRecord);
     if (!rec) continue;
 
+    const rawM = rec.totalMarks ?? rec.practicalMarks;
+    const isAb = rawM === null || rawM === undefined || rawM === '' || /^(a|ab|absent)$/i.test(String(rawM).trim());
+
     if (c === 'BO' || n.includes('botany')) {
-      botanySec = sec;
-      botanyRec = rec;
+      const currAb = !botanyRec || /^(a|ab|absent)$/i.test(String(botanyRec.totalMarks ?? botanyRec.practicalMarks).trim());
+      if (!botanyRec || (currAb && !isAb)) {
+        botanySec = sec;
+        botanyRec = rec;
+      }
     } else if (c === 'ZO' || n.includes('zoology')) {
-      zoologySec = sec;
-      zoologyRec = rec;
+      const currAb = !zoologyRec || /^(a|ab|absent)$/i.test(String(zoologyRec.totalMarks ?? zoologyRec.practicalMarks).trim());
+      if (!zoologyRec || (currAb && !isAb)) {
+        zoologySec = sec;
+        zoologyRec = rec;
+      }
     } else if (c === 'BI' || n.includes('biology')) {
-      biologySec = sec;
-      biologyRec = rec;
+      const currAb = !biologyRec || /^(a|ab|absent)$/i.test(String(biologyRec.totalMarks ?? biologyRec.practicalMarks).trim());
+      if (!biologyRec || (currAb && !isAb)) {
+        biologySec = sec;
+        biologyRec = rec;
+      }
     }
   }
 
@@ -879,10 +951,18 @@ export function computeScorecardSubjects({
       if (isMatch) {
         const rec = (sec.records || []).find(matchRecord);
         if (rec) {
-          foundRec = rec;
-          foundSec = sec;
-          matchedSectionIds.add(sec.id || sec.docId);
-          break;
+          const rawM = rec.totalMarks ?? rec.practicalMarks;
+          const isAb = rawM === null || rawM === undefined || rawM === '' || /^(a|ab|absent)$/i.test(String(rawM).trim());
+          if (!isAb) {
+            foundRec = rec;
+            foundSec = sec;
+            matchedSectionIds.add(sec.id || sec.docId);
+            break;
+          } else if (!foundRec) {
+            foundRec = rec;
+            foundSec = sec;
+            matchedSectionIds.add(sec.id || sec.docId);
+          }
         }
       }
     }
