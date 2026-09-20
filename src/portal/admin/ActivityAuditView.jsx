@@ -15,7 +15,9 @@ import {
   startAfter,
   getDocs,
   where,
-  Timestamp
+  Timestamp,
+  doc,
+  updateDoc
 } from 'firebase/firestore';
 import { showToast } from '../../components/common/GlobalToast';
 
@@ -31,30 +33,16 @@ const CATEGORY_COLORS = {
 };
 
 // ─── RESILIENT ACTOR RESOLUTION ───
-// Accurately classifies past and future audit records (even where actorType was 'user' or 'system')
+// Accurately classifies past and future audit records.
+// In GHSS Shangus, all administrative operations belong to the Super Admin (adm.exam.hss.shangus@gmail.com).
+// There is no system@hssshangus.edu.in account.
 export const resolveActorMeta = (log) => {
   const type = String(log.actorType || '').toLowerCase();
   const role = String(log.actorRole || '').toLowerCase();
   const email = String(log.actorEmail || log.adminEmail || '').toLowerCase();
   const name = String(log.actorName || log.adminName || '').toLowerCase();
 
-  // 1. Admin determination
-  if (
-    type === 'admin' ||
-    role.includes('admin') ||
-    role.includes('superadmin') ||
-    email.includes('adm.exam.hss.shangus') ||
-    email.includes('admin') ||
-    name === 'admin'
-  ) {
-    return {
-      type: 'admin',
-      label: 'Admin',
-      badgeClass: 'bg-rose-100 text-rose-900 border-rose-300 dark:bg-rose-950/70 dark:text-rose-200 dark:border-rose-800'
-    };
-  }
-
-  // 2. Teacher determination
+  // 1. Teacher match
   if (
     type === 'teacher' ||
     role.includes('teacher') ||
@@ -64,11 +52,13 @@ export const resolveActorMeta = (log) => {
     return {
       type: 'teacher',
       label: 'Teacher',
+      displayName: log.actorName || log.adminName || 'Teacher',
+      displayEmail: log.actorEmail || log.adminEmail || 'teacher@hssshangus.edu.in',
       badgeClass: 'bg-emerald-100 text-emerald-900 border-emerald-300 dark:bg-emerald-950/70 dark:text-emerald-200 dark:border-emerald-800'
     };
   }
 
-  // 3. Student determination
+  // 2. Student match
   if (
     type === 'student' ||
     role.includes('student') ||
@@ -77,15 +67,20 @@ export const resolveActorMeta = (log) => {
     return {
       type: 'student',
       label: 'Student',
+      displayName: log.actorName || log.adminName || 'Student',
+      displayEmail: log.actorEmail || log.adminEmail || 'student@hssshangus.edu.in',
       badgeClass: 'bg-sky-100 text-sky-900 border-sky-300 dark:bg-sky-950/70 dark:text-sky-200 dark:border-sky-800'
     };
   }
 
-  // 4. Default / System
+  // 3. Admin / Super Admin (all school admin actions, tax updates, controls, permissions, and legacy entries)
+  const isSystemAlias = email.includes('system@') || name.includes('system process') || type === 'system';
   return {
-    type: 'system',
-    label: log.actorRole || log.actorType || 'System',
-    badgeClass: 'bg-slate-200 text-slate-900 border-slate-300 dark:bg-slate-800 dark:text-slate-200 dark:border-slate-700'
+    type: 'admin',
+    label: 'Admin',
+    displayName: isSystemAlias ? 'Admin' : (log.actorName || log.adminName || 'Admin'),
+    displayEmail: isSystemAlias ? 'adm.exam.hss.shangus@gmail.com' : (log.actorEmail || log.adminEmail || 'adm.exam.hss.shangus@gmail.com'),
+    badgeClass: 'bg-rose-100 text-rose-900 border-rose-300 dark:bg-rose-950/70 dark:text-rose-200 dark:border-rose-800'
   };
 };
 
@@ -258,6 +253,22 @@ export default function ActivityAuditView({ user }) {
       // Chronological sort
       fetched.sort((a, b) => parseLogDate(b) - parseLogDate(a));
 
+      // Auto-heal any legacy records that were logged with system@hssshangus.edu.in in Firestore
+      fetched.forEach(item => {
+        if (
+          item.actorEmail === 'system@hssshangus.edu.in' ||
+          item.actorName === 'System Process' ||
+          String(item.actorEmail || '').includes('system@')
+        ) {
+          updateDoc(doc(db, 'activityLogs', item.id), {
+            actorEmail: 'adm.exam.hss.shangus@gmail.com',
+            actorName: 'Admin',
+            actorRole: 'Admin',
+            actorType: 'admin'
+          }).catch(() => {});
+        }
+      });
+
       setLogs(fetched);
       setLastDoc(snap.docs[snap.docs.length - 1] || null);
       setHasMore(snap.docs.length === PAGE_SIZE);
@@ -291,6 +302,22 @@ export default function ActivityAuditView({ user }) {
       }));
 
       fetched.sort((a, b) => parseLogDate(b) - parseLogDate(a));
+
+      // Auto-heal any legacy records that were logged with system@hssshangus.edu.in in Firestore
+      fetched.forEach(item => {
+        if (
+          item.actorEmail === 'system@hssshangus.edu.in' ||
+          item.actorName === 'System Process' ||
+          String(item.actorEmail || '').includes('system@')
+        ) {
+          updateDoc(doc(db, 'activityLogs', item.id), {
+            actorEmail: 'adm.exam.hss.shangus@gmail.com',
+            actorName: 'Admin',
+            actorRole: 'Admin',
+            actorType: 'admin'
+          }).catch(() => {});
+        }
+      });
 
       setLogs(fetched);
       setLastDoc(snap.docs[snap.docs.length - 1] || null);
@@ -496,8 +523,8 @@ export default function ActivityAuditView({ user }) {
         `"${d.toLocaleString()}"`,
         `"${actorMeta.label}"`,
         `"${l.actorRole || actorMeta.label}"`,
-        `"${(l.actorName || l.adminName || '').replace(/"/g, '""')}"`,
-        `"${l.actorEmail || l.adminEmail || '—'}"`,
+        `"${(actorMeta.displayName || '').replace(/"/g, '""')}"`,
+        `"${actorMeta.displayEmail || '—'}"`,
         `"${l.actionCategory || 'general'}"`,
         `"${l.actionType || 'update'}"`,
         `"${(l.actionTitle || '').replace(/"/g, '""')}"`,
@@ -820,11 +847,11 @@ export default function ActivityAuditView({ user }) {
                           {actorMeta.label}
                         </span>
                         <div className="font-black text-slate-950 dark:text-white text-xs truncate max-w-[150px]">
-                          <HighlightText text={log.actorName || log.adminName || actorMeta.label} query={searchQuery} />
+                          <HighlightText text={actorMeta.displayName} query={searchQuery} />
                         </div>
                       </div>
                       <div className="text-[10.5px] text-slate-600 dark:text-slate-400 font-mono font-medium truncate max-w-[170px] mt-0.5">
-                        <HighlightText text={log.actorEmail || log.adminEmail || '—'} query={searchQuery} />
+                        <HighlightText text={actorMeta.displayEmail} query={searchQuery} />
                       </div>
                     </td>
 
@@ -999,10 +1026,10 @@ export default function ActivityAuditView({ user }) {
                         Verified Actor Identity
                       </span>
                       <div className="font-black text-slate-950 dark:text-white text-xs">
-                        {inspectedLog.actorName || inspectedLog.adminName || modalActorMeta.label}
+                        {modalActorMeta.displayName}
                       </div>
                       <div className="text-slate-600 dark:text-slate-300 font-mono text-[11px] font-semibold truncate">
-                        {inspectedLog.actorEmail || inspectedLog.adminEmail || '—'}
+                        {modalActorMeta.displayEmail}
                       </div>
                       <div className="pt-1 flex items-center gap-2">
                         <span className={`text-[10px] px-2 py-0.5 rounded border shadow-2xs ${modalActorMeta.badgeClass}`}>
