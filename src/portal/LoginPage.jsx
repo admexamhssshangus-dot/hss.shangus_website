@@ -52,6 +52,54 @@ const isLikelyTeacherEmail = (rawEmail) => {
   return false;
 };
 
+// Distinct chromatic theme specifications for each role tab
+export const ROLE_THEMES = Object.freeze({
+  student: {
+    tabActive: 'bg-blue-600 text-white shadow-sm font-black',
+    tabHover: 'hover:text-blue-600 dark:hover:text-blue-400',
+    cardBorder: 'border-blue-500/30 shadow-blue-500/10',
+    iconFocus: 'group-focus-within:text-blue-600 dark:group-focus-within:text-blue-400',
+    inputFocus: 'focus:border-blue-600 dark:focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15',
+    checkbox: 'text-blue-600 focus:ring-blue-500',
+    link: 'text-blue-600 dark:text-blue-400 hover:underline',
+    btnGradient: 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 shadow-blue-600/25',
+    btnLabel: 'Sign In as STUDENT',
+  },
+  teacher: {
+    tabActive: 'bg-emerald-600 text-white shadow-sm font-black',
+    tabHover: 'hover:text-emerald-600 dark:hover:text-emerald-400',
+    cardBorder: 'border-emerald-500/30 shadow-emerald-500/10',
+    iconFocus: 'group-focus-within:text-emerald-600 dark:group-focus-within:text-emerald-400',
+    inputFocus: 'focus:border-emerald-600 dark:focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/15',
+    checkbox: 'text-emerald-600 focus:ring-emerald-500',
+    link: 'text-emerald-600 dark:text-emerald-400 hover:underline',
+    btnGradient: 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 shadow-emerald-600/25',
+    btnLabel: 'Sign In as TEACHER',
+  },
+  admin: {
+    tabActive: 'bg-amber-600 text-white shadow-sm font-black',
+    tabHover: 'hover:text-amber-600 dark:hover:text-amber-400',
+    cardBorder: 'border-amber-500/30 shadow-amber-500/10',
+    iconFocus: 'group-focus-within:text-amber-600 dark:group-focus-within:text-amber-400',
+    inputFocus: 'focus:border-amber-600 dark:focus:border-amber-500 focus:ring-2 focus:ring-amber-500/15',
+    checkbox: 'text-amber-600 focus:ring-amber-500',
+    link: 'text-amber-600 dark:text-amber-400 hover:underline',
+    btnGradient: 'bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 shadow-amber-600/25',
+    btnLabel: 'Sign In as STANDARD ADMIN',
+  },
+  superadmin: {
+    tabActive: 'bg-purple-600 text-white shadow-sm font-black',
+    tabHover: 'hover:text-purple-600 dark:hover:text-purple-400',
+    cardBorder: 'border-purple-500/30 shadow-purple-500/10',
+    iconFocus: 'group-focus-within:text-purple-600 dark:group-focus-within:text-purple-400',
+    inputFocus: 'focus:border-purple-600 dark:focus:border-purple-500 focus:ring-2 focus:ring-purple-500/15',
+    checkbox: 'text-purple-600 focus:ring-purple-500',
+    link: 'text-purple-600 dark:text-purple-400 hover:underline',
+    btnGradient: 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 shadow-purple-600/25',
+    btnLabel: 'Sign In as SUPERADMIN',
+  },
+});
+
 export default function LoginPage() {
   const { onLoginSuccess, isAuthenticated, user } = useOutletContext();
   const location = useLocation();
@@ -134,6 +182,7 @@ export default function LoginPage() {
   });
 
   const isSuperAdmin = selectedRole === 'superadmin';
+  const activeTheme = ROLE_THEMES[selectedRole] || ROLE_THEMES.student;
 
   // If user is already authenticated, automatically redirect to their dashboard (Except when in Window 2 verification gateway or waiting for 2-step verification)
   useEffect(() => {
@@ -964,7 +1013,7 @@ export default function LoginPage() {
         <div className="lg:col-span-6 w-full max-w-[420px] mx-auto lg:max-w-none">
           
           <div className={`rounded-2xl sm:rounded-3xl p-3.5 xs:p-4 sm:p-5.5 border shadow-lg sm:shadow-xl transition-all duration-300 relative overflow-hidden bg-white/95 dark:bg-slate-900/95 backdrop-blur-2xl ${
-            isSuperAdmin ? 'border-purple-500/30 shadow-purple-500/10' : 'border-slate-200/80 dark:border-slate-800/80 shadow-teal-500/5'
+            activeTheme.cardBorder
           }`}>
 
             {/* Loading blur overlay */}
@@ -982,7 +1031,7 @@ export default function LoginPage() {
               </div>
             )}
 
-            {/* Card Header: School Crest + Title + SuperAdmin Toggle */}
+            {/* Card Header: School Crest + Title + SuperAdmin Quick Toggle */}
             <div className="relative z-10 space-y-1.5 sm:space-y-2 mb-2 sm:mb-2.5">
               
               {/* Crest Logo */}
@@ -1004,8 +1053,12 @@ export default function LoginPage() {
                 {/* Cryptic SuperAdmin Mode Toggle */}
                 <button
                   type="button"
-                  onClick={() => setSelectedRole(isSuperAdmin ? 'admin' : 'superadmin')}
-                  title={isSuperAdmin ? 'Deactivate Executive Access' : 'System Mode'}
+                  onClick={() => {
+                    if (emailLinkSentState) handleCancel2Step();
+                    setSelectedRole(isSuperAdmin ? 'admin' : 'superadmin');
+                    setCaptchaToken(null);
+                  }}
+                  title={isSuperAdmin ? 'Switch to Standard Admin' : 'System Mode'}
                   className="group relative flex-shrink-0 p-1.5 rounded-xl opacity-30 hover:opacity-100 transition-opacity cursor-pointer text-slate-400 hover:text-purple-500"
                 >
                   <Sparkles size={13} className={isSuperAdmin ? 'text-purple-500 opacity-100' : ''} />
@@ -1016,13 +1069,13 @@ export default function LoginPage() {
               </div>
 
               {isSuperAdmin && (
-                <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg text-[10px] sm:text-[11px] font-black bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20 w-full justify-center">
+                <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg text-[10px] sm:text-[11px] font-black bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20 w-full justify-center animate-fadeIn">
                   <ShieldCheck size={12} /> SuperAdmin Access Mode Active
                 </div>
               )}
             </div>
 
-            {/* Segmented Control Role Selector Tabs */}
+            {/* Segmented Control Role Selector Tabs (3 Tabs: Student, Teacher, Admin) */}
             <div className="grid grid-cols-3 p-0.5 rounded-xl border text-[11px] sm:text-xs font-black relative z-10 bg-slate-100/90 dark:bg-slate-950/90 border-slate-200 dark:border-slate-800 mb-2">
               <button
                 type="button"
@@ -1033,8 +1086,8 @@ export default function LoginPage() {
                 }}
                 className={`py-1.5 px-1 rounded-lg flex items-center justify-center gap-1 sm:gap-1.5 transition-all duration-200 cursor-pointer ${
                   selectedRole === 'student'
-                    ? 'bg-teal-600 text-white shadow-xs font-black'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white font-extrabold'
+                    ? ROLE_THEMES.student.tabActive
+                    : `text-slate-600 dark:text-slate-400 ${ROLE_THEMES.student.tabHover} font-extrabold`
                 }`}
               >
                 <GraduationCap size={13} className="shrink-0" /> 
@@ -1050,8 +1103,8 @@ export default function LoginPage() {
                 }}
                 className={`py-1.5 px-1 rounded-lg flex items-center justify-center gap-1 sm:gap-1.5 transition-all duration-200 cursor-pointer ${
                   selectedRole === 'teacher'
-                    ? 'bg-emerald-600 text-white shadow-xs font-black'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white font-extrabold'
+                    ? ROLE_THEMES.teacher.tabActive
+                    : `text-slate-600 dark:text-slate-400 ${ROLE_THEMES.teacher.tabHover} font-extrabold`
                 }`}
               >
                 <UserCheck size={13} className="shrink-0" /> 
@@ -1061,17 +1114,27 @@ export default function LoginPage() {
               <button
                 type="button"
                 onClick={() => {
+                  if (emailLinkSentState) handleCancel2Step();
                   setSelectedRole(isSuperAdmin ? 'superadmin' : 'admin');
                   setCaptchaToken(null);
                 }}
                 className={`py-1.5 px-1 rounded-lg flex items-center justify-center gap-1 sm:gap-1.5 transition-all duration-200 cursor-pointer ${
                   selectedRole === 'admin' || isSuperAdmin
-                    ? 'bg-purple-600 text-white shadow-xs font-black'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white font-extrabold'
+                    ? (isSuperAdmin ? ROLE_THEMES.superadmin.tabActive : ROLE_THEMES.admin.tabActive)
+                    : `text-slate-600 dark:text-slate-400 ${isSuperAdmin ? ROLE_THEMES.superadmin.tabHover : ROLE_THEMES.admin.tabHover} font-extrabold`
                 }`}
               >
-                <Lock size={13} className="shrink-0" /> 
-                <span className="truncate text-[11px] sm:text-xs">Admin</span>
+                {isSuperAdmin ? (
+                  <>
+                    <ShieldCheck size={13} className="shrink-0" />
+                    <span className="truncate text-[11px] sm:text-xs">SuperAdmin</span>
+                  </>
+                ) : (
+                  <>
+                    <Lock size={13} className="shrink-0" /> 
+                    <span className="truncate text-[11px] sm:text-xs">Admin</span>
+                  </>
+                )}
               </button>
             </div>
 
@@ -1324,7 +1387,7 @@ export default function LoginPage() {
                     Email Address <span className="text-rose-500 font-bold">*</span>
                   </label>
                   <div className="relative group">
-                    <Mail size={13} className="sm:w-3.5 sm:h-3.5 absolute left-2.5 sm:left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-teal-600 dark:group-focus-within:text-teal-400 transition-colors pointer-events-none" />
+                    <Mail size={13} className={`sm:w-3.5 sm:h-3.5 absolute left-2.5 sm:left-3 top-1/2 -translate-y-1/2 text-slate-400 ${activeTheme.iconFocus} transition-colors pointer-events-none`} />
                     <input
                       id="login-email"
                       type="email"
@@ -1332,7 +1395,7 @@ export default function LoginPage() {
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       required
-                      className="w-full pl-8 sm:pl-9 pr-3 py-1.5 sm:py-2 rounded-lg sm:rounded-xl text-xs sm:text-[13px] font-medium border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 shadow-2xs hover:border-slate-300 dark:hover:border-slate-600 focus:outline-none focus:border-teal-600 dark:focus:border-teal-500 focus:ring-2 focus:ring-teal-500/15 transition-all duration-150"
+                      className={`w-full pl-8 sm:pl-9 pr-3 py-1.5 sm:py-2 rounded-lg sm:rounded-xl text-xs sm:text-[13px] font-medium border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 shadow-2xs hover:border-slate-300 dark:hover:border-slate-600 focus:outline-none ${activeTheme.inputFocus} transition-all duration-150`}
                     />
                   </div>
                 </div>
@@ -1343,7 +1406,7 @@ export default function LoginPage() {
                     Password <span className="text-rose-500 font-bold">*</span>
                   </label>
                   <div className="relative group">
-                    <KeyRound size={13} className="sm:w-3.5 sm:h-3.5 absolute left-2.5 sm:left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-teal-600 dark:group-focus-within:text-teal-400 transition-colors pointer-events-none" />
+                    <KeyRound size={13} className={`sm:w-3.5 sm:h-3.5 absolute left-2.5 sm:left-3 top-1/2 -translate-y-1/2 text-slate-400 ${activeTheme.iconFocus} transition-colors pointer-events-none`} />
                     <input
                       id="login-password"
                       type={showPassword ? 'text' : 'password'}
@@ -1351,7 +1414,7 @@ export default function LoginPage() {
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       required
-                      className="w-full pl-8 sm:pl-9 pr-8 sm:pr-9 py-1.5 sm:py-2 rounded-lg sm:rounded-xl text-xs sm:text-[13px] font-medium border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 shadow-2xs hover:border-slate-300 dark:hover:border-slate-600 focus:outline-none focus:border-teal-600 dark:focus:border-teal-500 focus:ring-2 focus:ring-teal-500/15 transition-all duration-150"
+                      className={`w-full pl-8 sm:pl-9 pr-8 sm:pr-9 py-1.5 sm:py-2 rounded-lg sm:rounded-xl text-xs sm:text-[13px] font-medium border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 shadow-2xs hover:border-slate-300 dark:hover:border-slate-600 focus:outline-none ${activeTheme.inputFocus} transition-all duration-150`}
                     />
                     <button
                       type="button"
@@ -1371,12 +1434,12 @@ export default function LoginPage() {
                       type="checkbox"
                       checked={keepLoggedIn}
                       onChange={(e) => setKeepLoggedIn(e.target.checked)}
-                      className="rounded border-slate-300 text-teal-600 focus:ring-teal-500 cursor-pointer w-3.5 h-3.5"
+                      className={`rounded border-slate-300 ${activeTheme.checkbox} cursor-pointer w-3.5 h-3.5`}
                     />
                     <span>Keep me logged in</span>
                   </label>
 
-                  <Link to="/portal/forgot-password" className="text-teal-600 dark:text-teal-400 hover:underline font-bold">
+                  <Link to="/portal/forgot-password" className={`${activeTheme.link} font-bold`}>
                     Forgot Password?
                   </Link>
                 </div>
@@ -1392,19 +1455,13 @@ export default function LoginPage() {
                 <button
                   type="submit"
                   disabled={isLoading}
-                  className={`w-full py-2 sm:py-2.5 rounded-lg sm:rounded-xl font-bold text-xs sm:text-[13px] text-white shadow-md transition-all duration-200 flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 active:scale-[0.99] mt-0.5 ${
-                    isSuperAdmin
-                      ? 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 shadow-purple-600/25'
-                      : selectedRole === 'teacher'
-                      ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 shadow-emerald-600/25'
-                      : 'bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 hover:to-emerald-500 shadow-teal-600/25'
-                  }`}
+                  className={`w-full py-2 sm:py-2.5 rounded-lg sm:rounded-xl font-bold text-xs sm:text-[13px] text-white shadow-md transition-all duration-200 flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 active:scale-[0.99] mt-0.5 ${activeTheme.btnGradient}`}
                 >
                   {isLoading ? (
                     <RefreshCw size={13} className="animate-spin" />
                   ) : (
                     <>
-                      <span>{isSuperAdmin ? 'Sign In as SUPERADMIN' : `Sign In as ${selectedRole.toUpperCase()}`}</span>
+                      <span>{activeTheme.btnLabel}</span>
                       <ArrowRight size={13} />
                     </>
                   )}
