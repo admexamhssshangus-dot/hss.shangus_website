@@ -373,8 +373,8 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
       depthWrite: false
     });
     const carbonLabelSprite = new THREE.Sprite(carbonLabelMat);
-    carbonLabelSprite.position.set(0, -1.26, 0.1);
-    carbonLabelSprite.scale.set(1.35, 0.38, 1);
+    carbonLabelSprite.position.set(0, 1.20, 0.1);
+    carbonLabelSprite.scale.set(1.30, 0.36, 1);
     atomAnchor.add(carbonLabelSprite);
 
     masterGroup.add(atomAnchor);
@@ -818,6 +818,7 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
     let flaskSwirlAngle = 0;
     let bookLiftProgress = 0;
     let continuousPageTurnCycle = 0;
+    let atomPatrolCycle = 0;
 
     const renderLoop = (time) => {
       if (!isVisible) {
@@ -835,30 +836,42 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
       mouseNormY += (targetMouseY - mouseNormY) * 0.06;
 
       // -----------------------------------------------------------------------
-      // 8A. CARBON ATOM: FOLLOWS MOUSE & ANIMATES QUANTUM ORBITALS (Z = 6)
+      // 8A. CARBON ATOM: END-TO-END ROUTE OVER "NURTURING MINDS, SHAPING FUTURES"
+      // Traverses continuously from the left end ("nurturing") to right end ("futures")
+      // and combines with interactive mouse tracking & aerodynamic banking!
       // -----------------------------------------------------------------------
-      const atomFollowTravelX = isMobile ? 1.5 : 2.6;
-      const atomFollowTravelY = isMobile ? 0.6 : 1.0;
+      atomPatrolCycle += delta * 0.40 * speedMult;
 
-      const targetAtomX = atomHomePos.x + (mouseNormX * atomFollowTravelX);
-      const targetAtomY = atomHomePos.y - (mouseNormY * atomFollowTravelY);
+      // Full horizontal sweep width covering the motto text end to end
+      const sweepWidth = isMobile ? 1.85 : 2.90;
+      const normalSweepX = Math.sin(atomPatrolCycle) * sweepWidth;
+      const normalSweepY = Math.cos(atomPatrolCycle * 2) * 0.08;
 
-      // Glide smoothly towards mouse location
-      atomAnchor.position.x += (targetAtomX - atomAnchor.position.x) * 0.07;
-      atomAnchor.position.y += (targetAtomY - atomAnchor.position.y) * 0.07;
+      // Interactive mouse influence added to the normal route
+      const mouseInfluenceX = mouseNormX * (isMobile ? 0.6 : 0.9);
+      const mouseInfluenceY = -mouseNormY * (isMobile ? 0.35 : 0.5);
 
-      // Gentle floating nuclear pulse & bob
-      const atomBob = Math.sin(time * 0.0016 * speedMult) * 0.035;
-      atomAnchor.position.y += atomBob * 0.02;
+      const targetAtomX = normalSweepX + mouseInfluenceX;
+      const targetAtomY = atomHomePos.y + normalSweepY + mouseInfluenceY;
 
-      const nucleusPulse = 1.0 + Math.sin(time * 0.003 * speedMult) * 0.05;
-      nucleusShell.scale.set(nucleusPulse, nucleusPulse, nucleusPulse);
+      // Glide smoothly along route
+      atomAnchor.position.x += (targetAtomX - atomAnchor.position.x) * 0.08;
+      atomAnchor.position.y += (targetAtomY - atomAnchor.position.y) * 0.08;
 
-      // Gyroscopic rotational orientation towards mouse
-      const targetAtomRotY = mouseNormX * 2.2;
-      const targetAtomRotX = -mouseNormY * 1.6;
+      // Gentle aerodynamic banking tilt along direction of travel
+      const sweepVelocityX = Math.cos(atomPatrolCycle); // + when moving right, - when moving left
+      const bankingTiltZ = -sweepVelocityX * 0.12;
+
+      // Gyroscopic rotational orientation towards mouse + flight bank
+      const targetAtomRotY = (mouseNormX * 1.8) + (sweepVelocityX * 0.25);
+      const targetAtomRotX = -mouseNormY * 1.4;
       atomInteractiveGroup.rotation.y += (targetAtomRotY - atomInteractiveGroup.rotation.y) * 0.08;
       atomInteractiveGroup.rotation.x += (targetAtomRotX - atomInteractiveGroup.rotation.x) * 0.08;
+      atomInteractiveGroup.rotation.z += (bankingTiltZ - atomInteractiveGroup.rotation.z) * 0.08;
+
+      // Gentle floating nuclear pulse
+      const nucleusPulse = 1.0 + Math.sin(time * 0.003 * speedMult) * 0.05;
+      nucleusShell.scale.set(nucleusPulse, nucleusPulse, nucleusPulse);
 
       // Quantum speed boost when mouse is actively moving
       const mouseSpeedBoost = 1.0 + Math.hypot(mouseNormX, mouseNormY) * 3.0;
