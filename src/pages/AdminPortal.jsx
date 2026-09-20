@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { LogOut, Lock, Unlock, Save, Download, Plus, Trash2, FileText, Users, AlertCircle, CheckCircle2, UserPlus, RefreshCw, FolderOpen, Edit2, Check, X, Calendar, Upload, ArrowUpCircle, Printer, FileSpreadsheet, BookOpen, Calculator, Settings, Image, ChevronDown, Loader2, XCircle, Clock, Circle, ArrowUp, ArrowDown, Eye, EyeOff, Layers, Mail, CreditCard, QrCode, RotateCcw, ExternalLink, Compass, Database } from 'lucide-react';
+import { LogOut, Lock, Unlock, Save, Download, Plus, Trash2, FileText, Users, AlertCircle, CheckCircle2, UserPlus, RefreshCw, FolderOpen, Edit2, Check, X, Calendar, Upload, ArrowUpCircle, Printer, FileSpreadsheet, BookOpen, Calculator, Settings, Image, ChevronDown, Loader2, XCircle, Clock, Circle, ArrowUp, ArrowDown, Eye, EyeOff, Layers, Mail, CreditCard, QrCode, RotateCcw, ExternalLink, Compass, Database, Sparkles } from 'lucide-react';
 import { DEFAULT_SETTINGS, DEFAULT_HERO_BUTTONS, loadSiteSettings, mergeSiteSettings } from '../utils/settingsLoader';
 import HeroButtonsManager from '../portal/admin/HeroButtonsManager';
 import { db, storage, auth } from '../firebase';
@@ -6464,6 +6464,38 @@ function AdminPortalContent({ embeddedUser, onEmbeddedLogout, initialTab }) {
                     labelLeft="Open"
                     labelRight="Closed"
                   />
+                </div>
+
+                {/* Interactive 3D Educational Assets Toggle */}
+                <div className="bg-slate-900/60 p-3 rounded-lg border border-indigo-500/30 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                  <div className="flex items-start gap-2.5">
+                    <div className="p-2 rounded-lg bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 mt-0.5 shrink-0">
+                      <Sparkles size={16} />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h3 className="text-sm font-bold text-slate-200">Interactive 3D Visual Experience (Hero Banner)</h3>
+                        <span className={`text-[9.5px] uppercase font-extrabold px-2 py-0.5 rounded-full border ${
+                          settings.enable3dHeroAssets
+                            ? 'bg-indigo-950/90 text-indigo-300 border-indigo-600/50'
+                            : 'bg-slate-800 text-slate-400 border-slate-700'
+                        }`}>
+                          {settings.enable3dHeroAssets ? '3D Active' : 'Classic 2D Mode'}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">
+                        Toggle lightweight, mobile-responsive 3D educational assets (Knowledge Core, Floating Book of Wisdom & Constellation) on the homepage. When disabled, the website instantly loads the standard 2D layout with zero 3D code.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="self-end sm:self-center shrink-0">
+                    <ToggleSwitch
+                      checked={Boolean(settings.enable3dHeroAssets)}
+                      onChange={(val) => setSettings((s) => ({ ...s, enable3dHeroAssets: val }))}
+                      labelLeft="Off"
+                      labelRight="On"
+                    />
+                  </div>
                 </div>
 
                 {/* Class admissions flags */}
