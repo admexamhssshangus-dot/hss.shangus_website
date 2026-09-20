@@ -424,6 +424,10 @@ export default function TeacherDashboard() {
                         <button
                           type="button"
                           onClick={() => {
+                            if (!isAdmin && !isSubmissionOwnedByTeacher(item, user, auth.currentUser)) {
+                              showToast('Access Restricted: You cannot view or print awards submitted by other teachers.', 'error');
+                              return;
+                            }
                             const ok = printHistoricalSubmission(item);
                             if (!ok) {
                               showToast('No student records found in this submission.', 'warning');
@@ -439,6 +443,10 @@ export default function TeacherDashboard() {
                         <button
                           type="button"
                           onClick={() => {
+                            if (!isAdmin && !isSubmissionOwnedByTeacher(item, user, auth.currentUser)) {
+                              showToast('Access Restricted: You cannot load awards submitted by other teachers.', 'error');
+                              return;
+                            }
                             setShowHistoryModal(false);
                             const rawCls = String(item.className || '');
                             const cleanCls = rawCls.includes('11') ? '11th' : (rawCls.includes('12') ? '12th' : (rawCls.includes('10') ? '10th' : (rawCls.includes('9') ? '9th' : '11th')));
