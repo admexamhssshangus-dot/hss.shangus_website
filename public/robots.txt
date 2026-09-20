@@ -5,4 +5,4 @@ Allow: /
 Disallow: /.netlify/functions/
 Disallow: /api/
 
-Sitemap: https://hssshangus.netlify.app/sitemap.xml
+Sitemap: https://hssshangus.in/sitemap.xml

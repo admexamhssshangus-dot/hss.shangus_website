@@ -1,6 +1,6 @@
 {
   "packageId": "org.hssshangus.app",
-  "host": "hssshangus.netlify.app",
+  "host": "hssshangus.in",
   "name": "Govt. Higher Secondary School Shangus",
   "launcherName": "HSS Shangus",
   "display": "standalone",
@@ -9,8 +9,8 @@
   "backgroundColor": "#ffffff",
   "enableNotifications": true,
   "startUrl": "/",
-  "iconUrl": "https://hssshangus.netlify.app/logo512.png",
-  "maskableIconUrl": "https://hssshangus.netlify.app/logo512.png",
+  "iconUrl": "https://hssshangus.in/logo512.png",
+  "maskableIconUrl": "https://hssshangus.in/logo512.png",
   "appVersionName": "1.0.0",
   "appVersionCode": 100,
   "signingKey": {

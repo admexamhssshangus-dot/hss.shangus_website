@@ -2184,7 +2184,7 @@ img {
     color: #00674F;
   }
   body:not(.id-card-print-mode):not(.admission-register-print-mode):not(.clean-print-mode)::after {
-    content: "Verified Official Record • hssshangus.netlify.app";
+    content: "Verified Official Record • hssshangus.in";
     display: block;
     text-align: center;
     font-size: 10px;

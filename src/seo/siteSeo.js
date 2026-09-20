@@ -1,5 +1,5 @@
 // Shared public facts and metadata for browser navigation and production HTML.
-const SITE_ORIGIN = 'https://hssshangus.netlify.app';
+const SITE_ORIGIN = 'https://hssshangus.in';
 const SITE_NAME = 'HSS Shangus';
 const SCHOOL_NAME = 'Govt. Higher Secondary School Shangus';
 const DEFAULT_IMAGE = `${SITE_ORIGIN}/slides/og-card.jpg`;
@@ -143,8 +143,38 @@ function getStructuredData(seo) {
     },
     {
       '@type': 'WebSite', '@id': `${SITE_ORIGIN}/#website`, name: SITE_NAME,
-      alternateName: [SCHOOL_NAME, 'GHSS Shangus', 'hssshangus.netlify.app'],
-      url: `${SITE_ORIGIN}/`, publisher: { '@id': `${SITE_ORIGIN}/#school` }
+      alternateName: [SCHOOL_NAME, 'GHSS Shangus', 'hssshangus.in', 'www.hssshangus.in', 'hssshangus.netlify.app'],
+      url: `${SITE_ORIGIN}/`, publisher: { '@id': `${SITE_ORIGIN}/#school` },
+      hasPart: [
+        {
+          '@type': 'WebPage', '@id': `${SITE_ORIGIN}/admissions#webpage`, url: `${SITE_ORIGIN}/admissions`,
+          name: 'Online Admissions', description: PUBLIC_PAGES['/admissions'].description
+        },
+        {
+          '@type': 'WebPage', '@id': `${SITE_ORIGIN}/results#webpage`, url: `${SITE_ORIGIN}/results`,
+          name: 'Examination Results & Scorecards', description: PUBLIC_PAGES['/results'].description
+        },
+        {
+          '@type': 'WebPage', '@id': `${SITE_ORIGIN}/notices#webpage`, url: `${SITE_ORIGIN}/notices`,
+          name: 'Notice Board & Datesheets', description: PUBLIC_PAGES['/notices'].description
+        },
+        {
+          '@type': 'WebPage', '@id': `${SITE_ORIGIN}/academics#webpage`, url: `${SITE_ORIGIN}/academics`,
+          name: 'Academics & Faculty', description: PUBLIC_PAGES['/academics'].description
+        },
+        {
+          '@type': 'WebPage', '@id': `${SITE_ORIGIN}/about#webpage`, url: `${SITE_ORIGIN}/about`,
+          name: 'About HSS Shangus', description: PUBLIC_PAGES['/about'].description
+        },
+        {
+          '@type': 'WebPage', '@id': `${SITE_ORIGIN}/contact#webpage`, url: `${SITE_ORIGIN}/contact`,
+          name: 'Contact & Location', description: PUBLIC_PAGES['/contact'].description
+        },
+        {
+          '@type': 'WebPage', '@id': `${SITE_ORIGIN}/login#webpage`, url: `${SITE_ORIGIN}/login`,
+          name: 'Student & Staff Portal', description: PUBLIC_PAGES['/login'].description
+        }
+      ]
     },
     {
       '@type': 'WebPage', '@id': `${seo.canonical}#webpage`, url: seo.canonical,
