@@ -195,6 +195,17 @@ export default function Home() {
     return [{ image: '/slides/6.jpg', title: 'Infrastructure', caption: 'Spacious campus with open grounds' }];
   });
 
+  const [isMobile, setIsMobile] = useState(() => (typeof window !== 'undefined' ? window.innerWidth < 768 : false));
+
+  // Update isMobile on viewport resize
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    window.addEventListener('resize', handleResize, { passive: true });
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   // Hide Latest Updates ticker on desktop when user scrolls down and Latest Notices / Briefing becomes visible
   useEffect(() => {
     const handleScroll = () => {
@@ -409,8 +420,8 @@ export default function Home() {
         {/* Background slideshow: using dynamic config with public fallback */}
         <Slideshow slides={slides} configUrl={slides.length === 0 ? "/slides/slides.txt" : null} imageFolder="/slides/" interval={6000} />
         
-        {/* Dynamic 3D Hero Experience (Lazy-loaded, strictly rendered only when enabled in CMS) */}
-        {Boolean(settings?.enable3dHeroAssets) && (
+        {/* Dynamic 3D Hero Experience (Lazy-loaded, strictly rendered only when enabled in CMS; hidden on mobile by default) */}
+        {Boolean(settings?.enable3dHeroAssets) && (!isMobile || Boolean(settings?.enable3dHeroAssetsMobile)) && (
           <React.Suspense fallback={null}>
             <Hero3DExperience hoveredAction={hoveredHeroAction} />
           </React.Suspense>
