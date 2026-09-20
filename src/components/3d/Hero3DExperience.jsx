@@ -19,9 +19,11 @@ import * as THREE from 'three';
  *    - Positioned with generous breathing room to the left of the button.
  *    - When Admissions Open is hovered: cascading fluttering/slipping pages arching upward
  *      without flopping all the way to the left side!
- * 3. 🎓 Academic Mortarboard Cap (Strictly on Right of "Learn More"):
+ * 3. 🧪 Scientific Laboratory Apparatus (Erlenmeyer Flask of Discovery, Strictly on Right of "Learn More"):
  *    - Positioned with generous breathing room to the right of the button.
- *    - Synchronized: also celebrates when Admissions Open is hovered (+0.22Y toss, spin, and tassel wave).
+ *    - Universally applicable to all students across STEM, Chemistry, Biology, Physics, & General Sciences.
+ *    - Borosilicate glass with volumetric graduations, glass stirring rod, glowing cyan discovery elixir, and rising effervescent bubbles.
+ *    - Synchronized: when Admissions Open is hovered, elevates (+0.18Y), tilts, liquid radiates discovery glow, and bubbles effervesce faster.
  * 4. "Learn More" is completely detached from 3D motion, maintaining a clean secondary link.
  */
 export default function Hero3DExperience({ className = '', hoveredAction = null }) {
@@ -413,76 +415,177 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
     masterGroup.add(bookAnchor);
 
     // =========================================================================
-    // ASSET 3: ACADEMIC MORTARBOARD CAP (STRICTLY ON RIGHT OF "LEARN MORE")
+    // ASSET 3: SCIENTIFIC LABORATORY FLASK (STRICTLY ON RIGHT OF "LEARN MORE")
+    // Conical Erlenmeyer Flask of Discovery - Borosilicate glass, volumetric
+    // graduations, glowing discovery liquid, glass stirring rod, & rising bubbles.
     // =========================================================================
-    const capAnchor = new THREE.Group();
-    const capHomePos = {
+    const flaskAnchor = new THREE.Group();
+    const flaskHomePos = {
       x: isMobile ? 1.50 : 2.20,
       y: isMobile ? -0.42 : -0.38,
       z: isMobile ? 0.15 : 0.20
     };
-    capAnchor.position.set(capHomePos.x, capHomePos.y, capHomePos.z);
-    capAnchor.scale.setScalar(isMobile ? 0.34 : 0.44);
+    flaskAnchor.position.set(flaskHomePos.x, flaskHomePos.y, flaskHomePos.z);
+    flaskAnchor.scale.setScalar(isMobile ? 0.34 : 0.44);
 
-    const capMeshGroup = new THREE.Group();
-    capMeshGroup.rotation.set(0.35, -0.4, 0.18);
-    capAnchor.add(capMeshGroup);
+    const flaskMeshGroup = new THREE.Group();
+    flaskMeshGroup.rotation.set(0.22, -0.35, 0.12);
+    flaskAnchor.add(flaskMeshGroup);
 
-    // Satin Midnight Silk Mortarboard Diamond
-    const boardGeo = new THREE.BoxGeometry(1.05, 0.04, 1.05);
-    const capMat = new THREE.MeshStandardMaterial({
-      color: 0x0f172a,
-      roughness: 0.35,
-      metalness: 0.35
+    // 3A. Ultra-Clear Borosilicate Glass Materials
+    const glassMat = new THREE.MeshPhysicalMaterial({
+      color: 0xecfeff,
+      transmission: 0.88,
+      opacity: 0.65,
+      transparent: true,
+      roughness: 0.08,
+      metalness: 0.12,
+      ior: 1.52,
+      reflectivity: 0.9,
+      clearcoat: 1.0,
+      clearcoatRoughness: 0.05,
+      depthWrite: false,
+      side: THREE.DoubleSide
     });
-    const boardMesh = new THREE.Mesh(boardGeo, capMat);
-    boardMesh.rotation.y = Math.PI / 4;
-    capMeshGroup.add(boardMesh);
 
-    // 24K Gold Filigree Edge Lining
-    const edgeTrimGeo = new THREE.BoxGeometry(1.06, 0.008, 1.06);
-    const goldTrimMat = new THREE.MeshStandardMaterial({
-      color: 0xfbbf24,
-      emissive: 0xb45309,
-      emissiveIntensity: 0.55,
-      metalness: 0.95,
-      roughness: 0.15
+    // Conical Main Flask Body
+    const coneGeo = new THREE.CylinderGeometry(0.13, 0.46, 0.64, 32, 1, true);
+    const coneMesh = new THREE.Mesh(coneGeo, glassMat);
+    flaskMeshGroup.add(coneMesh);
+
+    // Cylindrical Neck
+    const neckGeo = new THREE.CylinderGeometry(0.13, 0.13, 0.32, 32, 1, true);
+    const neckMesh = new THREE.Mesh(neckGeo, glassMat);
+    neckMesh.position.y = 0.48;
+    flaskMeshGroup.add(neckMesh);
+
+    // Flared Rim Lip at Top
+    const rimGeo = new THREE.TorusGeometry(0.14, 0.024, 16, 32);
+    const rimMesh = new THREE.Mesh(rimGeo, glassMat);
+    rimMesh.rotation.x = Math.PI / 2;
+    rimMesh.position.y = 0.64;
+    flaskMeshGroup.add(rimMesh);
+
+    // Base Glass Bottom Plate & Rounded Rim
+    const basePlateGeo = new THREE.CylinderGeometry(0.46, 0.46, 0.025, 32);
+    const basePlateMesh = new THREE.Mesh(basePlateGeo, glassMat);
+    basePlateMesh.position.y = -0.32;
+    flaskMeshGroup.add(basePlateMesh);
+
+    const baseRingGeo = new THREE.TorusGeometry(0.45, 0.022, 16, 32);
+    const baseRingMesh = new THREE.Mesh(baseRingGeo, glassMat);
+    baseRingMesh.rotation.x = Math.PI / 2;
+    baseRingMesh.position.y = -0.32;
+    flaskMeshGroup.add(baseRingMesh);
+
+    // 3B. Luminescent Discovery Liquid (Cyan-Emerald Scientific Elixir)
+    const liquidMat = new THREE.MeshStandardMaterial({
+      color: 0x06b6d4,
+      emissive: 0x0284c7,
+      emissiveIntensity: 0.5,
+      roughness: 0.15,
+      metalness: 0.25,
+      transparent: true,
+      opacity: 0.82
     });
-    const edgeTrimMesh = new THREE.Mesh(edgeTrimGeo, goldTrimMat);
-    edgeTrimMesh.rotation.y = Math.PI / 4;
-    capMeshGroup.add(edgeTrimMesh);
+    const liquidGeo = new THREE.CylinderGeometry(0.24, 0.43, 0.40, 32);
+    const liquidMesh = new THREE.Mesh(liquidGeo, liquidMat);
+    liquidMesh.position.y = -0.11;
+    flaskMeshGroup.add(liquidMesh);
 
-    // Tapered Skullcap Base
-    const skullGeo = new THREE.CylinderGeometry(0.34, 0.44, 0.24, 28);
-    const skullMesh = new THREE.Mesh(skullGeo, capMat);
-    skullMesh.position.y = -0.13;
-    capMeshGroup.add(skullMesh);
+    // Top Liquid Meniscus
+    const meniscusMat = new THREE.MeshStandardMaterial({
+      color: 0x38bdf8,
+      emissive: 0x0ea5e9,
+      emissiveIntensity: 0.75,
+      roughness: 0.1,
+      metalness: 0.2,
+      transparent: true,
+      opacity: 0.92
+    });
+    const meniscusGeo = new THREE.CylinderGeometry(0.24, 0.24, 0.015, 32);
+    const meniscusMesh = new THREE.Mesh(meniscusGeo, meniscusMat);
+    meniscusMesh.position.y = 0.09;
+    flaskMeshGroup.add(meniscusMesh);
 
-    // Gold Crown Button
-    const capBtnGeo = new THREE.CylinderGeometry(0.065, 0.065, 0.035, 20);
-    const capBtnMesh = new THREE.Mesh(capBtnGeo, goldTrimMat);
-    capBtnMesh.position.y = 0.035;
-    capMeshGroup.add(capBtnMesh);
+    // 3C. Etched Volumetric Measurement Graduations (50ml, 100ml, 150ml, 200ml)
+    const tickMat = new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.8
+    });
+    const tickLevels = [
+      { y: -0.22, r: 0.40 },
+      { y: -0.11, r: 0.34 },
+      { y: 0.00, r: 0.29 },
+      { y: 0.11, r: 0.23 }
+    ];
+    tickLevels.forEach(({ y, r }) => {
+      const arcGeo = new THREE.TorusGeometry(r + 0.003, 0.006, 8, 24, Math.PI * 0.7);
+      const arcMesh = new THREE.Mesh(arcGeo, tickMat);
+      arcMesh.rotation.x = Math.PI / 2;
+      arcMesh.rotation.z = Math.PI * 0.15;
+      arcMesh.position.y = y;
+      flaskMeshGroup.add(arcMesh);
+    });
 
-    // Braided Silk Tassel
-    const tasselGroup = new THREE.Group();
-    tasselGroup.position.set(0, 0.035, 0);
+    // 3D. Sleek Borosilicate Stirring Rod
+    const rodMat = new THREE.MeshStandardMaterial({
+      color: 0xf8fafc,
+      roughness: 0.1,
+      metalness: 0.3,
+      transparent: true,
+      opacity: 0.75
+    });
+    const rodGeo = new THREE.CylinderGeometry(0.012, 0.012, 0.92, 12);
+    const rodMesh = new THREE.Mesh(rodGeo, rodMat);
+    rodMesh.position.set(-0.04, 0.28, 0);
+    rodMesh.rotation.z = 0.26;
+    rodMesh.rotation.x = -0.12;
+    flaskMeshGroup.add(rodMesh);
 
-    const cordGeo = new THREE.CylinderGeometry(0.012, 0.012, 0.55, 10);
-    const cordMesh = new THREE.Mesh(cordGeo, goldTrimMat);
-    cordMesh.position.set(0.34, -0.16, 0.34);
-    cordMesh.rotation.z = -Math.PI / 4.2;
-    cordMesh.rotation.y = Math.PI / 4;
-    tasselGroup.add(cordMesh);
+    const rodTipGeo = new THREE.SphereGeometry(0.016, 10, 10);
+    const rodTipTop = new THREE.Mesh(rodTipGeo, rodMat);
+    rodTipTop.position.set(-0.16, 0.72, 0.05);
+    flaskMeshGroup.add(rodTipTop);
 
-    const fringeGeo = new THREE.ConeGeometry(0.052, 0.18, 16);
-    const fringeMesh = new THREE.Mesh(fringeGeo, goldTrimMat);
-    fringeMesh.position.set(0.52, -0.42, 0.52);
-    fringeMesh.rotation.x = Math.PI;
-    tasselGroup.add(fringeMesh);
+    // 3E. Effervescent Rising Micro-Bubbles
+    const bubbleCount = 8;
+    const bubbleGeo = new THREE.SphereGeometry(0.022, 10, 10);
+    const bubbleMat = new THREE.MeshStandardMaterial({
+      color: 0x67e8f9,
+      emissive: 0x38bdf8,
+      emissiveIntensity: 0.9,
+      roughness: 0.1,
+      metalness: 0.2,
+      transparent: true,
+      opacity: 0.85
+    });
+    const bubbles = [];
+    for (let i = 0; i < bubbleCount; i++) {
+      const bMesh = new THREE.Mesh(bubbleGeo, bubbleMat);
+      const bScale = 0.5 + Math.random() * 0.8;
+      bMesh.scale.setScalar(bScale);
+      const bData = {
+        mesh: bMesh,
+        baseX: (Math.random() - 0.5) * 0.25,
+        baseZ: (Math.random() - 0.5) * 0.25,
+        y: -0.28 + Math.random() * 0.36,
+        speed: 0.20 + Math.random() * 0.24,
+        wobbleFreq: 2.0 + Math.random() * 3.5,
+        wobbleAmp: 0.014 + Math.random() * 0.018
+      };
+      bMesh.position.set(bData.baseX, bData.y, bData.baseZ);
+      flaskMeshGroup.add(bMesh);
+      bubbles.push(bData);
+    }
 
-    capMeshGroup.add(tasselGroup);
-    masterGroup.add(capAnchor);
+    // 3F. Internal Point Light (Luminescent Chemical Glow)
+    const flaskLight = new THREE.PointLight(0x06b6d4, 0.5, 2.5);
+    flaskLight.position.set(0, -0.05, 0.1);
+    flaskMeshGroup.add(flaskLight);
+
+    masterGroup.add(flaskAnchor);
 
     // =========================================================================
     // ASSET 4: AMBIENT CELESTIAL STARDUST PARTICLES
@@ -570,9 +673,9 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
       bookHomePos.y = mobileNow ? -0.42 : -0.38;
       bookAnchor.scale.setScalar(mobileNow ? 0.34 : 0.44);
 
-      capHomePos.x = mobileNow ? 1.50 : 2.20;
-      capHomePos.y = mobileNow ? -0.42 : -0.38;
-      capAnchor.scale.setScalar(mobileNow ? 0.34 : 0.44);
+      flaskHomePos.x = mobileNow ? 1.50 : 2.20;
+      flaskHomePos.y = mobileNow ? -0.42 : -0.38;
+      flaskAnchor.scale.setScalar(mobileNow ? 0.34 : 0.44);
     };
 
     const resizeObserver = new ResizeObserver(handleResize);
@@ -606,8 +709,8 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
     let valenceElectronAngle3 = Math.PI;
     let valenceElectronAngle4 = (3 * Math.PI) / 2;
 
-    let capSpinOffset = 0;
-    let capLiftProgress = 0;
+    let flaskLiftProgress = 0;
+    let flaskSwirlAngle = 0;
     let bookLiftProgress = 0;
     let continuousPageTurnCycle = 0;
 
@@ -721,26 +824,44 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
       ribbon.rotation.z = -0.1 + Math.sin(time * 0.0025 * speedMult) * (0.04 + bookLiftProgress * 0.12);
 
       // -----------------------------------------------------------------------
-      // 8C. CAP: SYNCHRONIZED ACADEMIC CELEBRATION WITH BOOK ON ADMISSIONS HOVER
+      // 8C. SCIENTIFIC FLASK: LABORATORY APPARATUS OF DISCOVERY & INQUIRY
       // -----------------------------------------------------------------------
-      const targetCapLift = isAdmissionsHovered ? 1 : 0;
-      capLiftProgress += (targetCapLift - capLiftProgress) * 0.1;
+      const targetFlaskLift = isAdmissionsHovered ? 1 : 0;
+      flaskLiftProgress += (targetFlaskLift - flaskLiftProgress) * 0.1;
 
       if (isAdmissionsHovered) {
-        capSpinOffset += delta * 6.5 * speedMult;
+        flaskSwirlAngle += delta * 2.8 * speedMult;
       } else {
-        capSpinOffset += (0 - (capSpinOffset % (Math.PI * 2))) * 0.08;
+        flaskSwirlAngle += (0 - (flaskSwirlAngle % (Math.PI * 2))) * 0.08;
       }
 
-      const capIdleBob = Math.sin(time * 0.0018 * speedMult) * 0.04;
-      capAnchor.position.y = capHomePos.y + capIdleBob + (capLiftProgress * 0.22);
-      capAnchor.position.x = capHomePos.x + (capLiftProgress * 0.05);
+      const flaskIdleBob = Math.sin(time * 0.0018 * speedMult) * 0.04;
+      flaskAnchor.position.y = flaskHomePos.y + flaskIdleBob + (flaskLiftProgress * 0.18);
+      flaskAnchor.position.x = flaskHomePos.x + (flaskLiftProgress * 0.04);
 
-      capMeshGroup.rotation.y = -0.4 + Math.cos(time * 0.001 * speedMult) * 0.1 + capSpinOffset;
-      capMeshGroup.rotation.x = 0.35 - (capLiftProgress * 0.16);
+      // Gentle idle bob and celebratory tilt/swirl on Admissions hover
+      flaskMeshGroup.rotation.y = -0.35 + Math.cos(time * 0.001 * speedMult) * 0.08 + (flaskSwirlAngle * 0.4);
+      flaskMeshGroup.rotation.x = 0.22 + (flaskLiftProgress * 0.14) + Math.sin(time * 0.0015 * speedMult) * 0.04;
+      flaskMeshGroup.rotation.z = 0.12 - (flaskLiftProgress * 0.08);
 
-      const tasselWave = Math.sin(time * (isAdmissionsHovered ? 0.016 : 0.0025) * speedMult) * (isAdmissionsHovered ? 0.35 : 0.08);
-      tasselGroup.rotation.z = tasselWave;
+      // Effervescent micro-bubble dynamics simulation
+      const bubbleSpeedMult = isAdmissionsHovered ? 2.8 : 1.0;
+      bubbles.forEach((b) => {
+        b.y += b.speed * delta * bubbleSpeedMult * speedMult;
+        if (b.y > 0.08) {
+          b.y = -0.28;
+          b.baseX = (Math.random() - 0.5) * 0.25;
+          b.baseZ = (Math.random() - 0.5) * 0.25;
+        }
+        b.mesh.position.y = b.y;
+        b.mesh.position.x = b.baseX + Math.sin(time * 0.003 * b.wobbleFreq) * b.wobbleAmp;
+        b.mesh.position.z = b.baseZ + Math.cos(time * 0.003 * b.wobbleFreq) * b.wobbleAmp;
+      });
+
+      // Luminescent discovery reaction glow
+      flaskLight.intensity = 0.5 + (flaskLiftProgress * 1.8);
+      liquidMat.emissiveIntensity = 0.5 + (flaskLiftProgress * 0.4);
+      meniscusMat.emissiveIntensity = 0.75 + (flaskLiftProgress * 0.35);
 
       // -----------------------------------------------------------------------
       // 8D. STARDUST PARTICLES
