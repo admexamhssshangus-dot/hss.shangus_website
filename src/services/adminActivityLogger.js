@@ -11,19 +11,30 @@ function resolveCurrentActor(explicitActor = {}) {
   let actorRole = explicitActor.actorRole || null;
   let actorUid = explicitActor.actorUid || null;
 
-  // 1. Check Admin user session
+  // 1. Check Primary Portal User Session (sessionManager & legacy admin storage)
   try {
-    const adminUser = JSON.parse(
+    const portalUser = JSON.parse(
+      sessionStorage.getItem('hss_session_user') || 
+      localStorage.getItem('hss_session_user') || 
       sessionStorage.getItem('hss_admin_user') || 
       localStorage.getItem('hss_admin_user') || 
       '{}'
     );
-    if (adminUser.email) {
-      actorType = actorType || 'admin';
-      actorEmail = actorEmail || adminUser.email;
-      actorName = actorName || adminUser.name || adminUser.displayName || 'Administrator';
-      actorRole = actorRole || adminUser.role || 'Admin';
-      actorUid = actorUid || adminUser.uid || '';
+    if (portalUser.email) {
+      const rLower = String(portalUser.role || '').toLowerCase();
+      if (rLower.includes('admin') || rLower.includes('super')) {
+        actorType = actorType || 'admin';
+      } else if (rLower.includes('teacher') || rLower.includes('faculty')) {
+        actorType = actorType || 'teacher';
+      } else if (rLower.includes('student')) {
+        actorType = actorType || 'student';
+      } else {
+        actorType = actorType || 'admin';
+      }
+      actorEmail = actorEmail || portalUser.email;
+      actorName = actorName || portalUser.name || portalUser.displayName || 'Administrator';
+      actorRole = actorRole || portalUser.role || 'Admin';
+      actorUid = actorUid || portalUser.uid || '';
     }
   } catch (_) {}
 
