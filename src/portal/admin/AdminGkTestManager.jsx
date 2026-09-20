@@ -667,7 +667,6 @@ export default function AdminGkTestManager({ allStudents = [], onRefresh }) {
                   ? 'bg-teal-700 dark:bg-teal-600 text-white shadow-xs'
                   : 'text-slate-600 dark:text-slate-300 hover:text-slate-950 dark:hover:text-white hover:bg-white/80 dark:hover:bg-slate-800/80'
               }`}
-              title={tab.label}
             >
               <Icon size={13} className={`shrink-0 ${isActive ? 'text-white' : 'text-teal-600 dark:text-teal-400'}`} />
               <span className="sm:hidden truncate">{tab.mobileLabel || tab.label}</span>
@@ -729,7 +728,6 @@ export default function AdminGkTestManager({ allStudents = [], onRefresh }) {
                   <button
                     type="button"
                     onClick={handleCopyPublicLink}
-                    title="Copy public registration link"
                     className="p-0.5 rounded hover:bg-white dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition-colors cursor-pointer"
                   >
                     {copiedUrl ? <Check size={12} className="text-emerald-600 dark:text-emerald-400" /> : <Copy size={12} />}
@@ -738,7 +736,6 @@ export default function AdminGkTestManager({ allStudents = [], onRefresh }) {
                     href="/gk-test"
                     target="_blank"
                     rel="noopener noreferrer"
-                    title="Open public registration page"
                     className="p-0.5 rounded hover:bg-white dark:hover:bg-slate-800 text-emerald-700 dark:text-emerald-400 transition-colors cursor-pointer"
                   >
                     <ExternalLink size={12} />
@@ -769,7 +766,6 @@ export default function AdminGkTestManager({ allStudents = [], onRefresh }) {
                   onClick={handleExportCsv}
                   disabled={registrations.length === 0}
                   className="h-8 px-2.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs font-semibold transition-all border border-slate-300 dark:border-slate-700 flex items-center gap-1 cursor-pointer disabled:opacity-50"
-                  title="Export CSV"
                 >
                   <Download size={12} />
                   <span>CSV</span>
@@ -782,7 +778,6 @@ export default function AdminGkTestManager({ allStudents = [], onRefresh }) {
                       ? 'bg-teal-50 dark:bg-teal-950 border-teal-400 text-teal-800 dark:text-teal-300'
                       : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700'
                   }`}
-                  title="Toggle exam settings"
                 >
                   <Sliders size={13} />
                   <span>Settings</span>
@@ -793,7 +788,6 @@ export default function AdminGkTestManager({ allStudents = [], onRefresh }) {
                   onClick={() => fetchRegistrations(true)}
                   disabled={loading}
                   className="h-8 w-8 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 flex items-center justify-center transition-all cursor-pointer disabled:opacity-50"
-                  title="Refresh candidate records"
                 >
                   <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
                 </button>
@@ -841,7 +835,6 @@ export default function AdminGkTestManager({ allStudents = [], onRefresh }) {
                   type="button"
                   onClick={() => handleExtendDeadlineDays(7)}
                   className="h-8 px-1.5 rounded-lg bg-teal-50 dark:bg-teal-950 text-teal-700 dark:text-teal-300 border border-teal-200 dark:border-teal-800 hover:bg-teal-100 text-[10px] font-black cursor-pointer whitespace-nowrap"
-                  title="Extend +7 days"
                 >
                   +7d
                 </button>
@@ -849,7 +842,6 @@ export default function AdminGkTestManager({ allStudents = [], onRefresh }) {
                   type="button"
                   onClick={() => handleExtendDeadlineDays(30)}
                   className="h-8 px-1.5 rounded-lg bg-teal-50 dark:bg-teal-950 text-teal-700 dark:text-teal-300 border border-teal-200 dark:border-teal-800 hover:bg-teal-100 text-[10px] font-black cursor-pointer whitespace-nowrap"
-                  title="Extend +30 days"
                 >
                   +30d
                 </button>
@@ -865,7 +857,6 @@ export default function AdminGkTestManager({ allStudents = [], onRefresh }) {
                       ? 'bg-emerald-50 border-emerald-300 text-emerald-800 dark:bg-emerald-950/40 dark:border-emerald-700 dark:text-emerald-300'
                       : 'bg-slate-100 border-slate-300 text-slate-600 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-400'
                   }`}
-                  title={examConfig.isOpen ? 'Click to close portal' : 'Click to open portal'}
                 >
                   {examConfig.isOpen ? <Unlock size={12} /> : <Lock size={12} />}
                   <span>{examConfig.isOpen ? 'Open' : 'Closed'}</span>
@@ -875,7 +866,6 @@ export default function AdminGkTestManager({ allStudents = [], onRefresh }) {
                   onClick={() => handleSaveSettings()}
                   disabled={savingSettings}
                   className="h-8 px-2.5 rounded-lg bg-teal-700 hover:bg-teal-600 text-white text-xs font-black flex items-center gap-1 transition-all cursor-pointer disabled:opacity-50 flex-shrink-0"
-                  title="Save settings"
                 >
                   <Save size={12} />
                   <span>{savingSettings ? '...' : 'Save'}</span>

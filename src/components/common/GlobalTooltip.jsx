@@ -191,6 +191,31 @@ export default function GlobalTooltip() {
       return;
     }
 
+    // Suppress redundant tooltips where duplicacy effect occurs:
+    // 1. Form controls (SELECT/OPTION) where floating tooltips clash with native popups/pickers
+    const tagName = targetEl.tagName.toUpperCase();
+    if (tagName === 'SELECT' || tagName === 'OPTION') {
+      hideTooltip();
+      return;
+    }
+
+    // 2. Visible text duplicate check:
+    // If the element's visible inner text already conveys the tooltip text,
+    // displaying a tooltip causes an annoying repetitive/duplicate overlay.
+    const rawElText = (targetEl.innerText || targetEl.textContent || '').trim().replace(/\s+/g, ' ');
+    const normalizedElText = rawElText.toLowerCase();
+    const normalizedTooltip = text.toLowerCase().trim();
+
+    if (
+      normalizedElText &&
+      (normalizedElText === normalizedTooltip ||
+       (normalizedTooltip.length <= 25 && normalizedElText.includes(normalizedTooltip)) ||
+       (normalizedElText.length <= 25 && normalizedTooltip === normalizedElText))
+    ) {
+      hideTooltip();
+      return;
+    }
+
     activeTargetRef.current = targetEl;
 
     // If user recently hovered another tooltip (warm window of 350ms), show instantly

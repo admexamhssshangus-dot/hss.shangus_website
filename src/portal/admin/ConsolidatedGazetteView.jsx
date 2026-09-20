@@ -1404,8 +1404,7 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
               type="button"
               onClick={handleExportExcel}
               disabled={filteredRows.length === 0}
-              className="h-7.5 px-3 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white font-bold text-xs flex items-center gap-1.5 transition-all shadow-xs cursor-pointer disabled:opacity-50"
-              title={selectedRowKeys.size > 0 ? `Export ${selectedRowKeys.size} selected candidate(s) to Excel` : "Export to Excel (.xlsx)"}
+              className="h-7.5 px-3 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white font-bold text-xs flex items-center gap-1.5 transition-all shadow-xs cursor-pointer disabled:opacity-50 shrink-0"
             >
               <Download size={13} />
               <span>{selectedRowKeys.size > 0 ? `Excel (${selectedRowKeys.size})` : 'Excel (.xlsx)'}</span>
@@ -1414,8 +1413,7 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
               type="button"
               onClick={handleExportCsv}
               disabled={filteredRows.length === 0}
-              className="h-7.5 px-2.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 font-semibold text-xs flex items-center gap-1 transition-all cursor-pointer disabled:opacity-50"
-              title={selectedRowKeys.size > 0 ? `Export ${selectedRowKeys.size} selected candidate(s) to CSV` : "Export CSV"}
+              className="h-7.5 px-2.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 font-semibold text-xs flex items-center gap-1 transition-all cursor-pointer disabled:opacity-50 shrink-0"
             >
               <Download size={12} />
               <span>{selectedRowKeys.size > 0 ? `CSV (${selectedRowKeys.size})` : 'CSV'}</span>
@@ -1424,7 +1422,7 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
               type="button"
               onClick={refreshPracticalsData}
               disabled={loading}
-              className="h-7.5 w-7.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 flex items-center justify-center transition-all cursor-pointer disabled:opacity-50"
+              className="h-7.5 w-7.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 flex items-center justify-center transition-all cursor-pointer disabled:opacity-50 shrink-0"
               title="Refresh live data"
             >
               <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
@@ -1432,15 +1430,14 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
           </div>
         </div>
 
-        {/* Unified Single-Row Multi-Filter Bar */}
-        <div className="flex items-center gap-1.5 flex-wrap pt-1.5 border-t border-slate-100 dark:border-slate-800">
+        {/* Unified Multi-Filter Bar: 2-column mobile grid, flex on desktop */}
+        <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
           {/* Evaluation */}
-          <div className="w-48 min-w-[150px] flex-1 sm:flex-initial">
+          <div className="col-span-2 sm:w-48 min-w-0">
             <select
               value={selectedEvalType}
               onChange={(e) => setSelectedEvalType(e.target.value)}
               className="w-full h-7.5 px-2 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-xs text-teal-800 dark:text-teal-300 font-bold focus:outline-none focus:border-teal-600 cursor-pointer truncate"
-              title="Evaluation Type"
             >
               <option value="ALL">All Evaluations</option>
               {Array.from(
@@ -1458,12 +1455,11 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
           </div>
 
           {/* Class */}
-          <div className="w-24">
+          <div className="col-span-1 sm:w-24 min-w-0">
             <select
               value={selectedClass}
               onChange={(e) => setSelectedClass(e.target.value)}
               className="w-full h-7.5 px-2 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-white font-bold focus:outline-none focus:border-teal-600 cursor-pointer"
-              title="Class"
             >
               {CLASSES.map(cls => (
                 <option key={cls} value={cls}>Class {cls}</option>
@@ -1472,12 +1468,11 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
           </div>
 
           {/* Session */}
-          <div className="w-24">
+          <div className="col-span-1 sm:w-24 min-w-0">
             <select
               value={selectedSession}
               onChange={(e) => setSelectedSession(e.target.value)}
               className="w-full h-7.5 px-2 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-white font-bold focus:outline-none focus:border-teal-600 cursor-pointer"
-              title="Academic Session"
             >
               {SESSIONS.map(sess => (
                 <option key={sess} value={sess}>{sess}</option>
@@ -1486,12 +1481,11 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
           </div>
 
           {/* Stream */}
-          <div className="w-28">
+          <div className="col-span-1 sm:w-28 min-w-0">
             <select
               value={selectedStream}
               onChange={(e) => setSelectedStream(e.target.value)}
               className="w-full h-7.5 px-2 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-white font-bold focus:outline-none focus:border-teal-600 cursor-pointer"
-              title="Stream"
             >
               {STREAMS.map(str => (
                 <option key={str} value={str}>{str === 'All' ? 'All Streams' : str}</option>
@@ -1500,12 +1494,11 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
           </div>
 
           {/* Status / Category */}
-          <div className="w-36 min-w-[120px]">
+          <div className="col-span-1 sm:w-36 min-w-0">
             <select
               value={selectedStatus}
               onChange={(e) => setSelectedStatus(e.target.value)}
               className="w-full h-7.5 px-2 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-xs text-indigo-700 dark:text-indigo-400 font-bold focus:outline-none focus:border-indigo-600 cursor-pointer truncate"
-              title="Category / Admission Status"
             >
               {STATUS_CATEGORIES.map(st => (
                 <option key={st.value} value={st.value}>{st.label}</option>
@@ -1514,12 +1507,11 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
           </div>
 
           {/* Overall Results */}
-          <div className="w-28">
+          <div className="col-span-1 sm:w-28 min-w-0">
             <select
               value={selectedResultFilter}
               onChange={(e) => setSelectedResultFilter(e.target.value)}
               className="w-full h-7.5 px-2 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-xs text-emerald-700 dark:text-emerald-400 font-bold focus:outline-none focus:border-teal-600 cursor-pointer"
-              title="Overall Candidate Result"
             >
               {RESULT_FILTERS.map(rf => (
                 <option key={rf.value} value={rf.value}>{rf.label}</option>
@@ -1528,7 +1520,7 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
           </div>
 
           {/* Subject Filter Dropdown */}
-          <div className="w-40 min-w-[130px]">
+          <div className="col-span-1 sm:w-40 min-w-0">
             <select
               value={selectedSubject}
               onChange={(e) => {
@@ -1540,7 +1532,6 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
                   ? 'bg-teal-700 text-white border border-teal-500 shadow-xs'
                   : 'bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-teal-800 dark:text-teal-300 font-bold'
               }`}
-              title="Subject Filter"
             >
               <option value="All" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">All {subjectsList.length} Subjects</option>
               {subjectsList.map(s => (
@@ -1552,9 +1543,9 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
           </div>
 
           {/* Search Query */}
-          <div className="flex-1 min-w-[150px]">
+          <div className="col-span-2 sm:flex-1 min-w-0">
             <div className="relative">
-              <Search size={12} className="absolute left-2.5 top-2.5 text-slate-400" />
+              <Search size={12} className="absolute left-2.5 top-2.5 text-slate-400 pointer-events-none" />
               <input
                 type="text"
                 value={searchQuery}
@@ -1625,10 +1616,10 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
           </div>
 
       {/* KPI Metric Ribbon */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-2 px-3 flex items-center justify-between gap-3 overflow-x-auto custom-scrollbar no-print shadow-2xs">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-2 px-3 flex items-center justify-between gap-2.5 overflow-x-auto custom-scrollbar no-print shadow-2xs">
         {selectedSubject !== 'All' && subjectStats ? (
-          <div className="flex items-center gap-2 sm:gap-3 text-xs font-semibold text-slate-700 dark:text-slate-300 divide-x divide-slate-200 dark:divide-slate-800">
-            <div className="flex items-center gap-1.5 whitespace-nowrap bg-teal-50 dark:bg-teal-950/60 border border-teal-200 dark:border-teal-800/60 px-2.5 py-1 rounded-lg text-teal-900 dark:text-teal-200">
+          <div className="flex items-center gap-1.5 sm:gap-2.5 text-xs font-semibold text-slate-700 dark:text-slate-300 flex-wrap">
+            <div className="flex items-center gap-1.5 whitespace-nowrap shrink-0 min-w-max bg-teal-50 dark:bg-teal-950/60 border border-teal-200 dark:border-teal-800/60 px-2.5 py-1 rounded-lg text-teal-900 dark:text-teal-200">
               <Tag size={13} className="text-teal-600 dark:text-teal-400" />
               <span className="font-extrabold text-xs">{subjectStats.name} ({subjectStats.code})</span>
               <span className="text-[10px] text-teal-600 dark:text-teal-400 font-mono">Max: {subjectStats.maxMarks}</span>
@@ -1637,10 +1628,9 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
             <button
               type="button"
               onClick={() => setSelectedSubjectResult(selectedSubjectResult === 'EVALUATED' ? 'All' : 'EVALUATED')}
-              className={`flex items-center gap-1.5 pl-3 pr-2 py-0.5 rounded-lg whitespace-nowrap transition-all cursor-pointer ${
-                selectedSubjectResult === 'EVALUATED' ? 'bg-indigo-100 dark:bg-indigo-950/80 ring-2 ring-indigo-400' : 'hover:bg-slate-100 dark:hover:bg-slate-800'
+              className={`flex items-center gap-1.5 px-2 py-0.5 rounded-lg whitespace-nowrap shrink-0 min-w-max transition-all cursor-pointer ${
+                selectedSubjectResult === 'EVALUATED' ? 'bg-indigo-100 dark:bg-indigo-950/80 ring-2 ring-indigo-400' : 'hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200/60 dark:border-slate-800'
               }`}
-              title="Click to filter by Evaluated candidates in this subject"
             >
               <FileText size={14} className="text-indigo-600 dark:text-indigo-400" />
               <span className="text-slate-500 dark:text-slate-400 text-[11px]">Evaluated:</span>
@@ -1650,23 +1640,22 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
             <button
               type="button"
               onClick={() => setSelectedSubjectResult(selectedSubjectResult === 'PASS' ? 'All' : 'PASS')}
-              className={`flex items-center gap-1.5 pl-3 pr-2 py-0.5 rounded-lg whitespace-nowrap transition-all cursor-pointer ${
-                selectedSubjectResult === 'PASS' ? 'bg-emerald-100 dark:bg-emerald-950/80 ring-2 ring-emerald-400' : 'hover:bg-slate-100 dark:hover:bg-slate-800'
+              className={`flex items-center gap-1.5 px-2 py-0.5 rounded-lg whitespace-nowrap shrink-0 min-w-max transition-all cursor-pointer ${
+                selectedSubjectResult === 'PASS' ? 'bg-emerald-100 dark:bg-emerald-950/80 ring-2 ring-emerald-400' : 'hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200/60 dark:border-slate-800'
               }`}
-              title="Click to filter by Passed candidates in this subject"
             >
               <CheckCircle2 size={14} className="text-emerald-600 dark:text-emerald-400" />
               <span className="text-slate-500 dark:text-slate-400 text-[11px]">Passed:</span>
               <span className="font-black text-emerald-700 dark:text-emerald-400">{subjectStats.passedCount}</span>
             </button>
 
-            <div className="flex items-center gap-1.5 pl-3 whitespace-nowrap">
+            <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-lg whitespace-nowrap shrink-0 min-w-max border border-slate-200/60 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60">
               <TrendingUp size={14} className="text-amber-600 dark:text-amber-400" />
               <span className="text-slate-500 dark:text-slate-400 text-[11px]">Pass Rate:</span>
               <span className="font-black text-amber-700 dark:text-amber-300">{subjectStats.passPct}%</span>
             </div>
 
-            <div className="flex items-center gap-1.5 pl-3 whitespace-nowrap">
+            <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-lg whitespace-nowrap shrink-0 min-w-max border border-slate-200/60 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60">
               <BarChart3 size={14} className="text-teal-600 dark:text-teal-400" />
               <span className="text-slate-500 dark:text-slate-400 text-[11px]">Avg Score:</span>
               <span className="font-black text-teal-700 dark:text-teal-300">{subjectStats.avgScore}/{subjectStats.maxMarks}</span>
@@ -1676,10 +1665,9 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
               <button
                 type="button"
                 onClick={() => setSelectedSubjectResult(selectedSubjectResult === 'RE-APPEAR' ? 'All' : 'RE-APPEAR')}
-                className={`flex items-center gap-1.5 pl-3 pr-2 py-0.5 rounded-lg whitespace-nowrap transition-all cursor-pointer ${
-                  selectedSubjectResult === 'RE-APPEAR' ? 'bg-rose-100 dark:bg-rose-950/80 ring-2 ring-rose-400' : 'hover:bg-slate-100 dark:hover:bg-slate-800'
+                className={`flex items-center gap-1.5 px-2 py-0.5 rounded-lg whitespace-nowrap shrink-0 min-w-max transition-all cursor-pointer ${
+                  selectedSubjectResult === 'RE-APPEAR' ? 'bg-rose-100 dark:bg-rose-950/80 ring-2 ring-rose-400' : 'hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200/60 dark:border-slate-800'
                 }`}
-                title="Click to filter by Re-Appear / Failed candidates in this subject"
               >
                 <AlertCircle size={14} className="text-rose-600 dark:text-rose-400" />
                 <span className="text-slate-500 dark:text-slate-400 text-[11px]">Re-Appear:</span>
@@ -1691,10 +1679,9 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
               <button
                 type="button"
                 onClick={() => setSelectedSubjectResult(selectedSubjectResult === 'ABSENT' ? 'All' : 'ABSENT')}
-                className={`flex items-center gap-1.5 pl-3 pr-2 py-0.5 rounded-lg whitespace-nowrap transition-all cursor-pointer ${
-                  selectedSubjectResult === 'ABSENT' ? 'bg-slate-200 dark:bg-slate-800 ring-2 ring-slate-400' : 'hover:bg-slate-100 dark:hover:bg-slate-800'
+                className={`flex items-center gap-1.5 px-2 py-0.5 rounded-lg whitespace-nowrap shrink-0 min-w-max transition-all cursor-pointer ${
+                  selectedSubjectResult === 'ABSENT' ? 'bg-slate-200 dark:bg-slate-800 ring-2 ring-slate-400' : 'hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200/60 dark:border-slate-800'
                 }`}
-                title="Click to filter by Absent candidates in this subject"
               >
                 <span className="text-slate-500 dark:text-slate-400 text-[11px]">Absent:</span>
                 <span className="font-black text-slate-700 dark:text-slate-300">{subjectStats.absentCount}</span>
@@ -1704,43 +1691,42 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
             <button
               type="button"
               onClick={() => handlePrintIndividualAwardRoll(subjectStats.code)}
-              className="flex items-center gap-1.5 ml-3 px-2.5 py-1 rounded-lg bg-teal-700 hover:bg-teal-600 active:bg-teal-800 text-white font-bold text-xs shadow-xs transition-all cursor-pointer whitespace-nowrap"
-              title={`Print Official 2-Column Award Roll for ${subjectStats.name}`}
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-teal-700 hover:bg-teal-600 active:bg-teal-800 text-white font-bold text-xs shadow-xs transition-all cursor-pointer whitespace-nowrap shrink-0"
             >
               <Printer size={13} />
               <span>Print {subjectStats.code} Award</span>
             </button>
           </div>
         ) : (
-          <div className="flex items-center gap-3 sm:gap-5 text-xs font-semibold text-slate-700 dark:text-slate-300 divide-x divide-slate-200 dark:divide-slate-800">
-            <div className="flex items-center gap-1.5 whitespace-nowrap">
+          <div className="flex items-center gap-2 sm:gap-4 text-xs font-semibold text-slate-700 dark:text-slate-300 flex-wrap">
+            <div className="flex items-center gap-1.5 whitespace-nowrap shrink-0 min-w-max px-2 py-0.5 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200/60 dark:border-slate-800">
               <Users size={14} className="text-blue-600 dark:text-blue-400" />
               <span className="text-slate-500 dark:text-slate-400 text-[11px]">Enrolled:</span>
               <span className="font-black text-slate-900 dark:text-white">{stats.totalEnrolled}</span>
             </div>
-            <div className="flex items-center gap-1.5 pl-3 sm:pl-5 whitespace-nowrap">
+            <div className="flex items-center gap-1.5 whitespace-nowrap shrink-0 min-w-max px-2 py-0.5 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200/60 dark:border-slate-800">
               <FileText size={14} className="text-indigo-600 dark:text-indigo-400" />
               <span className="text-slate-500 dark:text-slate-400 text-[11px]">Appeared:</span>
               <span className="font-black text-indigo-700 dark:text-indigo-300">{stats.appearedCount}</span>
             </div>
-            <div className="flex items-center gap-1.5 pl-3 sm:pl-5 whitespace-nowrap">
+            <div className="flex items-center gap-1.5 whitespace-nowrap shrink-0 min-w-max px-2 py-0.5 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200/60 dark:border-slate-800">
               <CheckCircle2 size={14} className="text-emerald-600 dark:text-emerald-400" />
               <span className="text-slate-500 dark:text-slate-400 text-[11px]">Passed:</span>
               <span className="font-black text-emerald-700 dark:text-emerald-400">{stats.passedCount}</span>
             </div>
-            <div className="flex items-center gap-1.5 pl-3 sm:pl-5 whitespace-nowrap">
+            <div className="flex items-center gap-1.5 whitespace-nowrap shrink-0 min-w-max px-2 py-0.5 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200/60 dark:border-slate-800">
               <TrendingUp size={14} className="text-amber-600 dark:text-amber-400" />
               <span className="text-slate-500 dark:text-slate-400 text-[11px]">Pass Rate:</span>
               <span className="font-black text-amber-700 dark:text-amber-300">{stats.overallPassPct}%</span>
             </div>
-            <div className="flex items-center gap-1.5 pl-3 sm:pl-5 whitespace-nowrap">
+            <div className="flex items-center gap-1.5 whitespace-nowrap shrink-0 min-w-max px-2 py-0.5 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200/60 dark:border-slate-800">
               <BarChart3 size={14} className="text-teal-600 dark:text-teal-400" />
               <span className="text-slate-500 dark:text-slate-400 text-[11px]">Avg Score:</span>
               <span className="font-black text-teal-700 dark:text-teal-300">{stats.avgScorePct}%</span>
             </div>
           </div>
         )}
-        <div className="text-[11px] font-bold text-slate-400 whitespace-nowrap pl-2 border-l border-slate-100 dark:border-slate-800">
+        <div className="text-[11px] font-bold text-slate-400 whitespace-nowrap pl-2 border-l border-slate-100 dark:border-slate-800 shrink-0">
           Showing {filteredRows.length} candidates{selectedRowKeys.size > 0 ? ` • ${selectedRowKeys.size} selected` : ''}
         </div>
       </div>
@@ -1805,16 +1791,15 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
                       checked={allFilteredSelected}
                       onChange={toggleSelectAllFiltered}
                       aria-label="Select all visible candidates for custom print"
-                      title={allFilteredSelected ? "Deselect all visible candidates" : "Select all visible candidates for print"}
                       className="w-3.5 h-3.5 rounded text-teal-600 border-slate-300 dark:border-slate-600 focus:ring-teal-500 cursor-pointer accent-teal-600"
                     />
                   </div>
                 </th>
-                <th className="py-2 px-1 text-center w-8">S.No</th>
-                <th className="py-2 px-1.5 w-14 min-w-[48px]">Roll No</th>
-                <th className="py-2 px-1.5 w-36 min-w-[125px]">REG. NO</th>
-                <th className="py-2 px-2 min-w-[140px]">Candidate & Parentage</th>
-                <th className="py-2 px-1.5 w-16 min-w-[60px]">Stream</th>
+                <th className="py-2 px-1 text-center w-8 whitespace-nowrap">S.No</th>
+                <th className="py-2 px-1.5 w-14 min-w-[48px] whitespace-nowrap">Roll No</th>
+                <th className="py-2 px-1.5 w-36 min-w-[125px] whitespace-nowrap">REG. NO</th>
+                <th className="py-2 px-2 min-w-[140px] whitespace-nowrap">Candidate & Parentage</th>
+                <th className="py-2 px-1.5 w-16 min-w-[60px] whitespace-nowrap">Stream</th>
 
                 {/* 15 Separate Subject Columns with Abbreviations Only (Botany & Zoology Separate) */}
                 {subjectsList.map(s => {

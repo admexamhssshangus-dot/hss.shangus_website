@@ -1521,38 +1521,38 @@ export default function ControlsAndSubjects() {
 
             {/* Compact Rules & Numeric Limits Bar */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-2 rounded-xl bg-slate-50/70 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800 text-xs">
-              <div className="space-y-1">
-                <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 block">Min Subjects Required</span>
+              <div className="space-y-0.5">
+                <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 block truncate">Min Required</span>
                 <input
                   type="number"
                   value={minSubjects}
                   onChange={(e) => setMinSubjects(e.target.value)}
-                  className="w-full py-1 px-2 rounded-lg font-black text-xs text-center border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
+                  className="w-full py-0.5 px-2 rounded-lg font-black text-xs text-center border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
                 />
               </div>
-              <div className="space-y-1">
-                <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 block">Max Subjects Required</span>
+              <div className="space-y-0.5">
+                <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 block truncate">Max Required</span>
                 <input
                   type="number"
                   value={maxSubjects}
                   onChange={(e) => setMaxSubjects(e.target.value)}
-                  className="w-full py-1 px-2 rounded-lg font-black text-xs text-center border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
+                  className="w-full py-0.5 px-2 rounded-lg font-black text-xs text-center border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
                 />
               </div>
-              <div className="space-y-1">
-                <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 block">G1 (Group B) Min / Max</span>
+              <div className="space-y-0.5">
+                <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 block truncate">G1 Min-Max</span>
                 <div className="flex items-center gap-1">
-                  <input type="number" value={g1Min} onChange={(e) => setG1Min(e.target.value)} className="w-full py-1 px-1.5 rounded-lg font-black text-xs text-center border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white" />
+                  <input type="number" value={g1Min} onChange={(e) => setG1Min(e.target.value)} className="w-full py-0.5 px-1 rounded-lg font-black text-xs text-center border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white" />
                   <span className="text-slate-400 font-bold">-</span>
-                  <input type="number" value={g1Max} onChange={(e) => setG1Max(e.target.value)} className="w-full py-1 px-1.5 rounded-lg font-black text-xs text-center border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white" />
+                  <input type="number" value={g1Max} onChange={(e) => setG1Max(e.target.value)} className="w-full py-0.5 px-1 rounded-lg font-black text-xs text-center border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white" />
                 </div>
               </div>
-              <div className="space-y-1">
-                <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 block">G2 (Group C) Min / Max</span>
+              <div className="space-y-0.5">
+                <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 block truncate">G2 Min-Max</span>
                 <div className="flex items-center gap-1">
-                  <input type="number" value={g2Min} onChange={(e) => setG2Min(e.target.value)} className="w-full py-1 px-1.5 rounded-lg font-black text-xs text-center border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white" />
+                  <input type="number" value={g2Min} onChange={(e) => setG2Min(e.target.value)} className="w-full py-0.5 px-1 rounded-lg font-black text-xs text-center border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white" />
                   <span className="text-slate-400 font-bold">-</span>
-                  <input type="number" value={g2Max} onChange={(e) => setG2Max(e.target.value)} className="w-full py-1 px-1.5 rounded-lg font-black text-xs text-center border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white" />
+                  <input type="number" value={g2Max} onChange={(e) => setG2Max(e.target.value)} className="w-full py-0.5 px-1 rounded-lg font-black text-xs text-center border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white" />
                 </div>
               </div>
             </div>
@@ -2116,21 +2116,22 @@ export default function ControlsAndSubjects() {
                       key={idx} 
                       className="p-2 sm:p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-950/60 hover:border-amber-500/40 transition-all space-y-1.5"
                     >
-                      {/* Compact Single-Line User Header */}
-                      <div className="flex items-start sm:items-center justify-between gap-1.5 flex-wrap sm:flex-nowrap">
+                      {/* 2-Tier Responsive Layout on Mobile, Single-Line on Desktop */}
+                      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-1.5">
+                        {/* Tier 1: User Identity & Badges */}
                         <div className="flex items-center gap-2 min-w-0 flex-1">
-                          <div className={`w-6 h-6 sm:w-7 sm:h-7 rounded-lg flex items-center justify-center font-black shrink-0 ${
+                          <div className={`w-7 h-7 rounded-lg flex items-center justify-center font-black shrink-0 ${
                             isSuper 
                               ? 'bg-purple-500/20 text-purple-600 border border-purple-500/30' 
                               : isTeacher
                               ? 'bg-emerald-500/20 text-emerald-600 border border-emerald-500/30'
                               : 'bg-amber-500/20 text-amber-600 border border-amber-500/30'
                           }`}>
-                            {isSuper ? <ShieldCheck size={13} /> : isTeacher ? <UserCheck size={13} /> : <Lock size={12} />}
+                            {isSuper ? <ShieldCheck size={14} /> : isTeacher ? <UserCheck size={14} /> : <Lock size={13} />}
                           </div>
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-1.5 flex-wrap">
-                              <strong className="text-xs font-black text-slate-900 dark:text-white truncate max-w-[130px] sm:max-w-none">
+                              <strong className="text-xs font-black text-slate-900 dark:text-white break-words">
                                 {user.name}
                               </strong>
                               <span className={`px-1.5 py-0.2 rounded-full font-black text-[8.5px] uppercase tracking-wider shrink-0 ${
@@ -2149,24 +2150,23 @@ export default function ControlsAndSubjects() {
                                 </span>
                               )}
                             </div>
-                            <div className="text-[9.5px] sm:text-[10px] text-slate-400 font-mono truncate max-w-[200px] sm:max-w-none">
+                            <div className="text-[9.5px] sm:text-[10px] text-slate-400 font-mono truncate">
                               {user.email}
                             </div>
                           </div>
                         </div>
 
-                        {/* Controls & Action Buttons */}
-                        <div className="flex items-center gap-1 shrink-0 ml-auto sm:ml-0">
+                        {/* Tier 2: Controls & Action Buttons */}
+                        <div className="flex items-center gap-1 shrink-0 ml-auto sm:ml-0 flex-wrap justify-end pt-1 sm:pt-0 border-t sm:border-t-0 border-slate-100 dark:border-slate-800/80">
                           {hasOutdatedStatus && (
                             <button
                               type="button"
                               onClick={() => setAllPermissionsForUser(user.email, true)}
                               className="px-2 py-0.5 rounded-lg text-[9px] font-black bg-indigo-600 hover:bg-indigo-500 text-white shadow-2xs transition-all flex items-center gap-1 cursor-pointer active:scale-95 shrink-0"
-                              title={`Upgrade ${user.name} to all ${ALL_ADMIN_MODULES.length} administrative modules`}
                             >
                               <Sparkles size={10} />
-                              <span className="hidden sm:inline">Upgrade (21)</span>
-                              <span className="sm:hidden">All</span>
+                              <span className="hidden sm:inline">Upgrade ({ALL_ADMIN_MODULES.length})</span>
+                              <span className="sm:hidden">Upgrade</span>
                             </button>
                           )}
 
@@ -2179,7 +2179,6 @@ export default function ControlsAndSubjects() {
                                   ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/20'
                                   : 'bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border-indigo-500/30 hover:bg-indigo-500/20'
                               }`}
-                              title="Click to open module permissions dropdown checklist"
                             >
                               <SlidersHorizontal size={11} className="text-indigo-600 dark:text-indigo-400" />
                               <span>{activeCount}/{ALL_ADMIN_MODULES.length}</span>
