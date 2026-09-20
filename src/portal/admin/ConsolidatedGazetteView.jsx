@@ -32,7 +32,7 @@ const STATUS_CATEGORIES = [
 const RESULT_FILTERS = [
   { value: 'All', label: 'All Results' },
   { value: 'PASS', label: 'Passed (PASS)' },
-  { value: 'RE-APPEAR', label: 'Re-Appear / Fail' },
+  { value: 'REAP', label: 'Re-Appear / REAP' },
   { value: 'ABSENT', label: 'Absent' },
   { value: 'PENDING', label: 'Pending / Incomplete' },
 ];
@@ -41,7 +41,7 @@ export const SUBJECT_RESULT_FILTERS = [
   { value: 'All', label: 'All Candidates' },
   { value: 'EVALUATED', label: 'Evaluated / Appeared' },
   { value: 'PASS', label: 'Passed (≥ 36%)' },
-  { value: 'RE-APPEAR', label: 'Re-Appear (< 36%)' },
+  { value: 'REAP', label: 'Re-Appear / REAP (< 36%)' },
   { value: 'ABSENT', label: 'Absent (AB)' },
   { value: 'NOT_EVALUATED', label: 'Pending / Not Evaluated' },
 ];
@@ -655,8 +655,8 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
           resultDisplay = 'ABSENT';
           division = 'Absent';
         } else if (hasFail) {
-          resultStatus = 'RE-APPEAR';
-          resultDisplay = reappearSubjects.length > 0 ? `RE-APPEAR (${reappearSubjects.join(', ')})` : 'RE-APPEAR';
+          resultStatus = 'REAP';
+          resultDisplay = reappearSubjects.length > 0 ? `REAP (${reappearSubjects.join(', ')})` : 'REAP';
           division = '-';
         } else {
           resultStatus = 'PASS';
@@ -794,9 +794,14 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
       });
     }
 
-    // 3. Overall Result Status Filter (Pass, Re-Appear, Absent, Pending)
+    // 3. Overall Result Status Filter (Pass, Re-Appear / REAP, Absent, Pending)
     if (selectedResultFilter !== 'All') {
-      rows = rows.filter(r => r.resultStatus === selectedResultFilter);
+      rows = rows.filter(r => {
+        if (selectedResultFilter === 'REAP' || selectedResultFilter === 'RE-APPEAR') {
+          return r.resultStatus === 'REAP' || r.resultStatus === 'RE-APPEAR';
+        }
+        return r.resultStatus === selectedResultFilter;
+      });
     }
 
     // 4. Particular Subject Filter & Drilldown
@@ -807,7 +812,7 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
         const isEnrolled = isStudentEnrolledInSubject(r.student, selectedSubject, selectedClass);
         if (selectedSubjectResult === 'EVALUATED') return hasMark;
         if (selectedSubjectResult === 'PASS') return m && m.isPass;
-        if (selectedSubjectResult === 'RE-APPEAR') return m && m.isFailed && !m.isAbsent;
+        if (selectedSubjectResult === 'REAP' || selectedSubjectResult === 'RE-APPEAR') return m && m.isFailed && !m.isAbsent;
         if (selectedSubjectResult === 'ABSENT') return m && m.isAbsent;
         if (selectedSubjectResult === 'NOT_EVALUATED') return isEnrolled && !hasMark;
         return isEnrolled || hasMark;
@@ -1048,7 +1053,7 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
 
     const rowsHtml = rowsToPrint.map((row, idx) => {
       const isPass = row.resultStatus === 'PASS';
-      const isFail = row.resultStatus === 'RE-APPEAR' || row.resultStatus === 'FAIL';
+      const isFail = row.resultStatus === 'REAP' || row.resultStatus === 'RE-APPEAR' || row.resultStatus === 'FAIL';
 
       const subjectCellsHtml = subjectsList.map(s => {
         const isSelected = selectedSubject === s.code;
@@ -1085,7 +1090,7 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
           <td style="padding: 3px 2px; text-align: center; border: 1px solid #cbd5e1; font-family: monospace; font-weight: 800; color: #0f766e; font-size: 7.5pt;">
             ${row.percentage}
           </td>
-          <td style="padding: 3px 2px; text-align: center; border: 1px solid #cbd5e1; font-size: 7pt; font-weight: bold; ${isPass ? 'color: #166534;' : isFail ? 'color: #991b1b;' : 'color: #854d0e;'}">
+          <td style="padding: 2px 2px; text-align: center; border: 1px solid #cbd5e1; font-size: 6.5pt; font-weight: 800; white-space: nowrap; ${isPass ? 'color: #166534;' : isFail ? 'color: #991b1b;' : 'color: #854d0e;'}">
             ${row.resultDisplay || row.resultStatus}
           </td>
           <td style="padding: 3px 2px; text-align: center; border: 1px solid #cbd5e1; font-size: 7pt; color: #334155;">
@@ -1844,7 +1849,7 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
 
                 <th className="py-2 px-1.5 text-center w-14 min-w-[50px]">Total</th>
                 <th className="py-2 px-1 text-center w-12 min-w-[44px]">%</th>
-                <th className="py-2 px-1.5 text-center w-18 min-w-[70px]">Result</th>
+                <th className="py-2 px-1 text-center w-20 min-w-[75px] whitespace-nowrap">Result</th>
                 <th className="py-2 px-1.5 text-center w-20 min-w-[70px]">Grade</th>
               </tr>
             </thead>
@@ -1852,7 +1857,7 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
               {filteredRows.map((row, idx) => {
                 const isPass = row.resultStatus === 'PASS';
                 const isAbsent = row.resultStatus === 'ABSENT';
-                const isReappear = row.resultStatus === 'RE-APPEAR';
+                const isReappear = row.resultStatus === 'REAP' || row.resultStatus === 'RE-APPEAR';
                 const isSelected = selectedRowKeys.has(row.key);
 
                 return (
@@ -1971,9 +1976,9 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
                     </td>
 
                     {/* Calculated Result Status */}
-                    <td className="py-1.5 px-1.5 text-center font-sans">
+                    <td className="py-1 px-1 text-center font-sans whitespace-nowrap">
                       <span
-                        className={`px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider inline-block ${
+                        className={`px-1.5 py-0.5 rounded text-[8px] font-extrabold uppercase tracking-tight inline-block whitespace-nowrap leading-none ${
                           isPass
                             ? 'bg-emerald-100 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800'
                             : isReappear

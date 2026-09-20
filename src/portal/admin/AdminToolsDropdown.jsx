@@ -39,7 +39,8 @@ export const ADMIN_TOOL_MODULES = ADMIN_MODULE_CATALOG
   .map(module => ({ ...module, desc: module.description, icon: MODULE_ICONS[module.id] || PanelsTopLeft }));
 
 export const isUserPermittedForModule = (user, moduleId) => {
-  if (!user || !moduleId) return false;
+  if (!user) return false;
+  if (!moduleId) return false;
   const role = String(user.role || '').toLowerCase().trim();
   const email = String(user.email || '').toLowerCase().trim();
 
