@@ -190,6 +190,9 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
     });
 
     // Circular Disc Medallion (Front & Back Logo) at center face of nucleus
+    const logoNucleusCore = new THREE.Group();
+    atomInteractiveGroup.add(logoNucleusCore);
+
     const medalGeo = new THREE.CylinderGeometry(0.24, 0.24, 0.02, 32);
     const medalMesh = new THREE.Mesh(medalGeo, [
       new THREE.MeshStandardMaterial({ color: 0xf59e0b, metalness: 0.95, roughness: 0.15 }),
@@ -197,7 +200,7 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
       logoMat
     ]);
     medalMesh.rotation.x = Math.PI / 2;
-    atomInteractiveGroup.add(medalMesh);
+    logoNucleusCore.add(medalMesh);
 
     // 24K Gold Bezel Rim around the logo medal
     const goldBezelMat = new THREE.MeshStandardMaterial({
@@ -209,7 +212,12 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
     });
     const bezelGeo = new THREE.TorusGeometry(0.25, 0.016, 16, 48);
     const bezelMesh = new THREE.Mesh(bezelGeo, goldBezelMat);
-    atomInteractiveGroup.add(bezelMesh);
+    logoNucleusCore.add(bezelMesh);
+
+    // Dedicated Logo Spotlight for prominent illumination on hover
+    const logoPointLight = new THREE.PointLight(0xffffff, 0, 2.5);
+    logoPointLight.position.set(0, 0, 0.5);
+    logoNucleusCore.add(logoPointLight);
 
     // Glowing Nuclear Energy Shell Envelope
     const nucleusGeo = new THREE.SphereGeometry(0.32, 20, 16);
@@ -815,6 +823,7 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
     let bookLiftProgress = 0;
     let continuousPageTurnCycle = 0;
     let atomPatrolCycle = 0;
+    let logoHoverProgress = 0;
 
     let tooltipSide = 'none'; // 'left' | 'right' | 'none'
     let currentTooltipX = -9999;
@@ -978,10 +987,37 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
       atomInteractiveGroup.rotation.x += (targetAtomRotX - atomInteractiveGroup.rotation.x) * 0.08;
       atomInteractiveGroup.rotation.z += (bankingTiltZ - atomInteractiveGroup.rotation.z) * 0.08;
 
-      // Gentle floating nuclear pulse
-      const nucleusPulse = 1.0 + Math.sin(time * 0.003 * speedMult) * 0.05;
+      // -----------------------------------------------------------------------
+      // Dynamic Hover Prominence for HSS Shangus Logo Nucleus
+      // When hovered: the official logo expands into bold prominence, brightens,
+      // and the nucleons part outward into a framing corona ring!
+      // -----------------------------------------------------------------------
+      const targetLogoHover = isAtomHovered ? 1.0 : 0.0;
+      logoHoverProgress += (targetLogoHover - logoHoverProgress) * (isAtomHovered ? 0.14 : 0.08);
+
+      // 1. Expand Logo Medallion & 24K Gold Bezel into central nuclear focus (+58% scale)
+      const logoScale = 1.0 + (logoHoverProgress * 0.58);
+      logoNucleusCore.scale.set(logoScale, logoScale, logoScale);
+
+      // 2. Counter-tilt slightly when hovered so logo faces directly toward user's gaze
+      logoNucleusCore.rotation.x = -atomInteractiveGroup.rotation.x * 0.50 * logoHoverProgress;
+      logoNucleusCore.rotation.y = -atomInteractiveGroup.rotation.y * 0.50 * logoHoverProgress;
+
+      // 3. Illuminate logo with vibrant brilliance & golden bezel radiance
+      logoMat.emissiveIntensity = 0.14 + (logoHoverProgress * 0.65);
+      goldBezelMat.emissiveIntensity = 0.45 + (logoHoverProgress * 0.50);
+      logoPointLight.intensity = logoHoverProgress * 3.2;
+
+      // 4. Part nucleons outward into a framing corona ring around the prominent logo
+      const nucleonSpread = 1.0 + (logoHoverProgress * 0.45);
+      nucleonCluster.scale.set(nucleonSpread, nucleonSpread, nucleonSpread);
+      nucleonCluster.rotation.y += (0.4 + logoHoverProgress * 0.6) * delta * speedMult;
+
+      // 5. Gentle floating nuclear pulse + celestial envelope glow
+      const nucleusPulse = (1.0 + Math.sin(time * 0.003 * speedMult) * 0.05) * (1.0 + logoHoverProgress * 0.25);
       nucleusShell.scale.set(nucleusPulse, nucleusPulse, nucleusPulse);
-      nucleonCluster.rotation.y += 0.4 * delta * speedMult;
+      nucleusMat.opacity = 0.22 + (logoHoverProgress * 0.18);
+      nucleusMat.emissiveIntensity = 0.6 + (logoHoverProgress * 0.35);
 
       // Quantum speed boost when mouse is actively moving
       const mouseSpeedBoost = 1.0 + Math.hypot(mouseNormX, mouseNormY) * 3.0;
