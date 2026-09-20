@@ -4,7 +4,7 @@ import {
   Calendar, User, CheckCircle2, AlertCircle, Clock, Copy, 
   ExternalLink, ChevronDown, Award, Calculator, BookOpen, 
   FileText, UserCheck, ShieldCheck, ChevronRight, X, Printer,
-  Eye, Laptop, Database, ArrowUpDown
+  Eye, Laptop, Database, ArrowUpDown, Sparkles
 } from 'lucide-react';
 import { db } from '../../services/firebase';
 import {
@@ -35,6 +35,105 @@ const ACTOR_BADGES = {
   teacher: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-900',
   student: 'bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-900',
   system: 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700'
+};
+
+// ─── GOOGLE-LIKE SEARCH UTILITIES ───
+// Tokenizes query into positive words, quoted phrases ("annual exam"), and negative terms (-absent)
+const parseGoogleQuery = (rawQuery) => {
+  if (!rawQuery || !rawQuery.trim()) return { must: [], mustNot: [] };
+  const must = [];
+  const mustNot = [];
+  const regex = /(-?"[^"]+"|-?\S+)/g;
+  let match;
+  while ((match = regex.exec(rawQuery)) !== null) {
+    let token = match[0].trim();
+    const isNegative = token.startsWith('-');
+    if (isNegative) token = token.slice(1);
+    if (token.startsWith('"') && token.endsWith('"') && token.length >= 2) {
+      token = token.slice(1, -1).trim();
+    }
+    if (!token) continue;
+    const lower = token.toLowerCase();
+    if (isNegative) {
+      mustNot.push(lower);
+    } else {
+      must.push(lower);
+    }
+  }
+  return { must, mustNot };
+};
+
+// Deep Searchable Haystack across all primary, secondary and nested metadata fields
+const buildLogSearchHaystack = (log, logDate) => {
+  const parts = [
+    log.id || '',
+    log.actorName || log.adminName || '',
+    log.actorEmail || log.adminEmail || '',
+    log.actorType || '',
+    log.actorRole || '',
+    log.actionCategory || '',
+    log.actionType || '',
+    log.actionTitle || '',
+    log.details || '',
+    log.targetId || '',
+    log.targetType || '',
+    log.targetName || '',
+    log.reasonCategory || '',
+    log.customReason || '',
+    log.ip || '',
+    log.deviceInfo?.platform || '',
+    log.deviceInfo?.userAgent || ''
+  ];
+
+  if (log.metadata && typeof log.metadata === 'object') {
+    try {
+      parts.push(JSON.stringify(log.metadata));
+    } catch (_) {}
+  }
+
+  if (logDate && !isNaN(logDate.getTime())) {
+    parts.push(logDate.toISOString());
+    parts.push(logDate.toLocaleDateString('en-IN', { dateStyle: 'medium' }));
+    parts.push(logDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }));
+    parts.push(logDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }));
+    parts.push(logDate.toLocaleTimeString());
+    parts.push(String(logDate.getFullYear()));
+  }
+
+  return parts.join(' ').toLowerCase();
+};
+
+// Highlights matching search terms in the rendered table text
+const HighlightText = ({ text, query }) => {
+  if (!text) return null;
+  if (!query || !query.trim()) return <>{text}</>;
+
+  const { must } = parseGoogleQuery(query);
+  const validTokens = must.filter(t => t.length > 0);
+  if (validTokens.length === 0) return <>{text}</>;
+
+  try {
+    const escaped = validTokens.map(t => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+    const pattern = new RegExp(`(${escaped.join('|')})`, 'gi');
+    const parts = String(text).split(pattern);
+
+    return (
+      <>
+        {parts.map((part, i) => {
+          if (validTokens.some(t => t.toLowerCase() === part.toLowerCase())) {
+            return (
+              <mark key={i} className="bg-amber-200/90 dark:bg-amber-500/30 text-slate-950 dark:text-amber-200 px-0.5 rounded font-bold">
+                {part}
+              </mark>
+            );
+          }
+          return <span key={i}>{part}</span>;
+        })}
+      </>
+    );
+  } catch (_) {
+    return <>{text}</>;
+  }
 };
 
 export default function ActivityAuditView({ user }) {
@@ -156,9 +255,19 @@ export default function ActivityAuditView({ user }) {
     fetchLogs();
   }, [fetchLogs]);
 
+  // Memoized Google search query breakdown
+  const parsedSearch = useMemo(() => {
+    return parseGoogleQuery(searchQuery);
+  }, [searchQuery]);
+
   // Client-Side In-Memory Filtering for maximum responsiveness and 0 added Firestore read cost
   const filteredLogs = useMemo(() => {
+    const { must, mustNot } = parsedSearch;
+    const hasSearch = must.length > 0 || mustNot.length > 0;
+
     return logs.filter(log => {
+      const logDate = parseLogDate(log);
+
       // 1. Actor Filter
       if (selectedActor !== 'all') {
         const actor = String(log.actorType || '').toLowerCase();
@@ -182,31 +291,32 @@ export default function ActivityAuditView({ user }) {
 
       // 4. Date Filter
       if (selectedDateRange !== 'all') {
-        const d = parseLogDate(log);
         const now = new Date();
-        const diffHours = (now - d) / (1000 * 60 * 60);
+        const diffHours = (now - logDate) / (1000 * 60 * 60);
 
         if (selectedDateRange === 'today' && diffHours > 24) return false;
         if (selectedDateRange === '7d' && diffHours > 24 * 7) return false;
         if (selectedDateRange === '30d' && diffHours > 24 * 30) return false;
       }
 
-      // 5. Search Query Filter
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase().trim();
-        const matchTitle = String(log.actionTitle || '').toLowerCase().includes(q);
-        const matchDetails = String(log.details || '').toLowerCase().includes(q);
-        const matchActor = String(log.actorName || '').toLowerCase().includes(q) || String(log.actorEmail || '').toLowerCase().includes(q);
-        const matchTarget = String(log.targetId || '').toLowerCase().includes(q);
-        const matchReason = String(log.reasonCategory || '').toLowerCase().includes(q) || String(log.customReason || '').toLowerCase().includes(q);
-        if (!matchTitle && !matchDetails && !matchActor && !matchTarget && !matchReason) {
-          return false;
+      // 5. Google-like Multi-Term & Quoted Phrase Search
+      if (hasSearch) {
+        const haystack = buildLogSearchHaystack(log, logDate);
+
+        // Exclude if any negative term matches (-term)
+        for (const neg of mustNot) {
+          if (haystack.includes(neg)) return false;
+        }
+
+        // Require ALL positive terms/phrases to match (Google AND semantics)
+        for (const term of must) {
+          if (!haystack.includes(term)) return false;
         }
       }
 
       return true;
     });
-  }, [logs, selectedActor, selectedCategory, selectedActionType, selectedDateRange, searchQuery]);
+  }, [logs, selectedActor, selectedCategory, selectedActionType, selectedDateRange, parsedSearch]);
 
   // Statistics Summary
   const stats = useMemo(() => {
@@ -297,98 +407,112 @@ export default function ActivityAuditView({ user }) {
   };
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-      {/* Header Banner */}
-      <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white rounded-2xl p-6 sm:p-8 shadow-xl border border-indigo-900/40 relative overflow-hidden">
-        <div className="absolute right-0 top-0 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div>
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/20 text-indigo-300 text-xs font-semibold uppercase tracking-wider mb-3 border border-indigo-400/20">
-              <ShieldCheck className="w-3.5 h-3.5 text-indigo-400" />
-              Immutable Tamper-Proof Audit
+    <div className="space-y-2.5 max-w-7xl mx-auto px-2 sm:px-4 py-2 sm:py-3 animate-fadeIn">
+      {/* ─── COMPACT HEADER BANNER & STATS STRIP ─── */}
+      <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white rounded-xl p-3 sm:px-4 sm:py-2.5 shadow-sm border border-indigo-900/50">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          {/* Title & Badge */}
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-8 h-8 rounded-lg bg-indigo-500/15 border border-indigo-500/30 text-indigo-400 flex items-center justify-center shrink-0 shadow-2xs">
+              <History className="w-4 h-4" />
             </div>
-            <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white flex items-center gap-3">
-              <History className="w-8 h-8 text-indigo-400" />
-              Activity Audit & Dispute Trail
-            </h1>
-            <p className="mt-2 text-sm sm:text-base text-slate-300 max-w-2xl">
-              Chronological, server-verified audit records of all administrative, teacher, and student operations across GHSS Shangus to resolve discrepancies and ensure total accountability.
-            </p>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h1 className="text-sm sm:text-base font-black tracking-tight text-white truncate">
+                  Activity Audit & Dispute Trail
+                </h1>
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 text-[9.5px] font-bold uppercase tracking-wider border border-indigo-400/25 shrink-0">
+                  <ShieldCheck className="w-3 h-3 text-indigo-400" />
+                  Immutable Audit
+                </span>
+                <span className="hidden md:inline-block text-xs text-slate-300/80 font-normal truncate">
+                  Server-verified audit records across GHSS Shangus.
+                </span>
+              </div>
+            </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
+          {/* Quick Action Buttons */}
+          <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-auto">
             <button
               onClick={() => fetchLogs(true)}
               disabled={loading}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 text-slate-200 text-sm font-semibold border border-slate-700 transition shadow-sm active:scale-95 disabled:opacity-50"
+              title="Refresh Audit Logs"
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-800/90 hover:bg-slate-700/90 text-slate-200 text-xs font-semibold border border-slate-700 transition shadow-2xs active:scale-95 disabled:opacity-50 cursor-pointer"
             >
-              <RefreshCw className={`w-4 h-4 text-indigo-400 ${loading ? 'animate-spin' : ''}`} />
-              Refresh
+              <RefreshCw className={`w-3.5 h-3.5 text-indigo-400 ${loading ? 'animate-spin' : ''}`} />
+              <span>Refresh</span>
             </button>
             <button
               onClick={handleExportCsv}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold transition shadow-md hover:shadow-indigo-500/20 active:scale-95"
+              title="Export Current Filtered Audit Logs as CSV"
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition shadow-2xs active:scale-95 cursor-pointer"
             >
-              <Download className="w-4 h-4" />
-              Export CSV
+              <Download className="w-3.5 h-3.5" />
+              <span>Export CSV</span>
             </button>
           </div>
         </div>
 
-        {/* Live Metrics Strip */}
-        <div className="mt-6 pt-6 border-t border-slate-800/80 grid grid-cols-2 sm:grid-cols-4 gap-4">
-          <div className="bg-slate-800/40 backdrop-blur rounded-xl p-3 border border-slate-800">
-            <span className="text-xs text-slate-400 font-medium">Loaded Audit Logs</span>
-            <div className="text-xl font-black text-white mt-1 flex items-baseline gap-2">
-              {stats.total}
-              <span className="text-[10px] text-indigo-400 font-normal">in cache</span>
-            </div>
+        {/* Compact Metrics Row */}
+        <div className="mt-2 pt-2 border-t border-indigo-900/50 flex items-center justify-between gap-2 flex-wrap text-xs">
+          <div className="flex items-center gap-2 sm:gap-3 flex-wrap font-medium text-[11px]">
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-800/80 border border-slate-700/80 text-slate-300">
+              Loaded: <strong className="text-indigo-300 font-extrabold">{stats.total}</strong> <span className="text-[10px] text-slate-400">in cache</span>
+            </span>
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-rose-950/40 border border-rose-900/50 text-rose-300">
+              Admin: <strong className="text-rose-200 font-extrabold">{stats.admin}</strong>
+            </span>
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-950/40 border border-emerald-900/50 text-emerald-300">
+              Teacher: <strong className="text-emerald-200 font-extrabold">{stats.teacher}</strong>
+            </span>
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-sky-950/40 border border-sky-900/50 text-sky-300">
+              Student: <strong className="text-sky-200 font-extrabold">{stats.student}</strong>
+            </span>
+            {stats.system > 0 && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-800/80 border border-slate-700/80 text-slate-400">
+                System: <strong className="text-slate-200 font-extrabold">{stats.system}</strong>
+              </span>
+            )}
           </div>
-          <div className="bg-slate-800/40 backdrop-blur rounded-xl p-3 border border-slate-800">
-            <span className="text-xs text-slate-400 font-medium">Admin Actions</span>
-            <div className="text-xl font-black text-rose-400 mt-1">{stats.admin}</div>
-          </div>
-          <div className="bg-slate-800/40 backdrop-blur rounded-xl p-3 border border-slate-800">
-            <span className="text-xs text-slate-400 font-medium">Teacher Submissions</span>
-            <div className="text-xl font-black text-emerald-400 mt-1">{stats.teacher}</div>
-          </div>
-          <div className="bg-slate-800/40 backdrop-blur rounded-xl p-3 border border-slate-800">
-            <span className="text-xs text-slate-400 font-medium">Student Events</span>
-            <div className="text-xl font-black text-sky-400 mt-1">{stats.student}</div>
+          <div className="hidden lg:flex items-center gap-1 text-[10.5px] text-indigo-300/70 font-mono">
+            <span>● Tamper-Proof Trail</span>
           </div>
         </div>
       </div>
 
-      {/* Filter & Search Bar */}
-      <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 p-4 sm:p-5 space-y-4">
-        <div className="flex flex-col lg:flex-row gap-4">
-          {/* Keyword Search */}
-          <div className="relative flex-1">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+      {/* ─── GOOGLE-STYLE SEARCH & UNIFIED COMPACT FILTERS ─── */}
+      <div className="bg-white dark:bg-slate-900 rounded-xl shadow-2xs border border-slate-200 dark:border-slate-800 p-2 sm:p-2.5 space-y-1.5">
+        <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-2">
+          {/* Google-like Keyword Search */}
+          <div className="relative flex-1 min-w-0">
+            <Search className="w-3.5 h-3.5 text-indigo-500 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
               type="text"
-              placeholder="Search by actor name, email, action title, form no, or keyword..."
+              placeholder="Google-like search (e.g., 'botany marks', 'teacher submit', roll no, email, dates)..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 text-sm bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-800 dark:text-slate-100"
+              className="w-full pl-8 pr-8 py-1.5 text-xs bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-800 dark:text-slate-100 placeholder-slate-400 shadow-2xs"
             />
             {searchQuery && (
               <button
+                type="button"
                 onClick={() => setSearchQuery('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+                title="Clear search"
               >
-                <X className="w-4 h-4" />
+                <X className="w-3.5 h-3.5" />
               </button>
             )}
           </div>
 
-          {/* Quick Filter Dropdowns */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {/* Quick Filter Dropdowns Grouped on Same Row */}
+          <div className="flex items-center gap-1.5 flex-wrap sm:flex-nowrap shrink-0">
             {/* Actor Filter */}
             <select
               value={selectedActor}
               onChange={(e) => setSelectedActor(e.target.value)}
-              className="text-xs font-semibold px-3 py-2.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="text-xs font-semibold py-1.2 px-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer shadow-2xs"
             >
               <option value="all">All Actors</option>
               <option value="admin">Administrators</option>
@@ -401,23 +525,23 @@ export default function ActivityAuditView({ user }) {
             <select
               value={selectedCategory}
               onChange={(e) => setSelectedCategory(e.target.value)}
-              className="text-xs font-semibold px-3 py-2.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="text-xs font-semibold py-1.2 px-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer shadow-2xs"
             >
               <option value="all">All Categories</option>
-              <option value="admissions">Admissions & Applications</option>
-              <option value="examinations">Examinations & Marks</option>
-              <option value="accounts">Accounts & Tax Rules</option>
-              <option value="certificates">Certificates & Letters</option>
-              <option value="controls">System Controls & Settings</option>
+              <option value="admissions">Admissions</option>
+              <option value="examinations">Examinations</option>
+              <option value="accounts">Accounts & Tax</option>
+              <option value="certificates">Certificates</option>
+              <option value="controls">System Controls</option>
             </select>
 
             {/* Action Type Filter */}
             <select
               value={selectedActionType}
               onChange={(e) => setSelectedActionType(e.target.value)}
-              className="text-xs font-semibold px-3 py-2.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="text-xs font-semibold py-1.2 px-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer shadow-2xs"
             >
-              <option value="all">All Action Types</option>
+              <option value="all">All Actions</option>
               <option value="update">Updates</option>
               <option value="submit">Submissions</option>
               <option value="create">Creations</option>
@@ -429,22 +553,37 @@ export default function ActivityAuditView({ user }) {
             <select
               value={selectedDateRange}
               onChange={(e) => setSelectedDateRange(e.target.value)}
-              className="text-xs font-semibold px-3 py-2.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="text-xs font-semibold py-1.2 px-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer shadow-2xs"
             >
               <option value="all">All Time</option>
-              <option value="today">Past 24 Hours</option>
-              <option value="7d">Past 7 Days</option>
-              <option value="30d">Past 30 Days</option>
+              <option value="today">Past 24h</option>
+              <option value="7d">Past 7d</option>
+              <option value="30d">Past 30d</option>
             </select>
           </div>
         </div>
 
-        {/* Active Filter Chips */}
-        <div className="flex flex-wrap items-center gap-2 text-xs pt-2 border-t border-slate-100 dark:border-slate-800">
-          <span className="text-slate-400 font-medium flex items-center gap-1">
-            <Filter className="w-3.5 h-3.5 text-indigo-500" />
-            Showing {filteredLogs.length} matching events
-          </span>
+        {/* Status Line & Active Search Indicators */}
+        <div className="flex flex-wrap items-center justify-between gap-2 text-xs pt-1.5 border-t border-slate-100 dark:border-slate-800">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-slate-500 dark:text-slate-400 font-medium flex items-center gap-1">
+              <Filter className="w-3 h-3 text-indigo-500" />
+              Showing <strong className="text-slate-900 dark:text-white font-bold">{filteredLogs.length}</strong> of {logs.length} events
+            </span>
+
+            {parsedSearch.must.length > 0 && (
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 text-[10.5px] font-semibold border border-indigo-200 dark:border-indigo-800">
+                <Sparkles className="w-3 h-3 text-amber-500" />
+                Google Search: {parsedSearch.must.map(m => `"${m}"`).join(' + ')}
+              </span>
+            )}
+            {parsedSearch.mustNot.length > 0 && (
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 text-[10.5px] font-semibold border border-rose-200 dark:border-rose-800">
+                Excluding: -{parsedSearch.mustNot.join(', -')}
+              </span>
+            )}
+          </div>
+
           {(selectedActor !== 'all' || selectedCategory !== 'all' || selectedActionType !== 'all' || selectedDateRange !== 'all' || searchQuery) && (
             <button
               onClick={() => {
@@ -454,7 +593,7 @@ export default function ActivityAuditView({ user }) {
                 setSelectedDateRange('all');
                 setSearchQuery('');
               }}
-              className="text-indigo-600 dark:text-indigo-400 hover:underline font-semibold ml-2"
+              className="text-indigo-600 dark:text-indigo-400 hover:underline font-bold text-xs cursor-pointer"
             >
               Reset all filters
             </button>
@@ -462,21 +601,21 @@ export default function ActivityAuditView({ user }) {
         </div>
       </div>
 
-      {/* Activity Trail Table */}
-      <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-slate-50 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-800 text-[11px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">
-                <th className="py-3.5 px-4">Date & Time</th>
-                <th className="py-3.5 px-4">Actor</th>
-                <th className="py-3.5 px-4">Category</th>
-                <th className="py-3.5 px-4">Action & Details</th>
-                <th className="py-3.5 px-4">Target / Reference</th>
-                <th className="py-3.5 px-4 text-center">Inspect</th>
+      {/* ─── ACTIVITY TRAIL TABLE (Compact View) ─── */}
+      <div className="bg-white dark:bg-slate-900 rounded-xl shadow-2xs border border-slate-200 dark:border-slate-800 overflow-hidden">
+        <div className="overflow-x-auto max-h-[640px]">
+          <table className="w-full text-left border-collapse text-xs">
+            <thead className="sticky top-0 z-10">
+              <tr className="bg-slate-100/90 dark:bg-slate-950/90 backdrop-blur-xs border-b border-slate-200 dark:border-slate-800 text-[10.5px] font-black text-slate-600 dark:text-slate-300 uppercase tracking-wider">
+                <th className="py-2.5 px-3">Date & Time</th>
+                <th className="py-2.5 px-3">Actor</th>
+                <th className="py-2.5 px-3">Category</th>
+                <th className="py-2.5 px-3">Action & Details</th>
+                <th className="py-2.5 px-3">Target / Reference</th>
+                <th className="py-2.5 px-3 text-center">Inspect</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-xs">
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
               {filteredLogs.map((log) => {
                 const logDate = parseLogDate(log);
                 const categoryColor = CATEGORY_COLORS[log.actionCategory] || CATEGORY_COLORS.general;
@@ -485,61 +624,61 @@ export default function ActivityAuditView({ user }) {
                 return (
                   <tr
                     key={log.id}
-                    className="hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition cursor-pointer"
+                    className="hover:bg-indigo-50/40 dark:hover:bg-indigo-950/20 transition cursor-pointer"
                     onClick={() => setInspectedLog(log)}
                   >
                     {/* Timestamp */}
-                    <td className="py-3 px-4 whitespace-nowrap">
-                      <div className="font-mono font-semibold text-slate-900 dark:text-white">
+                    <td className="py-2 px-3 whitespace-nowrap">
+                      <div className="font-mono font-semibold text-slate-900 dark:text-white text-[11px]">
                         {logDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
                       </div>
-                      <div className="text-[10px] text-slate-400">
+                      <div className="text-[9.5px] text-slate-400">
                         {logDate.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}
                       </div>
                     </td>
 
                     {/* Actor Details */}
-                    <td className="py-3 px-4">
-                      <div className="flex items-center gap-2">
-                        <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider border ${actorBadge}`}>
+                    <td className="py-2 px-3">
+                      <div className="flex items-center gap-1.5">
+                        <span className={`px-1.5 py-0.2 rounded text-[9.5px] font-bold uppercase tracking-wider border ${actorBadge}`}>
                           {log.actorType || 'User'}
                         </span>
-                        <div className="font-semibold text-slate-800 dark:text-slate-200 truncate max-w-[160px]">
-                          {log.actorName || log.adminName || 'Unknown'}
+                        <div className="font-bold text-slate-800 dark:text-slate-200 truncate max-w-[150px]">
+                          <HighlightText text={log.actorName || log.adminName || 'Unknown'} query={searchQuery} />
                         </div>
                       </div>
-                      <div className="text-[10px] text-slate-400 font-mono truncate max-w-[180px] mt-0.5">
-                        {log.actorEmail || log.adminEmail || '—'}
+                      <div className="text-[10px] text-slate-400 font-mono truncate max-w-[170px] mt-0.5">
+                        <HighlightText text={log.actorEmail || log.adminEmail || '—'} query={searchQuery} />
                       </div>
                     </td>
 
                     {/* Category */}
-                    <td className="py-3 px-4 whitespace-nowrap">
-                      <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border ${categoryColor}`}>
+                    <td className="py-2 px-3 whitespace-nowrap">
+                      <span className={`px-2 py-0.5 rounded-full text-[9.5px] font-bold uppercase tracking-wider border ${categoryColor}`}>
                         {log.actionCategory || 'General'}
                       </span>
                     </td>
 
                     {/* Action Title & Details */}
-                    <td className="py-3 px-4">
-                      <div className="font-bold text-slate-900 dark:text-white text-xs flex items-center gap-2">
-                        {log.actionTitle}
+                    <td className="py-2 px-3">
+                      <div className="font-bold text-slate-900 dark:text-white text-xs flex items-center gap-1.5 flex-wrap">
+                        <HighlightText text={log.actionTitle} query={searchQuery} />
                         {log.actionType && (
-                          <span className="text-[9px] px-1.5 py-0.2 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 font-mono uppercase">
+                          <span className="text-[8.5px] px-1 py-0.2 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 font-mono uppercase">
                             {log.actionType}
                           </span>
                         )}
                       </div>
                       <div className="text-slate-500 dark:text-slate-400 text-[11px] line-clamp-1 mt-0.5">
-                        {log.details || log.actionTitle}
+                        <HighlightText text={log.details || log.actionTitle} query={searchQuery} />
                       </div>
                     </td>
 
                     {/* Target / Reference */}
-                    <td className="py-3 px-4 whitespace-nowrap">
+                    <td className="py-2 px-3 whitespace-nowrap">
                       {log.targetId ? (
-                        <span className="font-mono text-[11px] px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 font-semibold text-indigo-600 dark:text-indigo-400 border border-slate-200 dark:border-slate-700">
-                          {log.targetId}
+                        <span className="font-mono text-[10.5px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 font-semibold text-indigo-600 dark:text-indigo-400 border border-slate-200 dark:border-slate-700">
+                          <HighlightText text={log.targetId} query={searchQuery} />
                         </span>
                       ) : (
                         <span className="text-slate-400 text-[11px]">—</span>
@@ -547,16 +686,16 @@ export default function ActivityAuditView({ user }) {
                     </td>
 
                     {/* Inspect Button */}
-                    <td className="py-3 px-4 text-center">
+                    <td className="py-2 px-3 text-center">
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
                           setInspectedLog(log);
                         }}
-                        className="p-1.5 rounded-lg bg-slate-100 hover:bg-indigo-50 dark:bg-slate-800 dark:hover:bg-indigo-950/50 text-slate-600 hover:text-indigo-600 dark:text-slate-300 dark:hover:text-indigo-300 transition"
+                        className="p-1 rounded-lg bg-slate-100 hover:bg-indigo-50 dark:bg-slate-800 dark:hover:bg-indigo-950/50 text-slate-600 hover:text-indigo-600 dark:text-slate-300 dark:hover:text-indigo-300 transition cursor-pointer"
                         title="Inspect full dispute evidence"
                       >
-                        <Eye className="w-4 h-4" />
+                        <Eye className="w-3.5 h-3.5" />
                       </button>
                     </td>
                   </tr>
