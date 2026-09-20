@@ -1,5 +1,5 @@
 /* Public HTML remains readable before JavaScript starts or when it is disabled. */
-.search-overview { min-height: 100vh; background: #f5f9f8; color: #183c38; font-family: system-ui, sans-serif; line-height: 1.7; }
+.search-overview { min-height: 100vh; background: #f5f9f8; color: #183c38; font-family: 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif; line-height: 1.7; }
 .search-overview a { color: #126558; text-decoration: underline; text-underline-offset: 4px; }
 .search-overview a:focus-visible { outline: 3px solid #0d9488; outline-offset: 4px; }
 .search-overview__header { background: #fff; padding: 24px max(20px, calc((100% - 1040px) / 2)); border-bottom: 1px solid #d9e5e1; }
