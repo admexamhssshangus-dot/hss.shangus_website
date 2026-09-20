@@ -16,16 +16,15 @@ import * as THREE from 'three';
  *    - Total 6 electrons exactly matching the Carbon atom.
  *    - Gyroscopically follows mouse location and tilts with quantum relativistic precession.
  * 2. 📖 Open Book of Wisdom:
- *    - Desktop: Strictly on Left of "Admissions Open 2026" with generous breathing room.
- *    - Mobile: Elevated into the left sky flanking the central atom, leaving buttons 100% clean!
- *    - When Admissions Open is hovered: cascading fluttering/slipping pages arching upward
- *      without flopping all the way to the left side!
+ *    - Positioned gracefully beside the motto "nurturing minds, shaping futures" on the left,
+ *      symbolizing the nurturing of minds, humanities, literature, and foundational wisdom.
+ *    - When hovered: cascading fluttering/slipping pages arching upward in elegant fan waves.
  * 3. 🧪 Scientific Laboratory Apparatus (Erlenmeyer Flask of Discovery):
- *    - Desktop: Strictly on Right of "Learn More" with generous breathing room.
- *    - Mobile: Elevated into the right sky flanking the central atom, leaving buttons 100% clean!
+ *    - Positioned gracefully beside the motto "nurturing minds, shaping futures" on the right,
+ *      symbolizing the shaping of futures through science, chemistry, inquiry, and innovation.
  *    - Borosilicate glass with volumetric graduations, glass stirring rod, glowing cyan discovery elixir, and rising effervescent bubbles.
- *    - Synchronized: when Admissions Open is hovered, elevates (+0.18Y), tilts, liquid radiates discovery glow, and bubbles effervesce faster.
- * 4. "Learn More" is completely detached from 3D motion, maintaining a clean secondary link.
+ *    - Synchronized: when hovered, liquid radiates discovery glow and effervesces dynamically.
+ * 4. Hero buttons maintain a clean, unobstructed layout below the motto.
  */
 export default function Hero3DExperience({ className = '', hoveredAction = null }) {
   const containerRef = useRef(null);
@@ -110,9 +109,9 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
     fillLight.position.set(-5, -3, 3);
     scene.add(fillLight);
 
-    // Dynamic Book Pages Glow Light
+    // Dynamic Book Pages Glow Light (aligned with Book beside slogan)
     const bookLight = new THREE.PointLight(0xfef08a, 0, 3.5);
-    bookLight.position.set(-2.2, -0.35, 0.5);
+    bookLight.position.set(isMobile ? -1.65 : -2.85, isMobile ? 0.28 : 0.24, 0.5);
     scene.add(bookLight);
 
     // Master Group
@@ -345,17 +344,16 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
 
     // =========================================================================
     // ASSET 2: OPEN BOOK OF WISDOM
-    // Desktop: Left of "Admissions Open 2026"
-    // Mobile: Elevated into the left sky flanking the central atom (zero button collision)
+    // Flanking "nurturing minds, shaping futures" on the Left
     // =========================================================================
     const bookAnchor = new THREE.Group();
     const bookHomePos = {
-      x: isMobile ? -1.55 : -2.35,
-      y: isMobile ? 0.66 : -0.38,
-      z: isMobile ? 0.12 : 0.24
+      x: isMobile ? -1.65 : -2.85,
+      y: isMobile ? 0.28 : 0.24,
+      z: isMobile ? 0.12 : 0.22
     };
     bookAnchor.position.set(bookHomePos.x, bookHomePos.y, bookHomePos.z);
-    bookAnchor.scale.setScalar(isMobile ? 0.32 : 0.44);
+    bookAnchor.scale.setScalar(isMobile ? 0.30 : 0.40);
 
     const bookMeshGroup = new THREE.Group();
     bookMeshGroup.rotation.set(0.38, 0.42, -0.18);
@@ -487,19 +485,18 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
 
     // =========================================================================
     // ASSET 3: SCIENTIFIC LABORATORY FLASK
-    // Desktop: Right of "Learn More"
-    // Mobile: Elevated into the right sky flanking the central atom (zero button collision)
+    // Flanking "nurturing minds, shaping futures" on the Right
     // Conical Erlenmeyer Flask of Discovery - Borosilicate glass, volumetric
     // graduations, glowing discovery liquid, glass stirring rod, & rising bubbles.
     // =========================================================================
     const flaskAnchor = new THREE.Group();
     const flaskHomePos = {
-      x: isMobile ? 1.55 : 2.20,
-      y: isMobile ? 0.66 : -0.38,
+      x: isMobile ? 1.65 : 2.85,
+      y: isMobile ? 0.28 : 0.24,
       z: isMobile ? 0.12 : 0.20
     };
     flaskAnchor.position.set(flaskHomePos.x, flaskHomePos.y, flaskHomePos.z);
-    flaskAnchor.scale.setScalar(isMobile ? 0.32 : 0.44);
+    flaskAnchor.scale.setScalar(isMobile ? 0.30 : 0.40);
 
     const flaskMeshGroup = new THREE.Group();
     flaskMeshGroup.rotation.set(0.22, -0.35, 0.12);
@@ -1104,9 +1101,9 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
       innerRing.rotation.z += 0.32 * delta * speedMult;
 
       // -----------------------------------------------------------------------
-      // 8B. BOOK: ENHANCED HOVER RESPONSIVE CELEBRATION
+      // 8B. BOOK & FLASK: ENHANCED HOVER RESPONSIVE REACTION
       // -----------------------------------------------------------------------
-      const isAdmissionsHovered = hoveredActionRef.current === 'admissions';
+      const isAdmissionsHovered = hoveredActionRef.current === 'admissions' || hoveredActionRef.current === 'slogan';
       const targetBookLift = isAdmissionsHovered ? 1 : 0;
       // Snappy spring-damped responsive lerp factor (0.14 vs old 0.08)
       bookLiftProgress += (targetBookLift - bookLiftProgress) * 0.14;

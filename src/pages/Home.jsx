@@ -429,11 +429,13 @@ export default function Home() {
         
         <div className="relative z-20 px-3 sm:px-4">
           <h1
-            className="text-[15px] xs:text-[17.5px] sm:text-[35px] md:text-[52px] font-semibold mb-1 sm:mb-6 italic tracking-wider leading-none sm:leading-snug font-slogan"
+            className="text-[15px] xs:text-[17.5px] sm:text-[35px] md:text-[52px] font-semibold mb-1 sm:mb-6 italic tracking-wider leading-none sm:leading-snug font-slogan cursor-default transition-all duration-300 select-none"
             style={{
               color: '#961c14',
               textShadow: '0 0 8px rgba(255, 255, 255, 0.95), 0 0 16px rgba(255, 255, 255, 0.85), 0 0 25px rgba(255, 255, 255, 0.6), 0 2px 4px rgba(0, 0, 0, 0.5)'
             }}
+            onMouseEnter={() => setHoveredHeroAction('slogan')}
+            onMouseLeave={() => setHoveredHeroAction(null)}
           >
             nurturing minds, shaping futures
           </h1>
