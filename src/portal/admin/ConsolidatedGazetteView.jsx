@@ -637,18 +637,30 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
       const pct = hasMarks && totalMax > 0 ? ((totalObtained / totalMax) * 100).toFixed(1) : null;
       const numericPercentage = pct !== null ? Number(pct) : -1;
 
+      // Find subjects to reappear in:
+      const reappearSubjects = subjectsList
+        .filter(s => {
+          const m = subjectMarks[s.code];
+          return m && m.isFailed;
+        })
+        .map(s => s.code);
+
       let resultStatus = 'PENDING';
+      let resultDisplay = 'PENDING';
       let division = 'Pending / Incomplete';
 
       if (hasMarks) {
         if (isAllAbsent) {
           resultStatus = 'ABSENT';
+          resultDisplay = 'ABSENT';
           division = 'Absent';
         } else if (hasFail) {
           resultStatus = 'RE-APPEAR';
-          division = 'Re-Appear / Fail';
+          resultDisplay = reappearSubjects.length > 0 ? `RE-APPEAR (${reappearSubjects.join(', ')})` : 'RE-APPEAR';
+          division = '-';
         } else {
           resultStatus = 'PASS';
+          resultDisplay = 'PASS';
           division = numericPercentage >= 75 ? 'Distinction (Grade A)' :
                      numericPercentage >= 60 ? 'First Division' :
                      numericPercentage >= 45 ? 'Second Division' : 'Third Division';
@@ -671,6 +683,7 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
         percentage: pct !== null ? `${pct}%` : '—',
         numericPercentage,
         resultStatus,
+        resultDisplay,
         division,
         hasAppeared: hasMarks && !isAllAbsent,
         enrolled: true,
@@ -920,7 +933,7 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
         r.totalObtained || 0,
         r.totalMax || 0,
         r.percentage,
-        r.resultStatus,
+        r.resultDisplay || r.resultStatus,
         r.division
       );
 
@@ -980,7 +993,7 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
         const mark = r.subjectMarks[s.code];
         line.push(mark ? (mark.isAbsent ? 'AB' : (mark.obtained ?? '—')) : '—');
       });
-      line.push(r.totalObtained, r.totalMax, `"${r.percentage}"`, `"${r.resultStatus}"`, `"${r.division}"`);
+      line.push(r.totalObtained, r.totalMax, `"${r.percentage}"`, `"${r.resultDisplay || r.resultStatus}"`, `"${r.division}"`);
       csvLines.push(line.join(','));
     });
 
@@ -1072,7 +1085,7 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
             ${row.percentage}
           </td>
           <td style="padding: 3px 2px; text-align: center; border: 1px solid #cbd5e1; font-size: 7pt; font-weight: bold; ${isPass ? 'color: #166534;' : isFail ? 'color: #991b1b;' : 'color: #854d0e;'}">
-            ${row.resultStatus}
+            ${row.resultDisplay || row.resultStatus}
           </td>
           <td style="padding: 3px 2px; text-align: center; border: 1px solid #cbd5e1; font-size: 7pt; color: #334155;">
             ${row.division}
@@ -1969,7 +1982,7 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
                             : 'bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-300 border border-amber-300 dark:border-amber-800'
                         }`}
                       >
-                        {row.resultStatus}
+                        {row.resultDisplay || row.resultStatus}
                       </span>
                     </td>
 

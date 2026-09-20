@@ -11,6 +11,7 @@ import { sessionManager } from '../../services/sessionManager';
 import { generateStudentAdmissionPdf, generateProvisionalAdmissionPdf } from '../../utils/pdfGenerator';
 import { auth } from '../../services/firebase';
 import { loadAdmissionWorkspace, saveAdmissionDraft, submitAdmission } from '../../services/admissionWorkflowApi';
+import { logStudentActivity } from '../../services/adminActivityLogger';
 import { isValidAadhaar, areAadhaarsDistinct, isStrictIsoDate, normalizeDobToIso, validateMinimumAge, MIN_ADMISSION_AGE, isPersonNameField, sanitizePersonName, validatePersonName } from '../../utils/admissionValidation';
 
 export const SUBJECT_CANONICAL_SYNONYMS = {
@@ -1892,6 +1893,19 @@ export default function AdmissionForm() {
         // Update local component state so all PDF generators & modals receive the official form number
         setFormData(submittedData);
         setSubmittedSuccessData(submittedData);
+
+        logStudentActivity({
+          actionType: upgradeMode ? 'upgrade' : 'submit',
+          actionTitle: upgradeMode ? `Application Upgraded: Form #${formNo}` : `Application Submitted: Form #${formNo}`,
+          details: `Student ${submittedData["Student's Name (as per school records)"] || submittedData["Student's Name"] || 'Applicant'} submitted admission form #${formNo} for Class ${submittedData['Admission sought for class'] || '11th'} (${submittedData.session || '2025-26'}).`,
+          formNo: String(formNo),
+          className: submittedData['Admission sought for class'] || '',
+          metadata: {
+            stream: submittedData['Stream'] || submittedData['Stream applied for'] || '',
+            session: submittedData.session || submittedData.Session || '',
+            upgradeMode: !!upgradeMode
+          }
+        });
 
         try {
           const uid = currentUser?.uid || 'guest';

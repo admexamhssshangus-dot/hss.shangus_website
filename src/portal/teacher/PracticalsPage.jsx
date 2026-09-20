@@ -1,5 +1,6 @@
 import { saveAcademicRecord } from '../../services/academicRecordService';
 import { saveVersionToBin } from '../../services/practicalsBinService';
+import { logTeacherActivity } from '../../services/adminActivityLogger';
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Link, useLocation, useOutletContext } from 'react-router-dom';
 import { 
@@ -2288,6 +2289,15 @@ export default function PracticalsPage() {
 
       await saveAcademicRecord('practicalsData', pendingDocId, submissionPayload);
       invalidateCollectionCache('practicalsData');
+      logTeacherActivity({
+        actionType: 'update',
+        actionTitle: `Saved Evaluation Draft: ${selectedSubject} (${selectedClass})`,
+        details: `Saved ${practicalType} draft for ${selectedClass} - ${selectedSubject} with ${submissionPayload.records?.length || 0} candidate entries.`,
+        subject: selectedSubject,
+        className: selectedClass,
+        targetId: pendingDocId,
+        metadata: { practicalType, session: yearSuffix, isDraft: true }
+      });
       setExistingAwardInfo(prev => ({ ...prev, pending: submissionPayload }));
       setDraftSavedAt(timeStr);
       triggerNotification({
@@ -2456,6 +2466,21 @@ export default function PracticalsPage() {
 
       await saveAcademicRecord('practicalsData', pendingDocId, submissionPayload);
       invalidateCollectionCache('practicalsData');
+      logTeacherActivity({
+        actionType: 'submit',
+        actionTitle: `Submitted Evaluation Award: ${selectedSubject} (${selectedClass})`,
+        details: `Teacher ${user?.name || auth.currentUser?.displayName || 'Faculty'} submitted ${practicalType} award for ${selectedClass} - ${selectedSubject} (${submissionPayload.records?.length || 0} candidates).`,
+        subject: selectedSubject,
+        className: selectedClass,
+        targetId: pendingDocId,
+        metadata: {
+          practicalType,
+          session: yearSuffix,
+          recordsCount: submissionPayload.records?.length || 0,
+          maxMarks: submissionPayload.maxMarks,
+          minMarks: submissionPayload.minMarks
+        }
+      });
       setExistingAwardInfo(prev => ({ ...prev, pending: submissionPayload }));
 
       // Update studentMarks in state so the table immediately displays 'AB' for any previously unfilled students if opted

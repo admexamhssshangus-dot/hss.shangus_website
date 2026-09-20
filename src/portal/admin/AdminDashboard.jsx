@@ -30,6 +30,7 @@ const AutomationsPage = lazyWithChunkRecovery(() => import('./AutomationsPage'),
 const FundDistribution = lazyWithChunkRecovery(() => import('./FundDistribution'), 'admin-fund-dist');
 const SchoolAccountsManager = lazyWithChunkRecovery(() => import('./SchoolAccountsManager'), 'admin-accounts');
 const AdministrativeCms = lazyWithChunkRecovery(() => import('../../pages/AdminPortal'), 'admin-cms');
+const ActivityAuditView = lazyWithChunkRecovery(() => import('./ActivityAuditView'), 'admin-activity-audit');
 
 // Module Loaders Map for High-Speed Dynamic Chunk Prefetching
 export const MODULE_LOADERS = {
@@ -52,6 +53,7 @@ export const MODULE_LOADERS = {
   accounts: () => import('./SchoolAccountsManager'),
   cms: () => import('../../pages/AdminPortal'),
   heroButtons: () => import('../../pages/AdminPortal'),
+  activityAudit: () => import('./ActivityAuditView'),
 };
 
 export const prefetchAdminModule = (moduleId) => {
@@ -984,6 +986,18 @@ export default function AdminDashboard() {
                       aria-hidden={activeTab !== 'cms'}
                     >
                       <AdministrativeCms embeddedUser={user} onEmbeddedLogout={handleLogoutRequest} />
+                    </div>
+                  )}
+
+                  {/* TAB: Activity Audit & Dispute Trail */}
+                  {mountedTabs.has('activityAudit') && (
+                    <div
+                      key="activity-audit-container"
+                      className={activeTab === 'activityAudit' ? 'block w-full' : 'hidden'}
+                      style={activeTab === 'activityAudit' ? undefined : { display: 'none' }}
+                      aria-hidden={activeTab !== 'activityAudit'}
+                    >
+                      <ActivityAuditView user={user} />
                     </div>
                   )}
                 </React.Suspense>
