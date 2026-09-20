@@ -862,8 +862,10 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
       if (tooltipEl) {
         if (isAtomHovered) {
           const isCompactScreen = isMobile || rect.width < 640;
-          const cardWidth = isCompactScreen ? 180 : 265;
-          const cardHeight = isCompactScreen ? 78 : 110;
+          const cardWidth = isCompactScreen
+            ? Math.min(350, Math.max(280, rect.width - 20))
+            : Math.min(450, Math.max(390, Math.floor(rect.width * 0.38)));
+          const cardHeight = 72;
 
           // Determine whether atom is on left or right of the screen
           // Use hysteresis (24px deadband) around screen center to avoid jitter
@@ -887,8 +889,8 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
               // Mobile: Anchor cleanly on the left edge
               targetX = 8;
             } else {
-              // Desktop: Offset 55px to the left of atom
-              targetX = atomScreenX - cardWidth - 55;
+              // Desktop: Offset 45px to the left of atom
+              targetX = atomScreenX - cardWidth - 45;
               targetX = Math.max(12, Math.min(targetX, rect.width - cardWidth - 12));
             }
           } else {
@@ -898,8 +900,8 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
               // Mobile: Anchor cleanly on the right edge
               targetX = Math.max(8, rect.width - cardWidth - 8);
             } else {
-              // Desktop: Offset 55px to the right of atom
-              targetX = atomScreenX + 55;
+              // Desktop: Offset 45px to the right of atom
+              targetX = atomScreenX + 45;
               targetX = Math.max(12, Math.min(targetX, rect.width - cardWidth - 12));
             }
           }
@@ -908,7 +910,7 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
           const minY = 8;
           const maxY = isCompactScreen
             ? Math.max(minY, rect.height - cardHeight - 65)
-            : Math.max(minY, rect.height - cardHeight - 16);
+            : Math.max(minY, rect.height - cardHeight - 75);
 
           targetY = atomScreenY - (cardHeight / 2);
           targetY = Math.max(minY, Math.min(targetY, maxY));
@@ -1210,7 +1212,7 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
         }}
       >
         <div
-          className="hero-3d-tooltip relative w-[175px] xs:w-[190px] sm:w-[265px] rounded-lg sm:rounded-xl p-1.5 sm:p-2.5 text-left pointer-events-auto ring-1 ring-white/10 shadow-2xl transition-all"
+          className="hero-3d-tooltip relative w-[310px] xs:w-[340px] sm:w-[410px] md:w-[440px] rounded-lg sm:rounded-xl p-1.5 sm:p-2.5 text-left pointer-events-auto ring-1 ring-white/10 shadow-2xl transition-all"
           style={{
             backgroundColor: 'rgba(10, 15, 30, 0.96)',
             borderColor: 'rgba(6, 182, 212, 0.5)',
@@ -1220,8 +1222,8 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
           {/* Top glowing accent hairline */}
           <div className="absolute top-0 inset-x-2 sm:inset-x-3 h-[1.5px] sm:h-[2px] bg-gradient-to-r from-cyan-400 via-amber-400 to-emerald-400 rounded-full" />
           
-          {/* Compact Header */}
-          <div className="flex items-center justify-between gap-1 pb-1 mb-1 border-b border-slate-700/60">
+          {/* Compact Slim Header */}
+          <div className="flex items-center justify-between gap-1 pb-1 mb-1 sm:mb-1.5 border-b border-slate-700/60">
             <div className="flex items-center gap-1 sm:gap-1.5">
               <span
                 className="w-4 h-4 sm:w-5 sm:h-5 rounded flex items-center justify-center font-bold text-[8.5px] sm:text-[10px] shadow-xs font-mono shrink-0"
@@ -1233,10 +1235,9 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
               >
                 ₆C
               </span>
-              <div>
+              <div className="flex items-baseline gap-1 sm:gap-2">
                 <h4 className="font-bold text-[9px] sm:text-xs tracking-wide leading-none font-heading" style={{ color: '#ffffff' }}>
-                  <span className="sm:hidden">Carbon-12</span>
-                  <span className="hidden sm:inline">Carbon-12 Structure</span>
+                  Carbon-12 Structure
                 </h4>
                 <span className="text-[7.5px] sm:text-[9px] font-mono leading-none" style={{ color: '#38bdf8' }}>
                   6p 6n • K(2) L(4)
@@ -1259,60 +1260,66 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
             </button>
           </div>
 
-          {/* 3 Compact Micro Detail Blocks with Guaranteed High-Contrast White Text */}
-          <div className="space-y-0.5 sm:space-y-1 text-[7.5px] sm:text-[9.5px] leading-tight sm:leading-snug">
-            {/* 1. Carbon Bohr Structure */}
+          {/* 3-Column Layout: Minimal Vertical Height, Superior Readability */}
+          <div className="grid grid-cols-3 gap-1 sm:gap-1.5">
+            {/* Column 1: Carbon Core */}
             <div
-              className="tooltip-item-box flex items-start gap-1 sm:gap-1.5 rounded p-1 sm:p-1.5 border"
+              className="tooltip-col rounded p-1 sm:p-1.5 border flex flex-col justify-between"
               style={{
                 backgroundColor: 'rgba(15, 23, 42, 0.88)',
                 borderColor: 'rgba(51, 65, 85, 0.8)'
               }}
             >
-              <span className="text-[9px] sm:text-xs shrink-0 mt-0.2 sm:mt-0.5">⚛️</span>
-              <div>
-                <span className="font-bold" style={{ color: '#38bdf8' }}>Carbon:</span>{' '}
-                <span className="tooltip-body-text" style={{ color: '#f8fafc' }}>
-                  <span className="sm:hidden">6p+6n core; 2 inner, 4 valence e⁻.</span>
-                  <span className="hidden sm:inline">6p+6n core; 2 inner + 4 outer valence e⁻.</span>
+              <div className="flex items-center gap-0.5 sm:gap-1">
+                <span className="text-[9px] sm:text-xs shrink-0">⚛️</span>
+                <span className="font-bold text-[8px] sm:text-[9.5px] truncate" style={{ color: '#38bdf8' }}>
+                  Carbon Core
                 </span>
               </div>
+              <p className="tooltip-body-text text-[7px] sm:text-[8.5px] leading-tight mt-0.5" style={{ color: '#f8fafc' }}>
+                <span className="sm:hidden">6p+6n; 2+4 valence e⁻.</span>
+                <span className="hidden sm:inline">6p+6n core; 2 inner + 4 outer valence e⁻.</span>
+              </p>
             </div>
 
-            {/* 2. School Seal Core */}
+            {/* Column 2: School Seal Nucleus */}
             <div
-              className="tooltip-item-box flex items-start gap-1 sm:gap-1.5 rounded p-1 sm:p-1.5 border"
+              className="tooltip-col rounded p-1 sm:p-1.5 border flex flex-col justify-between"
               style={{
                 backgroundColor: 'rgba(15, 23, 42, 0.88)',
                 borderColor: 'rgba(51, 65, 85, 0.8)'
               }}
             >
-              <span className="text-[9px] sm:text-xs shrink-0 mt-0.2 sm:mt-0.5">🏫</span>
-              <div>
-                <span className="font-bold" style={{ color: '#fbbf24' }}>Nucleus:</span>{' '}
-                <span className="tooltip-body-text" style={{ color: '#f8fafc' }}>
-                  <span className="sm:hidden">HSS Shangus seal at core.</span>
-                  <span className="hidden sm:inline">HSS Shangus seal — wisdom & discipline.</span>
+              <div className="flex items-center gap-0.5 sm:gap-1">
+                <span className="text-[9px] sm:text-xs shrink-0">🏫</span>
+                <span className="font-bold text-[8px] sm:text-[9.5px] truncate" style={{ color: '#fbbf24' }}>
+                  Shangus Seal
                 </span>
               </div>
+              <p className="tooltip-body-text text-[7px] sm:text-[8.5px] leading-tight mt-0.5" style={{ color: '#f8fafc' }}>
+                <span className="sm:hidden">HSS Shangus core seal.</span>
+                <span className="hidden sm:inline">HSS Shangus seal — wisdom & discipline.</span>
+              </p>
             </div>
 
-            {/* 3. Educational Theme */}
+            {/* Column 3: School Theme */}
             <div
-              className="tooltip-item-box flex items-start gap-1 sm:gap-1.5 rounded p-1 sm:p-1.5 border"
+              className="tooltip-col rounded p-1 sm:p-1.5 border flex flex-col justify-between"
               style={{
                 backgroundColor: 'rgba(15, 23, 42, 0.88)',
                 borderColor: 'rgba(51, 65, 85, 0.8)'
               }}
             >
-              <span className="text-[9px] sm:text-xs shrink-0 mt-0.2 sm:mt-0.5">🌌</span>
-              <div>
-                <span className="font-bold" style={{ color: '#34d399' }}>Theme:</span>{' '}
-                <span className="tooltip-body-text" style={{ color: '#f8fafc' }}>
-                  <span className="sm:hidden">"nurturing minds, shaping futures".</span>
-                  <span className="hidden sm:inline"><strong style={{ color: '#ffffff' }}>"nurturing minds, shaping futures"</strong>.</span>
+              <div className="flex items-center gap-0.5 sm:gap-1">
+                <span className="text-[9px] sm:text-xs shrink-0">🌌</span>
+                <span className="font-bold text-[8px] sm:text-[9.5px] truncate" style={{ color: '#34d399' }}>
+                  School Motto
                 </span>
               </div>
+              <p className="tooltip-body-text text-[7px] sm:text-[8.5px] leading-tight mt-0.5" style={{ color: '#f8fafc' }}>
+                <span className="sm:hidden">"nurturing minds..."</span>
+                <span className="hidden sm:inline">"nurturing minds, shaping futures".</span>
+              </p>
             </div>
           </div>
 

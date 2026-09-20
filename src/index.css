@@ -1519,8 +1519,11 @@ html, body, #root {
 }
 
 .hero-3d-tooltip .tooltip-item-box,
+.hero-3d-tooltip .tooltip-col,
 .theme-light .hero-3d-tooltip .tooltip-item-box,
-.theme-dark .hero-3d-tooltip .tooltip-item-box {
+.theme-light .hero-3d-tooltip .tooltip-col,
+.theme-dark .hero-3d-tooltip .tooltip-item-box,
+.theme-dark .hero-3d-tooltip .tooltip-col {
   background-color: rgba(15, 23, 42, 0.88) !important;
   border-color: rgba(51, 65, 85, 0.8) !important;
 }
