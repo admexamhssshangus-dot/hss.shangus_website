@@ -361,6 +361,46 @@ export default function HeroButtonsManager({
         </div>
       )}
 
+      {/* 3D Visual Experience Switch */}
+      <div className="bg-slate-900/60 p-3.5 rounded-xl border border-indigo-500/30 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+        <div className="flex items-start gap-2.5">
+          <div className="p-2 rounded-lg bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 mt-0.5 shrink-0">
+            <Sparkles size={16} />
+          </div>
+          <div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h4 className="text-xs font-bold text-slate-100">Interactive 3D Educational Assets (Hero Banner)</h4>
+              <span className={`text-[9.5px] uppercase font-extrabold px-2 py-0.5 rounded-full border ${
+                settings?.enable3dHeroAssets
+                  ? 'bg-indigo-950/90 text-indigo-300 border-indigo-600/50'
+                  : 'bg-slate-800 text-slate-400 border-slate-700'
+              }`}>
+                {settings?.enable3dHeroAssets ? '3D Active' : 'Classic 2D Mode'}
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">
+              Enables floating procedural 3D academic assets (Knowledge Core, Floating Book of Wisdom & Constellation) behind the hero slogan. Fully mobile-responsive with touch parallax and zero performance overhead when disabled.
+            </p>
+          </div>
+        </div>
+        <div className="self-end sm:self-center shrink-0 flex items-center gap-2">
+          <label className="relative inline-flex items-center cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={Boolean(settings?.enable3dHeroAssets)}
+              onChange={(e) => {
+                onUpdateSettings({
+                  ...settings,
+                  enable3dHeroAssets: e.target.checked
+                });
+              }}
+              className="sr-only peer"
+            />
+            <div className="w-9 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
+          </label>
+        </div>
+      </div>
+
       {/* LIVE HOMEPAGE PREVIEW BANNER */}
       <div className="bg-slate-950 rounded-xl border border-slate-800 p-4 relative overflow-hidden shadow-inner">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-3 pb-2 border-b border-slate-850">

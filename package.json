@@ -15,6 +15,7 @@
     "react-dom": "^19.2.5",
     "react-helmet-async": "^3.0.0",
     "react-router-dom": "^7.14.1",
+    "three": "^0.186.0",
     "web-vitals": "^2.1.4",
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   },

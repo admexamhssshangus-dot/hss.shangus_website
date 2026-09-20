@@ -7,6 +7,8 @@ import SEO from '../components/SEO';
 import { formatTitleWithBrackets } from '../utils/textFormatting';
 import { DEFAULT_HERO_BUTTONS, getCachedSiteSettings } from '../utils/settingsLoader';
 
+const Hero3DExperience = React.lazy(() => import('../components/3d/Hero3DExperience'));
+
 // Modern Counter Animation Component
 const AnimatedCounter = ({ end, prefix = '', suffix = '' }) => {
   const [count, setCount] = useState(0);
@@ -405,6 +407,13 @@ export default function Home() {
         
         {/* Background slideshow: using dynamic config with public fallback */}
         <Slideshow slides={slides} configUrl={slides.length === 0 ? "/slides/slides.txt" : null} imageFolder="/slides/" interval={6000} />
+        
+        {/* Dynamic 3D Hero Experience (Lazy-loaded, strictly rendered only when enabled in CMS) */}
+        {Boolean(settings?.enable3dHeroAssets) && (
+          <React.Suspense fallback={null}>
+            <Hero3DExperience />
+          </React.Suspense>
+        )}
         
         <div className="relative z-20 px-3 sm:px-4">
           <h1
