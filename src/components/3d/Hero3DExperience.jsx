@@ -1319,15 +1319,13 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
           {/* Top glowing accent hairline */}
           <div className="absolute top-0 inset-x-2 sm:inset-x-3 h-[1.5px] sm:h-[2px] bg-gradient-to-r from-cyan-400 via-amber-400 to-emerald-400 rounded-full" />
           
-          {/* ============================================================
-              1. MOBILE VIEW: Paragraph with brief theme meaning
-              Placed directly ABOVE the globe
-              ============================================================ */}
-          <div className="sm:hidden flex flex-col gap-1.5">
-            <div className="flex items-center justify-between gap-1 pb-1 border-b border-slate-700/60">
-              <div className="flex items-center gap-1.5 min-w-0">
+          {/* Unified Responsive Tooltip Layout (Mobile & Desktop) */}
+          <div className="flex flex-col gap-1.5 sm:gap-2">
+            {/* Header Row */}
+            <div className="flex items-center justify-between gap-1 pb-1 sm:pb-1.5 border-b border-slate-700/60">
+              <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
                 <span
-                  className="w-4.5 h-4.5 rounded flex items-center justify-center font-bold text-[8.5px] font-mono shrink-0"
+                  className="w-4.5 h-4.5 sm:w-5 sm:h-5 rounded flex items-center justify-center font-bold text-[8.5px] sm:text-[10px] font-mono shrink-0 shadow-xs"
                   style={{
                     backgroundColor: 'rgba(6, 182, 212, 0.25)',
                     borderColor: 'rgba(56, 189, 248, 0.5)',
@@ -1336,52 +1334,11 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
                 >
                   ₆C
                 </span>
-                <span className="font-bold text-[10.5px] font-heading text-white truncate">
-                  Carbon-12 Structure
-                </span>
-                <span className="text-[8px] font-mono text-cyan-400 shrink-0">
-                  6p 6n • K2 L4
-                </span>
-              </div>
-              <button
-                type="button"
-                onClick={handleCloseTooltip}
-                className="w-5.5 h-5.5 rounded-full bg-white/20 hover:bg-white/35 active:bg-white/50 text-white flex items-center justify-center text-[11px] font-bold shrink-0 cursor-pointer touch-manipulation transition-colors shadow-xs"
-                aria-label="Close details"
-              >
-                ✕
-              </button>
-            </div>
-
-            {/* Meaningful Theme Paragraph */}
-            <p className="tooltip-body-text text-[9.5px] leading-[1.45] text-slate-200">
-              Carbon is the fundamental building block of life and matter. Featuring the <span className="text-amber-300 font-semibold">HSS Shangus seal</span> at its atomic core, this model embodies our theme <span className="text-cyan-300 font-semibold">"nurturing minds, shaping futures"</span> — grounding academic curiosity, wisdom, and discipline to build tomorrow's leaders.
-            </p>
-          </div>
-
-          {/* ============================================================
-              2. DESKTOP VIEW: 3-Column Horizontal Layout
-              Placed to the left or right of the globe
-              ============================================================ */}
-          <div className="hidden sm:block">
-            {/* Compact Slim Header */}
-            <div className="flex items-center justify-between gap-1 pb-1 mb-1.5 border-b border-slate-700/60">
-              <div className="flex items-center gap-1.5">
-                <span
-                  className="w-5 h-5 rounded flex items-center justify-center font-bold text-[10px] shadow-xs font-mono shrink-0"
-                  style={{
-                    backgroundColor: 'rgba(6, 182, 212, 0.2)',
-                    borderColor: 'rgba(56, 189, 248, 0.5)',
-                    color: '#38bdf8'
-                  }}
-                >
-                  ₆C
-                </span>
-                <div className="flex items-baseline gap-2">
-                  <h4 className="font-bold text-xs tracking-wide leading-none font-heading" style={{ color: '#ffffff' }}>
+                <div className="flex items-baseline gap-1.5 sm:gap-2 truncate">
+                  <h4 className="font-bold text-[10.5px] sm:text-xs tracking-wide leading-none font-heading text-white truncate">
                     Carbon-12 Structure
                   </h4>
-                  <span className="text-[9px] font-mono leading-none" style={{ color: '#38bdf8' }}>
+                  <span className="text-[8px] sm:text-[9.5px] font-mono text-cyan-400 shrink-0">
                     6p 6n • K(2) L(4)
                   </span>
                 </div>
@@ -1389,72 +1346,17 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
               <button
                 type="button"
                 onClick={handleCloseTooltip}
-                className="w-5 h-5 rounded-full bg-white/10 hover:bg-white/25 text-slate-300 hover:text-white flex items-center justify-center text-xs font-bold shrink-0 cursor-pointer transition-colors"
+                className="w-5.5 h-5.5 sm:w-5 sm:h-5 rounded-full bg-white/15 hover:bg-white/30 active:bg-white/45 text-white flex items-center justify-center text-[11px] sm:text-xs font-bold shrink-0 cursor-pointer touch-manipulation transition-colors shadow-xs"
                 aria-label="Close details"
               >
                 ✕
               </button>
             </div>
 
-            {/* 3-Column Layout */}
-            <div className="grid grid-cols-3 gap-1.5">
-              {/* Column 1: Carbon Core */}
-              <div
-                className="tooltip-col rounded p-1.5 border flex flex-col justify-between"
-                style={{
-                  backgroundColor: 'rgba(15, 23, 42, 0.88)',
-                  borderColor: 'rgba(51, 65, 85, 0.8)'
-                }}
-              >
-                <div className="flex items-center gap-1">
-                  <span className="text-xs shrink-0">⚛️</span>
-                  <span className="font-bold text-[9.5px] truncate" style={{ color: '#38bdf8' }}>
-                    Carbon Core
-                  </span>
-                </div>
-                <p className="tooltip-body-text text-[8.5px] leading-tight mt-0.5" style={{ color: '#f8fafc' }}>
-                  6p+6n core; 2 inner + 4 outer valence e⁻.
-                </p>
-              </div>
-
-              {/* Column 2: School Seal Nucleus */}
-              <div
-                className="tooltip-col rounded p-1.5 border flex flex-col justify-between"
-                style={{
-                  backgroundColor: 'rgba(15, 23, 42, 0.88)',
-                  borderColor: 'rgba(51, 65, 85, 0.8)'
-                }}
-              >
-                <div className="flex items-center gap-1">
-                  <span className="text-xs shrink-0">🏫</span>
-                  <span className="font-bold text-[9.5px] truncate" style={{ color: '#fbbf24' }}>
-                    Shangus Seal
-                  </span>
-                </div>
-                <p className="tooltip-body-text text-[8.5px] leading-tight mt-0.5" style={{ color: '#f8fafc' }}>
-                  HSS Shangus seal — wisdom & discipline.
-                </p>
-              </div>
-
-              {/* Column 3: School Theme */}
-              <div
-                className="tooltip-col rounded p-1.5 border flex flex-col justify-between"
-                style={{
-                  backgroundColor: 'rgba(15, 23, 42, 0.88)',
-                  borderColor: 'rgba(51, 65, 85, 0.8)'
-                }}
-              >
-                <div className="flex items-center gap-1">
-                  <span className="text-xs shrink-0">🌌</span>
-                  <span className="font-bold text-[9.5px] truncate" style={{ color: '#34d399' }}>
-                    School Motto
-                  </span>
-                </div>
-                <p className="tooltip-body-text text-[8.5px] leading-tight mt-0.5" style={{ color: '#f8fafc' }}>
-                  "nurturing minds, shaping futures".
-                </p>
-              </div>
-            </div>
+            {/* Meaningful Theme Paragraph */}
+            <p className="tooltip-body-text text-[9.5px] sm:text-[11px] leading-[1.45] sm:leading-[1.55] text-slate-200">
+              Carbon is the fundamental building block of life and matter. Featuring the <span className="text-amber-300 font-semibold">HSS Shangus seal</span> at its atomic core, this model embodies our theme <span className="text-cyan-300 font-semibold">"nurturing minds, shaping futures"</span> — grounding academic curiosity, wisdom, and discipline to build tomorrow's leaders.
+            </p>
           </div>
 
           {/* Directional indicator pip */}
