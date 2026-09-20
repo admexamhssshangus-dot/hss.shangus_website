@@ -424,7 +424,7 @@ export default function Navbar() {
         </div>
 
         {/* ROW 3: Navigation Menu */}
-        <div className="bg-slate-800 border-b-[3px] md:py-0.5" style={{ borderBottomColor: '#961c14' }}>
+        <div className="bg-slate-800 border-b md:py-0.5" style={{ borderBottomColor: '#961c14' }}>
           <div className="max-w-7xl mx-auto px-4">
             <nav className="flex items-center justify-center w-full relative">
               {/* Desktop menu */}
