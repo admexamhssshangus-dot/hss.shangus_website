@@ -1507,6 +1507,31 @@ html, body, #root {
   color: #f8fafc !important;
 }
 
+/* 3D Hero Scientific Telemetry Tooltip High-Contrast Protection */
+.hero-3d-tooltip,
+.theme-light .hero-3d-tooltip,
+.theme-dark .hero-3d-tooltip,
+.theme-royal .hero-3d-tooltip,
+.theme-forest .hero-3d-tooltip,
+.theme-midnight .hero-3d-tooltip {
+  background-color: rgba(10, 15, 30, 0.95) !important;
+  border-color: rgba(6, 182, 212, 0.45) !important;
+}
+
+.hero-3d-tooltip .tooltip-item-box,
+.theme-light .hero-3d-tooltip .tooltip-item-box,
+.theme-dark .hero-3d-tooltip .tooltip-item-box {
+  background-color: rgba(15, 23, 42, 0.88) !important;
+  border-color: rgba(51, 65, 85, 0.8) !important;
+}
+
+.hero-3d-tooltip .tooltip-body-text,
+.theme-light .hero-3d-tooltip .tooltip-body-text,
+.theme-dark .hero-3d-tooltip .tooltip-body-text,
+.theme-light .hero-3d-tooltip span.tooltip-body-text {
+  color: #f1f5f9 !important;
+}
+
 .theme-light .modern-loader-inverted .text-slate-400,
 .theme-light .tax-rules-modal .text-slate-400 {
   color: #94a3b8 !important;
