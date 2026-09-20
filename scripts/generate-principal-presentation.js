@@ -275,7 +275,7 @@ const doc = new Document({
 
       createCallout(
         'OFFICIAL BILL ATTACHMENT & VERIFICATION MANDATE',
-        'This comprehensive technical and operational report documents the delivery, architectural complexity, and functional scope of the custom-engineered School Enterprise Resource Planning (ERP) & Digital Governance System for GHSS Shangus. It certifies that the platform is a production-grade, enterprise-scale software system (210,000+ Lines of Code across 322 custom source files) providing 4 autonomous web portals, 20 integrated administrative tools, and 20+ years of cloud-archived student records, with permanent institutional ownership and zero recurring vendor subscription fees.'
+        'This comprehensive technical and operational report documents the delivery, architectural complexity, and functional scope of the custom-engineered School Enterprise Resource Planning (ERP) & Digital Governance System for GHSS Shangus. It certifies that the platform is a production-grade, enterprise-scale software system (210,000+ Lines of Code across 322 custom source files) providing 4 autonomous web portals, 22 integrated administrative tools, and 20+ years of cloud-archived student records, with permanent institutional ownership and zero recurring vendor subscription fees.'
       ),
 
       new Paragraph({ spacing: { before: 40 } }),
@@ -284,7 +284,7 @@ const doc = new Document({
       createStyledDocxTable(
         ['Total Codebase Scale', 'Custom Source Files', 'Integrated Portals', 'Enterprise Tools', 'Historical Archive', 'Annual License Fee'],
         [
-          ['210,261 LOC', '322 Files', '4 Portals', '20 Tools', '2006–2026 (20+ Yrs)', '₹0 / 100% Free']
+          ['210,261 LOC', '322 Files', '4 Portals', '22 Tools', '2006–2026 (20+ Yrs)', '₹0 / 100% Free']
         ],
         [18, 16, 16, 16, 18, 16],
         primaryColor
@@ -368,8 +368,8 @@ const doc = new Document({
 
       new Paragraph({ children: [new PageBreak()] }),
 
-      // SECTION 3: DIRECTORY OF 20 OFFICE TOOLS
-      createHeaderPara('3. Enterprise Tool Directory: 20 Integrated School Office Tools', HeadingLevel.HEADING_1),
+      // SECTION 3: DIRECTORY OF 22 OFFICE TOOLS
+      createHeaderPara('3. Enterprise Tool Directory: 22 Integrated School Office Tools', HeadingLevel.HEADING_1),
       createStyledDocxTable(
         ['Records & Academic Tools (Div I & II)', 'Capabilities & Outputs', 'Operations & Productivity Tools (Div III & IV)', 'Capabilities & Outputs'],
         [
@@ -382,8 +382,8 @@ const doc = new Document({
           ['7. Competitive Exams & OMR Suite', 'GK Talent Search, Science Olympiad, automatic PDF admit cards with exam centres, OMR bubble sheet answer key evaluation.', '18. Express Walk-in Admissions', 'On-the-spot admission entry form for office clerks admitting walk-in candidates with immediate receipt printing.'],
           ['8. Academic Controls & Quotas', 'Live admission intake toggles for Classes 9th–12th, stream intake quotas (Medical, Non-Med, Arts, Commerce), marks calibration.', '19. JKBOSE Gazette Sync Engine', 'Matches school records with board gazettes by Registration Number, updates matric marks, includes 30-day rollback memory.'],
           ['9. Subject Combination Enforcer', 'Enforces board combination limits, compulsory vs elective groupings, live validation to prevent illegal subject choices.', '20. Role-Based Access Governance', 'Dedicated secure logins for Principal, Exam Incharge, Accounts Clerk, and Admission Incharge with restricted tool access.'],
-          ['10. Practical Marks & Award Rolls', 'Collects marks from teacher portals, range checks (0–20/30), master tabulation, official board award rolls (.docx/PDF).', '— Unified Database Integration', 'All 20 tools share one centralized data store; staff never re-enter student information across modules.'],
-          ['11. Student Attendance Tracker', 'Daily and subject-wise roll call, automated visual warnings when attendance drops below the 75% board eligibility threshold.', '— Interactive Field Tooltips', 'Every button, field, and toggle provides instant explanatory tips to ensure effortless clerical operation.']
+          ['10. Practical Marks & Award Rolls', 'Collects marks from teacher portals, range checks (0–20/30), master tabulation, official board award rolls (.docx/PDF).', '21. Activity Audit & Dispute Trail', 'Track, inspect, and verify immutable audit trails across student, teacher & admin actions for dispute resolution.'],
+          ['11. Student Attendance Tracker', 'Daily and subject-wise roll call, automated visual warnings when attendance drops below the 75% board eligibility threshold.', '22. Bulk Ingestion & Batch Field Overwrite', 'Batch upload records or overwrite fields via Excel/CSV with column mapping, rollback protection, quick cell edit, and demographic analytics.']
         ],
         [24, 26, 24, 26]
       ),
@@ -397,7 +397,7 @@ const doc = new Document({
       createStyledDocxTable(
         ['Software Layer / Component Type', 'Custom Source Files', 'Lines of Code (LOC)', 'Architectural Role in Platform'],
         [
-          ['React JSX Components (UI & Portals)', `${CODE_STATS.jsxFiles} Files`, `${CODE_STATS.jsxLines} LOC`, 'User interfaces for Public, Student, Teacher, and Admin Portals, 20 tools, responsive views.'],
+          ['React JSX Components (UI & Portals)', `${CODE_STATS.jsxFiles} Files`, `${CODE_STATS.jsxLines} LOC`, 'User interfaces for Public, Student, Teacher, and Admin Portals, 22 tools, responsive views.'],
           ['JavaScript Core Services & Engines', `${CODE_STATS.jsFiles} Files`, `${CODE_STATS.jsLines} LOC`, 'PDF/DOCX/XLSX export engines, business rules, caching algorithms, data synchronization logic.'],
           ['Design System & Responsive Styles (CSS)', `${CODE_STATS.cssFiles} Files`, `${CODE_STATS.cssLines} LOC`, 'High-contrast design tokens, dark/light themes, print-ready media queries, UI animations.'],
           ['Automation, Security & Audit Scripts', `${CODE_STATS.scriptFiles} Files`, `${CODE_STATS.scriptLines} LOC`, 'Automated regression test suites, Firestore security rules auditors, data integrity validators.'],
@@ -443,7 +443,7 @@ const doc = new Document({
 
       createCallout(
         'OFFICIAL RECOMMENDATION & VERIFICATION FOR PAYMENT CLEARANCE',
-        'It is certified that the School Enterprise Resource Planning (ERP) Platform for Govt. Higher Secondary School Shangus has been fully developed, tested, verified, and operationalized with 210,261 lines of custom source code. All 4 portals and 20 office tools are actively functioning in accordance with institutional requirements. It is respectfully recommended that this technical valuation report be accepted as an official annexure to the bill/voucher for payment clearance and institutional adoption.'
+        'It is certified that the School Enterprise Resource Planning (ERP) Platform for Govt. Higher Secondary School Shangus has been fully developed, tested, verified, and operationalized with 210,261 lines of custom source code. All 4 portals and 22 office tools are actively functioning in accordance with institutional requirements. It is respectfully recommended that this technical valuation report be accepted as an official annexure to the bill/voucher for payment clearance and institutional adoption.'
       ),
 
       new Paragraph({ spacing: { before: 80 } }),
@@ -821,7 +821,7 @@ const htmlContent = `<!DOCTYPE html>
       <div class="kpi-label">Public • Student • Faculty • ERP</div>
     </div>
     <div class="kpi-card sky">
-      <div class="kpi-value">20 Tools</div>
+      <div class="kpi-value">22 Tools</div>
       <div class="kpi-label">Complete Office Suite</div>
     </div>
     <div class="kpi-card purple">
@@ -975,9 +975,9 @@ const htmlContent = `<!DOCTYPE html>
     </tbody>
   </table>
 
-  <!-- Section 4: Complete Directory of 20 Office Tools -->
+  <!-- Section 4: Complete Directory of 22 Office Tools -->
   <h3 class="section-heading">
-    <span>4. Complete Directory of 20 School Office Tools (Dual-Column Layman & Operational Format)</span>
+    <span>4. Complete Directory of 22 School Office Tools (Dual-Column Layman & Operational Format)</span>
     <span class="section-badge">Full ERP Toolset</span>
   </h3>
 
@@ -1048,12 +1048,14 @@ const htmlContent = `<!DOCTYPE html>
       <tr>
         <td><strong>10. Practical Marks & Award Rolls</strong><br><span class="table-tag tag-emerald">Div II: Academics</span></td>
         <td>Collects scores from teacher portals, score range validation (0–20/30), consolidated master gazette, and official board award roll (.docx/PDF) generation.</td>
-        <td style="background: #f8fafc; color: #64748b; font-style: italic;" colspan="2">All 20 tools share one verified database so staff never type student details twice.</td>
+        <td><strong>21. Activity Audit & Dispute Trail</strong><br><span class="table-tag tag-indigo">Div III: Operations</span></td>
+        <td>Track, inspect, and verify immutable audit trails across student, teacher & admin actions for dispute resolution.</td>
       </tr>
       <tr>
         <td><strong>11. Student Attendance Tracker</strong><br><span class="table-tag tag-emerald">Div II: Academics</span></td>
         <td>Subject-wise and daily roll call, with automated red-flag alerts when attendance falls below 75% for board exam eligibility.</td>
-        <td style="background: #f8fafc; color: #64748b; font-style: italic;" colspan="2">Hovering the mouse over any button displays a clear, helpful tip explaining its purpose.</td>
+        <td><strong>22. Bulk Ingestion & Batch Field Overwrite</strong><br><span class="table-tag tag-purple">Div IV: Productivity</span></td>
+        <td>Batch upload records or overwrite fields via Excel/CSV with column mapping, rollback protection, quick cell edit, and demographic analytics.</td>
       </tr>
     </tbody>
   </table>
@@ -1086,7 +1088,7 @@ const htmlContent = `<!DOCTYPE html>
         <td><strong>React JSX UI Components</strong></td>
         <td class="mono-metric">${CODE_STATS.jsxFiles} Files</td>
         <td class="mono-metric">${CODE_STATS.jsxLines} LOC</td>
-        <td>User interfaces for 4 portals, 20 office tools, interactive modals, and responsive layout controllers.</td>
+        <td>User interfaces for 4 portals, 22 office tools, interactive modals, and responsive layout controllers.</td>
       </tr>
       <tr>
         <td><strong>JavaScript Core Services & Engines</strong></td>
@@ -1210,7 +1212,7 @@ const htmlContent = `<!DOCTYPE html>
   <div class="endorsement-callout">
     <h4>Official Certification & Recommendation for Payment Clearance</h4>
     <p>
-      It is certified that the School Enterprise Resource Planning (ERP) Platform for Govt. Higher Secondary School Shangus has been fully developed, rigorously tested, verified, and operationalized with <strong>210,261 lines of custom source code</strong> across <strong>322 source files</strong>. All 4 portals and 20 office tools are actively functioning in accordance with institutional requirements. It is respectfully recommended that this technical valuation report be accepted as an official annexure to the bill/voucher for administrative approval, payment clearance, and permanent institutional adoption.
+      It is certified that the School Enterprise Resource Planning (ERP) Platform for Govt. Higher Secondary School Shangus has been fully developed, rigorously tested, verified, and operationalized with <strong>210,261 lines of custom source code</strong> across <strong>322 source files</strong>. All 4 portals and 22 office tools are actively functioning in accordance with institutional requirements. It is respectfully recommended that this technical valuation report be accepted as an official annexure to the bill/voucher for administrative approval, payment clearance, and permanent institutional adoption.
     </p>
   </div>
 
@@ -1280,7 +1282,7 @@ const mdContent = `# GOVT. HIGHER SECONDARY SCHOOL SHANGUS
 - **Historic Archive Milestone**: 20+ Years of Historical Admission Records Digitized & Cloud-Archived (2006 to 2026 for Classes 11th & 12th).
 - **Total Codebase Scale**: **${CODE_STATS.totalLines} Lines of Code (LOC)** across **${CODE_STATS.totalFiles} custom source files**.
 - **Integrated Portals**: 4 Autonomous Web Portals (Public Information, Student Admission, Faculty Assessment, Office ERP).
-- **Office Tools**: 20 Integrated Enterprise Modules covering all school administrative duties.
+- **Office Tools**: 22 Integrated Enterprise Modules covering all school administrative duties.
 - **Annual Software Licensing**: **₹0 recurring fees** (100% permanently owned institutional asset, saving ₹1,50,000+ every year).
 
 ---
@@ -1310,7 +1312,7 @@ The **GHSS Shangus Digital Platform** is an enterprise-grade **School Enterprise
    - 1-click generation of official board-compliant Practical Award Sheets in Word (.docx) & PDF formats.
    - Automatic draft recovery protecting marks against power outages or internet disconnects.
 
-4. **🏛️ Principal & Office Admin ERP Suite**:
+4. **🏛️ Principal & Office Admin ERP Suite (22 Integrated Tools)**:
    - Central command center: 2-second search across 20-year student archive (2006–2026).
    - Inline row-level data editing without opening heavy forms.
    - Split-screen builder for custom rosters, photo registers, and exam seating plans.
@@ -1337,7 +1339,7 @@ To maintain security, financial economy, and academic integrity, the platform ha
 
 ---
 
-### 3. Enterprise Tool Directory: 20 Integrated School Office Tools
+### 3. Enterprise Tool Directory: 22 Integrated School Office Tools
 
 | Records & Academic Tools (Div I & II) | Capabilities & Outputs | Operations & Productivity Tools (Div III & IV) | Capabilities & Outputs |
 | :--- | :--- | :--- | :--- |
@@ -1350,8 +1352,8 @@ To maintain security, financial economy, and academic integrity, the platform ha
 | **7. Competitive Exams & OMR Suite** | Talent Search, Science Olympiad, automatic PDF admit cards with exam centres, OMR answer key scoring. | **18. Express Walk-in Admissions** | On-the-spot admission entry form for office clerks admitting walk-in candidates with immediate receipt. |
 | **8. Academic Intake Controls** | Live admission intake toggles for Classes 9th–12th, stream quotas (Medical, Non-Med, Arts, Commerce). | **19. JKBOSE Gazette Sync Engine** | Matches school records with board gazettes by Registration Number, with 30-day rollback memory. |
 | **9. Subject Combination Enforcer** | Enforces board combination limits, compulsory vs elective groupings, live validation. | **20. Role-Based Access Governance** | Dedicated secure logins for Principal, Exam Incharge, Accounts Clerk, and Admission Incharge. |
-| **10. Practical Marks & Award Rolls** | Collects marks from teacher portals, score range validation (0–20/30), master gazette, award rolls. | **— Unified Database Integration** | All 20 tools share one centralized data store; staff never re-enter student information across modules. |
-| **11. Student Attendance Tracker** | Daily and subject roll call, automated visual warnings when attendance drops below 75% eligibility. | **— Interactive Field Guidance** | Every button, field, and toggle provides instant explanatory tips to ensure effortless operation. |
+| **10. Practical Marks & Award Rolls** | Collects marks from teacher portals, score range validation (0–20/30), master gazette, award rolls. | **21. Activity Audit & Dispute Trail** | Track, inspect, and verify immutable audit trails across student, teacher & admin actions for dispute resolution. |
+| **11. Student Attendance Tracker** | Daily and subject roll call, automated visual warnings when attendance drops below 75% eligibility. | **22. Bulk Ingestion & Batch Field Overwrite** | Batch upload records or overwrite fields via Excel/CSV with column mapping, rollback protection, quick cell edit, and demographic analytics. |
 
 ---
 
@@ -1360,7 +1362,7 @@ To maintain security, financial economy, and academic integrity, the platform ha
 The platform is an enterprise-grade single-page application (SPA) with **${CODE_STATS.totalLines} Lines of Code** across **${CODE_STATS.totalFiles} custom source files**:
 
 #### Codebase Scale Breakdown
-- **React JSX UI Components**: ${CODE_STATS.jsxFiles} files, ${CODE_STATS.jsxLines} lines of code (Public, Student, Teacher, and Admin Portals, 20 tools).
+- **React JSX UI Components**: ${CODE_STATS.jsxFiles} files, ${CODE_STATS.jsxLines} lines of code (Public, Student, Teacher, and Admin Portals, 22 tools).
 - **JavaScript Core Services & Engines**: ${CODE_STATS.jsFiles} files, ${CODE_STATS.jsLines} lines of code (PDF/DOCX/XLSX export engines, caching algorithms, data synchronization logic).
 - **Design Tokens & Stylesheets (CSS)**: ${CODE_STATS.cssFiles} files, ${CODE_STATS.cssLines} lines of code (Custom theme tokens, print-ready media queries, accessibility compliance).
 - **Automation, Security & Audit Scripts**: ${CODE_STATS.scriptFiles} files, ${CODE_STATS.scriptLines} lines of code (Regression test suites, Firestore security rules auditors, data integrity validators).
@@ -1391,7 +1393,7 @@ The platform is an enterprise-grade single-page application (SPA) with **${CODE_
 
 ### Official Verification & Endorsement
 
-It is certified that the School Enterprise Resource Planning (ERP) Platform for Govt. Higher Secondary School Shangus has been fully developed, rigorously tested, verified, and operationalized with **210,261 lines of custom source code** across **322 source files**. All 4 portals and 20 office tools are actively functioning in accordance with institutional requirements. It is respectfully recommended that this technical valuation report be accepted as an official annexure to the bill/voucher for administrative approval, payment clearance, and permanent institutional adoption.
+It is certified that the School Enterprise Resource Planning (ERP) Platform for Govt. Higher Secondary School Shangus has been fully developed, rigorously tested, verified, and operationalized with **210,261 lines of custom source code** across **322 source files**. All 4 portals and 22 office tools are actively functioning in accordance with institutional requirements. It is respectfully recommended that this technical valuation report be accepted as an official annexure to the bill/voucher for administrative approval, payment clearance, and permanent institutional adoption.
 
 **Signatures for Verification & Approval:**
 
@@ -1406,3 +1408,4 @@ fs.writeFileSync(mdPath, mdContent, 'utf8');
 console.log('✅ Comprehensive Markdown reference created successfully:', mdPath);
 
 console.log('All documents generated successfully in publication-grade ERP presentation format!');
+
