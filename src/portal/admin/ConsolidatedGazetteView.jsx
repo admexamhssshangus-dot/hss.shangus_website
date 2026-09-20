@@ -145,6 +145,26 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
   const [selectedRowKeys, setSelectedRowKeys] = useState(new Set());
   const masterCheckboxRef = useRef(null);
 
+  // Grouped Action Dropdowns
+  const [printMenuOpen, setPrintMenuOpen] = useState(false);
+  const [exportMenuOpen, setExportMenuOpen] = useState(false);
+  const printMenuRef = useRef(null);
+  const exportMenuRef = useRef(null);
+
+  // Close dropdowns on outside click
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (printMenuRef.current && !printMenuRef.current.contains(e.target)) {
+        setPrintMenuOpen(false);
+      }
+      if (exportMenuRef.current && !exportMenuRef.current.contains(e.target)) {
+        setExportMenuOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   const [practicalsDocs, setPracticalsDocs] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -1355,104 +1375,21 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
         }
       `}} />
 
-      {/* Modern Compact Toolbar */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 shadow-2xs space-y-2 no-print">
-        {/* Top Header: Title & Quick Actions */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-          <div className="flex items-center gap-2 min-w-0">
-            <div className="w-7 h-7 rounded-lg bg-orange-50 dark:bg-orange-950/60 text-orange-700 dark:text-orange-400 flex items-center justify-center font-black flex-shrink-0">
+      {/* Modern Unified Single-Row Toolbar */}
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-2 sm:p-2.5 shadow-2xs space-y-2 no-print">
+        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+          {/* Title / Brand */}
+          <div className="flex items-center gap-1.5 shrink-0 pr-1">
+            <div className="w-7 h-7 rounded-lg bg-orange-50 dark:bg-orange-950/60 text-orange-700 dark:text-orange-400 flex items-center justify-center font-black shrink-0">
               <Award size={15} />
             </div>
-            <h2 className="text-sm font-black text-slate-900 dark:text-white tracking-tight m-0 truncate">
-              Master Gazette & Tabulation Register
+            <h2 className="text-xs sm:text-sm font-black text-slate-900 dark:text-white tracking-tight m-0 whitespace-nowrap">
+              Master Gazette
             </h2>
           </div>
 
-          {/* Action Buttons */}
-          <div className="flex items-center gap-1.5 flex-wrap flex-shrink-0">
-            {/* Clear Selection Button */}
-            {selectedRowKeys.size > 0 && (
-              <button
-                type="button"
-                onClick={clearSelection}
-                className="h-7.5 px-2 rounded-lg bg-rose-50 dark:bg-rose-950/60 hover:bg-rose-100 dark:hover:bg-rose-900 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800 font-bold text-xs flex items-center gap-1 transition-all cursor-pointer"
-                title="Clear custom print selection"
-              >
-                <XCircle size={12} />
-                <span>Clear ({selectedRowKeys.size})</span>
-              </button>
-            )}
-
-            <button
-              type="button"
-              onClick={handlePrint}
-              disabled={filteredRows.length === 0}
-              className={`h-7.5 px-3 rounded-lg font-black text-xs flex items-center gap-1.5 transition-all shadow-xs cursor-pointer disabled:opacity-50 ${
-                selectedRowKeys.size > 0
-                  ? 'bg-teal-600 hover:bg-teal-500 text-white ring-2 ring-teal-300 dark:ring-teal-500 shadow-md'
-                  : 'bg-teal-700 hover:bg-teal-600 active:bg-teal-800 text-white'
-              }`}
-              title={selectedRowKeys.size > 0 ? `Print 15-Subject Gazette for ${selectedRowKeys.size} selected candidate(s)` : "Print 15-Subject Landscape Official Gazette"}
-            >
-              <Printer size={13} />
-              <span>{selectedRowKeys.size > 0 ? `Print Selected (${selectedRowKeys.size})` : 'Print Gazette'}</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => handlePrintIndividualAwardRoll(selectedSubject !== 'All' ? selectedSubject : null)}
-              disabled={filteredRows.length === 0}
-              className={`h-7.5 px-3 rounded-lg font-bold text-xs flex items-center gap-1.5 transition-all shadow-xs cursor-pointer disabled:opacity-50 ${
-                selectedRowKeys.size > 0
-                  ? 'bg-indigo-600 hover:bg-indigo-500 text-white ring-2 ring-indigo-300 dark:ring-indigo-500'
-                  : 'bg-indigo-700 hover:bg-indigo-600 active:bg-indigo-800 text-white'
-              }`}
-              title={
-                selectedRowKeys.size > 0
-                  ? `Print Official Award Roll for ${selectedRowKeys.size} selected candidate(s)`
-                  : (selectedSubject !== 'All' ? `Print Official 2-Column Award Roll for ${selectedSubject}` : 'Print Official 2-Column Subject Award Roll')
-              }
-            >
-              <FileText size={13} />
-              <span>
-                {selectedRowKeys.size > 0
-                  ? `Award Roll (${selectedRowKeys.size} Sel)`
-                  : (selectedSubject !== 'All' ? `Award Roll (${selectedSubject})` : 'Subject Award')}
-              </span>
-            </button>
-            <button
-              type="button"
-              onClick={handleExportExcel}
-              disabled={filteredRows.length === 0}
-              className="h-7.5 px-3 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white font-bold text-xs flex items-center gap-1.5 transition-all shadow-xs cursor-pointer disabled:opacity-50 shrink-0"
-            >
-              <Download size={13} />
-              <span>{selectedRowKeys.size > 0 ? `Excel (${selectedRowKeys.size})` : 'Excel (.xlsx)'}</span>
-            </button>
-            <button
-              type="button"
-              onClick={handleExportCsv}
-              disabled={filteredRows.length === 0}
-              className="h-7.5 px-2.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 font-semibold text-xs flex items-center gap-1 transition-all cursor-pointer disabled:opacity-50 shrink-0"
-            >
-              <Download size={12} />
-              <span>{selectedRowKeys.size > 0 ? `CSV (${selectedRowKeys.size})` : 'CSV'}</span>
-            </button>
-            <button
-              type="button"
-              onClick={refreshPracticalsData}
-              disabled={loading}
-              className="h-7.5 w-7.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 flex items-center justify-center transition-all cursor-pointer disabled:opacity-50 shrink-0"
-              title="Refresh live data"
-            >
-              <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
-            </button>
-          </div>
-        </div>
-
-        {/* Unified Multi-Filter Bar: 2-column mobile grid, flex on desktop */}
-        <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
-          {/* Evaluation */}
-          <div className="col-span-2 sm:w-48 min-w-0">
+          {/* Evaluation Selector */}
+          <div className="w-36 sm:w-44 min-w-0">
             <select
               value={selectedEvalType}
               onChange={(e) => setSelectedEvalType(e.target.value)}
@@ -1474,7 +1411,7 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
           </div>
 
           {/* Class */}
-          <div className="col-span-1 sm:w-24 min-w-0">
+          <div className="w-20 sm:w-24 min-w-0">
             <select
               value={selectedClass}
               onChange={(e) => setSelectedClass(e.target.value)}
@@ -1487,7 +1424,7 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
           </div>
 
           {/* Session */}
-          <div className="col-span-1 sm:w-24 min-w-0">
+          <div className="w-20 sm:w-24 min-w-0">
             <select
               value={selectedSession}
               onChange={(e) => setSelectedSession(e.target.value)}
@@ -1500,7 +1437,7 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
           </div>
 
           {/* Stream */}
-          <div className="col-span-1 sm:w-28 min-w-0">
+          <div className="w-24 sm:w-28 min-w-0">
             <select
               value={selectedStream}
               onChange={(e) => setSelectedStream(e.target.value)}
@@ -1513,7 +1450,7 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
           </div>
 
           {/* Status / Category */}
-          <div className="col-span-1 sm:w-36 min-w-0">
+          <div className="w-32 sm:w-36 min-w-0">
             <select
               value={selectedStatus}
               onChange={(e) => setSelectedStatus(e.target.value)}
@@ -1526,7 +1463,7 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
           </div>
 
           {/* Overall Results */}
-          <div className="col-span-1 sm:w-28 min-w-0">
+          <div className="w-24 sm:w-28 min-w-0">
             <select
               value={selectedResultFilter}
               onChange={(e) => setSelectedResultFilter(e.target.value)}
@@ -1539,7 +1476,7 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
           </div>
 
           {/* Subject Filter Dropdown */}
-          <div className="col-span-1 sm:w-40 min-w-0">
+          <div className="w-36 sm:w-40 min-w-0">
             <select
               value={selectedSubject}
               onChange={(e) => {
@@ -1562,7 +1499,7 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
           </div>
 
           {/* Search Query */}
-          <div className="col-span-2 sm:flex-1 min-w-0">
+          <div className="flex-1 min-w-[120px]">
             <div className="relative">
               <Search size={12} className="absolute left-2.5 top-2.5 text-slate-400 pointer-events-none" />
               <input
@@ -1572,6 +1509,144 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
                 placeholder="Search candidate, roll, reg..."
                 className="w-full h-7.5 pl-7 pr-2.5 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-teal-600 placeholder-slate-400"
               />
+            </div>
+          </div>
+
+          {/* Grouped Action Buttons: Clear, Print Menu, Export Menu (Redundant refresh removed) */}
+          <div className="flex items-center gap-1.5 shrink-0 ml-auto">
+            {/* Clear Selection Button */}
+            {selectedRowKeys.size > 0 && (
+              <button
+                type="button"
+                onClick={clearSelection}
+                className="h-7.5 px-2 rounded-lg bg-rose-50 dark:bg-rose-950/60 hover:bg-rose-100 dark:hover:bg-rose-900 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800 font-bold text-xs flex items-center gap-1 transition-all cursor-pointer shrink-0"
+                title="Clear custom print selection"
+              >
+                <XCircle size={12} />
+                <span>Clear ({selectedRowKeys.size})</span>
+              </button>
+            )}
+
+            {/* Print Dropdown: Print Gazette & Subject Award */}
+            <div className="relative" ref={printMenuRef}>
+              <button
+                type="button"
+                onClick={() => { setPrintMenuOpen(!printMenuOpen); setExportMenuOpen(false); }}
+                disabled={filteredRows.length === 0}
+                className={`h-7.5 px-2.5 sm:px-3 rounded-lg font-bold text-xs flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer disabled:opacity-50 border shrink-0 ${
+                  selectedRowKeys.size > 0
+                    ? 'bg-teal-600 hover:bg-teal-500 text-white border-teal-600 shadow-sm ring-1 ring-teal-400'
+                    : printMenuOpen
+                    ? 'bg-teal-700 text-white border-teal-800'
+                    : 'bg-teal-50 dark:bg-teal-950/50 hover:bg-teal-100 dark:hover:bg-teal-900/60 text-teal-800 dark:text-teal-200 border-teal-200 dark:border-teal-800/80'
+                }`}
+                title="Print options: Gazette and Subject Award Roll"
+              >
+                <Printer size={13} className={selectedRowKeys.size > 0 || printMenuOpen ? 'text-white' : 'text-teal-600 dark:text-teal-400'} />
+                <span>{selectedRowKeys.size > 0 ? `Print (${selectedRowKeys.size})` : 'Print'}</span>
+                <ChevronDown size={11} className={`transition-transform ${printMenuOpen ? 'rotate-180' : ''}`} />
+              </button>
+
+              {printMenuOpen && (
+                <div className="absolute right-0 top-full mt-1 w-64 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl z-50 p-1.5 animate-fadeIn space-y-1">
+                  <button
+                    type="button"
+                    onClick={() => { handlePrint(); setPrintMenuOpen(false); }}
+                    className="w-full text-left px-2.5 py-2 rounded-lg hover:bg-teal-50 dark:hover:bg-teal-950/50 flex items-start gap-2.5 transition-colors cursor-pointer group"
+                  >
+                    <div className="w-6 h-6 rounded-md bg-teal-100 dark:bg-teal-900/50 text-teal-700 dark:text-teal-300 flex items-center justify-center shrink-0 mt-0.5 group-hover:scale-105 transition-transform">
+                      <Printer size={12} />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-xs font-bold text-slate-900 dark:text-white leading-tight">
+                        {selectedRowKeys.size > 0 ? `Print Selected Gazette (${selectedRowKeys.size})` : 'Print Gazette'}
+                      </div>
+                      <div className="text-[10px] text-slate-500 dark:text-slate-400 leading-tight mt-0.5">
+                        15-Subject Landscape Official Gazette
+                      </div>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => { handlePrintIndividualAwardRoll(selectedSubject !== 'All' ? selectedSubject : null); setPrintMenuOpen(false); }}
+                    className="w-full text-left px-2.5 py-2 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-950/50 flex items-start gap-2.5 transition-colors cursor-pointer group"
+                  >
+                    <div className="w-6 h-6 rounded-md bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 flex items-center justify-center shrink-0 mt-0.5 group-hover:scale-105 transition-transform">
+                      <FileText size={12} />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-xs font-bold text-slate-900 dark:text-white leading-tight">
+                        {selectedRowKeys.size > 0
+                          ? `Subject Award (${selectedRowKeys.size} Sel)`
+                          : (selectedSubject !== 'All' ? `Subject Award (${selectedSubject})` : 'Subject Award Roll')}
+                      </div>
+                      <div className="text-[10px] text-slate-500 dark:text-slate-400 leading-tight mt-0.5">
+                        {selectedSubject !== 'All' ? `Official 2-column marks sheet for ${selectedSubject}` : 'Official 2-column marks sheet for teachers'}
+                      </div>
+                    </div>
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Export Dropdown: Excel (.xlsx) & CSV */}
+            <div className="relative" ref={exportMenuRef}>
+              <button
+                type="button"
+                onClick={() => { setExportMenuOpen(!exportMenuOpen); setPrintMenuOpen(false); }}
+                disabled={filteredRows.length === 0}
+                className={`h-7.5 px-2.5 sm:px-3 rounded-lg font-bold text-xs flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer disabled:opacity-50 border shrink-0 ${
+                  exportMenuOpen
+                    ? 'bg-emerald-700 text-white border-emerald-800'
+                    : 'bg-emerald-50 dark:bg-emerald-950/50 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 text-emerald-800 dark:text-emerald-200 border-emerald-200 dark:border-emerald-800/80'
+                }`}
+                title="Export options: Excel (.xlsx) and CSV"
+              >
+                <Download size={13} className={exportMenuOpen ? 'text-white' : 'text-emerald-600 dark:text-emerald-400'} />
+                <span>{selectedRowKeys.size > 0 ? `Export (${selectedRowKeys.size})` : 'Export'}</span>
+                <ChevronDown size={11} className={`transition-transform ${exportMenuOpen ? 'rotate-180' : ''}`} />
+              </button>
+
+              {exportMenuOpen && (
+                <div className="absolute right-0 top-full mt-1 w-56 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl z-50 p-1.5 animate-fadeIn space-y-1">
+                  <button
+                    type="button"
+                    onClick={() => { handleExportExcel(); setExportMenuOpen(false); }}
+                    className="w-full text-left px-2.5 py-2 rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-950/50 flex items-start gap-2.5 transition-colors cursor-pointer group"
+                  >
+                    <div className="w-6 h-6 rounded-md bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 flex items-center justify-center shrink-0 mt-0.5 group-hover:scale-105 transition-transform">
+                      <Download size={12} />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-xs font-bold text-slate-900 dark:text-white leading-tight">
+                        {selectedRowKeys.size > 0 ? `Excel (${selectedRowKeys.size} Sel)` : 'Excel Spreadsheet (.xlsx)'}
+                      </div>
+                      <div className="text-[10px] text-slate-500 dark:text-slate-400 leading-tight mt-0.5">
+                        Tabulated spreadsheet workbook
+                      </div>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => { handleExportCsv(); setExportMenuOpen(false); }}
+                    className="w-full text-left px-2.5 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 flex items-start gap-2.5 transition-colors cursor-pointer group"
+                  >
+                    <div className="w-6 h-6 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 flex items-center justify-center shrink-0 mt-0.5 group-hover:scale-105 transition-transform">
+                      <Download size={12} />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-xs font-bold text-slate-900 dark:text-white leading-tight">
+                        {selectedRowKeys.size > 0 ? `CSV (${selectedRowKeys.size} Sel)` : 'CSV Data File (.csv)'}
+                      </div>
+                      <div className="text-[10px] text-slate-500 dark:text-slate-400 leading-tight mt-0.5">
+                        Standard comma-separated format
+                      </div>
+                    </div>
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>
