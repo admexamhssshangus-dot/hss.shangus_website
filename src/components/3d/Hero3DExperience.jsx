@@ -146,12 +146,13 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
       emissive: 0xb91c1c,
       emissiveIntensity: 0.35
     });
+    // 6 Golden/Yellow Neutrons (matching classic atomic model)
     const neutronMat = new THREE.MeshStandardMaterial({
-      color: 0x94a3b8,
+      color: 0xf59e0b,
       roughness: 0.35,
-      metalness: 0.6,
-      emissive: 0x475569,
-      emissiveIntensity: 0.25
+      metalness: 0.3,
+      emissive: 0xb45309,
+      emissiveIntensity: 0.3
     });
 
     const nucleonGeo = new THREE.SphereGeometry(0.065, 12, 12);
@@ -815,6 +816,11 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
     let continuousPageTurnCycle = 0;
     let atomPatrolCycle = 0;
 
+    let tooltipSide = 'none'; // 'left' | 'right' | 'none'
+    let currentTooltipX = -9999;
+    let currentTooltipY = -9999;
+    let wasTooltipActive = false;
+
     const renderLoop = (time) => {
       if (!isVisible) {
         animationFrameId = null;
@@ -851,62 +857,91 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
       }
 
       // Position and update HTML scientific tooltip card
-      // CRITICAL: Must NEVER block the globe (atom) AND NEVER block the Admissions Open 2026 button!
+      // CRITICAL: Dynamically positioned on the LEFT or RIGHT based on atom's position on screen
+      // Must NEVER block the globe (atom) AND NEVER block the Admissions Open 2026 button!
       if (tooltipEl) {
         if (isAtomHovered) {
-          const cardWidth = isMobile ? 245 : 265;
-          const cardHeight = isMobile ? 120 : 110;
+          const isCompactScreen = isMobile || rect.width < 640;
+          const cardWidth = isCompactScreen ? 180 : 265;
+          const cardHeight = isCompactScreen ? 78 : 110;
+
+          // Determine whether atom is on left or right of the screen
+          // Use hysteresis (24px deadband) around screen center to avoid jitter
+          const screenCenterX = rect.width * 0.5;
+          if (tooltipSide === 'none') {
+            tooltipSide = atomScreenX >= screenCenterX ? 'left' : 'right';
+          } else if (tooltipSide === 'left' && atomScreenX < screenCenterX - 24) {
+            tooltipSide = 'right';
+          } else if (tooltipSide === 'right' && atomScreenX > screenCenterX + 24) {
+            tooltipSide = 'left';
+          }
 
           let targetX;
           let targetY;
           let pipSide = 'left';
 
-          if (isMobile || rect.width < 640) {
-            // Mobile: keep in top empty strip (y = 8px), well above globe and buttons
-            targetX = Math.max(8, Math.min(atomScreenX - cardWidth / 2, rect.width - cardWidth - 8));
-            targetY = 8;
-            pipSide = 'bottom';
-          } else {
-            // Desktop: Offset horizontally to the SIDE of the globe
-            // The globe is at atomScreenX.
-            // If atom is on right half, place card to the LEFT of the globe.
-            // If atom is on left half, place card to the RIGHT of the globe.
-            const sideClearance = 58;
-
-            if (atomScreenX > rect.width * 0.5) {
-              targetX = atomScreenX - cardWidth - sideClearance;
-              pipSide = 'right';
+          if (tooltipSide === 'left') {
+            // Atom is on the RIGHT side of the screen -> Show tooltip on the LEFT of the atom!
+            pipSide = 'right';
+            if (isCompactScreen) {
+              // Mobile: Anchor cleanly on the left edge
+              targetX = 8;
             } else {
-              targetX = atomScreenX + sideClearance;
-              pipSide = 'left';
+              // Desktop: Offset 55px to the left of atom
+              targetX = atomScreenX - cardWidth - 55;
+              targetX = Math.max(12, Math.min(targetX, rect.width - cardWidth - 12));
             }
-
-            // Clamp X within screen padding
-            targetX = Math.max(12, Math.min(targetX, rect.width - cardWidth - 12));
-
-            // Vertically align with atom, keeping well above Admissions button (Y >= 350px)
-            targetY = atomScreenY - (cardHeight / 2);
-            targetY = Math.max(12, Math.min(targetY, rect.height - cardHeight - 12));
+          } else {
+            // Atom is on the LEFT side of the screen -> Show tooltip on the RIGHT of the atom!
+            pipSide = 'left';
+            if (isCompactScreen) {
+              // Mobile: Anchor cleanly on the right edge
+              targetX = Math.max(8, rect.width - cardWidth - 8);
+            } else {
+              // Desktop: Offset 55px to the right of atom
+              targetX = atomScreenX + 55;
+              targetX = Math.max(12, Math.min(targetX, rect.width - cardWidth - 12));
+            }
           }
 
-          tooltipEl.style.transform = `translate3d(${Math.round(targetX)}px, ${Math.round(targetY)}px, 0)`;
+          // Vertically align with atom, keeping above Admissions button (Y <= rect.height - cardHeight - 65)
+          const minY = 8;
+          const maxY = isCompactScreen
+            ? Math.max(minY, rect.height - cardHeight - 65)
+            : Math.max(minY, rect.height - cardHeight - 16);
+
+          targetY = atomScreenY - (cardHeight / 2);
+          targetY = Math.max(minY, Math.min(targetY, maxY));
+
+          // Smooth interpolation so tooltip slides elegantly when switching sides
+          if (!wasTooltipActive) {
+            currentTooltipX = targetX;
+            currentTooltipY = targetY;
+            wasTooltipActive = true;
+          } else {
+            currentTooltipX += (targetX - currentTooltipX) * 0.16;
+            currentTooltipY += (targetY - currentTooltipY) * 0.16;
+          }
+
+          tooltipEl.style.transform = `translate3d(${Math.round(currentTooltipX)}px, ${Math.round(currentTooltipY)}px, 0)`;
           tooltipEl.style.opacity = '1';
           tooltipEl.style.pointerEvents = 'auto';
 
           // Update directional pointer pip
           const pipEl = tooltipEl.querySelector('.tooltip-pip');
           if (pipEl) {
-            pipEl.className = `tooltip-pip absolute w-2.5 h-2.5 bg-slate-950 border-cyan-500/50 rotate-45 ${
-              pipSide === 'right'
-                ? '-right-1.5 top-1/2 -translate-y-1/2 border-t border-r'
-                : pipSide === 'left'
-                ? '-left-1.5 top-1/2 -translate-y-1/2 border-b border-l'
-                : '-bottom-1.5 left-1/2 -translate-x-1/2 border-b border-r'
-            }`;
+            pipEl.style.display = 'block';
+            if (pipSide === 'right') {
+              pipEl.className = 'tooltip-pip absolute w-2 h-2 sm:w-2.5 sm:h-2.5 bg-slate-950 border-cyan-500/50 rotate-45 -right-1 sm:-right-1.5 top-1/2 -translate-y-1/2 border-t border-r shadow-xs';
+            } else {
+              pipEl.className = 'tooltip-pip absolute w-2 h-2 sm:w-2.5 sm:h-2.5 bg-slate-950 border-cyan-500/50 rotate-45 -left-1 sm:-left-1.5 top-1/2 -translate-y-1/2 border-b border-l shadow-xs';
+            }
           }
         } else {
           tooltipEl.style.opacity = '0';
           tooltipEl.style.pointerEvents = 'none';
+          wasTooltipActive = false;
+          tooltipSide = 'none';
         }
       }
 
@@ -1175,7 +1210,7 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
         }}
       >
         <div
-          className="hero-3d-tooltip relative w-[245px] sm:w-[265px] rounded-xl p-2 sm:p-2.5 text-left pointer-events-auto ring-1 ring-white/10 shadow-2xl transition-all"
+          className="hero-3d-tooltip relative w-[175px] xs:w-[190px] sm:w-[265px] rounded-lg sm:rounded-xl p-1.5 sm:p-2.5 text-left pointer-events-auto ring-1 ring-white/10 shadow-2xl transition-all"
           style={{
             backgroundColor: 'rgba(10, 15, 30, 0.96)',
             borderColor: 'rgba(6, 182, 212, 0.5)',
@@ -1183,13 +1218,13 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
           }}
         >
           {/* Top glowing accent hairline */}
-          <div className="absolute top-0 inset-x-3 h-[2px] bg-gradient-to-r from-cyan-400 via-amber-400 to-emerald-400 rounded-full" />
+          <div className="absolute top-0 inset-x-2 sm:inset-x-3 h-[1.5px] sm:h-[2px] bg-gradient-to-r from-cyan-400 via-amber-400 to-emerald-400 rounded-full" />
           
           {/* Compact Header */}
           <div className="flex items-center justify-between gap-1 pb-1 mb-1 border-b border-slate-700/60">
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1 sm:gap-1.5">
               <span
-                className="w-5 h-5 rounded flex items-center justify-center font-bold text-[10px] shadow-xs font-mono shrink-0"
+                className="w-4 h-4 sm:w-5 sm:h-5 rounded flex items-center justify-center font-bold text-[8.5px] sm:text-[10px] shadow-xs font-mono shrink-0"
                 style={{
                   backgroundColor: 'rgba(6, 182, 212, 0.2)',
                   borderColor: 'rgba(56, 189, 248, 0.5)',
@@ -1199,11 +1234,12 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
                 ₆C
               </span>
               <div>
-                <h4 className="font-bold text-[11px] sm:text-xs tracking-wide leading-none font-heading" style={{ color: '#ffffff' }}>
-                  Carbon-12 Structure
+                <h4 className="font-bold text-[9px] sm:text-xs tracking-wide leading-none font-heading" style={{ color: '#ffffff' }}>
+                  <span className="sm:hidden">Carbon-12</span>
+                  <span className="hidden sm:inline">Carbon-12 Structure</span>
                 </h4>
-                <span className="text-[9px] font-mono" style={{ color: '#38bdf8' }}>
-                  6p + 6n • K(2) L(4)
+                <span className="text-[7.5px] sm:text-[9px] font-mono leading-none" style={{ color: '#38bdf8' }}>
+                  6p 6n • K(2) L(4)
                 </span>
               </div>
             </div>
@@ -1216,7 +1252,7 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
                   tooltipRef.current.style.pointerEvents = 'none';
                 }
               }}
-              className="text-slate-400 hover:text-white p-0.5 rounded text-xs sm:hidden leading-none cursor-pointer"
+              className="text-slate-400 hover:text-white p-0.5 rounded text-[10px] sm:text-xs sm:hidden leading-none cursor-pointer"
               aria-label="Close details"
             >
               ✕
@@ -1224,61 +1260,64 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
           </div>
 
           {/* 3 Compact Micro Detail Blocks with Guaranteed High-Contrast White Text */}
-          <div className="space-y-1 text-[9.5px] leading-snug">
+          <div className="space-y-0.5 sm:space-y-1 text-[7.5px] sm:text-[9.5px] leading-tight sm:leading-snug">
             {/* 1. Carbon Bohr Structure */}
             <div
-              className="tooltip-item-box flex items-start gap-1.5 rounded-md p-1.5 border"
+              className="tooltip-item-box flex items-start gap-1 sm:gap-1.5 rounded p-1 sm:p-1.5 border"
               style={{
                 backgroundColor: 'rgba(15, 23, 42, 0.88)',
                 borderColor: 'rgba(51, 65, 85, 0.8)'
               }}
             >
-              <span className="text-xs shrink-0 mt-0.5">⚛️</span>
+              <span className="text-[9px] sm:text-xs shrink-0 mt-0.2 sm:mt-0.5">⚛️</span>
               <div>
-                <span className="font-bold" style={{ color: '#38bdf8' }}>Carbon Atom:</span>{' '}
+                <span className="font-bold" style={{ color: '#38bdf8' }}>Carbon:</span>{' '}
                 <span className="tooltip-body-text" style={{ color: '#f8fafc' }}>
-                  Nucleus of 6 protons & 6 neutrons; 2 inner K-shell + 4 outer L-shell valence electrons.
+                  <span className="sm:hidden">6p+6n core; 2 inner, 4 valence e⁻.</span>
+                  <span className="hidden sm:inline">6p+6n core; 2 inner + 4 outer valence e⁻.</span>
                 </span>
               </div>
             </div>
 
             {/* 2. School Seal Core */}
             <div
-              className="tooltip-item-box flex items-start gap-1.5 rounded-md p-1.5 border"
+              className="tooltip-item-box flex items-start gap-1 sm:gap-1.5 rounded p-1 sm:p-1.5 border"
               style={{
                 backgroundColor: 'rgba(15, 23, 42, 0.88)',
                 borderColor: 'rgba(51, 65, 85, 0.8)'
               }}
             >
-              <span className="text-xs shrink-0 mt-0.5">🏫</span>
+              <span className="text-[9px] sm:text-xs shrink-0 mt-0.2 sm:mt-0.5">🏫</span>
               <div>
-                <span className="font-bold" style={{ color: '#fbbf24' }}>Shangus Nucleus:</span>{' '}
+                <span className="font-bold" style={{ color: '#fbbf24' }}>Nucleus:</span>{' '}
                 <span className="tooltip-body-text" style={{ color: '#f8fafc' }}>
-                  Official school seal at atomic core — source of knowledge, ethics & discipline.
+                  <span className="sm:hidden">HSS Shangus seal at core.</span>
+                  <span className="hidden sm:inline">HSS Shangus seal — wisdom & discipline.</span>
                 </span>
               </div>
             </div>
 
             {/* 3. Educational Theme */}
             <div
-              className="tooltip-item-box flex items-start gap-1.5 rounded-md p-1.5 border"
+              className="tooltip-item-box flex items-start gap-1 sm:gap-1.5 rounded p-1 sm:p-1.5 border"
               style={{
                 backgroundColor: 'rgba(15, 23, 42, 0.88)',
                 borderColor: 'rgba(51, 65, 85, 0.8)'
               }}
             >
-              <span className="text-xs shrink-0 mt-0.5">🌌</span>
+              <span className="text-[9px] sm:text-xs shrink-0 mt-0.2 sm:mt-0.5">🌌</span>
               <div>
                 <span className="font-bold" style={{ color: '#34d399' }}>Theme:</span>{' '}
                 <span className="tooltip-body-text" style={{ color: '#f8fafc' }}>
-                  Voyaging over <strong style={{ color: '#ffffff' }}>"nurturing minds, shaping futures"</strong>.
+                  <span className="sm:hidden">"nurturing minds, shaping futures".</span>
+                  <span className="hidden sm:inline"><strong style={{ color: '#ffffff' }}>"nurturing minds, shaping futures"</strong>.</span>
                 </span>
               </div>
             </div>
           </div>
 
-          {/* Directional indicator pip pointing directly toward the globe */}
-          <div className="tooltip-pip absolute w-2.5 h-2.5 bg-slate-950 border-cyan-500/50 rotate-45 -left-1.5 top-1/2 -translate-y-1/2 border-b border-l" />
+          {/* Directional indicator pip */}
+          <div className="tooltip-pip absolute w-2 h-2 sm:w-2.5 sm:h-2.5 bg-slate-950 border-cyan-500/50 rotate-45 -left-1 sm:-left-1.5 top-1/2 -translate-y-1/2 border-b border-l shadow-xs" />
         </div>
       </div>
     </div>
