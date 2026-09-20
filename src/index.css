@@ -1528,6 +1528,13 @@ html, body, #root {
   border-color: rgba(51, 65, 85, 0.8) !important;
 }
 
+.hero-3d-tooltip .tooltip-pip,
+.theme-light .hero-3d-tooltip .tooltip-pip,
+.theme-dark .hero-3d-tooltip .tooltip-pip {
+  background-color: rgba(10, 15, 30, 0.98) !important;
+  border-color: rgba(6, 182, 212, 0.5) !important;
+}
+
 .hero-3d-tooltip .tooltip-body-text,
 .theme-light .hero-3d-tooltip .tooltip-body-text,
 .theme-dark .hero-3d-tooltip .tooltip-body-text,
