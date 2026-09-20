@@ -16,7 +16,7 @@ function createHandler(dependencies = {}) {
   return async event => {
     const headers = Object.fromEntries(Object.entries(event.headers || {}).map(([k, v]) => [k.toLowerCase(), v]));
     const origin = headers.origin || '';
-    const allowed = new Set(['https://hssshangus.netlify.app', 'https://admexamhssshangus.web.app',
+    const allowed = new Set(['https://hssshangus.in', 'https://www.hssshangus.in', 'https://hssshangus.netlify.app', 'https://admexamhssshangus.web.app',
       'https://hsssdb.web.app', ...String(process.env.ALLOWED_ORIGINS || '').split(',').map(v => v.trim())]);
     const originAllowed = allowed.has(origin) || /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
     const response = (statusCode, body) => ({ statusCode, headers: {

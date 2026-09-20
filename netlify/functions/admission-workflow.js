@@ -48,7 +48,7 @@ function allowedOrigin(event) {
   }
   const configured = String(process.env.ALLOWED_ORIGINS || '')
     .split(',').map(v => v.trim().replace(/\/$/, '')).filter(Boolean);
-  const defaults = [process.env.URL, process.env.DEPLOY_PRIME_URL, 'https://hssshangus.netlify.app']
+  const defaults = [process.env.URL, process.env.DEPLOY_PRIME_URL, 'https://hssshangus.in', 'https://www.hssshangus.in', 'https://hssshangus.netlify.app']
     .filter(Boolean).map(v => String(v).replace(/\/$/, ''));
   return origin && [...configured, ...defaults].includes(origin) ? origin : '';
 }

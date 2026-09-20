@@ -131,7 +131,7 @@ async function loadSource(db, sourceDocument, identity, followedArchive = false)
 function createHandler(operation) {
   return async event => {
     const requestedOrigin = event.headers?.origin || '';
-    const allowed = [process.env.URL, process.env.DEPLOY_PRIME_URL, 'https://hssshangus.netlify.app', 'https://admexamhssshangus.web.app', 'https://hsssdb.web.app', ...String(process.env.ALLOWED_ORIGINS || '').split(',')].filter(Boolean);
+    const allowed = [process.env.URL, process.env.DEPLOY_PRIME_URL, 'https://hssshangus.in', 'https://www.hssshangus.in', 'https://hssshangus.netlify.app', 'https://admexamhssshangus.web.app', 'https://hsssdb.web.app', ...String(process.env.ALLOWED_ORIGINS || '').split(',')].filter(Boolean);
     const origin = allowed.includes(requestedOrigin) || /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(requestedOrigin) ? requestedOrigin : '';
     const headers = { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer', 'X-Content-Type-Options': 'nosniff', Vary: 'Origin', ...(origin ? { 'Access-Control-Allow-Origin': origin } : {}) };
     const respond = (statusCode, body) => ({ statusCode, headers, body: JSON.stringify(body) });
