@@ -446,12 +446,11 @@ export default function Home() {
                     btn.openInNewTab
                   )
                 );
-                // Classify action for 3D asset micro-interaction:
-                // Primary/Admissions button triggers Book of Wisdom
-                // Secondary/Learn More button triggers Graduation Cap
-                const actionKey = (btn.trackAdmissionStatus || idx === 0 || (btn.label && btn.label.toLowerCase().includes('admission')))
-                  ? 'admissions'
-                  : 'learn';
+                const isAdmissionsBtn = Boolean(
+                  btn.trackAdmissionStatus ||
+                  idx === 0 ||
+                  (btn.label && btn.label.toLowerCase().includes('admission'))
+                );
 
                 const styleClassMap = {
                   primary: 'btn-hero-primary',
@@ -473,8 +472,8 @@ export default function Home() {
                       target={btn.openInNewTab ? '_blank' : undefined}
                       rel={btn.openInNewTab ? 'noopener noreferrer' : undefined}
                       className={baseClasses}
-                      onMouseEnter={() => setHoveredHeroAction(actionKey)}
-                      onMouseLeave={() => setHoveredHeroAction(null)}
+                      onMouseEnter={isAdmissionsBtn ? () => setHoveredHeroAction('admissions') : undefined}
+                      onMouseLeave={isAdmissionsBtn ? () => setHoveredHeroAction(null) : undefined}
                     >
                       {displayText}
                     </a>
@@ -486,8 +485,8 @@ export default function Home() {
                     key={btn.id || `hero-btn-${idx}`}
                     to={btn.link || '/'}
                     className={baseClasses}
-                    onMouseEnter={() => setHoveredHeroAction(actionKey)}
-                    onMouseLeave={() => setHoveredHeroAction(null)}
+                    onMouseEnter={isAdmissionsBtn ? () => setHoveredHeroAction('admissions') : undefined}
+                    onMouseLeave={isAdmissionsBtn ? () => setHoveredHeroAction(null) : undefined}
                   >
                     {displayText}
                   </Link>
