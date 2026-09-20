@@ -1023,45 +1023,48 @@ export default function SchoolAccountsManager({ user }) {
         </div>
 
         {/* Global Tab Switcher */}
-        <div className="flex items-center gap-1.5 p-1 rounded-xl bg-slate-100/90 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800 self-stretch sm:self-auto overflow-x-auto">
+        <div className="flex items-center gap-1.5 p-1 rounded-xl bg-slate-100/90 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800 self-stretch sm:self-auto overflow-x-auto no-scrollbar">
           <button
             type="button"
             onClick={() => setActiveTab('tax_calculator')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-black flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
+            className={`px-3 py-1.5 rounded-lg text-xs font-black flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap shrink-0 ${
               activeTab === 'tax_calculator'
                 ? 'bg-amber-600 text-white shadow-xs'
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-slate-800'
             }`}
           >
-            <Calculator size={14} />
-            <span>Staff Tax Calculator</span>
+            <Calculator size={14} className="shrink-0" />
+            <span className="sm:hidden">Staff Tax</span>
+            <span className="hidden sm:inline">Staff Tax Calculator</span>
           </button>
 
           <button
             type="button"
             onClick={() => setActiveTab('salary_statements')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap shrink-0 ${
               activeTab === 'salary_statements'
                 ? 'bg-amber-600 text-white shadow-xs'
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-slate-800'
             }`}
           >
-            <Briefcase size={14} />
-            <span>Salary & Pay Heads</span>
+            <Briefcase size={14} className="shrink-0" />
+            <span className="sm:hidden">Salary Bills</span>
+            <span className="hidden sm:inline">Salary & Pay Heads</span>
             <span className="px-1 py-0.2 rounded text-[9px] bg-slate-200 dark:bg-slate-800 text-amber-700 dark:text-amber-400 font-extrabold">Upcoming</span>
           </button>
 
           <button
             type="button"
             onClick={() => setActiveTab('school_ledgers')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap shrink-0 ${
               activeTab === 'school_ledgers'
                 ? 'bg-amber-600 text-white shadow-xs'
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-slate-800'
             }`}
           >
-            <Landmark size={14} />
-            <span>School Contingency</span>
+            <Landmark size={14} className="shrink-0" />
+            <span className="sm:hidden">Contingency</span>
+            <span className="hidden sm:inline">School Contingency</span>
             <span className="px-1 py-0.2 rounded text-[9px] bg-slate-200 dark:bg-slate-800 text-amber-700 dark:text-amber-400 font-extrabold">Upcoming</span>
           </button>
         </div>
@@ -1071,8 +1074,8 @@ export default function SchoolAccountsManager({ user }) {
       {activeTab === 'tax_calculator' && (
         <div className="space-y-2.5 animate-fadeIn">
           {/* Row 1: Action Bar */}
-          <div className="flex flex-wrap items-center justify-between gap-2 bg-white dark:bg-slate-900/90 px-3 sm:px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-2xs">
-            <div className="flex items-center gap-2 min-w-0">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 bg-white dark:bg-slate-900/90 px-3 sm:px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-2xs">
+            <div className="flex items-center gap-2 min-w-0 flex-wrap">
               <Calculator className="text-amber-600 dark:text-amber-500 shrink-0" size={16} />
               <span className="font-bold text-slate-900 dark:text-white text-xs sm:text-sm">Income Tax Auto-Generator</span>
               <span className="text-slate-600 dark:text-slate-400 text-[11px] font-mono bg-slate-100 dark:bg-slate-800/80 px-2 py-0.5 rounded-md border border-slate-200 dark:border-slate-700/60">
@@ -1080,22 +1083,21 @@ export default function SchoolAccountsManager({ user }) {
               </span>
             </div>
 
-            <div className="flex items-center gap-1.5 flex-wrap">
+            <div className="flex items-center gap-1.5 flex-wrap justify-start sm:justify-end">
               <button
                 type="button"
                 onClick={() => loadAccountsData(true)}
                 disabled={loading}
-                className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5 border border-slate-200 dark:border-slate-700 cursor-pointer shadow-2xs active:scale-95"
-                title="Refresh staff and salary data from database"
+                className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5 border border-slate-200 dark:border-slate-700 cursor-pointer shadow-2xs active:scale-95 shrink-0"
               >
                 <RefreshCw size={13} className={loading ? 'animate-spin text-amber-600' : 'text-slate-500 dark:text-slate-400'} />
-                <span className="hidden sm:inline">Refresh</span>
+                <span>Refresh</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => setShowTaxRules(true)}
-                className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5 border border-slate-200 dark:border-slate-700 cursor-pointer shadow-2xs active:scale-95"
+                className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5 border border-slate-200 dark:border-slate-700 cursor-pointer shadow-2xs active:scale-95 shrink-0"
               >
                 <Settings size={13} className="text-amber-600 dark:text-amber-400" />
                 <span>Edit Tax Rules</span>
@@ -1104,7 +1106,7 @@ export default function SchoolAccountsManager({ user }) {
               <button
                 type="button"
                 onClick={exportTaxSummaryCsv}
-                className="px-2.5 py-1.5 bg-teal-600 hover:bg-teal-700 dark:bg-teal-800 dark:hover:bg-teal-700 text-white rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5 border border-teal-600 dark:border-teal-700 cursor-pointer shadow-2xs active:scale-95"
+                className="px-2.5 py-1.5 bg-teal-600 hover:bg-teal-700 dark:bg-teal-800 dark:hover:bg-teal-700 text-white rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5 border border-teal-600 dark:border-teal-700 cursor-pointer shadow-2xs active:scale-95 shrink-0"
               >
                 <Download size={13} />
                 <span>Export CSV</span>
@@ -1122,7 +1124,7 @@ export default function SchoolAccountsManager({ user }) {
                   }
                   printTaxSheets(toPrint);
                 }}
-                className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5 border border-amber-600 cursor-pointer shadow-2xs active:scale-95"
+                className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5 border border-amber-600 cursor-pointer shadow-2xs active:scale-95 shrink-0"
               >
                 <Printer size={13} />
                 <span>Print Selected ({selectedTaxEmployeeIndices.length})</span>
@@ -1133,7 +1135,7 @@ export default function SchoolAccountsManager({ user }) {
           {/* Row 2: Live Tax Thresholds & Regime Preview */}
           <div className="flex flex-wrap items-center justify-between gap-2 bg-white/95 dark:bg-slate-900/50 px-3 sm:px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-800/80 text-xs shadow-2xs">
             <div className="flex items-center gap-2 flex-wrap">
-              <div className="flex rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 p-0.5 bg-slate-100 dark:bg-slate-950">
+              <div className="flex rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 p-0.5 bg-slate-100 dark:bg-slate-950 shrink-0">
                 <button
                   type="button"
                   onClick={() => setActiveTaxPreviewRegime('new')}
@@ -1154,32 +1156,32 @@ export default function SchoolAccountsManager({ user }) {
                 </button>
               </div>
 
-              <div className="flex items-center gap-3 font-mono text-[11px] text-slate-700 dark:text-slate-300 flex-wrap">
-                <span>Nil-tax: <strong className="text-emerald-700 dark:text-emerald-400">₹{(previewRegimeConfig.rebateThreshold + previewRegimeConfig.standardDeduction).toLocaleString('en-IN')}</strong></span>
-                <span>87A Rebate: <strong className="text-teal-700 dark:text-teal-400">₹{previewRegimeConfig.rebateMax.toLocaleString('en-IN')}</strong></span>
-                <span>Std. Deduction: <strong className="text-amber-700 dark:text-amber-400">₹{previewRegimeConfig.standardDeduction.toLocaleString('en-IN')}</strong></span>
+              <div className="flex items-center gap-2 sm:gap-3 font-mono text-[11px] text-slate-700 dark:text-slate-300 flex-wrap">
+                <span className="shrink-0 min-w-max">Nil-tax: <strong className="text-emerald-700 dark:text-emerald-400">₹{(previewRegimeConfig.rebateThreshold + previewRegimeConfig.standardDeduction).toLocaleString('en-IN')}</strong></span>
+                <span className="shrink-0 min-w-max">87A Rebate: <strong className="text-teal-700 dark:text-teal-400">₹{previewRegimeConfig.rebateMax.toLocaleString('en-IN')}</strong></span>
+                <span className="shrink-0 min-w-max">Std. Deduction: <strong className="text-amber-700 dark:text-amber-400">₹{previewRegimeConfig.standardDeduction.toLocaleString('en-IN')}</strong></span>
                 {previewRegimeConfig.marginalReliefEnabled && (
-                  <span className="px-1.5 py-0.2 rounded bg-emerald-50 dark:bg-emerald-950 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400 text-[10px] font-bold">
+                  <span className="px-1.5 py-0.2 rounded bg-emerald-50 dark:bg-emerald-950 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400 text-[10px] font-bold shrink-0">
                     Marginal Relief ✓ ON
                   </span>
                 )}
               </div>
             </div>
 
-            <div className="text-[11px] text-slate-600 dark:text-slate-400">
+            <div className="text-[11px] text-slate-600 dark:text-slate-400 shrink-0">
               Total Staff in Scope: <strong className="text-slate-900 dark:text-white font-extrabold">{filteredFaculty.length}</strong>
             </div>
           </div>
 
           {/* Row 3: Filter & Search Bar */}
-          <div className="flex flex-wrap items-center justify-between gap-2 bg-white dark:bg-slate-900/70 p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-2xs">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 bg-white dark:bg-slate-900/70 p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-2xs">
             <div className="flex items-center gap-2 flex-wrap">
               {/* Category Filter Multi-Select Dropdown */}
               <div className="relative">
                 <button
                   type="button"
                   onClick={() => setIsTaxFilterDropdownOpen(!isTaxFilterDropdownOpen)}
-                  className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-750 text-slate-800 dark:text-slate-200 rounded-lg text-xs font-bold border border-slate-200 dark:border-slate-700 flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                  className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-750 text-slate-800 dark:text-slate-200 rounded-lg text-xs font-bold border border-slate-200 dark:border-slate-700 flex items-center gap-1.5 cursor-pointer shadow-2xs shrink-0"
                 >
                   <span>Filter Categories ({selectedTaxCategories.length})</span>
                   <ChevronDown size={13} className={`transition-transform ${isTaxFilterDropdownOpen ? 'rotate-180' : ''}`} />
@@ -1228,7 +1230,7 @@ export default function SchoolAccountsManager({ user }) {
               <button
                 type="button"
                 onClick={() => handleSelectAllTaxVisible(filteredFaculty)}
-                className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800/80 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg text-xs font-bold border border-slate-200 dark:border-slate-700/60 flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800/80 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg text-xs font-bold border border-slate-200 dark:border-slate-700/60 flex items-center gap-1.5 cursor-pointer shadow-2xs shrink-0"
               >
                 {filteredFaculty.length > 0 && filteredFaculty.every(emp => selectedTaxEmployeeIndices.includes(faculty.indexOf(emp))) ? (
                   <CheckSquare size={13} className="text-amber-600 dark:text-amber-400" />
@@ -1240,7 +1242,7 @@ export default function SchoolAccountsManager({ user }) {
             </div>
 
             {/* Search Input */}
-            <div className="relative flex-1 max-w-md min-w-[200px]">
+            <div className="relative flex-1 w-full sm:max-w-md min-w-0">
               <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 pointer-events-none" />
               <input
                 type="text"
@@ -1264,7 +1266,7 @@ export default function SchoolAccountsManager({ user }) {
           {/* ─── EMPLOYEES TAX DATA TABLE ─── */}
           <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60 overflow-hidden shadow-2xs">
             <div className="overflow-x-auto max-h-[620px]">
-              <table className="w-full text-left text-xs border-collapse">
+              <table className="w-full min-w-[740px] text-left text-xs border-collapse">
                 <thead className="bg-slate-100/90 dark:bg-slate-950 text-[10.5px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-400 sticky top-0 z-10 border-b border-slate-200 dark:border-slate-800 backdrop-blur-xs">
                   <tr>
                     <th className="p-2.5 w-10 text-center">
