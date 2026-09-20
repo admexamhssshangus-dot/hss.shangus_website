@@ -137,7 +137,58 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
       side: THREE.DoubleSide
     });
 
-    // Circular Disc Medallion (Front & Back Logo)
+    // 1A. Carbon Nucleus: 6 Protons (Red) + 6 Neutrons (Grey/Silver) + Central HSS Shangus Seal
+    // Matches the exact scientific Carbon-12 nuclear composition (Z = 6, N = 6, A = 12)
+    const protonMat = new THREE.MeshStandardMaterial({
+      color: 0xef4444,
+      roughness: 0.3,
+      metalness: 0.25,
+      emissive: 0xb91c1c,
+      emissiveIntensity: 0.35
+    });
+    const neutronMat = new THREE.MeshStandardMaterial({
+      color: 0x94a3b8,
+      roughness: 0.35,
+      metalness: 0.6,
+      emissive: 0x475569,
+      emissiveIntensity: 0.25
+    });
+
+    const nucleonGeo = new THREE.SphereGeometry(0.065, 12, 12);
+    const nucleonCluster = new THREE.Group();
+    atomInteractiveGroup.add(nucleonCluster);
+
+    // 6 Red Protons
+    const protonPositions = [
+      [0.08, 0.07, -0.06],
+      [-0.08, -0.07, -0.06],
+      [0.09, -0.06, 0.05],
+      [-0.09, 0.06, 0.05],
+      [0.0, 0.11, 0.0],
+      [0.0, -0.11, 0.0]
+    ];
+    protonPositions.forEach(([px, py, pz]) => {
+      const pMesh = new THREE.Mesh(nucleonGeo, protonMat);
+      pMesh.position.set(px, py, pz);
+      nucleonCluster.add(pMesh);
+    });
+
+    // 6 Silver/Grey Neutrons
+    const neutronPositions = [
+      [-0.07, 0.08, -0.05],
+      [0.07, -0.08, -0.05],
+      [-0.08, -0.06, 0.06],
+      [0.08, 0.06, 0.06],
+      [0.0, 0.0, 0.12],
+      [0.0, 0.0, -0.12]
+    ];
+    neutronPositions.forEach(([nx, ny, nz]) => {
+      const nMesh = new THREE.Mesh(nucleonGeo, neutronMat);
+      nMesh.position.set(nx, ny, nz);
+      nucleonCluster.add(nMesh);
+    });
+
+    // Circular Disc Medallion (Front & Back Logo) at center face of nucleus
     const medalGeo = new THREE.CylinderGeometry(0.24, 0.24, 0.02, 32);
     const medalMesh = new THREE.Mesh(medalGeo, [
       new THREE.MeshStandardMaterial({ color: 0xf59e0b, metalness: 0.95, roughness: 0.15 }),
@@ -159,7 +210,7 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
     const bezelMesh = new THREE.Mesh(bezelGeo, goldBezelMat);
     atomInteractiveGroup.add(bezelMesh);
 
-    // Glowing Nuclear Shell Envelope
+    // Glowing Nuclear Energy Shell Envelope
     const nucleusGeo = new THREE.SphereGeometry(0.32, 20, 16);
     const nucleusMat = new THREE.MeshStandardMaterial({
       color: 0x38bdf8,
@@ -174,8 +225,8 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
     atomInteractiveGroup.add(nucleusShell);
 
     // -------------------------------------------------------------------------
-    // 1B. CARBON INNER SHELL (1s² ORBITAL) — EXACTLY 2 ELECTRONS
-    // Pauli-paired core electrons diametrically opposite on n=1 ground state orbital
+    // 1B. CARBON INNER SHELL (K-SHELL, n = 1) — EXACTLY 2 ELECTRONS
+    // 2 electrons paired diametrically opposite (180°) on ground state orbit
     // -------------------------------------------------------------------------
     const innerRingMat = new THREE.MeshStandardMaterial({
       color: 0x0ea5e9,
@@ -184,35 +235,36 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
       metalness: 0.9,
       roughness: 0.2
     });
-    const innerRingRadius = 0.50;
+    const innerRingRadius = 0.52;
     const innerRingGeo = new THREE.TorusGeometry(innerRingRadius, 0.010, 12, 52);
     const innerRing = new THREE.Mesh(innerRingGeo, innerRingMat);
     innerRing.rotation.x = Math.PI / 3.5;
     innerRing.rotation.y = Math.PI / 6;
     atomInteractiveGroup.add(innerRing);
 
-    // Electron 1 (Inner 1s electron, paired)
-    const electronInnerMat1 = new THREE.MeshBasicMaterial({ color: 0x38bdf8 });
-    const electronCoreGeo = new THREE.SphereGeometry(0.046, 12, 12);
-    const electron1 = new THREE.Mesh(electronCoreGeo, electronInnerMat1);
+    // Common Electron Material: Electric Blue/Cyan (matching textbook diagram)
+    const electronMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8 });
+    const electronCoreGeo = new THREE.SphereGeometry(0.048, 12, 12);
+
+    // Electron 1 (Inner K-shell electron 1)
+    const electron1 = new THREE.Mesh(electronCoreGeo, electronMat);
     innerRing.add(electron1);
 
-    // Electron 2 (Inner 1s electron, opposite phase / Pauli paired)
-    const electronInnerMat2 = new THREE.MeshBasicMaterial({ color: 0x7dd3fc });
-    const electron2 = new THREE.Mesh(electronCoreGeo, electronInnerMat2);
+    // Electron 2 (Inner K-shell electron 2, 180° opposite)
+    const electron2 = new THREE.Mesh(electronCoreGeo, electronMat);
     innerRing.add(electron2);
 
     // -------------------------------------------------------------------------
-    // 1C. CARBON OUTER VALENCE SHELL (2s² 2p² / sp³ ORBITALS) — EXACTLY 4 ELECTRONS
-    // 4 degenerate sp³ quantum orbital planes oriented in authentic tetrahedral geometry (109.47°)
-    // Normals point along vertices of regular tetrahedron: (+1,+1,+1), (-1,-1,+1), (-1,+1,-1), (+1,-1,-1)
+    // 1C. CARBON OUTER VALENCE SHELL (L-SHELL, n = 2) — EXACTLY 4 ELECTRONS
+    // Concentric outer quantum shell carrying exactly 4 electrons spaced at 90°
+    // With complementary tilted orbital guide rings (±28°) for rich 3D perspective
     // -------------------------------------------------------------------------
-    const valenceRadius = 0.94;
+    const valenceRadius = 0.98;
     const valenceRingGeo = new THREE.TorusGeometry(valenceRadius, 0.009, 12, 56);
 
     const valenceRingMat1 = new THREE.MeshStandardMaterial({
-      color: 0xf59e0b,
-      emissive: 0xb45309,
+      color: 0x38bdf8,
+      emissive: 0x0284c7,
       emissiveIntensity: 0.5,
       metalness: 0.92,
       roughness: 0.2
@@ -220,18 +272,11 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
     const valenceRingMat2 = new THREE.MeshStandardMaterial({
       color: 0x10b981,
       emissive: 0x047857,
-      emissiveIntensity: 0.5,
+      emissiveIntensity: 0.45,
       metalness: 0.92,
       roughness: 0.2
     });
     const valenceRingMat3 = new THREE.MeshStandardMaterial({
-      color: 0x06b6d4,
-      emissive: 0x0e7490,
-      emissiveIntensity: 0.5,
-      metalness: 0.92,
-      roughness: 0.2
-    });
-    const valenceRingMat4 = new THREE.MeshStandardMaterial({
       color: 0xa855f7,
       emissive: 0x7e22ce,
       emissiveIntensity: 0.45,
@@ -239,48 +284,37 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
       roughness: 0.2
     });
 
-    const defaultNormalZ = new THREE.Vector3(0, 0, 1);
-    const electronValenceGeo = new THREE.SphereGeometry(0.048, 12, 12);
+    const electronValenceGeo = new THREE.SphereGeometry(0.052, 12, 12);
 
-    // Orbital Ring 1: (+1, +1, +1)
+    // Primary Equatorial L-Shell Ring (holding 4 valence electrons at 90° intervals)
     const ringV1 = new THREE.Mesh(valenceRingGeo, valenceRingMat1);
-    ringV1.quaternion.setFromUnitVectors(defaultNormalZ, new THREE.Vector3(1, 1, 1).normalize());
+    ringV1.rotation.set(0.40, 0.35, 0);
     atomInteractiveGroup.add(ringV1);
 
-    // Electron 3 (Valence electron 1)
-    const electronValenceMat1 = new THREE.MeshBasicMaterial({ color: 0xfde68a });
-    const electron3 = new THREE.Mesh(electronValenceGeo, electronValenceMat1);
+    // Valence Electron 3 (L-shell, 0°)
+    const electron3 = new THREE.Mesh(electronValenceGeo, electronMat);
     ringV1.add(electron3);
 
-    // Orbital Ring 2: (-1, -1, +1)
+    // Valence Electron 4 (L-shell, 90°)
+    const electron4 = new THREE.Mesh(electronValenceGeo, electronMat);
+    ringV1.add(electron4);
+
+    // Valence Electron 5 (L-shell, 180°)
+    const electron5 = new THREE.Mesh(electronValenceGeo, electronMat);
+    ringV1.add(electron5);
+
+    // Valence Electron 6 (L-shell, 270°)
+    const electron6 = new THREE.Mesh(electronValenceGeo, electronMat);
+    ringV1.add(electron6);
+
+    // Dual 3D Tilted Orbital Rings (±28°) providing authentic gyroscopic depth
     const ringV2 = new THREE.Mesh(valenceRingGeo, valenceRingMat2);
-    ringV2.quaternion.setFromUnitVectors(defaultNormalZ, new THREE.Vector3(-1, -1, 1).normalize());
+    ringV2.rotation.set(-0.48, -0.42, 0.35);
     atomInteractiveGroup.add(ringV2);
 
-    // Electron 4 (Valence electron 2)
-    const electronValenceMat2 = new THREE.MeshBasicMaterial({ color: 0x6ee7b7 });
-    const electron4 = new THREE.Mesh(electronValenceGeo, electronValenceMat2);
-    ringV2.add(electron4);
-
-    // Orbital Ring 3: (-1, +1, -1)
     const ringV3 = new THREE.Mesh(valenceRingGeo, valenceRingMat3);
-    ringV3.quaternion.setFromUnitVectors(defaultNormalZ, new THREE.Vector3(-1, 1, -1).normalize());
+    ringV3.rotation.set(0.95, -0.55, -0.45);
     atomInteractiveGroup.add(ringV3);
-
-    // Electron 5 (Valence electron 3)
-    const electronValenceMat3 = new THREE.MeshBasicMaterial({ color: 0x67e8f9 });
-    const electron5 = new THREE.Mesh(electronValenceGeo, electronValenceMat3);
-    ringV3.add(electron5);
-
-    // Orbital Ring 4: (+1, -1, -1)
-    const ringV4 = new THREE.Mesh(valenceRingGeo, valenceRingMat4);
-    ringV4.quaternion.setFromUnitVectors(defaultNormalZ, new THREE.Vector3(1, -1, -1).normalize());
-    atomInteractiveGroup.add(ringV4);
-
-    // Electron 6 (Valence electron 4)
-    const electronValenceMat4 = new THREE.MeshBasicMaterial({ color: 0xd8b4fe });
-    const electron6 = new THREE.Mesh(electronValenceGeo, electronValenceMat4);
-    ringV4.add(electron6);
 
     masterGroup.add(atomAnchor);
 
@@ -816,25 +850,60 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
         heroContainerEl.style.cursor = isDirectHover ? 'pointer' : '';
       }
 
-      // Position and update HTML scientific tooltip card (strictly in empty top area above atom & all hero elements)
+      // Position and update HTML scientific tooltip card
+      // CRITICAL: Must NEVER block the globe (atom) AND NEVER block the Admissions Open 2026 button!
       if (tooltipEl) {
         if (isAtomHovered) {
-          const cardWidth = isMobile ? 265 : 295;
-          const cardHeight = isMobile ? 138 : 126;
+          const cardWidth = isMobile ? 245 : 265;
+          const cardHeight = isMobile ? 120 : 110;
 
-          let targetX = atomScreenX - (cardWidth / 2);
-          targetX = Math.max(12, Math.min(targetX, rect.width - cardWidth - 12));
+          let targetX;
+          let targetY;
+          let pipSide = 'left';
 
-          // Position strictly in the clear empty area at top of hero, clearing atom and motto text completely
-          const minTopMargin = isMobile ? 8 : 12;
-          let targetY = atomScreenY - cardHeight - 50;
-          if (targetY < minTopMargin) {
-            targetY = minTopMargin;
+          if (isMobile || rect.width < 640) {
+            // Mobile: keep in top empty strip (y = 8px), well above globe and buttons
+            targetX = Math.max(8, Math.min(atomScreenX - cardWidth / 2, rect.width - cardWidth - 8));
+            targetY = 8;
+            pipSide = 'bottom';
+          } else {
+            // Desktop: Offset horizontally to the SIDE of the globe
+            // The globe is at atomScreenX.
+            // If atom is on right half, place card to the LEFT of the globe.
+            // If atom is on left half, place card to the RIGHT of the globe.
+            const sideClearance = 58;
+
+            if (atomScreenX > rect.width * 0.5) {
+              targetX = atomScreenX - cardWidth - sideClearance;
+              pipSide = 'right';
+            } else {
+              targetX = atomScreenX + sideClearance;
+              pipSide = 'left';
+            }
+
+            // Clamp X within screen padding
+            targetX = Math.max(12, Math.min(targetX, rect.width - cardWidth - 12));
+
+            // Vertically align with atom, keeping well above Admissions button (Y >= 350px)
+            targetY = atomScreenY - (cardHeight / 2);
+            targetY = Math.max(12, Math.min(targetY, rect.height - cardHeight - 12));
           }
 
           tooltipEl.style.transform = `translate3d(${Math.round(targetX)}px, ${Math.round(targetY)}px, 0)`;
           tooltipEl.style.opacity = '1';
           tooltipEl.style.pointerEvents = 'auto';
+
+          // Update directional pointer pip
+          const pipEl = tooltipEl.querySelector('.tooltip-pip');
+          if (pipEl) {
+            pipEl.className = `tooltip-pip absolute w-2.5 h-2.5 bg-slate-950 border-cyan-500/50 rotate-45 ${
+              pipSide === 'right'
+                ? '-right-1.5 top-1/2 -translate-y-1/2 border-t border-r'
+                : pipSide === 'left'
+                ? '-left-1.5 top-1/2 -translate-y-1/2 border-b border-l'
+                : '-bottom-1.5 left-1/2 -translate-x-1/2 border-b border-r'
+            }`;
+          }
         } else {
           tooltipEl.style.opacity = '0';
           tooltipEl.style.pointerEvents = 'none';
@@ -875,36 +944,31 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
       // Gentle floating nuclear pulse
       const nucleusPulse = 1.0 + Math.sin(time * 0.003 * speedMult) * 0.05;
       nucleusShell.scale.set(nucleusPulse, nucleusPulse, nucleusPulse);
+      nucleonCluster.rotation.y += 0.4 * delta * speedMult;
 
       // Quantum speed boost when mouse is actively moving
       const mouseSpeedBoost = 1.0 + Math.hypot(mouseNormX, mouseNormY) * 3.0;
 
-      // 1. Inner Shell (1s²) Electrons Animation:
-      // High-speed paired quantum orbit (radius = 0.50), diametrically opposite (180° Pauli paired)
-      // Speed is ~3.2 rad/s, exactly 2x valence speed obeying Bohr velocity v_n ∝ 1/n
+      // 1. Inner Shell (K-Shell, n=1) Electrons Animation:
+      // Exactly 2 electrons orbiting at radius 0.52, separated by 180° (matching Bohr diagram)
+      // Speed is ~3.2 rad/s (2x valence speed, obeying Bohr velocity v_n ∝ 1/n)
       innerElectronAngle += 3.2 * delta * speedMult * mouseSpeedBoost;
-      electron1.position.set(Math.cos(innerElectronAngle) * 0.50, Math.sin(innerElectronAngle) * 0.50, 0);
-      electron2.position.set(Math.cos(innerElectronAngle + Math.PI) * 0.50, Math.sin(innerElectronAngle + Math.PI) * 0.50, 0);
+      electron1.position.set(Math.cos(innerElectronAngle) * innerRingRadius, Math.sin(innerElectronAngle) * innerRingRadius, 0);
+      electron2.position.set(Math.cos(innerElectronAngle + Math.PI) * innerRingRadius, Math.sin(innerElectronAngle + Math.PI) * innerRingRadius, 0);
 
-      // 2. Outer Valence Shell (2s² 2p² / sp³) Electrons Animation:
-      // 4 electrons in distinct tetrahedral orbital planes with staggered phases (0, π/2, π, 3π/2)
-      // Moving at quantum orbital speed ~1.6 rad/s on their respective planes
+      // 2. Outer Valence Shell (L-Shell, n=2) Electrons Animation:
+      // Exactly 4 electrons orbiting at radius 0.98, spaced at 90° intervals (0, π/2, π, 3π/2)
       valenceElectronAngle1 += 1.6 * delta * speedMult * mouseSpeedBoost;
-      valenceElectronAngle2 += 1.6 * delta * speedMult * mouseSpeedBoost;
-      valenceElectronAngle3 += 1.6 * delta * speedMult * mouseSpeedBoost;
-      valenceElectronAngle4 += 1.6 * delta * speedMult * mouseSpeedBoost;
-
       electron3.position.set(Math.cos(valenceElectronAngle1) * valenceRadius, Math.sin(valenceElectronAngle1) * valenceRadius, 0);
-      electron4.position.set(Math.cos(valenceElectronAngle2) * valenceRadius, Math.sin(valenceElectronAngle2) * valenceRadius, 0);
-      electron5.position.set(Math.cos(valenceElectronAngle3) * valenceRadius, Math.sin(valenceElectronAngle3) * valenceRadius, 0);
-      electron6.position.set(Math.cos(valenceElectronAngle4) * valenceRadius, Math.sin(valenceElectronAngle4) * valenceRadius, 0);
+      electron4.position.set(Math.cos(valenceElectronAngle1 + Math.PI / 2) * valenceRadius, Math.sin(valenceElectronAngle1 + Math.PI / 2) * valenceRadius, 0);
+      electron5.position.set(Math.cos(valenceElectronAngle1 + Math.PI) * valenceRadius, Math.sin(valenceElectronAngle1 + Math.PI) * valenceRadius, 0);
+      electron6.position.set(Math.cos(valenceElectronAngle1 + (3 * Math.PI) / 2) * valenceRadius, Math.sin(valenceElectronAngle1 + (3 * Math.PI) / 2) * valenceRadius, 0);
 
-      // Quantum relativistic orbital precession within orbital planes
-      ringV1.rotateZ(0.18 * delta * speedMult);
-      ringV2.rotateZ(-0.16 * delta * speedMult);
-      ringV3.rotateZ(0.14 * delta * speedMult);
-      ringV4.rotateZ(-0.15 * delta * speedMult);
-      innerRing.rotateZ(0.28 * delta * speedMult);
+      // Quantum relativistic orbital precession
+      ringV1.rotation.z += 0.20 * delta * speedMult;
+      ringV2.rotation.z -= 0.18 * delta * speedMult;
+      ringV3.rotation.z += 0.16 * delta * speedMult;
+      innerRing.rotation.z += 0.32 * delta * speedMult;
 
       // -----------------------------------------------------------------------
       // 8B. BOOK: ENHANCED HOVER RESPONSIVE CELEBRATION
@@ -1098,7 +1162,7 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
       className={`hero-3d-canvas-container absolute inset-0 w-full h-full pointer-events-none z-30 overflow-visible ${className}`}
       style={{ opacity: 0.94 }}
     >
-      {/* Compact Interactive Carbon Atom & School Seal Scientific Tooltip Card (Placed strictly above all) */}
+      {/* High-Contrast Interactive Carbon Atom Scientific Telemetry Tooltip Card */}
       <div
         ref={tooltipRef}
         role="tooltip"
@@ -1110,22 +1174,36 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
           transform: 'translate3d(-9999px, -9999px, 0)'
         }}
       >
-        <div className="relative w-[265px] sm:w-[295px] bg-slate-950/95 backdrop-blur-xl border border-cyan-500/40 rounded-xl shadow-2xl shadow-cyan-950/80 p-2 sm:p-2.5 text-left pointer-events-auto text-slate-100 ring-1 ring-white/10">
+        <div
+          className="hero-3d-tooltip relative w-[245px] sm:w-[265px] rounded-xl p-2 sm:p-2.5 text-left pointer-events-auto ring-1 ring-white/10 shadow-2xl transition-all"
+          style={{
+            backgroundColor: 'rgba(10, 15, 30, 0.96)',
+            borderColor: 'rgba(6, 182, 212, 0.5)',
+            boxShadow: '0 20px 45px rgba(0, 0, 0, 0.75), 0 0 25px rgba(6, 182, 212, 0.22)'
+          }}
+        >
           {/* Top glowing accent hairline */}
           <div className="absolute top-0 inset-x-3 h-[2px] bg-gradient-to-r from-cyan-400 via-amber-400 to-emerald-400 rounded-full" />
           
           {/* Compact Header */}
-          <div className="flex items-center justify-between gap-1.5 pb-1.5 mb-1.5 border-b border-slate-700/60">
+          <div className="flex items-center justify-between gap-1 pb-1 mb-1 border-b border-slate-700/60">
             <div className="flex items-center gap-1.5">
-              <span className="w-5 h-5 rounded bg-cyan-500/20 border border-cyan-400/40 flex items-center justify-center text-cyan-300 font-bold text-[10px] shadow-xs shadow-cyan-500/30 font-mono">
+              <span
+                className="w-5 h-5 rounded flex items-center justify-center font-bold text-[10px] shadow-xs font-mono shrink-0"
+                style={{
+                  backgroundColor: 'rgba(6, 182, 212, 0.2)',
+                  borderColor: 'rgba(56, 189, 248, 0.5)',
+                  color: '#38bdf8'
+                }}
+              >
                 ₆C
               </span>
               <div>
-                <h4 className="font-bold text-white text-[11px] sm:text-xs tracking-wide flex items-center gap-1 leading-none font-heading">
-                  Carbon-12 Orbitals
+                <h4 className="font-bold text-[11px] sm:text-xs tracking-wide leading-none font-heading" style={{ color: '#ffffff' }}>
+                  Carbon-12 Structure
                 </h4>
-                <span className="text-[9px] sm:text-[9.5px] text-cyan-300/90 font-mono">
-                  Z = 6 • 1s² 2s² 2p² (sp³)
+                <span className="text-[9px] font-mono" style={{ color: '#38bdf8' }}>
+                  6p + 6n • K(2) L(4)
                 </span>
               </div>
             </div>
@@ -1138,45 +1216,69 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
                   tooltipRef.current.style.pointerEvents = 'none';
                 }
               }}
-              className="text-slate-400 hover:text-white p-0.5 rounded text-xs sm:hidden leading-none"
+              className="text-slate-400 hover:text-white p-0.5 rounded text-xs sm:hidden leading-none cursor-pointer"
               aria-label="Close details"
             >
               ✕
             </button>
           </div>
 
-          {/* 3 Compact Micro Detail Blocks */}
-          <div className="space-y-1.5 text-[9.5px] sm:text-[10px] text-slate-300 leading-snug">
-            {/* 1. Carbon */}
-            <div className="flex items-start gap-1.5 bg-slate-900/80 rounded-md p-1.5 border border-slate-800/80">
-              <span className="text-cyan-400 text-xs shrink-0 mt-0.5">⚛️</span>
+          {/* 3 Compact Micro Detail Blocks with Guaranteed High-Contrast White Text */}
+          <div className="space-y-1 text-[9.5px] leading-snug">
+            {/* 1. Carbon Bohr Structure */}
+            <div
+              className="tooltip-item-box flex items-start gap-1.5 rounded-md p-1.5 border"
+              style={{
+                backgroundColor: 'rgba(15, 23, 42, 0.88)',
+                borderColor: 'rgba(51, 65, 85, 0.8)'
+              }}
+            >
+              <span className="text-xs shrink-0 mt-0.5">⚛️</span>
               <div>
-                <span className="font-semibold text-cyan-200">Carbon of Life:</span>{' '}
-                <span className="text-slate-300">2 inner 1s² core + 4 valence sp³ electrons; fundamental foundation of organic life.</span>
+                <span className="font-bold" style={{ color: '#38bdf8' }}>Carbon Atom:</span>{' '}
+                <span className="tooltip-body-text" style={{ color: '#f8fafc' }}>
+                  Nucleus of 6 protons & 6 neutrons; 2 inner K-shell + 4 outer L-shell valence electrons.
+                </span>
               </div>
             </div>
 
-            {/* 2. School Logo */}
-            <div className="flex items-start gap-1.5 bg-slate-900/80 rounded-md p-1.5 border border-slate-800/80">
-              <span className="text-amber-400 text-xs shrink-0 mt-0.5">🏫</span>
+            {/* 2. School Seal Core */}
+            <div
+              className="tooltip-item-box flex items-start gap-1.5 rounded-md p-1.5 border"
+              style={{
+                backgroundColor: 'rgba(15, 23, 42, 0.88)',
+                borderColor: 'rgba(51, 65, 85, 0.8)'
+              }}
+            >
+              <span className="text-xs shrink-0 mt-0.5">🏫</span>
               <div>
-                <span className="font-semibold text-amber-200">HSS Shangus Nucleus:</span>{' '}
-                <span className="text-slate-300">Official seal at atomic core — source of knowledge, ethics & discipline.</span>
+                <span className="font-bold" style={{ color: '#fbbf24' }}>Shangus Nucleus:</span>{' '}
+                <span className="tooltip-body-text" style={{ color: '#f8fafc' }}>
+                  Official school seal at atomic core — source of knowledge, ethics & discipline.
+                </span>
               </div>
             </div>
 
-            {/* 3. Overall Theme */}
-            <div className="flex items-start gap-1.5 bg-slate-900/80 rounded-md p-1.5 border border-slate-800/80">
-              <span className="text-emerald-400 text-xs shrink-0 mt-0.5">🌌</span>
+            {/* 3. Educational Theme */}
+            <div
+              className="tooltip-item-box flex items-start gap-1.5 rounded-md p-1.5 border"
+              style={{
+                backgroundColor: 'rgba(15, 23, 42, 0.88)',
+                borderColor: 'rgba(51, 65, 85, 0.8)'
+              }}
+            >
+              <span className="text-xs shrink-0 mt-0.5">🌌</span>
               <div>
-                <span className="font-semibold text-emerald-200">Educational Theme:</span>{' '}
-                <span className="text-slate-300">Patrolling over <em className="text-white not-italic font-semibold font-slogan">"nurturing minds, shaping futures"</em> to ignite potential.</span>
+                <span className="font-bold" style={{ color: '#34d399' }}>Theme:</span>{' '}
+                <span className="tooltip-body-text" style={{ color: '#f8fafc' }}>
+                  Voyaging over <strong style={{ color: '#ffffff' }}>"nurturing minds, shaping futures"</strong>.
+                </span>
               </div>
             </div>
           </div>
 
-          {/* Subtle downward directional pip connecting the card to the atom below */}
-          <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-slate-950 border-r border-b border-cyan-500/40 rotate-45" />
+          {/* Directional indicator pip pointing directly toward the globe */}
+          <div className="tooltip-pip absolute w-2.5 h-2.5 bg-slate-950 border-cyan-500/50 rotate-45 -left-1.5 top-1/2 -translate-y-1/2 border-b border-l" />
         </div>
       </div>
     </div>
