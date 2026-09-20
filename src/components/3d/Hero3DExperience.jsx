@@ -272,6 +272,111 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
     const electron6 = new THREE.Mesh(electron3Geo, electronValenceMat4);
     ringV4.add(electron6);
 
+    // -------------------------------------------------------------------------
+    // 1E. SCIENTIFIC HOLOGRAPHIC HUD BADGE: "CARBON-12 • Atom of Life (Z = 6)"
+    // -------------------------------------------------------------------------
+    function createCarbonLabelTexture() {
+      const canvas = document.createElement('canvas');
+      canvas.width = 640;
+      canvas.height = 180;
+      const ctx = canvas.getContext('2d');
+
+      const x = 12;
+      const y = 12;
+      const w = canvas.width - 24;
+      const h = canvas.height - 24;
+      const r = h / 2;
+
+      // Outer glowing ambient shadow
+      ctx.save();
+      ctx.shadowColor = 'rgba(56, 189, 248, 0.45)';
+      ctx.shadowBlur = 18;
+
+      // Dark glassmorphism capsule
+      const bgGrad = ctx.createLinearGradient(x, y, x + w, y + h);
+      bgGrad.addColorStop(0, 'rgba(15, 23, 42, 0.90)');
+      bgGrad.addColorStop(0.5, 'rgba(15, 23, 42, 0.84)');
+      bgGrad.addColorStop(1, 'rgba(15, 23, 42, 0.92)');
+
+      ctx.beginPath();
+      if (ctx.roundRect) {
+        ctx.roundRect(x, y, w, h, r);
+      } else {
+        ctx.moveTo(x + r, y);
+        ctx.arcTo(x + w, y, x + w, y + h, r);
+        ctx.arcTo(x + w, y + h, x, y + h, r);
+        ctx.arcTo(x, y + h, x, y, r);
+        ctx.arcTo(x, y, x + w, y, r);
+        ctx.closePath();
+      }
+      ctx.fillStyle = bgGrad;
+      ctx.fill();
+
+      // Border: Electric Cyan to Golden Amber gradient
+      const borderGrad = ctx.createLinearGradient(x, y, x + w, y);
+      borderGrad.addColorStop(0, 'rgba(56, 189, 248, 0.85)');
+      borderGrad.addColorStop(0.5, 'rgba(147, 197, 253, 0.50)');
+      borderGrad.addColorStop(1, 'rgba(245, 158, 11, 0.75)');
+
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = borderGrad;
+      ctx.stroke();
+      ctx.restore();
+
+      // Chemical Element Insignia Circle: ₆C
+      const badgeX = x + 62;
+      const badgeY = y + h / 2;
+      const badgeR = 36;
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(badgeX, badgeY, badgeR, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(14, 165, 233, 0.28)';
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(56, 189, 248, 0.75)';
+      ctx.lineWidth = 2.5;
+      ctx.stroke();
+
+      ctx.font = 'bold 36px "Outfit", "Inter", -apple-system, sans-serif';
+      ctx.fillStyle = '#38bdf8';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('₆C', badgeX, badgeY - 1);
+      ctx.restore();
+
+      // Main Title: "CARBON-12"
+      ctx.save();
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      ctx.font = '800 42px "Outfit", "Inter", -apple-system, sans-serif';
+      ctx.fillStyle = '#ffffff';
+      ctx.shadowColor = 'rgba(56, 189, 248, 0.6)';
+      ctx.shadowBlur = 8;
+      ctx.fillText('CARBON-12', x + 118, y + 48);
+
+      // Subtitle: "Atom of Life • Z = 6"
+      ctx.font = '600 24px "Inter", -apple-system, sans-serif';
+      ctx.fillStyle = '#94a3b8';
+      ctx.shadowBlur = 0;
+      ctx.fillText('Atom of Life  •  Z = 6', x + 120, y + 96);
+      ctx.restore();
+
+      const texture = new THREE.CanvasTexture(canvas);
+      texture.colorSpace = THREE.SRGBColorSpace;
+      return texture;
+    }
+
+    const carbonLabelTexture = createCarbonLabelTexture();
+    const carbonLabelMat = new THREE.SpriteMaterial({
+      map: carbonLabelTexture,
+      transparent: true,
+      opacity: 0.92,
+      depthWrite: false
+    });
+    const carbonLabelSprite = new THREE.Sprite(carbonLabelMat);
+    carbonLabelSprite.position.set(0, -1.26, 0.1);
+    carbonLabelSprite.scale.set(1.35, 0.38, 1);
+    atomAnchor.add(carbonLabelSprite);
+
     masterGroup.add(atomAnchor);
 
     // =========================================================================
@@ -783,6 +888,9 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
       ringV4.rotation.z -= 0.19 * delta * speedMult;
       innerRing.rotation.z += 0.35 * delta * speedMult;
 
+      // Holographic shimmer pulse for Carbon HUD label
+      carbonLabelMat.opacity = 0.86 + Math.sin(time * 0.002 * speedMult) * 0.08;
+
       // -----------------------------------------------------------------------
       // 8B. BOOK: ON LEFT OF ADMISSIONS OPEN WITH DELICATE SLIPPING PAGES
       // -----------------------------------------------------------------------
@@ -887,14 +995,19 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
       intersectionObserver.disconnect();
 
       if (logoTexture) logoTexture.dispose();
+      if (carbonLabelTexture) carbonLabelTexture.dispose();
 
       scene.traverse((child) => {
-        if (child.isMesh || child.isPoints) {
+        if (child.isMesh || child.isPoints || child.isSprite) {
           if (child.geometry) child.geometry.dispose();
           if (child.material) {
             if (Array.isArray(child.material)) {
-              child.material.forEach((m) => m.dispose());
+              child.material.forEach((m) => {
+                if (m.map) m.map.dispose();
+                m.dispose();
+              });
             } else {
+              if (child.material.map) child.material.map.dispose();
               child.material.dispose();
             }
           }
