@@ -789,7 +789,7 @@ export default function AdminAttendance() {
 
                     {/* Expandable Session Log Table (Compact figures, no student spam) */}
                     {isExpanded && (
-                      <div className="border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/50 p-2.5 space-y-1.5">
+                      <div className="border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/50 p-2.5 space-y-1.5 overflow-x-auto">
                         <table className="w-full text-left text-xs whitespace-nowrap">
                           <thead>
                             <tr className="text-[10px] font-black uppercase text-slate-400 border-b border-slate-200 dark:border-slate-800 pb-1">

@@ -52,8 +52,18 @@ export const isUserPermittedForModule = (user, moduleId) => {
   const perms = Array.isArray(user.perms) ? user.perms : [];
   if (perms.includes('*')) return true;
   if (perms.length === 0) return moduleId === 'reports';
+  
   if (moduleId === 'docStudio' || moduleId === 'customRoster' || moduleId === 'officialLetter' || moduleId === 'certStudio') {
     return perms.includes('docStudio') || perms.includes('customRoster') || perms.includes('officialLetter') || perms.includes('certStudio') || perms.includes('certificate');
+  }
+  if (moduleId === 'directEntryAction' || moduleId === 'directEntry' || moduleId === 'ingestion') {
+    return perms.includes('directEntryAction') || perms.includes('directEntry') || perms.includes('ingestion') || perms.includes('reports');
+  }
+  if (moduleId === 'bulkToolsAction' || moduleId === 'bulkTools' || moduleId === 'bulk') {
+    return perms.includes('bulkToolsAction') || perms.includes('bulkTools') || perms.includes('bulk') || perms.includes('controls') || perms.includes('boardSync');
+  }
+  if (moduleId === 'quickCellEdit' || moduleId === 'analyticsReports') {
+    return perms.includes('quickCellEdit') || perms.includes('analyticsReports') || perms.includes('reports');
   }
   return perms.includes(moduleId);
 };

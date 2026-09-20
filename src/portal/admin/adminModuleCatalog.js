@@ -19,7 +19,43 @@ export const MODULE_MATURITY = Object.freeze({
   },
 });
 
+export const ADMIN_CATEGORIES = Object.freeze([
+  {
+    key: 'Records & Registers',
+    title: 'Records & Registers',
+    desc: 'Student admission records, official ledgers, rosters, certificates, ID cards and competitive exams',
+    iconName: 'BarChart2',
+    color: 'text-amber-500 dark:text-amber-400',
+    bg: 'bg-amber-500/10 dark:bg-amber-500/20',
+  },
+  {
+    key: 'Academics & Controls',
+    title: 'Academics & Controls',
+    desc: 'Session settings, subjects, practicals award rolls, student attendance and class roll numbers',
+    iconName: 'Settings',
+    color: 'text-emerald-500 dark:text-emerald-400',
+    bg: 'bg-emerald-500/10 dark:bg-emerald-500/20',
+  },
+  {
+    key: 'Operations & Automation',
+    title: 'Operations & Automation',
+    desc: 'Duplicate merger, communications, fee accounts, staff tax & salaries, website CMS and JKBOSE sync',
+    iconName: 'Layers',
+    color: 'text-indigo-500 dark:text-indigo-400',
+    bg: 'bg-indigo-500/10 dark:bg-indigo-500/20',
+  },
+  {
+    key: 'Quick Actions',
+    title: 'Quick Actions',
+    desc: 'Rapid inline cell edit, statistical analytics, express record creation and bulk data ingestion',
+    iconName: 'Zap',
+    color: 'text-violet-500 dark:text-violet-400',
+    bg: 'bg-violet-500/10 dark:bg-violet-500/20',
+  },
+]);
+
 export const ADMIN_MODULE_CATALOG = Object.freeze([
+  // CATEGORY 1: Records & Registers (7 Modules)
   {
     id: 'reports',
     label: 'Student Records & Reports',
@@ -29,6 +65,8 @@ export const ADMIN_MODULE_CATALOG = Object.freeze([
     maturity: 'optimized',
     maturityNote: 'Exact-document mutations, protected bulk actions, recycle recovery and regression checks are in place.',
     launcher: true,
+    isNew: false,
+    aliases: ['reports'],
   },
   {
     id: 'admRegisterSuite',
@@ -39,6 +77,8 @@ export const ADMIN_MODULE_CATALOG = Object.freeze([
     maturity: 'optimized',
     maturityNote: 'O(1) indexed lookups, configurable sent-up register columns, cleaned examination records, and regression-checked ledger layouts are in place.',
     launcher: true,
+    isNew: true,
+    aliases: ['admRegisterSuite', 'admissionRegister'],
   },
   {
     id: 'customRoster',
@@ -49,6 +89,8 @@ export const ADMIN_MODULE_CATALOG = Object.freeze([
     maturity: 'optimized',
     maturityNote: 'Canonical photo resolution, configurable columns and print/export safeguards are regression-checked.',
     launcher: true,
+    isNew: true,
+    aliases: ['customRoster', 'docStudio', 'roster'],
   },
   {
     id: 'officialLetter',
@@ -59,6 +101,8 @@ export const ADMIN_MODULE_CATALOG = Object.freeze([
     maturity: 'optimized',
     maturityNote: 'Multi-key Gemini AI integration, local draft autosave resilience, document history auto-archiving, and print audit logging are regression-checked.',
     launcher: true,
+    isNew: true,
+    aliases: ['officialLetter', 'letterhead'],
   },
   {
     id: 'certStudio',
@@ -69,6 +113,8 @@ export const ADMIN_MODULE_CATALOG = Object.freeze([
     maturity: 'optimized',
     maturityNote: 'Authoritative serial generation, QR verification URL generation, DOB-inwords interpolation, and batch issuance audit trails are in place.',
     launcher: true,
+    isNew: true,
+    aliases: ['certStudio', 'certificate'],
   },
   {
     id: 'idCards',
@@ -79,6 +125,8 @@ export const ADMIN_MODULE_CATALOG = Object.freeze([
     maturity: 'optimized',
     maturityNote: 'Strict cohort filters, stable selections, bounded concurrent photo preparation and print-range safeguards are regression-checked.',
     launcher: true,
+    isNew: true,
+    aliases: ['idCards', 'idcard'],
   },
   {
     id: 'gkTest',
@@ -89,26 +137,22 @@ export const ADMIN_MODULE_CATALOG = Object.freeze([
     maturity: 'optimized',
     maturityNote: 'Unified competitive test hub, automated admit card PDF generation, OMR registrations indexing, and audit logging are regression-checked.',
     launcher: true,
+    isNew: true,
+    aliases: ['gkTest', 'examPrep'],
   },
+
+  // CATEGORY 2: Academics & Controls (4 Modules)
   {
     id: 'controls',
     label: 'Academic Controls & Subjects',
     shortLabel: 'Controls',
-    description: 'Admission windows, sessions, subjects and institution rules',
+    description: 'Admission windows, sessions, subjects, feeder schools and institution rules',
     category: 'Academics & Controls',
     maturity: 'optimized',
     maturityNote: 'Atomic session controls, admission window toggles, and audited configuration safeguards are regression-checked.',
     launcher: true,
-  },
-  {
-    id: 'subjects',
-    label: 'Subject Rules & Streams',
-    shortLabel: 'Subject Rules',
-    description: 'Configure streams, subject groups and selection limits',
-    category: 'Academics & Controls',
-    maturity: 'optimized',
-    maturityNote: 'Stream-subject rule enforcement, multi-group constraints, and live admission validation are in place.',
-    launcher: false,
+    isNew: false,
+    aliases: ['controls', 'subjects', 'adminMgmt'],
   },
   {
     id: 'practicals',
@@ -119,6 +163,8 @@ export const ADMIN_MODULE_CATALOG = Object.freeze([
     maturity: 'optimized',
     maturityNote: 'Validated practical marks bounds, consolidated award roll generation, spreadsheet reconciliation, and audit logging are regression-checked.',
     launcher: true,
+    isNew: false,
+    aliases: ['practicals'],
   },
   {
     id: 'attendanceMgmt',
@@ -129,6 +175,8 @@ export const ADMIN_MODULE_CATALOG = Object.freeze([
     maturity: 'optimized',
     maturityNote: 'Aggregated attendance tracking, subject-wise grouping, cached register queries, and configuration safeguards are regression-checked.',
     launcher: true,
+    isNew: false,
+    aliases: ['attendanceMgmt', 'attendance'],
   },
   {
     id: 'rollNo',
@@ -139,7 +187,11 @@ export const ADMIN_MODULE_CATALOG = Object.freeze([
     maturity: 'optimized',
     maturityNote: 'Exact-record updates and approved-record safeguards are in place.',
     launcher: true,
+    isNew: false,
+    aliases: ['rollNo', 'rollNumbers'],
   },
+
+  // CATEGORY 3: Operations & Automation (6 Modules)
   {
     id: 'mergeStudio',
     label: 'Application Merge & Deduplication',
@@ -149,6 +201,8 @@ export const ADMIN_MODULE_CATALOG = Object.freeze([
     maturity: 'optimized',
     maturityNote: 'Disjoint-set union clustering, canonical scoring, Recycle Bin safe backup, and audit logging are regression-checked.',
     launcher: true,
+    isNew: true,
+    aliases: ['mergeStudio', 'merger'],
   },
   {
     id: 'automations',
@@ -159,6 +213,8 @@ export const ADMIN_MODULE_CATALOG = Object.freeze([
     maturity: 'optimized',
     maturityNote: 'Rich-text group notifications, real-time recipient filtering, test flight previews, and delivery audit logging are regression-checked.',
     launcher: true,
+    isNew: false,
+    aliases: ['automations', 'emails'],
   },
   {
     id: 'funds',
@@ -169,6 +225,8 @@ export const ADMIN_MODULE_CATALOG = Object.freeze([
     maturity: 'optimized',
     maturityNote: 'Atomic account configuration, live ledger synchronization and over-distribution safeguards are regression-checked.',
     launcher: true,
+    isNew: false,
+    aliases: ['funds', 'fees'],
   },
   {
     id: 'accounts',
@@ -179,6 +237,8 @@ export const ADMIN_MODULE_CATALOG = Object.freeze([
     maturity: 'optimized',
     maturityNote: 'Dedicated accounts clerk workspace, IT calculation engine, tax deductions and salary record management.',
     launcher: true,
+    isNew: true,
+    aliases: ['accounts', 'salary', 'tax'],
   },
   {
     id: 'cms',
@@ -189,16 +249,8 @@ export const ADMIN_MODULE_CATALOG = Object.freeze([
     maturity: 'optimized',
     maturityNote: 'Public and private website controls, notices, slideshow, custom pages, and central recycle bin.',
     launcher: true,
-  },
-  {
-    id: 'ingestion',
-    label: 'Direct Entry & CSV Import',
-    shortLabel: 'Direct Entry',
-    description: 'Express record creation and reviewed bulk data import',
-    category: 'Operations & Automation',
-    maturity: 'optimized',
-    maturityNote: 'End-to-end optimized with immediate cohort validation, identity correlation, and auto-rollback protection.',
-    launcher: false,
+    isNew: true,
+    aliases: ['cms', 'websiteCms', 'heroButtons'],
   },
   {
     id: 'boardSync',
@@ -209,16 +261,112 @@ export const ADMIN_MODULE_CATALOG = Object.freeze([
     maturity: 'optimized',
     maturityNote: 'End-to-end optimized with 100% authoritative Board Reg matching, protected class roll numbers, and 30-day rollback memory.',
     launcher: true,
+    isNew: true,
+    aliases: ['boardSync', 'jkboseSync'],
+  },
+
+  // CATEGORY 4: Quick Actions & Ingestion Tools (4 Tools)
+  {
+    id: 'quickCellEdit',
+    label: 'Quick Cell Edit Mode',
+    shortLabel: 'Cell Edit',
+    description: 'Directly click and update table cells in student records',
+    category: 'Quick Actions',
+    maturity: 'optimized',
+    maturityNote: 'Inline quick cell modification with automatic audit logging.',
+    launcher: false,
+    isQuickAction: true,
+    isNew: true,
+    aliases: ['quickCellEdit'],
   },
   {
-    id: 'adminMgmt',
-    label: 'Administrator Access & Permissions',
-    shortLabel: 'Admin Access',
-    description: 'Manage staff accounts, roles and module permissions',
-    category: 'Operations & Automation',
+    id: 'analyticsReports',
+    label: 'Analytics & Statistical Reports',
+    shortLabel: 'Analytics',
+    description: 'View gender breakdown, stream stats and intake reports',
+    category: 'Quick Actions',
     maturity: 'optimized',
-    maturityNote: 'Role-based access controls, module permission matrix, bootstrap superadmin safeguards, and audit logging are regression-checked.',
+    maturityNote: 'Interactive statistical dashboard and visual demographic charts.',
     launcher: false,
+    isQuickAction: true,
+    isNew: false,
+    aliases: ['analyticsReports', 'analytics'],
+  },
+  {
+    id: 'directEntryAction',
+    label: 'Express Direct Record Entry',
+    shortLabel: 'Direct Entry',
+    description: 'Add a single student application directly into active intake',
+    category: 'Quick Actions',
+    maturity: 'optimized',
+    maturityNote: 'Single-record immediate ingestion with instant validation.',
+    launcher: false,
+    isQuickAction: true,
+    isNew: false,
+    aliases: ['directEntryAction', 'directEntry', 'ingestion'],
+  },
+  {
+    id: 'bulkToolsAction',
+    label: 'Bulk Ingestion & Field Update',
+    shortLabel: 'Bulk Tools',
+    description: 'Batch upload records or overwrite fields via Excel/CSV',
+    category: 'Quick Actions',
+    maturity: 'optimized',
+    maturityNote: 'Bulk batch updater with column mapping and rollback protection.',
+    launcher: false,
+    isQuickAction: true,
+    isNew: true,
+    aliases: ['bulkToolsAction', 'bulkTools', 'bulk'],
+  },
+]);
+
+export const ROLE_PRESETS = Object.freeze([
+  {
+    id: 'full_admin',
+    name: 'Full Administrator',
+    shortName: 'Full Admin',
+    badgeClass: 'bg-indigo-600 text-white',
+    desc: 'Access to all 21 administrative modules, tools, and configurations.',
+    perms: () => ADMIN_MODULE_CATALOG.map(m => m.id),
+  },
+  {
+    id: 'academic_incharge',
+    name: 'Academic & Examination Incharge',
+    shortName: 'Academics',
+    badgeClass: 'bg-emerald-600 text-white',
+    desc: 'Student Records, Admission Register, Rosters, Practicals, Attendance, Roll Numbers & Board Sync.',
+    perms: () => [
+      'reports', 'admRegisterSuite', 'customRoster', 'gkTest',
+      'controls', 'practicals', 'attendanceMgmt', 'rollNo', 'boardSync',
+      'analyticsReports', 'quickCellEdit'
+    ],
+  },
+  {
+    id: 'records_incharge',
+    name: 'Records & Identity Incharge',
+    shortName: 'Records',
+    badgeClass: 'bg-amber-600 text-white',
+    desc: 'Student Records, Rosters, ID Cards, Certificates, Letterhead, and Quick Cell Edit.',
+    perms: () => [
+      'reports', 'customRoster', 'officialLetter', 'certStudio',
+      'idCards', 'analyticsReports', 'quickCellEdit'
+    ],
+  },
+  {
+    id: 'accounts_clerk',
+    name: 'School Accounts & Fee Clerk',
+    shortName: 'Accounts',
+    badgeClass: 'bg-teal-600 text-white',
+    desc: 'School Accounts, Staff Salary/Tax calculations, and Funds/Fee Accounts (No student admission edits).',
+    perms: () => ['accounts', 'funds'],
+  },
+  {
+    id: 'teacher',
+    name: 'Faculty / Subject Teacher',
+    shortName: 'Teacher',
+    badgeClass: 'bg-sky-600 text-white',
+    desc: 'Student Attendance registers and Practical Examination award roll submission.',
+    perms: () => ['attendanceMgmt', 'practicals'],
   },
 ]);
 
@@ -229,3 +377,12 @@ export function getModuleMaturity(maturity) {
 export function getAdminModule(moduleId) {
   return ADMIN_MODULE_CATALOG.find(module => module.id === moduleId) || null;
 }
+
+export function getModulesByCategory(categoryKey) {
+  return ADMIN_MODULE_CATALOG.filter(module => module.category === categoryKey);
+}
+
+export function getAllAdminModuleIds() {
+  return ADMIN_MODULE_CATALOG.map(module => module.id);
+}
+
