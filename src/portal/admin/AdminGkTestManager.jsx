@@ -17,6 +17,7 @@ import { logAdminActivity } from '../../services/adminActivityLogger';
 import SchoolAssessmentsHub from './SchoolAssessmentsHub';
 import ConsolidatedGazetteView from './ConsolidatedGazetteView';
 import { showToast } from '../../components/common/GlobalToast';
+import ModuleErrorBoundary from '../../components/ModuleErrorBoundary';
 
 const HUB_TABS = [
   { id: 'school', label: 'School Assessments & Pre-Board Hub', mobileLabel: 'Assessments', icon: Award },
@@ -678,17 +679,21 @@ export default function AdminGkTestManager({ allStudents = [], onRefresh }) {
 
       {/* TAB 1: School Assessments & Pre-Board Hub */}
       {activeHubTab === 'school' && (
-        <SchoolAssessmentsHub
-          allStudents={directoryStudents}
-          onSwitchToGazette={() => setActiveHubTab('gazette')}
-        />
+        <ModuleErrorBoundary resetKey="gktest-school">
+          <SchoolAssessmentsHub
+            allStudents={directoryStudents}
+            onSwitchToGazette={() => setActiveHubTab('gazette')}
+          />
+        </ModuleErrorBoundary>
       )}
 
       {/* TAB 2: Consolidated Gazette & Analytics */}
       {activeHubTab === 'gazette' && (
-        <ConsolidatedGazetteView
-          allStudents={directoryStudents}
-        />
+        <ModuleErrorBoundary resetKey="gktest-gazette">
+          <ConsolidatedGazetteView
+            allStudents={directoryStudents}
+          />
+        </ModuleErrorBoundary>
       )}
 
       {/* TAB 3: Competitive Exams & OMR */}

@@ -731,20 +731,21 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
     if (!selectedSubjectMeta) return null;
     const code = selectedSubjectMeta.code;
     const enrolledRows = gazetteRows.filter(r => {
-      const m = r.subjectMarks[code];
+      if (!r) return false;
+      const m = r.subjectMarks?.[code];
       const hasMark = m && (m.obtained !== null || m.isAbsent);
       return hasMark || isStudentEnrolledInSubject(r.student, code, selectedClass);
     });
     const rowsWithSubject = enrolledRows.filter(r => {
-      const m = r.subjectMarks[code];
+      const m = r?.subjectMarks?.[code];
       return m && (m.obtained !== null || m.isAbsent);
     });
     const appearedCount = rowsWithSubject.length;
-    const passedCount = rowsWithSubject.filter(r => r.subjectMarks[code]?.isPass).length;
-    const failedCount = rowsWithSubject.filter(r => r.subjectMarks[code]?.isFailed && !r.subjectMarks[code]?.isAbsent).length;
-    const absentCount = rowsWithSubject.filter(r => r.subjectMarks[code]?.isAbsent).length;
+    const passedCount = rowsWithSubject.filter(r => r?.subjectMarks?.[code]?.isPass).length;
+    const failedCount = rowsWithSubject.filter(r => r?.subjectMarks?.[code]?.isFailed && !r?.subjectMarks?.[code]?.isAbsent).length;
+    const absentCount = rowsWithSubject.filter(r => r?.subjectMarks?.[code]?.isAbsent).length;
     const numericScores = rowsWithSubject
-      .filter(r => typeof r.subjectMarks[code]?.obtained === 'number')
+      .filter(r => typeof r?.subjectMarks?.[code]?.obtained === 'number')
       .map(r => r.subjectMarks[code].obtained);
     const avgScore = numericScores.length
       ? (numericScores.reduce((a, b) => a + b, 0) / numericScores.length).toFixed(1)
