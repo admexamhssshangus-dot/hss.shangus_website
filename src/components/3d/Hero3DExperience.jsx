@@ -15,13 +15,14 @@ import * as THREE from 'three';
  *      quantum orbital planes (tetrahedral / orthogonal angles).
  *    - Total 6 electrons exactly matching the Carbon atom.
  *    - Gyroscopically follows mouse location and tilts with quantum relativistic precession.
- * 2. 📖 Open Book of Wisdom (Strictly on Left of "Admissions Open 2026"):
- *    - Positioned with generous breathing room to the left of the button.
+ * 2. 📖 Open Book of Wisdom:
+ *    - Desktop: Strictly on Left of "Admissions Open 2026" with generous breathing room.
+ *    - Mobile: Elevated into the left sky flanking the central atom, leaving buttons 100% clean!
  *    - When Admissions Open is hovered: cascading fluttering/slipping pages arching upward
  *      without flopping all the way to the left side!
- * 3. 🧪 Scientific Laboratory Apparatus (Erlenmeyer Flask of Discovery, Strictly on Right of "Learn More"):
- *    - Positioned with generous breathing room to the right of the button.
- *    - Universally applicable to all students across STEM, Chemistry, Biology, Physics, & General Sciences.
+ * 3. 🧪 Scientific Laboratory Apparatus (Erlenmeyer Flask of Discovery):
+ *    - Desktop: Strictly on Right of "Learn More" with generous breathing room.
+ *    - Mobile: Elevated into the right sky flanking the central atom, leaving buttons 100% clean!
  *    - Borosilicate glass with volumetric graduations, glass stirring rod, glowing cyan discovery elixir, and rising effervescent bubbles.
  *    - Synchronized: when Admissions Open is hovered, elevates (+0.18Y), tilts, liquid radiates discovery glow, and bubbles effervesce faster.
  * 4. "Learn More" is completely detached from 3D motion, maintaining a clean secondary link.
@@ -83,7 +84,7 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
     const isMobile = width < 768;
 
     const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 100);
-    camera.position.z = isMobile ? 6.5 : 5.2;
+    camera.position.z = isMobile ? 5.6 : 5.2;
 
     const renderer = new THREE.WebGLRenderer({
       alpha: true,
@@ -118,7 +119,7 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
     const masterGroup = new THREE.Group();
     scene.add(masterGroup);
 
-    const baseScale = isMobile ? 0.55 : 0.72;
+    const baseScale = isMobile ? 0.65 : 0.72;
     masterGroup.scale.set(baseScale, baseScale, baseScale);
 
     // =========================================================================
@@ -128,11 +129,11 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
     const atomAnchor = new THREE.Group();
     const atomHomePos = {
       x: 0,
-      y: isMobile ? 1.00 : 1.22,
+      y: isMobile ? 0.70 : 1.22,
       z: -0.1
     };
     atomAnchor.position.set(atomHomePos.x, atomHomePos.y, atomHomePos.z);
-    atomAnchor.scale.setScalar(isMobile ? 0.44 : 0.58);
+    atomAnchor.scale.setScalar(isMobile ? 0.52 : 0.58);
 
     const atomInteractiveGroup = new THREE.Group();
     atomAnchor.add(atomInteractiveGroup);
@@ -343,16 +344,18 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
     masterGroup.add(atomAnchor);
 
     // =========================================================================
-    // ASSET 2: OPEN BOOK OF WISDOM (STRICTLY ON LEFT OF "ADMISSIONS OPEN 2026")
+    // ASSET 2: OPEN BOOK OF WISDOM
+    // Desktop: Left of "Admissions Open 2026"
+    // Mobile: Elevated into the left sky flanking the central atom (zero button collision)
     // =========================================================================
     const bookAnchor = new THREE.Group();
     const bookHomePos = {
-      x: isMobile ? -1.60 : -2.35,
-      y: isMobile ? -0.42 : -0.38,
-      z: isMobile ? 0.18 : 0.24
+      x: isMobile ? -1.55 : -2.35,
+      y: isMobile ? 0.66 : -0.38,
+      z: isMobile ? 0.12 : 0.24
     };
     bookAnchor.position.set(bookHomePos.x, bookHomePos.y, bookHomePos.z);
-    bookAnchor.scale.setScalar(isMobile ? 0.34 : 0.44);
+    bookAnchor.scale.setScalar(isMobile ? 0.32 : 0.44);
 
     const bookMeshGroup = new THREE.Group();
     bookMeshGroup.rotation.set(0.38, 0.42, -0.18);
@@ -449,7 +452,6 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
     ribbon.rotation.set(-0.25, 0.15, -0.1);
     bookMeshGroup.add(ribbon);
 
-    // Multi-Leaf Slipping Pages (Arching upward gracefully without turning fully to the left!)
     // Multi-Leaf Slipping Pages (Arching upward gracefully in cascading fan waves)
     const numFlippingLeaves = 6;
     const flippingLeaves = [];
@@ -484,18 +486,20 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
     masterGroup.add(bookAnchor);
 
     // =========================================================================
-    // ASSET 3: SCIENTIFIC LABORATORY FLASK (STRICTLY ON RIGHT OF "LEARN MORE")
+    // ASSET 3: SCIENTIFIC LABORATORY FLASK
+    // Desktop: Right of "Learn More"
+    // Mobile: Elevated into the right sky flanking the central atom (zero button collision)
     // Conical Erlenmeyer Flask of Discovery - Borosilicate glass, volumetric
     // graduations, glowing discovery liquid, glass stirring rod, & rising bubbles.
     // =========================================================================
     const flaskAnchor = new THREE.Group();
     const flaskHomePos = {
-      x: isMobile ? 1.50 : 2.20,
-      y: isMobile ? -0.42 : -0.38,
-      z: isMobile ? 0.15 : 0.20
+      x: isMobile ? 1.55 : 2.20,
+      y: isMobile ? 0.66 : -0.38,
+      z: isMobile ? 0.12 : 0.20
     };
     flaskAnchor.position.set(flaskHomePos.x, flaskHomePos.y, flaskHomePos.z);
-    flaskAnchor.scale.setScalar(isMobile ? 0.34 : 0.44);
+    flaskAnchor.scale.setScalar(isMobile ? 0.32 : 0.44);
 
     const flaskMeshGroup = new THREE.Group();
     flaskMeshGroup.rotation.set(0.22, -0.35, 0.12);
@@ -804,26 +808,26 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
       const mobileNow = newWidth < 768;
 
       camera.aspect = newWidth / newHeight;
-      camera.position.z = mobileNow ? 6.5 : 5.2;
+      camera.position.z = mobileNow ? 5.6 : 5.2;
       camera.updateProjectionMatrix();
 
       renderer.setSize(newWidth, newHeight);
       renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, mobileNow ? 1.5 : 2));
 
-      const newBaseScale = mobileNow ? 0.55 : 0.72;
+      const newBaseScale = mobileNow ? 0.65 : 0.72;
       masterGroup.scale.set(newBaseScale, newBaseScale, newBaseScale);
 
       // Reposition anchors with clean comfortable spacing
-      atomHomePos.y = mobileNow ? 1.00 : 1.22;
-      atomAnchor.scale.setScalar(mobileNow ? 0.44 : 0.58);
+      atomHomePos.y = mobileNow ? 0.70 : 1.22;
+      atomAnchor.scale.setScalar(mobileNow ? 0.52 : 0.58);
 
-      bookHomePos.x = mobileNow ? -1.60 : -2.35;
-      bookHomePos.y = mobileNow ? -0.42 : -0.38;
-      bookAnchor.scale.setScalar(mobileNow ? 0.34 : 0.44);
+      bookHomePos.x = mobileNow ? -1.55 : -2.35;
+      bookHomePos.y = mobileNow ? 0.66 : -0.38;
+      bookAnchor.scale.setScalar(mobileNow ? 0.32 : 0.44);
 
-      flaskHomePos.x = mobileNow ? 1.50 : 2.20;
-      flaskHomePos.y = mobileNow ? -0.42 : -0.38;
-      flaskAnchor.scale.setScalar(mobileNow ? 0.34 : 0.44);
+      flaskHomePos.x = mobileNow ? 1.55 : 2.20;
+      flaskHomePos.y = mobileNow ? 0.66 : -0.38;
+      flaskAnchor.scale.setScalar(mobileNow ? 0.32 : 0.44);
     };
 
     const resizeObserver = new ResizeObserver(handleResize);
@@ -913,20 +917,20 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
 
       // Position and update HTML scientific tooltip card
       // Mobile: Placed strictly ABOVE the globe, minimal and compact
-      // Desktop: Placed to the LEFT or RIGHT based on screen position
+      // Desktop: Placed strictly to the LEFT or RIGHT with 110px clearance (NEVER over the globe)
       if (tooltipEl) {
         if (isAtomHovered) {
-          const isCompactScreen = isMobile || rect.width < 640;
-          const cardWidth = isCompactScreen
-            ? Math.min(270, Math.max(240, rect.width - 24))
-            : Math.min(450, Math.max(390, Math.floor(rect.width * 0.38)));
-          const cardHeight = isCompactScreen ? 44 : 72;
+          const isMobileScreen = rect.width < 768;
+          const cardWidth = isMobileScreen
+            ? Math.min(265, Math.max(235, rect.width - 24))
+            : Math.min(440, Math.max(380, Math.floor(rect.width * 0.38)));
+          const cardHeight = isMobileScreen ? 42 : 72;
 
           let targetX;
           let targetY;
           let pipSide = 'left';
 
-          if (isCompactScreen) {
+          if (isMobileScreen) {
             // =========================================================
             // MOBILE: Placed strictly ABOVE the globe, horizontally centered
             // =========================================================
@@ -936,36 +940,38 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
             targetX = atomScreenX - (cardWidth / 2);
             targetX = Math.max(8, Math.min(targetX, rect.width - cardWidth - 8));
 
-            // Vertically place strictly ABOVE the globe with clearance
-            targetY = atomScreenY - 34 - cardHeight - 8;
+            // Vertically place strictly ABOVE the globe with clean clearance
+            targetY = atomScreenY - 32 - cardHeight - 8;
             targetY = Math.max(6, targetY);
 
           } else {
             // =========================================================
-            // DESKTOP: Placed to the LEFT or RIGHT of the globe
+            // DESKTOP: Placed strictly to the LEFT or RIGHT of the globe
+            // NEVER OVER THE GLOBE — strictly 110px horizontal clearance
             // =========================================================
             const screenCenterX = rect.width * 0.5;
             if (tooltipSide === 'none') {
               tooltipSide = atomScreenX >= screenCenterX ? 'left' : 'right';
-            } else if (tooltipSide === 'left' && atomScreenX < screenCenterX - 24) {
+            } else if (tooltipSide === 'left' && atomScreenX < screenCenterX - 28) {
               tooltipSide = 'right';
-            } else if (tooltipSide === 'right' && atomScreenX > screenCenterX + 24) {
+            } else if (tooltipSide === 'right' && atomScreenX > screenCenterX + 28) {
               tooltipSide = 'left';
             }
 
+            const desktopClearance = 110;
             if (tooltipSide === 'left') {
               // Atom is on the RIGHT side of the screen -> Show tooltip on the LEFT of the atom!
               pipSide = 'right';
-              targetX = atomScreenX - cardWidth - 45;
-              targetX = Math.max(12, Math.min(targetX, rect.width - cardWidth - 12));
+              targetX = atomScreenX - cardWidth - desktopClearance;
+              targetX = Math.max(16, Math.min(targetX, rect.width - cardWidth - 16));
             } else {
               // Atom is on the LEFT side of the screen -> Show tooltip on the RIGHT of the atom!
               pipSide = 'left';
-              targetX = atomScreenX + 45;
-              targetX = Math.max(12, Math.min(targetX, rect.width - cardWidth - 12));
+              targetX = atomScreenX + desktopClearance;
+              targetX = Math.max(16, Math.min(targetX, rect.width - cardWidth - 16));
             }
 
-            const minY = 8;
+            const minY = 12;
             const maxY = Math.max(minY, rect.height - cardHeight - 75);
             targetY = atomScreenY - (cardHeight / 2);
             targetY = Math.max(minY, Math.min(targetY, maxY));
@@ -1006,17 +1012,19 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
       }
 
       // Slow down traversal when inspecting atom on hover
-      const traversalSpeed = isAtomHovered ? 0.08 : 0.40;
+      const traversalSpeed = isAtomHovered ? 0.08 : 0.38;
       atomPatrolCycle += delta * traversalSpeed * speedMult;
 
-      // Full horizontal sweep width covering the motto text end to end
-      const sweepWidth = isMobile ? 1.85 : 2.90;
+      const isMobileScreen = rect.width < 768;
+      // On mobile: gentle central hover drift (±0.32) so it stays centered between Book and Flask
+      // On desktop: wide majestic sweep across the sky (±2.80)
+      const sweepWidth = isMobileScreen ? 0.32 : 2.80;
       const normalSweepX = Math.sin(atomPatrolCycle) * sweepWidth;
-      const normalSweepY = Math.cos(atomPatrolCycle * 2) * 0.08;
+      const normalSweepY = Math.cos(atomPatrolCycle * 2) * (isMobileScreen ? 0.04 : 0.08);
 
       // Interactive mouse influence added to the normal route
-      const mouseInfluenceX = mouseNormX * (isMobile ? 0.6 : 0.9);
-      const mouseInfluenceY = -mouseNormY * (isMobile ? 0.35 : 0.5);
+      const mouseInfluenceX = mouseNormX * (isMobileScreen ? 0.4 : 0.9);
+      const mouseInfluenceY = -mouseNormY * (isMobileScreen ? 0.25 : 0.5);
 
       const targetAtomX = normalSweepX + mouseInfluenceX;
       const targetAtomY = atomHomePos.y + normalSweepY + mouseInfluenceY;
@@ -1335,7 +1343,7 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
               <button
                 type="button"
                 onClick={handleCloseTooltip}
-                className="w-5 h-5 rounded-full bg-white/15 hover:bg-white/30 active:bg-white/40 text-slate-200 hover:text-white flex items-center justify-center text-[10px] font-bold shrink-0 cursor-pointer touch-manipulation transition-colors"
+                className="w-6 h-6 rounded-full bg-white/20 hover:bg-white/35 active:bg-white/50 text-white flex items-center justify-center text-[11px] font-bold shrink-0 cursor-pointer touch-manipulation transition-colors shadow-xs"
                 aria-label="Close details"
               >
                 ✕
