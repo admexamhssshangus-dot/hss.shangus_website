@@ -28,7 +28,7 @@ export const lazyWithChunkRecovery = (importer, chunkKey = 'module') => lazy(asy
       return module;
     } catch (error) {
       const message = String(error?.message || error || '');
-      const isChunkFailure = /ChunkLoadError|Loading chunk|Failed to fetch dynamically imported module/i.test(message);
+      const isChunkFailure = /ChunkLoadError|Loading chunk|Failed to fetch|error loading dynamically imported module|Importing a module script failed|error loading chunk|dynamically imported module|Load failed|Script error|NetworkError/i.test(message);
 
       if (!isChunkFailure || attempt >= 1) {
         let alreadyRetried = false;
@@ -44,6 +44,14 @@ export const lazyWithChunkRecovery = (importer, chunkKey = 'module') => lazy(asy
           } catch (_) {}
           window.location.reload();
           return new Promise(() => {}); // Hold suspense until reload executes
+        }
+        if (isChunkFailure) {
+          try {
+            // Clean retry marker so manual retry doesn't get permanently suppressed
+            if (typeof window !== 'undefined') {
+              sessionStorage.removeItem(retryKey);
+            }
+          } catch (_) {}
         }
         throw error;
       }

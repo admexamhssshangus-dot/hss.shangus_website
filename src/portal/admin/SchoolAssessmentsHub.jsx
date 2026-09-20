@@ -532,9 +532,12 @@ export default function SchoolAssessmentsHub({ allStudents = [], onSwitchToGazet
                   <span className="px-1.5 py-0.5 rounded font-bold bg-teal-50 dark:bg-teal-950/60 text-teal-800 dark:text-teal-300 border border-teal-200 dark:border-teal-800">
                     Biology: {item.biologyDisplayMode === 'separate' ? 'Separate (50M each)' : 'Combined (50M)'}
                   </span>
-                  {item.subjectOverrides && Object.keys(item.subjectOverrides).length > 0 && (
+                  {item.subjectOverrides && typeof item.subjectOverrides === 'object' && Object.keys(item.subjectOverrides).length > 0 && (
                     <span className="px-1.5 py-0.5 rounded font-bold bg-amber-50 dark:bg-amber-950/60 text-amber-900 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
-                      Custom: {Object.entries(item.subjectOverrides).map(([c, o]) => `${o.targetClass && o.targetClass !== 'ALL' ? `${o.targetClass}:` : ''}${o.code || c}(${o.maxMarks}M)`).join(', ')}
+                      Custom: {Object.entries(item.subjectOverrides).map(([c, o]) => {
+                        if (!o || typeof o !== 'object') return `${c}(${o || '?'}M)`;
+                        return `${o.targetClass && o.targetClass !== 'ALL' ? `${o.targetClass}:` : ''}${o.code || c}(${o.maxMarks || '?'}M)`;
+                      }).join(', ')}
                     </span>
                   )}
                 </div>
