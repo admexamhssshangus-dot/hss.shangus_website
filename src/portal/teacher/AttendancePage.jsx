@@ -1,5 +1,5 @@
 import { saveAcademicRecord } from '../../services/academicRecordService';
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Link, useOutletContext } from 'react-router-dom';
 import { ArrowLeft, Save, CheckCircle2, AlertCircle, AlertTriangle, RefreshCw, Plus, Trash2, Calendar, ShieldCheck, Printer, X, FileText, Zap, SlidersHorizontal, ChevronLeft, ChevronRight, Info, User, Wand2, History } from 'lucide-react';
 import SEO from '../../components/SEO';
@@ -455,6 +455,46 @@ function isDocSubjectMatch(dataSubj, targetSubj) {
   return d.includes(t) || t.includes(d);
 }
 
+// Helper: Normalize teacher registered subject string to official MASTER_SUBJECTS code
+function resolveTeacherSubjectCode(rawSubject) {
+  if (!rawSubject) return '';
+  const clean = String(rawSubject).trim();
+  // 1. Direct code match (case-insensitive)
+  const byCode = MASTER_SUBJECTS.find(m => m.code.toLowerCase() === clean.toLowerCase());
+  if (byCode) return byCode.code;
+  // 2. Exact name match
+  const byName = MASTER_SUBJECTS.find(m => m.name.toLowerCase() === clean.toLowerCase());
+  if (byName) return byName.code;
+  // 3. Keyword / prefix matches
+  const lower = clean.toLowerCase();
+  if (lower.includes('chem')) return 'CH';
+  if (lower.includes('phy') && !lower.includes('physical')) return 'PH';
+  if (lower.includes('bot')) return 'BO';
+  if (lower.includes('zoo')) return 'ZO';
+  if (lower.includes('bio')) return 'BI';
+  if (lower.includes('eng')) return 'EN';
+  if (lower.includes('env') || lower.includes('evs')) return 'ES';
+  if (lower.includes('pol')) return 'PS';
+  if (lower.includes('physical') || lower.includes('phe') || lower.includes('p.e') || lower.includes('p.d')) return 'PD';
+  if (lower.includes('comp') || lower.includes('cs')) return 'CS';
+  if (lower.includes('it') || lower.includes('ites')) return 'ITE';
+  if (lower.includes('math')) return 'MA';
+  if (lower.includes('geo')) return 'GG';
+  if (lower.includes('urdu')) return 'UR';
+  if (lower.includes('edu')) return 'ED';
+  if (lower.includes('hist')) return 'HT';
+  if (lower.includes('econ')) return 'EC';
+  if (lower.includes('socio')) return 'SO';
+  if (lower.includes('psy')) return 'PY';
+  if (lower.includes('acc')) return 'AY';
+  if (lower.includes('bus')) return 'BS';
+  if (lower.includes('ent')) return 'EP';
+  if (lower.includes('arab')) return 'AR';
+  if (lower.includes('per')) return 'PE';
+  if (lower.includes('health')) return 'HTC';
+  return '';
+}
+
 const CURRENT_SESSION = '2026';
 
 export default function AttendancePage() {
@@ -463,6 +503,14 @@ export default function AttendancePage() {
   // Tab State: 'mark' | 'holidays'
   const [activeTab] = useState('mark');
   const [isAttendanceOpen, setIsAttendanceOpen] = useState(true);
+
+  // Teacher registered subject resolution
+  const teacherSubjectCode = useMemo(() => {
+    const rawSubj = user?.subject || user?.assignedSubject || user?.teachingSubject || '';
+    return resolveTeacherSubjectCode(rawSubj);
+  }, [user?.subject, user?.assignedSubject, user?.teachingSubject]);
+
+  const hasAutoLoadedSubjectRef = useRef(false);
 
   useEffect(() => {
     loadSiteSettings().then(cfg => {
@@ -487,10 +535,22 @@ export default function AttendancePage() {
     return fallback;
   };
 
-  // Daily Marking Controls with Saved Filter Persistence
+  // Daily Marking Controls with Saved Filter Persistence (under teacher accounts, defaults to assigned subject)
   const [selectedClass, setSelectedClass] = useState(() => getSavedFilter('class', '11th'));
   const [selectedDate, setSelectedDate] = useState(() => toLocalDateKey());
-  const [selectedSubject, setSelectedSubject] = useState(() => getSavedFilter('subject', ''));
+  const [selectedSubject, setSelectedSubject] = useState(() => {
+    const rawSubj = user?.subject || user?.assignedSubject || user?.teachingSubject || '';
+    const initialCode = resolveTeacherSubjectCode(rawSubj);
+    return getSavedFilter('subject', initialCode || '');
+  });
+
+  // Automatically load teacher's assigned subject as default on teacher account
+  useEffect(() => {
+    if (teacherSubjectCode && !hasAutoLoadedSubjectRef.current) {
+      hasAutoLoadedSubjectRef.current = true;
+      setSelectedSubject(teacherSubjectCode);
+    }
+  }, [teacherSubjectCode]);
   const [selectedSession, setSelectedSession] = useState(() => getSavedFilter('session', CURRENT_SESSION));
   const [availableSessions, setAvailableSessions] = useState([CURRENT_SESSION]);
   const [sessionsLoaded, setSessionsLoaded] = useState(false);
@@ -3579,12 +3639,19 @@ function PrintReportModal({ isOpen, onClose, defaultClass, defaultSession, defau
   });
   const [reportClass, setReportClass] = useState(defaultClass || '11th');
   const [reportSession, setReportSession] = useState(defaultSession || CURRENT_SESSION);
-  const [reportSubject, setReportSubject] = useState(defaultSubject || 'BO');
+  const [reportSubject, setReportSubject] = useState(defaultSubject || '');
 
   const [monthlyData, setMonthlyData] = useState({});
   const [internalHolidays, setInternalHolidays] = useState([]);
   const [modalRoster, setModalRoster] = useState(roster || []);
   const [loadingMonthly, setLoadingMonthly] = useState(false);
+
+  // Synchronize modal subject when defaultSubject changes or modal opens
+  useEffect(() => {
+    if (defaultSubject) {
+      setReportSubject(defaultSubject);
+    }
+  }, [defaultSubject, isOpen]);
 
   // Sync / load roster dynamically whenever reportClass or default roster changes
   useEffect(() => {

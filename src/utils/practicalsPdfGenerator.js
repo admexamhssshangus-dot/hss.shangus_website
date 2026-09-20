@@ -7,8 +7,8 @@
  * 3. Individual Work Sheet (Screenshot 5 format): Practical/Viva/Overall subject record.
  */
 
+import { getSubjectMarksConfig, isTeacherSubjectMatch } from './practicalsSettingsManager';
 import { toTitleCase } from './textFormatting';
-import { getSubjectMarksConfig } from './practicalsSettingsManager';
 
 export function numberToWordsInr(num) {
   if (!num || num === 'AB' || num === 'A' || String(num).toUpperCase() === 'ABSENT') return '-';
@@ -1761,6 +1761,7 @@ export function printHistoricalSubmission(item) {
 
 /**
  * Checks whether an evaluation submission document was created by the currently authenticated teacher.
+ * Strictly prevents non-admin teachers from viewing or claiming awards belonging to other faculty.
  */
 export function isSubmissionOwnedByTeacher(item, user, authUser) {
   if (!item) return false;
@@ -1778,39 +1779,44 @@ export function isSubmissionOwnedByTeacher(item, user, authUser) {
   const itemBy = String(item.submittedBy || '').toLowerCase().trim();
   const itemUid = String(item.submittedByUid || item.teacherId || item.userId || item.uid || '').trim();
 
-  // 1. Email match (exact or substring)
-  if (currentEmail) {
-    if (itemEmail && (itemEmail === currentEmail || itemEmail.includes(currentEmail) || currentEmail.includes(itemEmail))) {
-      return true;
-    }
-    if (itemBy && (itemBy === currentEmail || itemBy.includes(currentEmail))) {
-      return true;
-    }
+  // 1. UID match takes highest precedence if both present
+  if (currentUid && itemUid) {
+    if (itemUid === currentUid) return true;
+    return false; // Explicitly different UID
   }
 
-  // 2. UID match
-  if (currentUid && itemUid && itemUid === currentUid) {
-    return true;
-  }
-
-  // 3. Name match (if length >= 3)
-  if (currentName && currentName.length >= 3) {
-    if (itemName && (itemName === currentName || itemName.includes(currentName) || currentName.includes(itemName))) {
+  // 2. Email match (exact)
+  const resolvedItemEmail = itemEmail || (itemBy.includes('@') ? itemBy : '');
+  if (resolvedItemEmail) {
+    if (currentEmail && resolvedItemEmail === currentEmail) {
       return true;
     }
-    if (itemBy && (itemBy === currentName || itemBy.includes(currentName))) {
-      return true;
-    }
+    // Item carries an explicit email of a different teacher — strictly reject!
+    return false;
   }
 
-  // 4. Fallback: If item has no submitter email or name recorded, but registered subject matches teacher
-  if (!itemEmail && !itemName && !itemBy && currentSubject) {
-    const itemSubj = String(item.teacherRegisteredSubject || item.subject || '').toLowerCase().trim();
-    if (itemSubj && (itemSubj === currentSubject || itemSubj.includes(currentSubject) || currentSubject.includes(itemSubj))) {
+  // 3. Name match (only if no explicit email recorded on the item)
+  const resolvedItemName = itemName || (!itemBy.includes('@') ? itemBy : '');
+  if (resolvedItemName && currentName) {
+    const normalize = (n) => n.replace(/^(dr\.|mr\.|mrs\.|ms\.|prof\.|sh\.|sheikh|master)\s+/i, '').trim();
+    const cleanCur = normalize(currentName);
+    const cleanItem = normalize(resolvedItemName);
+    if (cleanCur && cleanItem && cleanCur === cleanItem) {
+      return true;
+    }
+    // Name is explicitly recorded and does not match
+    return false;
+  }
+
+  // 4. Fallback: Only if item has NO submitter identity recorded at all (legacy system imports)
+  if (!resolvedItemEmail && !resolvedItemName && !itemUid && currentSubject) {
+    const itemSubj = String(item.teacherRegisteredSubject || item.subject || item.subjectName || '').toLowerCase().trim();
+    if (itemSubj && isTeacherSubjectMatch(currentSubject, itemSubj)) {
       return true;
     }
   }
 
   return false;
 }
+
 
