@@ -195,9 +195,9 @@ export default function LoginPage() {
     const claims = tokenResult.claims || {};
     const emailLower = String(activeUser?.email || overrideEmail || '').toLowerCase().trim();
     
-    // Resolve role from Firestore permissions & users collection & bootstrap (use cached if available)
+    // Resolve role from Firestore permissions & users collection & bootstrap (force fresh on login)
     const isBootstrapAdmin = (activeUser.emailVerified && isBootstrapSuperAdminEmail(emailLower)) || isBootstrapAdminEmail(emailLower);
-    const staffProfile = cachedStaffProfile || await resolveStaffRoleAndPerms(emailLower);
+    const staffProfile = cachedStaffProfile || await resolveStaffRoleAndPerms(emailLower, true);
 
     const rawRole = staffProfile?.role || 'Student';
 

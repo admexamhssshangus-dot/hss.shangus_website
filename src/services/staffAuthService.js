@@ -121,23 +121,24 @@ export async function resolveStaffRoleAndPerms(emailOrUser, forceFresh = false) 
 
   let profile = null;
 
-  // 2. Check Firestore `users/{user.uid}`
-  if (user?.uid) {
-    try {
-      const uidSnap = await getDoc(doc(db, 'users', user.uid));
-      if (uidSnap.exists()) {
-        const data = uidSnap.data();
-        const rLower = String(data.role || '').toLowerCase().trim();
-        if (rLower && ['teacher', 'faculty', 'admin', 'superadmin'].includes(rLower)) {
-          profile = data;
-        }
+  // 2. Check Firestore `adminSettings/permissions` (Primary Single Source of Truth managed by SuperAdmin)
+  try {
+    const permSnap = await getDoc(doc(db, 'adminSettings', 'permissions'));
+    if (permSnap.exists() && Array.isArray(permSnap.data()?.users)) {
+      const matched = permSnap.data().users.find(u => String(u.email || '').toLowerCase().trim() === email);
+      if (matched) {
+        profile = {
+          ...matched,
+          role: matched.role || 'Admin',
+          perms: Array.isArray(matched.perms) ? matched.perms : ['reports'],
+        };
       }
-    } catch (err) {
-      console.warn('users/{uid} lookup note:', err?.message || err);
     }
+  } catch (err) {
+    console.warn('adminSettings/permissions lookup note:', err?.message || err);
   }
 
-  // 3. Check Firestore `users/{cleanEmail}`
+  // 3. Check Firestore `users/{cleanEmail}` (Direct staff profile synchronized by SuperAdmin)
   if (!profile) {
     try {
       const emailSnap = await getDoc(doc(db, 'users', email));
@@ -153,22 +154,19 @@ export async function resolveStaffRoleAndPerms(emailOrUser, forceFresh = false) 
     }
   }
 
-  // 4. Check Firestore `adminSettings/permissions` (users array)
-  if (!profile) {
+  // 4. Check Firestore `users/{user.uid}` (Fallback for existing accounts not indexed by email)
+  if (!profile && user?.uid) {
     try {
-      const permSnap = await getDoc(doc(db, 'adminSettings', 'permissions'));
-      if (permSnap.exists() && Array.isArray(permSnap.data()?.users)) {
-        const matched = permSnap.data().users.find(u => String(u.email || '').toLowerCase().trim() === email);
-        if (matched) {
-          profile = {
-            ...matched,
-            role: matched.role || 'Admin',
-            perms: matched.perms || ['reports'],
-          };
+      const uidSnap = await getDoc(doc(db, 'users', user.uid));
+      if (uidSnap.exists()) {
+        const data = uidSnap.data();
+        const rLower = String(data.role || '').toLowerCase().trim();
+        if (rLower && ['teacher', 'faculty', 'admin', 'superadmin'].includes(rLower)) {
+          profile = data;
         }
       }
     } catch (err) {
-      console.warn('adminSettings/permissions lookup note:', err?.message || err);
+      console.warn('users/{uid} lookup note:', err?.message || err);
     }
   }
 
@@ -182,7 +180,7 @@ export async function resolveStaffRoleAndPerms(emailOrUser, forceFresh = false) 
           profile = {
             ...matched,
             role: matched.role || 'Admin',
-            perms: matched.perms || ['reports'],
+            perms: Array.isArray(matched.perms) ? matched.perms : ['reports'],
           };
         }
       }
@@ -191,7 +189,27 @@ export async function resolveStaffRoleAndPerms(emailOrUser, forceFresh = false) 
     }
   }
 
-  // 6. Check hardcoded fallback staff profiles or bootstrap admin status
+  // 6. Check Local Storage fallback `hss_admin_users_permissions_v1`
+  if (!profile) {
+    try {
+      const cached = localStorage.getItem('hss_admin_users_permissions_v1');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed)) {
+          const matched = parsed.find(u => String(u.email || '').toLowerCase().trim() === email);
+          if (matched) {
+            profile = {
+              ...matched,
+              role: matched.role || 'Admin',
+              perms: Array.isArray(matched.perms) ? matched.perms : ['reports'],
+            };
+          }
+        }
+      }
+    } catch (_) {}
+  }
+
+  // 7. Check hardcoded fallback staff profiles or bootstrap admin status
   if (!profile && FALLBACK_STAFF_PROFILES[email]) {
     profile = FALLBACK_STAFF_PROFILES[email];
   } else if (!profile && isBootstrapAdminEmail(email)) {
@@ -247,6 +265,8 @@ export async function resolveStaffRoleAndPerms(emailOrUser, forceFresh = false) 
       assignedClasses: resolved.assignedClasses,
       updatedAt: new Date().toISOString(),
     }, { merge: true }).catch(() => {});
+
+    setDoc(doc(db, 'users', email), { uid: user.uid }, { merge: true }).catch(() => {});
   }
 
   staffProfileMemoryCache.set(email, { profile: resolved, cachedAt: Date.now() });
