@@ -66,3 +66,15 @@ src/data/masterSeedData.json
 desktop.ini
 *.ini
 ~$*
+
+# Ignore generated institutional presentation reports, bill annexures, and binary document exports
+*.pdf
+*.docx
+docs/GHSS_Shangus_Platform_Presentation_Principal*
+docs/*_Updated.*
+Inauguration_Presenter_Notes_GHSS_Shangus.pdf
+project_cost_estimate.pdf
+omr_system/*.docx
+omr_system/*.pdf
+omr_system/docs/*.pdf
+
