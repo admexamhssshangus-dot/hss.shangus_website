@@ -32,7 +32,22 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
   const [webGlSupported, setWebGlSupported] = useState(true);
   const [pinnedTooltip, setPinnedTooltip] = useState(false);
   const pinnedTooltipRef = useRef(false);
+  const dismissedRef = useRef(false);
   const hoveredActionRef = useRef(hoveredAction);
+
+  const handleCloseTooltip = (e) => {
+    if (e) {
+      e.stopPropagation();
+      e.preventDefault();
+    }
+    dismissedRef.current = true;
+    setPinnedTooltip(false);
+    pinnedTooltipRef.current = false;
+    if (tooltipRef.current) {
+      tooltipRef.current.style.opacity = '0';
+      tooltipRef.current.style.pointerEvents = 'none';
+    }
+  };
 
   useEffect(() => {
     hoveredActionRef.current = hoveredAction;
@@ -732,6 +747,11 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
     };
 
     const handleContainerClick = (e) => {
+      // If clicked on close button or tooltip itself, let the button handle it
+      if (e.target && e.target.closest && e.target.closest('.hero-3d-tooltip')) {
+        return;
+      }
+
       const rect = container.getBoundingClientRect();
       const clickX = e.clientX - rect.left;
       const clickY = e.clientY - rect.top;
@@ -743,13 +763,32 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
       const atomScreenY = (-projected.y * 0.5 + 0.5) * rect.height;
 
       const dist = Math.hypot(clickX - atomScreenX, clickY - atomScreenY);
-      const threshold = isMobile ? 70 : 95;
+      const threshold = isMobile ? 65 : 90;
       if (dist < threshold) {
+        dismissedRef.current = false;
         setPinnedTooltip((prev) => !prev);
+      } else {
+        // Tapped outside the globe on hero -> close tooltip easily!
+        dismissedRef.current = true;
+        setPinnedTooltip(false);
+        if (tooltipEl) {
+          tooltipEl.style.opacity = '0';
+          tooltipEl.style.pointerEvents = 'none';
+        }
+      }
+    };
+
+    const handlePointerUp = () => {
+      if (!pinnedTooltipRef.current) {
+        clientMouseX = -9999;
+        clientMouseY = -9999;
+        targetMouseX = 0;
+        targetMouseY = 0;
       }
     };
 
     window.addEventListener('pointermove', handlePointerMove, { passive: true });
+    window.addEventListener('pointerup', handlePointerUp, { passive: true });
     if (heroContainerEl && heroContainerEl.addEventListener) {
       heroContainerEl.addEventListener('pointerleave', handlePointerLeave, { passive: true });
       heroContainerEl.addEventListener('click', handleContainerClick);
@@ -859,72 +898,80 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
       const hoverThreshold = isMobile ? 70 : 95;
 
       const isDirectHover = distToAtom < hoverThreshold;
-      isAtomHovered = isDirectHover || isTooltipHovered || pinnedTooltipRef.current;
+      if (dismissedRef.current) {
+        if (!isDirectHover) {
+          dismissedRef.current = false;
+        }
+        isAtomHovered = false;
+      } else {
+        isAtomHovered = isDirectHover || isTooltipHovered || pinnedTooltipRef.current;
+      }
 
       if (heroContainerEl && heroContainerEl.style) {
         heroContainerEl.style.cursor = isDirectHover ? 'pointer' : '';
       }
 
       // Position and update HTML scientific tooltip card
-      // CRITICAL: Dynamically positioned on the LEFT or RIGHT based on atom's position on screen
-      // Must NEVER block the globe (atom) AND NEVER block the Admissions Open 2026 button!
+      // Mobile: Placed strictly ABOVE the globe, minimal and compact
+      // Desktop: Placed to the LEFT or RIGHT based on screen position
       if (tooltipEl) {
         if (isAtomHovered) {
           const isCompactScreen = isMobile || rect.width < 640;
           const cardWidth = isCompactScreen
-            ? Math.min(350, Math.max(280, rect.width - 20))
+            ? Math.min(270, Math.max(240, rect.width - 24))
             : Math.min(450, Math.max(390, Math.floor(rect.width * 0.38)));
-          const cardHeight = 72;
-
-          // Determine whether atom is on left or right of the screen
-          // Use hysteresis (24px deadband) around screen center to avoid jitter
-          const screenCenterX = rect.width * 0.5;
-          if (tooltipSide === 'none') {
-            tooltipSide = atomScreenX >= screenCenterX ? 'left' : 'right';
-          } else if (tooltipSide === 'left' && atomScreenX < screenCenterX - 24) {
-            tooltipSide = 'right';
-          } else if (tooltipSide === 'right' && atomScreenX > screenCenterX + 24) {
-            tooltipSide = 'left';
-          }
+          const cardHeight = isCompactScreen ? 44 : 72;
 
           let targetX;
           let targetY;
           let pipSide = 'left';
 
-          if (tooltipSide === 'left') {
-            // Atom is on the RIGHT side of the screen -> Show tooltip on the LEFT of the atom!
-            pipSide = 'right';
-            if (isCompactScreen) {
-              // Mobile: Anchor cleanly on the left edge
-              targetX = 8;
-            } else {
-              // Desktop: Offset 45px to the left of atom
+          if (isCompactScreen) {
+            // =========================================================
+            // MOBILE: Placed strictly ABOVE the globe, horizontally centered
+            // =========================================================
+            pipSide = 'bottom';
+
+            // Horizontally center above the globe
+            targetX = atomScreenX - (cardWidth / 2);
+            targetX = Math.max(8, Math.min(targetX, rect.width - cardWidth - 8));
+
+            // Vertically place strictly ABOVE the globe with clearance
+            targetY = atomScreenY - 34 - cardHeight - 8;
+            targetY = Math.max(6, targetY);
+
+          } else {
+            // =========================================================
+            // DESKTOP: Placed to the LEFT or RIGHT of the globe
+            // =========================================================
+            const screenCenterX = rect.width * 0.5;
+            if (tooltipSide === 'none') {
+              tooltipSide = atomScreenX >= screenCenterX ? 'left' : 'right';
+            } else if (tooltipSide === 'left' && atomScreenX < screenCenterX - 24) {
+              tooltipSide = 'right';
+            } else if (tooltipSide === 'right' && atomScreenX > screenCenterX + 24) {
+              tooltipSide = 'left';
+            }
+
+            if (tooltipSide === 'left') {
+              // Atom is on the RIGHT side of the screen -> Show tooltip on the LEFT of the atom!
+              pipSide = 'right';
               targetX = atomScreenX - cardWidth - 45;
               targetX = Math.max(12, Math.min(targetX, rect.width - cardWidth - 12));
-            }
-          } else {
-            // Atom is on the LEFT side of the screen -> Show tooltip on the RIGHT of the atom!
-            pipSide = 'left';
-            if (isCompactScreen) {
-              // Mobile: Anchor cleanly on the right edge
-              targetX = Math.max(8, rect.width - cardWidth - 8);
             } else {
-              // Desktop: Offset 45px to the right of atom
+              // Atom is on the LEFT side of the screen -> Show tooltip on the RIGHT of the atom!
+              pipSide = 'left';
               targetX = atomScreenX + 45;
               targetX = Math.max(12, Math.min(targetX, rect.width - cardWidth - 12));
             }
+
+            const minY = 8;
+            const maxY = Math.max(minY, rect.height - cardHeight - 75);
+            targetY = atomScreenY - (cardHeight / 2);
+            targetY = Math.max(minY, Math.min(targetY, maxY));
           }
 
-          // Vertically align with atom, keeping above Admissions button (Y <= rect.height - cardHeight - 65)
-          const minY = 8;
-          const maxY = isCompactScreen
-            ? Math.max(minY, rect.height - cardHeight - 65)
-            : Math.max(minY, rect.height - cardHeight - 75);
-
-          targetY = atomScreenY - (cardHeight / 2);
-          targetY = Math.max(minY, Math.min(targetY, maxY));
-
-          // Smooth interpolation so tooltip slides elegantly when switching sides
+          // Smooth interpolation so tooltip slides elegantly
           if (!wasTooltipActive) {
             currentTooltipX = targetX;
             currentTooltipY = targetY;
@@ -942,10 +989,12 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
           const pipEl = tooltipEl.querySelector('.tooltip-pip');
           if (pipEl) {
             pipEl.style.display = 'block';
-            if (pipSide === 'right') {
-              pipEl.className = 'tooltip-pip absolute w-2 h-2 sm:w-2.5 sm:h-2.5 bg-slate-950 border-cyan-500/50 rotate-45 -right-1 sm:-right-1.5 top-1/2 -translate-y-1/2 border-t border-r shadow-xs';
+            if (pipSide === 'bottom') {
+              pipEl.className = 'tooltip-pip absolute w-2.5 h-2.5 bg-slate-950 border-cyan-500/50 rotate-45 left-1/2 -translate-x-1/2 -bottom-1.5 border-b border-r shadow-xs';
+            } else if (pipSide === 'right') {
+              pipEl.className = 'tooltip-pip absolute w-2.5 h-2.5 bg-slate-950 border-cyan-500/50 rotate-45 -right-1.5 top-1/2 -translate-y-1/2 border-t border-r shadow-xs';
             } else {
-              pipEl.className = 'tooltip-pip absolute w-2 h-2 sm:w-2.5 sm:h-2.5 bg-slate-950 border-cyan-500/50 rotate-45 -left-1 sm:-left-1.5 top-1/2 -translate-y-1/2 border-b border-l shadow-xs';
+              pipEl.className = 'tooltip-pip absolute w-2.5 h-2.5 bg-slate-950 border-cyan-500/50 rotate-45 -left-1.5 top-1/2 -translate-y-1/2 border-b border-l shadow-xs';
             }
           }
         } else {
@@ -1189,6 +1238,7 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
     return () => {
       if (animationFrameId) cancelAnimationFrame(animationFrameId);
       window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', handlePointerUp);
       if (tooltipEl) {
         tooltipEl.removeEventListener('mouseenter', onTooltipEnter);
         tooltipEl.removeEventListener('mouseleave', onTooltipLeave);
@@ -1248,7 +1298,7 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
         }}
       >
         <div
-          className="hero-3d-tooltip relative w-[310px] xs:w-[340px] sm:w-[410px] md:w-[440px] rounded-lg sm:rounded-xl p-1.5 sm:p-2.5 text-left pointer-events-auto ring-1 ring-white/10 shadow-2xl transition-all"
+          className="hero-3d-tooltip relative w-[256px] xs:w-[270px] sm:w-[410px] md:w-[440px] rounded-lg sm:rounded-xl p-1.5 sm:p-2.5 text-left pointer-events-auto ring-1 ring-white/10 shadow-2xl transition-all"
           style={{
             backgroundColor: 'rgba(10, 15, 30, 0.96)',
             borderColor: 'rgba(6, 182, 212, 0.5)',
@@ -1258,109 +1308,149 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
           {/* Top glowing accent hairline */}
           <div className="absolute top-0 inset-x-2 sm:inset-x-3 h-[1.5px] sm:h-[2px] bg-gradient-to-r from-cyan-400 via-amber-400 to-emerald-400 rounded-full" />
           
-          {/* Compact Slim Header */}
-          <div className="flex items-center justify-between gap-1 pb-1 mb-1 sm:mb-1.5 border-b border-slate-700/60">
-            <div className="flex items-center gap-1 sm:gap-1.5">
-              <span
-                className="w-4 h-4 sm:w-5 sm:h-5 rounded flex items-center justify-center font-bold text-[8.5px] sm:text-[10px] shadow-xs font-mono shrink-0"
-                style={{
-                  backgroundColor: 'rgba(6, 182, 212, 0.2)',
-                  borderColor: 'rgba(56, 189, 248, 0.5)',
-                  color: '#38bdf8'
-                }}
-              >
-                ₆C
-              </span>
-              <div className="flex items-baseline gap-1 sm:gap-2">
-                <h4 className="font-bold text-[9px] sm:text-xs tracking-wide leading-none font-heading" style={{ color: '#ffffff' }}>
-                  Carbon-12 Structure
-                </h4>
-                <span className="text-[7.5px] sm:text-[9px] font-mono leading-none" style={{ color: '#38bdf8' }}>
-                  6p 6n • K(2) L(4)
+          {/* ============================================================
+              1. MOBILE VIEW: Ultra-compact, minimal design (~42px tall)
+              Placed directly ABOVE the globe
+              ============================================================ */}
+          <div className="sm:hidden flex flex-col gap-1">
+            <div className="flex items-center justify-between gap-1">
+              <div className="flex items-center gap-1 min-w-0">
+                <span
+                  className="w-4 h-4 rounded flex items-center justify-center font-bold text-[8px] font-mono shrink-0"
+                  style={{
+                    backgroundColor: 'rgba(6, 182, 212, 0.25)',
+                    borderColor: 'rgba(56, 189, 248, 0.5)',
+                    color: '#38bdf8'
+                  }}
+                >
+                  ₆C
+                </span>
+                <span className="font-bold text-[9.5px] font-heading text-white truncate">
+                  Carbon-12
+                </span>
+                <span className="text-[7.5px] font-mono text-cyan-400">
+                  6p 6n • K2 L4
                 </span>
               </div>
+              <button
+                type="button"
+                onClick={handleCloseTooltip}
+                className="w-5 h-5 rounded-full bg-white/15 hover:bg-white/30 active:bg-white/40 text-slate-200 hover:text-white flex items-center justify-center text-[10px] font-bold shrink-0 cursor-pointer touch-manipulation transition-colors"
+                aria-label="Close details"
+              >
+                ✕
+              </button>
             </div>
-            <button
-              type="button"
-              onClick={() => {
-                setPinnedTooltip(false);
-                if (tooltipRef.current) {
-                  tooltipRef.current.style.opacity = '0';
-                  tooltipRef.current.style.pointerEvents = 'none';
-                }
-              }}
-              className="text-slate-400 hover:text-white p-0.5 rounded text-[10px] sm:text-xs sm:hidden leading-none cursor-pointer"
-              aria-label="Close details"
-            >
-              ✕
-            </button>
+            {/* Minimal telemetry chips row */}
+            <div className="flex items-center justify-between gap-1 text-[7.5px] leading-tight pt-0.5 border-t border-slate-700/60">
+              <span className="text-cyan-300">⚛️ 6p+6n core</span>
+              <span className="text-slate-600">•</span>
+              <span className="text-amber-300">🏫 Shangus Seal</span>
+              <span className="text-slate-600">•</span>
+              <span className="text-emerald-300 truncate">🌌 Motto</span>
+            </div>
           </div>
 
-          {/* 3-Column Layout: Minimal Vertical Height, Superior Readability */}
-          <div className="grid grid-cols-3 gap-1 sm:gap-1.5">
-            {/* Column 1: Carbon Core */}
-            <div
-              className="tooltip-col rounded p-1 sm:p-1.5 border flex flex-col justify-between"
-              style={{
-                backgroundColor: 'rgba(15, 23, 42, 0.88)',
-                borderColor: 'rgba(51, 65, 85, 0.8)'
-              }}
-            >
-              <div className="flex items-center gap-0.5 sm:gap-1">
-                <span className="text-[9px] sm:text-xs shrink-0">⚛️</span>
-                <span className="font-bold text-[8px] sm:text-[9.5px] truncate" style={{ color: '#38bdf8' }}>
-                  Carbon Core
+          {/* ============================================================
+              2. DESKTOP VIEW: 3-Column Horizontal Layout
+              Placed to the left or right of the globe
+              ============================================================ */}
+          <div className="hidden sm:block">
+            {/* Compact Slim Header */}
+            <div className="flex items-center justify-between gap-1 pb-1 mb-1.5 border-b border-slate-700/60">
+              <div className="flex items-center gap-1.5">
+                <span
+                  className="w-5 h-5 rounded flex items-center justify-center font-bold text-[10px] shadow-xs font-mono shrink-0"
+                  style={{
+                    backgroundColor: 'rgba(6, 182, 212, 0.2)',
+                    borderColor: 'rgba(56, 189, 248, 0.5)',
+                    color: '#38bdf8'
+                  }}
+                >
+                  ₆C
                 </span>
+                <div className="flex items-baseline gap-2">
+                  <h4 className="font-bold text-xs tracking-wide leading-none font-heading" style={{ color: '#ffffff' }}>
+                    Carbon-12 Structure
+                  </h4>
+                  <span className="text-[9px] font-mono leading-none" style={{ color: '#38bdf8' }}>
+                    6p 6n • K(2) L(4)
+                  </span>
+                </div>
               </div>
-              <p className="tooltip-body-text text-[7px] sm:text-[8.5px] leading-tight mt-0.5" style={{ color: '#f8fafc' }}>
-                <span className="sm:hidden">6p+6n; 2+4 valence e⁻.</span>
-                <span className="hidden sm:inline">6p+6n core; 2 inner + 4 outer valence e⁻.</span>
-              </p>
+              <button
+                type="button"
+                onClick={handleCloseTooltip}
+                className="w-5 h-5 rounded-full bg-white/10 hover:bg-white/25 text-slate-300 hover:text-white flex items-center justify-center text-xs font-bold shrink-0 cursor-pointer transition-colors"
+                aria-label="Close details"
+              >
+                ✕
+              </button>
             </div>
 
-            {/* Column 2: School Seal Nucleus */}
-            <div
-              className="tooltip-col rounded p-1 sm:p-1.5 border flex flex-col justify-between"
-              style={{
-                backgroundColor: 'rgba(15, 23, 42, 0.88)',
-                borderColor: 'rgba(51, 65, 85, 0.8)'
-              }}
-            >
-              <div className="flex items-center gap-0.5 sm:gap-1">
-                <span className="text-[9px] sm:text-xs shrink-0">🏫</span>
-                <span className="font-bold text-[8px] sm:text-[9.5px] truncate" style={{ color: '#fbbf24' }}>
-                  Shangus Seal
-                </span>
+            {/* 3-Column Layout */}
+            <div className="grid grid-cols-3 gap-1.5">
+              {/* Column 1: Carbon Core */}
+              <div
+                className="tooltip-col rounded p-1.5 border flex flex-col justify-between"
+                style={{
+                  backgroundColor: 'rgba(15, 23, 42, 0.88)',
+                  borderColor: 'rgba(51, 65, 85, 0.8)'
+                }}
+              >
+                <div className="flex items-center gap-1">
+                  <span className="text-xs shrink-0">⚛️</span>
+                  <span className="font-bold text-[9.5px] truncate" style={{ color: '#38bdf8' }}>
+                    Carbon Core
+                  </span>
+                </div>
+                <p className="tooltip-body-text text-[8.5px] leading-tight mt-0.5" style={{ color: '#f8fafc' }}>
+                  6p+6n core; 2 inner + 4 outer valence e⁻.
+                </p>
               </div>
-              <p className="tooltip-body-text text-[7px] sm:text-[8.5px] leading-tight mt-0.5" style={{ color: '#f8fafc' }}>
-                <span className="sm:hidden">HSS Shangus core seal.</span>
-                <span className="hidden sm:inline">HSS Shangus seal — wisdom & discipline.</span>
-              </p>
-            </div>
 
-            {/* Column 3: School Theme */}
-            <div
-              className="tooltip-col rounded p-1 sm:p-1.5 border flex flex-col justify-between"
-              style={{
-                backgroundColor: 'rgba(15, 23, 42, 0.88)',
-                borderColor: 'rgba(51, 65, 85, 0.8)'
-              }}
-            >
-              <div className="flex items-center gap-0.5 sm:gap-1">
-                <span className="text-[9px] sm:text-xs shrink-0">🌌</span>
-                <span className="font-bold text-[8px] sm:text-[9.5px] truncate" style={{ color: '#34d399' }}>
-                  School Motto
-                </span>
+              {/* Column 2: School Seal Nucleus */}
+              <div
+                className="tooltip-col rounded p-1.5 border flex flex-col justify-between"
+                style={{
+                  backgroundColor: 'rgba(15, 23, 42, 0.88)',
+                  borderColor: 'rgba(51, 65, 85, 0.8)'
+                }}
+              >
+                <div className="flex items-center gap-1">
+                  <span className="text-xs shrink-0">🏫</span>
+                  <span className="font-bold text-[9.5px] truncate" style={{ color: '#fbbf24' }}>
+                    Shangus Seal
+                  </span>
+                </div>
+                <p className="tooltip-body-text text-[8.5px] leading-tight mt-0.5" style={{ color: '#f8fafc' }}>
+                  HSS Shangus seal — wisdom & discipline.
+                </p>
               </div>
-              <p className="tooltip-body-text text-[7px] sm:text-[8.5px] leading-tight mt-0.5" style={{ color: '#f8fafc' }}>
-                <span className="sm:hidden">"nurturing minds..."</span>
-                <span className="hidden sm:inline">"nurturing minds, shaping futures".</span>
-              </p>
+
+              {/* Column 3: School Theme */}
+              <div
+                className="tooltip-col rounded p-1.5 border flex flex-col justify-between"
+                style={{
+                  backgroundColor: 'rgba(15, 23, 42, 0.88)',
+                  borderColor: 'rgba(51, 65, 85, 0.8)'
+                }}
+              >
+                <div className="flex items-center gap-1">
+                  <span className="text-xs shrink-0">🌌</span>
+                  <span className="font-bold text-[9.5px] truncate" style={{ color: '#34d399' }}>
+                    School Motto
+                  </span>
+                </div>
+                <p className="tooltip-body-text text-[8.5px] leading-tight mt-0.5" style={{ color: '#f8fafc' }}>
+                  "nurturing minds, shaping futures".
+                </p>
+              </div>
             </div>
           </div>
 
           {/* Directional indicator pip */}
-          <div className="tooltip-pip absolute w-2 h-2 sm:w-2.5 sm:h-2.5 bg-slate-950 border-cyan-500/50 rotate-45 -left-1 sm:-left-1.5 top-1/2 -translate-y-1/2 border-b border-l shadow-xs" />
+          <div className="tooltip-pip absolute w-2.5 h-2.5 bg-slate-950 border-cyan-500/50 rotate-45 -left-1.5 top-1/2 -translate-y-1/2 border-b border-l shadow-xs" />
         </div>
       </div>
     </div>
