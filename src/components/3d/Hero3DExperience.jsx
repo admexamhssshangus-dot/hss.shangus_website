@@ -28,12 +28,19 @@ import * as THREE from 'three';
  */
 export default function Hero3DExperience({ className = '', hoveredAction = null }) {
   const containerRef = useRef(null);
+  const tooltipRef = useRef(null);
   const [webGlSupported, setWebGlSupported] = useState(true);
+  const [pinnedTooltip, setPinnedTooltip] = useState(false);
+  const pinnedTooltipRef = useRef(false);
   const hoveredActionRef = useRef(hoveredAction);
 
   useEffect(() => {
     hoveredActionRef.current = hoveredAction;
   }, [hoveredAction]);
+
+  useEffect(() => {
+    pinnedTooltipRef.current = pinnedTooltip;
+  }, [pinnedTooltip]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -369,7 +376,7 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
     const carbonLabelMat = new THREE.SpriteMaterial({
       map: carbonLabelTexture,
       transparent: true,
-      opacity: 0.92,
+      opacity: 0.0,
       depthWrite: false
     });
     const carbonLabelSprite = new THREE.Sprite(carbonLabelMat);
@@ -743,13 +750,28 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
     let mouseNormY = 0;
     let targetMouseX = 0;
     let targetMouseY = 0;
+    let clientMouseX = -9999;
+    let clientMouseY = -9999;
+    let isAtomHovered = false;
+    let isTooltipHovered = false;
 
     const heroContainerEl = container.closest('.hero-container') || container.parentElement || window;
+    const tooltipEl = tooltipRef.current;
+
+    const onTooltipEnter = () => { isTooltipHovered = true; };
+    const onTooltipLeave = () => { isTooltipHovered = false; };
+    if (tooltipEl) {
+      tooltipEl.addEventListener('mouseenter', onTooltipEnter);
+      tooltipEl.addEventListener('mouseleave', onTooltipLeave);
+    }
 
     const handlePointerMove = (e) => {
       const clientX = e.clientX ?? (e.touches && e.touches[0]?.clientX);
       const clientY = e.clientY ?? (e.touches && e.touches[0]?.clientY);
       if (clientX === undefined || clientY === undefined) return;
+
+      clientMouseX = clientX;
+      clientMouseY = clientY;
 
       const rect = container.getBoundingClientRect();
       if (rect.width > 0 && rect.height > 0) {
@@ -762,13 +784,34 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
     };
 
     const handlePointerLeave = () => {
+      clientMouseX = -9999;
+      clientMouseY = -9999;
       targetMouseX = 0;
       targetMouseY = 0;
+    };
+
+    const handleContainerClick = (e) => {
+      const rect = container.getBoundingClientRect();
+      const clickX = e.clientX - rect.left;
+      const clickY = e.clientY - rect.top;
+
+      const atomWorldPos = new THREE.Vector3();
+      atomAnchor.getWorldPosition(atomWorldPos);
+      const projected = atomWorldPos.clone().project(camera);
+      const atomScreenX = (projected.x * 0.5 + 0.5) * rect.width;
+      const atomScreenY = (-projected.y * 0.5 + 0.5) * rect.height;
+
+      const dist = Math.hypot(clickX - atomScreenX, clickY - atomScreenY);
+      const threshold = isMobile ? 70 : 95;
+      if (dist < threshold) {
+        setPinnedTooltip((prev) => !prev);
+      }
     };
 
     window.addEventListener('pointermove', handlePointerMove, { passive: true });
     if (heroContainerEl && heroContainerEl.addEventListener) {
       heroContainerEl.addEventListener('pointerleave', handlePointerLeave, { passive: true });
+      heroContainerEl.addEventListener('click', handleContainerClick);
     }
 
     // =========================================================================
@@ -855,12 +898,59 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
       mouseNormX += (targetMouseX - mouseNormX) * 0.06;
       mouseNormY += (targetMouseY - mouseNormY) * 0.06;
 
-      // -----------------------------------------------------------------------
-      // 8A. CARBON ATOM: END-TO-END ROUTE OVER "NURTURING MINDS, SHAPING FUTURES"
-      // Traverses continuously from the left end ("nurturing") to right end ("futures")
-      // and combines with interactive mouse tracking & aerodynamic banking!
-      // -----------------------------------------------------------------------
-      atomPatrolCycle += delta * 0.40 * speedMult;
+      // Calculate atom screen coordinates for hover collision & tooltip tracking
+      const atomWorldPos = new THREE.Vector3();
+      atomAnchor.getWorldPosition(atomWorldPos);
+      const projected = atomWorldPos.clone().project(camera);
+      const rect = container.getBoundingClientRect();
+      const atomScreenX = (projected.x * 0.5 + 0.5) * rect.width;
+      const atomScreenY = (-projected.y * 0.5 + 0.5) * rect.height;
+
+      const mouseRelX = clientMouseX - rect.left;
+      const mouseRelY = clientMouseY - rect.top;
+      const distToAtom = Math.hypot(mouseRelX - atomScreenX, mouseRelY - atomScreenY);
+      const hoverThreshold = isMobile ? 70 : 95;
+
+      const isDirectHover = distToAtom < hoverThreshold;
+      isAtomHovered = isDirectHover || isTooltipHovered || pinnedTooltipRef.current;
+
+      if (heroContainerEl && heroContainerEl.style) {
+        heroContainerEl.style.cursor = isDirectHover ? 'pointer' : '';
+      }
+
+      // 3D HUD label appears on hover along with tooltip
+      const targetLabelOpacity = isAtomHovered ? (0.90 + Math.sin(time * 0.003 * speedMult) * 0.08) : 0.0;
+      carbonLabelMat.opacity += (targetLabelOpacity - carbonLabelMat.opacity) * 0.14;
+
+      // Position and update HTML scientific tooltip card
+      if (tooltipEl) {
+        if (isAtomHovered) {
+          const cardWidth = isMobile ? 310 : 380;
+          const cardHeight = isMobile ? 260 : 250;
+
+          let targetX = atomScreenX - (cardWidth / 2);
+          targetX = Math.max(12, Math.min(targetX, rect.width - cardWidth - 12));
+
+          let targetY;
+          if (atomScreenY > cardHeight + 40) {
+            targetY = atomScreenY - cardHeight - 35;
+          } else {
+            targetY = atomScreenY + 45;
+          }
+          targetY = Math.max(10, Math.min(targetY, rect.height - cardHeight - 10));
+
+          tooltipEl.style.transform = `translate3d(${Math.round(targetX)}px, ${Math.round(targetY)}px, 0)`;
+          tooltipEl.style.opacity = '1';
+          tooltipEl.style.pointerEvents = 'auto';
+        } else {
+          tooltipEl.style.opacity = '0';
+          tooltipEl.style.pointerEvents = 'none';
+        }
+      }
+
+      // Slow down traversal when inspecting atom on hover
+      const traversalSpeed = isAtomHovered ? 0.08 : 0.40;
+      atomPatrolCycle += delta * traversalSpeed * speedMult;
 
       // Full horizontal sweep width covering the motto text end to end
       const sweepWidth = isMobile ? 1.85 : 2.90;
@@ -920,9 +1010,6 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
       ringV3.rotation.z += 0.17 * delta * speedMult;
       ringV4.rotation.z -= 0.19 * delta * speedMult;
       innerRing.rotation.z += 0.35 * delta * speedMult;
-
-      // Holographic shimmer pulse for Carbon HUD label
-      carbonLabelMat.opacity = 0.86 + Math.sin(time * 0.002 * speedMult) * 0.08;
 
       // -----------------------------------------------------------------------
       // 8B. BOOK: ENHANCED HOVER RESPONSIVE CELEBRATION
@@ -1070,8 +1157,13 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
     return () => {
       if (animationFrameId) cancelAnimationFrame(animationFrameId);
       window.removeEventListener('pointermove', handlePointerMove);
+      if (tooltipEl) {
+        tooltipEl.removeEventListener('mouseenter', onTooltipEnter);
+        tooltipEl.removeEventListener('mouseleave', onTooltipLeave);
+      }
       if (heroContainerEl && heroContainerEl.removeEventListener) {
         heroContainerEl.removeEventListener('pointerleave', handlePointerLeave);
+        heroContainerEl.removeEventListener('click', handleContainerClick);
       }
       resizeObserver.disconnect();
       intersectionObserver.disconnect();
@@ -1111,6 +1203,88 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
       aria-hidden="true"
       className={`hero-3d-canvas-container absolute inset-0 w-full h-full pointer-events-none z-10 overflow-hidden ${className}`}
       style={{ opacity: 0.94 }}
-    />
+    >
+      {/* Interactive Carbon Atom & School Seal Scientific Tooltip Card */}
+      <div
+        ref={tooltipRef}
+        role="tooltip"
+        aria-hidden={!pinnedTooltip}
+        className="absolute transition-opacity duration-300 pointer-events-none opacity-0 z-30"
+        style={{
+          top: 0,
+          left: 0,
+          transform: 'translate3d(-9999px, -9999px, 0)'
+        }}
+      >
+        <div className="relative w-[310px] sm:w-[380px] bg-slate-900/95 backdrop-blur-xl border border-cyan-500/40 rounded-2xl shadow-2xl shadow-cyan-950/70 p-3.5 sm:p-4 text-left pointer-events-auto text-slate-100 ring-1 ring-white/10">
+          {/* Top glowing accent hairline */}
+          <div className="absolute top-0 inset-x-4 h-[2px] bg-gradient-to-r from-cyan-400 via-amber-400 to-sky-400 rounded-full" />
+          
+          {/* Header */}
+          <div className="flex items-center justify-between gap-2 pb-2 mb-2 border-b border-slate-700/60">
+            <div className="flex items-center gap-2">
+              <span className="w-7 h-7 rounded-lg bg-cyan-500/20 border border-cyan-400/40 flex items-center justify-center text-cyan-300 font-bold text-xs sm:text-sm shadow-xs shadow-cyan-500/30 font-mono">
+                ₆C
+              </span>
+              <div>
+                <h4 className="font-bold text-white text-xs sm:text-sm tracking-wide flex items-center gap-1.5 leading-tight font-heading">
+                  Carbon-12 Atom Orbitals
+                </h4>
+                <span className="text-[10px] text-cyan-300/90 font-mono tracking-wider">
+                  Atomic Number: Z = 6
+                </span>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setPinnedTooltip(false);
+                if (tooltipRef.current) {
+                  tooltipRef.current.style.opacity = '0';
+                  tooltipRef.current.style.pointerEvents = 'none';
+                }
+              }}
+              className="text-slate-400 hover:text-white p-1 rounded-md text-xs sm:hidden"
+              aria-label="Close details"
+            >
+              ✕
+            </button>
+          </div>
+
+          {/* 3 Detail Blocks */}
+          <div className="space-y-2 text-[11px] sm:text-xs text-slate-300 leading-relaxed">
+            {/* 1. Carbon */}
+            <div className="bg-slate-800/60 rounded-lg p-2 border border-slate-700/50">
+              <div className="font-semibold text-cyan-300 flex items-center gap-1 text-[11.5px] mb-0.5">
+                <span>⚛️</span> The Carbon Atom of Life
+              </div>
+              <p className="text-slate-300/95 text-[10.5px] sm:text-[11px]">
+                Six electrons in exact quantum orbitals: 2 inner <code className="text-amber-300 bg-amber-950/60 px-1 py-0.5 rounded font-mono">1s²</code> paired core electrons and 4 outer valence <code className="text-cyan-300 bg-cyan-950/60 px-1 py-0.5 rounded font-mono">sp³</code> electrons. As the elemental building block of organic life, Carbon embodies adaptability and diamond-like strength achieved through perseverance.
+              </p>
+            </div>
+
+            {/* 2. School Logo */}
+            <div className="bg-slate-800/60 rounded-lg p-2 border border-slate-700/50">
+              <div className="font-semibold text-amber-300 flex items-center gap-1 text-[11.5px] mb-0.5">
+                <span>🏫</span> HSS Shangus Institutional Nucleus
+              </div>
+              <p className="text-slate-300/95 text-[10.5px] sm:text-[11px]">
+                Enshrined at the atomic nucleus is the official seal of Govt. Higher Secondary School Shangus — the moral and academic core from which curiosity, discipline, and scientific wonder radiate.
+              </p>
+            </div>
+
+            {/* 3. Overall Theme */}
+            <div className="bg-slate-800/60 rounded-lg p-2 border border-slate-700/50">
+              <div className="font-semibold text-emerald-300 flex items-center gap-1 text-[11.5px] mb-0.5">
+                <span>🌌</span> Overall Educational Theme
+              </div>
+              <p className="text-slate-300/95 text-[10.5px] sm:text-[11px]">
+                Patrolling end-to-end over <em className="text-white not-italic font-semibold font-slogan">"nurturing minds, shaping futures"</em>, this asset unites natural science with human potential, reminding every student that learning transforms elemental sparks into brilliant futures.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
