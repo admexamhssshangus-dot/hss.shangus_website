@@ -20,6 +20,7 @@ import AdminToolsDropdown from './AdminToolsDropdown';
 import BulkFieldOverwriteModal from './BulkFieldOverwriteModal';
 import MasterRegisterQuickEditModal from './MasterRegisterQuickEditModal';
 import SessionArchivalModal from './SessionArchivalModal';
+import GoogleContactsExportModal from './GoogleContactsExportModal';
 import { loadSiteSettings } from '../../utils/settingsLoader';
 import { moveToRecycleBin } from '../../services/recycleBinService';
 import { logAdminActivity } from '../../services/adminActivityLogger';
@@ -1178,6 +1179,7 @@ function MoreActionsDropdown({
   setShowColumnManager,
   onPrint,
   onExportCSV,
+  onExportGoogleContacts,
   onSync,
   onOpenRecycleBin,
   unreadRecycleBinCount = 0,
@@ -1304,6 +1306,17 @@ function MoreActionsDropdown({
             <FileSpreadsheet size={12} className="sm:w-3.5 sm:h-3.5 shrink-0" />
             <span>Export to Excel (.xlsx)</span>
           </button>
+
+          {onExportGoogleContacts && (
+            <button
+              type="button"
+              onClick={() => { onExportGoogleContacts(); setIsOpen(false); }}
+              className="w-full text-left px-1.5 sm:px-2.5 py-1 sm:py-1.5 rounded-lg sm:rounded-xl hover:bg-emerald-50/70 dark:hover:bg-emerald-950/40 flex items-center gap-1.5 sm:gap-2 text-emerald-700 dark:text-emerald-400 font-bold sm:font-extrabold text-[10.5px] sm:text-xs cursor-pointer transition-colors"
+            >
+              <Users size={12} className="sm:w-3.5 sm:h-3.5 shrink-0" />
+              <span>Export Google Contacts CSV</span>
+            </button>
+          )}
 
           <button
             type="button"
@@ -6000,6 +6013,8 @@ export default function AdvancedReports({
   const [bulkOverwriteMode, setBulkOverwriteMode] = useState('overwrite');
   const [quickEditMasterStudent, setQuickEditMasterStudent] = useState(null);
   const [showArchivalModal, setShowArchivalModal] = useState(false);
+  const [showGoogleContactsModal, setShowGoogleContactsModal] = useState(false);
+  const [googleContactsInitialIds, setGoogleContactsInitialIds] = useState(null);
   const [dismissRolloverBanner, setDismissRolloverBanner] = useState(false);
   const [siteSettings, setSiteSettings] = useState(null);
   const [hasUnseenToolsUpdate, setHasUnseenToolsUpdate] = useState(false);
@@ -6077,6 +6092,9 @@ export default function AdvancedReports({
       setShowArchivalModal(true);
     } else if (triggerAction === 'recycleBin') {
       setShowRecycleBinModal(true);
+    } else if (triggerAction === 'googleContacts' || triggerAction === 'bulkContacts' || triggerAction === 'contactSaver') {
+      setGoogleContactsInitialIds(null);
+      setShowGoogleContactsModal(true);
     }
     if (onTriggerActionHandled) {
       onTriggerActionHandled();
@@ -11705,6 +11723,10 @@ export default function AdvancedReports({
                   setShowBulkOverwriteModal(true);
                 }}
                 onOpenRecycleBin={() => setShowRecycleBinModal(true)}
+                onOpenGoogleContacts={() => {
+                  setGoogleContactsInitialIds(null);
+                  setShowGoogleContactsModal(true);
+                }}
                 enableQuickCellEdit={enableQuickCellEdit}
                 setEnableQuickCellEdit={setEnableQuickCellEdit}
                 align="right"
@@ -11788,6 +11810,10 @@ export default function AdvancedReports({
               setShowColumnManager={setShowColumnManager}
               onPrint={handlePrintRegister}
               onExportCSV={handleExportCSV}
+              onExportGoogleContacts={() => {
+                setGoogleContactsInitialIds(null);
+                setShowGoogleContactsModal(true);
+              }}
               onSync={async () => {
                 try {
                   if (typeof onSync === 'function') await onSync();
@@ -11852,6 +11878,26 @@ export default function AdvancedReports({
             title="Export photos of the selected applications into a ZIP folder"
           >
             <FolderDown size={12} /> Export Photos ({selectedTableStudents.length})
+          </button>
+
+          <button
+            type="button"
+            disabled={bulkTableActionBusy}
+            onClick={() => {
+              const idSet = new Set();
+              selectedTableStudents.forEach(s => {
+                const id = getExactAdmissionDocId(s) || s.docId || s._docId || s.id || s.formNo || s['Form Number'];
+                if (id) idSet.add(String(id));
+                if (s.formNo) idSet.add(String(s.formNo));
+                if (s['Form Number']) idSet.add(String(s['Form Number']));
+              });
+              setGoogleContactsInitialIds(idSet);
+              setShowGoogleContactsModal(true);
+            }}
+            className="px-2.5 py-1.5 rounded-lg border border-emerald-300 dark:border-emerald-700 bg-emerald-100/70 dark:bg-emerald-950/60 text-emerald-900 dark:text-emerald-200 font-black text-[10px] flex items-center gap-1.5 cursor-pointer disabled:opacity-50 hover:bg-emerald-200/80 transition-colors"
+            title="Bulk export contacts of the selected applications to Google Contacts CSV"
+          >
+            <Users size={12} /> Export Contacts ({selectedTableStudents.length})
           </button>
 
           <button
@@ -12708,6 +12754,7 @@ export default function AdvancedReports({
                 { id: 'photo_export', label: 'Bulk Photo Exporter (ZIP)', icon: Camera },
                 { id: 'photo_manager', label: 'Photo Upload & Sync', icon: Upload },
                 { id: 'db_backup', label: 'Database Backup & Excel', icon: Database },
+                { id: 'google_contacts', label: 'Google Contacts CSV', icon: Users, isAction: true },
               ].map(t => {
                 const Icon = t.icon;
                 const isActive = activeToolsTab === t.id;
@@ -12715,7 +12762,15 @@ export default function AdvancedReports({
                   <button
                     key={t.id}
                     type="button"
-                    onClick={() => setActiveToolsTab(t.id)}
+                    onClick={() => {
+                      if (t.id === 'google_contacts') {
+                        setShowToolsModal(false);
+                        setGoogleContactsInitialIds(null);
+                        setShowGoogleContactsModal(true);
+                      } else {
+                        setActiveToolsTab(t.id);
+                      }
+                    }}
                     className={`py-1.5 px-2 sm:px-2.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap text-[11px] sm:text-xs font-black select-none ${
                       isActive
                         ? 'bg-amber-600 text-white shadow-xs'
@@ -14893,6 +14948,18 @@ export default function AdvancedReports({
           });
           setTimeout(() => setToast(null), 5000);
         }}
+      />
+
+      {/* Google Contacts Bulk CSV Exporter Modal */}
+      <GoogleContactsExportModal
+        isOpen={showGoogleContactsModal}
+        onClose={() => {
+          setShowGoogleContactsModal(false);
+          setGoogleContactsInitialIds(null);
+        }}
+        students={currentAdmissions}
+        initialSelectedIds={googleContactsInitialIds}
+        activeSession={siteSettings?.academicSession || '2025-26'}
       />
 
       {/* Master Registers Indexing & Loading Shield HUD Overlay */}

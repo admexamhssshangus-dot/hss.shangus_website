@@ -7,8 +7,10 @@ import {
 import { db } from '../../services/firebase';
 import { doc, writeBatch } from 'firebase/firestore';
 import { updateCachedItem, invalidateCache, mergeDuplicateStudentApplications, getCachedCollectionSync } from '../../services/dbCache';
+import GoogleContactsExportModal from './GoogleContactsExportModal';
 
-export default function RollNoAssignment({ applications = [], onRefresh }) {
+export default function RollNoAssignment({ applications = [], onRefresh, onOpenGoogleContacts }) {
+  const [showContactsModal, setShowContactsModal] = useState(false);
   const [selectedClass, setSelectedClass] = useState('12th');
   const [selectedSession, setSelectedSession] = useState('All');
   const [selectedStream, setSelectedStream] = useState('All');
@@ -573,6 +575,23 @@ export default function RollNoAssignment({ applications = [], onRefresh }) {
               <span>Save ({stats.changed})</span>
             </button>
           )}
+
+          {/* Google Contacts CSV Export Quick Action */}
+          <button
+            type="button"
+            onClick={() => {
+              if (typeof onOpenGoogleContacts === 'function') {
+                onOpenGoogleContacts();
+              } else {
+                setShowContactsModal(true);
+              }
+            }}
+            className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-black text-xs flex items-center gap-1.5 shadow-2xs cursor-pointer transition-all shrink-0"
+            title="Export student contacts to Google Contacts CSV"
+          >
+            <Users size={12} />
+            <span>Export Contacts</span>
+          </button>
         </div>
       </div>
 
@@ -786,6 +805,14 @@ export default function RollNoAssignment({ applications = [], onRefresh }) {
           <span>Save Roll Numbers ({stats.changed} Changed)</span>
         </button>
       </div>
+
+      {/* Google Contacts Export Modal */}
+      <GoogleContactsExportModal
+        isOpen={showContactsModal}
+        onClose={() => setShowContactsModal(false)}
+        students={effectiveApps}
+        activeSession={selectedSession !== 'All' ? selectedSession : '2025-26'}
+      />
 
     </div>
   );

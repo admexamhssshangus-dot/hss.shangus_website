@@ -111,7 +111,7 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
 
     // Dynamic Book Pages Glow Light (aligned with Book beside slogan)
     const bookLight = new THREE.PointLight(0xfef08a, 0, 3.5);
-    bookLight.position.set(isMobile ? -1.65 : -2.85, isMobile ? 0.28 : 0.24, 0.5);
+    bookLight.position.set(isMobile ? -2.20 : -4.35, isMobile ? 0.30 : 0.24, 0.5);
     scene.add(bookLight);
 
     // Master Group
@@ -348,12 +348,12 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
     // =========================================================================
     const bookAnchor = new THREE.Group();
     const bookHomePos = {
-      x: isMobile ? -1.65 : -2.85,
-      y: isMobile ? 0.28 : 0.24,
+      x: isMobile ? -2.20 : -4.35,
+      y: isMobile ? 0.30 : 0.24,
       z: isMobile ? 0.12 : 0.22
     };
     bookAnchor.position.set(bookHomePos.x, bookHomePos.y, bookHomePos.z);
-    bookAnchor.scale.setScalar(isMobile ? 0.30 : 0.40);
+    bookAnchor.scale.setScalar(isMobile ? 0.28 : 0.38);
 
     const bookMeshGroup = new THREE.Group();
     bookMeshGroup.rotation.set(0.38, 0.42, -0.18);
@@ -491,12 +491,12 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
     // =========================================================================
     const flaskAnchor = new THREE.Group();
     const flaskHomePos = {
-      x: isMobile ? 1.65 : 2.85,
-      y: isMobile ? 0.28 : 0.24,
+      x: isMobile ? 2.20 : 4.35,
+      y: isMobile ? 0.30 : 0.24,
       z: isMobile ? 0.12 : 0.20
     };
     flaskAnchor.position.set(flaskHomePos.x, flaskHomePos.y, flaskHomePos.z);
-    flaskAnchor.scale.setScalar(isMobile ? 0.30 : 0.40);
+    flaskAnchor.scale.setScalar(isMobile ? 0.28 : 0.38);
 
     const flaskMeshGroup = new THREE.Group();
     flaskMeshGroup.rotation.set(0.22, -0.35, 0.12);
@@ -814,17 +814,17 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
       const newBaseScale = mobileNow ? 0.65 : 0.72;
       masterGroup.scale.set(newBaseScale, newBaseScale, newBaseScale);
 
-      // Reposition anchors with clean comfortable spacing
+      // Reposition anchors flanking 'nurturing minds, shaping futures'
       atomHomePos.y = mobileNow ? 0.70 : 1.22;
       atomAnchor.scale.setScalar(mobileNow ? 0.52 : 0.58);
 
-      bookHomePos.x = mobileNow ? -1.55 : -2.35;
-      bookHomePos.y = mobileNow ? 0.66 : -0.38;
-      bookAnchor.scale.setScalar(mobileNow ? 0.32 : 0.44);
+      bookHomePos.x = mobileNow ? -2.20 : -4.35;
+      bookHomePos.y = mobileNow ? 0.30 : 0.24;
+      bookAnchor.scale.setScalar(mobileNow ? 0.28 : 0.38);
 
-      flaskHomePos.x = mobileNow ? 1.55 : 2.20;
-      flaskHomePos.y = mobileNow ? 0.66 : -0.38;
-      flaskAnchor.scale.setScalar(mobileNow ? 0.32 : 0.44);
+      flaskHomePos.x = mobileNow ? 2.20 : 4.35;
+      flaskHomePos.y = mobileNow ? 0.30 : 0.24;
+      flaskAnchor.scale.setScalar(mobileNow ? 0.28 : 0.38);
     };
 
     const resizeObserver = new ResizeObserver(handleResize);

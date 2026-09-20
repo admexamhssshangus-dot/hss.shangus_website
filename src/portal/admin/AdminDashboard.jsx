@@ -697,6 +697,11 @@ export default function AdminDashboard() {
                         setActiveTab('reports');
                         setTriggerAction('boardSync');
                       }}
+                      onOpenGoogleContacts={() => {
+                        setMountedTabs(prev => new Set(prev).add('reports'));
+                        setActiveTab('reports');
+                        setTriggerAction('googleContacts');
+                      }}
                       enableQuickCellEdit={enableQuickCellEdit}
                       setEnableQuickCellEdit={handleToggleQuickCellEdit}
                       align="right"
@@ -897,7 +902,15 @@ export default function AdminDashboard() {
                       style={activeTab === 'rollNo' ? undefined : { display: 'none' }}
                       aria-hidden={activeTab !== 'rollNo'}
                     >
-                      <RollNoAssignment applications={applications} onRefresh={loadAdminData} />
+                      <RollNoAssignment
+                        applications={applications}
+                        onRefresh={loadAdminData}
+                        onOpenGoogleContacts={() => {
+                          setMountedTabs(prev => new Set(prev).add('reports'));
+                          setActiveTab('reports');
+                          setTriggerAction('googleContacts');
+                        }}
+                      />
                     </div>
                   )}
 

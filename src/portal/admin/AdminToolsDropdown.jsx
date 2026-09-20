@@ -4,7 +4,7 @@ import {
   BarChart2, Contact, ShieldCheck, Settings, ClipboardCheck, 
   CalendarCheck, Hash, Layers, Mail, CreditCard, Edit3, PlusCircle, 
   Wrench, Check, ChevronRight, Zap, PanelsTopLeft, FileSpreadsheet, FileText,
-  GitMerge, BookOpen, Award, X, Search, Calculator, Trash2, History
+  GitMerge, BookOpen, Award, X, Search, Calculator, Trash2, History, Users
 } from 'lucide-react';
 import {
   ADMIN_MODULE_CATALOG,
@@ -30,6 +30,7 @@ const MODULE_ICONS = {
   accounts: Calculator,
   cms: PanelsTopLeft,
   boardSync: FileSpreadsheet,
+  googleContacts: Users,
   docStudio: FileSpreadsheet,
   activityAudit: History,
 };
@@ -87,6 +88,7 @@ export default function AdminToolsDropdown({
   onOpenBulkTools,
   onOpenCustomRoster,
   onOpenBoardSync,
+  onOpenGoogleContacts,
   enableQuickCellEdit,
   setEnableQuickCellEdit,
   onPrefetchModule,
@@ -158,7 +160,9 @@ export default function AdminToolsDropdown({
         isActive: activeTab === m.id,
         onMouseEnter: () => onPrefetchModule && onPrefetchModule(m.id),
         onClick: () => {
-          if (m.id === 'boardSync' && onOpenBoardSync) {
+          if (m.id === 'googleContacts' && onOpenGoogleContacts) {
+            onOpenGoogleContacts();
+          } else if (m.id === 'boardSync' && onOpenBoardSync) {
             onOpenBoardSync();
           } else if (setActiveTab) {
             setActiveTab(m.id);

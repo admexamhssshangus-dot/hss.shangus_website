@@ -276,6 +276,18 @@ export const ADMIN_MODULE_CATALOG = Object.freeze([
     isNew: true,
     aliases: ['activityAudit', 'auditLogs', 'activityLogs'],
   },
+  {
+    id: 'googleContacts',
+    label: 'Google Contacts Bulk Exporter',
+    shortLabel: 'Google Contacts',
+    description: 'Bulk export student cohorts to Google Contacts CSV with standard naming & parent records',
+    category: 'Operations & Automation',
+    maturity: 'optimized',
+    maturityNote: 'Full legacy logic ported with board subject abbreviations, 38 Google headers, and 1-click import guide.',
+    launcher: true,
+    isNew: true,
+    aliases: ['googleContacts', 'bulkContacts', 'contactSaver'],
+  },
 
   // CATEGORY 4: Quick Actions & Ingestion Tools (4 Tools)
   {
