@@ -922,9 +922,10 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
         if (isAtomHovered) {
           const isMobileScreen = rect.width < 768;
           const cardWidth = isMobileScreen
-            ? Math.min(265, Math.max(235, rect.width - 24))
+            ? Math.min(295, Math.max(260, rect.width - 20))
             : Math.min(440, Math.max(380, Math.floor(rect.width * 0.38)));
-          const cardHeight = isMobileScreen ? 42 : 72;
+          const measuredHeight = tooltipEl.offsetHeight || (isMobileScreen ? 98 : 72);
+          const cardHeight = measuredHeight;
 
           let targetX;
           let targetY;
@@ -941,7 +942,7 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
             targetX = Math.max(8, Math.min(targetX, rect.width - cardWidth - 8));
 
             // Vertically place strictly ABOVE the globe with clean clearance
-            targetY = atomScreenY - 32 - cardHeight - 8;
+            targetY = atomScreenY - 26 - cardHeight - 8;
             targetY = Math.max(6, targetY);
 
           } else {
@@ -995,12 +996,14 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
           const pipEl = tooltipEl.querySelector('.tooltip-pip');
           if (pipEl) {
             pipEl.style.display = 'block';
+            pipEl.style.backgroundColor = '#0a0f1e';
+            pipEl.style.borderColor = 'rgba(6, 182, 212, 0.5)';
             if (pipSide === 'bottom') {
-              pipEl.className = 'tooltip-pip absolute w-2.5 h-2.5 bg-slate-950 border-cyan-500/50 rotate-45 left-1/2 -translate-x-1/2 -bottom-1.5 border-b border-r shadow-xs';
+              pipEl.className = 'tooltip-pip absolute w-2.5 h-2.5 rotate-45 left-1/2 -translate-x-1/2 -bottom-1.5 border-b border-r shadow-xs';
             } else if (pipSide === 'right') {
-              pipEl.className = 'tooltip-pip absolute w-2.5 h-2.5 bg-slate-950 border-cyan-500/50 rotate-45 -right-1.5 top-1/2 -translate-y-1/2 border-t border-r shadow-xs';
+              pipEl.className = 'tooltip-pip absolute w-2.5 h-2.5 rotate-45 -right-1.5 top-1/2 -translate-y-1/2 border-t border-r shadow-xs';
             } else {
-              pipEl.className = 'tooltip-pip absolute w-2.5 h-2.5 bg-slate-950 border-cyan-500/50 rotate-45 -left-1.5 top-1/2 -translate-y-1/2 border-b border-l shadow-xs';
+              pipEl.className = 'tooltip-pip absolute w-2.5 h-2.5 rotate-45 -left-1.5 top-1/2 -translate-y-1/2 border-b border-l shadow-xs';
             }
           }
         } else {
@@ -1306,7 +1309,7 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
         }}
       >
         <div
-          className="hero-3d-tooltip relative w-[256px] xs:w-[270px] sm:w-[410px] md:w-[440px] rounded-lg sm:rounded-xl p-1.5 sm:p-2.5 text-left pointer-events-auto ring-1 ring-white/10 shadow-2xl transition-all"
+          className="hero-3d-tooltip relative w-[285px] xs:w-[305px] sm:w-[410px] md:w-[440px] max-w-[calc(100vw-16px)] rounded-lg sm:rounded-xl p-2 sm:p-2.5 text-left pointer-events-auto ring-1 ring-white/10 shadow-2xl transition-all"
           style={{
             backgroundColor: 'rgba(10, 15, 30, 0.96)',
             borderColor: 'rgba(6, 182, 212, 0.5)',
@@ -1317,14 +1320,14 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
           <div className="absolute top-0 inset-x-2 sm:inset-x-3 h-[1.5px] sm:h-[2px] bg-gradient-to-r from-cyan-400 via-amber-400 to-emerald-400 rounded-full" />
           
           {/* ============================================================
-              1. MOBILE VIEW: Ultra-compact, minimal design (~42px tall)
+              1. MOBILE VIEW: Paragraph with brief theme meaning
               Placed directly ABOVE the globe
               ============================================================ */}
-          <div className="sm:hidden flex flex-col gap-1">
-            <div className="flex items-center justify-between gap-1">
-              <div className="flex items-center gap-1 min-w-0">
+          <div className="sm:hidden flex flex-col gap-1.5">
+            <div className="flex items-center justify-between gap-1 pb-1 border-b border-slate-700/60">
+              <div className="flex items-center gap-1.5 min-w-0">
                 <span
-                  className="w-4 h-4 rounded flex items-center justify-center font-bold text-[8px] font-mono shrink-0"
+                  className="w-4.5 h-4.5 rounded flex items-center justify-center font-bold text-[8.5px] font-mono shrink-0"
                   style={{
                     backgroundColor: 'rgba(6, 182, 212, 0.25)',
                     borderColor: 'rgba(56, 189, 248, 0.5)',
@@ -1333,30 +1336,27 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
                 >
                   ₆C
                 </span>
-                <span className="font-bold text-[9.5px] font-heading text-white truncate">
-                  Carbon-12
+                <span className="font-bold text-[10.5px] font-heading text-white truncate">
+                  Carbon-12 Structure
                 </span>
-                <span className="text-[7.5px] font-mono text-cyan-400">
+                <span className="text-[8px] font-mono text-cyan-400 shrink-0">
                   6p 6n • K2 L4
                 </span>
               </div>
               <button
                 type="button"
                 onClick={handleCloseTooltip}
-                className="w-6 h-6 rounded-full bg-white/20 hover:bg-white/35 active:bg-white/50 text-white flex items-center justify-center text-[11px] font-bold shrink-0 cursor-pointer touch-manipulation transition-colors shadow-xs"
+                className="w-5.5 h-5.5 rounded-full bg-white/20 hover:bg-white/35 active:bg-white/50 text-white flex items-center justify-center text-[11px] font-bold shrink-0 cursor-pointer touch-manipulation transition-colors shadow-xs"
                 aria-label="Close details"
               >
                 ✕
               </button>
             </div>
-            {/* Minimal telemetry chips row */}
-            <div className="flex items-center justify-between gap-1 text-[7.5px] leading-tight pt-0.5 border-t border-slate-700/60">
-              <span className="text-cyan-300">⚛️ 6p+6n core</span>
-              <span className="text-slate-600">•</span>
-              <span className="text-amber-300">🏫 Shangus Seal</span>
-              <span className="text-slate-600">•</span>
-              <span className="text-emerald-300 truncate">🌌 Motto</span>
-            </div>
+
+            {/* Meaningful Theme Paragraph */}
+            <p className="tooltip-body-text text-[9.5px] leading-[1.45] text-slate-200">
+              Carbon is the fundamental building block of life and matter. Featuring the <span className="text-amber-300 font-semibold">HSS Shangus seal</span> at its atomic core, this model embodies our theme <span className="text-cyan-300 font-semibold">"nurturing minds, shaping futures"</span> — grounding academic curiosity, wisdom, and discipline to build tomorrow's leaders.
+            </p>
           </div>
 
           {/* ============================================================
