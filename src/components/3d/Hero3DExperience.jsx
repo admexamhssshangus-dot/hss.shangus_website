@@ -656,13 +656,14 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
       ribbon.rotation.z = -0.1 + Math.sin(time * 0.0025 * speedMult) * (0.04 + bookLiftProgress * 0.12);
 
       // -----------------------------------------------------------------------
-      // 8C. CAP: ON RIGHT OF LEARN MORE WITH CELEBRATORY TOSS & SPIN
+      // 8C. CAP & BOOK SYNCHRONIZED: BOTH RESPOND TO "ADMISSIONS OPEN 2026"!
+      // When Admissions Open is hovered, both foundational wisdom (Book) and
+      // academic triumph (Cap) celebrate in unison!
       // -----------------------------------------------------------------------
-      const isLearnHovered = hoveredActionRef.current === 'learn';
-      const targetCapLift = isLearnHovered ? 1 : 0;
+      const targetCapLift = isAdmissionsHovered ? 1 : 0;
       capLiftProgress += (targetCapLift - capLiftProgress) * 0.1;
 
-      if (isLearnHovered) {
+      if (isAdmissionsHovered) {
         capSpinOffset += delta * 6.5 * speedMult;
       } else {
         capSpinOffset += (0 - (capSpinOffset % (Math.PI * 2))) * 0.08;
@@ -675,7 +676,7 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
       capMeshGroup.rotation.y = -0.4 + Math.cos(time * 0.001 * speedMult) * 0.1 + capSpinOffset;
       capMeshGroup.rotation.x = 0.35 - (capLiftProgress * 0.16);
 
-      const tasselWave = Math.sin(time * (isLearnHovered ? 0.016 : 0.0025) * speedMult) * (isLearnHovered ? 0.35 : 0.08);
+      const tasselWave = Math.sin(time * (isAdmissionsHovered ? 0.016 : 0.0025) * speedMult) * (isAdmissionsHovered ? 0.35 : 0.08);
       tasselGroup.rotation.z = tasselWave;
 
       // -----------------------------------------------------------------------
