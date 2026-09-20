@@ -39,10 +39,11 @@ export const ADMIN_TOOL_MODULES = ADMIN_MODULE_CATALOG
   .map(module => ({ ...module, desc: module.description, icon: MODULE_ICONS[module.id] || PanelsTopLeft }));
 
 export const isUserPermittedForModule = (user, moduleId) => {
-  if (!user) return false;
+  if (!user || !moduleId) return false;
   const role = String(user.role || '').toLowerCase().trim();
   const email = String(user.email || '').toLowerCase().trim();
 
+  // SuperAdmin has global unrestricted access to every module
   if (
     role === 'superadmin' ||
     isBootstrapSuperAdminEmail(email)
@@ -53,23 +54,25 @@ export const isUserPermittedForModule = (user, moduleId) => {
   const perms = Array.isArray(user.perms) ? user.perms : [];
   if (perms.includes('*')) return true;
   if (perms.length === 0) return moduleId === 'reports';
-  
-  if (moduleId === 'docStudio' || moduleId === 'customRoster' || moduleId === 'officialLetter' || moduleId === 'certStudio') {
-    return perms.includes('docStudio') || perms.includes('customRoster') || perms.includes('officialLetter') || perms.includes('certStudio') || perms.includes('certificate');
+
+  // 1. Direct match with granted permission code
+  if (perms.includes(moduleId)) return true;
+
+  // 2. Strict module catalog lookup for legitimate individual aliases only
+  const catalogEntry = ADMIN_MODULE_CATALOG.find(
+    m => m.id === moduleId || (Array.isArray(m.aliases) && m.aliases.includes(moduleId))
+  );
+
+  if (catalogEntry) {
+    if (perms.includes(catalogEntry.id)) return true;
+    if (Array.isArray(catalogEntry.aliases)) {
+      for (const alias of catalogEntry.aliases) {
+        if (perms.includes(alias)) return true;
+      }
+    }
   }
-  if (moduleId === 'directEntryAction' || moduleId === 'directEntry' || moduleId === 'ingestion') {
-    return perms.includes('directEntryAction') || perms.includes('directEntry') || perms.includes('ingestion') || perms.includes('reports');
-  }
-  if (moduleId === 'bulkToolsAction' || moduleId === 'bulkTools' || moduleId === 'bulk') {
-    return perms.includes('bulkToolsAction') || perms.includes('bulkTools') || perms.includes('bulk') || perms.includes('controls') || perms.includes('boardSync');
-  }
-  if (moduleId === 'quickCellEdit' || moduleId === 'analyticsReports') {
-    return perms.includes('quickCellEdit') || perms.includes('analyticsReports') || perms.includes('reports');
-  }
-  if (moduleId === 'activityAudit') {
-    return role === 'superadmin' || perms.includes('*') || perms.includes('activityAudit') || perms.includes('controls') || perms.includes('reports');
-  }
-  return perms.includes(moduleId);
+
+  return false;
 };
 
 export default function AdminToolsDropdown({
@@ -102,9 +105,10 @@ export default function AdminToolsDropdown({
 
   const isSuper = user?.role?.toLowerCase() === 'superadmin' || isBootstrapSuperAdminEmail(user?.email);
   const perms = Array.isArray(user?.perms) ? user.perms : [];
-  const canReports = isUserPermittedForModule(user, 'reports');
-  const canDirectEntry = isSuper || perms.includes('*') || perms.includes('directEntry') || perms.includes('ingestion');
-  const canBulk = isSuper || perms.includes('*') || perms.includes('bulkTools') || perms.includes('bulk') || isUserPermittedForModule(user, 'controls');
+  const canQuickCellEdit = isSuper || perms.includes('*') || isUserPermittedForModule(user, 'quickCellEdit');
+  const canAnalytics = isSuper || perms.includes('*') || isUserPermittedForModule(user, 'analyticsReports');
+  const canDirectEntry = isSuper || perms.includes('*') || isUserPermittedForModule(user, 'directEntryAction') || isUserPermittedForModule(user, 'directEntry') || isUserPermittedForModule(user, 'ingestion');
+  const canBulk = isSuper || perms.includes('*') || isUserPermittedForModule(user, 'bulkToolsAction') || isUserPermittedForModule(user, 'bulkTools') || isUserPermittedForModule(user, 'bulk');
 
   const categories = useMemo(() => [
     { key: 'Records & Registers', title: 'Records & Registers', icon: BarChart2, color: 'text-amber-500 dark:text-amber-400', bg: 'bg-amber-500/10 dark:bg-amber-500/20' },
@@ -116,14 +120,14 @@ export default function AdminToolsDropdown({
   const getCategoryCount = useCallback((catKey) => {
     if (catKey === 'Quick Actions') {
       return (
-        (setEnableQuickCellEdit !== undefined ? 1 : 0) +
-        (canReports ? 1 : 0) +
+        (canQuickCellEdit && setEnableQuickCellEdit !== undefined ? 1 : 0) +
+        (canAnalytics ? 1 : 0) +
         (canDirectEntry ? 1 : 0) +
         (canBulk ? 1 : 0)
       );
     }
     return permittedModules.filter(m => m.category === catKey).length;
-  }, [setEnableQuickCellEdit, canReports, canDirectEntry, canBulk, permittedModules]);
+  }, [setEnableQuickCellEdit, canQuickCellEdit, canAnalytics, canDirectEntry, canBulk, permittedModules]);
 
   const visibleCategories = useMemo(() => {
     const activeList = categories.filter(cat => getCategoryCount(cat.key) > 0);
@@ -166,7 +170,7 @@ export default function AdminToolsDropdown({
     });
 
     // Quick Actions
-    if (setEnableQuickCellEdit !== undefined) {
+    if (canQuickCellEdit && setEnableQuickCellEdit !== undefined) {
       items.push({
         type: 'toggle',
         id: 'quickCellEdit',
@@ -178,7 +182,7 @@ export default function AdminToolsDropdown({
         onToggle: (val) => setEnableQuickCellEdit(val),
       });
     }
-    if (canReports) {
+    if (canAnalytics) {
       items.push({
         type: 'action',
         id: 'analyticsReports',
@@ -236,7 +240,8 @@ export default function AdminToolsDropdown({
     onOpenCustomRoster,
     setEnableQuickCellEdit,
     enableQuickCellEdit,
-    canReports,
+    canQuickCellEdit,
+    canAnalytics,
     onOpenAnalytics,
     canDirectEntry,
     onOpenDirectEntry,

@@ -6,13 +6,19 @@ import '../portal.css';
 
 import { auth } from '../../services/firebase';
 import { getIdTokenResult, onAuthStateChanged, signOut } from 'firebase/auth';
-import { resolveStaffRoleAndPerms, requireVerifiedAdminSession, isBootstrapSuperAdminEmail, isBootstrapAdminEmail } from '../../services/staffAuthService';
+import { 
+  resolveStaffRoleAndPerms, 
+  requireVerifiedAdminSession, 
+  isBootstrapSuperAdminEmail, 
+  isBootstrapAdminEmail,
+  clearStaffProfileCache 
+} from '../../services/staffAuthService';
 
 // ---------------------------------------------------------------------------
 // Shared helper: resolve user profile from Firestore by email
 // Always returns { role, name, perms, token } — never throws
 // ---------------------------------------------------------------------------
-async function resolveUserProfile(firebaseUser) {
+async function resolveUserProfile(firebaseUser, forceFresh = false) {
   // Use cached token by default to eliminate slow blocking STS roundtrips over mobile networks
   const tokenResult = await getIdTokenResult(firebaseUser, false);
   const claims = tokenResult.claims || {};
@@ -20,7 +26,7 @@ async function resolveUserProfile(firebaseUser) {
   const isBootstrapAdmin = isBootstrapAdminEmail(emailLower) || isBootstrapSuperAdminEmail(emailLower);
   
   // Resolve role from Firestore permissions & users collection & bootstrap
-  const staffProfile = await resolveStaffRoleAndPerms(emailLower);
+  const staffProfile = await resolveStaffRoleAndPerms(emailLower, forceFresh);
 
   const rawRole = staffProfile?.role || 'Student';
 
@@ -182,7 +188,7 @@ export default function PortalLayout() {
         
         // If session is already authenticated and active for this email, refresh claims silently in background without blocking UI
         if (sessionStateRef.current.isAuthenticated && sessionStateRef.current.user?.email === cleanEmail) {
-          resolveUserProfile(fbUser).then(({ role: userRole, name: displayName, perms: userPerms, subject: userSubj, teachingSubject: userTeachSubj, assignedClasses: userClasses, mobile: userMob, token: verifiedToken }) => {
+          resolveUserProfile(fbUser, true).then(({ role: userRole, name: displayName, perms: userPerms, subject: userSubj, teachingSubject: userTeachSubj, assignedClasses: userClasses, mobile: userMob, token: verifiedToken }) => {
             if (auth.currentUser?.uid !== fbUser.uid) return;
             const updatedSession = {
               email: cleanEmail,
@@ -206,7 +212,7 @@ export default function PortalLayout() {
 
         // Full session restore on cold start / page refresh
         try {
-          const { role: userRole, name: displayName, perms: userPerms, subject: userSubj, teachingSubject: userTeachSubj, assignedClasses: userClasses, mobile: userMob, token: verifiedToken } = await resolveUserProfile(fbUser);
+          const { role: userRole, name: displayName, perms: userPerms, subject: userSubj, teachingSubject: userTeachSubj, assignedClasses: userClasses, mobile: userMob, token: verifiedToken } = await resolveUserProfile(fbUser, true);
           if (auth.currentUser?.uid !== fbUser.uid) return;
           const defaultSession = {
             email: cleanEmail,
@@ -219,15 +225,11 @@ export default function PortalLayout() {
             mobile: userMob || '',
             uid: fbUser.uid,
           };
-          const existingSessionId = sessionManager.getSessionId() || sessionManager.generateSessionId();
-          sessionManager.setSessionId(existingSessionId);
-          sessionManager.saveSession({ user: defaultSession, token: verifiedToken, sessionId: existingSessionId }, localStorage.getItem('hss_persistent_login') !== 'false');
-          sessionManager.registerActiveSessionInCloud(defaultSession, sessionManager.getDeviceId(), existingSessionId).catch(() => {});
+          sessionManager.saveSession({ user: defaultSession, token: verifiedToken }, localStorage.getItem('hss_persistent_login') !== 'false');
           setSessionStateStable({ loading: false, user: defaultSession, isAuthenticated: true });
-        } catch (error) {
+        } catch (err) {
           sessionManager.clearSession();
           setSessionStateStable({ loading: false, user: null, isAuthenticated: false });
-          if (!isOnPublicPage) navigate('/portal/login', { replace: true, state: { message: error.message } });
         }
       } else {
         sessionManager.clearSession();
@@ -237,6 +239,7 @@ export default function PortalLayout() {
         if (!publicPage) navigate('/portal/login', { replace: true });
       }
     });
+
     return () => unsubscribe();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // ← empty: subscribe exactly once, never re-subscribe on route changes
@@ -256,6 +259,48 @@ export default function PortalLayout() {
     window.addEventListener('hss-auth-changed', handleAuthChanged);
     return () => window.removeEventListener('hss-auth-changed', handleAuthChanged);
   }, [navigate, setSessionStateStable]);
+
+  // ---------------------------------------------------------------------------
+  // Real-time permission matrix synchronization across components & tabs
+  // ---------------------------------------------------------------------------
+  useEffect(() => {
+    const handlePermissionsUpdated = () => {
+      clearStaffProfileCache();
+      const fbUser = auth.currentUser;
+      if (fbUser) {
+        resolveUserProfile(fbUser, true).then(({ role: userRole, name: displayName, perms: userPerms, subject: userSubj, teachingSubject: userTeachSubj, assignedClasses: userClasses, mobile: userMob, token: verifiedToken }) => {
+          if (auth.currentUser?.uid !== fbUser.uid) return;
+          const cleanEmail = String(fbUser.email || '').toLowerCase().trim();
+          const updatedSession = {
+            email: cleanEmail,
+            name: displayName,
+            role: userRole,
+            perms: userPerms,
+            subject: userSubj || '',
+            teachingSubject: userTeachSubj || userSubj || '',
+            assignedClasses: userClasses || [],
+            mobile: userMob || '',
+            uid: fbUser.uid,
+          };
+          sessionManager.saveSession({ user: updatedSession, token: verifiedToken }, localStorage.getItem('hss_persistent_login') !== 'false');
+          setSessionStateStable({ loading: false, user: updatedSession, isAuthenticated: true });
+        }).catch(() => {});
+      }
+    };
+
+    window.addEventListener('hss-permissions-updated', handlePermissionsUpdated);
+    const storageHandler = (e) => {
+      if (e.key === 'hss_admin_users_permissions_v1') {
+        handlePermissionsUpdated();
+      }
+    };
+    window.addEventListener('storage', storageHandler);
+
+    return () => {
+      window.removeEventListener('hss-permissions-updated', handlePermissionsUpdated);
+      window.removeEventListener('storage', storageHandler);
+    };
+  }, [setSessionStateStable]);
 
   // ---------------------------------------------------------------------------
   // Heartbeat (silent local session keep-alive)

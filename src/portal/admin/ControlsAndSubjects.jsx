@@ -810,6 +810,9 @@ export default function ControlsAndSubjects() {
       }));
 
       clearStaffProfileCache();
+      try {
+        window.dispatchEvent(new CustomEvent('hss-permissions-updated'));
+      } catch (_) {}
       setAlert({ type: 'success', text: '✨ Staff permissions & accounts updated successfully in School Database!' });
       logAdminActivity({
         actionType: 'update',
@@ -932,6 +935,7 @@ export default function ControlsAndSubjects() {
         );
         setAdminUsers(updated);
         setShowAdminModal(false);
+        try { window.dispatchEvent(new CustomEvent('hss-permissions-updated')); } catch (_) {}
         setAlert({
           type: 'success',
           text: `✨ Staff profile & email (${cleanEmail}) successfully updated in School Database!`,
@@ -974,6 +978,7 @@ export default function ControlsAndSubjects() {
         ];
         setAdminUsers(updated);
         setShowAdminModal(false);
+        try { window.dispatchEvent(new CustomEvent('hss-permissions-updated')); } catch (_) {}
         setAlert({
           type: 'success',
           text: `✨ ${res.message || `Account for ${adminForm.name} configured in Firebase database!`}`,
@@ -1000,6 +1005,7 @@ export default function ControlsAndSubjects() {
       const updated = adminUsers.filter((u) => u.email.toLowerCase() !== cleanEmail);
       setAdminUsers(updated);
       setUserToDelete(null);
+      try { window.dispatchEvent(new CustomEvent('hss-permissions-updated')); } catch (_) {}
       setAlert({ type: 'success', text: `Access revoked and profile removed for ${email}.` });
     } catch (err) {
       console.error('Error revoking staff account:', err);
