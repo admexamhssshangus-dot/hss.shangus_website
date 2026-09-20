@@ -6,7 +6,7 @@ import {
   Square, ArrowUpRight, DollarSign, Wallet, FileSpreadsheet,
   TrendingUp, Users, Info, Settings, Sparkles
 } from 'lucide-react';
-import { db } from '../../services/firebase';
+import { db, auth } from '../../services/firebase';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { DEFAULT_SETTINGS, loadSiteSettings } from '../../utils/settingsLoader';
 import { toPublicFacultyList } from '../../utils/facultyPrivacy';
@@ -546,6 +546,10 @@ export default function SchoolAccountsManager({ user }) {
         actionType: 'update',
         actionTitle: 'Tax Rules Updated',
         details: `Updated tax rules for FY ${taxConfig.financialYearLabel}, AY ${taxConfig.assessmentYearLabel}`,
+        actorType: 'admin',
+        actorEmail: user?.email || auth?.currentUser?.email || 'adm.exam.hss.shangus@gmail.com',
+        actorName: user?.name || user?.displayName || auth?.currentUser?.displayName || 'Admin',
+        actorRole: user?.role || 'Super Admin',
         metadata: {
           financialYearLabel: taxConfig.financialYearLabel,
           assessmentYearLabel: taxConfig.assessmentYearLabel,

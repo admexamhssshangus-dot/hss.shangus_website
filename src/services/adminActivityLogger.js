@@ -1,8 +1,9 @@
-import { db } from './firebase';
+import { db, auth } from './firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 
 /**
- * Resolve the current actor from browser session and auth storage
+ * Resolve the current actor from browser session, active Firebase Auth, and storage.
+ * All administrative school activities default strictly to Super Admin (adm.exam.hss.shangus@gmail.com).
  */
 function resolveCurrentActor(explicitActor = {}) {
   let actorType = explicitActor.actorType || null;
@@ -11,11 +12,32 @@ function resolveCurrentActor(explicitActor = {}) {
   let actorRole = explicitActor.actorRole || null;
   let actorUid = explicitActor.actorUid || null;
 
-  // 1. Check Primary Portal User Session (sessionManager & legacy admin storage)
+  // 1. Check Active Firebase Auth (Highest Authority)
+  try {
+    const fbUser = auth?.currentUser;
+    if (fbUser && fbUser.email) {
+      const fbEmail = fbUser.email.toLowerCase().trim();
+      actorEmail = actorEmail || fbEmail;
+      actorName = actorName || fbUser.displayName || (fbEmail.includes('admin') ? 'Admin' : 'Administrator');
+      actorUid = actorUid || fbUser.uid || '';
+      if (
+        fbEmail.includes('admin') || 
+        fbEmail.includes('adm.exam.hss.shangus') || 
+        fbEmail.includes('ghssshangus')
+      ) {
+        actorType = actorType || 'admin';
+        actorRole = actorRole || 'Super Admin';
+      }
+    }
+  } catch (_) {}
+
+  // 2. Check Primary Portal User Session (sessionManager & legacy admin storage)
   try {
     const portalUser = JSON.parse(
       sessionStorage.getItem('hss_session_user') || 
       localStorage.getItem('hss_session_user') || 
+      sessionStorage.getItem('adminUser') || 
+      localStorage.getItem('adminUser') || 
       sessionStorage.getItem('hss_admin_user') || 
       localStorage.getItem('hss_admin_user') || 
       '{}'
@@ -24,21 +46,24 @@ function resolveCurrentActor(explicitActor = {}) {
       const rLower = String(portalUser.role || '').toLowerCase();
       if (rLower.includes('admin') || rLower.includes('super')) {
         actorType = actorType || 'admin';
+        actorRole = actorRole || 'Super Admin';
       } else if (rLower.includes('teacher') || rLower.includes('faculty')) {
         actorType = actorType || 'teacher';
+        actorRole = actorRole || 'Teacher';
       } else if (rLower.includes('student')) {
         actorType = actorType || 'student';
+        actorRole = actorRole || 'Student';
       } else {
         actorType = actorType || 'admin';
+        actorRole = actorRole || 'Admin';
       }
       actorEmail = actorEmail || portalUser.email;
-      actorName = actorName || portalUser.name || portalUser.displayName || 'Administrator';
-      actorRole = actorRole || portalUser.role || 'Admin';
+      actorName = actorName || portalUser.name || portalUser.displayName || 'Admin';
       actorUid = actorUid || portalUser.uid || '';
     }
   } catch (_) {}
 
-  // 2. Check Teacher session
+  // 3. Check Teacher session
   if (!actorEmail) {
     try {
       const teacherUser = JSON.parse(
@@ -57,7 +82,7 @@ function resolveCurrentActor(explicitActor = {}) {
     } catch (_) {}
   }
 
-  // 3. Check Student session
+  // 4. Check Student session
   if (!actorEmail) {
     try {
       const studentUser = JSON.parse(
@@ -76,12 +101,12 @@ function resolveCurrentActor(explicitActor = {}) {
     } catch (_) {}
   }
 
-  // Defaults if completely anonymous/system
+  // 5. Canonical Admin Fallback (all school administrative actions belong to Super Admin)
   return {
-    actorType: actorType || 'system',
-    actorEmail: actorEmail || 'system@hssshangus.edu.in',
-    actorName: actorName || 'System Process',
-    actorRole: actorRole || 'System',
+    actorType: actorType || 'admin',
+    actorEmail: actorEmail || 'adm.exam.hss.shangus@gmail.com',
+    actorName: actorName || 'Admin',
+    actorRole: actorRole || 'Super Admin',
     actorUid: actorUid || ''
   };
 }
