@@ -638,7 +638,7 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
       const numericPercentage = pct !== null ? Number(pct) : -1;
 
       // Find subjects to reappear in:
-      const reappearSubjects = subjectsList
+      const reappearSubjects = subjectsListArray
         .filter(s => {
           const m = subjectMarks[s.code];
           return m && m.isFailed;
