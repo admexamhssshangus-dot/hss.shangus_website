@@ -6,15 +6,20 @@ import * as THREE from 'three';
  * Lightweight, procedural, ultra-premium 3D hero experience for
  * Govt. Higher Secondary School Shangus.
  *
- * Highlights:
- * 1. Refined, Compact Scales: Delicate luxury sizing that never crowds text or buttons.
- * 2. 🌐 Celestial Armillary Globe: Actively follows mouse location across the hero image
- *    with fluid gyroscopic gliding and orientation.
- * 3. 📖 Open Book of Wisdom: Shows hypnotic "slipping/flipping of pages" animation
- *    with multi-leaf cascading physics when "Admissions Open 2026" is hovered.
- * 4. 🎓 Academic Mortarboard Cap: Positioned below "futures" on the right, responds with
- *    a celebratory toss, spin, and dynamic tassel sway when "Learn More" is hovered.
- * 5. ✨ Stardust Constellation: Subtle twinkling ambient particles.
+ * Layout & Interaction Updates:
+ * 1. 🌐 Celestial Armillary Crest with Circular HSS Shangus Logo:
+ *    - Official circular school seal embedded in the center medallion with 24K gold bezel.
+ *    - Encased in revolving armillary rings and quantum electron orbits.
+ *    - Glides to follow mouse coordinates across the hero image with fluid gyroscopic physics.
+ * 2. 📖 Open Book of Wisdom (Strictly on Left of "Admissions Open 2026"):
+ *    - Positioned at the exact same baseline level, immediately to the left of the Admissions button.
+ *    - When hovered: shows a gentle cascading fluttering/slipping of pages that arches upward
+ *      without flopping all the way over to the left side, keeping the book elegant and open!
+ * 3. 🎓 Academic Mortarboard Cap (Strictly on Right of "Learn More"):
+ *    - Positioned at the exact same baseline level, immediately to the right of the Learn More button.
+ *    - When hovered: celebratory graduation toss (+0.26 Y lift), celebratory spin, and tassel wave.
+ * 4. Refined Compact Scale: Sized appropriately so the buttons, typography, and photography
+ *    remain perfectly visible and balanced on both desktop and mobile.
  */
 export default function Hero3DExperience({ className = '', hoveredAction = null }) {
   const containerRef = useRef(null);
@@ -64,7 +69,7 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
     container.appendChild(renderer.domElement);
 
     // 3. Studio Lighting Rig
-    const ambientLight = new THREE.AmbientLight(0xffffff, 1.2);
+    const ambientLight = new THREE.AmbientLight(0xffffff, 1.25);
     scene.add(ambientLight);
 
     // Key Light: Electric Cyan
@@ -79,10 +84,10 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
 
     // Dynamic Book Pages Glow Light
     const bookLight = new THREE.PointLight(0xfef08a, 0, 3.5);
-    bookLight.position.set(-1.85, -0.65, 0.5);
+    bookLight.position.set(-1.75, -0.35, 0.5);
     scene.add(bookLight);
 
-    // Master Group (Refined, more compact scale)
+    // Master Group
     const masterGroup = new THREE.Group();
     scene.add(masterGroup);
 
@@ -90,8 +95,8 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
     masterGroup.scale.set(baseScale, baseScale, baseScale);
 
     // =========================================================================
-    // ASSET 1: CELESTIAL ARMILLARY GLOBE OF KNOWLEDGE
-    // Glides to follow mouse location on the hero image!
+    // ASSET 1: CELESTIAL ARMILLARY CREST WITH CIRCULAR HSS SHANGUS LOGO
+    // Glides and follows mouse location across the hero image!
     // =========================================================================
     const globeAnchor = new THREE.Group();
     const globeHomePos = {
@@ -105,25 +110,47 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
     const globeInteractiveGroup = new THREE.Group();
     globeAnchor.add(globeInteractiveGroup);
 
-    // 1A. Inner Nucleus: Multi-faceted Crystal Core
-    const crystalGeo = new THREE.IcosahedronGeometry(0.24, 1);
-    const crystalMat = new THREE.MeshStandardMaterial({
-      color: 0x0ea5e9,
-      emissive: 0x0284c7,
-      emissiveIntensity: 0.95,
-      roughness: 0.1,
-      metalness: 0.95
+    // 1A. Load Official Circular HSS Shangus Logo
+    const textureLoader = new THREE.TextureLoader();
+    const logoTexture = textureLoader.load('/logo.png');
+    logoTexture.colorSpace = THREE.SRGBColorSpace;
+
+    // Central Medallion featuring HSS Shangus circular logo
+    const logoMat = new THREE.MeshStandardMaterial({
+      map: logoTexture,
+      transparent: true,
+      roughness: 0.25,
+      metalness: 0.15,
+      emissive: 0xffffff,
+      emissiveIntensity: 0.12,
+      side: THREE.DoubleSide
     });
-    const crystalMesh = new THREE.Mesh(crystalGeo, crystalMat);
-    globeInteractiveGroup.add(crystalMesh);
 
-    // 1B. Inner Glowing Orb
-    const innerOrbGeo = new THREE.SphereGeometry(0.14, 16, 16);
-    const innerOrbMat = new THREE.MeshBasicMaterial({ color: 0xe0f2fe });
-    const innerOrb = new THREE.Mesh(innerOrbGeo, innerOrbMat);
-    globeInteractiveGroup.add(innerOrb);
+    // Circular Disc Medallion (Front & Back)
+    const medalGeo = new THREE.CylinderGeometry(0.25, 0.25, 0.02, 32);
+    // Orient cylinder so circular face faces camera (Z-axis)
+    const medalMesh = new THREE.Mesh(medalGeo, [
+      // Side rim material (24K Gold)
+      new THREE.MeshStandardMaterial({ color: 0xf59e0b, metalness: 0.95, roughness: 0.15 }),
+      logoMat, // Top circular face
+      logoMat  // Bottom circular face
+    ]);
+    medalMesh.rotation.x = Math.PI / 2;
+    globeInteractiveGroup.add(medalMesh);
 
-    // 1C. Translucent Latitude/Longitude Grid Sphere
+    // 24K Gold Bezel Ring around the logo medal
+    const goldBezelMat = new THREE.MeshStandardMaterial({
+      color: 0xf59e0b,
+      emissive: 0x78350f,
+      emissiveIntensity: 0.45,
+      metalness: 0.95,
+      roughness: 0.15
+    });
+    const bezelGeo = new THREE.TorusGeometry(0.26, 0.018, 16, 48);
+    const bezelMesh = new THREE.Mesh(bezelGeo, goldBezelMat);
+    globeInteractiveGroup.add(bezelMesh);
+
+    // 1B. Translucent Celestial Grid Sphere
     const gridSphereGeo = new THREE.SphereGeometry(0.55, 20, 12);
     const gridSphereMat = new THREE.MeshStandardMaterial({
       color: 0x38bdf8,
@@ -138,20 +165,12 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
     const gridSphere = new THREE.Mesh(gridSphereGeo, gridSphereMat);
     globeInteractiveGroup.add(gridSphere);
 
-    // 1D. Armillary Rings: 24K Gold Meridian and Equator
-    const goldRingMat = new THREE.MeshStandardMaterial({
-      color: 0xf59e0b,
-      emissive: 0x78350f,
-      emissiveIntensity: 0.45,
-      metalness: 0.95,
-      roughness: 0.15
-    });
-
+    // 1C. Armillary Rings: 24K Gold Meridian and Equator
     const meridianGeo = new THREE.TorusGeometry(0.62, 0.016, 16, 52);
-    const meridianRing = new THREE.Mesh(meridianGeo, goldRingMat);
+    const meridianRing = new THREE.Mesh(meridianGeo, goldBezelMat);
     globeInteractiveGroup.add(meridianRing);
 
-    const equatorRing = new THREE.Mesh(meridianGeo, goldRingMat);
+    const equatorRing = new THREE.Mesh(meridianGeo, goldBezelMat);
     equatorRing.rotation.x = Math.PI / 2;
     globeInteractiveGroup.add(equatorRing);
 
@@ -169,7 +188,7 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
     gimbalRing.rotation.y = Math.PI / 6;
     globeInteractiveGroup.add(gimbalRing);
 
-    // 1E. Orbiting Quantum Electrons
+    // 1D. Orbiting Quantum Electrons
     const orbit1Geo = new THREE.TorusGeometry(0.92, 0.012, 12, 48);
     const orbit1Mat = new THREE.MeshStandardMaterial({
       color: 0x10b981,
@@ -208,17 +227,160 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
     masterGroup.add(globeAnchor);
 
     // =========================================================================
-    // ASSET 2: ACADEMIC MORTARBOARD GRADUATION CAP
-    // Positioned below "futures" on the right
+    // ASSET 2: OPEN BOOK OF WISDOM (STRICTLY ON LEFT OF "ADMISSIONS OPEN 2026")
+    // =========================================================================
+    const bookAnchor = new THREE.Group();
+    const bookHomePos = {
+      x: isMobile ? -1.60 : -2.35,
+      y: isMobile ? -0.42 : -0.38,
+      z: isMobile ? 0.18 : 0.24
+    };
+    bookAnchor.position.set(bookHomePos.x, bookHomePos.y, bookHomePos.z);
+    bookAnchor.scale.setScalar(isMobile ? 0.34 : 0.44);
+
+    const bookMeshGroup = new THREE.Group();
+    bookMeshGroup.rotation.set(0.38, 0.42, -0.18);
+    bookAnchor.add(bookMeshGroup);
+
+    // Materials: Moroccan Crimson Leather & Antique Parchment
+    const coverMat = new THREE.MeshStandardMaterial({
+      color: 0x881337,
+      emissive: 0x4c0519,
+      emissiveIntensity: 0.35,
+      roughness: 0.4,
+      metalness: 0.25
+    });
+
+    const staticPageMat = new THREE.MeshStandardMaterial({
+      color: 0xfffbeb,
+      emissive: 0xfef08a,
+      emissiveIntensity: 0.08,
+      roughness: 0.35,
+      metalness: 0.08
+    });
+
+    const activeFlippingPageMat = new THREE.MeshStandardMaterial({
+      color: 0xfffef5,
+      emissive: 0xfef08a,
+      emissiveIntensity: 0.18,
+      roughness: 0.3,
+      metalness: 0.06,
+      side: THREE.DoubleSide
+    });
+
+    const goldGiltMat = new THREE.MeshStandardMaterial({
+      color: 0xd97706,
+      emissive: 0x92400e,
+      emissiveIntensity: 0.45,
+      metalness: 0.9,
+      roughness: 0.2
+    });
+
+    // Base Covers
+    const coverWingGeo = new THREE.BoxGeometry(0.58, 0.03, 0.78);
+    const leftCover = new THREE.Mesh(coverWingGeo, coverMat);
+    leftCover.position.set(-0.29, 0, 0);
+    leftCover.rotation.z = Math.PI / 10;
+    bookMeshGroup.add(leftCover);
+
+    const rightCover = new THREE.Mesh(coverWingGeo, coverMat);
+    rightCover.position.set(0.29, 0, 0);
+    rightCover.rotation.z = -Math.PI / 10;
+    bookMeshGroup.add(rightCover);
+
+    // Base Stack of Pages
+    const basePagesGeo = new THREE.BoxGeometry(0.54, 0.055, 0.74);
+    const leftBasePages = new THREE.Mesh(basePagesGeo, staticPageMat);
+    leftBasePages.position.set(-0.28, 0.035, 0);
+    leftBasePages.rotation.z = Math.PI / 10;
+    bookMeshGroup.add(leftBasePages);
+
+    const rightBasePages = new THREE.Mesh(basePagesGeo, staticPageMat);
+    rightBasePages.position.set(0.28, 0.035, 0);
+    rightBasePages.rotation.z = -Math.PI / 10;
+    bookMeshGroup.add(rightBasePages);
+
+    // Gilt Edge Trims
+    const giltEdgeGeo = new THREE.BoxGeometry(0.014, 0.055, 0.74);
+    const leftGilt = new THREE.Mesh(giltEdgeGeo, goldGiltMat);
+    leftGilt.position.set(-0.545, 0.035, 0);
+    leftGilt.rotation.z = Math.PI / 10;
+    bookMeshGroup.add(leftGilt);
+
+    const rightGilt = new THREE.Mesh(giltEdgeGeo, goldGiltMat);
+    rightGilt.position.set(0.545, 0.035, 0);
+    rightGilt.rotation.z = -Math.PI / 10;
+    bookMeshGroup.add(rightGilt);
+
+    // Curved Spine Center
+    const spineGeo = new THREE.CylinderGeometry(0.045, 0.045, 0.8, 16, 1, false, 0, Math.PI);
+    const spine = new THREE.Mesh(spineGeo, coverMat);
+    spine.position.set(0, -0.015, 0);
+    spine.rotation.x = Math.PI / 2;
+    bookMeshGroup.add(spine);
+
+    // Silk Bookmark Ribbon
+    const ribbonGeo = new THREE.BoxGeometry(0.045, 0.008, 0.45);
+    const ribbonMat = new THREE.MeshStandardMaterial({
+      color: 0xf59e0b,
+      emissive: 0xb45309,
+      emissiveIntensity: 0.6,
+      metalness: 0.8,
+      roughness: 0.25
+    });
+    const ribbon = new THREE.Mesh(ribbonGeo, ribbonMat);
+    ribbon.position.set(0.06, 0.07, 0.22);
+    ribbon.rotation.set(-0.25, 0.15, -0.1);
+    bookMeshGroup.add(ribbon);
+
+    // -------------------------------------------------------------------------
+    // 2B. GENTLE CASCADING SLIPPING/FLUTTERING PAGES (DO NOT TURN FULLY TO LEFT)
+    // As requested: pages lift, flutter, and fan open upward without slamming flat to the left!
+    // -------------------------------------------------------------------------
+    const numFlippingLeaves = 4;
+    const flippingLeaves = [];
+
+    const pageLeafGeo = new THREE.BoxGeometry(0.53, 0.006, 0.73);
+    const pageLeafGiltGeo = new THREE.BoxGeometry(0.012, 0.006, 0.73);
+
+    for (let i = 0; i < numFlippingLeaves; i++) {
+      const leafPivot = new THREE.Group();
+      leafPivot.position.set(0, 0.055, 0);
+
+      const leafMesh = new THREE.Mesh(pageLeafGeo, activeFlippingPageMat);
+      leafMesh.position.set(0.265, 0, 0);
+      leafPivot.add(leafMesh);
+
+      const leafGilt = new THREE.Mesh(pageLeafGiltGeo, goldGiltMat);
+      leafGilt.position.set(0.525, 0, 0);
+      leafPivot.add(leafGilt);
+
+      // Rest angle on the right stack (~ -18 deg)
+      const restAngle = -Math.PI / 10 + (i * 0.015);
+      leafPivot.rotation.z = restAngle;
+
+      bookMeshGroup.add(leafPivot);
+      flippingLeaves.push({
+        pivot: leafPivot,
+        mesh: leafMesh,
+        restAngle,
+        phaseOffset: i * (1.0 / numFlippingLeaves)
+      });
+    }
+
+    masterGroup.add(bookAnchor);
+
+    // =========================================================================
+    // ASSET 3: ACADEMIC MORTARBOARD CAP (STRICTLY ON RIGHT OF "LEARN MORE")
     // =========================================================================
     const capAnchor = new THREE.Group();
     const capHomePos = {
-      x: isMobile ? 1.05 : 1.85,
-      y: isMobile ? -0.78 : -0.55,
+      x: isMobile ? 1.50 : 2.20,
+      y: isMobile ? -0.42 : -0.38,
       z: isMobile ? 0.15 : 0.20
     };
     capAnchor.position.set(capHomePos.x, capHomePos.y, capHomePos.z);
-    capAnchor.scale.setScalar(isMobile ? 0.44 : 0.58);
+    capAnchor.scale.setScalar(isMobile ? 0.34 : 0.44);
 
     const capMeshGroup = new THREE.Group();
     capMeshGroup.rotation.set(0.35, -0.4, 0.18);
@@ -260,7 +422,7 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
     capBtnMesh.position.y = 0.035;
     capMeshGroup.add(capBtnMesh);
 
-    // Braided Silk Tassel with Physics Anchor
+    // Braided Silk Tassel
     const tasselGroup = new THREE.Group();
     tasselGroup.position.set(0, 0.035, 0);
 
@@ -281,157 +443,9 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
     masterGroup.add(capAnchor);
 
     // =========================================================================
-    // ASSET 3: OPEN BOOK OF WISDOM WITH CASCADING SLIPPING PAGES ANIMATION
-    // Positioned in the LOWER-LEFT
-    // =========================================================================
-    const bookAnchor = new THREE.Group();
-    const bookHomePos = {
-      x: isMobile ? -1.05 : -1.85,
-      y: isMobile ? -0.92 : -0.72,
-      z: isMobile ? 0.18 : 0.24
-    };
-    bookAnchor.position.set(bookHomePos.x, bookHomePos.y, bookHomePos.z);
-    bookAnchor.scale.setScalar(isMobile ? 0.46 : 0.60);
-
-    const bookMeshGroup = new THREE.Group();
-    bookMeshGroup.rotation.set(0.42, 0.52, -0.22);
-    bookAnchor.add(bookMeshGroup);
-
-    // Materials: Moroccan Crimson Leather & Antique Parchment
-    const coverMat = new THREE.MeshStandardMaterial({
-      color: 0x881337,
-      emissive: 0x4c0519,
-      emissiveIntensity: 0.35,
-      roughness: 0.4,
-      metalness: 0.25
-    });
-
-    const staticPageMat = new THREE.MeshStandardMaterial({
-      color: 0xfffbeb,
-      emissive: 0xfef08a,
-      emissiveIntensity: 0.08,
-      roughness: 0.35,
-      metalness: 0.08
-    });
-
-    const activeFlippingPageMat = new THREE.MeshStandardMaterial({
-      color: 0xfffef5,
-      emissive: 0xfef08a,
-      emissiveIntensity: 0.18,
-      roughness: 0.3,
-      metalness: 0.06,
-      side: THREE.DoubleSide
-    });
-
-    const goldGiltMat = new THREE.MeshStandardMaterial({
-      color: 0xd97706,
-      emissive: 0x92400e,
-      emissiveIntensity: 0.45,
-      metalness: 0.9,
-      roughness: 0.2
-    });
-
-    // 3A. Base Covers (Left and Right Wings)
-    const coverWingGeo = new THREE.BoxGeometry(0.58, 0.03, 0.78);
-    const leftCover = new THREE.Mesh(coverWingGeo, coverMat);
-    leftCover.position.set(-0.29, 0, 0);
-    leftCover.rotation.z = Math.PI / 10;
-    bookMeshGroup.add(leftCover);
-
-    const rightCover = new THREE.Mesh(coverWingGeo, coverMat);
-    rightCover.position.set(0.29, 0, 0);
-    rightCover.rotation.z = -Math.PI / 10;
-    bookMeshGroup.add(rightCover);
-
-    // 3B. Base Stack of Bound Pages (Left & Right Beds)
-    const basePagesGeo = new THREE.BoxGeometry(0.54, 0.055, 0.74);
-    const leftBasePages = new THREE.Mesh(basePagesGeo, staticPageMat);
-    leftBasePages.position.set(-0.28, 0.035, 0);
-    leftBasePages.rotation.z = Math.PI / 10;
-    bookMeshGroup.add(leftBasePages);
-
-    const rightBasePages = new THREE.Mesh(basePagesGeo, staticPageMat);
-    rightBasePages.position.set(0.28, 0.035, 0);
-    rightBasePages.rotation.z = -Math.PI / 10;
-    bookMeshGroup.add(rightBasePages);
-
-    // Gold Gilt Trims on Page Stack Edges
-    const giltEdgeGeo = new THREE.BoxGeometry(0.014, 0.055, 0.74);
-    const leftGilt = new THREE.Mesh(giltEdgeGeo, goldGiltMat);
-    leftGilt.position.set(-0.545, 0.035, 0);
-    leftGilt.rotation.z = Math.PI / 10;
-    bookMeshGroup.add(leftGilt);
-
-    const rightGilt = new THREE.Mesh(giltEdgeGeo, goldGiltMat);
-    rightGilt.position.set(0.545, 0.035, 0);
-    rightGilt.rotation.z = -Math.PI / 10;
-    bookMeshGroup.add(rightGilt);
-
-    // Curved Spine Center
-    const spineGeo = new THREE.CylinderGeometry(0.045, 0.045, 0.8, 16, 1, false, 0, Math.PI);
-    const spine = new THREE.Mesh(spineGeo, coverMat);
-    spine.position.set(0, -0.015, 0);
-    spine.rotation.x = Math.PI / 2;
-    bookMeshGroup.add(spine);
-
-    // Silk Bookmark Ribbon
-    const ribbonGeo = new THREE.BoxGeometry(0.045, 0.008, 0.45);
-    const ribbonMat = new THREE.MeshStandardMaterial({
-      color: 0xf59e0b,
-      emissive: 0xb45309,
-      emissiveIntensity: 0.6,
-      metalness: 0.8,
-      roughness: 0.25
-    });
-    const ribbon = new THREE.Mesh(ribbonGeo, ribbonMat);
-    ribbon.position.set(0.06, 0.07, 0.22);
-    ribbon.rotation.set(-0.25, 0.15, -0.1);
-    bookMeshGroup.add(ribbon);
-
-    // -------------------------------------------------------------------------
-    // 3C. ACTIVE SLIPPING/FLIPPING PAGE LEAVES (MULTI-LEAF CASCADE)
-    // When "Admissions Open" is hovered, 4 page leaves slip across in a rhythmic wave!
-    // -------------------------------------------------------------------------
-    const numFlippingLeaves = 4;
-    const flippingLeaves = [];
-
-    const pageLeafGeo = new THREE.BoxGeometry(0.53, 0.006, 0.73);
-    const pageLeafGiltGeo = new THREE.BoxGeometry(0.012, 0.006, 0.73);
-
-    for (let i = 0; i < numFlippingLeaves; i++) {
-      // Each leaf is pivoted exactly along the center spine line (x = 0)
-      const leafPivot = new THREE.Group();
-      leafPivot.position.set(0, 0.055, 0);
-
-      // The leaf mesh itself extends outward from the pivot
-      const leafMesh = new THREE.Mesh(pageLeafGeo, activeFlippingPageMat);
-      leafMesh.position.set(0.265, 0, 0); // Centers on the right side when rotation.z = 0
-      leafPivot.add(leafMesh);
-
-      // Delicate gold rim on flipping page edge
-      const leafGilt = new THREE.Mesh(pageLeafGiltGeo, goldGiltMat);
-      leafGilt.position.set(0.525, 0, 0);
-      leafPivot.add(leafGilt);
-
-      // Rest position (neatly layered on the right stack)
-      const restAngle = -Math.PI / 10 + (i * 0.015);
-      leafPivot.rotation.z = restAngle;
-
-      bookMeshGroup.add(leafPivot);
-      flippingLeaves.push({
-        pivot: leafPivot,
-        mesh: leafMesh,
-        restAngle,
-        phaseOffset: i * (1.0 / numFlippingLeaves)
-      });
-    }
-
-    masterGroup.add(bookAnchor);
-
-    // =========================================================================
     // ASSET 4: AMBIENT CELESTIAL STARDUST PARTICLES
     // =========================================================================
-    const particleCount = isMobile ? 28 : 45;
+    const particleCount = isMobile ? 26 : 42;
     const particleGeo = new THREE.BufferGeometry();
     const particlePositions = new Float32Array(particleCount * 3);
 
@@ -444,7 +458,7 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
 
     const particleMat = new THREE.PointsMaterial({
       color: 0x38bdf8,
-      size: isMobile ? 0.04 : 0.055,
+      size: isMobile ? 0.038 : 0.052,
       transparent: true,
       opacity: 0.75,
       blending: THREE.AdditiveBlending
@@ -454,10 +468,9 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
 
     // =========================================================================
     // 5. INTERACTIVE MOUSE TRACKING ON HERO IMAGE
-    // The globe actively follows mouse location across the hero image!
     // =========================================================================
-    let mouseNormX = 0; // Normalized -0.5 to 0.5
-    let mouseNormY = 0; // Normalized -0.5 to 0.5
+    let mouseNormX = 0;
+    let mouseNormY = 0;
     let targetMouseX = 0;
     let targetMouseY = 0;
 
@@ -507,17 +520,17 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
       const newBaseScale = mobileNow ? 0.55 : 0.72;
       masterGroup.scale.set(newBaseScale, newBaseScale, newBaseScale);
 
-      // Reposition default anchors
+      // Reposition anchors with clean comfortable spacing
       globeHomePos.y = mobileNow ? 1.05 : 1.30;
       globeAnchor.scale.setScalar(mobileNow ? 0.44 : 0.58);
 
-      capHomePos.x = mobileNow ? 1.05 : 1.85;
-      capHomePos.y = mobileNow ? -0.78 : -0.55;
-      capAnchor.scale.setScalar(mobileNow ? 0.44 : 0.58);
+      bookHomePos.x = mobileNow ? -1.60 : -2.35;
+      bookHomePos.y = mobileNow ? -0.42 : -0.38;
+      bookAnchor.scale.setScalar(mobileNow ? 0.34 : 0.44);
 
-      bookHomePos.x = mobileNow ? -1.05 : -1.85;
-      bookHomePos.y = mobileNow ? -0.92 : -0.72;
-      bookAnchor.scale.setScalar(mobileNow ? 0.46 : 0.60);
+      capHomePos.x = mobileNow ? 1.50 : 2.20;
+      capHomePos.y = mobileNow ? -0.42 : -0.38;
+      capAnchor.scale.setScalar(mobileNow ? 0.34 : 0.44);
     };
 
     const resizeObserver = new ResizeObserver(handleResize);
@@ -547,9 +560,9 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
     let lastTime = performance.now();
     let electronAngle = 0;
     let capSpinOffset = 0;
-    let capLiftProgress = 0; // 0 to 1
-    let bookLiftProgress = 0; // 0 to 1
-    let continuousPageTurnCycle = 0; // Continuous phase for slipping pages
+    let capLiftProgress = 0;
+    let bookLiftProgress = 0;
+    let continuousPageTurnCycle = 0;
 
     const renderLoop = (time) => {
       if (!isVisible) {
@@ -567,117 +580,108 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
       mouseNormY += (targetMouseY - mouseNormY) * 0.06;
 
       // -----------------------------------------------------------------------
-      // 8A. GLOBE: ACTIVELY FOLLOWS MOUSE LOCATION ON HERO IMAGE!
+      // 8A. GLOBE: ACTIVELY FOLLOWS MOUSE LOCATION ACROSS THE HERO IMAGE
       // -----------------------------------------------------------------------
-      // Physical translation tracking across the hero image
-      const globeFollowTravelX = isMobile ? 1.6 : 2.8;
-      const globeFollowTravelY = isMobile ? 0.7 : 1.1;
+      const globeFollowTravelX = isMobile ? 1.5 : 2.6;
+      const globeFollowTravelY = isMobile ? 0.6 : 1.0;
 
       const targetGlobeX = globeHomePos.x + (mouseNormX * globeFollowTravelX);
       const targetGlobeY = globeHomePos.y - (mouseNormY * globeFollowTravelY);
 
-      // Glide smoothly towards target mouse position
+      // Glide smoothly towards mouse location
       globeAnchor.position.x += (targetGlobeX - globeAnchor.position.x) * 0.07;
       globeAnchor.position.y += (targetGlobeY - globeAnchor.position.y) * 0.07;
 
       // Gentle floating bob
-      const globeBob = Math.sin(time * 0.0016 * speedMult) * 0.04;
+      const globeBob = Math.sin(time * 0.0016 * speedMult) * 0.035;
       globeAnchor.position.y += globeBob * 0.02;
 
       // Gyroscopic rotational orientation towards mouse
-      const targetGlobeRotY = mouseNormX * 2.5;
-      const targetGlobeRotX = -mouseNormY * 1.8;
+      const targetGlobeRotY = mouseNormX * 2.2;
+      const targetGlobeRotX = -mouseNormY * 1.6;
       globeInteractiveGroup.rotation.y += (targetGlobeRotY - globeInteractiveGroup.rotation.y) * 0.08;
       globeInteractiveGroup.rotation.x += (targetGlobeRotX - globeInteractiveGroup.rotation.x) * 0.08;
 
-      // Internal natural spinning
-      crystalMesh.rotation.y += 0.45 * delta * speedMult;
-      crystalMesh.rotation.x += 0.3 * delta * speedMult;
+      // Natural continuous internal spin
       gridSphere.rotation.y += 0.2 * delta * speedMult;
       meridianRing.rotation.y += 0.3 * delta * speedMult;
       gimbalRing.rotation.z += 0.4 * delta * speedMult;
 
-      // Quantum electrons orbit faster when mouse is moving
+      // Quantum electrons orbit faster when mouse moves
       const mouseSpeedBoost = 1.0 + Math.hypot(mouseNormX, mouseNormY) * 3.0;
       electronAngle += 1.8 * delta * speedMult * mouseSpeedBoost;
       electron1.position.set(Math.cos(electronAngle) * 0.92, Math.sin(electronAngle) * 0.92, 0);
       electron2.position.set(Math.cos(-electronAngle * 0.85) * 1.05, Math.sin(-electronAngle * 0.85) * 1.05, 0);
 
       // -----------------------------------------------------------------------
-      // 8B. GRADUATION CAP: CELEBRATORY TOSS & SPIN WHEN "LEARN MORE" HOVERED
+      // 8B. BOOK: ON LEFT OF ADMISSIONS OPEN WITH DELICATE SLIPPING PAGES
+      // -----------------------------------------------------------------------
+      const isAdmissionsHovered = hoveredActionRef.current === 'admissions';
+      const targetBookLift = isAdmissionsHovered ? 1 : 0;
+      bookLiftProgress += (targetBookLift - bookLiftProgress) * 0.08;
+
+      const bookIdleBob = Math.cos(time * 0.0015 * speedMult) * 0.04;
+      bookAnchor.position.y = bookHomePos.y + bookIdleBob + (bookLiftProgress * 0.12);
+      bookAnchor.position.z = bookHomePos.z + (bookLiftProgress * 0.1);
+
+      if (isAdmissionsHovered) {
+        continuousPageTurnCycle += delta * 2.5 * speedMult;
+      }
+
+      // Page slipping motion: pages lift, arch up, and flutter WITHOUT turning flat to the left!
+      const rightRestAngle = -Math.PI / 10; // ~ -18 deg (resting on right bed)
+      const fanPeakAngle = -Math.PI / 42;   // ~ -4 deg (arching upward gracefully)
+
+      flippingLeaves.forEach((leaf) => {
+        if (isAdmissionsHovered) {
+          const leafPhase = (continuousPageTurnCycle + leaf.phaseOffset) % 1.0;
+          // Sinusoidal wave: 0 (resting) -> 1 (peaked/arching) -> 0 (soft return)
+          const flutterWave = Math.sin(leafPhase * Math.PI);
+          const turnAngle = rightRestAngle + (fanPeakAngle - rightRestAngle) * flutterWave;
+          leaf.pivot.rotation.z = turnAngle;
+
+          // Natural paper lift & curvature
+          const archHeight = flutterWave * 0.04;
+          leaf.pivot.position.y = 0.055 + archHeight;
+          leaf.mesh.rotation.y = flutterWave * 0.06;
+        } else {
+          leaf.pivot.rotation.z += (leaf.restAngle - leaf.pivot.rotation.z) * 0.1;
+          leaf.pivot.position.y += (0.055 - leaf.pivot.position.y) * 0.1;
+          leaf.mesh.rotation.y += (0 - leaf.mesh.rotation.y) * 0.1;
+        }
+      });
+
+      bookLight.intensity = bookLiftProgress * 2.0;
+      activeFlippingPageMat.emissiveIntensity = 0.15 + (bookLiftProgress * 0.3);
+      ribbon.rotation.z = -0.1 + Math.sin(time * 0.0025 * speedMult) * (0.04 + bookLiftProgress * 0.12);
+
+      // -----------------------------------------------------------------------
+      // 8C. CAP: ON RIGHT OF LEARN MORE WITH CELEBRATORY TOSS & SPIN
       // -----------------------------------------------------------------------
       const isLearnHovered = hoveredActionRef.current === 'learn';
       const targetCapLift = isLearnHovered ? 1 : 0;
       capLiftProgress += (targetCapLift - capLiftProgress) * 0.1;
 
       if (isLearnHovered) {
-        capSpinOffset += delta * 6.8 * speedMult;
+        capSpinOffset += delta * 6.5 * speedMult;
       } else {
         capSpinOffset += (0 - (capSpinOffset % (Math.PI * 2))) * 0.08;
       }
 
-      const capIdleBob = Math.sin(time * 0.0018 * speedMult) * 0.06;
-      capAnchor.position.y = capHomePos.y + capIdleBob + (capLiftProgress * 0.28);
-      capAnchor.position.x = capHomePos.x + (capLiftProgress * 0.06);
+      const capIdleBob = Math.sin(time * 0.0018 * speedMult) * 0.04;
+      capAnchor.position.y = capHomePos.y + capIdleBob + (capLiftProgress * 0.22);
+      capAnchor.position.x = capHomePos.x + (capLiftProgress * 0.05);
 
-      capMeshGroup.rotation.y = -0.4 + Math.cos(time * 0.001 * speedMult) * 0.12 + capSpinOffset;
-      capMeshGroup.rotation.x = 0.35 - (capLiftProgress * 0.18);
+      capMeshGroup.rotation.y = -0.4 + Math.cos(time * 0.001 * speedMult) * 0.1 + capSpinOffset;
+      capMeshGroup.rotation.x = 0.35 - (capLiftProgress * 0.16);
 
-      const tasselWave = Math.sin(time * (isLearnHovered ? 0.016 : 0.0025) * speedMult) * (isLearnHovered ? 0.38 : 0.08);
+      const tasselWave = Math.sin(time * (isLearnHovered ? 0.016 : 0.0025) * speedMult) * (isLearnHovered ? 0.35 : 0.08);
       tasselGroup.rotation.z = tasselWave;
 
       // -----------------------------------------------------------------------
-      // 8C. OPEN BOOK: SLIPPING OF PAGES ANIMATION WHEN "ADMISSIONS OPEN" HOVERED
+      // 8D. STARDUST PARTICLES
       // -----------------------------------------------------------------------
-      const isAdmissionsHovered = hoveredActionRef.current === 'admissions';
-      const targetBookLift = isAdmissionsHovered ? 1 : 0;
-      bookLiftProgress += (targetBookLift - bookLiftProgress) * 0.08;
-
-      const bookIdleBob = Math.cos(time * 0.0015 * speedMult) * 0.05;
-      bookAnchor.position.y = bookHomePos.y + bookIdleBob + (bookLiftProgress * 0.18);
-      bookAnchor.position.z = bookHomePos.z + (bookLiftProgress * 0.14);
-
-      // When Admissions Open is hovered, advance the continuous page flipping cycle!
-      if (isAdmissionsHovered) {
-        continuousPageTurnCycle += delta * 2.2 * speedMult;
-      }
-
-      // Animate each flipping leaf across in a cascading slipping wave!
-      const rightRestAngle = -Math.PI / 10; // ~ -18 degrees (on right bed)
-      const leftRestAngle = Math.PI / 10;   // ~ +18 degrees (landed on left bed)
-
-      flippingLeaves.forEach((leaf, idx) => {
-        if (isAdmissionsHovered) {
-          // Dynamic phase [0, 1) for this leaf
-          const leafPhase = (continuousPageTurnCycle + leaf.phaseOffset) % 1.0;
-
-          // Smooth sinusoidal wave from right (-18 deg) through vertical (0 deg, peaked) to left (+18 deg)
-          const turnAngle = rightRestAngle + (leftRestAngle - rightRestAngle) * (1 - Math.cos(leafPhase * Math.PI)) * 0.5;
-          leaf.pivot.rotation.z = turnAngle;
-
-          // Paper curling / lifting effect: the turning page arches upwards in the mid-flip!
-          const archHeight = Math.sin(leafPhase * Math.PI) * 0.07;
-          leaf.pivot.position.y = 0.055 + archHeight;
-          leaf.mesh.rotation.y = Math.sin(leafPhase * Math.PI) * 0.12; // Realistic paper flex curl
-        } else {
-          // Return smoothly to resting stack position
-          leaf.pivot.rotation.z += (leaf.restAngle - leaf.pivot.rotation.z) * 0.08;
-          leaf.pivot.position.y += (0.055 - leaf.pivot.position.y) * 0.08;
-          leaf.mesh.rotation.y += (0 - leaf.mesh.rotation.y) * 0.08;
-        }
-      });
-
-      // Warm golden knowledge light intensifies during page flipping
-      bookLight.intensity = bookLiftProgress * 2.2;
-      activeFlippingPageMat.emissiveIntensity = 0.15 + (bookLiftProgress * 0.35);
-
-      // Bookmark ribbon gentle flutter
-      ribbon.rotation.z = -0.1 + Math.sin(time * 0.0025 * speedMult) * (0.05 + bookLiftProgress * 0.15);
-
-      // -----------------------------------------------------------------------
-      // 8D. STARDUST PARTICLES: Ambient drift
-      // -----------------------------------------------------------------------
-      particleSystem.rotation.y += 0.04 * delta * speedMult;
+      particleSystem.rotation.y += 0.035 * delta * speedMult;
 
       renderer.render(scene, camera);
       animationFrameId = requestAnimationFrame(renderLoop);
@@ -696,6 +700,8 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
       }
       resizeObserver.disconnect();
       intersectionObserver.disconnect();
+
+      if (logoTexture) logoTexture.dispose();
 
       scene.traverse((child) => {
         if (child.isMesh || child.isPoints) {
