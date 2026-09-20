@@ -195,76 +195,72 @@ export default function GoogleContactsExportModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-5 bg-slate-950/70 backdrop-blur-sm animate-fadeIn">
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl sm:rounded-3xl shadow-2xl max-w-4xl w-full max-h-[92vh] flex flex-col overflow-hidden text-slate-800 dark:text-slate-100">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-1.5 sm:p-4 bg-slate-950/75 backdrop-blur-sm animate-fadeIn">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl sm:rounded-2xl shadow-2xl max-w-2xl sm:max-w-3xl w-full max-h-[96vh] sm:max-h-[88vh] flex flex-col overflow-hidden text-slate-800 dark:text-slate-100">
         
-        {/* Header Bar */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-800 bg-gradient-to-r from-blue-50/60 via-indigo-50/40 to-teal-50/50 dark:from-slate-800/40 dark:via-slate-800/20 dark:to-slate-800/40">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white shadow-md shadow-blue-500/20">
-              <Users size={20} />
+        {/* Compact Header Bar */}
+        <div className="flex items-center justify-between px-3 py-2 sm:px-4 sm:py-2.5 border-b border-slate-100 dark:border-slate-800 bg-gradient-to-r from-blue-50/80 via-indigo-50/50 to-teal-50/50 dark:from-slate-800/60 dark:via-slate-800/40 dark:to-slate-800/60 shrink-0">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white shadow-sm shrink-0">
+              <Users size={14} />
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-base sm:text-lg font-black tracking-tight text-slate-900 dark:text-white">
-                  Bulk Google Contacts Exporter
-                </h2>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-black tracking-wide uppercase bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
-                  Legacy Ported
-                </span>
-              </div>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                Export student cohorts into Google Contacts-compatible CSV format with smart display names & full records.
-              </p>
+            <div className="min-w-0 flex items-center gap-1.5 flex-wrap">
+              <h2 className="text-xs sm:text-sm font-bold tracking-tight text-slate-900 dark:text-white truncate">
+                Bulk Google Contacts Exporter
+              </h2>
+              <span className="px-1.5 py-0.2 rounded text-[8.5px] sm:text-[9px] font-bold uppercase bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 border border-blue-200 dark:border-blue-800 hidden xs:inline-flex">
+                Legacy Ported
+              </span>
             </div>
           </div>
 
           <button
             type="button"
             onClick={onClose}
-            className="p-2 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+            className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer shrink-0 ml-1.5"
             title="Close"
           >
-            <X size={18} />
+            <X size={16} />
           </button>
         </div>
 
-        {/* Modal Scrollable Body */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
+        {/* Scrollable Content */}
+        <div className="flex-1 overflow-y-auto p-2 sm:p-3.5 space-y-2 sm:space-y-2.5">
 
-          {/* Top Filter Grid */}
-          <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/80 dark:border-slate-700/60 space-y-3">
-            <div className="flex items-center justify-between text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
-              <span className="flex items-center gap-1.5">
-                <Filter size={13} className="text-blue-500" /> Filter Cohort
+          {/* Compact Filter Box */}
+          <div className="p-2 sm:p-2.5 rounded-xl bg-slate-50/90 dark:bg-slate-800/40 border border-slate-200/80 dark:border-slate-700/60 space-y-1.5">
+            <div className="flex items-center justify-between text-[9.5px] sm:text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+              <span className="flex items-center gap-1">
+                <Filter size={11} className="text-blue-500" /> Filter Cohort
               </span>
               {activePresetFilter && activePresetFilter.size > 0 && (
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1">
                   <span className="text-indigo-600 dark:text-indigo-400 font-bold">
-                    Preset: {activePresetFilter.size} records pre-selected
+                    Preset: {activePresetFilter.size} selected
                   </span>
                   <button
                     type="button"
                     onClick={() => setActivePresetFilter(null)}
-                    className="text-[10px] text-rose-500 hover:text-rose-600 underline font-bold cursor-pointer"
-                    title="Remove pre-selection to filter all students"
+                    className="text-[9px] text-rose-500 hover:text-rose-600 underline font-bold cursor-pointer"
+                    title="Clear pre-selection to filter all students"
                   >
-                    (Clear to show all)
+                    (Clear)
                   </button>
                 </div>
               )}
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+            {/* Selectors Row: 3 columns on mobile, 4 columns on sm+ */}
+            <div className="grid grid-cols-3 sm:grid-cols-4 gap-1 sm:gap-1.5">
               {/* Session Selector */}
               <div>
-                <label className="block text-[10px] font-black uppercase text-slate-400 mb-1">
+                <label className="block text-[8.5px] font-bold uppercase text-slate-400 mb-0.5">
                   Session
                 </label>
                 <select
                   value={selectedSession}
                   onChange={(e) => setSelectedSession(e.target.value)}
-                  className="w-full text-xs font-bold py-1.5 px-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 focus:ring-2 focus:ring-blue-500 outline-none"
+                  className="w-full text-[11px] font-semibold py-1 px-1.5 sm:px-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 focus:ring-1 focus:ring-blue-500 outline-none h-7"
                 >
                   <option value="All">All Sessions</option>
                   {availableSessions.map(s => (
@@ -275,13 +271,13 @@ export default function GoogleContactsExportModal({
 
               {/* Class Selector */}
               <div>
-                <label className="block text-[10px] font-black uppercase text-slate-400 mb-1">
+                <label className="block text-[8.5px] font-bold uppercase text-slate-400 mb-0.5">
                   Class
                 </label>
                 <select
                   value={selectedClass}
                   onChange={(e) => setSelectedClass(e.target.value)}
-                  className="w-full text-xs font-bold py-1.5 px-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 focus:ring-2 focus:ring-blue-500 outline-none"
+                  className="w-full text-[11px] font-semibold py-1 px-1.5 sm:px-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 focus:ring-1 focus:ring-blue-500 outline-none h-7"
                 >
                   {availableClasses.map(c => (
                     <option key={c} value={c}>{c === 'All' ? 'All Classes' : `Class ${c}`}</option>
@@ -291,13 +287,13 @@ export default function GoogleContactsExportModal({
 
               {/* Stream Selector */}
               <div>
-                <label className="block text-[10px] font-black uppercase text-slate-400 mb-1">
+                <label className="block text-[8.5px] font-bold uppercase text-slate-400 mb-0.5">
                   Stream
                 </label>
                 <select
                   value={selectedStream}
                   onChange={(e) => setSelectedStream(e.target.value)}
-                  className="w-full text-xs font-bold py-1.5 px-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 focus:ring-2 focus:ring-blue-500 outline-none"
+                  className="w-full text-[11px] font-semibold py-1 px-1.5 sm:px-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 focus:ring-1 focus:ring-blue-500 outline-none h-7"
                 >
                   {availableStreams.map(st => (
                     <option key={st} value={st}>{st === 'All' ? 'All Streams' : st}</option>
@@ -305,114 +301,115 @@ export default function GoogleContactsExportModal({
                 </select>
               </div>
 
-              {/* Only with Roll No Checkbox */}
-              <div className="flex flex-col justify-end">
-                <label className="flex items-center gap-2 p-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:bg-slate-100/60 dark:hover:bg-slate-800/60 cursor-pointer transition-colors">
+              {/* Only with Roll No Checkbox - Shown on desktop in 4th col, on mobile next to search */}
+              <div className="hidden sm:flex flex-col justify-end">
+                <label className="flex items-center gap-1.5 py-1 px-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:bg-slate-100/60 dark:hover:bg-slate-800/60 cursor-pointer transition-colors h-7 select-none">
                   <input
                     type="checkbox"
                     checked={onlyWithRollNo}
                     onChange={(e) => setOnlyWithRollNo(e.target.checked)}
-                    className="w-4 h-4 text-blue-600 focus:ring-blue-500 rounded cursor-pointer"
+                    className="w-3.5 h-3.5 text-blue-600 focus:ring-1 focus:ring-blue-500 rounded cursor-pointer shrink-0"
                   />
-                  <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300 leading-tight select-none">
-                    Only with Roll Nos
+                  <span className="text-[10px] sm:text-[11px] font-bold text-slate-700 dark:text-slate-300 truncate">
+                    Only Roll Nos
                   </span>
                 </label>
               </div>
             </div>
 
-            {/* Quick Search & Specific Form Numbers */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
-              {/* General Search */}
-              <div className="relative">
-                <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search name, parent, phone or form number..."
-                  className="w-full text-xs font-bold pl-8 pr-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 focus:ring-2 focus:ring-blue-500 outline-none"
-                />
+            {/* Search & Form Range Row */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 sm:gap-1.5 pt-0.5">
+              <div className="flex items-center gap-1.5">
+                <div className="relative flex-1">
+                  <Search size={11} className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Search name, phone, form..."
+                    className="w-full text-[11px] font-medium pl-6 pr-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 focus:ring-1 focus:ring-blue-500 outline-none h-7"
+                  />
+                </div>
+
+                {/* Mobile-only compact Roll No toggle button */}
+                <label className="sm:hidden flex items-center gap-1 px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 cursor-pointer h-7 shrink-0">
+                  <input
+                    type="checkbox"
+                    checked={onlyWithRollNo}
+                    onChange={(e) => setOnlyWithRollNo(e.target.checked)}
+                    className="w-3 h-3 text-blue-600 rounded cursor-pointer"
+                  />
+                  <span className="text-[9.5px] font-bold text-slate-600 dark:text-slate-300">
+                    Roll Only
+                  </span>
+                </label>
               </div>
 
-              {/* Form Numbers Specific input */}
               <div>
                 <input
                   type="text"
                   value={formNumberFilter}
                   onChange={(e) => setFormNumberFilter(e.target.value)}
-                  placeholder="Specific Form Numbers (e.g. 1042, 1043, 1050)..."
-                  className="w-full text-xs font-bold px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 focus:ring-2 focus:ring-blue-500 outline-none"
+                  placeholder="Form Nos / Ranges (e.g. 101-125, 130)..."
+                  className="w-full text-[11px] font-medium px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 focus:ring-1 focus:ring-blue-500 outline-none h-7"
                 />
               </div>
             </div>
           </div>
 
-          {/* Validation & Stats Bar */}
-          <div className="grid grid-cols-3 gap-3">
-            <div className="p-3 rounded-2xl bg-emerald-50/60 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/60 flex items-center gap-3">
-              <div className="w-8 h-8 rounded-xl bg-emerald-500 text-white flex items-center justify-center shrink-0">
-                <CheckCircle2 size={16} />
-              </div>
-              <div>
-                <div className="text-base sm:text-lg font-black text-emerald-700 dark:text-emerald-400 leading-tight">
-                  {metrics.ready}
-                </div>
-                <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-600/80 dark:text-emerald-500">
-                  Ready to Export
-                </div>
-              </div>
-            </div>
-
-            <div className="p-3 rounded-2xl bg-amber-50/60 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60 flex items-center gap-3">
-              <div className="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0">
-                <AlertTriangle size={16} />
-              </div>
-              <div>
-                <div className="text-base sm:text-lg font-black text-amber-700 dark:text-amber-400 leading-tight">
-                  {metrics.missingPhone}
-                </div>
-                <div className="text-[10px] font-bold uppercase tracking-wider text-amber-600/80 dark:text-amber-500">
-                  Missing/Short Phone
-                </div>
-              </div>
-            </div>
-
-            <div className="p-3 rounded-2xl bg-blue-50/60 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800/60 flex items-center gap-3">
-              <div className="w-8 h-8 rounded-xl bg-blue-500 text-white flex items-center justify-center shrink-0">
-                <Users size={16} />
-              </div>
-              <div>
-                <div className="text-base sm:text-lg font-black text-blue-700 dark:text-blue-400 leading-tight">
-                  {metrics.total}
-                </div>
-                <div className="text-[10px] font-bold uppercase tracking-wider text-blue-600/80 dark:text-blue-500">
-                  Total Matching
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Live Preview of Google Contact Names */}
-          <div className="rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden bg-white dark:bg-slate-900">
-            <div className="px-4 py-2.5 bg-slate-50 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Sparkles size={13} className="text-amber-500" />
-                <span className="text-xs font-black uppercase tracking-wider text-slate-600 dark:text-slate-300">
-                  Google Contacts Display Name Live Preview
-                </span>
-                <span className="text-[10px] text-slate-400">
-                  (Showing up to 10 sample entries)
-                </span>
-              </div>
-              <span className="text-[10px] font-black text-slate-400 uppercase">
-                Format: [Roll.] Name-Father,student (Class_Sess)Gender,Stream_Subs
+          {/* Slim Modern Stats Ribbon - Immune to overflow & truncation */}
+          <div className="grid grid-cols-3 gap-1 sm:gap-2">
+            <div className="py-1 px-1.5 sm:py-1.5 sm:px-2 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200/90 dark:border-emerald-800/60 flex items-center justify-center gap-1.5 sm:gap-2">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0"></span>
+              <span className="text-xs sm:text-sm font-black text-emerald-700 dark:text-emerald-400 leading-none">
+                {metrics.ready}
+              </span>
+              <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-emerald-700/80 dark:text-emerald-500 truncate">
+                Ready
               </span>
             </div>
 
-            <div className="max-h-56 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800/60 text-xs">
+            <div className="py-1 px-1.5 sm:py-1.5 sm:px-2 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200/90 dark:border-amber-800/60 flex items-center justify-center gap-1.5 sm:gap-2">
+              <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0"></span>
+              <span className="text-xs sm:text-sm font-black text-amber-700 dark:text-amber-400 leading-none">
+                {metrics.missingPhone}
+              </span>
+              <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-amber-700/80 dark:text-amber-500 truncate">
+                No Phone
+              </span>
+            </div>
+
+            <div className="py-1 px-1.5 sm:py-1.5 sm:px-2 rounded-lg bg-blue-50 dark:bg-blue-950/40 border border-blue-200/90 dark:border-blue-800/60 flex items-center justify-center gap-1.5 sm:gap-2">
+              <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0"></span>
+              <span className="text-xs sm:text-sm font-black text-blue-700 dark:text-blue-400 leading-none">
+                {metrics.total}
+              </span>
+              <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-blue-700/80 dark:text-blue-500 truncate">
+                Total
+              </span>
+            </div>
+          </div>
+
+          {/* Compact Live Preview of Google Contact Names */}
+          <div className="rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden bg-white dark:bg-slate-900 flex flex-col">
+            <div className="px-2.5 py-1.5 sm:px-3 sm:py-1.5 bg-slate-50 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <Sparkles size={11} className="text-amber-500 shrink-0" />
+                <span className="text-[9.5px] sm:text-[10.5px] font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 truncate">
+                  Contact Display Name Preview
+                </span>
+                <span className="text-[9px] text-slate-400 hidden xs:inline shrink-0">
+                  (First 10)
+                </span>
+              </div>
+              <span className="text-[8.5px] sm:text-[9px] font-mono text-slate-400 hidden md:inline truncate max-w-[260px]">
+                [Roll.] Name-Father,student (Class_Sess)Gender,Stream_Subs
+              </span>
+            </div>
+
+            <div className="max-h-40 sm:max-h-48 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800/60 text-xs">
               {filteredStudents.length === 0 ? (
-                <div className="py-8 text-center text-slate-400 font-bold">
+                <div className="py-5 text-center text-slate-400 font-bold text-xs">
                   No students match the current filters.
                 </div>
               ) : (
@@ -426,40 +423,43 @@ export default function GoogleContactsExportModal({
                   return (
                     <div
                       key={st.id || idx}
-                      className="px-4 py-2 flex items-center justify-between hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors"
+                      className="px-2 py-1.5 sm:px-3 sm:py-1.5 hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors"
                     >
-                      <div className="flex-1 min-w-0 pr-4">
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono text-[10px] font-black text-slate-400 shrink-0">
+                      {/* Top Line: Form No, Name, Copy */}
+                      <div className="flex items-center justify-between gap-1">
+                        <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                          <span className="font-mono text-[9px] font-black text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-1 py-0.2 rounded shrink-0">
                             #{formNo}
                           </span>
-                          <span className="font-bold text-slate-800 dark:text-slate-200 truncate font-mono text-[11px] sm:text-xs text-blue-700 dark:text-blue-400">
+                          <span className="font-bold text-blue-700 dark:text-blue-400 truncate font-mono text-[10.5px] sm:text-xs">
                             {dispName}
                           </span>
-                          <button
-                            type="button"
-                            onClick={() => handleCopySample(dispName)}
-                            className="p-1 rounded text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 shrink-0 cursor-pointer"
-                            title="Copy formatted display name"
-                          >
-                            <Copy size={11} />
-                          </button>
                         </div>
+                        <button
+                          type="button"
+                          onClick={() => handleCopySample(dispName)}
+                          className="p-1 rounded text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 shrink-0 cursor-pointer"
+                          title="Copy display name"
+                        >
+                          <Copy size={11} />
+                        </button>
                       </div>
 
-                      <div className="flex items-center gap-3 shrink-0 text-[11px]">
+                      {/* Bottom Line: Phone & Status Badge */}
+                      <div className="flex items-center justify-between text-[9.5px] sm:text-[10px] mt-0.5 text-slate-500 dark:text-slate-400">
                         <div className="flex items-center gap-1 font-mono">
-                          <Phone size={11} className={hasValidMob ? 'text-emerald-500' : 'text-amber-500'} />
-                          <span className={hasValidMob ? 'text-slate-700 dark:text-slate-300' : 'text-amber-600 font-bold'}>
-                            {mob || 'No Mobile'}
+                          <Phone size={9} className={hasValidMob ? 'text-emerald-500' : 'text-amber-500'} />
+                          <span className={hasValidMob ? 'text-slate-700 dark:text-slate-300 font-semibold' : 'text-amber-600 font-bold'}>
+                            {mob || 'No Phone'}
                           </span>
+                          {parentMob && (
+                            <span className="text-slate-400 hidden xs:inline font-mono">
+                              / P: {parentMob}
+                            </span>
+                          )}
                         </div>
-                        {parentMob && (
-                          <span className="text-[10px] text-slate-400 hidden sm:inline font-mono">
-                            P: {parentMob}
-                          </span>
-                        )}
-                        <span className={`px-2 py-0.5 rounded-full text-[9.5px] font-black uppercase ${
+
+                        <span className={`px-1.5 py-0.2 rounded text-[8px] sm:text-[8.5px] font-black uppercase ${
                           hasValidMob
                             ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300'
                             : 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300'
@@ -474,38 +474,36 @@ export default function GoogleContactsExportModal({
             </div>
           </div>
 
-          {/* Expandable Import Instructions */}
-          <div className="rounded-2xl border border-blue-100 dark:border-blue-900/40 bg-blue-50/40 dark:bg-blue-950/20 overflow-hidden">
+          {/* Compact Instructions Accordion */}
+          <div className="rounded-lg border border-blue-100 dark:border-blue-900/40 bg-blue-50/30 dark:bg-blue-950/20 overflow-hidden shrink-0">
             <button
               type="button"
               onClick={() => setShowInstructions(!showInstructions)}
-              className="w-full px-4 py-2.5 flex items-center justify-between text-xs font-bold text-blue-800 dark:text-blue-300 cursor-pointer"
+              className="w-full px-2.5 py-1 sm:py-1.5 flex items-center justify-between text-[10px] sm:text-[11px] font-bold text-blue-800 dark:text-blue-300 cursor-pointer hover:bg-blue-100/40 dark:hover:bg-blue-900/30 transition-colors"
             >
-              <div className="flex items-center gap-2">
-                <HelpCircle size={14} />
-                <span>How to import this CSV into Google Contacts (Step-by-Step)</span>
+              <div className="flex items-center gap-1.5">
+                <HelpCircle size={11} />
+                <span>How to import into Google Contacts</span>
               </div>
-              {showInstructions ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+              {showInstructions ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
             </button>
 
             {showInstructions && (
-              <div className="px-4 pb-4 text-xs text-blue-900/80 dark:text-blue-200/90 space-y-2 border-t border-blue-100 dark:border-blue-900/40 pt-3">
-                <ol className="list-decimal list-inside space-y-1 pl-1">
-                  <li>Click <strong>Download Google Contacts CSV</strong> below to save the file.</li>
+              <div className="px-2.5 pb-2 text-[9.5px] sm:text-[10.5px] text-blue-900/80 dark:text-blue-200/90 space-y-1 border-t border-blue-100 dark:border-blue-900/40 pt-1.5">
+                <ol className="list-decimal list-inside space-y-0.5 pl-0.5">
+                  <li>Click <strong>Export CSV</strong> to save the contacts file.</li>
                   <li>
                     Open{' '}
                     <a
                       href="https://contacts.google.com"
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="underline font-bold text-blue-600 dark:text-blue-400 inline-flex items-center gap-1"
+                      className="underline font-bold text-blue-600 dark:text-blue-400 inline-flex items-center gap-0.5"
                     >
-                      Google Contacts (contacts.google.com) <ExternalLink size={11} />
+                      Google Contacts <ExternalLink size={9} />
                     </a>
                   </li>
-                  <li>In the left sidebar menu, click <strong>Import</strong>.</li>
-                  <li>Click <strong>Select file</strong> and choose the downloaded CSV.</li>
-                  <li>Click <strong>Import</strong>. Google Contacts will automatically tag all imported students into a distinct label for effortless bulk messaging or classroom WhatsApp sync!</li>
+                  <li>In the sidebar, click <strong>Import</strong> &rarr; <strong>Select file</strong> and upload.</li>
                 </ol>
               </div>
             )}
@@ -513,30 +511,33 @@ export default function GoogleContactsExportModal({
 
         </div>
 
-        {/* Footer Bar */}
-        <div className="flex items-center justify-between px-5 py-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50">
-          <div className="text-xs text-slate-500 dark:text-slate-400">
-            Exporting <span className="font-bold text-slate-800 dark:text-slate-200">{metrics.ready}</span> contacts as standard 38-column Google Contacts CSV.
-          </div>
+        {/* Compact Footer Bar */}
+        <div className="px-3 py-2 sm:px-4 sm:py-2.5 border-t border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/70 shrink-0">
+          <div className="flex items-center justify-between gap-2">
+            <div className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 truncate">
+              Exporting <strong className="text-slate-800 dark:text-slate-200 font-black">{metrics.ready}</strong> contacts
+              <span className="hidden sm:inline"> as standard 38-column CSV</span>.
+            </div>
 
-          <div className="flex items-center gap-2.5">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-            >
-              Cancel
-            </button>
+            <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-lg text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
 
-            <button
-              type="button"
-              onClick={handleExport}
-              disabled={isExporting || metrics.ready === 0}
-              className="px-5 py-2.5 rounded-xl text-xs font-black text-white bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:from-blue-700 hover:to-indigo-700 shadow-md shadow-blue-500/25 transition-all duration-200 flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
-            >
-              <Download size={14} className={isExporting ? 'animate-bounce' : ''} />
-              <span>{isExporting ? 'Generating CSV...' : 'Download Google Contacts CSV'}</span>
-            </button>
+              <button
+                type="button"
+                onClick={handleExport}
+                disabled={isExporting || metrics.ready === 0}
+                className="px-3 py-1 sm:px-4 sm:py-1.5 rounded-lg text-xs font-bold text-white bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:from-blue-700 hover:to-indigo-700 shadow-sm shadow-blue-500/20 transition-all duration-200 flex items-center justify-center gap-1 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
+              >
+                <Download size={12} className={isExporting ? 'animate-bounce' : ''} />
+                <span>{isExporting ? 'Exporting...' : 'Export CSV'}</span>
+              </button>
+            </div>
           </div>
         </div>
 
