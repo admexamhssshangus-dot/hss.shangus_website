@@ -98,6 +98,7 @@ export const DEFAULT_SETTINGS = {
   practicalsSubmissionOpen: true,
   attendanceSubmissionOpen: true,
   enable3dHeroAssets: false,
+  enable3dHeroAssetsMobile: false,
   defaultNewNoticeDays: 7,
   admissionsClosed: {
     "9th": false,
@@ -154,6 +155,7 @@ export function mergeSiteSettings(parsed = {}) {
     practicalsSubmissionOpen: parsed.practicalsSubmissionOpen !== undefined ? Boolean(parsed.practicalsSubmissionOpen) : true,
     attendanceSubmissionOpen: parsed.attendanceSubmissionOpen !== undefined ? Boolean(parsed.attendanceSubmissionOpen) : true,
     enable3dHeroAssets: parsed.enable3dHeroAssets !== undefined ? Boolean(parsed.enable3dHeroAssets) : false,
+    enable3dHeroAssetsMobile: parsed.enable3dHeroAssetsMobile !== undefined ? Boolean(parsed.enable3dHeroAssetsMobile) : false,
     admissionsClosed: { ...DEFAULT_SETTINGS.admissionsClosed, ...(parsed.admissionsClosed || {}) },
     fees: { ...DEFAULT_SETTINGS.fees, ...(parsed.fees || {}) },
     socialLinks: { ...DEFAULT_SETTINGS.socialLinks, ...(parsed.socialLinks || {}) },

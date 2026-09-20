@@ -362,43 +362,82 @@ export default function HeroButtonsManager({
       )}
 
       {/* 3D Visual Experience Switch */}
-      <div className="bg-slate-900/60 p-3.5 rounded-xl border border-indigo-500/30 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-        <div className="flex items-start gap-2.5">
-          <div className="p-2 rounded-lg bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 mt-0.5 shrink-0">
-            <Sparkles size={16} />
-          </div>
-          <div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <h4 className="text-xs font-bold text-slate-100">Interactive 3D Educational Assets (Hero Banner)</h4>
-              <span className={`text-[9.5px] uppercase font-extrabold px-2 py-0.5 rounded-full border ${
-                settings?.enable3dHeroAssets
-                  ? 'bg-indigo-950/90 text-indigo-300 border-indigo-600/50'
-                  : 'bg-slate-800 text-slate-400 border-slate-700'
-              }`}>
-                {settings?.enable3dHeroAssets ? '3D Active' : 'Classic 2D Mode'}
-              </span>
+      <div className="bg-slate-900/60 p-3.5 rounded-xl border border-indigo-500/30 flex flex-col gap-3">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+          <div className="flex items-start gap-2.5">
+            <div className="p-2 rounded-lg bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 mt-0.5 shrink-0">
+              <Sparkles size={16} />
             </div>
-            <p className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">
-              Enables floating procedural 3D academic assets (Knowledge Core, Floating Book of Wisdom & Constellation) behind the hero slogan. Fully mobile-responsive with touch parallax and zero performance overhead when disabled.
-            </p>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h4 className="text-xs font-bold text-slate-100">Interactive 3D Educational Assets (Hero Banner)</h4>
+                <span className={`text-[9.5px] uppercase font-extrabold px-2 py-0.5 rounded-full border ${
+                  settings?.enable3dHeroAssets
+                    ? 'bg-indigo-950/90 text-indigo-300 border-indigo-600/50'
+                    : 'bg-slate-800 text-slate-400 border-slate-700'
+                }`}>
+                  {settings?.enable3dHeroAssets ? '3D Active' : 'Classic 2D Mode'}
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">
+                Enables floating procedural 3D academic assets (Knowledge Core, Floating Book of Wisdom & Constellation) behind the hero slogan. Fully responsive with touch parallax and zero performance overhead when disabled.
+              </p>
+            </div>
+          </div>
+          <div className="self-end sm:self-center shrink-0 flex items-center gap-2">
+            <label className="relative inline-flex items-center cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={Boolean(settings?.enable3dHeroAssets)}
+                onChange={(e) => {
+                  onUpdateSettings({
+                    ...settings,
+                    enable3dHeroAssets: e.target.checked
+                  });
+                }}
+                className="sr-only peer"
+              />
+              <div className="w-9 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
+            </label>
           </div>
         </div>
-        <div className="self-end sm:self-center shrink-0 flex items-center gap-2">
-          <label className="relative inline-flex items-center cursor-pointer select-none">
-            <input
-              type="checkbox"
-              checked={Boolean(settings?.enable3dHeroAssets)}
-              onChange={(e) => {
-                onUpdateSettings({
-                  ...settings,
-                  enable3dHeroAssets: e.target.checked
-                });
-              }}
-              className="sr-only peer"
-            />
-            <div className="w-9 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
-          </label>
-        </div>
+
+        {/* Mobile Viewport Toggle (Sub-control) */}
+        {Boolean(settings?.enable3dHeroAssets) && (
+          <div className="pt-2.5 mt-1 border-t border-indigo-500/20 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2.5 bg-indigo-950/20 p-2.5 rounded-lg">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-semibold text-slate-200">Show 3D Assets on Mobile Devices (&lt; 768px)</span>
+                <span className={`text-[9px] uppercase font-bold px-1.5 py-0.2 rounded border ${
+                  settings?.enable3dHeroAssetsMobile
+                    ? 'bg-emerald-950 text-emerald-300 border-emerald-700'
+                    : 'bg-slate-800 text-amber-300 border-amber-500/40'
+                }`}>
+                  {settings?.enable3dHeroAssetsMobile ? 'Mobile On' : 'Hidden on Mobile (Default)'}
+                </span>
+              </div>
+              <p className="text-[10.5px] text-slate-400 mt-0.5">
+                When turned off (recommended), 3D assets render on desktop while mobile devices receive a lightweight, fast-loading 2D banner.
+              </p>
+            </div>
+            <div className="self-end sm:self-center shrink-0">
+              <label className="relative inline-flex items-center cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={Boolean(settings?.enable3dHeroAssetsMobile)}
+                  onChange={(e) => {
+                    onUpdateSettings({
+                      ...settings,
+                      enable3dHeroAssetsMobile: e.target.checked
+                    });
+                  }}
+                  className="sr-only peer"
+                />
+                <div className="w-8 h-4 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-emerald-600"></div>
+              </label>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* LIVE HOMEPAGE PREVIEW BANNER */}

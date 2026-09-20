@@ -603,7 +603,17 @@ export default function LoginPage() {
       }
 
       // --- 2. ADMIN TAB / ROLES ---
-      if (staffProfile?.isAdmin) {
+      if (selectedRole === 'admin' || selectedRole === 'superadmin') {
+        if (!isAdmin || (selectedRole === 'superadmin' && !isSuper)) {
+          await signOut(auth).catch(() => {});
+          setAlert({
+            type: 'error',
+            text: 'Access Denied: You do not have administrator privileges.'
+          });
+          setIsLoading(false);
+          return;
+        }
+
         // Direct Super Admin bypass when signing in with master institutional credentials
         if (isSuperAdminEmail(cleanEmail)) {
           const verifiedSession = await createVerifiedSession(fbUser, cleanEmail, staffProfile);
@@ -702,23 +712,30 @@ export default function LoginPage() {
 
       // 3. STRICT TAB & ROLE ACCESS CONTROL
 
-      // --- AUTO-RECOGNIZE TEACHER ACCOUNT (DIRECT LOGIN WITHOUT ADMIN 2SV) ---
-      // If the account has Teacher privileges:
-      // Even if user was on the Admin tab or Student tab, unless user specifically activated SuperAdmin mode,
-      // automatically recognize it and log in directly to Teacher Portal without 2SV!
-      if (isTeacher && (selectedRole === 'teacher' || (selectedRole === 'admin' && !isSuper) || selectedRole === 'student')) {
-        incrementTeacherLoginCount(cleanEmail).catch(() => {});
+      // --- ADMIN TAB ACCESS GUARD (STRICT: Block non-admins without triggering 2SV) ---
+      if (selectedRole === 'admin' || selectedRole === 'superadmin') {
+        if (!isAdmin || (selectedRole === 'superadmin' && !isSuper)) {
+          await signOut(auth).catch(() => {});
+          setAlert({
+            type: 'error',
+            text: 'Access Denied: You do not have administrator privileges.'
+          });
+          setIsLoading(false);
+          return;
+        }
+
+        // Admin 2-Step Verification Interception
+        if (await beginAdminLogin(userCred.user, staffProfile)) return;
+
+        // If 2SV is bypassed or not active, redirect directly
         const verifiedSession = await createVerifiedSession(userCred.user, cleanEmail, staffProfile);
-        verifiedSession.redirectPath = '/portal/teacher';
-        setAlert({ 
-          type: 'success', 
-          text: `Welcome back, ${verifiedSession.user.name}! ${selectedRole === 'admin' ? 'Recognized Faculty account — signing in directly...' : 'Redirecting to Teacher Portal...'}` 
-        });
+        verifiedSession.redirectPath = '/portal/admin';
+        setAlert({ type: 'success', text: 'Login successful! Redirecting to Admin Portal...' });
         onLoginSuccess(verifiedSession, keepLoggedIn);
         return;
       }
 
-      // --- TEACHER TAB ACCESS (Fallback check for unauthorized users) ---
+      // --- TEACHER TAB ACCESS ---
       if (selectedRole === 'teacher') {
         if (!isTeacher && !isAdmin) {
           await signOut(auth).catch(() => {});
@@ -739,22 +756,17 @@ export default function LoginPage() {
         return;
       }
 
-      // --- ADMIN 2-STEP VERIFICATION INTERCEPTION ---
-      if (await beginAdminLogin(userCred.user, staffProfile)) return;
-
-      // --- ADMIN TAB ACCESS (Fallback if not intercepted by beginAdminLogin) ---
-      if (selectedRole === 'admin' || selectedRole === 'superadmin') {
-        if (!isAdmin || (selectedRole === 'superadmin' && !isSuper)) {
-          await signOut(auth).catch(() => {});
-          setAlert({
-            type: 'error',
-            text: 'Access Denied: Unauthorized account for Admin Portal.'
-          });
-          setIsLoading(false);
-          return;
-        }
-
-        if (await beginAdminLogin(userCred.user, staffProfile)) return;
+      // --- AUTO-RECOGNIZE TEACHER ACCOUNT (On Student Tab) ---
+      if (isTeacher && selectedRole === 'student') {
+        incrementTeacherLoginCount(cleanEmail).catch(() => {});
+        const verifiedSession = await createVerifiedSession(userCred.user, cleanEmail, staffProfile);
+        verifiedSession.redirectPath = '/portal/teacher';
+        setAlert({ 
+          type: 'success', 
+          text: `Welcome back, ${verifiedSession.user.name}! Redirecting to Teacher Portal...` 
+        });
+        onLoginSuccess(verifiedSession, keepLoggedIn);
+        return;
       }
 
       // --- STUDENT TAB ACCESS (OR DEFAULT) ---
