@@ -1901,7 +1901,7 @@ export default function OfficialLetterWriterView({
                       rows={2}
                       value={keysInputText}
                       onChange={(e) => setKeysInputText(e.target.value)}
-                      placeholder="Paste AIzaSy... here"
+                      placeholder="Paste API key here"
                       className="w-full px-2 py-1 rounded-lg border border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-900 font-mono text-[10.5px] text-slate-900 dark:text-slate-100"
                     />
                     <div className="flex items-center justify-between">
@@ -2488,7 +2488,7 @@ export default function OfficialLetterWriterView({
                           rows={2}
                           value={keysInputText}
                           onChange={(e) => setKeysInputText(e.target.value)}
-                          placeholder="Paste AIzaSy... here"
+                          placeholder="Paste API key here"
                           className="w-full px-2 py-1 rounded-lg border border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-900 font-mono text-[10.5px] text-slate-900 dark:text-slate-100"
                         />
                         <div className="flex items-center justify-between">

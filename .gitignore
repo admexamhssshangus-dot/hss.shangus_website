@@ -60,6 +60,7 @@ optimized_photos*
 *.xlsx
 scripts/*.xlsx
 scripts/backup/
+scripts/backups/
 scripts/*.json
 src/data/masterSeedData.json
 desktop.ini

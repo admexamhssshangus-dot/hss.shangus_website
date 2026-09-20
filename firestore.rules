@@ -96,11 +96,15 @@ service cloud.firestore {
     function isTeacher() { return isFaculty() || isAdmin(); }
     function canReadStudents() {
       return isFaculty() || isSuperAdmin() || canUseAny([
-        'reports', 'admRegisterSuite', 'customRoster', 'certStudio', 'idCards', 'rollNo', 'practicals', 'attendanceMgmt', 'funds', 'controls', 'gkTest'
+        'reports', 'admRegisterSuite', 'customRoster', 'certStudio', 'idCards', 'rollNo', 'practicals', 'attendanceMgmt', 'funds', 'controls', 'gkTest',
+        'mergeStudio', 'boardSync', 'accounts', 'cms', 'quickCellEdit', 'analyticsReports', 'directEntryAction', 'bulkToolsAction'
       ]);
     }
     function canEditStudents() {
-      return canUseAny(['reports', 'admRegisterSuite', 'controls', 'rollNo', 'certStudio']);
+      return canUseAny([
+        'reports', 'admRegisterSuite', 'controls', 'rollNo', 'certStudio',
+        'mergeStudio', 'boardSync', 'quickCellEdit', 'directEntryAction', 'bulkToolsAction'
+      ]);
     }
     function settingsModule(documentId) {
       return documentId == 'certificateRegistry' ? 'certStudio' :
