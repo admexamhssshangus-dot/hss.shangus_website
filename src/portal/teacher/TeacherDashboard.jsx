@@ -8,9 +8,8 @@ import SEO from '../../components/SEO';
 import LogoutConfirmModal from '../components/LogoutConfirmModal';
 import { getCachedCollection, invalidateCollectionCache } from '../../services/dbCache';
 import { db, auth } from '../../services/firebase';
-import { collection, getDocs, getCountFromServer } from 'firebase/firestore';
+import { collection, getDocs } from 'firebase/firestore';
 import { printHistoricalSubmission, isSubmissionOwnedByTeacher } from '../../utils/practicalsPdfGenerator';
-import { isBootstrapAdminEmail, isBootstrapSuperAdminEmail } from '../../utils/authRoles';
 import { showToast } from '../../components/common/GlobalToast';
 
 export default function TeacherDashboard() {
@@ -20,26 +19,8 @@ export default function TeacherDashboard() {
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const handleLogoutRequest = () => setShowLogoutConfirm(true);
 
-  // Determine administrator status (teachers only see their own submissions; admins can view all)
-  const userEmail = (user?.email || auth.currentUser?.email || '').toLowerCase().trim();
-  const isAdmin = user?.role === 'admin' || user?.role === 'superadmin' || isBootstrapAdminEmail(userEmail) || isBootstrapSuperAdminEmail(userEmail);
-  const [adminShowAllFaculty, setAdminShowAllFaculty] = useState(false);
-
-  // Server-side practical count (0 docs downloaded)
+  // Teacher's personal practical submissions count
   const [practicalCount, setPracticalCount] = useState(null);
-
-  useEffect(() => {
-    let active = true;
-    (async () => {
-      try {
-        const countSnap = await getCountFromServer(collection(db, 'practicalsData'));
-        if (active && countSnap?.data) {
-          setPracticalCount(countSnap.data().count || 0);
-        }
-      } catch (_) {}
-    })();
-    return () => { active = false; };
-  }, []);
 
   // Submission History Modal State
   const [showHistoryModal, setShowHistoryModal] = useState(false);
@@ -133,13 +114,11 @@ export default function TeacherDashboard() {
           }
         }
 
-        // Filter to only this teacher's submissions (unless administrator toggles to view all faculty)
-        const filteredList = (isAdmin && adminShowAllFaculty)
-          ? deduped
-          : deduped.filter(item => isSubmissionOwnedByTeacher(item, user, auth.currentUser));
+        // Strictly filter to only this teacher's own evaluation submissions
+        const ownedList = deduped.filter(item => isSubmissionOwnedByTeacher(item, user, auth.currentUser));
 
-        setSubmissionHistory(filteredList);
-        setPracticalCount(filteredList.length);
+        setSubmissionHistory(ownedList);
+        setPracticalCount(ownedList.length);
       } else {
         setSubmissionHistory([]);
         setPracticalCount(0);
@@ -147,17 +126,20 @@ export default function TeacherDashboard() {
     } catch (e) {
       console.error('Failed to load submissions history:', e);
       setSubmissionHistory([]);
+      setPracticalCount(0);
     } finally {
       setLoadingHistory(false);
     }
-  }, [user, isAdmin, adminShowAllFaculty]);
+  }, [user]);
+
+  // Load teacher's submissions count on mount
+  useEffect(() => {
+    fetchSubmissionHistory(false);
+  }, [fetchSubmissionHistory]);
 
   const filteredSubmissions = useMemo(() => {
-    let list = submissionHistory;
-    // Extra safety guarantee: enforce teacher ownership
-    if (!isAdmin || !adminShowAllFaculty) {
-      list = list.filter(item => isSubmissionOwnedByTeacher(item, user, auth.currentUser));
-    }
+    // Strictly filter to only this teacher's own submissions
+    const list = submissionHistory.filter(item => isSubmissionOwnedByTeacher(item, user, auth.currentUser));
 
     if (!historySearch.trim()) return list;
     const q = historySearch.toLowerCase().trim();
@@ -169,7 +151,7 @@ export default function TeacherDashboard() {
       const year = String(item.yearSuffix || '').toLowerCase();
       return className.includes(q) || subject.includes(q) || practicalType.includes(q) || displayDate.includes(q) || year.includes(q);
     });
-  }, [submissionHistory, historySearch, user, isAdmin, adminShowAllFaculty]);
+  }, [submissionHistory, historySearch, user]);
 
   useEffect(() => {
     if (showHistoryModal) {
@@ -320,24 +302,11 @@ export default function TeacherDashboard() {
               <div className="flex items-center gap-2 min-w-0 flex-1">
                 <History className="text-indigo-600 dark:text-indigo-400 shrink-0" size={18} />
                 <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-black text-xs sm:text-sm text-slate-900 dark:text-white truncate">
-                      {isAdmin && adminShowAllFaculty ? 'All Faculty Submissions Log' : 'My Assessment Submissions Log'}
-                    </h3>
-                    {isAdmin && (
-                      <button
-                        type="button"
-                        onClick={() => setAdminShowAllFaculty(prev => !prev)}
-                        className="text-[9.5px] px-2 py-0.5 rounded-full font-bold bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100 cursor-pointer transition-colors shrink-0"
-                      >
-                        {adminShowAllFaculty ? 'Switch to: Only My Submissions' : 'Switch to: All Faculty'}
-                      </button>
-                    )}
-                  </div>
+                  <h3 className="font-black text-xs sm:text-sm text-slate-900 dark:text-white truncate">
+                    My Assessment Submissions Log
+                  </h3>
                   <p className="text-[10px] text-slate-400 font-medium">
-                    {isAdmin && adminShowAllFaculty
-                      ? 'All school evaluations (Pre-Board, Practicals, Term End & Unit Tests)'
-                      : 'Showing your own submitted evaluations only (Pre-Board, Practicals, Term End & Unit Tests)'}
+                    Showing your own submitted evaluations only (Pre-Board, Practicals, Term End & Unit Tests)
                   </p>
                 </div>
               </div>
@@ -424,8 +393,8 @@ export default function TeacherDashboard() {
                         <button
                           type="button"
                           onClick={() => {
-                            if (!isAdmin && !isSubmissionOwnedByTeacher(item, user, auth.currentUser)) {
-                              showToast('Access Restricted: You cannot view or print awards submitted by other teachers.', 'error');
+                            if (!isSubmissionOwnedByTeacher(item, user, auth.currentUser)) {
+                              showToast('Access Restricted: You can only view or print your own submitted awards.', 'error');
                               return;
                             }
                             const ok = printHistoricalSubmission(item);
@@ -443,8 +412,8 @@ export default function TeacherDashboard() {
                         <button
                           type="button"
                           onClick={() => {
-                            if (!isAdmin && !isSubmissionOwnedByTeacher(item, user, auth.currentUser)) {
-                              showToast('Access Restricted: You cannot load awards submitted by other teachers.', 'error');
+                            if (!isSubmissionOwnedByTeacher(item, user, auth.currentUser)) {
+                              showToast('Access Restricted: You can only load evaluation awards you submitted.', 'error');
                               return;
                             }
                             setShowHistoryModal(false);

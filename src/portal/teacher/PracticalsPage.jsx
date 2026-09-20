@@ -15,7 +15,6 @@ import { db, auth } from '../../services/firebase';
 import { collection, getDocs, addDoc } from 'firebase/firestore';
 import { getCachedCollection, invalidateCollectionCache } from '../../services/dbCache';
 import { printIndividualAwardRoll, printHistoricalSubmission, isSubmissionOwnedByTeacher } from '../../utils/practicalsPdfGenerator';
-import { isBootstrapAdminEmail, isBootstrapSuperAdminEmail } from '../../utils/authRoles';
 import { loadSiteSettings } from '../../utils/settingsLoader';
 import {
   getSubjectMarksConfig,
@@ -989,11 +988,6 @@ export default function PracticalsPage() {
   const outletContext = useOutletContext() || {};
   const user = outletContext.user || null;
 
-  // Determine administrator status (teachers only see their own submissions; admins can view all)
-  const userEmail = (user?.email || auth.currentUser?.email || '').toLowerCase().trim();
-  const isAdmin = user?.role === 'admin' || user?.role === 'superadmin' || isBootstrapAdminEmail(userEmail) || isBootstrapSuperAdminEmail(userEmail);
-  const [adminShowAllFaculty, setAdminShowAllFaculty] = useState(false);
-
   // Resolve teacher's officially assigned teaching subject
   const teacherRegisteredSubject = useMemo(() => {
     const rawSubj = user?.subject || user?.teachingSubject || '';
@@ -1165,12 +1159,8 @@ export default function PracticalsPage() {
   const [historySearch, setHistorySearch] = useState('');
 
   const filteredSubmissions = useMemo(() => {
-    let list = submissionHistory;
-
-    // Teachers only see their own submissions; admins can toggle to see all
-    if (!isAdmin || !adminShowAllFaculty) {
-      list = list.filter(item => isSubmissionOwnedByTeacher(item, user, auth.currentUser));
-    }
+    // Strictly restrict to only the current teacher's submissions
+    const list = submissionHistory.filter(item => isSubmissionOwnedByTeacher(item, user, auth.currentUser));
 
     if (!historySearch.trim()) return list;
     const q = historySearch.toLowerCase().trim();
@@ -1182,7 +1172,7 @@ export default function PracticalsPage() {
       const year = String(item.yearSuffix || '').toLowerCase();
       return className.includes(q) || subject.includes(q) || practicalType.includes(q) || displayDate.includes(q) || year.includes(q);
     });
-  }, [submissionHistory, historySearch, user, isAdmin, adminShowAllFaculty]);
+  }, [submissionHistory, historySearch, user]);
 
   // Draft & Final Submission Validation States
   const [draftSavedAt, setDraftSavedAt] = useState(null);
@@ -1344,9 +1334,9 @@ export default function PracticalsPage() {
           const isApproved = data.status === 'approved' || (data.isPendingApproval === false && data.status !== 'pending_approval' && data.status !== 'rejected' && data.status !== 'draft');
 
           // Strict Teacher Ownership Check:
-          // Non-admin teachers can ONLY view, load, or integrate awards they personally created.
+          // In the Teacher Portal, a teacher can ONLY view, load, or integrate awards they personally created.
           const isOwnedByCurrentTeacher = isSubmissionOwnedByTeacher(data, user, auth.currentUser);
-          const canAccessAward = isAdmin || isOwnedByCurrentTeacher;
+          const canAccessAward = isOwnedByCurrentTeacher;
 
           // Track pending, draft or rejected submission for this exact class, subject, evalType, session
           // Strictly guarantee approved records are NEVER flagged as pending
@@ -1986,8 +1976,8 @@ export default function PracticalsPage() {
   const handleLoadSubmissionRecord = useCallback((item) => {
     if (!item) return;
 
-    // Strict access control: non-admin teacher cannot load another teacher's award
-    if (!isAdmin && !isSubmissionOwnedByTeacher(item, user, auth.currentUser)) {
+    // Strict access control: teacher cannot load another teacher's award
+    if (!isSubmissionOwnedByTeacher(item, user, auth.currentUser)) {
       triggerNotification({
         type: 'error',
         title: 'Access Restricted',
@@ -2088,12 +2078,12 @@ export default function PracticalsPage() {
     setTimeout(() => {
       fetchPracticalData(true);
     }, 50);
-  }, [fetchPracticalData, triggerNotification, isAdmin, user]);
+  }, [fetchPracticalData, triggerNotification, user]);
 
   // Synchronize submission if navigated with loadedRecord from Dashboard
   useEffect(() => {
     if (location.state?.loadedRecord) {
-      if (!isAdmin && !isSubmissionOwnedByTeacher(location.state.loadedRecord, user, auth.currentUser)) {
+      if (!isSubmissionOwnedByTeacher(location.state.loadedRecord, user, auth.currentUser)) {
         triggerNotification({
           type: 'error',
           title: 'Access Restricted',
@@ -2105,7 +2095,7 @@ export default function PracticalsPage() {
       }
       handleLoadSubmissionRecord(location.state.loadedRecord);
     }
-  }, [location.state?.loadedRecord, handleLoadSubmissionRecord, isAdmin, user, triggerNotification]);
+  }, [location.state?.loadedRecord, handleLoadSubmissionRecord, user, triggerNotification]);
 
   // Fetch Past Submission History across all evaluation types
   const fetchSubmissionHistory = useCallback(async (force = true) => {
@@ -2194,10 +2184,7 @@ export default function PracticalsPage() {
           }
         }
 
-        const ownedList = (!isAdmin || !adminShowAllFaculty)
-          ? deduped.filter(item => isSubmissionOwnedByTeacher(item, user, auth.currentUser))
-          : deduped;
-
+        const ownedList = deduped.filter(item => isSubmissionOwnedByTeacher(item, user, auth.currentUser));
         setSubmissionHistory(ownedList);
       } else {
         setSubmissionHistory([]);
@@ -2208,7 +2195,7 @@ export default function PracticalsPage() {
     } finally {
       setLoadingHistory(false);
     }
-  }, [isAdmin, adminShowAllFaculty, user]);
+  }, [user]);
 
   // Auto-open Submissions History if navigated from Dashboard link (?view=history or state.openHistory)
   useEffect(() => {
@@ -2251,7 +2238,7 @@ export default function PracticalsPage() {
 
   // 1. Save Evaluation Draft (Cloud Database + LocalStorage fallback)
   const handleSaveDraft = async () => {
-    if (!isAdmin && existingAwardInfo?.lockedOtherTeacherAward) {
+    if (existingAwardInfo?.lockedOtherTeacherAward) {
       triggerNotification({
         type: 'error',
         title: 'Draft Restricted',
@@ -2419,7 +2406,7 @@ export default function PracticalsPage() {
 
   // 2. Data Validation & Initiate Final Submit
   const handleInitiateFinalSubmit = () => {
-    if (!isAdmin && existingAwardInfo?.lockedOtherTeacherAward) {
+    if (existingAwardInfo?.lockedOtherTeacherAward) {
       triggerNotification({
         type: 'error',
         title: 'Submission Restricted',
@@ -2659,7 +2646,7 @@ export default function PracticalsPage() {
   };
 
   const handlePrintReport = () => {
-    if (!isAdmin && existingAwardInfo?.lockedOtherTeacherAward) {
+    if (existingAwardInfo?.lockedOtherTeacherAward) {
       triggerNotification({
         type: 'error',
         title: 'Print Restricted',
@@ -3034,7 +3021,7 @@ export default function PracticalsPage() {
           )}
 
           {/* Existing Award / Pending Review Status Banner */}
-          {existingAwardInfo?.lockedOtherTeacherAward && !isAdmin ? (
+          {existingAwardInfo?.lockedOtherTeacherAward ? (
             <div className="p-3.5 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700/60 flex items-start gap-3 text-amber-900 dark:text-amber-200 animate-in fade-in duration-200 shadow-xs">
               <span className="w-7 h-7 rounded-xl bg-amber-500/15 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0 mt-0.5">
                 <ShieldAlert size={16} />
@@ -3198,9 +3185,9 @@ export default function PracticalsPage() {
               <button
                 type="button"
                 onClick={() => setShowQuickFill(!showQuickFill)}
-                disabled={Boolean(existingAwardInfo?.lockedOtherTeacherAward && !isAdmin)}
+                disabled={Boolean(existingAwardInfo?.lockedOtherTeacherAward)}
                 className={`practicals-toolbar-item h-8 min-h-[32px] max-h-[32px] px-2 sm:px-2.5 rounded-lg border text-[11px] font-bold flex items-center justify-center gap-1 transition-all shadow-2xs active:scale-95 shrink-0 ${
-                  Boolean(existingAwardInfo?.lockedOtherTeacherAward && !isAdmin)
+                  Boolean(existingAwardInfo?.lockedOtherTeacherAward)
                     ? 'bg-slate-100 dark:bg-slate-900 text-slate-400 border-slate-200 dark:border-slate-800 cursor-not-allowed opacity-50'
                     : showQuickFill
                     ? 'bg-amber-500 text-white border-amber-500 shadow-xs cursor-pointer'
@@ -3221,13 +3208,13 @@ export default function PracticalsPage() {
               <button
                 type="button"
                 onClick={handlePrintReport}
-                disabled={Boolean(existingAwardInfo?.lockedOtherTeacherAward && !isAdmin)}
+                disabled={Boolean(existingAwardInfo?.lockedOtherTeacherAward)}
                 className={`practicals-toolbar-item h-8 min-h-[32px] max-h-[32px] w-8 sm:w-auto px-1.5 sm:px-2.5 rounded-lg font-bold text-[11px] shadow-2xs flex items-center justify-center gap-1 active:scale-95 shrink-0 ${
-                  Boolean(existingAwardInfo?.lockedOtherTeacherAward && !isAdmin)
+                  Boolean(existingAwardInfo?.lockedOtherTeacherAward)
                     ? 'bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-600 border border-slate-300 dark:border-slate-700 cursor-not-allowed opacity-60'
                     : 'bg-indigo-600 text-white hover:bg-indigo-500 border border-indigo-600 cursor-pointer'
                 }`}
-                title={Boolean(existingAwardInfo?.lockedOtherTeacherAward && !isAdmin) ? "Printing restricted for other teachers' awards" : "Print Evaluation Roster"}
+                title={Boolean(existingAwardInfo?.lockedOtherTeacherAward) ? "Printing restricted for other teachers' awards" : "Print Evaluation Roster"}
               >
                 <Printer size={13} />
                 <span className="hidden sm:inline">Print</span>
@@ -3935,7 +3922,7 @@ export default function PracticalsPage() {
                             inputMode="decimal"
                             placeholder={`0-${subjectMaxMarks}`}
                             value={st.practicalMarks}
-                            disabled={!isSubmissionOpen || Boolean(!isAdmin && existingAwardInfo?.lockedOtherTeacherAward)}
+                            disabled={!isSubmissionOpen || Boolean(existingAwardInfo?.lockedOtherTeacherAward)}
                             onChange={(e) => handleMarkChange(originalIdx !== -1 ? originalIdx : idx, 'practicalMarks', e.target.value)}
                             className={`practicals-marks-input rounded-md border text-[11px] font-bold text-center leading-none focus:outline-none focus:ring-1 focus:ring-indigo-500 uppercase transition-all placeholder:text-slate-400 placeholder:text-[9.5px] placeholder:font-normal shrink-0 ${
                               isAbsent
@@ -3947,7 +3934,7 @@ export default function PracticalsPage() {
                           />
                           <button
                             type="button"
-                            disabled={!isSubmissionOpen || Boolean(!isAdmin && existingAwardInfo?.lockedOtherTeacherAward)}
+                            disabled={!isSubmissionOpen || Boolean(existingAwardInfo?.lockedOtherTeacherAward)}
                             onClick={() => handleMarkChange(originalIdx !== -1 ? originalIdx : idx, 'practicalMarks', isAbsent ? '' : 'A')}
                             className={`practicals-ab-btn rounded-md font-mono text-[10.5px] font-black border transition-all cursor-pointer flex items-center justify-center shrink-0 active:scale-95 leading-none ${
                               isAbsent
@@ -4058,7 +4045,7 @@ export default function PracticalsPage() {
                                 type="text"
                                 placeholder={`0-${subjectMaxMarks} / A`}
                                 value={st.practicalMarks}
-                                disabled={!isSubmissionOpen || Boolean(!isAdmin && existingAwardInfo?.lockedOtherTeacherAward)}
+                                disabled={!isSubmissionOpen || Boolean(existingAwardInfo?.lockedOtherTeacherAward)}
                                 onChange={(e) => handleMarkChange(originalIdx !== -1 ? originalIdx : idx, 'practicalMarks', e.target.value)}
                                 className="w-20 px-2 py-0 rounded-md border text-[11px] font-black h-5.5 focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white dark:bg-slate-950 border-slate-300 dark:border-slate-700 uppercase text-center leading-none disabled:opacity-50 disabled:cursor-not-allowed"
                               />
@@ -4157,7 +4144,7 @@ export default function PracticalsPage() {
               <button
                 type="button"
                 onClick={handleSaveDraft}
-                disabled={saving || studentMarks.length === 0 || (!isAdmin && Boolean(existingAwardInfo?.lockedOtherTeacherAward))}
+                disabled={saving || studentMarks.length === 0 || Boolean(existingAwardInfo?.lockedOtherTeacherAward)}
                 className="flex-1 sm:flex-initial px-3 py-2 sm:py-1 min-h-[40px] sm:min-h-[34px] rounded-xl font-bold text-xs bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-700 active:scale-98 transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
               >
                 <Bookmark size={14} className="text-amber-500 shrink-0" />
@@ -4167,7 +4154,7 @@ export default function PracticalsPage() {
               <button
                 type="button"
                 onClick={handleInitiateFinalSubmit}
-                disabled={saving || studentMarks.length === 0 || (!isAdmin && Boolean(existingAwardInfo?.lockedOtherTeacherAward))}
+                disabled={saving || studentMarks.length === 0 || Boolean(existingAwardInfo?.lockedOtherTeacherAward)}
                 className={`flex-1 sm:flex-initial px-4 py-2 sm:py-1 min-h-[40px] sm:min-h-[34px] rounded-xl font-black text-xs text-white shadow-xs active:scale-98 transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 ${
                   isOverwrite
                     ? 'bg-amber-600 hover:bg-amber-500'
@@ -4363,22 +4350,11 @@ export default function PracticalsPage() {
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
                     <h3 className="font-black text-xs sm:text-sm text-slate-900 dark:text-white truncate">
-                      {isAdmin && adminShowAllFaculty ? 'All Faculty Submissions Log' : 'My Assessment Submissions Log'}
+                      My Assessment Submissions Log
                     </h3>
-                    {isAdmin && (
-                      <button
-                        type="button"
-                        onClick={() => setAdminShowAllFaculty(prev => !prev)}
-                        className="text-[9.5px] px-2 py-0.5 rounded-full font-bold bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100 cursor-pointer transition-colors shrink-0"
-                      >
-                        {adminShowAllFaculty ? 'Switch to: Only My Submissions' : 'Switch to: All Faculty'}
-                      </button>
-                    )}
                   </div>
                   <p className="text-[10px] text-slate-400 font-medium">
-                    {isAdmin && adminShowAllFaculty
-                      ? 'All school evaluations (Pre-Board, Practicals, Term End & Unit Tests)'
-                      : 'Showing your own submitted evaluations only (Pre-Board, Practicals, Term End & Unit Tests)'}
+                    Showing your own submitted evaluations only (Pre-Board, Practicals, Term End & Unit Tests)
                   </p>
                 </div>
               </div>
@@ -4467,7 +4443,7 @@ export default function PracticalsPage() {
                         <button
                           type="button"
                           onClick={() => {
-                            if (!isAdmin && !isSubmissionOwnedByTeacher(item, user, auth.currentUser)) {
+                            if (!isSubmissionOwnedByTeacher(item, user, auth.currentUser)) {
                               triggerNotification({
                                 type: 'error',
                                 title: 'Access Restricted',
@@ -4497,7 +4473,7 @@ export default function PracticalsPage() {
                         <button
                           type="button"
                           onClick={() => {
-                            if (!isAdmin && !isSubmissionOwnedByTeacher(item, user, auth.currentUser)) {
+                            if (!isSubmissionOwnedByTeacher(item, user, auth.currentUser)) {
                               triggerNotification({
                                 type: 'error',
                                 title: 'Access Restricted',
