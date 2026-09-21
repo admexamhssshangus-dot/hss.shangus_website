@@ -344,6 +344,13 @@ export function extractStudentAdmissionNumber(st) {
     raw['ADM_NO'],
     raw['admNo'],
     raw['admissionNo'],
+    raw['assignedAdmNo'],
+    raw['assignedAdmissionNo'],
+    raw['admission_register_no'],
+    raw['registerAdmNo'],
+    raw['adm_number'],
+    raw['adm_no'],
+    raw['admn_no'],
     raw['Adm_No'],
     raw['Admission_No'],
     raw['Admission_Number'],
@@ -357,6 +364,8 @@ export function extractStudentAdmissionNumber(st) {
     raw['Admission Number (Class 12th)'],
     raw['Admission S.No.'],
     raw['Adm. S.No.'],
+    st?.assignedAdmNo,
+    st?.assignedAdmissionNo,
     st?.admissionNo,
     st?.admNo
   ];
@@ -375,6 +384,21 @@ export function extractStudentAdmissionNumber(st) {
     if (isUsableRecordValue(value) && !/^(yes|no|true|false)$/i.test(String(value).trim())) return String(value).trim();
   }
 
+  // Fallback to Form No. / Application ID if standard Admission Register number is not yet allotted
+  const formCandidates = [
+    raw['Form Number'],
+    raw['Form No.'],
+    raw['Form No'],
+    raw['formNo'],
+    raw['formNumber'],
+    raw['Application ID'],
+    raw['appId'],
+    st?.formNo
+  ];
+  for (const f of formCandidates) {
+    if (isUsableRecordValue(f)) return String(f).trim();
+  }
+
   return '';
 }
 
@@ -391,9 +415,11 @@ export function extractStudentAdmissionDate(st) {
     raw['Date of Admission'],
     raw['Date of admission'],
     raw['date_of_admission'],
+    raw['dateOfAdmission'],
     raw['Admission Date'],
     raw['admission_date'],
     raw['admissionDate'],
+    raw['admittedDate'],
     raw['Adm. Date'],
     raw['Adm. Date.'],
     raw['Adm Date.'],
@@ -404,12 +430,22 @@ export function extractStudentAdmissionDate(st) {
     raw['Date of Adm'],
     raw['Date of Admission (Class 11th)'],
     raw['Date of Admission (Class 12th)'],
+    raw['Admission Date (Class 11th)'],
+    raw['Admission Date (Class 12th)'],
     raw['DOA'],
     raw['doa'],
     raw['Date of Joining'],
     raw['Enrolment Date'],
+    raw['onlineSubmDate'],
+    raw['Online Submission Date'],
+    raw['submittedAt'],
+    raw['createdAt'],
+    st?.dateOfAdmission,
     st?.admissionDate,
-    st?.admDate
+    st?.admittedDate,
+    st?.admDate,
+    st?.onlineSubmDate,
+    st?.submittedAt
   ];
 
   for (const c of candidates) {
@@ -422,14 +458,14 @@ export function extractStudentAdmissionDate(st) {
         } catch (_) {}
       }
       const s = String(c).trim();
-      if (s && !/^(—|-|n\/?a|null|undefined|none)$/i.test(s)) {
-        // Normalize ISO YYYY-MM-DD to DD-MM-YYYY if needed
-        const isoMatch = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+      if (s && !/^(—|-|n\/?a|null|undefined|none|_+)$/i.test(s)) {
+        // Handle ISO timestamps like 2024-04-15T10:30:00Z
+        const isoMatch = s.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
         if (isoMatch) {
           return `${isoMatch[3].padStart(2, '0')}-${isoMatch[2].padStart(2, '0')}-${isoMatch[1]}`;
         }
         // Normalize DD/MM/YYYY to DD-MM-YYYY
-        const slashMatch = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+        const slashMatch = s.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})/);
         if (slashMatch) {
           return `${slashMatch[1].padStart(2, '0')}-${slashMatch[2].padStart(2, '0')}-${slashMatch[3]}`;
         }
@@ -440,12 +476,76 @@ export function extractStudentAdmissionDate(st) {
 
   const fuzzyDate = findNormalizedRecordValue(raw, [
     'Date Admission', 'Admission Date', 'Date of Admission', 'Admission Joining Date',
-    'Date of Joining', 'Enrolment Date', 'DOA'
+    'Date of Joining', 'Enrolment Date', 'Online Submission Date', 'DOA'
   ]);
   if (fuzzyDate) {
     return extractStudentAdmissionDate({ 'Date of Admission': fuzzyDate });
   }
 
+  return '';
+}
+
+/**
+ * Comprehensive Student Address & Village Extractor.
+ * Synthesizes complete residential address from direct address fields or component fields
+ * (House No., Village/Town, Tehsil, District, PIN code).
+ */
+export function extractFullAddress(st) {
+  if (!st) return '';
+  const raw = st?.raw || st || {};
+
+  // 1. Direct address string
+  const directKeys = [
+    'Address', 'address', 'Permanent Address', 'permanentAddress',
+    'Present Address', 'presentAddress', 'Full Address', 'Residence',
+    'residence', 'Residence (Village, District)', 'Residential Address',
+    'residentialAddress', 'Communication Address'
+  ];
+  for (const k of directKeys) {
+    const val = raw[k] ?? st[k];
+    if (val && String(val).trim() && !/^(—|-|n\/?a|null|undefined)$/i.test(String(val).trim())) {
+      const s = String(val).trim();
+      if (s.length >= 3) return s;
+    }
+  }
+
+  // 2. Synthesize from components (Village, Tehsil, District, House No.)
+  const villageKeys = [
+    'Name of your village', 'Village/Town', 'Village', 'village', 'town',
+    'Location', 'Zone', 'Mohalla', 'Village (as per Aadhaar)'
+  ];
+  let village = '';
+  for (const k of villageKeys) {
+    const val = raw[k] ?? st[k];
+    if (val && String(val).trim() && !/^(—|-|n\/?a|null|undefined)$/i.test(String(val).trim())) {
+      village = String(val).trim();
+      break;
+    }
+  }
+  const tehsil = String(raw.Tehsil || raw.tehsil || st.Tehsil || st.tehsil || '').trim();
+  const district = String(raw.District || raw.district || st.District || st.district || '').trim();
+  const houseNo = String(raw['House No.'] || raw.houseNo || st['House No.'] || '').trim();
+
+  const parts = [];
+  if (houseNo && !/^(—|-|n\/?a|null|undefined)$/i.test(houseNo)) {
+    parts.push(`H.No. ${houseNo}`);
+  }
+  if (village) {
+    parts.push(village);
+  }
+  if (tehsil && !/^(—|-|n\/?a|null|undefined)$/i.test(tehsil) && !village.toLowerCase().includes(tehsil.toLowerCase())) {
+    parts.push(tehsil);
+  }
+  if (district && !/^(—|-|n\/?a|null|undefined)$/i.test(district) && !village.toLowerCase().includes(district.toLowerCase())) {
+    parts.push(district);
+  }
+  if (parts.length > 0) {
+    const combined = parts.join(', ');
+    if (!combined.toLowerCase().includes('j&k') && !combined.toLowerCase().includes('kashmir')) {
+      return `${combined} (J&K)`;
+    }
+    return combined;
+  }
   return '';
 }
 
