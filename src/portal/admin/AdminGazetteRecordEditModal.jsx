@@ -10,7 +10,7 @@ import { invalidateCollectionCache } from '../../services/dbCache';
 import { logAdminActivity } from '../../services/adminActivityLogger';
 import { formatPracticalDocId } from '../../utils/practicalsSettingsManager';
 import { showToast } from '../../components/common/GlobalToast';
-import { isStudentEnrolledInSubject } from './AdminPracticals';
+import { isStudentEnrolledInSubject, invalidatePracticalsCache } from './AdminPracticals';
 
 const REASON_PRESETS = [
   'Re-evaluation result',
@@ -191,36 +191,32 @@ export default function AdminGazetteRecordEditModal({
       const changedSubjects = Object.values(marksState).filter(sub => sub.val !== sub.originalVal);
 
       const rollVal = String(candidate.rollNo || candidate.student?.classRollNo || candidate.student?.rollNo || '').trim();
-      const regVal = String(candidate.regNo || candidate.student?.boardRegNo || candidate.student?.regNo || '').trim();
+      const rawReg = String(candidate.regNo || candidate.student?.boardRegNo || candidate.student?.regNo || '').trim();
+      const regVal = rawReg.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
       const nameVal = String(candidate.name || candidate.student?.studentName || candidate.student?.name || '').trim();
       const parentVal = String(candidate.fatherName || candidate.student?.parentName || candidate.student?.fatherName || '').trim();
-
-      // Normalize evaluation type and session for doc ID matching
-      const normEvalType = String(selectedEvalType).toLowerCase().includes('pre-board') || String(selectedEvalType).toLowerCase().includes('preboard')
-        ? 'preboard'
-        : String(selectedEvalType).toLowerCase().replace(/[^a-z0-9_-]/g, '_');
+      const examVal = String(candidate.student?.examRollNo || candidate.student?.['Exam R.No. (Current)'] || '').trim().toUpperCase();
 
       const normSession = String(selectedSession || '2025-26').trim();
 
       for (const sub of changedSubjects) {
-        // 1. Identify canonical target document in practicalsData
-        const canonicalDocId = formatPracticalDocId(selectedClass, sub.name, normEvalType, normSession);
-        const altDocId = formatPracticalDocId(selectedClass, sub.code, normEvalType, normSession);
+        // 1. Identify canonical approved document in practicalsData (STRICTLY exclude pending, history, or bin)
+        const cleanSubDocId = String(sub.docId || '').replace(/^pending_/, '');
 
-        // Find existing document from practicalsDocs or fetch directly
-        let targetDocId = sub.docId || canonicalDocId;
         const matchedDoc = practicalsDocs.find(d => {
           const dId = String(d.id || d.docId || '');
-          if (dId === canonicalDocId || dId === altDocId || (sub.docId && dId === sub.docId)) return true;
+          if (dId.startsWith('pending_') || dId.startsWith('history_') || dId.startsWith('bin_')) return false;
+          if (cleanSubDocId && dId === cleanSubDocId) return true;
           const sCode = (d.subjectCode || '').toUpperCase().trim();
           const sName = (d.subjectName || d.subject || '').toUpperCase().trim();
-          return (sCode === sub.code || sName === sub.name.toUpperCase()) &&
-                 String(d.className || d.class || '').replace(/class/i, '').trim().includes(selectedClass.replace(/class/i, '').trim());
+          const dClass = String(d.className || d.class || '').replace(/class/i, '').trim().toLowerCase();
+          const sClass = String(selectedClass || '').replace(/class/i, '').trim().toLowerCase();
+          const classMatches = dClass === sClass || dClass.includes(sClass) || sClass.includes(dClass);
+          const subjectMatches = sCode === sub.code || sName === sub.name.toUpperCase();
+          return classMatches && subjectMatches;
         });
 
-        if (matchedDoc && matchedDoc.id) {
-          targetDocId = matchedDoc.id;
-        }
+        const targetDocId = (matchedDoc && matchedDoc.id) || cleanSubDocId || formatPracticalDocId(selectedClass, sub.name, selectedEvalType || 'Pre-Board Test', normSession);
 
         // Fetch latest version of document from Firestore
         const docRef = doc(db, 'practicalsData', targetDocId);
@@ -229,32 +225,44 @@ export default function AdminGazetteRecordEditModal({
         let docData = docSnap.exists() ? docSnap.data() : (matchedDoc || {});
         let records = Array.isArray(docData.records) ? [...docData.records] : [];
 
-        // Check if student record exists in records array
+        // Check if student record exists in records array using comprehensive multi-factor matching
         const recIndex = records.findIndex(r => {
-          const rRoll = String(r.rollNo || r.classRollNo || '').trim();
-          const rReg = String(r.boardRollNo || r.boardRoll || r.regNo || '').trim();
-          const rName = String(r.name || r.studentName || '').toLowerCase().trim();
+          if (!r) return false;
+          const rReg = String(r.boardRegNo || r.boardRollNo || r.regNo || r['Board Reg. No.'] || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+          if (regVal && regVal !== '—' && regVal.length >= 8 && rReg && rReg.length >= 8 && rReg === regVal) return true;
 
-          if (rollVal && rollVal !== '—' && rRoll === rollVal) return true;
-          if (regVal && regVal !== '—' && rReg === regVal) return true;
-          if (nameVal && rName === nameVal.toLowerCase()) return true;
+          const rExam = String(r.examRollNo || '').trim().toUpperCase();
+          if (examVal && examVal !== '—' && examVal.length >= 6 && rExam && rExam === examVal) return true;
+
+          const rRoll = String(r.rollNo || r.classRollNo || '').trim();
+          if (rollVal && rollVal !== '—' && rRoll && rRoll === rollVal) return true;
+
+          const rName = String(r.name || r.studentName || '').toLowerCase().trim();
+          const rFather = String(r.parentName || r.parentage || r.fatherName || '').toLowerCase().trim();
+          if (nameVal && rName && nameVal.toLowerCase().trim() === rName) {
+            if (!parentVal || !rFather || parentVal.toLowerCase().trim() === rFather || parentVal.toLowerCase().includes(rFather) || rFather.includes(parentVal.toLowerCase())) {
+              return true;
+            }
+          }
           return false;
         });
 
         const rawMarkVal = sub.val.trim().toUpperCase();
         const isAbsent = rawMarkVal === 'AB' || rawMarkVal === 'A' || rawMarkVal === 'ABSENT';
-        const numVal = isAbsent ? null : (rawMarkVal !== '' ? Number(rawMarkVal) : null);
+        const numVal = isAbsent ? null : (rawMarkVal !== '' && !isNaN(Number(rawMarkVal)) ? Number(rawMarkVal) : null);
 
         const updatedStudentEntry = {
-          rollNo: rollVal,
-          classRollNo: rollVal,
-          boardRollNo: regVal,
-          boardRoll: regVal,
-          name: nameVal,
-          studentName: nameVal,
-          parentName: parentVal,
-          practicalMarks: isAbsent ? 'AB' : (numVal !== null ? String(numVal) : ''),
-          totalMarks: isAbsent ? 'AB' : numVal,
+          rollNo: rollVal !== '—' ? rollVal : (records[recIndex]?.rollNo || ''),
+          classRollNo: rollVal !== '—' ? rollVal : (records[recIndex]?.classRollNo || ''),
+          boardRollNo: regVal !== '—' ? regVal : (records[recIndex]?.boardRollNo || ''),
+          boardRegNo: regVal !== '—' ? regVal : (records[recIndex]?.boardRegNo || ''),
+          regNo: regVal !== '—' ? regVal : (records[recIndex]?.regNo || ''),
+          examRollNo: examVal !== '—' ? examVal : (records[recIndex]?.examRollNo || ''),
+          name: nameVal || records[recIndex]?.name || '',
+          studentName: nameVal || records[recIndex]?.studentName || '',
+          parentName: parentVal || records[recIndex]?.parentName || '',
+          practicalMarks: isAbsent ? 'AB' : (numVal !== null ? String(numVal) : rawMarkVal),
+          totalMarks: isAbsent ? 'AB' : (numVal !== null ? numVal : rawMarkVal),
           // Explicit Admin Audit Stamp
           updatedByAdmin: true,
           updatedBy: adminEmail,
@@ -271,14 +279,15 @@ export default function AdminGazetteRecordEditModal({
           records.push(updatedStudentEntry);
         }
 
-        // Save updated document back to practicalsData with admin audit stamp
+        // Save updated document back to practicalsData with admin audit stamp (preserving original practicalType)
+        const preservedPracticalType = docData.practicalType || selectedEvalType || 'Pre-Board Test';
         await setDoc(docRef, {
           ...docData,
           className: selectedClass,
           class: selectedClass,
           subjectName: sub.name,
           subjectCode: sub.code,
-          practicalType: normEvalType,
+          practicalType: preservedPracticalType,
           yearSuffix: normSession,
           session: normSession,
           maxMarks: sub.maxMarks,
@@ -294,8 +303,9 @@ export default function AdminGazetteRecordEditModal({
         }, { merge: true });
       }
 
-      // Invalidate practicals cache so both teacher and admin portals immediately reflect changes
+      // Invalidate both collection and in-memory practicals caches so all admin and teacher modules refresh instantly
       invalidateCollectionCache('practicalsData');
+      invalidatePracticalsCache();
 
       // Log admin activity audit
       await logAdminActivity({

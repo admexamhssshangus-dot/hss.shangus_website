@@ -3,7 +3,7 @@ import { deleteAcademicRecord } from '../../services/academicRecordService';
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   Settings, ClipboardCheck, Printer, RefreshCw, CheckCircle2, AlertCircle,
-  Award, AlertTriangle, X, Sliders, Users, Mail, Phone, MessageCircle, Edit2, Check, Search,
+  Award, AlertTriangle, X, Sliders, Users, Mail, Phone, MessageCircle, Edit2, Edit3, Check, Search,
   Download, Upload, FileSpreadsheet, FileText, Trash2, Eye, Save, Shield, ShieldAlert,
   ChevronDown, BookOpen, SlidersHorizontal, Filter, Layers, Plus, Minus, RotateCcw, Sparkles,
   History, Archive
@@ -1022,6 +1022,7 @@ export default function AdminPracticals() {
         try {
           await deleteAcademicRecord('practicalsData', subId);
           invalidateCollectionCache('practicalsData');
+          invalidatePracticalsCache();
           setSubmissions(prev => prev.filter(s => s.id !== subId));
           logAdminActivity({
             actionType: 'delete',
@@ -1094,6 +1095,7 @@ export default function AdminPracticals() {
 
           // 5. Invalidate practicalsData cache so changes reflect instantly
           invalidateCollectionCache('practicalsData');
+          invalidatePracticalsCache();
 
           // 6. Update local states
           setPendingApprovals(prev => prev.filter(p => p.id !== pendingDoc.id));
@@ -1136,6 +1138,7 @@ export default function AdminPracticals() {
         }, { merge: true });
 
         invalidateCollectionCache('practicalsData');
+        invalidatePracticalsCache();
 
         setPendingApprovals(prev => prev.map(p => {
           if (p.id === pendingDoc.id) {
@@ -1163,6 +1166,56 @@ export default function AdminPracticals() {
         setSaving(false);
       }
     })();
+  };
+
+  const handleSaveSubmissionDirect = async (submissionDoc, updatedRecords) => {
+    if (!submissionDoc || !Array.isArray(updatedRecords)) return;
+    setSaving(true);
+    try {
+      const docId = submissionDoc.id;
+      const isPending = String(docId).startsWith('pending_') || submissionDoc.status === 'pending_approval' || submissionDoc.isPendingApproval;
+      const docRef = doc(db, 'practicalsData', docId);
+
+      const adminEmail = auth.currentUser?.email || 'Administrator';
+      const nowIso = new Date().toISOString();
+
+      const updatedPayload = {
+        ...submissionDoc,
+        records: updatedRecords,
+        updatedByAdmin: true,
+        updatedBy: adminEmail,
+        updatedAt: nowIso,
+        lastEditedBy: `Admin (${adminEmail})`
+      };
+
+      await setDoc(docRef, updatedPayload, { merge: true });
+
+      // Invalidate both collection and in-memory caches
+      invalidateCollectionCache('practicalsData');
+      invalidatePracticalsCache();
+
+      // Update local state
+      if (isPending) {
+        setPendingApprovals(prev => prev.map(p => p.id === docId ? updatedPayload : p));
+      } else {
+        setSubmissions(prev => prev.map(s => s.id === docId ? updatedPayload : s));
+      }
+      setSelSub(updatedPayload);
+
+      logAdminActivity({
+        actionType: 'admin_submission_edit',
+        actionTitle: `Admin Edited Marks for ${submissionDoc.subjectName || submissionDoc.subject || 'Practical'} (${submissionDoc.className || submissionDoc.class || ''})`,
+        details: `Administrator updated student marks directly in ${isPending ? 'pending submission' : 'approved award'} (${updatedRecords.length} student records).`,
+        metadata: { docId, isPending }
+      });
+
+      showAlert('success', `Student marks updated successfully in ${isPending ? 'pending submission' : 'award roll'}!`);
+    } catch (err) {
+      console.error('Failed to save direct admin edit:', err);
+      showAlert('error', `Failed to save changes: ${err.message || err}`);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const grantPerm = async (e) => {
@@ -1481,6 +1534,7 @@ export default function AdminPracticals() {
             allStudents={students}
             onApprove={handleApproveSubmission}
             onReject={(doc) => setRejectReasonModal({ isOpen: true, pendingDoc: doc, reason: '' })}
+            onSaveDirect={handleSaveSubmissionDirect}
           />
         )}
 
@@ -2888,10 +2942,60 @@ function CsvImportModal({ onClose, onSuccess }) {
 // ─────────────────────────────────────────────────────────────
 // SELECTED SUBMISSION RECORDS MODAL
 // ─────────────────────────────────────────────────────────────
-function SelectedSubmissionModal({ selSub, submissions = [], onClose, absentMarker, allStudents = [], onApprove, onReject }) {
+function SelectedSubmissionModal({ selSub, submissions = [], onClose, absentMarker, allStudents = [], onApprove, onReject, onSaveDirect }) {
   const [modalSearch, setModalSearch] = useState('');
   const [diffFilter, setDiffFilter] = useState('all'); // 'all' | 'changed_only'
   const [fetchedCanonicalDoc, setFetchedCanonicalDoc] = useState(null);
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [editableRecords, setEditableRecords] = useState(() => Array.isArray(selSub?.records) ? [...selSub.records] : []);
+  const [editedIndices, setEditedIndices] = useState(new Set());
+  const [isSavingDirect, setIsSavingDirect] = useState(false);
+
+  useEffect(() => {
+    if (selSub && Array.isArray(selSub.records)) {
+      setEditableRecords([...selSub.records]);
+      setEditedIndices(new Set());
+    }
+  }, [selSub]);
+
+  const subjectMaxMarks = Number(selSub?.maxMarks) || 50;
+
+  const handleInlineMarkChange = (origIdx, field, val) => {
+    const rawVal = val.trim().toUpperCase();
+    if (rawVal !== '' && rawVal !== 'A' && rawVal !== 'AB' && rawVal !== 'ABS' && rawVal !== 'ABSENT') {
+      const num = Number(rawVal);
+      if (isNaN(num) || num < 0 || num > subjectMaxMarks) {
+        return;
+      }
+    }
+
+    setEditableRecords(prev => {
+      const copy = [...prev];
+      const cur = copy[origIdx];
+      if (!cur) return prev;
+      const updated = { ...cur, [field]: rawVal };
+
+      // Recalculate totalMarks
+      const pStr = field === 'practicalMarks' ? rawVal : (cur.practicalMarks || '');
+      const vStr = field === 'vivaMarks' ? rawVal : (cur.vivaMarks || '');
+      const isAbs = /^(A|AB|ABS|ABSENT)$/i.test(pStr) || /^(A|AB|ABS|ABSENT)$/i.test(vStr);
+      if (isAbs) {
+        updated.totalMarks = 'AB';
+      } else {
+        const pNum = Number(pStr) || 0;
+        const vNum = Number(vStr) || 0;
+        if (vStr && vStr !== '—' && vStr !== '0') {
+          updated.totalMarks = String(pNum + vNum);
+        } else {
+          updated.totalMarks = pStr;
+        }
+      }
+      updated.updatedByAdmin = true;
+      copy[origIdx] = updated;
+      return copy;
+    });
+    setEditedIndices(prev => new Set(prev).add(origIdx));
+  };
 
   // Determine target canonical document ID for live comparison
   const targetDocId = useMemo(() => {
@@ -2975,7 +3079,7 @@ function SelectedSubmissionModal({ selSub, submissions = [], onClose, absentMark
     return map;
   }, [liveCanonicalDoc]);
 
-  const records = Array.isArray(selSub?.records) ? selSub.records : [];
+  const records = editableRecords;
   const canonicalSession = normalizePracticalSession(selSub?.sessionText || selSub?.session || selSub?.Session || '2024-25 (Oct-Nov)');
   const evaluationType = toTitleCase(selSub?.practicalType || 'Internal');
 
@@ -2984,6 +3088,13 @@ function SelectedSubmissionModal({ selSub, submissions = [], onClose, absentMark
     const normalizeMark = (m) => {
       if (m === null || m === undefined || m === '' || m === '—') return '—';
       const s = String(m).trim().toUpperCase();
+      if (s === 'AB' || s === 'A' || s === 'ABS') return 'AB';
+      return s;
+    };
+
+    const normalizeViva = (v) => {
+      if (v === null || v === undefined || v === '' || v === '—' || String(v).trim() === '0') return '—';
+      const s = String(v).trim().toUpperCase();
       if (s === 'AB' || s === 'A' || s === 'ABS') return 'AB';
       return s;
     };
@@ -3016,15 +3127,16 @@ function SelectedSubmissionModal({ selSub, submissions = [], onClose, absentMark
 
       const oldPrac = normalizeMark(oldRec.practicalMarks);
       const newPrac = normalizeMark(r.practicalMarks);
-      const oldViva = normalizeMark(oldRec.vivaMarks);
-      const newViva = normalizeMark(r.vivaMarks);
+      const oldViva = normalizeViva(oldRec.vivaMarks);
+      const newViva = normalizeViva(r.vivaMarks);
       const oldTot = normalizeMark(oldRec.totalMarks ?? oldRec.practicalMarks);
       const newTot = normalizeMark(r.totalMarks ?? r.practicalMarks);
 
       const pracChanged = oldPrac !== newPrac;
       const vivaChanged = oldViva !== newViva;
       const totalChanged = oldTot !== newTot;
-      const hasDiff = pracChanged || vivaChanged || totalChanged;
+      // Real diff exists if practical or total changed, or if viva truly changed between meaningful values
+      const hasDiff = pracChanged || totalChanged || (vivaChanged && (oldViva !== '—' || newViva !== '—'));
 
       return {
         ...r,
@@ -3131,6 +3243,23 @@ function SelectedSubmissionModal({ selSub, submissions = [], onClose, absentMark
           <div className="flex items-center gap-2">
             <button
               type="button"
+              onClick={() => setIsEditMode(prev => !prev)}
+              className={`px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer border ${
+                isEditMode
+                  ? 'bg-amber-500 hover:bg-amber-600 text-white border-amber-600 shadow-sm'
+                  : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border-slate-300 dark:border-slate-700'
+              }`}
+            >
+              <Edit3 size={13} />
+              <span>{isEditMode ? 'Done Editing' : 'Admin Edit Marks'}</span>
+              {editedIndices.size > 0 && (
+                <span className="px-1.5 py-0.2 rounded-full bg-amber-600 text-white font-mono text-[9.5px] font-black">
+                  {editedIndices.size}
+                </span>
+              )}
+            </button>
+            <button
+              type="button"
               onClick={() => {
                 const subRecords = records.map((r, i) => {
                   const cleanReg = cleanRegistrationNumber(r.boardRegNo || r.regNo || r['Board Reg. No.'] || '');
@@ -3181,6 +3310,38 @@ function SelectedSubmissionModal({ selSub, submissions = [], onClose, absentMark
             </button>
           </div>
         </div>
+
+        {/* Admin Edit Banner */}
+        {isEditMode && (
+          <div className="bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/80 rounded-xl px-3 py-2 flex items-center justify-between text-xs text-amber-800 dark:text-amber-200 gap-2 flex-wrap">
+            <div className="flex items-center gap-2">
+              <Sparkles size={14} className="text-amber-600 dark:text-amber-400 shrink-0" />
+              <span>
+                <strong>Admin Inline Editing Active:</strong> You can modify marks directly in the table below.
+                {editedIndices.size > 0 && ` (${editedIndices.size} student marks updated)`}
+              </span>
+            </div>
+            {onSaveDirect && editedIndices.size > 0 && (
+              <button
+                type="button"
+                disabled={isSavingDirect}
+                onClick={async () => {
+                  setIsSavingDirect(true);
+                  try {
+                    await onSaveDirect(selSub, editableRecords);
+                    setEditedIndices(new Set());
+                  } finally {
+                    setIsSavingDirect(false);
+                  }
+                }}
+                className="px-2.5 py-1 rounded-lg text-xs font-black bg-amber-600 hover:bg-amber-700 text-white shadow-2xs cursor-pointer flex items-center gap-1 shrink-0"
+              >
+                <Save size={12} />
+                <span>{isSavingDirect ? 'Saving...' : 'Save Edits to DB'}</span>
+              </button>
+            )}
+          </div>
+        )}
 
         {/* Search Filter Strip & Quick Diff Toggle */}
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
@@ -3313,9 +3474,35 @@ function SelectedSubmissionModal({ selSub, submissions = [], onClose, absentMark
                       )}
                     </td>
 
-                    {/* Marks (Prac / Viva) with Inline Old vs New Diff */}
+                    {/* Marks (Prac / Viva) with Inline Old vs New Diff or Inline Admin Editing */}
                     <td className="py-2 px-3 text-center font-mono">
-                      {r.hasDiff && (r.diff.pracChanged || r.diff.vivaChanged) ? (
+                      {isEditMode ? (
+                        <div className="inline-flex items-center justify-center gap-1">
+                          <input
+                            type="text"
+                            value={r.practicalMarks ?? ''}
+                            placeholder={`0-${subjectMaxMarks}`}
+                            onChange={(e) => handleInlineMarkChange(r.originalIndex, 'practicalMarks', e.target.value)}
+                            className={`w-16 px-1.5 py-0.5 rounded border text-center font-mono font-bold text-xs outline-none focus:ring-1 focus:ring-amber-500 uppercase ${
+                              editedIndices.has(r.originalIndex)
+                                ? 'bg-amber-50 dark:bg-amber-950/70 border-amber-400 text-amber-900 dark:text-amber-200'
+                                : 'bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100'
+                            }`}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleInlineMarkChange(r.originalIndex, 'practicalMarks', (r.practicalMarks === 'AB' || r.practicalMarks === 'A') ? '' : 'AB')}
+                            className={`px-1.5 py-0.5 rounded font-mono text-[10px] font-black border transition-all cursor-pointer ${
+                              (r.practicalMarks === 'AB' || r.practicalMarks === 'A')
+                                ? 'bg-rose-500 text-white border-rose-600'
+                                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:text-amber-600'
+                            }`}
+                            title="Toggle Absent"
+                          >
+                            AB
+                          </button>
+                        </div>
+                      ) : r.hasDiff && (r.diff.pracChanged || r.diff.vivaChanged) ? (
                         <div className="inline-flex flex-col items-center leading-tight">
                           <div className="flex items-center justify-center gap-1">
                             <span className="line-through text-slate-400 text-[10.5px]">
@@ -3335,9 +3522,13 @@ function SelectedSubmissionModal({ selSub, submissions = [], onClose, absentMark
                       )}
                     </td>
 
-                    {/* Total Marks with Inline Old vs New Diff */}
+                    {/* Total Marks with Inline Old vs New Diff or Live Recalculated Score */}
                     <td className={'py-2 px-3 text-right font-black font-mono ' + (isAbs ? 'text-rose-600' : 'text-emerald-600')}>
-                      {r.hasDiff && r.diff.totalChanged ? (
+                      {isEditMode ? (
+                        <span className={'text-xs font-black ' + (isAbs ? 'text-rose-600' : 'text-emerald-600')}>
+                          {r.totalMarks ?? r.practicalMarks ?? '—'}
+                        </span>
+                      ) : r.hasDiff && r.diff.totalChanged ? (
                         <div className="inline-flex flex-col items-end leading-tight">
                           <div className="flex items-center justify-end gap-1">
                             <span className="line-through text-slate-400 font-semibold text-[10.5px]">
@@ -3369,13 +3560,32 @@ function SelectedSubmissionModal({ selSub, submissions = [], onClose, absentMark
           </table>
         </div>
 
-        {(String(selSub?.id || '').startsWith('pending_') || selSub.status === 'pending_approval' || selSub.isPendingApproval) && (
+        {(String(selSub?.id || '').startsWith('pending_') || selSub.status === 'pending_approval' || selSub.isPendingApproval) ? (
           <div className="flex flex-col sm:flex-row items-center justify-between border-t border-slate-100 dark:border-slate-800 pt-3 gap-2">
             <div className="text-xs font-bold text-amber-700 dark:text-amber-300 flex items-center gap-1.5">
               <ShieldAlert size={16} />
               <span>Pending Administrator Verification & Approval</span>
             </div>
-            <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+            <div className="flex items-center gap-2 w-full sm:w-auto justify-end flex-wrap">
+              {onSaveDirect && editedIndices.size > 0 && (
+                <button
+                  type="button"
+                  disabled={isSavingDirect}
+                  onClick={async () => {
+                    setIsSavingDirect(true);
+                    try {
+                      await onSaveDirect(selSub, editableRecords);
+                      setEditedIndices(new Set());
+                    } finally {
+                      setIsSavingDirect(false);
+                    }
+                  }}
+                  className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-amber-600 hover:bg-amber-700 text-white shadow-sm cursor-pointer flex items-center gap-1.5"
+                >
+                  <Save size={13} />
+                  <span>{isSavingDirect ? 'Saving...' : `Save ${editedIndices.size} Edits`}</span>
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => {
@@ -3390,14 +3600,46 @@ function SelectedSubmissionModal({ selSub, submissions = [], onClose, absentMark
                 type="button"
                 onClick={() => {
                   onClose();
-                  if (onApprove) onApprove(selSub);
+                  if (onApprove) {
+                    onApprove({
+                      ...selSub,
+                      records: editableRecords,
+                      updatedByAdmin: editedIndices.size > 0 ? true : selSub.updatedByAdmin
+                    });
+                  }
                 }}
                 className="px-4 py-1.5 rounded-xl text-xs font-black bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm cursor-pointer flex items-center gap-1.5"
               >
-                <CheckCircle2 size={14} /> Approve & Integrate into DB
+                <CheckCircle2 size={14} />
+                <span>{editedIndices.size > 0 ? `Approve with ${editedIndices.size} Edits & Integrate` : 'Approve & Integrate into DB'}</span>
               </button>
             </div>
           </div>
+        ) : (
+          editedIndices.size > 0 && onSaveDirect && (
+            <div className="flex items-center justify-between border-t border-slate-100 dark:border-slate-800 pt-3 gap-2">
+              <span className="text-xs font-bold text-amber-700 dark:text-amber-300">
+                You have {editedIndices.size} unsaved mark edit{editedIndices.size === 1 ? '' : 's'}.
+              </span>
+              <button
+                type="button"
+                disabled={isSavingDirect}
+                onClick={async () => {
+                  setIsSavingDirect(true);
+                  try {
+                    await onSaveDirect(selSub, editableRecords);
+                    setEditedIndices(new Set());
+                  } finally {
+                    setIsSavingDirect(false);
+                  }
+                }}
+                className="px-4 py-1.5 rounded-xl text-xs font-black bg-indigo-600 hover:bg-indigo-500 text-white shadow-sm cursor-pointer flex items-center gap-1.5"
+              >
+                <Save size={14} />
+                <span>{isSavingDirect ? 'Saving...' : `Save ${editedIndices.size} Edits to Live Database`}</span>
+              </button>
+            </div>
+          )
         )}
       </div>
     </div>
