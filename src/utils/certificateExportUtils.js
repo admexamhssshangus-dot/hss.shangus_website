@@ -18,6 +18,7 @@ import {
 import { convertHtmlToDocxElements } from './htmlDocxConverter';
 import { createQrSvg, buildCertificateVerificationUrl } from './qrSvgGenerator';
 import { getStudentRollVal } from './idCardRenderer';
+import { extractFullAddress, extractStudentAdmissionNumber, extractStudentAdmissionDate } from './jkboseResultManager';
 
 function downloadBlob(blob, filename) {
   const url = URL.createObjectURL(blob);
@@ -553,6 +554,12 @@ export function retokenizeCertificateBody(templateHtml, contextData = {}) {
   res = res.replace(/\bagainst\s+(?:Him|Her)\b/gi, 'against {PRONOUN_HIM_HER}');
   res = res.replace(/\bto\s+(?:His|Her)\s+seeking\b/gi, 'to {PRONOUN_HIS_HER} seeking');
   res = res.replace(/\bwish\s+(?:him|her)\b/gi, 'wish {PRONOUN_HIM_HER}');
+
+  // Smart Retokenization for dashed/dotted placeholders often present in custom or imported templates:
+  // e.g. "Admission No.: ----------------------", "Date of Admission: ----------------", "residing at -------------------"
+  res = res.replace(/((?:Admission\s*No\.?|Adm\.?\s*No\.?|Admission\s*Number):?\s*(?:<strong>)?(?:\s|&nbsp;)*)(?:[-—_]{3,}|_{3,}|\.{3,})((?:\s|&nbsp;)*(?:<\/strong>)?)/gi, '$1{ADMISSION_NO}$2');
+  res = res.replace(/((?:Date\s*of\s*Admission|Admission\s*Date|Adm\.?\s*Date):?\s*(?:<strong>)?(?:\s|&nbsp;)*)(?:[-—_]{3,}|_{3,}|\.{3,})((?:\s|&nbsp;)*(?:<\/strong>)?)/gi, '$1{ADMISSION_DATE}$2');
+  res = res.replace(/((?:resident\s+of|residing\s+at|R\/o):?\s*(?:<strong>)?(?:\s|&nbsp;)*)(?:[-—_]{3,}|_{3,}|\.{3,})((?:\s|&nbsp;)*(?:<\/strong>)?)/gi, '$1{ADDRESS}$2');
   res = res.replace(/----------------------------------------/g, '{STUDENT_NAME}');
 
   return res;
@@ -569,6 +576,11 @@ export function interpolateCertificateTemplate(templateHtml, studentData = {}, o
     .replace(/(?:his|her|he|she)\s*this\s+is\s+(?:to\s+)?certif/gi, 'This is to certif')
     .replace(/\b(?:his|her|he|she)this\b/gi, 'This')
     .replace(/(?:his|her|he|she)this/gi, 'This');
+
+  // Always normalize blank/dashed/dotted admission, date, and address lines to tokens for any certificate type
+  activeHtml = activeHtml.replace(/((?:Admission\s*No\.?|Adm\.?\s*No\.?|Admission\s*Number):?\s*(?:<strong>)?(?:\s|&nbsp;)*)(?:[-—_]{3,}|_{3,}|\.{3,})((?:\s|&nbsp;)*(?:<\/strong>)?)/gi, '$1{ADMISSION_NO}$2');
+  activeHtml = activeHtml.replace(/((?:Date\s*of\s*Admission|Admission\s*Date|Adm\.?\s*Date):?\s*(?:<strong>)?(?:\s|&nbsp;)*)(?:[-—_]{3,}|_{3,}|\.{3,})((?:\s|&nbsp;)*(?:<\/strong>)?)/gi, '$1{ADMISSION_DATE}$2');
+  activeHtml = activeHtml.replace(/((?:resident\s+of|residing\s+at|R\/o):?\s*(?:<strong>)?(?:\s|&nbsp;)*)(?:[-—_]{3,}|_{3,}|\.{3,})((?:\s|&nbsp;)*(?:<\/strong>)?)/gi, '$1{ADDRESS}$2');
 
   if (
     !activeHtml.includes('{STUDENT_NAME}') ||
@@ -620,6 +632,11 @@ export function interpolateCertificateTemplate(templateHtml, studentData = {}, o
     district = '',
     certificateNo = ''
   } = { ...studentData, ...options };
+
+  const rawStudent = studentData?.raw || studentData || {};
+  const effectiveAddress = address || extractFullAddress(rawStudent) || '';
+  const effectiveAdmissionNo = admissionNo || extractStudentAdmissionNumber(rawStudent) || '';
+  const effectiveAdmissionDate = admissionDate || extractStudentAdmissionDate(rawStudent) || '';
 
   const FEMALE_NAME_TOKENS = new Set([
     'jan', 'khatoon', 'bano', 'akhter', 'akhtar', 'kousar', 'kausar', 'parveen', 'zehra', 'zahra',
@@ -718,7 +735,7 @@ export function interpolateCertificateTemplate(templateHtml, studentData = {}, o
   result = result.replace(/\{DOB_FIGURES\}/gi, formatToDDMMYYYY(dobFigures, '----------------'));
   result = result.replace(/\{DOB_WORDS\}/gi, formatBlank(dobWords, '------------------------------------------------'));
   result = result.replace(/\{SESSION\}/gi, formatBlank(session, '----------------'));
-  result = result.replace(/\{ADDRESS\}/gi, formatBlank(address, '----------------------------------------'));
+  result = result.replace(/\{(?:ADDRESS|RESIDENCE|RESIDENTIAL_ADDRESS)\}/gi, formatBlank(effectiveAddress, '----------------------------------------'));
   result = result.replace(/\{REF_NO\}/gi, formatBlank(refNo, '----------------'));
   result = result.replace(/\{DATE\}/gi, formatToDDMMYYYY(date, '----------------'));
 
@@ -785,13 +802,15 @@ export function interpolateCertificateTemplate(templateHtml, studentData = {}, o
   result = result.replace(/\{MARKS_OBTAINED\}/gi, formatBlank(effectiveMarksObt, '------------'));
   result = result.replace(/\{MAX_MARKS\}/gi, formatBlank(effectiveMaxMarks, '500'));
   result = result.replace(/\{REAPP_SUBJECTS\}/gi, formatBlank(reappSubjects, '----------------------------------------'));
-  result = result.replace(/\{ADMISSION_DATE\}/gi, formatToDDMMYYYY(admissionDate, '----------------'));
-  result = result.replace(/\{ADMISSION_NO\}/gi, formatBlank(admissionNo, '------------------------'));
+  result = result.replace(/\{(?:ADMISSION_DATE|DATE_OF_ADMISSION|ADM_DATE)\}/gi, formatToDDMMYYYY(effectiveAdmissionDate, '----------------'));
+  result = result.replace(/\{(?:ADMISSION_NO|ADM_NO|ADMISSION_NUMBER)\}/gi, formatBlank(effectiveAdmissionNo, '------------------------'));
   result = result.replace(/\{(?:WITHDRAWAL_DATE|RESULT_DATE)\}/gi, formatToDDMMYYYY(withdrawalDate, '----------------'));
   result = result.replace(/\{CONDUCT_STATUS\}/gi, formatBlank(conductStatus, 'Satisfactory'));
-  result = result.replace(/\{VILLAGE\}/gi, formatBlank(village || address, '----------------------------------------'));
+  result = result.replace(/\{(?:VILLAGE|TOWN)\}/gi, formatBlank(village || effectiveAddress, '----------------------------------------'));
   result = result.replace(/\{TEHSIL\}/gi, formatBlank(tehsil, '----------------'));
   result = result.replace(/\{DISTRICT\}/gi, formatBlank(district, '----------------'));
+  result = result.replace(/\{(?:PIN_CODE|PIN|PINCODE)\}/gi, formatBlank(mergedProps.pinCode || mergedProps.pin || '', '------'));
+  result = result.replace(/\{(?:MOBILE|PHONE|CONTACT_NO)\}/gi, formatBlank(mergedProps.mobile || mergedProps.phone || '', '----------'));
   result = result.replace(/\{(?:CERTIFICATE_NO|TC_DC_NO|CERT_NO)\}/gi, formatBlank(certificateNo || refNo, '----------------'));
 
   // If salutations are disabled, also clean any literal salutations residing inside tags (e.g. <strong>Mr. ...</strong>)

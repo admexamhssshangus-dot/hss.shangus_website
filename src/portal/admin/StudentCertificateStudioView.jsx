@@ -35,7 +35,8 @@ import {
   extractStudentResultMarks,
   extractStudentAdmissionNumber,
   extractStudentAdmissionDate,
-  extractStudentCertificateNumber
+  extractStudentCertificateNumber,
+  extractFullAddress
 } from '../../utils/jkboseResultManager';
 import {
   getCachedCollectionSync,
@@ -82,7 +83,7 @@ import {
   unpackMasterRegisterStudents
 } from './CustomRosterDocumentBuilderView';
 import { db } from '../../services/firebase';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 import {
   fetchCloudDocTemplates,
   saveCloudDocTemplate,
@@ -871,7 +872,15 @@ export default function StudentCertificateStudioView({
   const [officeTitle, setOfficeTitle] = useState('OFFICE OF THE PRINCIPAL');
   const [institutionName, setInstitutionName] = useState('GOVT. HIGHER SECONDARY SCHOOL SHANGUS');
   const [institutionAddress, setInstitutionAddress] = useState('District Anantnag, Kashmir — 192201 (J&K)');
-  const [certificateTitle, setCertificateTitle] = useState('BONAFIDE CERTIFICATE');
+  const [certificateTitle, setCertificateTitle] = useState(() => {
+    try {
+      return localStorage.getItem('hss_certificate_studio_title') || 'BONAFIDE CERTIFICATE';
+    } catch {
+      return 'BONAFIDE CERTIFICATE';
+    }
+  });
+  const [isSavingCertTitle, setIsSavingCertTitle] = useState(false);
+  const [certTitleSavedStatus, setCertTitleSavedStatus] = useState(false);
   const [refNo, setRefNo] = useState('HSS/SHG/Bonafide/2026/01');
   const [dateStr, setDateStr] = useState(() => new Date().toLocaleDateString('en-GB'));
   const [showPhoto, setShowPhoto] = useState(false);
@@ -881,6 +890,57 @@ export default function StudentCertificateStudioView({
   const [signatoryCenter, setSignatoryCenter] = useState('Checked By');
   const [signatoryRight, setSignatoryRight] = useState('Principal');
   const [showSettingsDrawer, setShowSettingsDrawer] = useState(false);
+
+  // Cloud Persistence for Certificate Title Banner on Firebase
+  useEffect(() => {
+    let isMounted = true;
+    const loadCertificateBannerFromCloud = async () => {
+      try {
+        const docSnap = await getDoc(doc(db, 'systemSettings', 'certificateRegistry'));
+        if (docSnap.exists() && isMounted) {
+          const data = docSnap.data();
+          const cloudBanner = data.defaultCertificateTitle || data.certificateTitle;
+          if (cloudBanner && typeof cloudBanner === 'string' && cloudBanner.trim()) {
+            setCertificateTitle(cloudBanner.trim());
+            try { localStorage.setItem('hss_certificate_studio_title', cloudBanner.trim()); } catch {}
+          }
+        }
+      } catch (err) {
+        console.warn('Could not sync cloud certificate banner:', err);
+      }
+    };
+    loadCertificateBannerFromCloud();
+    return () => { isMounted = false; };
+  }, []);
+
+  const saveCertificateTitleToCloud = useCallback(async (newTitle) => {
+    const clean = (newTitle || '').trim();
+    if (!clean) return;
+    setIsSavingCertTitle(true);
+    try {
+      try { localStorage.setItem('hss_certificate_studio_title', clean); } catch {}
+      await setDoc(doc(db, 'systemSettings', 'certificateRegistry'), {
+        defaultCertificateTitle: clean,
+        certificateTitle: clean,
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
+      setCertTitleSavedStatus(true);
+      setTimeout(() => setCertTitleSavedStatus(false), 2500);
+    } catch (err) {
+      console.warn('Failed to save certificate banner to cloud:', err);
+    } finally {
+      setIsSavingCertTitle(false);
+    }
+  }, []);
+
+  // Debounced cloud sync when certificateTitle changes
+  useEffect(() => {
+    if (!certificateTitle || !certificateTitle.trim()) return;
+    const timer = setTimeout(() => {
+      saveCertificateTitleToCloud(certificateTitle);
+    }, 1200);
+    return () => clearTimeout(timer);
+  }, [certificateTitle, saveCertificateTitleToCloud]);
 
   // Sync external Setup toggle from Top Sub-Nav bar
   useEffect(() => {
@@ -1342,11 +1402,16 @@ export default function StudentCertificateStudioView({
     const effDob = resolvedDob && resolvedDob !== '—' ? resolvedDob : (st.dob || '');
     setDobRaw(effDob);
     setSession(st.session || '2025-26');
-    let effectiveAddr = st.address || '';
+    let effectiveAddr = extractFullAddress(primaryRaw) || st.address || '';
     const targetRegInit = normalizeRegistrationKey(extractBoardRegNo(primaryRaw) || st.regNo);
     if (!effectiveAddr && targetRegInit) {
       const synRh = registrationHistoryByReg.get(targetRegInit) || [];
       for (const rh of synRh) {
+        const fullRh = extractFullAddress(rh);
+        if (fullRh) {
+          effectiveAddr = fullRh;
+          break;
+        }
         const rhV = extractVillage(rh);
         if (rhV && rhV !== '—' && rhV !== '-' && !/^(null|undefined|n\/a)$/i.test(rhV)) {
           effectiveAddr = /shangus/i.test(rhV) ? `${rhV}, Anantnag (J&K)` : `${rhV}, Shangus, Anantnag (J&K)`;
@@ -1378,11 +1443,20 @@ export default function StudentCertificateStudioView({
     let activeTpl = sanitizeTemplateObject(allTemplatesList.find(t => t.id === selectedTemplateId) || BUILTIN_CERTIFICATE_TEMPLATES[0]);
     const cleanTplBody = retokenizeCertificateBody(activeTpl.bodyHtml);
     setTemplateBody(cleanTplBody);
-    if (activeTpl.certificateTitle) setCertificateTitle(activeTpl.certificateTitle);
+    const isTcDcTemplate = Boolean(activeTpl.isTcDc || activeTpl.id?.startsWith('tc_dc_'));
+    if (isTcDcTemplate) {
+      setCertificateTitle('Discharge/Transfer cum Character Certificate');
+    } else {
+      const savedBanner = typeof localStorage !== 'undefined' ? localStorage.getItem('hss_certificate_studio_title') : null;
+      if (savedBanner) {
+        setCertificateTitle(savedBanner);
+      } else if (activeTpl.certificateTitle) {
+        setCertificateTitle(activeTpl.certificateTitle);
+      }
+    }
 
     // Auto-update Ref No immediately if known from raw record
     const existingCertNo = extractStudentCertificateNumber(primaryRaw);
-    const isTcDcTemplate = Boolean(activeTpl.isTcDc || activeTpl.id?.startsWith('tc_dc_'));
     let immediateRef = '';
     if (existingCertNo && !/^(—|-|n\/?a|null|undefined)$/i.test(String(existingCertNo).trim())) {
       immediateRef = isTcDcTemplate ? (extractCertificateSerial(existingCertNo) || String(existingCertNo).trim()) : String(existingCertNo).trim();
@@ -1435,61 +1509,104 @@ export default function StudentCertificateStudioView({
     // ─── 2. ASYNCHRONOUS BACKGROUND ENRICHMENT (REGISTRATION / ADMISSIONS / TC-DC / PHOTO) ───
     const targetReg = normalizeRegistrationKey(extractBoardRegNo(primaryRaw) || st.regNo);
     let registrationMatches = targetReg ? [...(registrationHistoryByReg.get(targetReg) || [])] : [];
-    if (targetReg) {
-      try {
+    const normStudentName = extractStudentName(st);
+    const normFatherName = extractFatherName(st);
+
+    try {
+      if (targetReg) {
         const identityMatches = (identityStudents || []).filter(record =>
           normalizeRegistrationKey(extractBoardRegNo(record)) === targetReg &&
-          areNamesCompatible(extractStudentName(record), extractStudentName(st))
+          areNamesCompatible(extractStudentName(record), normStudentName)
         );
         registrationMatches = [...registrationMatches, ...identityMatches];
-        const hasAuthoritativeIdentity = registrationMatches.some(record =>
-          extractStudentAdmissionNumber(record) || extractStudentAdmissionDate(record) || extractDob(record) !== '—'
-        );
-        if (!hasAuthoritativeIdentity && !isPreviewOnly) {
-          const cachedAdmissions = getCachedCollectionSync('admissions');
-          const admissions = Array.isArray(cachedAdmissions) && cachedAdmissions.length > 0
-            ? cachedAdmissions
-            : await getCachedCollection('admissions');
-          if (selectionRequestRef.current !== requestId) return;
-          registrationMatches = [...registrationMatches, ...(admissions || []).filter(record =>
-            normalizeRegistrationKey(extractBoardRegNo(record)) === targetReg &&
-            areNamesCompatible(extractStudentName(record), extractStudentName(st))
-          )];
-        }
-        if (registrationMatches.length > 0) {
-          let enrichedRaw = enrichCertificateIdentityFields(primaryRaw, registrationMatches);
-          const priorCertificateRecord = registrationMatches.find(record =>
-            isExactCertificateScope(record, st.session || extractSession(st), st.cls || extractClass(st)) &&
-            areNamesCompatible(extractStudentName(record), extractStudentName(st)) &&
-            Boolean(extractStudentCertificateNumber(record))
-          );
-          const priorCertificate = extractStudentCertificateNumber(priorCertificateRecord);
-          if (priorCertificate && !extractStudentCertificateNumber(enrichedRaw)) {
-            enrichedRaw = {
-              ...enrichedRaw,
-              ccDcNo: priorCertificate,
-              certificateNo: priorCertificate,
-              _certificateSourceRecord: priorCertificateRecord?.raw || priorCertificateRecord
-            };
-          }
-          st = { ...st, raw: enrichedRaw };
-          if (selectionRequestRef.current !== requestId) return;
-          setSelectedStudent(st);
-          setStream(resolveCertificateStream(st, registrationMatches, st.cls || extractClass(st)));
-          const enrichedAdmNo = extractStudentAdmissionNumber(enrichedRaw);
-          const enrichedAdmDate = extractStudentAdmissionDate(enrichedRaw);
-          if (enrichedAdmNo) setAdmissionNo(enrichedAdmNo);
-          if (enrichedAdmDate) setAdmissionDate(enrichedAdmDate);
-          const enrichedVill = enrichedRaw['Village/Town'] || enrichedRaw.village || extractVillage(enrichedRaw);
-          if (enrichedVill && enrichedVill !== '—' && !/^(null|undefined|n\/a)$/i.test(enrichedVill)) {
-            const enrichedAddr = /shangus/i.test(enrichedVill) ? `${enrichedVill}, Anantnag (J&K)` : `${enrichedVill}, Shangus, Anantnag (J&K)`;
-            setAddress(enrichedAddr);
-            st.address = enrichedAddr;
-          }
-        }
-      } catch (error) {
-        console.warn('Certificate registration enrichment note:', error);
       }
+      if (registrationMatches.length === 0 && normStudentName) {
+        const nameMatches = (identityStudents || []).filter(record =>
+          areNamesCompatible(extractStudentName(record), normStudentName) &&
+          (!normFatherName || areNamesCompatible(extractFatherName(record), normFatherName))
+        );
+        registrationMatches = [...registrationMatches, ...nameMatches];
+      }
+
+      const hasAuthoritativeIdentity = registrationMatches.some(record =>
+        extractStudentAdmissionNumber(record) || extractStudentAdmissionDate(record) || extractDob(record) !== '—'
+      );
+      if (!hasAuthoritativeIdentity && !isPreviewOnly) {
+        const cachedAdmissions = getCachedCollectionSync('admissions');
+        const admissions = Array.isArray(cachedAdmissions) && cachedAdmissions.length > 0
+          ? cachedAdmissions
+          : await getCachedCollection('admissions');
+        if (selectionRequestRef.current !== requestId) return;
+        const admMatches = (admissions || []).filter(record =>
+          (targetReg && normalizeRegistrationKey(extractBoardRegNo(record)) === targetReg && areNamesCompatible(extractStudentName(record), normStudentName)) ||
+          (normStudentName && areNamesCompatible(extractStudentName(record), normStudentName) && (!normFatherName || areNamesCompatible(extractFatherName(record), normFatherName)))
+        );
+        registrationMatches = [...registrationMatches, ...admMatches];
+      }
+
+      if (registrationMatches.length > 0) {
+        let enrichedRaw = enrichCertificateIdentityFields(primaryRaw, registrationMatches);
+        const priorCertificateRecord = registrationMatches.find(record =>
+          isExactCertificateScope(record, st.session || extractSession(st), st.cls || extractClass(st)) &&
+          areNamesCompatible(extractStudentName(record), normStudentName) &&
+          Boolean(extractStudentCertificateNumber(record))
+        );
+        const priorCertificate = extractStudentCertificateNumber(priorCertificateRecord);
+        if (priorCertificate && !extractStudentCertificateNumber(enrichedRaw)) {
+          enrichedRaw = {
+            ...enrichedRaw,
+            ccDcNo: priorCertificate,
+            certificateNo: priorCertificate,
+            _certificateSourceRecord: priorCertificateRecord?.raw || priorCertificateRecord
+          };
+        }
+        st = { ...st, raw: enrichedRaw };
+        if (selectionRequestRef.current !== requestId) return;
+        setSelectedStudent(st);
+        setStream(resolveCertificateStream(st, registrationMatches, st.cls || extractClass(st)));
+        const enrichedAdmNo = extractStudentAdmissionNumber(enrichedRaw);
+        const enrichedAdmDate = extractStudentAdmissionDate(enrichedRaw);
+        if (enrichedAdmNo) setAdmissionNo(enrichedAdmNo);
+        if (enrichedAdmDate) setAdmissionDate(enrichedAdmDate);
+        const enrichedAddr = extractFullAddress(enrichedRaw) || effectiveAddr;
+        if (enrichedAddr) {
+          setAddress(enrichedAddr);
+          st.address = enrichedAddr;
+        }
+
+        // Immediately update editor DOM with enriched student details so admission no, date, and address are filled
+        if (editorRef.current && (enrichedAdmNo || enrichedAdmDate || enrichedAddr)) {
+          const reinterpolatedHtml = interpolateCertificateTemplate(cleanTplBody, {
+            studentName: st.name || '',
+            fatherName: st.father || '',
+            motherName: st.mother || '',
+            className: st.cls || '11th',
+            stream: st.stream || resolveCertificateStream(st, registrationMatches, st.cls || extractClass(st)),
+            rollNo: st.rollNo || '—',
+            regNo: st.regNo || '—',
+            dobFigures: effDob,
+            dobWords: (typeof dobToWords === 'function' ? dobToWords(effDob).words : '—'),
+            session: st.session || '2025-26',
+            address: enrichedAddr,
+            gender: effGender,
+            refNo: immediateRef,
+            date: dateStr,
+            includeSalutations,
+            customFields,
+            admissionDate: enrichedAdmDate || admDateResolved || '',
+            admissionNo: enrichedAdmNo || admNoResolved || '',
+            withdrawalDate: rawWd || '',
+            conductStatus: 'Satisfactory',
+            village: enrichedRaw['Village/Town'] || enrichedRaw.village || extractVillage(enrichedRaw) || '',
+            tehsil: enrichedRaw['Tehsil'] || enrichedRaw.tehsil || '',
+            district: enrichedRaw['District'] || enrichedRaw.district || '',
+            certificateNo: immediateRef
+          });
+          editorRef.current.innerHTML = sanitizeCertificateHtml(reinterpolatedHtml);
+        }
+      }
+    } catch (error) {
+      console.warn('Certificate registration enrichment note:', error);
     }
 
     if (selectionRequestRef.current !== requestId) return;
@@ -2804,6 +2921,16 @@ export default function StudentCertificateStudioView({
   };
 
   const handleContextMenu = (e) => {
+    // Disable right-click popup on mobile/touch screens to allow native text selection and copying
+    const isTouchOrMobile = (typeof window !== 'undefined' && (
+      window.innerWidth < 768 ||
+      ('ontouchstart' in window) ||
+      (navigator.maxTouchPoints > 0) ||
+      (window.matchMedia && window.matchMedia('(pointer: coarse)').matches)
+    ));
+    if (isTouchOrMobile) {
+      return;
+    }
     e.preventDefault();
     saveCurrentSelection();
     const menuWidth = 280;
@@ -4453,11 +4580,28 @@ export default function StudentCertificateStudioView({
 
             {/* Certificate Title */}
             <div>
-              <label className="block text-[9.5px] font-black uppercase text-slate-500 mb-0.5">Certificate Title Banner</label>
+              <div className="flex items-center justify-between mb-0.5">
+                <label className="block text-[9.5px] font-black uppercase text-slate-500">Certificate Title Banner</label>
+                <span className="text-[9px] font-bold">
+                  {isSavingCertTitle ? (
+                    <span className="text-amber-600 animate-pulse">Saving to Cloud...</span>
+                  ) : certTitleSavedStatus ? (
+                    <span className="text-emerald-600 flex items-center gap-0.5">
+                      <CheckCircle2 size={10} /> Saved to Firebase
+                    </span>
+                  ) : (
+                    <span className="text-slate-400">Cloud Synced</span>
+                  )}
+                </span>
+              </div>
               <input
                 type="text"
                 value={certificateTitle}
-                onChange={(e) => setCertificateTitle(e.target.value)}
+                onChange={(e) => {
+                  setCertificateTitle(e.target.value);
+                  try { localStorage.setItem('hss_certificate_studio_title', e.target.value); } catch {}
+                }}
+                onBlur={() => saveCertificateTitleToCloud(certificateTitle)}
                 placeholder="BONAFIDE CERTIFICATE"
                 className="w-full px-2 py-0.5 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-bold text-xs text-amber-900 dark:text-amber-200"
               />
@@ -4852,6 +4996,21 @@ export default function StudentCertificateStudioView({
                 >
                   <span className="font-serif font-black">Aa</span>
                   <ChevronDown size={8} className={`transition-transform shrink-0 ${mobileDropdownOpen === 'format' ? 'rotate-180' : ''}`} />
+                </button>
+
+                {/* 3.5. Insert Field Button (Compact Mobile Drawer Trigger) */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMobileDropdownOpen(null);
+                    saveCurrentSelection();
+                    setShowContextMenu(true);
+                  }}
+                  className="studio-compact-toolbar-btn h-6 sm:h-7 px-1.5 rounded-md font-extrabold text-[9px] sm:text-[10px] flex items-center gap-1 cursor-pointer transition-all active:scale-95 shrink-0 border whitespace-nowrap bg-teal-50 dark:bg-teal-950/60 text-teal-800 dark:text-teal-200 border-teal-300 dark:border-teal-700 hover:bg-teal-100"
+                  title="Insert student fields at cursor"
+                >
+                  <PlusCircle size={9.5} className="text-teal-600 dark:text-teal-400 shrink-0" />
+                  <span>+Field</span>
                 </button>
 
                 {/* 4. Layout Dropdown (Alignments & Inserts) */}
@@ -5502,6 +5661,24 @@ export default function StudentCertificateStudioView({
                         >
                           <span>Registration No</span>
                           <span className="text-[9px] text-slate-400 font-mono">{regNo || '{REG_NO}'}</span>
+                        </button>
+                        <button
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => { handleInsertPlaceholder(admissionNo || '{ADMISSION_NO}'); setShowInsertFieldDropdown(false); }}
+                          className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
+                        >
+                          <span>Admission No</span>
+                          <span className="text-[9px] text-slate-400 font-mono">{admissionNo || '{ADMISSION_NO}'}</span>
+                        </button>
+                        <button
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => { handleInsertPlaceholder(admissionDate || '{ADMISSION_DATE}'); setShowInsertFieldDropdown(false); }}
+                          className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
+                        >
+                          <span>Admission Date</span>
+                          <span className="text-[9px] text-slate-400 font-mono">{admissionDate || '{ADMISSION_DATE}'}</span>
                         </button>
                         <button
                           type="button"
@@ -6475,16 +6652,37 @@ export default function StudentCertificateStudioView({
 
       {/* ── Sleek Right-Click Placeholder & Formatting Context Menu ── */}
       {showContextMenu && (
-        <div
-          style={{ top: `${contextMenuPos.y}px`, left: `${contextMenuPos.x}px` }}
-          className="fixed z-[999999] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl shadow-2xl p-1.5 w-64 space-y-1 text-xs animate-fadeIn divide-y divide-slate-100 dark:divide-slate-800 max-h-[72vh] overflow-y-auto"
-          onClick={(e) => e.stopPropagation()}
-        >
-          {/* Header */}
-          <div className="px-2 py-1 flex items-center justify-between text-[10px] font-black uppercase text-teal-800 dark:text-teal-300 tracking-wider">
-            <span>Insert Student Field</span>
-            <span className="text-[8.5px] text-slate-400 font-mono">1-Click</span>
-          </div>
+        <>
+          {/* Click-outside backdrop overlay */}
+          <div
+            className="fixed inset-0 z-[999990] bg-black/25 backdrop-blur-[0.5px]"
+            onClick={() => setShowContextMenu(false)}
+          />
+
+          <div
+            style={
+              typeof window !== 'undefined' && window.innerWidth < 768
+                ? { bottom: '16px', left: '50%', transform: 'translateX(-50%)', maxHeight: '68vh' }
+                : { top: `${contextMenuPos.y}px`, left: `${contextMenuPos.x}px`, maxHeight: '72vh' }
+            }
+            className="fixed z-[999999] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-2xl shadow-2xl p-2 w-72 max-w-[calc(100vw-1.5rem)] space-y-1 text-xs animate-fadeIn divide-y divide-slate-100 dark:divide-slate-800 overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="px-1.5 py-1 flex items-center justify-between text-[10.5px] font-black uppercase text-teal-800 dark:text-teal-300 tracking-wider">
+              <span className="flex items-center gap-1.5">
+                <PlusCircle size={12} className="text-teal-600 dark:text-teal-400" />
+                <span>Insert Student Field</span>
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowContextMenu(false)}
+                className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                title="Close"
+              >
+                <X size={13} />
+              </button>
+            </div>
 
           {/* Group 1: Student & Parents */}
           <div className="pt-1 space-y-0.5">
@@ -6625,7 +6823,25 @@ export default function StudentCertificateStudioView({
               className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
             >
               <span>Registration No</span>
-              <span className="text-[9px] text-slate-400">{regNo || '{REG_NO}'}</span>
+              <span className="text-[9px] text-slate-400 font-mono">{regNo || '{REG_NO}'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleInsertPlaceholder(admissionNo || '{ADMISSION_NO}')}
+              className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
+            >
+              <span>Admission No</span>
+              <span className="text-[9px] text-slate-400 font-mono truncate max-w-[100px]">{admissionNo || '{ADMISSION_NO}'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleInsertPlaceholder(admissionDate || '{ADMISSION_DATE}')}
+              className="w-full px-2 py-1 rounded-md text-left hover:bg-teal-50 dark:hover:bg-teal-950/60 font-bold flex items-center justify-between cursor-pointer"
+            >
+              <span>Admission Date</span>
+              <span className="text-[9px] text-slate-400 font-mono truncate max-w-[100px]">{admissionDate || '{ADMISSION_DATE}'}</span>
             </button>
 
             <button
@@ -6696,6 +6912,7 @@ export default function StudentCertificateStudioView({
             </div>
           )}
         </div>
+      </>
       )}
 
       {/* ── Sub-Modal: Save / Update Custom Certificate Template ── */}
