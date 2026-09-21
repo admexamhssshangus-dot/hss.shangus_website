@@ -569,10 +569,10 @@ export default function Home() {
       </div>
 
       {/* Main Content Area: Notices, Principal & Key Stats */}
-      <section id="home-briefing" className="home-briefing max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-6 sm:py-10 md:py-12 grid grid-cols-1 lg:grid-cols-12 gap-5 sm:gap-7 lg:gap-8 items-stretch" aria-label="School updates and Principal's message">
+      <section id="home-briefing" className="home-briefing max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-6 sm:py-10 md:py-12 grid grid-cols-1 md:grid-cols-12 gap-5 sm:gap-7 lg:gap-8 items-stretch" aria-label="School updates and Principal's message">
         
         {/* Notices Sidebar */}
-        <div className="col-span-1 lg:col-span-4 xl:col-span-4 flex flex-col">
+        <div className="col-span-1 md:col-span-5 lg:col-span-4 xl:col-span-4 flex flex-col">
           <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-md hover:shadow-xl border border-slate-200/90 dark:border-slate-800 overflow-hidden flex flex-col h-full transition-all duration-300">
             {/* Header: Rich Emerald-Teal Gradient with Live Pulsing Beacon */}
             <div className="bg-gradient-to-r from-teal-900 via-teal-800 to-emerald-950 text-white px-3.5 sm:px-4 py-2.5 sm:py-3 flex items-center justify-between border-b border-teal-700/50 shadow-2xs">
@@ -592,7 +592,7 @@ export default function Home() {
             </div>
 
             {/* List - Interactive Cards with Micro-Calendar Date Badges */}
-            <div className="flex-1 overflow-y-auto custom-scrollbar p-2 sm:p-2.5 space-y-1.5 max-h-[400px] sm:max-h-[430px] lg:max-h-[460px]">
+            <div className="flex-1 overflow-y-auto custom-scrollbar p-2 sm:p-2.5 space-y-1.5 max-h-[400px] sm:max-h-[430px] md:max-h-[460px]">
               <ul className="space-y-1.5 m-0 p-0 list-none">
                 {notices.map((n, idx) => {
                   const isNew = isNoticeNew(n.date, n.days, settings?.defaultNewNoticeDays !== undefined ? settings.defaultNewNoticeDays : 7);
@@ -681,7 +681,7 @@ export default function Home() {
         </div>
 
         {/* Principal Message & Stats Column */}
-        <div className="col-span-1 lg:col-span-8 xl:col-span-8 flex flex-col justify-between gap-5 sm:gap-6">
+        <div className="col-span-1 md:col-span-7 lg:col-span-8 xl:col-span-8 flex flex-col justify-between gap-5 sm:gap-6">
           {/* Principal Card Section */}
           <div>
             <div className="flex items-center justify-between mb-3">
@@ -735,7 +735,7 @@ export default function Home() {
           </div>
 
           {/* Stats Row - Responsive across Mobile, Tablet, and Desktop */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 sm:gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3.5 sm:gap-4">
             {[
               { icon: Users, end: 700, suffix: "+", label: "STUDENTS", subtext: "Enrolled Scholars", colorClass: 'text-teal-700 bg-teal-50 border-teal-200 hover:shadow-teal-100/50', accentBar: 'from-teal-500 to-emerald-500', glow: 'group-hover:border-teal-500/40' },
               { icon: Award, end: 25, suffix: "+", label: "TEACHERS", subtext: "Faculty Mentors", colorClass: 'text-amber-700 bg-amber-50 border-amber-200 hover:shadow-amber-100/50', accentBar: 'from-amber-500 to-orange-500', glow: 'group-hover:border-amber-500/40' },
