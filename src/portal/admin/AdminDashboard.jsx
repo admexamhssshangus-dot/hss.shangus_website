@@ -580,7 +580,7 @@ export default function AdminDashboard() {
         <div className="rounded-lg sm:rounded-xl p-0 sm:p-1 border-0 sm:border shadow-none sm:shadow-sm space-y-0.5 sm:space-y-1" style={{ backgroundColor: 'var(--bg-card, #ffffff)', borderColor: 'var(--border-ui, #e2e8f0)' }}>
           {/* Navigation Tabs Dynamic Toolbar (For non-reports tabs) */}
           {activeTab !== 'reports' && (() => {
-            const currentModule = TOOL_MODULES.find(m => m.id === activeTab) || { id: activeTab, label: 'Admin Tool', shortLabel: 'Admin Tool', icon: Wrench };
+            const currentModule = TOOL_MODULES.find(m => m.id === activeTab || (Array.isArray(m.aliases) && m.aliases.includes(activeTab))) || { id: activeTab, label: 'Admin Tool', shortLabel: 'Admin Tool', icon: Wrench };
             const CurrentIcon = currentModule.icon;
             const displayLabel = currentModule.shortLabel || currentModule.label;
             return (

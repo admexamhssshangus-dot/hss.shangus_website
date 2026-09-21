@@ -76,6 +76,11 @@ export const isUserPermittedForModule = (user, moduleId) => {
     }
   }
 
+  // 3. Backward-compatibility: if an admin had 'controls' in the past, they inherit access for 'curriculum' and 'staff' as well
+  if ((moduleId === 'curriculum' || moduleId === 'staff') && (perms.includes('controls') || perms.includes('systemControls') || perms.includes('admissionControls'))) {
+    return true;
+  }
+
   return false;
 };
 
