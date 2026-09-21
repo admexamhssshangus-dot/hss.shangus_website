@@ -12,6 +12,7 @@ import { generateStudentAdmissionPdf, generateProvisionalAdmissionPdf } from '..
 import { auth, db } from '../../services/firebase';
 import { collection, getDocs } from 'firebase/firestore';
 import { loadAdmissionWorkspace, saveAdmissionDraft, submitAdmission } from '../../services/admissionWorkflowApi';
+import { invalidateStudentCaches } from '../../services/dbCache';
 import { logStudentActivity } from '../../services/adminActivityLogger';
 import { isValidAadhaar, areAadhaarsDistinct, isStrictIsoDate, normalizeDobToIso, validateMinimumAge, MIN_ADMISSION_AGE, isPersonNameField, sanitizePersonName, validatePersonName } from '../../utils/admissionValidation';
 
@@ -2055,6 +2056,8 @@ export default function AdmissionForm() {
             upgradeMode: !!upgradeMode
           }
         });
+
+        invalidateStudentCaches('admissions');
 
         try {
           const uid = currentUser?.uid || 'guest';

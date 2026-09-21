@@ -606,14 +606,21 @@ function getExamRoll(st, selectedClass) {
 function extractRawSubjectsString(rec) {
   if (!rec) return '';
 
-  // 1. Check multi-subject array or string fields, or Subs header from masterRegisters
+  const cls = String(rec['Class'] || rec['class'] || rec['Admission sought for class'] || '').trim();
+  const classSpecific =
+    (cls.includes('11') ? rec['Subjects to be taken in Class 11th'] : null) ||
+    (cls.includes('12') ? (rec['Subjects to be taken in Class 12th'] || rec['Subjects Studied in Class 11th']) : null) ||
+    (cls.includes('10') ? (rec['Subjects to be taken in Class 10th'] || rec['Subjects Studied in Class 9th']) : null) ||
+    (cls.includes('9') ? (rec['Subjects to be taken in Class 9th'] || rec['Subjects Studied in Class 8th']) : null);
+
+  // 1. Check multi-subject array or string fields with class-specific precedence
   const subjectArrayOrStr = 
-    rec['Subs'] ||
-    rec['subs'] ||
+    classSpecific ||
     rec['Subjects to be taken in Class 11th'] ||
     rec['Subjects to be taken in Class 12th'] ||
     rec['Subjects to be taken in Class 10th'] ||
     rec['Subjects to be taken in Class 9th'] ||
+    rec['selectedSubjects'] ||
     rec['Subjects to be taken in Class 8th'] ||
     rec['Subjects Studied in Class 11th'] ||
     rec['Subjects Studied in Class 9th'] ||
@@ -623,8 +630,10 @@ function extractRawSubjectsString(rec) {
     rec['Subject Combination'] ||
     rec['Subjects Opted'] ||
     rec['Elective Subjects'] ||
-    rec['selectedSubjects'] ||
+    rec['Subs'] ||
+    rec['subs'] ||
     rec['Subjects'] ||
+    rec['subjects'] ||
     rec['subjectCombination'];
 
   if (Array.isArray(subjectArrayOrStr) && subjectArrayOrStr.length > 0) {

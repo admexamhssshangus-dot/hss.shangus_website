@@ -88,6 +88,24 @@ export function invalidateCollectionCache(collectionName) {
   } catch (_) {}
 }
 
+/**
+ * Invalidate student directory and master registers caches across memory & storage,
+ * and dispatch global change events so all open portals (Practicals, Gazette, Admissions)
+ * immediately re-sync without stale caches.
+ */
+export function invalidateStudentCaches(extraCollection = null) {
+  invalidateCollectionCache('admissions');
+  invalidateCollectionCache('masterRegisters');
+  if (extraCollection) {
+    invalidateCollectionCache(extraCollection);
+  }
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('hss-student-updated'));
+    window.dispatchEvent(new CustomEvent('hss-admissions-updated'));
+    window.dispatchEvent(new CustomEvent('hss-results-updated'));
+  }
+}
+
 // Auto-purge stale in-memory or storage caches whenever the build or dataset version changes
 if (typeof window !== 'undefined') {
   try {
