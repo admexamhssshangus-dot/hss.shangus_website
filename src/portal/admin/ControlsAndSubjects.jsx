@@ -2351,14 +2351,15 @@ export default function ControlsAndSubjects() {
       })()}
 
       {/* ADD / EDIT STAFF & EMAIL ACCOUNT MODAL */}
+      {/* ADD / EDIT STAFF & EMAIL ACCOUNT MODAL */}
       {showAdminModal && (
-        <div className="fixed inset-0 z-[9999] bg-slate-950/75 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 animate-fadeIn">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-xl w-full shadow-2xl border border-slate-200/80 dark:border-slate-800 flex flex-col max-h-[90vh] overflow-hidden animate-scaleUp">
+        <div className="fixed inset-0 z-[9999] bg-slate-950/75 backdrop-blur-md flex items-center justify-center p-3 sm:p-5 animate-fadeIn">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-4xl lg:max-w-5xl w-full shadow-2xl border border-slate-200/80 dark:border-slate-800 flex flex-col max-h-[92vh] overflow-hidden animate-scaleUp">
             {/* Fixed Modal Header */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800/80 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md rounded-t-3xl flex-shrink-0">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-2xl bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200/60 dark:border-indigo-800/60 flex items-center justify-center text-indigo-600 dark:text-indigo-400 shadow-xs">
-                  <UserPlus size={19} />
+                  {editingAdminEmail ? <Edit3 size={18} /> : <UserPlus size={18} />}
                 </div>
                 <div>
                   <h3 className="font-extrabold text-sm text-slate-900 dark:text-white leading-snug">
@@ -2381,7 +2382,7 @@ export default function ControlsAndSubjects() {
 
             {/* Scrollable Form Body */}
             <form onSubmit={handleSaveAdminForm} className="flex-1 overflow-y-auto flex flex-col justify-between">
-              <div className="p-6 space-y-4 text-xs font-semibold">
+              <div className="p-5 sm:p-6 space-y-4 text-xs font-semibold">
                 {modalError && (
                   <div className="p-3 rounded-2xl bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-200 text-xs font-bold flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
@@ -2393,10 +2394,11 @@ export default function ControlsAndSubjects() {
                     </button>
                   </div>
                 )}
-                {/* Full Name & Email */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+
+                {/* Primary Staff Attributes in a 4-Column Grid on Desktop */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                    <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
                       Full Name <span className="text-rose-500">*</span>
                     </label>
                     <input
@@ -2410,13 +2412,13 @@ export default function ControlsAndSubjects() {
                   </div>
 
                   <div>
-                    <div className="flex items-center justify-between mb-1.5">
+                    <div className="flex items-center justify-between mb-1">
                       <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300">
                         Email (Login ID) <span className="text-rose-500">*</span>
                       </label>
                       {editingAdminEmail && (
-                        <span className="text-[9.5px] font-extrabold text-indigo-600 dark:text-indigo-400">
-                          Editable (Firebase Auth)
+                        <span className="text-[9px] font-extrabold text-indigo-600 dark:text-indigo-400">
+                          Auth
                         </span>
                       )}
                     </div>
@@ -2429,19 +2431,9 @@ export default function ControlsAndSubjects() {
                       className="w-full px-3 py-2 rounded-xl text-xs font-semibold border border-slate-200 dark:border-slate-700/80 bg-slate-50/60 dark:bg-slate-950/60 text-slate-900 dark:text-white placeholder-slate-400 outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
                     />
                   </div>
-                </div>
 
-                {editingAdminEmail && editingAdminEmail.toLowerCase() !== adminForm.email.toLowerCase() && (
-                  <div className="p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 text-amber-800 dark:text-amber-300 text-[11px] font-bold flex items-start gap-2">
-                    <AlertCircle size={14} className="text-amber-600 flex-shrink-0 mt-0.5" />
-                    <span>Changing login email from <code className="font-mono text-amber-900 dark:text-amber-200">{editingAdminEmail}</code> to <code className="font-mono text-amber-900 dark:text-amber-200">{adminForm.email}</code> will migrate this staff profile and permissions.</span>
-                  </div>
-                )}
-
-                {/* Role Type & Mobile */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                    <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
                       Role Type
                     </label>
                     <select
@@ -2458,7 +2450,7 @@ export default function ControlsAndSubjects() {
                   </div>
 
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                    <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
                       Mobile / WhatsApp No.
                     </label>
                     <input
@@ -2472,70 +2464,106 @@ export default function ControlsAndSubjects() {
                   </div>
                 </div>
 
+                {editingAdminEmail && editingAdminEmail.toLowerCase() !== adminForm.email.toLowerCase() && (
+                  <div className="p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 text-amber-800 dark:text-amber-300 text-[11px] font-bold flex items-start gap-2">
+                    <AlertCircle size={14} className="text-amber-600 flex-shrink-0 mt-0.5" />
+                    <span>Changing login email from <code className="font-mono text-amber-900 dark:text-amber-200">{editingAdminEmail}</code> to <code className="font-mono text-amber-900 dark:text-amber-200">{adminForm.email}</code> will migrate this staff profile and permissions.</span>
+                  </div>
+                )}
+
                 {/* Administrative Designation (if Admin) */}
                 {adminForm.role === 'Admin' && (
-                  <div className="p-3 rounded-2xl bg-amber-50/70 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 space-y-1">
-                    <label className="block text-[11px] font-extrabold text-amber-900 dark:text-amber-300">
-                      Administrative Designation / Special Label <span className="text-slate-400 font-normal">(Optional — e.g. Clerk, Principal)</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={adminForm.designation || ''}
-                      onChange={(e) => setAdminForm({ ...adminForm, designation: e.target.value })}
-                      placeholder="e.g. Clerk, Principal, Dealing Assistant, Accountant"
-                      className="w-full px-3 py-1.5 rounded-xl text-xs font-bold border border-amber-300 dark:border-amber-700/80 bg-white dark:bg-slate-900 text-slate-900 dark:text-white placeholder-slate-400 outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all"
-                    />
-                    <p className="text-[10px] font-semibold text-amber-700 dark:text-amber-400 pt-0.5">
-                      Standard Admins can hold special operational labels (e.g. Principal or Clerk) while having designated modular access permissions.
-                    </p>
+                  <div className="p-2.5 sm:p-3 rounded-2xl bg-amber-50/60 dark:bg-amber-950/30 border border-amber-200/80 dark:border-amber-800/60 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                    <div className="sm:w-1/3">
+                      <label className="block text-[11px] font-black text-amber-900 dark:text-amber-300 leading-tight">
+                        Administrative Title / Special Label
+                      </label>
+                      <span className="text-[10px] text-amber-700/80 dark:text-amber-400 font-medium">
+                        e.g. Clerk, Principal, Dealing Assistant, Accountant
+                      </span>
+                    </div>
+                    <div className="sm:w-2/3">
+                      <input
+                        type="text"
+                        value={adminForm.designation || ''}
+                        onChange={(e) => setAdminForm({ ...adminForm, designation: e.target.value })}
+                        placeholder="Enter label (e.g. Clerk, Principal)"
+                        className="w-full px-3 py-1.5 rounded-xl text-xs font-bold border border-amber-300/80 dark:border-amber-700/80 bg-white dark:bg-slate-900 text-slate-900 dark:text-white placeholder-slate-400 outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all"
+                      />
+                    </div>
                   </div>
                 )}
 
-                {/* Teaching Subject (if Teacher) */}
+                {/* Teaching Subject & Classes (if Teacher) */}
                 {adminForm.role === 'Teacher' && (
-                  <div className="p-3 rounded-2xl bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/60 space-y-1">
-                    <label className="block text-[11px] font-extrabold text-emerald-900 dark:text-emerald-300">
-                      Assigned Teaching Subject <span className="text-rose-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={adminForm.subject}
-                      onChange={(e) => setAdminForm({ ...adminForm, subject: e.target.value })}
-                      placeholder="e.g. Physics, Chemistry, Biology, Mathematics, Urdu, General English"
-                      className="w-full px-3 py-1.5 rounded-xl text-xs font-bold border border-emerald-300 dark:border-emerald-700/80 bg-white dark:bg-slate-900 text-slate-900 dark:text-white placeholder-slate-400 outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
-                    />
-                    <p className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-400 pt-0.5">
-                      Restricts this faculty member to their specific subject practical awards and attendance.
-                    </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 rounded-2xl bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-200/80 dark:border-emerald-800/60">
+                    <div className="space-y-1">
+                      <label className="block text-[11px] font-extrabold text-emerald-900 dark:text-emerald-300">
+                        Assigned Teaching Subject <span className="text-rose-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={adminForm.subject}
+                        onChange={(e) => setAdminForm({ ...adminForm, subject: e.target.value })}
+                        placeholder="e.g. Physics, Chemistry, Biology, Mathematics..."
+                        className="w-full px-3 py-1.5 rounded-xl text-xs font-bold border border-emerald-300 dark:border-emerald-700/80 bg-white dark:bg-slate-900 text-slate-900 dark:text-white placeholder-slate-400 outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                      />
+                      <p className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-400 pt-0.5">
+                        Restricts this faculty member to their specific subject practical awards and attendance.
+                      </p>
+                    </div>
+                    <div className="space-y-1">
+                      <label className="block text-[11px] font-extrabold text-emerald-900 dark:text-emerald-300">
+                        Assigned Classes
+                      </label>
+                      <div className="flex flex-wrap items-center gap-2 pt-0.5">
+                        {['9th', '10th', '11th', '12th'].map((cls) => {
+                          const isSelected = (adminForm.assignedClasses || []).includes(cls);
+                          return (
+                            <label
+                              key={cls}
+                              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold cursor-pointer transition-all ${
+                                isSelected
+                                  ? 'bg-emerald-600 text-white border-emerald-600 shadow-2xs'
+                                  : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-slate-300'
+                              }`}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={(event) =>
+                                  setAdminForm((prev) => ({
+                                    ...prev,
+                                    assignedClasses: event.target.checked
+                                      ? [...(prev.assignedClasses || []), cls]
+                                      : (prev.assignedClasses || []).filter((v) => v !== cls),
+                                  }))
+                                }
+                                className="hidden"
+                              />
+                              <span>Class {cls}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
                   </div>
                 )}
 
-                {adminForm.role === 'Teacher' && <fieldset className="p-3 border rounded-xl space-y-2">
-                  <legend className="text-xs font-bold">Assigned classes</legend>
-                  <div className="flex flex-wrap gap-4">{['9th', '10th', '11th', '12th'].map(cls => <label key={cls} className="flex gap-2 text-sm">
-                    <input type="checkbox" checked={(adminForm.assignedClasses || []).includes(cls)} onChange={event => setAdminForm(previous => ({ ...previous,
-                      assignedClasses: event.target.checked ? [...(previous.assignedClasses || []), cls] : (previous.assignedClasses || []).filter(value => value !== cls) }))} />{cls}
-                  </label>)}</div>
-                </fieldset>}
-
-                {/* Account Credentials Card */}
-                <div className="p-3.5 rounded-2xl bg-slate-50/90 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800 space-y-2.5">
-                  <div className="flex items-center gap-1.5 text-slate-800 dark:text-slate-200 font-extrabold text-xs">
-                    <Lock size={13} className="text-indigo-600 dark:text-indigo-400" />
-                    <span>Account Credentials & Login Setup</span>
-                  </div>
-
-                  <div>
-                    <label className="block text-[10.5px] font-bold text-slate-600 dark:text-slate-400 mb-1">
-                      {editingAdminEmail ? 'Set / Override Password (Optional)' : 'Initial Password (Optional)'}
-                    </label>
+                {/* Account Credentials Card (Minimal & Sleek) */}
+                <div className="p-3 rounded-2xl bg-slate-50/70 dark:bg-slate-950/50 border border-slate-200/80 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex-1 max-w-sm">
+                    <div className="flex items-center gap-1.5 text-slate-800 dark:text-slate-200 font-black text-[11px] mb-1">
+                      <Lock size={12} className="text-indigo-600 dark:text-indigo-400" />
+                      <span>{editingAdminEmail ? 'Set / Override Password (Optional)' : 'Initial Password (Optional)'}</span>
+                    </div>
                     <div className="relative flex items-center">
                       <input
                         type={showPasswordText ? "text" : "password"}
                         value={adminForm.password}
                         onChange={(e) => setAdminForm({ ...adminForm, password: e.target.value })}
-                        placeholder="Leave blank to let user set up via email link"
-                        className="w-full pl-3 pr-10 py-1.5 rounded-xl text-xs font-mono font-bold border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white placeholder-slate-400 outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                        placeholder="Leave blank to let user set up via email"
+                        className="w-full pl-3 pr-9 py-1.5 rounded-xl text-xs font-mono font-bold border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white placeholder-slate-400 outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
                       />
                       {adminForm.password && (
                         <button
@@ -2545,60 +2573,64 @@ export default function ControlsAndSubjects() {
                           tabIndex={-1}
                           title={showPasswordText ? "Hide password" : "Show password"}
                         >
-                          {showPasswordText ? <EyeOff size={14} /> : <Eye size={14} />}
+                          {showPasswordText ? <EyeOff size={13} /> : <Eye size={13} />}
                         </button>
                       )}
                     </div>
                   </div>
 
-                  <label className="flex items-center gap-2 cursor-pointer pt-0.5 select-none">
+                  <label className="flex items-center gap-2 cursor-pointer pt-1 sm:pt-4 select-none self-start sm:self-center">
                     <input
                       type="checkbox"
                       checked={adminForm.sendSetupEmail}
                       onChange={(e) => setAdminForm({ ...adminForm, sendSetupEmail: e.target.checked })}
-                      className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                      className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
                     />
-                    <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                      Send password setup & activation link to email address
+                    <span className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                      Send password setup & activation link to email
                     </span>
                   </label>
                 </div>
 
                 {/* Granted Feature Modules (For Admins & SuperAdmins) */}
                 {adminForm.role !== 'Teacher' && (
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                        <span>Granted Feature Modules</span>
-                        <span className="px-1.5 py-0.2 rounded-md bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 text-[10px] font-extrabold">
-                          {adminForm.role === 'SuperAdmin' ? ALL_ADMIN_MODULES.length : adminForm.perms.length}/{ALL_ADMIN_MODULES.length}
+                  <div className="space-y-2.5">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-2">
+                      <div className="flex items-center gap-2">
+                        <label className="text-[11px] font-black text-slate-800 dark:text-slate-200">
+                          Granted Feature Modules
+                        </label>
+                        <span className="px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 text-[10px] font-black border border-indigo-200/60 dark:border-indigo-800/60">
+                          {adminForm.role === 'SuperAdmin' ? ALL_ADMIN_MODULES.length : adminForm.perms.length} / {ALL_ADMIN_MODULES.length}
                         </span>
-                      </label>
+                      </div>
+
                       {adminForm.role !== 'SuperAdmin' && (
-                        <div className="flex items-center gap-1 flex-wrap pt-0.5">
-                          <span className="text-[9px] font-black uppercase text-slate-400 mr-0.5">Presets:</span>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="text-[9.5px] font-bold uppercase tracking-wider text-slate-400 mr-0.5">Presets:</span>
                           {ROLE_PRESETS.map((preset) => (
                             <button
                               key={preset.id}
                               type="button"
                               onClick={() => setAdminForm({ ...adminForm, perms: preset.perms() })}
-                              className="px-2 py-0.5 rounded text-[9px] font-black bg-slate-100 hover:bg-indigo-50 dark:bg-slate-800 dark:hover:bg-indigo-950/60 text-slate-700 hover:text-indigo-700 dark:text-slate-300 dark:hover:text-indigo-300 border border-slate-200 dark:border-slate-700 transition-colors cursor-pointer"
+                              className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-white dark:bg-slate-800 hover:bg-indigo-50 dark:hover:bg-indigo-950/60 text-slate-700 hover:text-indigo-700 dark:text-slate-300 dark:hover:text-indigo-300 border border-slate-200 dark:border-slate-700 transition-all cursor-pointer shadow-2xs"
                               title={preset.desc}
                             >
                               {preset.shortName || preset.name}
                             </button>
                           ))}
+                          <div className="h-4 w-px bg-slate-200 dark:bg-slate-700 mx-0.5" />
                           <button
                             type="button"
                             onClick={() => setAdminForm({ ...adminForm, perms: ALL_ADMIN_MODULES.map(m => m.code) })}
-                            className="px-2 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950/60 text-[9px] font-black text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 cursor-pointer transition-colors"
+                            className="px-2.5 py-1 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 text-[10px] font-bold text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 cursor-pointer transition-all shadow-2xs"
                           >
-                            Select All (21)
+                            Select All ({ALL_ADMIN_MODULES.length})
                           </button>
                           <button
                             type="button"
                             onClick={() => setAdminForm({ ...adminForm, perms: [] })}
-                            className="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-[9px] font-black text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 cursor-pointer transition-colors"
+                            className="px-2.5 py-1 rounded-lg bg-white dark:bg-slate-800 text-[10px] font-bold text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 cursor-pointer transition-all shadow-2xs"
                           >
                             Clear
                           </button>
@@ -2612,7 +2644,7 @@ export default function ControlsAndSubjects() {
                         <span>Super Admins automatically have unrestricted access to all {ALL_ADMIN_MODULES.length} system modules.</span>
                       </div>
                     ) : (
-                      <div className="p-2 space-y-2.5 max-h-60 overflow-y-auto rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-950/40 scrollbar-thin">
+                      <div className="p-3 space-y-3.5 max-h-[380px] sm:max-h-[420px] overflow-y-auto rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-950/30 scrollbar-thin">
                         {ADMIN_CATEGORIES.map((cat) => {
                           const catModules = ALL_ADMIN_MODULES.filter((m) => m.category === cat.key);
                           if (catModules.length === 0) return null;
@@ -2621,10 +2653,10 @@ export default function ControlsAndSubjects() {
                           const allCatActive = catActiveCount === catCodes.length;
 
                           return (
-                            <div key={cat.key} className="space-y-1 bg-white/70 dark:bg-slate-900/70 p-2 rounded-xl border border-slate-200/80 dark:border-slate-800/80">
-                              <div className="flex items-center justify-between pb-1 border-b border-slate-100 dark:border-slate-800">
-                                <span className="text-[10px] font-black uppercase text-slate-700 dark:text-slate-300">
-                                  {cat.title} ({catActiveCount}/{catModules.length})
+                            <div key={cat.key} className="space-y-1.5 bg-white/80 dark:bg-slate-900/80 p-3 rounded-2xl border border-slate-200/70 dark:border-slate-800/70 shadow-2xs">
+                              <div className="flex items-center justify-between pb-1.5 border-b border-slate-100 dark:border-slate-800">
+                                <span className="text-[10.5px] font-black uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                                  {cat.title} <span className="text-indigo-600 dark:text-indigo-400 font-mono font-bold">({catActiveCount}/{catModules.length})</span>
                                 </span>
                                 <button
                                   type="button"
@@ -2634,23 +2666,24 @@ export default function ControlsAndSubjects() {
                                       : Array.from(new Set([...adminForm.perms, ...catCodes]));
                                     setAdminForm({ ...adminForm, perms: updated });
                                   }}
-                                  className="text-[9px] font-black text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
+                                  className="text-[10px] font-extrabold text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-200 cursor-pointer"
                                 >
                                   {allCatActive ? 'Deselect Group' : 'Select Group'}
                                 </button>
                               </div>
 
-                              <div className="space-y-1 pt-0.5">
+                              {/* 2-Column Responsive Grid for modules */}
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 pt-0.5">
                                 {catModules.map((mod) => {
                                   const checked = adminForm.perms.includes(mod.code);
                                   const maturity = getModuleMaturity(mod.maturity);
                                   return (
                                     <label
                                       key={mod.code}
-                                      className={`flex items-start gap-2 p-1.5 rounded-lg border transition-all select-none cursor-pointer ${
+                                      className={`flex items-start gap-2.5 p-2.5 rounded-xl border transition-all select-none cursor-pointer ${
                                         checked
-                                          ? 'bg-indigo-50/60 dark:bg-indigo-950/40 border-indigo-300 dark:border-indigo-700/80 shadow-2xs'
-                                          : 'bg-white/40 dark:bg-slate-900/40 border-slate-200/60 dark:border-slate-800/60 opacity-85 hover:opacity-100'
+                                          ? 'bg-indigo-50/70 dark:bg-indigo-950/40 border-indigo-300 dark:border-indigo-700/80 shadow-2xs ring-1 ring-indigo-500/20'
+                                          : 'bg-slate-50/40 dark:bg-slate-950/40 border-slate-200/70 dark:border-slate-800/70 hover:border-slate-300 dark:hover:border-slate-700'
                                       }`}
                                     >
                                       <input
@@ -2662,28 +2695,28 @@ export default function ControlsAndSubjects() {
                                             : adminForm.perms.filter((p) => p !== mod.code);
                                           setAdminForm({ ...adminForm, perms: updated });
                                         }}
-                                        className="mt-0.5 w-3.5 h-3.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                                        className="mt-0.5 w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer shrink-0"
                                       />
-                                      <div className="min-w-0 flex-1 leading-tight">
-                                        <div className="flex items-center gap-1.5 flex-wrap">
-                                          <span className={`text-[11px] ${checked ? 'font-black text-slate-900 dark:text-white' : 'font-semibold text-slate-700 dark:text-slate-300'}`}>
+                                      <div className="min-w-0 flex-1">
+                                        <div className="flex items-center gap-1.5 flex-wrap leading-none">
+                                          <span className={`text-[11px] ${checked ? 'font-black text-slate-900 dark:text-white' : 'font-bold text-slate-700 dark:text-slate-300'}`}>
                                             {mod.label}
                                           </span>
                                           {mod.isNew && (
-                                            <span className="px-1 py-0.2 rounded text-[7px] font-black bg-emerald-500 text-white uppercase tracking-wider">
+                                            <span className="px-1 py-0.2 rounded text-[7.5px] font-black bg-emerald-500 text-white uppercase tracking-wider">
                                               NEW
                                             </span>
                                           )}
                                           <span
                                             title={mod.maturityNote}
-                                            className={`rounded border px-1 py-0.2 text-[7px] font-black leading-none ${maturity.badgeClass}`}
+                                            className={`rounded border px-1 py-0.2 text-[7.5px] font-black leading-none ${maturity.badgeClass}`}
                                           >
                                             {maturity.label}
                                           </span>
                                         </div>
-                                        <span className="text-[9.5px] text-slate-500 dark:text-slate-400 block truncate mt-0.5">
+                                        <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1 line-clamp-1 leading-snug">
                                           {mod.desc}
-                                        </span>
+                                        </p>
                                       </div>
                                     </label>
                                   );
