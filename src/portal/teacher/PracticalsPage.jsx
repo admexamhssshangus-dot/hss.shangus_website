@@ -52,6 +52,27 @@ const cleanAdmNoVal = (val) => {
   return str;
 };
 
+// Compact clean date formatter for evaluation history records
+const formatSubmissionDate = (updatedAt, displayDate) => {
+  if (displayDate) return displayDate;
+  if (!updatedAt) return 'N/A';
+  try {
+    const d = new Date(updatedAt);
+    if (isNaN(d.getTime())) return String(updatedAt);
+    return d.toLocaleDateString('en-IN', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric'
+    }) + ', ' + d.toLocaleTimeString('en-IN', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    });
+  } catch {
+    return String(updatedAt);
+  }
+};
+
 const extractRawAdmNo = (rec) => {
   if (!rec) return '';
   const candidates = [
@@ -3964,9 +3985,9 @@ export default function PracticalsPage() {
                 onClick={() => {
                   setPracticalType(otherEvalSubmission.practicalType || otherEvalSubmission.evaluationType);
                 }}
-                className="px-3 py-1.5 rounded-lg text-xs font-black bg-indigo-600 hover:bg-indigo-500 text-white shadow-xs cursor-pointer active:scale-95 transition-all flex items-center gap-1 shrink-0"
+                className="w-full sm:w-auto h-7 sm:h-7.5 px-3 rounded-lg text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white shadow-2xs cursor-pointer active:scale-95 transition-all flex items-center justify-center gap-1 shrink-0"
               >
-                Switch to {otherEvalSubmission.practicalType || otherEvalSubmission.evaluationType}
+                <span>Switch to {otherEvalSubmission.practicalType || otherEvalSubmission.evaluationType}</span>
                 <ChevronRight size={13} />
               </button>
             </div>
@@ -4444,19 +4465,20 @@ export default function PracticalsPage() {
 
       {/* Submission History Drawer/Modal */}
       {showHistoryModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn overflow-y-auto">
-          <div className="w-full max-w-xl bg-white dark:bg-slate-900 rounded-2xl p-4 sm:p-5 border shadow-xl space-y-3 border-slate-200 dark:border-slate-800 my-auto max-h-[92vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2 gap-2">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 bg-slate-950/70 backdrop-blur-sm animate-fadeIn overflow-y-auto">
+          <div className="w-full max-w-xl bg-white dark:bg-slate-900 rounded-2xl p-3.5 sm:p-5 border shadow-2xl space-y-3 border-slate-200 dark:border-slate-800 my-auto max-h-[92vh] flex flex-col">
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2.5 gap-2 shrink-0">
               <div className="flex items-center gap-2 min-w-0 flex-1">
-                <History className="text-indigo-600 dark:text-indigo-400 shrink-0" size={18} />
+                <div className="w-8 h-8 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0 border border-indigo-100 dark:border-indigo-900/50">
+                  <History size={16} />
+                </div>
                 <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-black text-xs sm:text-sm text-slate-900 dark:text-white truncate">
-                      My Assessment Submissions Log
-                    </h3>
-                  </div>
-                  <p className="text-[10px] text-slate-400 font-medium">
-                    Showing your own submitted evaluations only (Pre-Board, Practicals, Term End & Unit Tests)
+                  <h3 className="font-black text-xs sm:text-sm text-slate-900 dark:text-white truncate m-0">
+                    My Assessment Submissions Log
+                  </h3>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium truncate m-0">
+                    Your submitted evaluations <span className="hidden sm:inline">(Pre-Board, Practicals, Term End)</span>
                   </p>
                 </div>
               </div>
@@ -4466,20 +4488,29 @@ export default function PracticalsPage() {
                 className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer shrink-0 transition-colors"
                 title="Close"
               >
-                <X size={18} />
+                <X size={16} />
               </button>
             </div>
 
             {/* Quick Search Filter */}
-            <div className="relative">
-              <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+            <div className="relative shrink-0">
+              <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
               <input
                 type="text"
-                placeholder="Filter by subject, class, or test type (e.g. Physics, 11th, Pre-Board)..."
+                placeholder="Filter by subject, class, or test type..."
                 value={historySearch}
                 onChange={(e) => setHistorySearch(e.target.value)}
-                className="w-full pl-8 pr-3 py-1.5 text-xs bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl focus:outline-hidden focus:ring-1 focus:ring-indigo-500 text-slate-800 dark:text-slate-100 placeholder:text-slate-400"
+                className="w-full pl-8 pr-8 py-1.5 text-xs bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-800 dark:text-slate-100 placeholder:text-slate-400"
               />
+              {historySearch && (
+                <button
+                  type="button"
+                  onClick={() => setHistorySearch('')}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-0.5"
+                >
+                  <X size={12} />
+                </button>
+              )}
             </div>
 
             {loadingHistory ? (
@@ -4490,7 +4521,7 @@ export default function PracticalsPage() {
                 className="py-6"
               />
             ) : filteredSubmissions.length > 0 ? (
-              <div className="max-h-80 overflow-y-auto space-y-1.5 pr-1">
+              <div className="overflow-y-auto space-y-2 pr-0.5 flex-1 max-h-[62vh]">
                 {filteredSubmissions.map((item, i) => {
                   const itemId = String(item.id || item.docId || '');
                   const isPending = itemId.startsWith('pending_') || item.status === 'pending_approval';
@@ -4499,48 +4530,66 @@ export default function PracticalsPage() {
                   return (
                     <div 
                       key={`${itemId || 'eval'}_${item.className}_${item.subject}_${item.practicalType}_${i}`} 
-                      className="p-2.5 rounded-xl border bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs gap-2"
+                      className="p-2.5 sm:p-3 rounded-xl border bg-white dark:bg-slate-950/60 border-slate-200/90 dark:border-slate-800/90 shadow-2xs hover:border-indigo-300 dark:hover:border-indigo-800 transition-all flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5"
                     >
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="font-extrabold text-xs text-slate-900 dark:text-slate-100 truncate">
-                            {item.className} • {item.subject}
-                          </span>
-                          <span className="px-1.5 py-0.5 rounded-md text-[9px] font-black bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border border-indigo-500/20">
-                            {item.practicalType || 'Assessment'}
-                          </span>
-                          {isPending ? (
-                            isRejected ? (
-                              <span className="px-1.5 py-0.5 rounded-md text-[8.5px] font-extrabold bg-rose-500/15 text-rose-600 dark:text-rose-400">
-                                Revision Requested
-                              </span>
+                      {/* Left / Top Information Block */}
+                      <div className="min-w-0 flex-1 space-y-1">
+                        {/* Title and Badges Row */}
+                        <div className="flex items-center justify-between gap-1.5 flex-wrap">
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <span className="font-black text-xs sm:text-[13px] text-slate-900 dark:text-white truncate">
+                              {item.className} • {item.subject}
+                            </span>
+                            <span className="px-1.5 py-0.5 rounded text-[8.5px] sm:text-[9px] font-black uppercase tracking-wider bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 border border-indigo-200/80 dark:border-indigo-800/80">
+                              {item.practicalType || 'Assessment'}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-1">
+                            {isPending ? (
+                              isRejected ? (
+                                <span className="px-1.5 py-0.5 rounded text-[8.5px] font-bold bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 border border-rose-200 dark:border-rose-800">
+                                  Revision Requested
+                                </span>
+                              ) : (
+                                <span className="px-1.5 py-0.5 rounded text-[8.5px] font-bold bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
+                                  Pending Approval
+                                </span>
+                              )
                             ) : (
-                              <span className="px-1.5 py-0.5 rounded-md text-[8.5px] font-extrabold bg-amber-500/15 text-amber-600 dark:text-amber-400">
-                                Pending Approval
+                              <span className="px-1.5 py-0.5 rounded text-[8.5px] font-bold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                                Approved & Live
                               </span>
-                            )
-                          ) : (
-                            <span className="px-1.5 py-0.5 rounded-md text-[8.5px] font-extrabold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
-                              Approved & Live
-                            </span>
-                          )}
-                          {item.isCrossSubject && (
-                            <span className="px-1.5 py-0.5 rounded-md text-[8.5px] font-extrabold bg-purple-500/15 text-purple-600 dark:text-purple-400">
-                              Cross-Subject
-                            </span>
-                          )}
+                            )}
+                            {item.isCrossSubject && (
+                              <span className="px-1.5 py-0.5 rounded text-[8.5px] font-bold bg-purple-50 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
+                                Cross-Subject
+                              </span>
+                            )}
+                          </div>
                         </div>
-                        <div className="text-[9.5px] text-slate-400 flex items-center gap-1.5 mt-0.5 flex-wrap">
-                          <Clock size={10} className="shrink-0" />
-                          <span>{item.displayDate || (item.updatedAt ? new Date(item.updatedAt).toLocaleString() : 'N/A')}</span>
-                          <span className="text-indigo-600 dark:text-indigo-400 font-bold shrink-0">• {item.recordsCount || (item.records?.length || 0)} Students</span>
+
+                        {/* Metadata row with clean date, student count, session */}
+                        <div className="text-[10px] sm:text-[10.5px] text-slate-500 dark:text-slate-400 flex items-center gap-1.5 flex-wrap">
+                          <span className="flex items-center gap-1">
+                            <Clock size={10.5} className="text-slate-400 shrink-0" />
+                            <span>{formatSubmissionDate(item.updatedAt, item.displayDate)}</span>
+                          </span>
+                          <span className="text-slate-300 dark:text-slate-700">•</span>
+                          <span className="font-bold text-indigo-600 dark:text-indigo-400">
+                            {item.recordsCount || (item.records?.length || 0)} Students
+                          </span>
                           {item.yearSuffix && (
-                            <span className="text-slate-500 dark:text-slate-400 font-medium shrink-0">• Session {item.yearSuffix}</span>
+                            <>
+                              <span className="text-slate-300 dark:text-slate-700">•</span>
+                              <span>Session {item.yearSuffix}</span>
+                            </>
                           )}
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-1.5 shrink-0">
+                      {/* Buttons Row - Suitable size & responsive layout (50/50 on mobile, inline on desktop) */}
+                      <div className="flex items-center gap-2 pt-2 border-t border-slate-100 dark:border-slate-800/80 sm:pt-0 sm:border-0 sm:w-auto shrink-0">
                         {/* Direct Print or Save as PDF button */}
                         <button
                           type="button"
@@ -4565,10 +4614,10 @@ export default function PracticalsPage() {
                               });
                             }
                           }}
-                          className="h-7 px-2.5 rounded-lg text-[10.5px] font-bold bg-white dark:bg-slate-900 hover:bg-indigo-50 dark:hover:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-slate-300 dark:border-slate-700 shadow-2xs transition-all cursor-pointer flex items-center gap-1 active:scale-95"
+                          className="flex-1 sm:flex-initial h-7.5 sm:h-7 px-3 rounded-lg text-xs font-semibold bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700 shadow-2xs transition-all cursor-pointer flex items-center justify-center gap-1.5 active:scale-95"
                           title="Print or Save/Download PDF of Official Award Roll"
                         >
-                          <Printer size={12} className="text-indigo-600 dark:text-indigo-400" />
+                          <Printer size={12} className="text-slate-500 dark:text-slate-400" />
                           <span>Print / PDF</span>
                         </button>
 
@@ -4587,7 +4636,7 @@ export default function PracticalsPage() {
                             }
                             handleLoadSubmissionRecord(item);
                           }}
-                          className="h-7 px-2.5 rounded-lg text-[10.5px] font-black bg-indigo-600/10 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-600/20 border border-indigo-500/20 cursor-pointer active:scale-95 transition-all flex items-center gap-1"
+                          className="flex-1 sm:flex-initial h-7.5 sm:h-7 px-3.5 rounded-lg text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-2xs cursor-pointer active:scale-95 transition-all flex items-center justify-center gap-1"
                         >
                           Load Record
                         </button>
