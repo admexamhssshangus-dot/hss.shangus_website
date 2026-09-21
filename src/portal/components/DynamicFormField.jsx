@@ -1670,7 +1670,42 @@ export default function DynamicFormField({
             const isSecondary = cls9 || cls10 || cls8;
             const isHumanities = ['humanities', 'arts'].includes(strm.toLowerCase());
 
-            const subjectValidation = validateSubjectSelection(targetCls, strm, allSelectedSubjects, isReappearField);
+            const subjectValidation = validateSubjectSelection(targetCls, strm, allSelectedSubjects, isReappearField, realConfig);
+
+            // Dynamically derive stream options from realConfig or defaults
+            let availableStreams = [
+              { val: 'Science', label: '🔬 Science' },
+              { val: 'Humanities', label: '📚 Humanities' },
+            ];
+
+            if (realConfig) {
+              const configuredStreamKeys = new Set();
+              if (realConfig[targetCls] && typeof realConfig[targetCls] === 'object') {
+                Object.keys(realConfig[targetCls]).forEach(k => {
+                  if (k !== 'General') configuredStreamKeys.add(k);
+                });
+              }
+              Object.keys(realConfig).forEach(k => {
+                if (k.startsWith(`${targetCls}_`)) {
+                  const s = k.replace(`${targetCls}_`, '');
+                  if (s !== 'General') configuredStreamKeys.add(s);
+                }
+              });
+
+              if (configuredStreamKeys.size > 0) {
+                const streamIcons = {
+                  science: '🔬',
+                  humanities: '📚',
+                  arts: '🎨',
+                  commerce: '💼',
+                  vocational: '🛠️',
+                };
+                availableStreams = Array.from(configuredStreamKeys).map(s => ({
+                  val: s,
+                  label: `${streamIcons[s.toLowerCase()] || '🎓'} ${s}`
+                }));
+              }
+            }
 
             return (
               <div className="space-y-2">
@@ -1686,11 +1721,8 @@ export default function DynamicFormField({
                         (Choose stream to configure subjects)
                       </span>
                     </div>
-                    <div className="grid grid-cols-2 gap-1 p-0.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 sm:w-auto w-full">
-                      {[
-                        { val: 'Science', label: '🔬 Science' },
-                        { val: 'Humanities', label: '📚 Humanities' },
-                      ].map(s => {
+                    <div className="flex flex-wrap items-center gap-1 p-0.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 sm:w-auto w-full">
+                      {availableStreams.map(s => {
                         const isCurrent = strm.toLowerCase() === s.val.toLowerCase();
                         return (
                           <button
@@ -1709,7 +1741,7 @@ export default function DynamicFormField({
                                 onChange(name, ''); // reset selected electives to avoid invalid stream combinations
                               }
                             }}
-                            className={`px-2.5 py-1 rounded-md text-xs font-bold transition-all cursor-pointer text-center flex items-center justify-center ${
+                            className={`px-2.5 py-1 rounded-md text-xs font-bold transition-all cursor-pointer text-center flex items-center justify-center flex-1 sm:flex-none ${
                               isCurrent
                                 ? 'bg-teal-600 text-white shadow-2xs font-black'
                                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-slate-800'

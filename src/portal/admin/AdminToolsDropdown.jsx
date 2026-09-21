@@ -21,6 +21,7 @@ const MODULE_ICONS = {
   idCards: Contact,
   gkTest: ShieldCheck,
   controls: Settings,
+  curriculum: BookOpen,
   practicals: ClipboardCheck,
   attendanceMgmt: CalendarCheck,
   rollNo: Hash,
@@ -33,6 +34,7 @@ const MODULE_ICONS = {
   googleContacts: Users,
   docStudio: FileSpreadsheet,
   activityAudit: History,
+  staff: Users,
 };
 
 export const ADMIN_TOOL_MODULES = ADMIN_MODULE_CATALOG
