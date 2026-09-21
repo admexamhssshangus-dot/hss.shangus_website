@@ -6,7 +6,7 @@ import { Link, useLocation, useOutletContext } from 'react-router-dom';
 import { 
   ArrowLeft, RefreshCw, AlertCircle, 
   CheckCircle2, Printer, ShieldCheck, History, Clock, Search,
-  Bookmark, Send, ChevronDown, Check, SlidersHorizontal, Zap, X, Info, Sparkles, Award,
+  Bookmark, Send, ChevronDown, ChevronRight, Check, SlidersHorizontal, Zap, X, Info, Sparkles, Award,
   AlertTriangle, ShieldAlert
 } from 'lucide-react';
 import ConfirmModal from '../components/ConfirmModal';
@@ -1207,6 +1207,31 @@ export default function PracticalsPage() {
     );
   }, [existingAwardInfo?.canonical]);
 
+  // Smart Switcher: Detect if current teacher has submissions in another evaluation type for this class & subject
+  const otherEvalSubmission = useMemo(() => {
+    if (!submissionHistory || submissionHistory.length === 0) return null;
+    const currentEvalNorm = String(practicalType || '').toLowerCase().trim();
+    const currentClassNorm = String(selectedClass || '').toLowerCase().trim();
+    const currentSubjNorm = String(selectedSubject || '').toLowerCase().trim();
+
+    // Only show hint if current roster has 0 marks entered
+    const hasCurrentMarks = studentMarks && studentMarks.some(s => s.practicalMarks !== '' || s.vivaMarks !== '');
+    if (hasCurrentMarks) return null;
+
+    return submissionHistory.find(item => {
+      if (!item) return false;
+      const itemCls = String(item.className || '').toLowerCase().trim();
+      const itemSubj = String(item.subject || '').toLowerCase().trim();
+      const itemEval = String(item.practicalType || item.evaluationType || '').toLowerCase().trim();
+
+      const classMatch = itemCls.includes(currentClassNorm) || currentClassNorm.includes(itemCls);
+      const subjMatch = itemSubj === currentSubjNorm;
+      const diffEval = itemEval && itemEval !== currentEvalNorm;
+
+      const recCount = item.recordsCount || (Array.isArray(item.records) ? item.records.length : 0);
+      return classMatch && subjMatch && diffEval && recCount > 0;
+    });
+  }, [submissionHistory, practicalType, selectedClass, selectedSubject, studentMarks]);
 
   // Detect past session years from masterRegisters and practicalsData records
   useEffect(() => {
@@ -2226,6 +2251,11 @@ export default function PracticalsPage() {
       fetchSubmissionHistory(true);
     }
   }, [showHistoryModal, fetchSubmissionHistory]);
+
+  // Pre-fetch submission records on mount so smart switch hints are ready
+  useEffect(() => {
+    fetchSubmissionHistory(false);
+  }, [fetchSubmissionHistory]);
 
 
 
@@ -3912,6 +3942,35 @@ export default function PracticalsPage() {
               </div>
             )}
 
+
+          {/* Smart Evaluation Type Switcher Banner */}
+          {otherEvalSubmission && !loading && (
+            <div className="mb-2.5 p-2.5 rounded-xl bg-gradient-to-r from-amber-500/10 via-indigo-500/10 to-amber-500/10 border border-amber-300 dark:border-amber-700/60 flex flex-wrap items-center justify-between gap-2.5 text-xs shadow-2xs animate-fadeIn">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-7 h-7 rounded-lg bg-amber-500/20 text-amber-700 dark:text-amber-300 flex items-center justify-center shrink-0">
+                  <Sparkles size={14} />
+                </div>
+                <div className="min-w-0">
+                  <p className="font-bold text-slate-900 dark:text-white text-xs m-0 truncate">
+                    Saved awards found under another evaluation type!
+                  </p>
+                  <p className="text-[11px] text-slate-600 dark:text-slate-300 m-0 truncate">
+                    Currently viewing <strong>{practicalType}</strong>, but you have awards saved under <strong>{otherEvalSubmission.practicalType || otherEvalSubmission.evaluationType}</strong> ({otherEvalSubmission.recordsCount || otherEvalSubmission.records?.length || 0} candidates).
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setPracticalType(otherEvalSubmission.practicalType || otherEvalSubmission.evaluationType);
+                }}
+                className="px-3 py-1.5 rounded-lg text-xs font-black bg-indigo-600 hover:bg-indigo-500 text-white shadow-xs cursor-pointer active:scale-95 transition-all flex items-center gap-1 shrink-0"
+              >
+                Switch to {otherEvalSubmission.practicalType || otherEvalSubmission.evaluationType}
+                <ChevronRight size={13} />
+              </button>
+            </div>
+          )}
 
           {/* Student Roster Marks Entry Table - Ultra Compact */}
           {loading ? (

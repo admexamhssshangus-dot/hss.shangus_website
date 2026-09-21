@@ -84,6 +84,9 @@ export default function AdminGazetteRecordEditModal({
         }
       };
     });
+    if (!editReason.trim()) {
+      setEditReason('Administrative mark correction');
+    }
   };
 
   // Toggle Absent
@@ -100,6 +103,9 @@ export default function AdminGazetteRecordEditModal({
         }
       };
     });
+    if (!editReason.trim()) {
+      setEditReason('Candidate attendance/absentee status correction');
+    }
   };
 
   // Revert mark to original
@@ -178,10 +184,7 @@ export default function AdminGazetteRecordEditModal({
       return;
     }
 
-    if (!editReason.trim()) {
-      setErrorMsg('Please specify an audit reason or note for this administrative update.');
-      return;
-    }
+    const effectiveReason = editReason.trim() || 'Administrative mark correction';
 
     setIsSaving(true);
     setErrorMsg('');
@@ -203,6 +206,8 @@ export default function AdminGazetteRecordEditModal({
         // 1. Identify canonical approved document in practicalsData (STRICTLY exclude pending, history, or bin)
         const cleanSubDocId = String(sub.docId || '').replace(/^pending_/, '');
 
+        const targetEvalNorm = String(selectedEvalType || 'Pre-Board Test').toLowerCase().trim();
+
         const matchedDoc = practicalsDocs.find(d => {
           const dId = String(d.id || d.docId || '');
           if (dId.startsWith('pending_') || dId.startsWith('history_') || dId.startsWith('bin_')) return false;
@@ -213,7 +218,13 @@ export default function AdminGazetteRecordEditModal({
           const sClass = String(selectedClass || '').replace(/class/i, '').trim().toLowerCase();
           const classMatches = dClass === sClass || dClass.includes(sClass) || sClass.includes(dClass);
           const subjectMatches = sCode === sub.code || sName === sub.name.toUpperCase();
-          return classMatches && subjectMatches;
+
+          const dEval = String(d.practicalType || d.evaluationType || '').toLowerCase().trim();
+          const evalMatches = !targetEvalNorm || dEval.includes(targetEvalNorm) || targetEvalNorm.includes(dEval) ||
+            (targetEvalNorm.includes('preboard') && dEval.includes('preboard')) ||
+            (targetEvalNorm.includes('internal') && dEval.includes('internal'));
+
+          return classMatches && subjectMatches && evalMatches;
         });
 
         const targetDocId = (matchedDoc && matchedDoc.id) || cleanSubDocId || formatPracticalDocId(selectedClass, sub.name, selectedEvalType || 'Pre-Board Test', normSession);
@@ -224,6 +235,20 @@ export default function AdminGazetteRecordEditModal({
 
         let docData = docSnap.exists() ? docSnap.data() : (matchedDoc || {});
         let records = Array.isArray(docData.records) ? [...docData.records] : [];
+
+        // Check if there is an existing pending doc (e.g. pending_12th_Chemistry_Pre-Board Test_2025-26)
+        const pendingDocId = `pending_${targetDocId}`;
+        const sourcePendingDoc = practicalsDocs.find(d => {
+          const dId = String(d.id || d.docId || '');
+          return dId === pendingDocId || (sub.docId && (dId === sub.docId || dId === `pending_${sub.docId}`));
+        });
+
+        // CRITICAL FIX: If the canonical approved doc doesn't have records yet or has fewer records,
+        // seed all candidate records from the pending document so no students are dropped!
+        if (records.length === 0 && sourcePendingDoc && Array.isArray(sourcePendingDoc.records) && sourcePendingDoc.records.length > 0) {
+          records = [...sourcePendingDoc.records];
+          docData = { ...sourcePendingDoc, ...docData };
+        }
 
         // Check if student record exists in records array using comprehensive multi-factor matching
         const recIndex = records.findIndex(r => {
@@ -267,7 +292,7 @@ export default function AdminGazetteRecordEditModal({
           updatedByAdmin: true,
           updatedBy: adminEmail,
           updatedAt: nowIso,
-          editReason: editReason.trim()
+          editReason: effectiveReason
         };
 
         if (recIndex >= 0) {
@@ -299,8 +324,44 @@ export default function AdminGazetteRecordEditModal({
           updatedBy: adminEmail,
           updatedAt: nowIso,
           lastEditedBy: `Admin (${adminEmail}) - Direct Gazette Edit`,
-          lastEditReason: editReason.trim()
+          lastEditReason: effectiveReason
         }, { merge: true });
+
+        // Also sync to corresponding pending document so pending submission inspect view stays consistent
+        if (sourcePendingDoc) {
+          try {
+            const pendingRef = doc(db, 'practicalsData', sourcePendingDoc.id || pendingDocId);
+            let pendingRecords = Array.isArray(sourcePendingDoc.records) ? [...sourcePendingDoc.records] : [...records];
+            const pIdx = pendingRecords.findIndex(r => {
+              if (!r) return false;
+              const rReg = String(r.boardRegNo || r.boardRollNo || r.regNo || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+              if (regVal && regVal !== '—' && regVal.length >= 8 && rReg && rReg.length >= 8 && rReg === regVal) return true;
+              const rRoll = String(r.rollNo || r.classRollNo || '').trim();
+              if (rollVal && rollVal !== '—' && rRoll && rRoll === rollVal) return true;
+              const rName = String(r.name || r.studentName || '').toLowerCase().trim();
+              if (nameVal && rName && nameVal.toLowerCase().trim() === rName) return true;
+              return false;
+            });
+
+            if (pIdx >= 0) {
+              pendingRecords[pIdx] = { ...pendingRecords[pIdx], ...updatedStudentEntry };
+            } else {
+              pendingRecords.push(updatedStudentEntry);
+            }
+
+            await setDoc(pendingRef, {
+              ...sourcePendingDoc,
+              records: pendingRecords,
+              updatedByAdmin: true,
+              updatedBy: adminEmail,
+              updatedAt: nowIso,
+              lastEditedBy: `Admin (${adminEmail}) - Direct Gazette Edit`,
+              lastEditReason: effectiveReason
+            }, { merge: true });
+          } catch (pendingSyncErr) {
+            console.warn('Pending document sync error (non-fatal):', pendingSyncErr);
+          }
+        }
       }
 
       // Invalidate both collection and in-memory practicals caches so all admin and teacher modules refresh instantly
@@ -625,24 +686,38 @@ export default function AdminGazetteRecordEditModal({
         </div>
 
         {/* Modal Footer */}
-        <div className="px-3 sm:px-5 py-2 bg-slate-50 dark:bg-slate-800/80 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2 flex-shrink-0">
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={isSaving}
-            className="px-3.5 py-1.5 rounded-lg text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
-          >
-            Cancel
-          </button>
+        <div className="px-3 sm:px-5 py-2.5 bg-slate-50 dark:bg-slate-800/90 border-t border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2 flex-shrink-0">
+          <div className="flex items-center gap-2 text-xs">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={isSaving}
+              className="px-3 py-1.5 rounded-lg text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+            >
+              Cancel
+            </button>
+
+            {!hasChanges ? (
+              <span className="text-[11px] text-slate-500 dark:text-slate-400 italic">
+                Change any subject mark or toggle AB to enable commit.
+              </span>
+            ) : (
+              <span className="px-2 py-0.5 rounded-full text-[10.5px] font-bold bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800 flex items-center gap-1">
+                <Sparkles size={11} className="text-amber-600" />
+                {Object.values(marksState).filter(s => s.val !== s.originalVal).length} mark(s) modified
+              </span>
+            )}
+          </div>
 
           <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={handleSave}
               disabled={isSaving || !hasChanges}
+              title={!hasChanges ? 'Make changes to at least one subject mark to enable saving' : 'Save verified marks with admin audit trail'}
               className={`px-4 py-1.5 rounded-lg text-xs font-black flex items-center gap-1.5 shadow-sm transition-all ${
                 isSaving || !hasChanges
-                  ? 'bg-slate-300 dark:bg-slate-800 text-slate-500 dark:text-slate-600 cursor-not-allowed'
+                  ? 'bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-600 cursor-not-allowed border border-slate-300/50 dark:border-slate-700/50'
                   : 'bg-gradient-to-r from-amber-600 to-indigo-600 hover:from-amber-700 hover:to-indigo-700 text-white shadow-md hover:shadow-lg active:scale-95'
               }`}
             >
