@@ -58,7 +58,7 @@ export default class ModuleErrorBoundary extends React.Component {
   render() {
     if (this.state.hasError) {
       const errorMsg = String(this.state.error?.message || this.state.error || '');
-      const isChunkError = /ChunkLoadError|Loading chunk|Failed to fetch|error loading dynamically imported module|Importing a module script failed|error loading chunk|dynamically imported module|Load failed|Script error|NetworkError/i.test(
+      const isChunkError = /ChunkLoadError|Loading chunk|Failed to fetch|error loading dynamically imported module|Importing a module script failed|error loading chunk|dynamically imported module|Load failed|Script error|NetworkError|unexpected require|disposed module/i.test(
         errorMsg
       );
 
