@@ -540,25 +540,26 @@ export default function StaffPermissionsManager() {
       )}
 
       {/* Main Staff Container Card */}
-      <div className="p-3 sm:p-4 rounded-3xl border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs space-y-3">
+      <div className="p-2 sm:p-4 rounded-2xl sm:rounded-3xl border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs space-y-2.5 sm:space-y-3">
         {/* Top Header & Universal Controls Toolbar */}
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between border-b border-slate-100 dark:border-slate-800/80 pb-3 gap-3">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div className="w-8 h-8 rounded-2xl bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200/60 dark:border-indigo-800/60 flex items-center justify-center text-indigo-600 dark:text-indigo-400 shrink-0 shadow-2xs">
-              <Users size={16} />
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 dark:border-slate-800/80 pb-2 sm:pb-3 gap-2 sm:gap-3">
+          <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
+            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl sm:rounded-2xl bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200/60 dark:border-indigo-800/60 flex items-center justify-center text-indigo-600 dark:text-indigo-400 shrink-0 shadow-2xs">
+              <Users size={14} className="sm:hidden" />
+              <Users size={16} className="hidden sm:inline" />
             </div>
             <div>
-              <h2 className="font-extrabold text-sm text-slate-900 dark:text-white leading-tight">
+              <h2 className="font-extrabold text-xs sm:text-sm text-slate-900 dark:text-white leading-tight">
                 Staff & Permissions Manager
               </h2>
-              <p className="text-[10.5px] font-semibold text-slate-400 dark:text-slate-500">
+              <p className="text-[9.5px] sm:text-[10.5px] font-semibold text-slate-400 dark:text-slate-500">
                 Governance for 4 categories: Student, Teacher, Standard Admin & SuperAdmin
               </p>
             </div>
           </div>
 
           {/* Action Buttons Toolbar with Standardized Consistent [Save Changes] */}
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap self-end sm:self-auto">
             <button
               type="button"
               onClick={() => {
@@ -575,19 +576,20 @@ export default function StaffPermissionsManager() {
                   text: `✨ Upgraded all administrators to full access (${ALL_ADMIN_MODULES.length} modules). Click "Save Changes" to commit!`,
                 });
               }}
-              className="px-3 py-1.5 rounded-xl font-bold text-xs text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 border border-indigo-200 dark:border-indigo-800 shadow-2xs flex items-center gap-1.5 cursor-pointer transition-all active:scale-95"
+              className="px-2 py-1 sm:px-3 sm:py-1.5 rounded-lg sm:rounded-xl font-bold text-[10px] sm:text-xs text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 border border-indigo-200 dark:border-indigo-800 shadow-2xs flex items-center gap-1 cursor-pointer transition-all active:scale-95"
               title={`Grant all ${ALL_ADMIN_MODULES.length} modules to all active Admin accounts`}
             >
-              <Sparkles size={13} className="text-indigo-600 dark:text-indigo-400" />
-              <span>Upgrade All Admins ({ALL_ADMIN_MODULES.length})</span>
+              <Sparkles size={11} className="text-indigo-600 dark:text-indigo-400" />
+              <span className="sm:hidden">Upgrade ({ALL_ADMIN_MODULES.length})</span>
+              <span className="hidden sm:inline">Upgrade All Admins ({ALL_ADMIN_MODULES.length})</span>
             </button>
 
             <button
               type="button"
               onClick={handleOpenAddAdmin}
-              className="px-3 py-1.5 rounded-xl font-bold text-xs text-white bg-indigo-600 hover:bg-indigo-500 shadow-xs flex items-center gap-1.5 cursor-pointer transition-all active:scale-95"
+              className="px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-lg sm:rounded-xl font-bold text-[10.5px] sm:text-xs text-white bg-indigo-600 hover:bg-indigo-500 shadow-xs flex items-center gap-1 cursor-pointer transition-all active:scale-95"
             >
-              <UserPlus size={13} />
+              <UserPlus size={12} />
               <span>Add Staff</span>
             </button>
 
@@ -596,19 +598,19 @@ export default function StaffPermissionsManager() {
               type="button"
               onClick={() => handleApplyPermissions()}
               disabled={saving}
-              className="px-4 py-1.5 rounded-xl text-xs font-black bg-amber-600 hover:bg-amber-500 text-white shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50 transition-all active:scale-95"
+              className="px-2.5 py-1 sm:px-4 sm:py-1.5 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-black bg-amber-600 hover:bg-amber-500 text-white shadow-xs flex items-center gap-1 cursor-pointer disabled:opacity-50 transition-all active:scale-95"
             >
-              {saving ? <RefreshCw size={13} className="animate-spin" /> : <Save size={13} />}
+              {saving ? <RefreshCw size={12} className="animate-spin" /> : <Save size={12} />}
               <span>Save Changes</span>
             </button>
           </div>
         </div>
 
         {/* Filter Pills & Search Bar Row */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 pt-0.5">
-          <div className="inline-flex p-1 bg-slate-100 dark:bg-slate-800/80 rounded-2xl text-[10.5px] font-bold gap-1 overflow-x-auto no-scrollbar">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-1.5 sm:gap-2 pt-0.5">
+          <div className="inline-flex p-0.5 sm:p-1 bg-slate-100 dark:bg-slate-800/80 rounded-xl sm:rounded-2xl text-[9.5px] sm:text-[10.5px] font-bold gap-0.5 sm:gap-1 overflow-x-auto no-scrollbar">
             {[
-              { id: 'all', label: `All Staff (${adminUsers.length})` },
+              { id: 'all', label: `All (${adminUsers.length})` },
               { id: 'superadmin', label: `SuperAdmin (${superAdminCount})` },
               { id: 'admin', label: `Admins (${adminCount})` },
               { id: 'teacher', label: `Teachers (${teacherCount})` },
@@ -617,7 +619,7 @@ export default function StaffPermissionsManager() {
                 key={f.id}
                 type="button"
                 onClick={() => setStaffRoleFilter(f.id)}
-                className={`px-2.5 py-1 rounded-xl cursor-pointer transition-all whitespace-nowrap ${
+                className={`px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg sm:rounded-xl cursor-pointer transition-all whitespace-nowrap ${
                   staffRoleFilter === f.id
                     ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-2xs font-black'
                     : 'text-slate-500 hover:text-slate-900 dark:hover:text-slate-200'
@@ -629,13 +631,13 @@ export default function StaffPermissionsManager() {
           </div>
 
           <div className="relative sm:w-72">
-            <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+            <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search by name, email, designation..."
-              className="w-full pl-8 pr-7 py-1.5 rounded-xl text-xs font-semibold bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white placeholder-slate-400 outline-none focus:ring-1 focus:ring-indigo-500 transition-all"
+              className="w-full pl-7 pr-6 py-1 sm:py-1.5 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-semibold bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white placeholder-slate-400 outline-none focus:ring-1 focus:ring-indigo-500 transition-all"
             />
             {searchQuery && (
               <button
@@ -643,7 +645,7 @@ export default function StaffPermissionsManager() {
                 onClick={() => setSearchQuery('')}
                 className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5"
               >
-                <X size={12} />
+                <X size={11} />
               </button>
             )}
           </div>
@@ -666,29 +668,30 @@ export default function StaffPermissionsManager() {
             return (
               <div 
                 key={idx} 
-                className="p-3 rounded-2xl border border-slate-200/80 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-950/40 hover:border-indigo-500/40 transition-all space-y-2"
+                className="p-2 sm:p-3 rounded-xl sm:rounded-2xl border border-slate-200/80 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-950/40 hover:border-indigo-500/40 transition-all space-y-1.5 sm:space-y-2"
               >
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-1.5 sm:gap-2">
                   {/* User Profile Column */}
-                  <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                    <div className={`w-8 h-8 rounded-xl flex items-center justify-center font-black shrink-0 ${
+                  <div className="flex items-center gap-2 sm:gap-2.5 min-w-0 flex-1">
+                    <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl flex items-center justify-center font-black shrink-0 ${
                       isSuper 
                         ? 'bg-purple-500/20 text-purple-600 border border-purple-500/30' 
                         : isTeacher
                         ? 'bg-emerald-500/20 text-emerald-600 border border-emerald-500/30'
                         : 'bg-amber-500/20 text-amber-600 border border-amber-500/30'
                     }`}>
-                      {isSuper ? <ShieldCheck size={16} /> : isTeacher ? <UserCheck size={16} /> : <Lock size={15} />}
+                      {isSuper ? <ShieldCheck size={14} className="sm:hidden" /> : isTeacher ? <UserCheck size={14} className="sm:hidden" /> : <Lock size={13} className="sm:hidden" />}
+                      {isSuper ? <ShieldCheck size={16} className="hidden sm:inline" /> : isTeacher ? <UserCheck size={16} className="hidden sm:inline" /> : <Lock size={15} className="hidden sm:inline" />}
                     </div>
 
                     <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <strong className="text-xs font-black text-slate-900 dark:text-white truncate">
+                      <div className="flex items-center gap-1 sm:gap-1.5 flex-wrap">
+                        <strong className="text-[11px] sm:text-xs font-black text-slate-900 dark:text-white truncate">
                           {user.name}
                         </strong>
                         
                         {/* Category Badge */}
-                        <span className={`px-2 py-0.5 rounded-full font-black text-[9px] uppercase tracking-wider shrink-0 ${
+                        <span className={`px-1.5 py-0.5 rounded-full font-black text-[8px] sm:text-[9px] uppercase tracking-wider shrink-0 ${
                           isSuper ? 'bg-purple-600 text-white' : isTeacher ? 'bg-emerald-600 text-white' : 'bg-amber-600 text-white'
                         }`}>
                           {isSuper ? 'SuperAdmin' : isTeacher ? 'Teacher' : 'Standard Admin'}
@@ -696,40 +699,40 @@ export default function StaffPermissionsManager() {
 
                         {/* Special Designation Label (Principal, Clerk, etc.) */}
                         {desig && (
-                          <span className="px-2 py-0.5 rounded-full font-black text-[9px] uppercase tracking-wider bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300 border border-sky-300 dark:border-sky-800 shrink-0 shadow-2xs">
+                          <span className="px-1.5 py-0.5 rounded-full font-black text-[8px] sm:text-[9px] uppercase tracking-wider bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300 border border-sky-300 dark:border-sky-800 shrink-0 shadow-2xs">
                             {desig}
                           </span>
                         )}
 
                         {/* Teaching Subject (if teacher) */}
                         {user.subject && (
-                          <span className="px-2 py-0.5 rounded-md text-[9px] font-bold bg-blue-100 dark:bg-blue-950 text-blue-800 dark:text-blue-300 border border-blue-200 dark:border-blue-800 shrink-0">
+                          <span className="px-1.5 py-0.5 rounded-md text-[8px] sm:text-[9px] font-bold bg-blue-100 dark:bg-blue-950 text-blue-800 dark:text-blue-300 border border-blue-200 dark:border-blue-800 shrink-0">
                             {user.subject}
                           </span>
                         )}
 
                         {hasOutdatedStatus && (
-                          <span className="px-1.5 py-0.2 rounded text-[8.5px] font-bold bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800 shrink-0">
+                          <span className="px-1.5 py-0.2 rounded text-[8px] sm:text-[8.5px] font-bold bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800 shrink-0">
                             Partial Access ({activeCount}/{ALL_ADMIN_MODULES.length})
                           </span>
                         )}
                       </div>
 
-                      <div className="text-[10px] text-slate-400 font-mono truncate pt-0.5">
+                      <div className="text-[9.5px] sm:text-[10px] text-slate-400 font-mono truncate pt-0.5">
                         {user.email}
                       </div>
                     </div>
                   </div>
 
                   {/* Actions & Modules Controls */}
-                  <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
+                  <div className="flex items-center gap-1 sm:gap-1.5 shrink-0 flex-wrap justify-end">
                     {hasOutdatedStatus && (
                       <button
                         type="button"
                         onClick={() => setAllPermissionsForUser(user.email, true)}
-                        className="px-2.5 py-1 rounded-xl text-[10px] font-black bg-indigo-600 hover:bg-indigo-500 text-white shadow-2xs transition-all flex items-center gap-1 cursor-pointer active:scale-95"
+                        className="px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md sm:rounded-xl text-[9.5px] sm:text-[10px] font-black bg-indigo-600 hover:bg-indigo-500 text-white shadow-2xs transition-all flex items-center gap-1 cursor-pointer active:scale-95"
                       >
-                        <Sparkles size={11} />
+                        <Sparkles size={10} />
                         <span>Grant All ({ALL_ADMIN_MODULES.length})</span>
                       </button>
                     )}
@@ -738,15 +741,15 @@ export default function StaffPermissionsManager() {
                       <button
                         type="button"
                         onClick={() => toggleModulesDropdown(cleanEmail)}
-                        className={`px-2.5 py-1 rounded-xl text-[10.5px] font-bold inline-flex items-center gap-1.5 cursor-pointer transition-all border ${
+                        className={`px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md sm:rounded-xl text-[9.5px] sm:text-[10.5px] font-bold inline-flex items-center gap-1 sm:gap-1.5 cursor-pointer transition-all border ${
                           activeCount === ALL_ADMIN_MODULES.length
                             ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/20'
                             : 'bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border-indigo-500/30 hover:bg-indigo-500/20'
                         }`}
                       >
-                        <SlidersHorizontal size={12} className="text-indigo-600 dark:text-indigo-400" />
+                        <SlidersHorizontal size={11} className="text-indigo-600 dark:text-indigo-400" />
                         <span>{activeCount}/{ALL_ADMIN_MODULES.length} Modules</span>
-                        <ChevronDown size={11} className={`transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+                        <ChevronDown size={10} className={`transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
                       </button>
                     )}
 
@@ -756,9 +759,9 @@ export default function StaffPermissionsManager() {
                       onClick={() => handleSendPasswordReset(user.email)}
                       disabled={isSendingReset}
                       title="Send Password Reset Email"
-                      className="px-2.5 py-1 rounded-xl text-[10px] font-bold bg-teal-50 dark:bg-teal-950/80 text-teal-700 dark:text-teal-300 hover:bg-teal-100 dark:hover:bg-teal-900 border border-teal-200 dark:border-teal-800 flex items-center gap-1 cursor-pointer transition-colors"
+                      className="px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md sm:rounded-xl text-[9.5px] sm:text-[10px] font-bold bg-teal-50 dark:bg-teal-950/80 text-teal-700 dark:text-teal-300 hover:bg-teal-100 dark:hover:bg-teal-900 border border-teal-200 dark:border-teal-800 flex items-center gap-1 cursor-pointer transition-colors"
                     >
-                      {isSendingReset ? <RefreshCw size={11} className="animate-spin" /> : <Key size={11} />}
+                      {isSendingReset ? <RefreshCw size={10} className="animate-spin" /> : <Key size={10} />}
                       <span>Reset</span>
                     </button>
 
@@ -767,9 +770,9 @@ export default function StaffPermissionsManager() {
                       type="button"
                       onClick={() => handleOpenEditAdmin(user)}
                       title="Edit Account Details"
-                      className="p-1.5 rounded-xl bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 border border-indigo-200/60 dark:border-indigo-800/60 cursor-pointer"
+                      className="p-1 sm:p-1.5 rounded-md sm:rounded-xl bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 border border-indigo-200/60 dark:border-indigo-800/60 cursor-pointer"
                     >
-                      <Edit3 size={13} />
+                      <Edit3 size={12} />
                     </button>
 
                     {/* Delete / Revoke Access (Forbidden for sole SuperAdmin) */}
@@ -778,9 +781,9 @@ export default function StaffPermissionsManager() {
                         type="button"
                         onClick={() => setUserToDelete(user)}
                         title="Revoke / Delete Staff Account"
-                        className="p-1.5 rounded-xl bg-rose-50 dark:bg-rose-950 text-rose-600 dark:text-rose-400 hover:bg-rose-100 border border-rose-200/60 dark:border-rose-800/60 cursor-pointer"
+                        className="p-1 sm:p-1.5 rounded-md sm:rounded-xl bg-rose-50 dark:bg-rose-950 text-rose-600 dark:text-rose-400 hover:bg-rose-100 border border-rose-200/60 dark:border-rose-800/60 cursor-pointer"
                       >
-                        <Trash2 size={13} />
+                        <Trash2 size={12} />
                       </button>
                     )}
                   </div>

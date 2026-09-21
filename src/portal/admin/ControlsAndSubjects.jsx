@@ -253,39 +253,40 @@ export default function ControlsAndSubjects() {
       )}
 
       {/* Main Container Card */}
-      <div className="p-3 sm:p-4 rounded-3xl border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs space-y-3">
+      <div className="p-2 sm:p-4 rounded-2xl sm:rounded-3xl border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs space-y-2.5 sm:space-y-3">
         {/* Top Header & Universal Controls Toolbar */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 dark:border-slate-800/80 pb-3 gap-3">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div className="w-8 h-8 rounded-2xl bg-amber-50 dark:bg-amber-950/60 border border-amber-200/60 dark:border-amber-800/60 flex items-center justify-center text-amber-600 dark:text-amber-400 shrink-0 shadow-2xs">
-              <Settings size={16} />
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 dark:border-slate-800/80 pb-2 sm:pb-3 gap-2 sm:gap-3">
+          <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
+            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl sm:rounded-2xl bg-amber-50 dark:bg-amber-950/60 border border-amber-200/60 dark:border-amber-800/60 flex items-center justify-center text-amber-600 dark:text-amber-400 shrink-0 shadow-2xs">
+              <Settings size={14} className="sm:hidden" />
+              <Settings size={16} className="hidden sm:inline" />
             </div>
             <div>
-              <h2 className="font-extrabold text-sm text-slate-900 dark:text-white leading-tight">
+              <h2 className="font-extrabold text-xs sm:text-sm text-slate-900 dark:text-white leading-tight">
                 System & Admission Controls
               </h2>
-              <p className="text-[10.5px] font-semibold text-slate-400 dark:text-slate-500">
+              <p className="text-[9.5px] sm:text-[10.5px] font-semibold text-slate-400 dark:text-slate-500">
                 Class admission windows, academic session year & automated rollover
               </p>
             </div>
           </div>
 
           {/* Consistent Standard Save Button */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2 self-end sm:self-auto">
             <button
               type="button"
               onClick={handleSaveControls}
               disabled={saving}
-              className="px-4 py-1.5 rounded-xl text-xs font-black bg-amber-600 hover:bg-amber-500 text-white shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50 transition-all active:scale-95"
+              className="px-2.5 py-1 sm:px-4 sm:py-1.5 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-black bg-amber-600 hover:bg-amber-500 text-white shadow-xs flex items-center gap-1 cursor-pointer disabled:opacity-50 transition-all active:scale-95"
             >
-              {saving ? <RefreshCw size={13} className="animate-spin" /> : <Save size={13} />}
+              {saving ? <RefreshCw size={12} className="animate-spin" /> : <Save size={12} />}
               <span>Save Changes</span>
             </button>
           </div>
         </div>
 
         {/* Sub Navigation Bar */}
-        <div className="flex items-center gap-1.5 border-b border-slate-100 dark:border-slate-800 pb-2 overflow-x-auto no-scrollbar">
+        <div className="flex items-center gap-1 sm:gap-1.5 border-b border-slate-100 dark:border-slate-800 pb-1.5 sm:pb-2 overflow-x-auto no-scrollbar">
           {[
             { id: 'controls', label: '1. Admission & System Controls', shortLabel: '1. Controls', icon: Sliders },
             { id: 'rollover', label: '2. Annual Session Rollover', shortLabel: '2. Rollover', icon: Database },
@@ -297,13 +298,13 @@ export default function ControlsAndSubjects() {
                 key={sub.id}
                 type="button"
                 onClick={() => setActiveSubTab(sub.id)}
-                className={`py-1 px-3 rounded-xl font-black text-xs flex items-center gap-1.5 transition-all whitespace-nowrap cursor-pointer shrink-0 ${
+                className={`py-0.5 sm:py-1 px-2 sm:px-3 rounded-lg sm:rounded-xl font-black text-[10px] sm:text-xs flex items-center gap-1 sm:gap-1.5 transition-all whitespace-nowrap cursor-pointer shrink-0 ${
                   isActive
                     ? 'bg-amber-600 text-white shadow-xs ring-1 ring-amber-500/30'
                     : 'bg-slate-100 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
                 }`}
               >
-                <Icon size={13} />
+                <Icon size={12} />
                 <span className="sm:hidden">{sub.shortLabel}</span>
                 <span className="hidden sm:inline">{sub.label}</span>
               </button>
@@ -313,16 +314,16 @@ export default function ControlsAndSubjects() {
 
         {/* SUBTAB 1: ADMISSION & SYSTEM CONTROLS */}
         {activeSubTab === 'controls' && (
-          <form onSubmit={handleSaveControls} className="space-y-3.5 pt-1">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <form onSubmit={handleSaveControls} className="space-y-2.5 sm:space-y-3.5 pt-0.5 sm:pt-1">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 sm:gap-3">
               {/* Column 1: Class Admission Status */}
-              <div className="p-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xs space-y-2.5">
-                <div className="font-black text-xs flex items-center justify-between text-amber-700 dark:text-amber-400 border-b border-slate-100 dark:border-slate-800 pb-2">
-                  <span className="flex items-center gap-1.5"><Sliders size={14} /> Class Admission Windows</span>
-                  <span className="text-[10px] font-mono bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 px-2 py-0.5 rounded-full font-bold">4 Classes</span>
+              <div className="p-2.5 sm:p-3 rounded-xl sm:rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xs space-y-2 sm:space-y-2.5">
+                <div className="font-black text-[11px] sm:text-xs flex items-center justify-between text-amber-700 dark:text-amber-400 border-b border-slate-100 dark:border-slate-800 pb-1.5 sm:pb-2">
+                  <span className="flex items-center gap-1.5"><Sliders size={13} /> Class Admission Windows</span>
+                  <span className="text-[9px] sm:text-[10px] font-mono bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 px-1.5 sm:px-2 py-0.5 rounded-full font-bold">4 Classes</span>
                 </div>
 
-                <div className="space-y-1.5">
+                <div className="space-y-1 sm:space-y-1.5">
                   {[
                     { label: 'Class 9th Admissions', val: allow9th, set: setAllow9th },
                     { label: 'Class 10th Admissions', val: allow10th, set: setAllow10th },
@@ -331,7 +332,7 @@ export default function ControlsAndSubjects() {
                   ].map((item, idx) => (
                     <label
                       key={idx}
-                      className={`flex items-center justify-between p-2 rounded-xl border text-xs font-black cursor-pointer transition-all ${
+                      className={`flex items-center justify-between p-1.5 sm:p-2 rounded-lg sm:rounded-xl border text-[11px] sm:text-xs font-black cursor-pointer transition-all ${
                         item.val
                           ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800 text-emerald-900 dark:text-emerald-200'
                           : 'bg-rose-50 dark:bg-rose-950/40 border-rose-300 dark:border-rose-800 text-rose-900 dark:text-rose-200'
@@ -342,7 +343,7 @@ export default function ControlsAndSubjects() {
                         type="checkbox"
                         checked={item.val}
                         onChange={(e) => item.set(e.target.checked)}
-                        className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                        className="w-3.5 h-3.5 sm:w-4 sm:h-4 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer"
                       />
                     </label>
                   ))}
@@ -350,20 +351,20 @@ export default function ControlsAndSubjects() {
               </div>
 
               {/* Column 2: Faculty Submission Toggles & Session */}
-              <div className="p-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xs space-y-2.5">
-                <div className="font-black text-xs flex items-center justify-between text-indigo-700 dark:text-indigo-400 border-b border-slate-100 dark:border-slate-800 pb-2">
-                  <span className="flex items-center gap-1.5"><BookOpen size={14} /> Faculty Submissions</span>
-                  <span className="text-[10px] bg-indigo-100 dark:bg-indigo-950 text-indigo-800 dark:text-indigo-300 px-2 py-0.5 rounded-full font-bold">Portals</span>
+              <div className="p-2.5 sm:p-3 rounded-xl sm:rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xs space-y-2 sm:space-y-2.5">
+                <div className="font-black text-[11px] sm:text-xs flex items-center justify-between text-indigo-700 dark:text-indigo-400 border-b border-slate-100 dark:border-slate-800 pb-1.5 sm:pb-2">
+                  <span className="flex items-center gap-1.5"><BookOpen size={13} /> Faculty Submissions</span>
+                  <span className="text-[9px] sm:text-[10px] bg-indigo-100 dark:bg-indigo-950 text-indigo-800 dark:text-indigo-300 px-1.5 sm:px-2 py-0.5 rounded-full font-bold">Portals</span>
                 </div>
 
-                <div className="space-y-1.5">
+                <div className="space-y-1 sm:space-y-1.5">
                   {[
                     { label: 'Practicals & Marks Entry', val: practicalsSubmissionOpen, set: setPracticalsSubmissionOpen },
                     { label: 'Attendance Management', val: attendanceSubmissionOpen, set: setAttendanceSubmissionOpen },
                   ].map((item, idx) => (
                     <label
                       key={idx}
-                      className={`flex items-center justify-between p-2 rounded-xl border text-xs font-black cursor-pointer transition-all ${
+                      className={`flex items-center justify-between p-1.5 sm:p-2 rounded-lg sm:rounded-xl border text-[11px] sm:text-xs font-black cursor-pointer transition-all ${
                         item.val
                           ? 'bg-indigo-50 dark:bg-indigo-950/40 border-indigo-300 dark:border-indigo-800 text-indigo-900 dark:text-indigo-200'
                           : 'bg-rose-50 dark:bg-rose-950/40 border-rose-300 dark:border-rose-800 text-rose-900 dark:text-rose-200'
@@ -374,14 +375,14 @@ export default function ControlsAndSubjects() {
                         type="checkbox"
                         checked={item.val}
                         onChange={(e) => item.set(e.target.checked)}
-                        className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                        className="w-3.5 h-3.5 sm:w-4 sm:h-4 rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer"
                       />
                     </label>
                   ))}
                 </div>
 
-                <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-1">
-                  <label className="block text-[10.5px] font-black uppercase text-slate-600 dark:text-slate-400">
+                <div className="pt-1.5 sm:pt-2 border-t border-slate-100 dark:border-slate-800 space-y-1">
+                  <label className="block text-[9.5px] sm:text-[10.5px] font-black uppercase text-slate-600 dark:text-slate-400">
                     Active Academic Session Year
                   </label>
                   <input
@@ -389,19 +390,19 @@ export default function ControlsAndSubjects() {
                     value={session}
                     onChange={(e) => setSession(e.target.value)}
                     placeholder="e.g. 2025-26"
-                    className="w-full p-2 rounded-xl text-xs font-black border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white font-mono"
+                    className="w-full p-1.5 sm:p-2 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-black border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white font-mono"
                   />
                 </div>
               </div>
 
               {/* Column 3: Automated Parent & Student Notifications */}
-              <div className="p-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xs space-y-2.5">
-                <div className="font-black text-xs flex items-center justify-between text-teal-700 dark:text-teal-400 border-b border-slate-100 dark:border-slate-800 pb-2">
-                  <span className="flex items-center gap-1.5"><Mail size={14} /> Email Automations</span>
-                  <span className="text-[10px] bg-teal-100 dark:bg-teal-950 text-teal-800 dark:text-teal-300 px-2 py-0.5 rounded-full font-bold">Live Triggers</span>
+              <div className="p-2.5 sm:p-3 rounded-xl sm:rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xs space-y-2 sm:space-y-2.5">
+                <div className="font-black text-[11px] sm:text-xs flex items-center justify-between text-teal-700 dark:text-teal-400 border-b border-slate-100 dark:border-slate-800 pb-1.5 sm:pb-2">
+                  <span className="flex items-center gap-1.5"><Mail size={13} /> Email Automations</span>
+                  <span className="text-[9px] sm:text-[10px] bg-teal-100 dark:bg-teal-950 text-teal-800 dark:text-teal-300 px-1.5 sm:px-2 py-0.5 rounded-full font-bold">Live Triggers</span>
                 </div>
 
-                <div className="space-y-1.5">
+                <div className="space-y-1 sm:space-y-1.5">
                   {[
                     { label: 'Application Submission Email', val: emailSubmission, set: setEmailSubmission },
                     { label: 'Provisional Upgrade Slip PDF', val: emailUpgradePdf, set: setEmailUpgradePdf },
@@ -411,7 +412,7 @@ export default function ControlsAndSubjects() {
                   ].map((item, idx) => (
                     <label
                       key={idx}
-                      className={`flex items-center justify-between p-1.5 rounded-xl border text-[11px] font-bold cursor-pointer transition-all ${
+                      className={`flex items-center justify-between p-1.5 rounded-lg sm:rounded-xl border text-[10.5px] sm:text-[11px] font-bold cursor-pointer transition-all ${
                         item.val
                           ? 'bg-teal-50 dark:bg-teal-950/40 border-teal-200 dark:border-teal-800 text-teal-900 dark:text-teal-200'
                           : 'bg-slate-50 dark:bg-slate-950/40 border-slate-200 dark:border-slate-800 text-slate-500'
@@ -431,37 +432,37 @@ export default function ControlsAndSubjects() {
             </div>
 
             {/* Ingestion & Admission Controls Card */}
-            <div className="p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/40 space-y-2">
-              <span className="text-xs font-black text-slate-900 dark:text-white block">
+            <div className="p-2.5 sm:p-3.5 rounded-xl sm:rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/40 space-y-1.5 sm:space-y-2">
+              <span className="text-[11px] sm:text-xs font-black text-slate-900 dark:text-white block">
                 Administrative Ingestion Safeguards
               </span>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-0.5">
-                <div className="p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex items-center justify-between">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5 sm:gap-2 pt-0.5">
+                <div className="p-2 sm:p-2.5 rounded-lg sm:rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex items-center justify-between">
                   <div>
-                    <span className="font-bold text-xs block text-slate-800 dark:text-slate-200">Strict 3-Point Matching</span>
-                    <span className="text-[10px] text-slate-400 font-mono">Session, Class & Reg No.</span>
+                    <span className="font-bold text-[11px] sm:text-xs block text-slate-800 dark:text-slate-200">Strict 3-Point Matching</span>
+                    <span className="text-[9.5px] sm:text-[10px] text-slate-400 font-mono">Session, Class & Reg No.</span>
                   </div>
-                  <CheckCircle2 size={16} className="text-emerald-500" />
+                  <CheckCircle2 size={15} className="text-emerald-500 shrink-0" />
                 </div>
 
-                <div className="p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex items-center justify-between">
+                <div className="p-2 sm:p-2.5 rounded-lg sm:rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex items-center justify-between">
                   <div>
-                    <span className="font-bold text-xs block text-slate-800 dark:text-slate-200">Rollback Protection</span>
-                    <span className="text-[10px] text-slate-400 font-mono">30-day pre-update backup</span>
+                    <span className="font-bold text-[11px] sm:text-xs block text-slate-800 dark:text-slate-200">Rollback Protection</span>
+                    <span className="text-[9.5px] sm:text-[10px] text-slate-400 font-mono">30-day pre-update backup</span>
                   </div>
-                  <CheckCircle2 size={16} className="text-emerald-500" />
+                  <CheckCircle2 size={15} className="text-emerald-500 shrink-0" />
                 </div>
 
-                <label className="p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex items-center justify-between cursor-pointer">
+                <label className="p-2 sm:p-2.5 rounded-lg sm:rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex items-center justify-between cursor-pointer">
                   <div>
-                    <span className="font-bold text-xs block text-slate-800 dark:text-slate-200">Express Admin Ingestion</span>
-                    <span className="text-[10px] text-slate-400">Allow single-record intake</span>
+                    <span className="font-bold text-[11px] sm:text-xs block text-slate-800 dark:text-slate-200">Express Admin Ingestion</span>
+                    <span className="text-[9.5px] sm:text-[10px] text-slate-400">Allow single-record intake</span>
                   </div>
                   <input
                     type="checkbox"
                     checked={allowExpressZeroRestrictions}
                     onChange={(e) => setAllowExpressZeroRestrictions(e.target.checked)}
-                    className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                    className="w-3.5 h-3.5 sm:w-4 sm:h-4 rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer"
                   />
                 </label>
               </div>
@@ -471,16 +472,16 @@ export default function ControlsAndSubjects() {
 
         {/* SUBTAB 2: ANNUAL SESSION ROLLOVER */}
         {activeSubTab === 'rollover' && (
-          <div className="space-y-3.5 pt-1">
-            <div className="p-4 rounded-2xl border border-purple-200 dark:border-purple-800/80 bg-purple-50/40 dark:bg-purple-950/20 space-y-3">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-purple-200/60 dark:border-purple-800/60 pb-2.5 gap-2">
+          <div className="space-y-2.5 sm:space-y-3.5 pt-0.5 sm:pt-1">
+            <div className="p-3 sm:p-4 rounded-xl sm:rounded-2xl border border-purple-200 dark:border-purple-800/80 bg-purple-50/40 dark:bg-purple-950/20 space-y-2.5 sm:space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-purple-200/60 dark:border-purple-800/60 pb-2 sm:pb-2.5 gap-2">
                 <div className="flex items-center gap-2">
-                  <Database size={16} className="text-purple-600 shrink-0" />
+                  <Database size={15} className="text-purple-600 shrink-0" />
                   <div>
-                    <h3 className="font-extrabold text-sm text-purple-950 dark:text-purple-200">
+                    <h3 className="font-extrabold text-xs sm:text-sm text-purple-950 dark:text-purple-200">
                       Annual Session Rollover & Archive Hub
                     </h3>
-                    <p className="text-[10.5px] text-purple-800 dark:text-purple-300">
+                    <p className="text-[9.5px] sm:text-[10.5px] text-purple-800 dark:text-purple-300">
                       Configure automated cutoff date and review students before rolling over to the new academic year
                     </p>
                   </div>
@@ -490,23 +491,23 @@ export default function ControlsAndSubjects() {
                   type="button"
                   onClick={handleSaveRolloverCutoff}
                   disabled={saving}
-                  className="px-3.5 py-1.5 rounded-xl font-black text-xs text-white bg-purple-600 hover:bg-purple-500 shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50 transition-all active:scale-95"
+                  className="px-2.5 py-1 sm:px-3.5 sm:py-1.5 rounded-lg sm:rounded-xl font-black text-[10.5px] sm:text-xs text-white bg-purple-600 hover:bg-purple-500 shadow-xs flex items-center gap-1 cursor-pointer disabled:opacity-50 transition-all active:scale-95 self-end sm:self-auto"
                 >
-                  {saving ? <RefreshCw size={12} className="animate-spin" /> : <Save size={12} />}
+                  {saving ? <RefreshCw size={11} className="animate-spin" /> : <Save size={11} />}
                   <span>Save Cutoff Schedule</span>
                 </button>
               </div>
 
               {/* Cutoff Date Pickers */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
                 <div>
-                  <label className="block text-[10px] font-black uppercase tracking-wider text-purple-900 dark:text-purple-300 mb-1">
+                  <label className="block text-[9px] sm:text-[10px] font-black uppercase tracking-wider text-purple-900 dark:text-purple-300 mb-0.5 sm:mb-1">
                     Cutoff Month
                   </label>
                   <select
                     value={rolloverMonth}
                     onChange={(e) => setRolloverMonth(Number(e.target.value))}
-                    className="w-full px-3 py-1.5 rounded-xl border border-purple-200 dark:border-purple-800 bg-white dark:bg-slate-900 font-bold text-xs text-slate-800 dark:text-slate-200"
+                    className="w-full px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-lg sm:rounded-xl border border-purple-200 dark:border-purple-800 bg-white dark:bg-slate-900 font-bold text-[11px] sm:text-xs text-slate-800 dark:text-slate-200"
                   >
                     {['January','February','March','April','May','June','July','August','September','October','November','December'].map((mName, idx) => (
                       <option key={mName} value={idx + 1}>{mName} (Month {idx + 1})</option>
@@ -515,7 +516,7 @@ export default function ControlsAndSubjects() {
                 </div>
 
                 <div>
-                  <label className="block text-[10px] font-black uppercase tracking-wider text-purple-900 dark:text-purple-300 mb-1">
+                  <label className="block text-[9px] sm:text-[10px] font-black uppercase tracking-wider text-purple-900 dark:text-purple-300 mb-0.5 sm:mb-1">
                     Cutoff Day of Month
                   </label>
                   <select
