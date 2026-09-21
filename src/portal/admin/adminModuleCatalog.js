@@ -141,18 +141,30 @@ export const ADMIN_MODULE_CATALOG = Object.freeze([
     aliases: ['gkTest', 'examPrep'],
   },
 
-  // CATEGORY 2: Academics & Controls (4 Modules)
+  // CATEGORY 2: Academics & Controls (5 Modules)
   {
     id: 'controls',
-    label: 'Academic Controls & Subjects',
+    label: 'System & Admission Controls',
     shortLabel: 'Controls',
-    description: 'Admission windows, sessions, subjects, feeder schools and institution rules',
+    description: 'Class admission windows, academic session year, faculty submission portals, email triggers and annual session rollover',
     category: 'Academics & Controls',
     maturity: 'optimized',
     maturityNote: 'Atomic session controls, admission window toggles, and audited configuration safeguards are regression-checked.',
     launcher: true,
     isNew: false,
-    aliases: ['controls', 'subjects', 'adminMgmt'],
+    aliases: ['controls', 'admissionControls', 'systemControls'],
+  },
+  {
+    id: 'curriculum',
+    label: 'Subjects, Streams & Feeder Schools',
+    shortLabel: 'Curriculum',
+    description: 'Configure streams, compulsory & elective subject pools, admission combination rules & feeder schools registry',
+    category: 'Academics & Controls',
+    maturity: 'optimized',
+    maturityNote: 'Full admission form dynamic schema sync, subject pool configuration, and feeder schools registry are regression-checked.',
+    launcher: true,
+    isNew: true,
+    aliases: ['curriculum', 'subjects', 'streams', 'feederSchools'],
   },
   {
     id: 'practicals',
@@ -288,6 +300,18 @@ export const ADMIN_MODULE_CATALOG = Object.freeze([
     isNew: true,
     aliases: ['googleContacts', 'bulkContacts', 'contactSaver'],
   },
+  {
+    id: 'staff',
+    label: 'Staff & Permissions',
+    shortLabel: 'Staff Access',
+    description: 'Manage Admins, SuperAdmins, Faculty roles, designations & module access permissions',
+    category: 'Operations & Automation',
+    maturity: 'optimized',
+    maturityNote: 'Role governance, designation management, credential issuance, and protected deletion workflows are in place.',
+    launcher: true,
+    isNew: true,
+    aliases: ['staff', 'staffPermissions', 'permissions', 'adminMgmt'],
+  },
 
   // CATEGORY 4: Quick Actions & Ingestion Tools (4 Tools)
   {
@@ -350,7 +374,7 @@ export const ROLE_PRESETS = Object.freeze([
     name: 'Full Administrator',
     shortName: 'Full Admin',
     badgeClass: 'bg-indigo-600 text-white',
-    desc: 'Access to all 21 administrative modules, tools, and configurations.',
+    desc: 'Access to all 23 administrative modules, tools, and configurations.',
     perms: () => ADMIN_MODULE_CATALOG.map(m => m.id),
   },
   {
@@ -358,10 +382,10 @@ export const ROLE_PRESETS = Object.freeze([
     name: 'Academic & Examination Incharge',
     shortName: 'Academics',
     badgeClass: 'bg-emerald-600 text-white',
-    desc: 'Student Records, Admission Register, Rosters, Practicals, Attendance, Roll Numbers & Board Sync.',
+    desc: 'Student Records, Admission Register, Rosters, Curriculum, Practicals, Attendance, Roll Numbers & Board Sync.',
     perms: () => [
       'reports', 'admRegisterSuite', 'customRoster', 'gkTest',
-      'controls', 'practicals', 'attendanceMgmt', 'rollNo', 'boardSync',
+      'controls', 'curriculum', 'practicals', 'attendanceMgmt', 'rollNo', 'boardSync',
       'analyticsReports', 'quickCellEdit'
     ],
   },

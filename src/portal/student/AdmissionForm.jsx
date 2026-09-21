@@ -9,7 +9,8 @@ import StandardTooltip from '../../components/StandardTooltip';
 import appsScriptApi from '../../services/appsScriptApi';
 import { sessionManager } from '../../services/sessionManager';
 import { generateStudentAdmissionPdf, generateProvisionalAdmissionPdf } from '../../utils/pdfGenerator';
-import { auth } from '../../services/firebase';
+import { auth, db } from '../../services/firebase';
+import { collection, getDocs } from 'firebase/firestore';
 import { loadAdmissionWorkspace, saveAdmissionDraft, submitAdmission } from '../../services/admissionWorkflowApi';
 import { logStudentActivity } from '../../services/adminActivityLogger';
 import { isValidAadhaar, areAadhaarsDistinct, isStrictIsoDate, normalizeDobToIso, validateMinimumAge, MIN_ADMISSION_AGE, isPersonNameField, sanitizePersonName, validatePersonName } from '../../utils/admissionValidation';
@@ -35,7 +36,41 @@ export function normalizeSubjectTitle(subj) {
   return SUBJECT_CANONICAL_SYNONYMS[lower] || trimmed;
 }
 
-export function getCompulsorySubjects(targetClass = '11th', stream = 'Science') {
+export function resolveSubjectConfigEntry(targetClass = '11th', stream = 'Science', subjectsConfig = null) {
+  if (!subjectsConfig) return null;
+  const cfg = (subjectsConfig && subjectsConfig.data) ? subjectsConfig.data : subjectsConfig;
+  const cls = String(targetClass || '').trim();
+  const strm = String(stream || '').trim();
+  const normalizedStream = (strm.toLowerCase() === 'arts') ? 'Humanities' : strm;
+
+  // 1. Direct map key e.g. "11th_Science"
+  const directKey = `${cls}_${normalizedStream}`;
+  if (cfg[directKey]) return cfg[directKey];
+
+  // 2. Nested object e.g. cfg['11th']['Science']
+  if (cfg[cls] && typeof cfg[cls] === 'object') {
+    if (cfg[cls][normalizedStream]) return cfg[cls][normalizedStream];
+    const matchKey = Object.keys(cfg[cls]).find(k => k.toLowerCase() === normalizedStream.toLowerCase());
+    if (matchKey && cfg[cls][matchKey]) return cfg[cls][matchKey];
+    if (cfg[cls]['General']) return cfg[cls]['General'];
+  }
+
+  // 3. Fallback to general key e.g. "9th_General"
+  const genKey = `${cls}_General`;
+  if (cfg[genKey]) return cfg[genKey];
+
+  return null;
+}
+
+export function getCompulsorySubjects(targetClass = '11th', stream = 'Science', subjectsConfig = null) {
+  const dynamicCfg = resolveSubjectConfigEntry(targetClass, stream, subjectsConfig);
+  if (dynamicCfg) {
+    const comp = dynamicCfg.compulsory || dynamicCfg.groupA || dynamicCfg['Compulsory Subjects'];
+    if (Array.isArray(comp) && comp.length > 0) {
+      return comp;
+    }
+  }
+
   const cls = String(targetClass || '');
   const strm = String(stream || '');
   if (cls.includes('9') || cls.includes('10') || cls.includes('8')) {
@@ -50,8 +85,8 @@ export function getCompulsorySubjects(targetClass = '11th', stream = 'Science') 
   return ["General English", "Physics", "Chemistry"];
 }
 
-export function formatAllSubjects(rawSubjectsString = '', targetClass = '11th', stream = 'Science') {
-  const compulsory = getCompulsorySubjects(targetClass, stream).map(normalizeSubjectTitle);
+export function formatAllSubjects(rawSubjectsString = '', targetClass = '11th', stream = 'Science', subjectsConfig = null) {
+  const compulsory = getCompulsorySubjects(targetClass, stream, subjectsConfig).map(normalizeSubjectTitle);
   const chosenArray = (typeof rawSubjectsString === 'string'
     ? rawSubjectsString.split(/[,+]/).map(s => s.trim()).filter(Boolean)
     : (Array.isArray(rawSubjectsString) ? rawSubjectsString : [])
@@ -64,10 +99,12 @@ export function formatAllSubjects(rawSubjectsString = '', targetClass = '11th', 
   return allSubjects.join(', ');
 }
 
-export function validateSubjectSelection(targetClass = '11th', stream = 'Science', rawSubjects = '', isReappear = false) {
+export function validateSubjectSelection(targetClass = '11th', stream = 'Science', rawSubjects = '', isReappear = false, subjectsConfig = null) {
   if (isReappear) return { valid: true, error: null, count: 0, min: 1, max: 10 };
 
-  const compulsory = getCompulsorySubjects(targetClass, stream).map(normalizeSubjectTitle);
+  const dynamicCfg = resolveSubjectConfigEntry(targetClass, stream, subjectsConfig);
+
+  const compulsory = getCompulsorySubjects(targetClass, stream, subjectsConfig).map(normalizeSubjectTitle);
   const chosenArray = (typeof rawSubjects === 'string'
     ? rawSubjects.split(/[,+]/).map(s => s.trim()).filter(Boolean)
     : (Array.isArray(rawSubjects) ? rawSubjects : [])
@@ -80,6 +117,85 @@ export function validateSubjectSelection(targetClass = '11th', stream = 'Science
   const total = allSubjects.length;
   const cls = String(targetClass || '').toLowerCase();
   const strm = String(stream || 'Science').trim();
+
+  // Dynamic Rule Check when admin has configured custom pools & limits in Curriculum module
+  if (dynamicCfg) {
+    const minSub = dynamicCfg.minSubjects !== undefined ? Number(dynamicCfg.minSubjects) : 5;
+    const maxSub = dynamicCfg.maxSubjects !== undefined ? Number(dynamicCfg.maxSubjects) : 6;
+    const g1Min = dynamicCfg.g1Min !== undefined ? Number(dynamicCfg.g1Min) : (dynamicCfg['G1 Min'] !== undefined ? Number(dynamicCfg['G1 Min']) : 0);
+    const g1Max = dynamicCfg.g1Max !== undefined ? Number(dynamicCfg.g1Max) : (dynamicCfg['G1 Max'] !== undefined ? Number(dynamicCfg['G1 Max']) : 10);
+    const g2Min = dynamicCfg.g2Min !== undefined ? Number(dynamicCfg.g2Min) : (dynamicCfg['G2 Min'] !== undefined ? Number(dynamicCfg['G2 Min']) : 0);
+    const g2Max = dynamicCfg.g2Max !== undefined ? Number(dynamicCfg.g2Max) : (dynamicCfg['G2 Max'] !== undefined ? Number(dynamicCfg['G2 Max']) : 10);
+
+    const groupBPool = (dynamicCfg.groupB || dynamicCfg.group1 || dynamicCfg['Group1 Options'] || []).map(normalizeSubjectTitle);
+    const groupCPool = (dynamicCfg.groupC || dynamicCfg.group2 || dynamicCfg['Group2 Options'] || []).map(normalizeSubjectTitle);
+
+    if (total > maxSub) {
+      return {
+        valid: false,
+        error: `Maximum ${maxSub} subjects allowed for ${strm} (Currently ${total} selected). Please uncheck ${total - maxSub} subject(s).`,
+        count: total,
+        min: minSub,
+        max: maxSub
+      };
+    }
+
+    if (total < minSub) {
+      return {
+        valid: false,
+        error: `${strm} requires at least ${minSub} subjects. Currently ${total}/${minSub} selected.`,
+        count: total,
+        min: minSub,
+        max: maxSub
+      };
+    }
+
+    const optionalChoices = chosenArray.filter(s => !compulsory.includes(s));
+    const chosenGroupB = optionalChoices.filter(s => groupBPool.some(b => b.toLowerCase() === s.toLowerCase()));
+    const chosenGroupC = optionalChoices.filter(s => groupCPool.some(c => c.toLowerCase() === s.toLowerCase()));
+
+    if (groupBPool.length > 0 && g1Min > 0 && chosenGroupB.length < g1Min) {
+      return {
+        valid: false,
+        error: `${strm} Rule: Please select at least ${g1Min} subject(s) from Group B (Currently ${chosenGroupB.length} selected).`,
+        count: total,
+        min: minSub,
+        max: maxSub
+      };
+    }
+
+    if (groupBPool.length > 0 && chosenGroupB.length > g1Max) {
+      return {
+        valid: false,
+        error: `${strm} Rule: Maximum ${g1Max} subject(s) allowed from Group B (Currently ${chosenGroupB.length} selected).`,
+        count: total,
+        min: minSub,
+        max: maxSub
+      };
+    }
+
+    if (groupCPool.length > 0 && g2Min > 0 && chosenGroupC.length < g2Min) {
+      return {
+        valid: false,
+        error: `${strm} Rule: Please select at least ${g2Min} subject(s) from Group C (Currently ${chosenGroupC.length} selected).`,
+        count: total,
+        min: minSub,
+        max: maxSub
+      };
+    }
+
+    if (groupCPool.length > 0 && chosenGroupC.length > g2Max) {
+      return {
+        valid: false,
+        error: `${strm} Rule: Maximum ${g2Max} subject(s) allowed from Group C (Currently ${chosenGroupC.length} selected).`,
+        count: total,
+        min: minSub,
+        max: maxSub
+      };
+    }
+
+    return { valid: true, error: null, count: total, min: minSub, max: maxSub };
+  }
 
   if (cls.includes('9') || cls.includes('10') || cls.includes('8')) {
     if (total > 6) {
@@ -382,8 +498,41 @@ export default function AdmissionForm() {
         if (Array.isArray(defStruct)) setFormStructure(defStruct);
       }
 
-      if (subjCfgRes && subjCfgRes.data) setSubjectsConfig(subjCfgRes.data);
-      else if (subjCfgRes) setSubjectsConfig(subjCfgRes);
+      let mergedSubjConfig = (subjCfgRes && subjCfgRes.data) ? subjCfgRes.data : (subjCfgRes || {});
+      try {
+        const snap = await getDocs(collection(db, 'subjectsConfig'));
+        if (!snap.empty) {
+          const fsMap = {};
+          snap.docs.forEach(docSnap => {
+            const d = docSnap.data();
+            const cls = d.Class || d.className || d.class;
+            const stream = d.Stream || d.stream || 'General';
+            if (cls) {
+              if (!fsMap[cls]) fsMap[cls] = {};
+              const entry = {
+                compulsory: d.compulsory || d.groupA || d['Compulsory Subjects'] || [],
+                group1: d.group1 || d.groupB || d['Group1 Options'] || [],
+                group2: d.group2 || d.groupC || d['Group2 Options'] || [],
+                groupA: d.groupA || d.compulsory || d['Compulsory Subjects'] || [],
+                groupB: d.groupB || d.group1 || d['Group1 Options'] || [],
+                groupC: d.groupC || d.group2 || d['Group2 Options'] || [],
+                minSubjects: d.minSubjects !== undefined ? Number(d.minSubjects) : 5,
+                maxSubjects: d.maxSubjects !== undefined ? Number(d.maxSubjects) : 6,
+                g1Min: d.g1Min !== undefined ? Number(d.g1Min) : (d['G1 Min'] !== undefined ? Number(d['G1 Min']) : 1),
+                g1Max: d.g1Max !== undefined ? Number(d.g1Max) : (d['G1 Max'] !== undefined ? Number(d['G1 Max']) : 1),
+                g2Min: d.g2Min !== undefined ? Number(d.g2Min) : (d['G2 Min'] !== undefined ? Number(d['G2 Min']) : 0),
+                g2Max: d.g2Max !== undefined ? Number(d.g2Max) : (d['G2 Max'] !== undefined ? Number(d['G2 Max']) : 1),
+              };
+              fsMap[cls][stream] = entry;
+              fsMap[`${cls}_${stream}`] = entry;
+            }
+          });
+          mergedSubjConfig = { ...mergedSubjConfig, ...fsMap };
+        }
+      } catch (e) {
+        console.warn('Firestore subjectsConfig direct fetch note:', e);
+      }
+      setSubjectsConfig(mergedSubjConfig);
 
       let existing = {};
       let historical = {};
@@ -1718,7 +1867,7 @@ export default function AdmissionForm() {
         ? (soughtCls.includes('12') || (cls && cls.includes('12')))
         : (soughtCls.includes(fieldCls) || (cls && cls.includes(fieldCls)));
       if (rawVal !== undefined && isRelevant) {
-        const valRes = validateSubjectSelection(fieldCls, sStream, rawVal, false);
+        const valRes = validateSubjectSelection(fieldCls, sStream, rawVal, false, subjectsConfig);
         if (!valRes.valid) {
           addError(sField, valRes.error);
         }

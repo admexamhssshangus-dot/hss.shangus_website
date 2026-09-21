@@ -22,6 +22,8 @@ const StudentIdCardManager = lazyWithChunkRecovery(() => import('./StudentIdCard
 const AdmissionRegisterSuite = lazyWithChunkRecovery(() => import('./AdmissionRegisterSuite'), 'admin-register-suite');
 const ApplicationMergerStudio = lazyWithChunkRecovery(() => import('./ApplicationMergerStudio'), 'admin-merger');
 const ControlsAndSubjects = lazyWithChunkRecovery(() => import('./ControlsAndSubjects'), 'admin-controls');
+const CurriculumAndSubjectsManager = lazyWithChunkRecovery(() => import('./CurriculumAndSubjectsManager'), 'admin-curriculum');
+const StaffPermissionsManager = lazyWithChunkRecovery(() => import('./StaffPermissionsManager'), 'admin-staff');
 const AdminPracticals = lazyWithChunkRecovery(() => import('./AdminPracticals'), 'admin-practicals');
 const AdminAttendance = lazyWithChunkRecovery(() => import('./AdminAttendance'), 'admin-attendance');
 const AdminGkTestManager = lazyWithChunkRecovery(() => import('./AdminGkTestManager'), 'admin-gk-test');
@@ -44,6 +46,16 @@ export const MODULE_LOADERS = {
   admRegisterSuite: () => import('./AdmissionRegisterSuite'),
   mergeStudio: () => import('./ApplicationMergerStudio'),
   controls: () => import('./ControlsAndSubjects'),
+  admissionControls: () => import('./ControlsAndSubjects'),
+  systemControls: () => import('./ControlsAndSubjects'),
+  curriculum: () => import('./CurriculumAndSubjectsManager'),
+  subjects: () => import('./CurriculumAndSubjectsManager'),
+  streams: () => import('./CurriculumAndSubjectsManager'),
+  feederSchools: () => import('./CurriculumAndSubjectsManager'),
+  staff: () => import('./StaffPermissionsManager'),
+  permissions: () => import('./StaffPermissionsManager'),
+  staffPermissions: () => import('./StaffPermissionsManager'),
+  adminMgmt: () => import('./StaffPermissionsManager'),
   practicals: () => import('./AdminPracticals'),
   attendanceMgmt: () => import('./AdminAttendance'),
   gkTest: () => import('./AdminGkTestManager'),
@@ -92,6 +104,9 @@ function getInitialTab() {
     const urlTab = searchParams.get('tab');
     if (urlTab) {
       if (urlTab === 'bulk' || urlTab === 'boardSync') return 'reports';
+      if (urlTab === 'curriculum' || urlTab === 'subjects' || urlTab === 'streams' || urlTab === 'feederSchools') return 'curriculum';
+      if (urlTab === 'staff' || urlTab === 'permissions' || urlTab === 'staffPermissions') return 'staff';
+      if (urlTab === 'controls' || urlTab === 'admissionControls' || urlTab === 'systemControls') return 'controls';
       if (urlTab === 'docStudio') {
         const sub = searchParams.get('subtab');
         if (sub === 'letter') return 'officialLetter';
@@ -105,6 +120,9 @@ function getInitialTab() {
     const stored = sessionStorage.getItem('hss_admin_active_tab');
     if (stored) {
       if (stored === 'bulk' || stored === 'boardSync') return 'reports';
+      if (stored === 'curriculum' || stored === 'subjects' || stored === 'streams' || stored === 'feederSchools') return 'curriculum';
+      if (stored === 'staff' || stored === 'permissions' || stored === 'staffPermissions') return 'staff';
+      if (stored === 'controls' || stored === 'admissionControls' || stored === 'systemControls') return 'controls';
       if (stored === 'docStudio') return 'customRoster';
       return stored;
     }
@@ -767,7 +785,7 @@ export default function AdminDashboard() {
                     </div>
                   )}
 
-                  {/* TAB 2: Combined Controls & Subjects Config v2 */}
+                  {/* TAB 2: System & Admission Controls */}
                   {mountedTabs.has('controls') && (
                     <div
                       key="controls-container"
@@ -776,6 +794,30 @@ export default function AdminDashboard() {
                       aria-hidden={activeTab !== 'controls'}
                     >
                       <ControlsAndSubjects />
+                    </div>
+                  )}
+
+                  {/* TAB: Subjects, Streams & Feeder Schools */}
+                  {(mountedTabs.has('curriculum') || mountedTabs.has('subjects')) && (
+                    <div
+                      key="curriculum-container"
+                      className={(activeTab === 'curriculum' || activeTab === 'subjects') ? 'block w-full' : 'hidden'}
+                      style={(activeTab === 'curriculum' || activeTab === 'subjects') ? undefined : { display: 'none' }}
+                      aria-hidden={activeTab !== 'curriculum' && activeTab !== 'subjects'}
+                    >
+                      <CurriculumAndSubjectsManager />
+                    </div>
+                  )}
+
+                  {/* TAB: Staff & Permissions */}
+                  {(mountedTabs.has('staff') || mountedTabs.has('permissions')) && (
+                    <div
+                      key="staff-container"
+                      className={(activeTab === 'staff' || activeTab === 'permissions') ? 'block w-full' : 'hidden'}
+                      style={(activeTab === 'staff' || activeTab === 'permissions') ? undefined : { display: 'none' }}
+                      aria-hidden={activeTab !== 'staff' && activeTab !== 'permissions'}
+                    >
+                      <StaffPermissionsManager />
                     </div>
                   )}
 
