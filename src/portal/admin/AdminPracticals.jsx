@@ -1392,6 +1392,7 @@ export default function AdminPracticals() {
         {selSub && (
           <SelectedSubmissionModal
             selSub={selSub}
+            submissions={submissions}
             onClose={() => setSelSub(null)}
             absentMarker={settings.absentMarker}
             allStudents={students}
@@ -2804,8 +2805,37 @@ function CsvImportModal({ onClose, onSuccess }) {
 // ─────────────────────────────────────────────────────────────
 // SELECTED SUBMISSION RECORDS MODAL
 // ─────────────────────────────────────────────────────────────
-function SelectedSubmissionModal({ selSub, onClose, absentMarker, allStudents = [], onApprove, onReject }) {
+function SelectedSubmissionModal({ selSub, submissions = [], onClose, absentMarker, allStudents = [], onApprove, onReject }) {
   const [modalSearch, setModalSearch] = useState('');
+  const [diffFilter, setDiffFilter] = useState('all'); // 'all' | 'changed_only'
+  const [fetchedCanonicalDoc, setFetchedCanonicalDoc] = useState(null);
+
+  // Determine target canonical document ID for live comparison
+  const targetDocId = useMemo(() => {
+    if (!selSub) return '';
+    return selSub.targetDocId || selSub.canonicalDocId || String(selSub.id || '').replace(/^pending_/, '');
+  }, [selSub]);
+
+  // Try matching live canonical document from active submissions or fetched document
+  const liveCanonicalDoc = useMemo(() => {
+    if (!targetDocId) return null;
+    return (submissions || []).find(s => s.id === targetDocId) || fetchedCanonicalDoc;
+  }, [submissions, targetDocId, fetchedCanonicalDoc]);
+
+  // Fallback: If not in memory and it is an overwrite or pending approval submission, fetch canonical doc from Firestore
+  useEffect(() => {
+    let isMounted = true;
+    if (!liveCanonicalDoc && targetDocId && (selSub?.isOverwrite || String(selSub?.id || '').startsWith('pending_') || selSub?.status === 'pending_approval')) {
+      getDoc(doc(db, 'practicalsData', targetDocId))
+        .then(snap => {
+          if (isMounted && snap.exists()) {
+            setFetchedCanonicalDoc({ id: snap.id, ...snap.data() });
+          }
+        })
+        .catch(err => console.warn('Could not load canonical doc for comparison:', err));
+    }
+    return () => { isMounted = false; };
+  }, [targetDocId, liveCanonicalDoc, selSub]);
 
   // Build high-performance lookup maps from database for full student enrichment (Hooks called unconditionally)
   const studentByReg = useMemo(() => {
@@ -2837,12 +2867,122 @@ function SelectedSubmissionModal({ selSub, onClose, absentMarker, allStudents = 
     return m;
   }, [allStudents]);
 
-  if (!selSub) return null;
-  const records = Array.isArray(selSub.records) ? selSub.records : [];
-  const canonicalSession = normalizePracticalSession(selSub.sessionText || selSub.session || selSub.Session || '2024-25 (Oct-Nov)');
-  const evaluationType = toTitleCase(selSub.practicalType || 'Internal');
+  // Index existing live canonical records for fast comparison
+  const oldRecordsMap = useMemo(() => {
+    const map = new Map();
+    if (!liveCanonicalDoc || !Array.isArray(liveCanonicalDoc.records)) return map;
 
-  const filteredRecords = records.filter(r => {
+    liveCanonicalDoc.records.forEach(r => {
+      if (!r) return;
+      const cleanReg = cleanRegistrationNumber(r.boardRegNo || r.regNo || r['Board Reg. No.'] || '');
+      const cleanExam = String(r.examRollNo || (/^\d{8,}$/.test(String(r.rollNo)) ? r.rollNo : '') || '').trim().toUpperCase();
+      const formNo = String(r.formNo || r.fNo || '').trim().toLowerCase();
+      const classRoll = String(r.classRollNo || r.classRoll || (r.rollNo && !/^\d{8,}$/.test(String(r.rollNo)) ? r.rollNo : '') || '').trim();
+      const name = toTitleCase(r.name || r.studentName || '').trim().toLowerCase();
+      const father = toTitleCase(r.parentage || r.parentName || r.fatherName || '').trim().toLowerCase();
+
+      if (cleanReg && cleanReg.length >= 8) map.set(`reg_${cleanReg}`, r);
+      if (formNo && formNo !== '—' && formNo !== 'na') map.set(`form_${formNo}`, r);
+      if (cleanExam && cleanExam !== '—' && cleanExam !== 'NA' && cleanExam.length >= 6) map.set(`exam_${cleanExam}`, r);
+      if (classRoll && name) map.set(`roll_${classRoll}_${name}`, r);
+      if (name && father) map.set(`name_${name}_${father}`, r);
+      else if (name) map.set(`name_${name}`, r);
+    });
+
+    return map;
+  }, [liveCanonicalDoc]);
+
+  const records = Array.isArray(selSub?.records) ? selSub.records : [];
+  const canonicalSession = normalizePracticalSession(selSub?.sessionText || selSub?.session || selSub?.Session || '2024-25 (Oct-Nov)');
+  const evaluationType = toTitleCase(selSub?.practicalType || 'Internal');
+
+  // Enriched records with diff annotations against previous live document
+  const enrichedRecords = useMemo(() => {
+    const normalizeMark = (m) => {
+      if (m === null || m === undefined || m === '' || m === '—') return '—';
+      const s = String(m).trim().toUpperCase();
+      if (s === 'AB' || s === 'A' || s === 'ABS') return 'AB';
+      return s;
+    };
+
+    return records.map((r, i) => {
+      const cleanReg = cleanRegistrationNumber(r.boardRegNo || r.regNo || r['Board Reg. No.'] || '');
+      const cleanExam = String(r.examRollNo || (/^\d{8,}$/.test(String(r.rollNo)) ? r.rollNo : '') || '').trim().toUpperCase();
+      const formNo = String(r.formNo || r.fNo || '').trim().toLowerCase();
+      const classRoll = String(r.classRollNo || r.classRoll || (r.rollNo && !/^\d{8,}$/.test(String(r.rollNo)) ? r.rollNo : '') || '').trim();
+      const rName = toTitleCase(r.name || r.studentName || '').trim().toLowerCase();
+      const rFather = toTitleCase(r.parentage || r.parentName || r.fatherName || '').trim().toLowerCase();
+
+      const oldRec = (cleanReg && oldRecordsMap.get(`reg_${cleanReg}`)) ||
+                     (formNo && oldRecordsMap.get(`form_${formNo}`)) ||
+                     (cleanExam && oldRecordsMap.get(`exam_${cleanExam}`)) ||
+                     (classRoll && rName && oldRecordsMap.get(`roll_${classRoll}_${rName}`)) ||
+                     (rName && rFather && oldRecordsMap.get(`name_${rName}_${rFather}`)) ||
+                     (rName && oldRecordsMap.get(`name_${rName}`)) ||
+                     null;
+
+      if (!oldRec) {
+        return {
+          ...r,
+          originalIndex: i,
+          hasDiff: false,
+          isNewStudent: Boolean(liveCanonicalDoc && liveCanonicalDoc.records?.length > 0),
+          diff: null
+        };
+      }
+
+      const oldPrac = normalizeMark(oldRec.practicalMarks);
+      const newPrac = normalizeMark(r.practicalMarks);
+      const oldViva = normalizeMark(oldRec.vivaMarks);
+      const newViva = normalizeMark(r.vivaMarks);
+      const oldTot = normalizeMark(oldRec.totalMarks ?? oldRec.practicalMarks);
+      const newTot = normalizeMark(r.totalMarks ?? r.practicalMarks);
+
+      const pracChanged = oldPrac !== newPrac;
+      const vivaChanged = oldViva !== newViva;
+      const totalChanged = oldTot !== newTot;
+      const hasDiff = pracChanged || vivaChanged || totalChanged;
+
+      return {
+        ...r,
+        originalIndex: i,
+        hasDiff,
+        isNewStudent: false,
+        diff: hasDiff ? {
+          oldPrac,
+          newPrac,
+          pracChanged,
+          oldViva,
+          newViva,
+          vivaChanged,
+          oldTot,
+          newTot,
+          totalChanged
+        } : null
+      };
+    });
+  }, [records, oldRecordsMap, liveCanonicalDoc]);
+
+  const diffSummary = useMemo(() => {
+    let changed = 0;
+    let newStudents = 0;
+    enrichedRecords.forEach(r => {
+      if (r.hasDiff) changed++;
+      if (r.isNewStudent) newStudents++;
+    });
+    return {
+      changed,
+      newStudents,
+      hasLiveDoc: Boolean(liveCanonicalDoc && liveCanonicalDoc.records?.length > 0)
+    };
+  }, [enrichedRecords, liveCanonicalDoc]);
+
+  if (!selSub) return null;
+
+  const filteredRecords = enrichedRecords.filter(r => {
+    if (diffFilter === 'changed_only' && !r.hasDiff && !r.isNewStudent) {
+      return false;
+    }
     if (!modalSearch.trim()) return true;
     const q = modalSearch.toLowerCase().trim();
     const name = String(r.name || r.studentName || '').toLowerCase();
@@ -2878,11 +3018,25 @@ function SelectedSubmissionModal({ selSub, onClose, absentMarker, allStudents = 
                   Overwrite Revision
                 </span>
               )}
+              {diffSummary.hasLiveDoc && diffSummary.changed > 0 && (
+                <span className="px-2.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-200 font-black text-[10.5px] border border-amber-300 dark:border-amber-700 flex items-center gap-1 shadow-2xs">
+                  <Sparkles size={11} className="text-amber-600 dark:text-amber-400" />
+                  {diffSummary.changed} {diffSummary.changed === 1 ? 'Mark Change' : 'Marks Changes'}
+                </span>
+              )}
             </div>
             <div className="text-xs font-semibold text-slate-500 mt-1 flex items-center gap-2 flex-wrap">
               <span>Submitted by: <strong className="text-slate-800 dark:text-slate-200">{selSub.teacherName || selSub['Teacher Name'] || selSub.teacherEmail || 'Faculty'}</strong> {selSub.teacherEmail && <span className="font-mono text-slate-400">({selSub.teacherEmail})</span>}</span>
               <span>•</span>
               <span className="font-bold text-indigo-600">{records.length} Student Records</span>
+              {diffSummary.hasLiveDoc && (
+                <>
+                  <span>•</span>
+                  <span className="text-slate-400 font-semibold text-[11px]">
+                    Live DB: <strong className="text-slate-600 dark:text-slate-300">{liveCanonicalDoc.records?.length || 0} Records</strong>
+                  </span>
+                </>
+              )}
               {selSub.timestamp && (
                 <>
                   <span>•</span>
@@ -2945,24 +3099,63 @@ function SelectedSubmissionModal({ selSub, onClose, absentMarker, allStudents = 
           </div>
         </div>
 
-        {/* Search Filter Strip */}
-        <div className="flex items-center justify-between gap-2">
-          <div className="relative w-full sm:w-72">
-            <input
-              type="text"
-              placeholder="Search roll, reg, student or father..."
-              value={modalSearch}
-              onChange={e => setModalSearch(e.target.value)}
-              className="w-full pl-8 pr-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500 shadow-2xs"
-            />
-            <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+        {/* Search Filter Strip & Quick Diff Toggle */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="relative w-full sm:w-72">
+              <input
+                type="text"
+                placeholder="Search roll, reg, student or father..."
+                value={modalSearch}
+                onChange={e => setModalSearch(e.target.value)}
+                className="w-full pl-8 pr-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500 shadow-2xs"
+              />
+              <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+            </div>
+
+            {/* Quick Diff Filter Pill Toggle */}
+            {diffSummary.hasLiveDoc && diffSummary.changed > 0 && (
+              <div className="inline-flex p-0.5 bg-slate-100 dark:bg-slate-800 rounded-xl text-[11px] font-bold border border-slate-200 dark:border-slate-700">
+                <button
+                  type="button"
+                  onClick={() => setDiffFilter('all')}
+                  className={`px-2.5 py-1 rounded-lg cursor-pointer transition-all ${
+                    diffFilter === 'all'
+                      ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-2xs font-black'
+                      : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                  }`}
+                >
+                  All ({records.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDiffFilter('changed_only')}
+                  className={`px-2.5 py-1 rounded-lg cursor-pointer transition-all flex items-center gap-1.5 ${
+                    diffFilter === 'changed_only'
+                      ? 'bg-amber-500 text-white shadow-2xs font-black'
+                      : 'text-amber-700 dark:text-amber-300 hover:bg-amber-100/50 dark:hover:bg-amber-950/40'
+                  }`}
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400 dark:bg-amber-300 animate-ping inline-block" />
+                  <span>Only Changed ({diffSummary.changed})</span>
+                </button>
+              </div>
+            )}
           </div>
-          <span className="text-[11px] font-bold text-slate-400">
-            Showing {filteredRecords.length} of {records.length}
-          </span>
+
+          <div className="flex items-center justify-between sm:justify-end gap-2.5 text-[11px] font-bold text-slate-400">
+            {diffSummary.hasLiveDoc && diffSummary.changed > 0 && (
+              <span className="text-amber-600 dark:text-amber-400 font-black">
+                {diffSummary.changed} student{diffSummary.changed === 1 ? '' : 's'} modified
+              </span>
+            )}
+            <span>
+              Showing {filteredRecords.length} of {records.length}
+            </span>
+          </div>
         </div>
 
-        {/* Data Table with Full Database Cross-Referencing */}
+        {/* Data Table with Full Database Cross-Referencing & Inline Marks Diff */}
         <div className="flex-1 overflow-auto rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950">
           <table className="w-full text-left text-xs border-collapse">
             <thead className="bg-slate-100 dark:bg-slate-900 text-[10px] uppercase font-black tracking-wider text-slate-500 sticky top-0 shadow-xs">
@@ -3001,13 +3194,31 @@ function SelectedSubmissionModal({ selSub, onClose, absentMarker, allStudents = 
                 const boardReg = cleanReg || (dbSt ? (dbSt['Board Registration Number'] || dbSt.regNo) : '') || '—';
                 const streamVal = r.stream || (dbSt ? (getStudentStreamStr(dbSt, selSub.className || selSub.Class) || dbSt.Stream || dbSt.stream) : '') || '';
 
+                const rowBgClass = r.hasDiff
+                  ? 'bg-amber-50/70 dark:bg-amber-950/30 border-l-4 border-l-amber-500'
+                  : (isAbs ? 'bg-rose-50/50 dark:bg-rose-950/20' : '');
+
                 return (
-                  <tr key={i} className={'hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors ' + (isAbs ? 'bg-rose-50/50 dark:bg-rose-950/20' : '')}>
+                  <tr key={i} className={`hover:bg-slate-100/70 dark:hover:bg-slate-800 transition-colors ${rowBgClass}`}>
                     <td className="py-2 px-3 text-center font-mono text-[10px] text-slate-400">{r.sNo || i + 1}</td>
                     <td className="py-2 px-3 font-mono font-bold text-indigo-600 dark:text-indigo-400">{classRoll}</td>
                     <td className="py-2 px-3 font-mono font-bold text-slate-800 dark:text-slate-200">{examRoll}</td>
                     <td className="py-2 px-3 font-mono text-[11px] text-slate-500">{boardReg}</td>
-                    <td className="py-2 px-3 font-bold text-slate-900 dark:text-slate-100">{studentName}</td>
+                    <td className="py-2 px-3 font-bold text-slate-900 dark:text-slate-100">
+                      <div className="flex items-center gap-1.5">
+                        <span>{studentName}</span>
+                        {r.hasDiff && (
+                          <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-amber-100 dark:bg-amber-900/60 text-amber-800 dark:text-amber-200 border border-amber-300 dark:border-amber-700">
+                            Updated
+                          </span>
+                        )}
+                        {r.isNewStudent && (
+                          <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-200 border border-emerald-300 dark:border-emerald-700">
+                            New
+                          </span>
+                        )}
+                      </div>
+                    </td>
                     <td className="py-2 px-3 text-slate-500">{parent}</td>
                     <td className="py-2 px-3">
                       {streamVal ? (
@@ -3018,13 +3229,58 @@ function SelectedSubmissionModal({ selSub, onClose, absentMarker, allStudents = 
                         <span className="text-slate-400 text-[10px]">—</span>
                       )}
                     </td>
-                    <td className="py-2 px-3 text-center font-mono">{r.practicalMarks ?? '—'}{r.vivaMarks ? ` / ${r.vivaMarks}` : ''}</td>
-                    <td className={'py-2 px-3 text-right font-black font-mono ' + (isAbs ? 'text-rose-600' : 'text-emerald-600')}>{r.totalMarks ?? r.practicalMarks ?? '—'}</td>
+
+                    {/* Marks (Prac / Viva) with Inline Old vs New Diff */}
+                    <td className="py-2 px-3 text-center font-mono">
+                      {r.hasDiff && (r.diff.pracChanged || r.diff.vivaChanged) ? (
+                        <div className="inline-flex flex-col items-center leading-tight">
+                          <div className="flex items-center justify-center gap-1">
+                            <span className="line-through text-slate-400 text-[10.5px]">
+                              {r.diff.oldPrac}{r.diff.oldViva !== '—' ? ` / ${r.diff.oldViva}` : ''}
+                            </span>
+                            <span className="text-amber-500 text-[10px]">➔</span>
+                            <span className="font-black text-amber-700 dark:text-amber-300 text-xs">
+                              {r.practicalMarks ?? '—'}{r.vivaMarks ? ` / ${r.vivaMarks}` : ''}
+                            </span>
+                          </div>
+                          <span className="text-[8.5px] font-bold text-amber-600 dark:text-amber-400 uppercase tracking-tight">
+                            Revised
+                          </span>
+                        </div>
+                      ) : (
+                        <span>{r.practicalMarks ?? '—'}{r.vivaMarks ? ` / ${r.vivaMarks}` : ''}</span>
+                      )}
+                    </td>
+
+                    {/* Total Marks with Inline Old vs New Diff */}
+                    <td className={'py-2 px-3 text-right font-black font-mono ' + (isAbs ? 'text-rose-600' : 'text-emerald-600')}>
+                      {r.hasDiff && r.diff.totalChanged ? (
+                        <div className="inline-flex flex-col items-end leading-tight">
+                          <div className="flex items-center justify-end gap-1">
+                            <span className="line-through text-slate-400 font-semibold text-[10.5px]">
+                              {r.diff.oldTot}
+                            </span>
+                            <span className="text-amber-500 text-[10px]">➔</span>
+                            <span className={'text-xs font-black ' + (isAbs ? 'text-rose-600' : 'text-emerald-600')}>
+                              {r.totalMarks ?? r.practicalMarks ?? '—'}
+                            </span>
+                          </div>
+                        </div>
+                      ) : (
+                        <span>{r.totalMarks ?? r.practicalMarks ?? '—'}</span>
+                      )}
+                    </td>
                   </tr>
                 );
               })}
               {filteredRecords.length === 0 && (
-                <tr><td colSpan={9} className="p-8 text-center text-slate-400 font-bold">No individual records found matching search.</td></tr>
+                <tr>
+                  <td colSpan={9} className="p-8 text-center text-slate-400 font-bold">
+                    {diffFilter === 'changed_only'
+                      ? 'No marks changes detected in this submission.'
+                      : 'No individual records found matching search.'}
+                  </td>
+                </tr>
               )}
             </tbody>
           </table>

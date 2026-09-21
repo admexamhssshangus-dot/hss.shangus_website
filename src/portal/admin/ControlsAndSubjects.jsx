@@ -537,14 +537,16 @@ export default function ControlsAndSubjects() {
             usersSnap.docs.forEach((d) => {
               const data = d.data();
               const roleStr = String(data.role || '').toLowerCase();
-              if (roleStr === 'teacher' || roleStr === 'faculty' || roleStr === 'staff') {
+              const isTeacher = roleStr === 'teacher' || roleStr === 'faculty' || roleStr === 'staff';
+              const isAdmin = roleStr === 'admin' || roleStr === 'administrator';
+              if (isTeacher || isAdmin) {
                 const cleanE = String(data.email || '').trim().toLowerCase();
                 if (cleanE && !loadedList.some((a) => a.email.toLowerCase() === cleanE) && !extraStaff.some((s) => s.email.toLowerCase() === cleanE)) {
                   extraStaff.push({
                     name: data.name || data.displayName || cleanE.split('@')[0],
                     email: cleanE,
-                    role: 'Teacher',
-                    perms: data.perms || ['attendanceMgmt', 'practicals'],
+                    role: isTeacher ? 'Teacher' : 'Admin',
+                    perms: data.perms || (isTeacher ? ['attendanceMgmt', 'practicals'] : ['reports', 'analyticsReports']),
                     subject: data.subject || data.teachingSubject || '',
                     teachingSubject: data.teachingSubject || data.subject || '',
                     assignedClasses: Array.isArray(data.assignedClasses) ? data.assignedClasses : (data.assignedClass ? [data.assignedClass] : []),
