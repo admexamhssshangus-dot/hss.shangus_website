@@ -341,7 +341,7 @@ export default function StaffPermissionsManager() {
       const res = await sendStaffPasswordReset(cleanEmail);
       setAlert({
         type: res.success ? 'success' : 'error',
-        text: res.message,
+        text: res.message || `✨ Password reset email successfully sent to ${cleanEmail}.`,
       });
     } catch (err) {
       setAlert({
