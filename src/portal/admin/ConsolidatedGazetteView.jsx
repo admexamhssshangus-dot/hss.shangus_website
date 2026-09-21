@@ -3,7 +3,7 @@ import {
   FileText, Printer, Download, Search, RefreshCw, Filter, Award,
   CheckCircle2, AlertCircle, Users, BarChart3, TrendingUp, Layers,
   ChevronDown, ExternalLink, BookOpen, School, XCircle, ArrowUpDown, Tag,
-  CheckSquare
+  CheckSquare, Edit3, ShieldCheck
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { collection, onSnapshot, getDocs, doc, getDoc } from 'firebase/firestore';
@@ -14,6 +14,7 @@ import { sameCohort, recordIdentity, identityKey, sessionKey, classKey, formatCo
 import verifiedCatalog from '../../data/verifiedStudentsCatalog.json';
 import { showToast } from '../../components/common/GlobalToast';
 import { isStudentEnrolledInSubject } from './AdminPracticals';
+import AdminGazetteRecordEditModal from './AdminGazetteRecordEditModal';
 
 const SESSIONS = ['2025-26', '2024-25', '2023-24'];
 const CLASSES = ['12th', '11th', '10th'];
@@ -167,6 +168,7 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
 
   const [practicalsDocs, setPracticalsDocs] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [editingCandidate, setEditingCandidate] = useState(null);
 
   // Load available custom evaluations from Firestore
   useEffect(() => {
@@ -563,6 +565,11 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
               isFailed: true,
               maxMarks: sMeta.maxMarks,
               minMarks: sMeta.minMarks,
+              updatedByAdmin: Boolean(foundRecord.updatedByAdmin || foundRecordDoc?.updatedByAdmin),
+              updatedBy: foundRecord.updatedBy || foundRecordDoc?.updatedBy || '',
+              updatedAt: foundRecord.updatedAt || foundRecordDoc?.updatedAt || '',
+              editReason: foundRecord.editReason || foundRecordDoc?.editReason || '',
+              docId: foundRecordDoc?.id || '',
             };
           } else if (hasNumeric) {
             evaluatedSubjectsCount++;
@@ -618,6 +625,11 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
               isFailed: !isPass,
               maxMarks: sMeta.maxMarks,
               minMarks: sMeta.minMarks,
+              updatedByAdmin: Boolean(foundRecord.updatedByAdmin || foundRecordDoc?.updatedByAdmin),
+              updatedBy: foundRecord.updatedBy || foundRecordDoc?.updatedBy || '',
+              updatedAt: foundRecord.updatedAt || foundRecordDoc?.updatedAt || '',
+              editReason: foundRecord.editReason || foundRecordDoc?.editReason || '',
+              docId: foundRecordDoc?.id || '',
             };
           } else {
             subjectMarks[code] = {
@@ -689,6 +701,7 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
 
       return {
         key: `${identity.form || identity.reg || student.id || index}_${index}`,
+        student,
         rollNo: String(student.classRollNo || student['Class Roll No'] || student.rollNo || '—'),
         regNo: resolvedRegNo,
         formNo: student.formNo || student['Form Number'] || student.form || '—',
@@ -698,6 +711,7 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
         admissionStatus,
         isApproved,
         subjectMarks,
+        hasAdminUpdates: Object.values(subjectMarks).some(m => m?.updatedByAdmin),
         totalObtained,
         totalMax,
         percentage: pct !== null ? `${pct}%` : '—',
@@ -735,6 +749,7 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
         totalEnrolled: compiledRows.length,
         appearedCount,
         passedCount,
+        adminModifiedCount: compiledRows.filter(row => row.hasAdminUpdates).length,
         overallPassPct: appearedCount ? Math.round((passedCount / appearedCount) * 100) : 0,
         avgScorePct: complete.length ? (complete.reduce((total, row) => total + row.numericPercentage, 0) / complete.length).toFixed(1) : 0
       }
@@ -1818,6 +1833,13 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
               <span className="text-slate-500 dark:text-slate-400 text-[11px]">Avg Score:</span>
               <span className="font-black text-teal-700 dark:text-teal-300">{stats.avgScorePct}%</span>
             </div>
+            {stats.adminModifiedCount > 0 && (
+              <div className="flex items-center gap-1.5 whitespace-nowrap shrink-0 min-w-max px-2 py-0.5 rounded-lg bg-amber-50 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-800">
+                <ShieldCheck size={14} className="text-amber-600 dark:text-amber-400" />
+                <span className="text-amber-700 dark:text-amber-300 text-[11px] font-bold">Admin Overrides:</span>
+                <span className="font-black text-amber-900 dark:text-amber-200">{stats.adminModifiedCount}</span>
+              </div>
+            )}
           </div>
         )}
         <div className="text-[11px] font-bold text-slate-400 whitespace-nowrap pl-2 border-l border-slate-100 dark:border-slate-800 shrink-0">
@@ -1926,6 +1948,7 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
                 <th className="py-2 px-1 text-center w-12 min-w-[44px]">%</th>
                 <th className="py-2 px-1 text-center w-20 min-w-[75px] whitespace-nowrap">Result</th>
                 <th className="py-2 px-1.5 text-center w-20 min-w-[70px]">Grade</th>
+                <th className="py-2 px-1 text-center w-12 min-w-[42px] no-print print:hidden">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 dark:divide-slate-800 text-[11px]">
@@ -1970,6 +1993,11 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
                     <td className="py-1.5 px-2 font-sans">
                       <div className="flex items-center gap-1.5 flex-wrap">
                         <span className="font-bold text-slate-900 dark:text-white text-xs leading-tight">{row.name}</span>
+                        {row.hasAdminUpdates && (
+                          <span className="text-[8.5px] px-1.5 py-0.5 rounded font-black uppercase tracking-tight bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-300 border border-amber-300 dark:border-amber-800 flex items-center gap-0.5" title="Candidate record contains administrative marks overrides">
+                            <ShieldCheck size={9} /> Admin Mod
+                          </span>
+                        )}
                         {row.admissionStatus && (
                           <span className={`text-[8.5px] px-1 py-0.2 rounded font-black uppercase tracking-tight ${
                             String(row.admissionStatus).toLowerCase().includes('appr')
@@ -1994,10 +2022,11 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
                         return (
                           <td
                             key={s.code}
-                            className={`py-1.5 px-1 text-center font-mono text-xs ${
+                            onClick={() => setEditingCandidate(row)}
+                            className={`py-1.5 px-1 text-center font-mono text-xs cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800/80 transition-colors ${
                               isSelected ? 'bg-teal-50/70 dark:bg-teal-950/40 border-x border-teal-300 dark:border-teal-700 text-slate-400 dark:text-slate-500 font-bold' : 'text-slate-400 dark:text-slate-600'
                             }`}
-                            title={`${s.name} (${s.code}): Not Evaluated / Pending`}
+                            title={`${s.name} (${s.code}): Not Evaluated / Pending — Click to add mark`}
                           >
                             —
                           </td>
@@ -2008,23 +2037,29 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
                         return (
                           <td
                             key={s.code}
-                            className={`py-1.5 px-1 text-center text-rose-700 dark:text-rose-400 font-bold text-[10px] font-mono ${
+                            onClick={() => setEditingCandidate(row)}
+                            className={`py-1.5 px-1 text-center text-rose-700 dark:text-rose-400 font-bold text-[10px] font-mono cursor-pointer hover:ring-1 hover:ring-rose-400 transition-all ${
                               isSelected ? 'bg-rose-100/70 dark:bg-rose-950/50 border-x-2 border-rose-400' : ''
-                            }`}
-                            title={`${s.name} (${s.code}): Absent (AB) — Max: ${s.maxMarks}`}
+                            } ${markObj.updatedByAdmin ? 'bg-amber-50 dark:bg-amber-950/30' : ''}`}
+                            title={`${s.name} (${s.code}): Absent (AB) — Max: ${s.maxMarks}${markObj.updatedByAdmin ? ` • [Admin Override by ${markObj.updatedBy}]` : ''} — Click to edit`}
                           >
-                            AB
+                            <span>AB</span>
+                            {markObj.updatedByAdmin && (
+                              <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-500 ml-0.5 align-top" title={`Admin Override: ${markObj.updatedBy}`} />
+                            )}
                           </td>
                         );
                       }
 
                       const val = markObj.obtained;
                       const isFailed = markObj.isFailed;
+                      const isAdmMod = Boolean(markObj.updatedByAdmin);
 
                       return (
                         <td
                           key={s.code}
-                          className={`py-1.5 px-1 text-center font-mono font-bold text-xs ${
+                          onClick={() => setEditingCandidate(row)}
+                          className={`py-1.5 px-1 text-center font-mono font-bold text-xs cursor-pointer hover:ring-1 hover:ring-indigo-400 transition-all ${
                             isSelected
                               ? isFailed
                                 ? 'text-rose-700 dark:text-rose-300 bg-rose-100/80 dark:bg-rose-950/50 border-x-2 border-rose-400 font-black'
@@ -2032,10 +2067,13 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
                               : isFailed
                               ? 'text-rose-700 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/30'
                               : 'text-slate-900 dark:text-slate-100'
-                          }`}
-                          title={`${s.name} (${s.code}): ${val}/${s.maxMarks} (${markObj.isPass ? 'Passed' : 'Re-Appear / Failed'})`}
+                          } ${isAdmMod ? 'bg-amber-50/70 dark:bg-amber-950/30' : ''}`}
+                          title={`${s.name} (${s.code}): ${val}/${s.maxMarks} (${markObj.isPass ? 'Passed' : 'Re-Appear / Failed'})${isAdmMod ? ` • [Admin Override by ${markObj.updatedBy} (${markObj.editReason})]` : ''} — Click to edit`}
                         >
-                          {val}
+                          <span>{val}</span>
+                          {isAdmMod && (
+                            <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-500 ml-0.5 align-top" title={`Admin Override: ${markObj.updatedBy}`} />
+                          )}
                         </td>
                       );
                     })}
@@ -2071,6 +2109,22 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
                     <td className="py-1.5 px-1.5 text-center font-sans text-[11px] font-semibold text-slate-700 dark:text-slate-300">
                       {row.division}
                     </td>
+
+                    {/* Action Column: Direct Admin Edit */}
+                    <td className="py-1 px-1 text-center no-print print:hidden">
+                      <button
+                        type="button"
+                        onClick={() => setEditingCandidate(row)}
+                        className={`p-1.5 rounded-lg border transition-all flex items-center justify-center mx-auto shadow-2xs ${
+                          row.hasAdminUpdates
+                            ? 'bg-amber-100 hover:bg-amber-200 dark:bg-amber-950 dark:hover:bg-amber-900 text-amber-800 dark:text-amber-200 border-amber-300 dark:border-amber-800'
+                            : 'bg-slate-100 hover:bg-indigo-50 dark:bg-slate-800 dark:hover:bg-indigo-950 text-slate-600 hover:text-indigo-600 dark:text-slate-400 dark:hover:text-indigo-300 border-slate-200 dark:border-slate-700'
+                        }`}
+                        title={`Admin edit examination marks for ${row.name}`}
+                      >
+                        <Edit3 size={12} />
+                      </button>
+                    </td>
                   </tr>
                 );
               })}
@@ -2098,6 +2152,19 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
             <p className="border-t border-black pt-1 w-40">Principal HSS Shangus</p>
           </div>
         </div>
+
+        {/* Admin Candidate Gazette Record Edit Modal */}
+        <AdminGazetteRecordEditModal
+          isOpen={Boolean(editingCandidate)}
+          onClose={() => setEditingCandidate(null)}
+          candidate={editingCandidate}
+          selectedClass={selectedClass}
+          selectedSession={selectedSession}
+          selectedEvalType={selectedEvalType}
+          subjectsList={subjectsList}
+          practicalsDocs={practicalsDocs}
+          onSaved={refreshPracticalsData}
+        />
       </div>
     </div>
   );

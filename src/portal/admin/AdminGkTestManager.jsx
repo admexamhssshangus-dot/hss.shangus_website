@@ -372,6 +372,25 @@ export default function AdminGkTestManager({ allStudents = [], onRefresh }) {
         })
         .catch(() => {});
     }
+
+    const handleUpdate = () => {
+      getCachedCollection('admissions', true, 0)
+        .then((docs) => {
+          if (Array.isArray(docs) && docs.length > 0) {
+            setDirectoryStudents(docs);
+          }
+        })
+        .catch(() => {});
+    };
+
+    window.addEventListener('hss-student-updated', handleUpdate);
+    window.addEventListener('hss-admissions-updated', handleUpdate);
+    window.addEventListener('hss-results-updated', handleUpdate);
+    return () => {
+      window.removeEventListener('hss-student-updated', handleUpdate);
+      window.removeEventListener('hss-admissions-updated', handleUpdate);
+      window.removeEventListener('hss-results-updated', handleUpdate);
+    };
   }, [allStudents]);
 
   // Fetch Settings from Firestore

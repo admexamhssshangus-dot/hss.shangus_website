@@ -5,7 +5,7 @@ import appsScriptApi from '../../services/appsScriptApi';
 import { db } from '../../services/firebase';
 import { doc, updateDoc, serverTimestamp, Timestamp, deleteField } from 'firebase/firestore';
 import { compressImageFile, getStudentPhotoUrl } from '../../utils/imageCompressor';
-import { savePhotoUrlToCache, syncStudentPhotoOnRegUpdate } from '../../services/dbCache';
+import { savePhotoUrlToCache, syncStudentPhotoOnRegUpdate, invalidateStudentCaches } from '../../services/dbCache';
 import ConfirmModal from '../components/ConfirmModal';
 import { showToast } from '../../components/common/GlobalToast';
 import { generateStudentAdmissionPdf } from '../../utils/pdfGenerator';
@@ -139,6 +139,7 @@ export default function ApplicationReviewModal({ app, onClose, onRefresh }) {
 
       showToast('Student photo updated in the admission record.', 'success');
       if (appsScriptApi.invalidateAdminCache) appsScriptApi.invalidateAdminCache();
+      invalidateStudentCaches();
       if (onRefresh) onRefresh();
     } catch (err) {
       console.error('Photo upload error:', err);
@@ -167,6 +168,7 @@ export default function ApplicationReviewModal({ app, onClose, onRefresh }) {
       });
       showToast(`Application #${formNo} approved successfully!`, 'success');
       if (appsScriptApi.invalidateAdminCache) appsScriptApi.invalidateAdminCache();
+      invalidateStudentCaches();
       onRefresh();
       onClose();
     } catch (err) {
@@ -195,6 +197,7 @@ export default function ApplicationReviewModal({ app, onClose, onRefresh }) {
         .catch(error => console.warn('Legacy rejection sync pending:', error));
       showToast('Application returned for correction for 72 hours.', 'info');
       if (appsScriptApi.invalidateAdminCache) appsScriptApi.invalidateAdminCache();
+      invalidateStudentCaches();
       onRefresh();
       onClose();
     } catch (err) {
@@ -220,6 +223,7 @@ export default function ApplicationReviewModal({ app, onClose, onRefresh }) {
         .catch(error => console.warn('Legacy unlock sync pending:', error));
       showToast(`Application #${formNo} unlocked for editing (${expiryStr}).`, 'info');
       if (appsScriptApi.invalidateAdminCache) appsScriptApi.invalidateAdminCache();
+      invalidateStudentCaches();
       onRefresh();
       onClose();
     } catch (err) {

@@ -125,6 +125,8 @@ export function getStudentSubjectsStr(st, cls) {
   const clsStr = String(cls || st.Class || st.class || '').toLowerCase();
   const is12 = clsStr.includes('12');
   const is10 = clsStr.includes('10');
+  const is11 = clsStr.includes('11') || (!is12 && !is10);
+  const is9 = clsStr.includes('9');
 
   const multiSubCols = [
     st['Subjects1'], st['Subjects2'], st['Subjects3'], st['Subjects4'], st['Subjects5'], st['Subject6'],
@@ -132,21 +134,30 @@ export function getStudentSubjectsStr(st, cls) {
     st['subject1'], st['subject2'], st['subject3'], st['subject4'], st['subject5'], st['subject6']
   ].filter(Boolean).join(', ');
 
+  const arraySubs = Array.isArray(st.selectedSubjects) ? st.selectedSubjects.join(', ') : (
+    Array.isArray(st.subjects) ? st.subjects.map(s => typeof s === 'string' ? s : s?.name || s?.code).filter(Boolean).join(', ') : ''
+  );
+
+  // Class-specific subject fields ALWAYS take authoritative precedence over generic/legacy Subs
+  const classSpecificSubs = is11
+    ? (st['Subjects to be taken in Class 11th'] || st['Subjects in Class 11th'] || st['Subjects Studied in Class 11th'])
+    : is12
+    ? (st['Subjects to be taken in Class 12th'] || st['Stream & Subjects for Class 12th'] || st['Subjects in Class 12th'] || st['Subjects Studied in Class 11th'])
+    : is10
+    ? (st['Subjects to be taken in Class 10th'] || st['Subjects in Class 10th'] || st['Subjects Studied in Class 9th'])
+    : is9
+    ? (st['Subjects to be taken in Class 9th'] || st['Subjects in Class 9th'])
+    : '';
+
   return String(
+    classSpecificSubs ||
+    arraySubs ||
     st['Subs'] ||
     st['subs'] ||
-    (is12 ? (st['Subjects to be taken in Class 12th'] || st['Subjects Studied in Class 11th'] || st['Subjects in Class 11th']) : '') ||
-    (is10 ? (st['Subjects to be taken in Class 10th'] || st['Subjects Studied in Class 9th'] || st['Subjects in Class 9th']) : '') ||
-    multiSubCols ||
-    st['Subjects Studied in Class 11th'] ||
-    st['Subjects to be taken in Class 11th'] ||
-    st['Subjects Studied in Class 9th'] ||
-    st['Subjects to be taken in Class 9th'] ||
-    st['Subjects to be taken in Class 12th'] ||
-    st['Subjects to be taken in Class 10th'] ||
     st['Subjects'] ||
     st['Subject Combination'] ||
     st['streamSubjects'] ||
+    multiSubCols ||
     st.subjects ||
     ''
   );
@@ -207,49 +218,73 @@ export function getStudentStreamStr(st, cls = '') {
 export function isStudentEnrolledInSubject(st, subCode, cls) {
   if (!st || !subCode) return false;
 
-  const code = subCode.toUpperCase();
-  const subStr = getStudentSubjectsStr(st, cls).toUpperCase();
-  const streamStr = getStudentStreamStr(st, cls);
+  const code = subCode.toUpperCase().trim();
+  const subStr = getStudentSubjectsStr(st, cls).toUpperCase().trim();
+  const streamStr = getStudentStreamStr(st, cls).toLowerCase();
 
   // 1. Direct Subject Match in Student's Enrolled Subjects String
   if (subStr && subStr.length > 1) {
     if (code === 'BI') {
-      if (subStr.includes('BI') || subStr.includes('BIO') || subStr.includes('BIOLOGY') || subStr.includes('BO') || subStr.includes('ZO')) return true;
+      if (/\b(BI|BIO|BIOLOGY)\b/i.test(subStr) || (/\b(BO|BOT|BOTANY)\b/i.test(subStr) && /\b(ZO|ZOO|ZOOLOGY)\b/i.test(subStr))) return true;
     } else if (code === 'BO') {
-      if (subStr.includes('BO') || subStr.includes('BOTANY') || subStr.includes('BIOLOGY') || subStr.includes('BI')) return true;
+      if (/\b(BO|BOT|BOTANY)\b/i.test(subStr) || /\b(BI|BIO|BIOLOGY)\b/i.test(subStr)) return true;
     } else if (code === 'ZO') {
-      if (subStr.includes('ZO') || subStr.includes('ZOOLOGY') || subStr.includes('BIOLOGY') || subStr.includes('BI')) return true;
+      if (/\b(ZO|ZOO|ZOOLOGY)\b/i.test(subStr) || /\b(BI|BIO|BIOLOGY)\b/i.test(subStr)) return true;
     } else if (code === 'MA') {
-      if (subStr.includes('MA') || subStr.includes('MATH') || subStr.includes('MATHEMATICS')) return true;
+      if (/\b(MA|MATH|MATHS|MATHEMATICS)\b/i.test(subStr)) return true;
     } else if (code === 'PS') {
-      if (subStr.includes('PS') || subStr.includes('POL') || subStr.includes('POLITICAL')) return true;
+      if (/\b(PS|POL|POLITICAL|POL\s*SC|POLITICAL\s*SCIENCE)\b/i.test(subStr)) return true;
     } else if (code === 'ED') {
       const cleanSubj = subStr
         .replace(/\b(NON-MED|NON\s*MED|NON-MEDICAL|MEDICAL|MED)\b/gi, '')
         .replace(/\b(PHYSICAL\s*EDUCATION|PHYSICAL\s*ED|PHY\s*ED|P\.ED|PED|P\.E)\b/gi, '');
       if (/\b(ED|EDU|EDUCATION)\b/i.test(cleanSubj)) return true;
     } else if (code === 'HT') {
-      if (subStr.includes('HT') || subStr.includes('HIST') || subStr.includes('HISTORY')) return true;
+      const cleanSubj = subStr.replace(/\b(HTC|HC|HEALTHCARE|HEALTH\s*CARE|HEALTH)\b/gi, '');
+      if (/\b(HT|HIST|HISTORY)\b/i.test(cleanSubj)) return true;
     } else if (code === 'UR') {
-      if (subStr.includes('UR') || subStr.includes('URDU')) return true;
+      if (/\b(UR|URDU)\b/i.test(subStr)) return true;
     } else if (code === 'EC') {
-      if (subStr.includes('EC') || subStr.includes('ECONOMICS') || subStr.includes('ECO')) return true;
+      if (/\b(EC|ECO|ECONOMICS)\b/i.test(subStr)) return true;
     } else if (code === 'ES') {
-      if (subStr.includes('ES') || subStr.includes('EVS') || subStr.includes('ENVIR') || subStr.includes('ENVIRONMENTAL')) return true;
+      if (/\b(ES|EVS|ENVIRONMENTAL|ENVIR|ENVIRONMENTAL\s*SCIENCE)\b/i.test(subStr)) return true;
     } else if (code === 'PD') {
-      if (subStr.includes('PD') || subStr.includes('PED') || subStr.includes('PHYSICAL') || subStr.includes('P.E')) return true;
+      if (/\b(PD|PED|P\.ED|PHYSICAL\s*EDUCATION|PHY\s*ED|PHYSICAL|P\.E)\b/gi.test(subStr)) return true;
     } else if (code === 'HTC') {
-      if (subStr.includes('HTC') || subStr.includes('HEALTH') || subStr.includes('HEALTHCARE')) return true;
+      if (/\b(HTC|HC|HEALTH|HEALTHCARE|HEALTH\s*CARE)\b/i.test(subStr)) return true;
     } else if (code === 'ITE') {
-      if (subStr.includes('ITE') || subStr.includes('IT') || subStr.includes('INFORMATION') || subStr.includes('TECH')) return true;
+      if (/\b(ITE|IT|ITES|IT\s*&\s*ITES|INFORMATION\s*TECHNOLOGY|TECH|COMPUTER)\b/i.test(subStr)) return true;
+    } else if (code === 'EN') {
+      if (/\b(EN|GE|GEN\s*ENG|GENERAL\s*ENGLISH|ENGLISH)\b/i.test(subStr)) return true;
+    } else if (code === 'PH') {
+      if (/\b(PH|PHY|PHYSICS)\b/i.test(subStr)) return true;
+    } else if (code === 'CH') {
+      if (/\b(CH|CHEM|CHEMISTRY)\b/i.test(subStr)) return true;
+    } else if (code === 'SC') {
+      if (/\b(SC|SCI|SCIENCE)\b/i.test(subStr) && !/\b(SOCIAL|POLITICAL|ENVIRONMENTAL)\b/i.test(subStr)) return true;
+    } else if (code === 'SS') {
+      if (/\b(SS|SST|SOC|SOCIAL\s*SCIENCE|SOCIAL\s*STUDIES)\b/i.test(subStr)) return true;
     } else {
-      if (subStr.includes(code)) return true;
+      if (new RegExp(`\\b${code}\\b`, 'i').test(subStr)) return true;
       const name = NAMES[code];
       if (name && subStr.includes(name.toUpperCase())) return true;
     }
   }
 
-  // 2. Stream-based Core Enrollment Rules
+  // 2. Stream-based Core Enrollment Rules (ONLY if candidate has NO explicit subject list)
+  const hasExplicitSubs = Boolean(
+    subStr &&
+    subStr.length > 3 &&
+    subStr !== '—' &&
+    !/^(N\/A|#N\/A|NULL|UNDEFINED|GENERAL|SAME\s*AS.*)$/i.test(subStr)
+  );
+
+  if (hasExplicitSubs) {
+    // Student already has an explicit subject selection. Do NOT fabricate or force additional subjects.
+    return false;
+  }
+
+  // Fallback defaults for completely unconfigured subject records
   const isScience = streamStr.includes('science') || streamStr.includes('med') || streamStr.includes('sci');
   const isMedical = streamStr.includes('med') || subStr.includes('BOTANY') || subStr.includes('ZOOLOGY') || subStr.includes('BIOLOGY');
   const isNonMedical = streamStr.includes('non-med') || streamStr.includes('nonmed') || subStr.includes('MATH');
@@ -257,19 +292,20 @@ export function isStudentEnrolledInSubject(st, subCode, cls) {
   const isCommerce = streamStr.includes('commerce');
 
   if (isScience) {
-    if (['EN', 'PH', 'CH', 'ES'].includes(code)) return true;
+    if (['EN', 'PH', 'CH'].includes(code)) return true;
     if (['BO', 'ZO', 'BI'].includes(code) && (isMedical || !isNonMedical)) return true;
     if (code === 'MA' && isNonMedical) return true;
   } else if (isArts) {
-    if (['EN', 'ES'].includes(code)) return true;
+    if (['EN'].includes(code)) return true;
   } else if (isCommerce) {
-    if (['EN', 'ES', 'EC'].includes(code)) return true;
+    if (['EN', 'EC'].includes(code)) return true;
   } else {
-    if (['EN', 'ES'].includes(code)) return true;
+    if (['EN'].includes(code)) return true;
   }
 
   return false;
 }
+
 
 export function normalizePracticalSession(sess) {
   if (!sess) return '2025-26';
@@ -627,17 +663,15 @@ export default function AdminPracticals() {
         if (existingId && studentsMap.has(existingId)) {
           const existing = studentsMap.get(existingId);
 
-          const stStream = st['Stream for Class 12th'] || st['Stream for Class 11th'] || st.Stream || st.stream || '';
-          const existingStream = existing['Stream for Class 12th'] || existing['Stream for Class 11th'] || existing.Stream || existing.stream || '';
+          const isLiveAdmission = source === 'admissions' || st._source === 'admissions';
 
-          const isStFallback = !stStream || stStream === 'Science' || stStream === 'Humanities' || stStream === 'External / Outside';
-          const isExistingValid = existingStream && existingStream !== 'External / Outside';
+          const stStream = getStudentStreamStr(st, canonicalCls);
+          const existingStream = getStudentStreamStr(existing, canonicalCls);
+          const finalStream = (isLiveAdmission && stStream) ? stStream : (existingStream || stStream || 'Science');
 
-          const finalStream = isExistingValid ? existingStream : (stStream || existingStream || 'Science');
-
-          const stSubs = st.Subjects || st.Subs || st.subjects || st['Subjects to be taken in Class 12th'] || st['Subjects to be taken in Class 11th'] || '';
-          const existingSubs = existing.Subjects || existing.Subs || existing.subjects || existing['Subjects to be taken in Class 12th'] || existing['Subjects to be taken in Class 11th'] || '';
-          const finalSubs = existingSubs || stSubs || '';
+          const stSubs = getStudentSubjectsStr(st, canonicalCls);
+          const existingSubs = getStudentSubjectsStr(existing, canonicalCls);
+          const finalSubs = (isLiveAdmission && stSubs) ? stSubs : (stSubs || existingSubs || '');
 
           const finalRoll = getRollNo(st) || getRollNo(existing) || '—';
           const finalExam = (exam && exam !== '—' && exam !== 'NA' && exam !== 'N/A') ? exam : (existing['Exam R.No. (Current)'] || existing.examRollNo || '—');
@@ -662,13 +696,15 @@ export default function AdminPracticals() {
             Subjects: finalSubs,
             Subs: finalSubs,
             subjects: finalSubs,
+            'Subjects to be taken in Class 11th': (canonicalCls.includes('11') && finalSubs) ? finalSubs : (st['Subjects to be taken in Class 11th'] || existing['Subjects to be taken in Class 11th'] || ''),
+            'Subjects to be taken in Class 12th': (canonicalCls.includes('12') && finalSubs) ? finalSubs : (st['Subjects to be taken in Class 12th'] || existing['Subjects to be taken in Class 12th'] || ''),
             'Class Roll No': finalRoll,
             classRollNo: finalRoll,
             'Exam R.No. (Current)': finalExam,
             examRollNo: finalExam,
             'Board Registration Number': finalReg,
             boardRegNo: finalReg,
-            _source: existing._source || source,
+            _source: isLiveAdmission ? 'admissions' : (existing._source || source),
           };
           studentsMap.set(existingId, merged);
         } else {
@@ -896,6 +932,17 @@ export default function AdminPracticals() {
 
   useEffect(() => {
     loadData();
+    const handleUpdate = () => {
+      loadData(true);
+    };
+    window.addEventListener('hss-student-updated', handleUpdate);
+    window.addEventListener('hss-admissions-updated', handleUpdate);
+    window.addEventListener('hss-results-updated', handleUpdate);
+    return () => {
+      window.removeEventListener('hss-student-updated', handleUpdate);
+      window.removeEventListener('hss-admissions-updated', handleUpdate);
+      window.removeEventListener('hss-results-updated', handleUpdate);
+    };
   }, [loadData]);
 
   const saveSettingsDoc = async (keyName, updatedSettings) => {

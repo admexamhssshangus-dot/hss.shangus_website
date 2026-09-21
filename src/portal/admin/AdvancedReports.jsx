@@ -7,7 +7,7 @@ import { db, auth, ensureFirestoreConnected } from '../../services/firebase';
 import { sendPasswordResetEmail } from 'firebase/auth';
 import { collection, getDocs, doc, getDoc, updateDoc, setDoc, deleteDoc, deleteField, writeBatch, query, where } from 'firebase/firestore';
 import * as XLSX from 'xlsx';
-import { invalidateCache, updateCachedItem, getCachedCollectionSync, getCachedCollection, getMasterRegistersScoped, getPhotoUrlFromCache, preloadStudentPhotosCache, fetchStudentPhotoOnDemand, fetchAllMatchingStudentPhotos, syncStudentPhotoOnRegUpdate, reconcileAllStudentPhotosInDatabase, loadCentralStudentPhotosFromFirestore } from '../../services/dbCache';
+import { invalidateCache, updateCachedItem, getCachedCollectionSync, getCachedCollection, getMasterRegistersScoped, getPhotoUrlFromCache, preloadStudentPhotosCache, fetchStudentPhotoOnDemand, fetchAllMatchingStudentPhotos, syncStudentPhotoOnRegUpdate, reconcileAllStudentPhotosInDatabase, loadCentralStudentPhotosFromFirestore, invalidateStudentCaches } from '../../services/dbCache';
 import { compressImageFile, parsePhotoFilename, getStudentPhotoUrl } from '../../utils/imageCompressor';
 import ApplicationReviewModal from './ApplicationReviewModal';
 import ConfirmDialogModal from '../components/ConfirmDialogModal';
@@ -649,6 +649,27 @@ export async function updateStudentDocument(student, updates) {
     }
   }
 
+  // Synchronize all Stream aliases if any stream field is updated
+  const rawUpdatedStream =
+    updates.stream ||
+    updates.Stream ||
+    updates['Stream for Class 11th'] ||
+    updates['Stream for Class 12th'] ||
+    updates['Stream opted in Class 11th'] ||
+    updates['Stream Studied in Class 11th'];
+
+  if (rawUpdatedStream !== undefined && rawUpdatedStream !== null) {
+    const streamVal = String(rawUpdatedStream).trim();
+    if (streamVal && streamVal !== '—') {
+      updates.stream = streamVal;
+      updates.Stream = streamVal;
+      updates['Stream for Class 11th'] = streamVal;
+      updates['Stream for Class 12th'] = streamVal;
+      updates['Stream opted in Class 11th'] = streamVal;
+      updates['Stream Studied in Class 11th'] = streamVal;
+    }
+  }
+
   // Synchronize all Subject aliases if any subject field is updated
   const rawUpdatedSubs =
     updates.subs ||
@@ -814,6 +835,8 @@ export async function updateStudentDocument(student, updates) {
       photoData
     }).catch(() => {});
   }
+
+  invalidateStudentCaches();
 
   return updated;
 }
@@ -1989,6 +2012,7 @@ async function updateExactAdmissionDocument(student, updates) {
   }
   await updateDoc(doc(db, 'admissions', exactId), updates);
   updateCachedItem('admissions', exactId, updates);
+  invalidateStudentCaches();
   return true;
 }
 

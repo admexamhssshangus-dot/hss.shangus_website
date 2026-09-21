@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { db } from '../../services/firebase';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { updateCachedItem, getCachedCollectionSync } from '../../services/dbCache';
+import { updateCachedItem, getCachedCollectionSync, invalidateStudentCaches } from '../../services/dbCache';
 import { logAdminActivity } from '../../services/adminActivityLogger';
 import { cleanRawSubjectTokens } from './AdvancedReports';
 
@@ -102,6 +102,12 @@ export default function MasterRegisterQuickEditModal({
         "Subjects": cleanedSubs.join(', '),
         "Subs": cleanedSubs.join(', '),
         selectedSubjects: cleanedSubs,
+        "Subjects to be taken in Class 11th": classTag.includes('11') ? cleanedSubs.join(', ') : (student['Subjects to be taken in Class 11th'] || ''),
+        "Subjects to be taken in Class 12th": classTag.includes('12') ? cleanedSubs.join(', ') : (student['Subjects to be taken in Class 12th'] || ''),
+        "Subjects to be taken in Class 10th": classTag.includes('10') ? cleanedSubs.join(', ') : (student['Subjects to be taken in Class 10th'] || ''),
+        "Subjects to be taken in Class 9th": classTag.includes('9') ? cleanedSubs.join(', ') : (student['Subjects to be taken in Class 9th'] || ''),
+        "Stream for Class 11th": classTag.includes('11') ? formData.stream : (student['Stream for Class 11th'] || ''),
+        "Stream for Class 12th": classTag.includes('12') ? formData.stream : (student['Stream for Class 12th'] || ''),
 
         boardRegNo: formData.boardRegNo.trim(),
         regNo: formData.boardRegNo.trim(),
@@ -154,9 +160,10 @@ export default function MasterRegisterQuickEditModal({
         }
       });
 
-      // 4. Notify UI components
+      // 4. Notify UI components and purge caches
       window.dispatchEvent(new CustomEvent('hss-master-register-updated'));
       window.dispatchEvent(new CustomEvent('hss-results-updated'));
+      invalidateStudentCaches('masterRegisters');
 
       setIsSaving(false);
       if (onSaved) onSaved({ ...student, ...patch });

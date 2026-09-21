@@ -1,6 +1,6 @@
 import { collection, doc, getDoc, getDocs, runTransaction, setDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from './firebase';
-import { invalidateCache } from './dbCache';
+import { invalidateCache, invalidateStudentCaches } from './dbCache';
 import { recordLocator, locateNestedRecord, recordIdentity } from '../utils/recordIdentity';
 import { normalizeDobToIso } from '../utils/admissionValidation';
 
@@ -103,6 +103,7 @@ export async function applyRecordPatch(student, patch, { jobId, entryId = '0', f
       before, after, status: 'applied', createdAt: serverTimestamp() }));
   });
   invalidateCache(locator.collection);
+  invalidateStudentCaches(locator.collection);
   return effectiveJob;
 }
 export async function completeMutationJob(jobId) {
@@ -120,6 +121,7 @@ export async function createRecordWithRollback(documentId, data, { jobId, entryI
       before: {}, after: data, status: 'applied', createdAt: serverTimestamp() }));
   });
   invalidateCache('admissions');
+  invalidateStudentCaches('admissions');
 }
 export async function rollbackMutationJob(jobId) {
   const job = await getDoc(doc(db, 'csvImportBatches', jobId));
@@ -154,5 +156,6 @@ export async function rollbackMutationJob(jobId) {
   }
   await setDoc(job.ref, { status: 'restored', restoredAt: serverTimestamp() }, { merge: true });
   invalidateCache('admissions'); invalidateCache('masterRegisters');
+  invalidateStudentCaches();
   return true;
 }
