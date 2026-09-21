@@ -2840,7 +2840,38 @@ export default function CustomRosterDocumentBuilderView({
       }
     });
 
-    return Array.from(poolMap.values()).map((r, i) => ({ ...r, _originalIdx: i + 1 }));
+    // Pre-sort unified student pool by Class Roll No. ascending as system baseline default
+    const poolList = Array.from(poolMap.values());
+    poolList.sort((a, b) => {
+      const va = a.classRollNo;
+      const vb = b.classRollNo;
+
+      const isBlankA = va === '—' || va === '' || va === undefined || va === null || /^(—|-|NA|N\/A|Nill|null|undefined)$/i.test(String(va).trim());
+      const isBlankB = vb === '—' || vb === '' || vb === undefined || vb === null || /^(—|-|NA|N\/A|Nill|null|undefined)$/i.test(String(vb).trim());
+
+      if (isBlankA && isBlankB) return 0;
+      if (isBlankA) return 1;
+      if (isBlankB) return -1;
+
+      const numA = Number(String(va).replace(/[^0-9.-]/g, ''));
+      const numB = Number(String(vb).replace(/[^0-9.-]/g, ''));
+
+      const isAValidNum = !isNaN(numA) && String(va).trim() !== '' && /^\d+$/.test(String(va).replace(/[^0-9]/g, ''));
+      const isBValidNum = !isNaN(numB) && String(vb).trim() !== '' && /^\d+$/.test(String(vb).replace(/[^0-9]/g, ''));
+
+      if (isAValidNum && isBValidNum) {
+        if (numA !== numB) return numA - numB;
+      } else {
+        const comp = String(va).trim().toLowerCase().localeCompare(String(vb).trim().toLowerCase(), undefined, { numeric: true });
+        if (comp !== 0) return comp;
+      }
+
+      const nameA = String(a.studentName || '').toLowerCase();
+      const nameB = String(b.studentName || '').toLowerCase();
+      return nameA.localeCompare(nameB);
+    });
+
+    return poolList.map((r, i) => ({ ...r, _originalIdx: i + 1 }));
   }, [combinedRawStudents, isReady]);
 
   // ─── Real Distinct Subjects Extracted Dynamically from Database Students ───
@@ -2913,7 +2944,7 @@ export default function CustomRosterDocumentBuilderView({
   const [selectedStreams, setSelectedStreams] = useState([]);
   const [selectedSubjects, setSelectedSubjects] = useState([]);
   const [selectedGenders, setSelectedGenders] = useState([]);
-  const [selectedStatuses, setSelectedStatuses] = useState([]);
+  const [selectedStatuses, setSelectedStatuses] = useState(['Approved']);
   const [useAbbreviatedSubjects, setUseAbbreviatedSubjects] = useState(true);
   const [showMoreFields, setShowMoreFields] = useState(false);
   const [isMobileFiltersCollapsed, setIsMobileFiltersCollapsed] = useState(false);
@@ -3701,16 +3732,29 @@ export default function CustomRosterDocumentBuilderView({
       const isBValidNum = !isNaN(numB) && String(vb).trim() !== '' && /^\d+$/.test(String(vb).replace(/[^0-9]/g, ''));
 
       if (isAValidNum && isBValidNum && (sortKey === 'classRollNo' || sortKey === 'sno' || sortKey === '_originalIdx' || sortKey === 'admNo' || !isNaN(Number(va)))) {
-        return sortConfig.direction === 'asc' ? numA - numB : numB - numA;
+        const diff = sortConfig.direction === 'asc' ? numA - numB : numB - numA;
+        if (diff !== 0) return diff;
+      } else {
+        // String comparison
+        const strA = String(va).trim().toLowerCase();
+        const strB = String(vb).trim().toLowerCase();
+
+        const diff = sortConfig.direction === 'asc'
+          ? strA.localeCompare(strB, undefined, { numeric: true })
+          : strB.localeCompare(strA, undefined, { numeric: true });
+        if (diff !== 0) return diff;
       }
 
-      // String comparison
-      const strA = String(va).trim().toLowerCase();
-      const strB = String(vb).trim().toLowerCase();
+      // Tie-breaker: secondary fallback to numeric classRollNo if not already sorting by classRollNo
+      if (sortKey !== 'classRollNo') {
+        const rNumA = Number(String(a.classRollNo).replace(/[^0-9.-]/g, ''));
+        const rNumB = Number(String(b.classRollNo).replace(/[^0-9.-]/g, ''));
+        if (!isNaN(rNumA) && !isNaN(rNumB) && rNumA !== rNumB) {
+          return rNumA - rNumB;
+        }
+      }
 
-      return sortConfig.direction === 'asc'
-        ? strA.localeCompare(strB, undefined, { numeric: true })
-        : strB.localeCompare(strA, undefined, { numeric: true });
+      return a._originalIdx - b._originalIdx;
     });
 
     // Re-index S.No. sequentially (1, 2, 3...) according to sorted order
@@ -3931,7 +3975,8 @@ export default function CustomRosterDocumentBuilderView({
                       setSelectedStreams([]);
                       setSelectedSubjects([]);
                       setSelectedGenders([]);
-                      setSelectedStatuses([]);
+                      setSelectedStatuses(['Approved']);
+                      setSortConfig({ key: 'classRollNo', direction: 'asc' });
                     }}
                     className="text-[8px] font-bold text-amber-700 dark:text-amber-400 hover:underline cursor-pointer"
                     title="Reset all cohort filters to default"
