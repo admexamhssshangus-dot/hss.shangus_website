@@ -39,6 +39,17 @@ export const FALLBACK_STAFF_PROFILES = {
   'shahnawaz@gmail.com': { name: 'Nawaz Ahmad Shah (Admin)', role: 'Admin', isAdmin: true, perms: ['reports'] },
   'bilalhcu@gmail.com': { name: 'Bilal Ahmad Khandy (Admin)', role: 'Admin', isAdmin: true, perms: ['reports'] },
   'majidhassannajar@gmail.com': { name: 'Majid Hassan Najar (Admin)', role: 'Admin', isAdmin: true, perms: ['reports'] },
+  'hajimir91@gmail.com': {
+    name: 'Javid Ahmad',
+    role: 'Teacher',
+    isTeacher: true,
+    isAdmin: false,
+    isStaff: true,
+    subject: 'Physical Education (PD)',
+    teachingSubject: 'Physical Education (PD)',
+    assignedClasses: ['11th', '12th'],
+    perms: ['attendanceMgmt', 'practicals']
+  },
 };
 
 // High-speed in-memory cache for resolved staff profiles (0ms resolution across navigations)

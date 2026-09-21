@@ -459,29 +459,50 @@ function isDocSubjectMatch(dataSubj, targetSubj) {
 function resolveTeacherSubjectCode(rawSubject) {
   if (!rawSubject) return '';
   const clean = String(rawSubject).trim();
-  // 1. Direct code match (case-insensitive)
+
+  // 1. Direct code in parentheses match, e.g. "Physical Education (PD)" -> "PD"
+  const parenMatch = clean.match(/\(([A-Za-z0-9]{2,4})\)/);
+  if (parenMatch) {
+    const pCode = parenMatch[1].toUpperCase();
+    const byParenCode = MASTER_SUBJECTS.find(m => m.code.toUpperCase() === pCode);
+    if (byParenCode) return byParenCode.code;
+  }
+
+  // 2. Direct code match (case-insensitive)
   const byCode = MASTER_SUBJECTS.find(m => m.code.toLowerCase() === clean.toLowerCase());
   if (byCode) return byCode.code;
-  // 2. Exact name match
+
+  // 3. Exact name match
   const byName = MASTER_SUBJECTS.find(m => m.name.toLowerCase() === clean.toLowerCase());
   if (byName) return byName.code;
-  // 3. Keyword / prefix matches
+
+  // 4. Exact name match after stripping parentheses / annotations
+  const stripped = clean.replace(/\s*\([^)]*\)/g, '').trim().toLowerCase();
+  if (stripped) {
+    const byStrippedName = MASTER_SUBJECTS.find(m => m.name.toLowerCase() === stripped);
+    if (byStrippedName) return byStrippedName.code;
+    const byStrippedCode = MASTER_SUBJECTS.find(m => m.code.toLowerCase() === stripped);
+    if (byStrippedCode) return byStrippedCode.code;
+  }
+
+  // 5. Keyword / prefix matches (ORDER IS CRITICAL: Physical Education MUST precede Physics and Education!)
   const lower = clean.toLowerCase();
+  if (lower.includes('physical') || lower.includes('phy edu') || lower.includes('phy. edu') || lower.includes('phe') || lower.includes('p.e') || lower.includes('p.d') || lower === 'pd' || /\b(pd|pe)\b/i.test(lower)) return 'PD';
+  if (!lower.includes('physical') && (lower.includes('physics') || lower === 'ph' || lower === 'phy' || /\b(ph|physics)\b/i.test(lower) || (lower.includes('phy') && !lower.includes('physical')))) return 'PH';
+  if (!lower.includes('physical') && (lower.includes('education') || lower.includes('edu') || lower === 'ed' || /\bed\b/i.test(lower))) return 'ED';
+
   if (lower.includes('chem')) return 'CH';
-  if (lower.includes('phy') && !lower.includes('physical')) return 'PH';
   if (lower.includes('bot')) return 'BO';
   if (lower.includes('zoo')) return 'ZO';
   if (lower.includes('bio')) return 'BI';
   if (lower.includes('eng')) return 'EN';
   if (lower.includes('env') || lower.includes('evs')) return 'ES';
   if (lower.includes('pol')) return 'PS';
-  if (lower.includes('physical') || lower.includes('phe') || lower.includes('p.e') || lower.includes('p.d')) return 'PD';
   if (lower.includes('comp') || lower.includes('cs')) return 'CS';
   if (lower.includes('it') || lower.includes('ites')) return 'ITE';
   if (lower.includes('math')) return 'MA';
   if (lower.includes('geo')) return 'GG';
   if (lower.includes('urdu')) return 'UR';
-  if (lower.includes('edu')) return 'ED';
   if (lower.includes('hist')) return 'HT';
   if (lower.includes('econ')) return 'EC';
   if (lower.includes('socio')) return 'SO';

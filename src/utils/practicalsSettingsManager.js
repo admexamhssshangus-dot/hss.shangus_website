@@ -633,17 +633,43 @@ export function normalizeSubjectIdentity(subjInput) {
   if (!subjInput) return null;
   const raw = String(subjInput).trim();
   const lower = raw.toLowerCase();
+
+  // 1. Direct code in parentheses match, e.g. "Physical Education (PD)" -> "PD"
+  const parenMatch = raw.match(/\(([A-Za-z0-9]{2,4})\)/);
+  if (parenMatch) {
+    const pCode = parenMatch[1].toUpperCase();
+    const byParenCode = SUBJECT_CONFIG_DEFS.find(s => s.code.toUpperCase() === pCode);
+    if (byParenCode) return byParenCode;
+  }
   
-  // Exact code match
+  // 2. Exact code match
   const codeMatch = SUBJECT_CONFIG_DEFS.find(s => s.code.toLowerCase() === lower);
   if (codeMatch) return codeMatch;
   
-  // Exact name match
+  // 3. Exact name match
   const nameMatch = SUBJECT_CONFIG_DEFS.find(s => s.name.toLowerCase() === lower);
   if (nameMatch) return nameMatch;
+
+  // 4. Exact name match after stripping parentheses / annotations
+  const stripped = raw.replace(/\s*\([^)]*\)/g, '').trim().toLowerCase();
+  if (stripped) {
+    const strippedNameMatch = SUBJECT_CONFIG_DEFS.find(s => s.name.toLowerCase() === stripped);
+    if (strippedNameMatch) return strippedNameMatch;
+    const strippedCodeMatch = SUBJECT_CONFIG_DEFS.find(s => s.code.toLowerCase() === stripped);
+    if (strippedCodeMatch) return strippedCodeMatch;
+  }
   
-  // Known alias mapping
-  if (lower.includes('physic') || lower === 'phy') return SUBJECT_CONFIG_DEFS.find(s => s.code === 'PH');
+  // 5. Known alias mapping (ORDER IS CRITICAL: Physical Education MUST precede Physics and Education!)
+  if (lower.includes('physical') || lower.includes('phy edu') || lower.includes('phy. edu') || lower.includes('ped') || lower.includes('phe') || lower === 'pd' || /\b(pd|pe)\b/i.test(lower)) {
+    return SUBJECT_CONFIG_DEFS.find(s => s.code === 'PD');
+  }
+  if (!lower.includes('physical') && (lower.includes('physics') || lower === 'ph' || lower === 'phy' || /\b(ph|physics)\b/i.test(lower) || (lower.includes('physic') && !lower.includes('physical')))) {
+    return SUBJECT_CONFIG_DEFS.find(s => s.code === 'PH');
+  }
+  if (!lower.includes('physical') && (lower.includes('education') || lower.includes('educ') || lower === 'ed' || /\bed\b/i.test(lower))) {
+    return SUBJECT_CONFIG_DEFS.find(s => s.code === 'ED');
+  }
+
   if (lower.includes('chem') || lower === 'ch') return SUBJECT_CONFIG_DEFS.find(s => s.code === 'CH');
   if (lower.includes('botan') || lower === 'bo') return SUBJECT_CONFIG_DEFS.find(s => s.code === 'BO');
   if (lower.includes('zool') || lower === 'zo') return SUBJECT_CONFIG_DEFS.find(s => s.code === 'ZO');
@@ -653,11 +679,9 @@ export function normalizeSubjectIdentity(subjInput) {
   if (lower.includes('urdu') || lower === 'ur') return SUBJECT_CONFIG_DEFS.find(s => s.code === 'UR');
   if (lower.includes('computer') || lower.includes('cs') || lower.includes('comp')) return SUBJECT_CONFIG_DEFS.find(s => s.code === 'CS');
   if (lower.includes('environ') || lower.includes('evs') || lower === 'es') return SUBJECT_CONFIG_DEFS.find(s => s.code === 'ES');
-  if (lower.includes('physical') || lower.includes('ped') || lower === 'pd') return SUBJECT_CONFIG_DEFS.find(s => s.code === 'PD');
   if (lower.includes('polit') || lower.includes('pol') || lower === 'ps') return SUBJECT_CONFIG_DEFS.find(s => s.code === 'PS');
   if (lower.includes('hist') || lower === 'ht') return SUBJECT_CONFIG_DEFS.find(s => s.code === 'HT');
   if (lower.includes('econ') || lower === 'ec') return SUBJECT_CONFIG_DEFS.find(s => s.code === 'EC');
-  if (lower.includes('educ') || lower === 'ed') return SUBJECT_CONFIG_DEFS.find(s => s.code === 'ED');
   if (lower.includes('soci') || lower === 'so') return SUBJECT_CONFIG_DEFS.find(s => s.code === 'SO');
   if (lower.includes('acc') || lower === 'ay') return SUBJECT_CONFIG_DEFS.find(s => s.code === 'AY');
   if (lower.includes('busi') || lower === 'bs') return SUBJECT_CONFIG_DEFS.find(s => s.code === 'BS');

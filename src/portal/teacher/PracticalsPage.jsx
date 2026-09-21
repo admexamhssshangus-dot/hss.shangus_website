@@ -267,8 +267,8 @@ function isSubjectOrStreamMatch(st, targetSubjectCode, targetSubjectName) {
   }
 
   // 6. Physical Education
-  if (codeUpper === 'PD' || codeUpper === 'PHE' || codeUpper === 'PE' || nameUpper.includes('PHYSICAL ED')) {
-    if (hasToken('PD') || hasToken('PHE') || hasToken('PE') || /\b(PHYSICAL\s*EDUCATION|PHYSICAL\s*ED|PHY\s*ED|P\.E\.)\b/i.test(rawSubjStr)) return true;
+  if (codeUpper === 'PD' || codeUpper === 'PHE' || codeUpper === 'PE' || nameUpper.includes('PHYSICAL')) {
+    if (hasToken('PD') || hasToken('PHE') || hasToken('PE') || /\b(PHYSICAL\s*EDUCATION|PHYSICAL\s*ED|PHYSICAL|PHY\s*ED|P\.E\.)\b/i.test(rawSubjStr)) return true;
     return false;
   }
 
