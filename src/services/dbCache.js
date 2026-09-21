@@ -93,6 +93,8 @@ export function invalidateCollectionCache(collectionName) {
  * and dispatch global change events so all open portals (Practicals, Gazette, Admissions)
  * immediately re-sync without stale caches.
  */
+let invalidateDebounceTimer = null;
+
 export function invalidateStudentCaches(extraCollection = null) {
   invalidateCollectionCache('admissions');
   invalidateCollectionCache('masterRegisters');
@@ -100,9 +102,11 @@ export function invalidateStudentCaches(extraCollection = null) {
     invalidateCollectionCache(extraCollection);
   }
   if (typeof window !== 'undefined') {
-    window.dispatchEvent(new CustomEvent('hss-student-updated'));
-    window.dispatchEvent(new CustomEvent('hss-admissions-updated'));
-    window.dispatchEvent(new CustomEvent('hss-results-updated'));
+    if (invalidateDebounceTimer) clearTimeout(invalidateDebounceTimer);
+    invalidateDebounceTimer = setTimeout(() => {
+      window.dispatchEvent(new CustomEvent('hss-student-updated'));
+      window.dispatchEvent(new CustomEvent('hss-admissions-updated'));
+    }, 200);
   }
 }
 

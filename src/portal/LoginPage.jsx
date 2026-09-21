@@ -226,6 +226,17 @@ export default function LoginPage() {
     return () => clearInterval(timer);
   }, [resendCooldown]);
 
+  // Window 2: Smooth auto-redirect once email verification link approves
+  useEffect(() => {
+    if (!window2VerifiedState?.verifiedSession) return;
+    const timer = setTimeout(() => {
+      isEmailVerificationTabRef.current = false;
+      onLoginSuccess(window2VerifiedState.verifiedSession, true);
+      navigate(window2VerifiedState.redirectPath || '/portal/admin', { replace: true });
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, [window2VerifiedState, onLoginSuccess, navigate]);
+
   // Helper to construct verified user session
   const createVerifiedSession = async (firebaseUser, overrideEmail = null, cachedStaffProfile = null) => {
     let activeUser = firebaseUser || auth.currentUser;
@@ -510,14 +521,23 @@ export default function LoginPage() {
               bc.close();
             } catch (_) {}
 
-            // Verification complete: Window 2 only verifies the handshake and notifies the waiting device.
-            // Do NOT call onLoginSuccess here so this device does not open the dashboard.
+            // Build verified session so this window can directly open the dashboard
+            const verifiedSession = await createVerifiedSession(userCred.user, cleanEmail, staffProfile);
+            const redirectPath = (roleName === 'Teacher' || roleName === 'Faculty') ? '/portal/teacher' : '/portal/admin';
+            verifiedSession.redirectPath = redirectPath;
+
+            // Immediately clear pending login locks so neither Window 1 nor Window 2 gets blocked
+            localStorage.removeItem('hss_pending_admin_login');
+            localStorage.removeItem('emailForSignIn');
+            sessionStorage.removeItem('hss_auth_handshake_id');
 
             setWindow2VerifiedState({
               email: cleanEmail,
               role: roleName,
               time: new Date().toLocaleTimeString(),
               handshakeId,
+              verifiedSession,
+              redirectPath,
             });
           })
           .catch((err) => {
@@ -1258,21 +1278,30 @@ export default function LoginPage() {
                   </div>
                 </div>
 
-                <div className="space-y-2 pt-1">
+                <div className="space-y-2.5 pt-1">
                   <div className="p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-800 dark:text-emerald-300 text-xs font-bold text-center">
-                    ✓ Login request verified and approved. Your dashboard is now loading on your login device.
+                    ✓ Identity verified and approved! Your authenticated session is ready.
                   </div>
                   <button
                     type="button"
                     onClick={() => {
-                      try {
-                        window.close();
-                      } catch (_) {}
+                      isEmailVerificationTabRef.current = false;
+                      localStorage.removeItem('hss_pending_admin_login');
+                      localStorage.removeItem('emailForSignIn');
+                      sessionStorage.removeItem('hss_auth_handshake_id');
+                      if (window2VerifiedState?.verifiedSession) {
+                        onLoginSuccess(window2VerifiedState.verifiedSession, true);
+                      }
+                      navigate(window2VerifiedState?.redirectPath || '/portal/admin', { replace: true });
                     }}
-                    className="w-full py-2.5 rounded-xl font-bold text-xs bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100 cursor-pointer transition-all shadow-xs"
+                    className="w-full py-2.5 rounded-xl font-black text-xs bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white cursor-pointer transition-all shadow-md hover:shadow-lg active:scale-95 flex items-center justify-center gap-2"
                   >
-                    Close This Window
+                    <span>Open {window2VerifiedState.role === 'Teacher' ? 'Teacher Workspace' : 'Admin Dashboard'} Now</span>
+                    <ChevronRight size={15} />
                   </button>
+                  <p className="text-[11px] text-slate-400 dark:text-slate-500 m-0 text-center">
+                    Auto-redirecting in 2 seconds... Or click above to continue.
+                  </p>
                 </div>
               </div>
             ) : emailLinkSentState ? (
