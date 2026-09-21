@@ -546,6 +546,7 @@ export default function ControlsAndSubjects() {
                     name: data.name || data.displayName || cleanE.split('@')[0],
                     email: cleanE,
                     role: isTeacher ? 'Teacher' : 'Admin',
+                    designation: data.designation || data.label || '',
                     perms: data.perms || (isTeacher ? ['attendanceMgmt', 'practicals'] : ['reports', 'analyticsReports']),
                     subject: data.subject || data.teachingSubject || '',
                     teachingSubject: data.teachingSubject || data.subject || '',
@@ -837,6 +838,7 @@ export default function ControlsAndSubjects() {
       name: '', 
       email: '', 
       role: 'Admin', 
+      designation: '',
       perms: ['reports'],
       subject: '',
       mobile: '',
@@ -855,6 +857,7 @@ export default function ControlsAndSubjects() {
       name: user.name || '', 
       email: user.email || '', 
       role: isSuperTarget ? 'SuperAdmin' : (user.role === 'Teacher' ? 'Teacher' : 'Admin'), 
+      designation: user.designation || user.label || '',
       perms: Array.isArray(user.perms) ? [...user.perms] : ['reports'],
       subject: user.subject || '',
       assignedClasses: user.assignedClasses || [],
@@ -913,6 +916,7 @@ export default function ControlsAndSubjects() {
           newEmail: cleanEmail,
           name: adminForm.name,
           role: resolvedRole,
+          designation: adminForm.designation?.trim() || '',
           perms: adminForm.perms,
           subject: adminForm.subject,
           assignedClasses: adminForm.assignedClasses || [],
@@ -928,9 +932,10 @@ export default function ControlsAndSubjects() {
                 name: adminForm.name.trim(), 
                 email: cleanEmail, 
                 role: resolvedRole, 
+                designation: adminForm.designation?.trim() || '',
                 perms: adminForm.perms,
                 subject: adminForm.subject,
-          assignedClasses: adminForm.assignedClasses || [],
+                assignedClasses: adminForm.assignedClasses || [],
                 mobile: adminForm.mobile
               }
             : u
@@ -958,6 +963,7 @@ export default function ControlsAndSubjects() {
           name: adminForm.name,
           email: cleanEmail,
           role: resolvedRole,
+          designation: adminForm.designation?.trim() || '',
           perms: adminForm.perms,
           subject: adminForm.subject,
           assignedClasses: adminForm.assignedClasses || [],
@@ -972,6 +978,7 @@ export default function ControlsAndSubjects() {
             name: adminForm.name.trim(), 
             email: cleanEmail, 
             role: resolvedRole, 
+            designation: adminForm.designation?.trim() || '',
             perms: adminForm.perms,
             subject: adminForm.subject,
             assignedClasses: adminForm.assignedClasses || [],
@@ -2147,6 +2154,15 @@ export default function ControlsAndSubjects() {
                               }`}>
                                 {isSuper ? 'SuperAdmin' : isTeacher ? 'Teacher' : 'Admin'}
                               </span>
+                              {(() => {
+                                const desig = user.designation || user.label || (cleanEmail === 'ghssshangus74@gmail.com' ? 'Principal' : '');
+                                if (!desig) return null;
+                                return (
+                                  <span className="px-1.5 py-0.2 rounded-full font-black text-[8.5px] uppercase tracking-wider bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300 border border-sky-300 dark:border-sky-800 shrink-0 font-sans shadow-2xs">
+                                    {desig}
+                                  </span>
+                                );
+                              })()}
                               {user.subject && (
                                 <span className="px-1 py-0.2 rounded text-[8.5px] font-bold bg-blue-100 dark:bg-blue-950 text-blue-800 dark:text-blue-300 border border-blue-200 dark:border-blue-800 shrink-0 font-sans">
                                   {user.subject}
@@ -2540,6 +2556,25 @@ export default function ControlsAndSubjects() {
                   </div>
                 </div>
 
+                {/* Administrative Designation (if Admin) */}
+                {adminForm.role === 'Admin' && (
+                  <div className="p-3 rounded-2xl bg-amber-50/70 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 space-y-1">
+                    <label className="block text-[11px] font-extrabold text-amber-900 dark:text-amber-300">
+                      Administrative Designation / Special Label <span className="text-slate-400 font-normal">(Optional — e.g. Clerk, Principal)</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={adminForm.designation || ''}
+                      onChange={(e) => setAdminForm({ ...adminForm, designation: e.target.value })}
+                      placeholder="e.g. Clerk, Principal, Dealing Assistant, Accountant"
+                      className="w-full px-3 py-1.5 rounded-xl text-xs font-bold border border-amber-300 dark:border-amber-700/80 bg-white dark:bg-slate-900 text-slate-900 dark:text-white placeholder-slate-400 outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all"
+                    />
+                    <p className="text-[10px] font-semibold text-amber-700 dark:text-amber-400 pt-0.5">
+                      Standard Admins can hold special operational labels (e.g. Principal or Clerk) while having designated modular access permissions.
+                    </p>
+                  </div>
+                )}
+
                 {/* Teaching Subject (if Teacher) */}
                 {adminForm.role === 'Teacher' && (
                   <div className="p-3 rounded-2xl bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/60 space-y-1">
@@ -2779,13 +2814,17 @@ export default function ControlsAndSubjects() {
             </div>
             <div>
               <h3 className="font-black text-base text-slate-900 dark:text-white">
-                {userToDelete.role === 'Teacher' ? 'Delete Teacher Account?' : 'Revoke Admin Access?'}
+                {userToDelete.role === 'Teacher' 
+                  ? 'Delete Teacher Account?' 
+                  : userToDelete.designation 
+                  ? `Revoke ${userToDelete.designation} Privileges?` 
+                  : 'Revoke Admin Privileges?'}
               </h3>
               <p className="text-xs font-bold text-slate-500 dark:text-slate-400 mt-1">
                 {userToDelete.role === 'Teacher' ? (
                   <>Are you sure you want to delete the teacher account for <strong className="text-slate-900 dark:text-white">{userToDelete.name}</strong> ({userToDelete.email})?</>
                 ) : (
-                  <>Are you sure you want to revoke admin privileges for <strong className="text-slate-900 dark:text-white">{userToDelete.name}</strong> ({userToDelete.email})?</>
+                  <>Are you sure you want to revoke administrative access for <strong className="text-slate-900 dark:text-white">{userToDelete.name}</strong> {userToDelete.designation ? `(${userToDelete.designation})` : ''} ({userToDelete.email})? They will immediately lose access to all administrative modules.</>
                 )}
               </p>
             </div>
