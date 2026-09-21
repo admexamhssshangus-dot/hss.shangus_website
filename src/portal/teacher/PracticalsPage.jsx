@@ -1933,9 +1933,14 @@ export default function PracticalsPage() {
           const pDraft = (draft.practicalMarks !== undefined && draft.practicalMarks !== null && String(draft.practicalMarks).trim() !== '') ? draft.practicalMarks : undefined;
           const vDraft = (draft.vivaMarks !== undefined && draft.vivaMarks !== null && String(draft.vivaMarks).trim() !== '') ? draft.vivaMarks : undefined;
 
-          // Saved database marks take absolute priority over blank local draft entries; draft marks apply when edited
-          const pMarkVal = pSaved !== undefined ? pSaved : (pDraft !== undefined ? pDraft : '');
-          const vMarkVal = vSaved !== undefined ? vSaved : (vDraft !== undefined ? vDraft : '');
+          // If a local draft exists (savedAt is recorded), the teacher's draft edits take precedence over database marks
+          const hasLocalDraft = Boolean(localDraftSavedTime && (pDraft !== undefined || vDraft !== undefined));
+          const pMarkVal = (hasLocalDraft && pDraft !== undefined)
+            ? pDraft
+            : (pSaved !== undefined ? pSaved : (pDraft !== undefined ? pDraft : ''));
+          const vMarkVal = (hasLocalDraft && vDraft !== undefined)
+            ? vDraft
+            : (vSaved !== undefined ? vSaved : (vDraft !== undefined ? vDraft : ''));
 
           return {
             rollNo: roll,
@@ -2225,7 +2230,7 @@ export default function PracticalsPage() {
 
 
   // Handle Mark Change — full range 0 to subjectMaxMarks allowed
-  const handleMarkChange = (index, field, val) => {
+  const handleMarkChange = (studentOrIdx, field, val) => {
     const rawVal = val.trim().toUpperCase();
     if (rawVal !== '' && rawVal !== 'A' && rawVal !== 'AB' && rawVal !== 'ABSENT') {
       const num = Number(rawVal);
@@ -2236,9 +2241,40 @@ export default function PracticalsPage() {
     }
 
     setStudentMarks((prev) => {
+      let targetIdx = -1;
+      if (typeof studentOrIdx === 'number') {
+        targetIdx = studentOrIdx;
+      } else if (studentOrIdx && typeof studentOrIdx === 'object') {
+        // Multi-factor lookup in prev array
+        const targetRoll = studentOrIdx.rollNo !== undefined && studentOrIdx.rollNo !== null ? String(studentOrIdx.rollNo).trim() : '';
+        const targetName = (studentOrIdx.name || studentOrIdx.studentName || '').toLowerCase().trim();
+        const targetReg = studentOrIdx.registrationNumber || studentOrIdx.regNo || studentOrIdx.registration_no || '';
+        const cleanReg = targetReg ? String(targetReg).replace(/[^a-zA-Z0-9]/g, '').toLowerCase() : '';
+        const targetForm = studentOrIdx.formNo ? String(studentOrIdx.formNo).trim() : '';
+        const targetId = studentOrIdx.id;
+
+        targetIdx = prev.findIndex(s => {
+          if (targetId && s.id && s.id === targetId) return true;
+          const sReg = s.registrationNumber || s.regNo || s.registration_no || '';
+          if (cleanReg && sReg) {
+            const sClean = String(sReg).replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+            if (sClean === cleanReg) return true;
+          }
+          const sRoll = s.rollNo !== undefined && s.rollNo !== null ? String(s.rollNo).trim() : '';
+          const sName = (s.name || s.studentName || '').toLowerCase().trim();
+          if (targetRoll && sRoll && targetRoll === sRoll) {
+            if (!targetName || !sName || targetName === sName) return true;
+          }
+          if (targetForm && s.formNo && String(s.formNo).trim() === targetForm) return true;
+          if (targetName && sName && targetName === sName) return true;
+          return false;
+        });
+      }
+
+      if (targetIdx < 0 || targetIdx >= prev.length) return prev;
       const updated = [...prev];
-      updated[index] = {
-        ...updated[index],
+      updated[targetIdx] = {
+        ...updated[targetIdx],
         [field]: rawVal,
       };
       return updated;
@@ -3891,7 +3927,6 @@ export default function PracticalsPage() {
               <div className="sm:hidden space-y-1.5">
                 {displayedStudents.map((st, idx) => {
                   const isAbsent = st.practicalMarks === 'A' || st.practicalMarks === 'AB';
-                  const originalIdx = studentMarks.findIndex(s => s.rollNo === st.rollNo && s.name === st.name);
                   const allSubjs = st.subjectsAbbr || st.rawSubjects || st.subjects || 'N/A';
                   const key = getStudentKey(st);
                   const isSelected = selectedKeys.has(key);
@@ -3932,7 +3967,7 @@ export default function PracticalsPage() {
                             placeholder={`0-${subjectMaxMarks}`}
                             value={st.practicalMarks}
                             disabled={!isSubmissionOpen || Boolean(existingAwardInfo?.lockedOtherTeacherAward)}
-                            onChange={(e) => handleMarkChange(originalIdx !== -1 ? originalIdx : idx, 'practicalMarks', e.target.value)}
+                            onChange={(e) => handleMarkChange(st, 'practicalMarks', e.target.value)}
                             className={`practicals-marks-input rounded-md border text-[11px] font-bold text-center leading-none focus:outline-none focus:ring-1 focus:ring-indigo-500 uppercase transition-all placeholder:text-slate-400 placeholder:text-[9.5px] placeholder:font-normal shrink-0 ${
                               isAbsent
                                 ? 'bg-amber-50 dark:bg-amber-950/50 border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300 font-bold'
@@ -3944,7 +3979,7 @@ export default function PracticalsPage() {
                           <button
                             type="button"
                             disabled={!isSubmissionOpen || Boolean(existingAwardInfo?.lockedOtherTeacherAward)}
-                            onClick={() => handleMarkChange(originalIdx !== -1 ? originalIdx : idx, 'practicalMarks', isAbsent ? '' : 'A')}
+                            onClick={() => handleMarkChange(st, 'practicalMarks', isAbsent ? '' : 'A')}
                             className={`practicals-ab-btn rounded-md font-mono text-[10.5px] font-black border transition-all cursor-pointer flex items-center justify-center shrink-0 active:scale-95 leading-none ${
                               isAbsent
                                 ? 'bg-amber-500 text-white border-amber-600 shadow-2xs'
@@ -4001,7 +4036,6 @@ export default function PracticalsPage() {
                       const isAbsent = st.practicalMarks === 'A' || st.practicalMarks === 'AB';
                       const valToConvert = isAbsent ? 'A' : (st.practicalMarks !== '' ? st.practicalMarks : '');
                       const inWords = valToConvert ? numberToWords(valToConvert) : '';
-                      const originalIdx = studentMarks.findIndex(s => s.rollNo === st.rollNo && s.name === st.name);
                       const allSubjs = st.subjectsAbbr || st.rawSubjects || st.subjects || 'N/A';
                       const key = getStudentKey(st);
                       const isSelected = selectedKeys.has(key);
@@ -4055,7 +4089,7 @@ export default function PracticalsPage() {
                                 placeholder={`0-${subjectMaxMarks} / A`}
                                 value={st.practicalMarks}
                                 disabled={!isSubmissionOpen || Boolean(existingAwardInfo?.lockedOtherTeacherAward)}
-                                onChange={(e) => handleMarkChange(originalIdx !== -1 ? originalIdx : idx, 'practicalMarks', e.target.value)}
+                                onChange={(e) => handleMarkChange(st, 'practicalMarks', e.target.value)}
                                 className="w-20 px-2 py-0 rounded-md border text-[11px] font-black h-5.5 focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white dark:bg-slate-950 border-slate-300 dark:border-slate-700 uppercase text-center leading-none disabled:opacity-50 disabled:cursor-not-allowed"
                               />
                               {inWords ? (
