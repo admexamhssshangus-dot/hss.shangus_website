@@ -334,23 +334,23 @@ export default function AdminGazetteRecordEditModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/80 backdrop-blur-sm animate-fade-in overflow-y-auto">
-      <div className="relative w-full max-w-4xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl overflow-hidden my-auto max-h-[92vh] flex flex-col">
+      <div className="relative w-full max-w-[97vw] 2xl:max-w-[1520px] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl sm:rounded-2xl shadow-2xl overflow-hidden my-auto max-h-[96vh] flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between px-4 sm:px-6 py-3.5 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white border-b border-indigo-900/50 flex-shrink-0">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-400/30 flex items-center justify-center text-amber-300 font-black shadow-inner flex-shrink-0">
-              <ShieldCheck size={20} />
+        <div className="flex items-center justify-between px-3 sm:px-5 py-2 sm:py-2.5 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white border-b border-indigo-900/50 flex-shrink-0">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-8 h-8 rounded-lg bg-amber-500/20 border border-amber-400/30 flex items-center justify-center text-amber-300 font-black shadow-inner flex-shrink-0">
+              <ShieldCheck size={18} />
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
-                <h3 className="text-base sm:text-lg font-black tracking-tight text-white m-0 truncate">
+                <h3 className="text-sm sm:text-base font-black tracking-tight text-white m-0 truncate">
                   Admin Candidate Gazette Editor
                 </h3>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-400/30 flex items-center gap-1">
-                  <ShieldCheck size={10} /> Verified Admin Mode
+                <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-400/30 flex items-center gap-1">
+                  <ShieldCheck size={9} /> Verified Admin Mode
                 </span>
               </div>
-              <p className="text-xs text-indigo-200/80 m-0 truncate">
+              <p className="text-[11px] text-indigo-200/80 m-0 truncate">
                 Direct marks & awards override with authentic Firestore audit trail
               </p>
             </div>
@@ -361,60 +361,60 @@ export default function AdminGazetteRecordEditModal({
             className="p-1.5 rounded-lg text-indigo-300 hover:text-white hover:bg-white/10 transition-colors"
             title="Close"
           >
-            <X size={20} />
+            <X size={18} />
           </button>
         </div>
 
         {/* Candidate Profile Strip */}
-        <div className="px-4 sm:px-6 py-3 bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3 text-xs flex-shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-full bg-indigo-100 dark:bg-indigo-950/80 text-indigo-700 dark:text-indigo-300 font-black flex items-center justify-center border border-indigo-200 dark:border-indigo-800 text-sm">
+        <div className="px-3 sm:px-5 py-1.5 sm:py-2 bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2 text-xs flex-shrink-0">
+          <div className="flex items-center gap-2.5">
+            <div className="w-7 h-7 rounded-full bg-indigo-100 dark:bg-indigo-950/80 text-indigo-700 dark:text-indigo-300 font-black flex items-center justify-center border border-indigo-200 dark:border-indigo-800 text-xs">
               {candidate.name?.slice(0, 2).toUpperCase() || 'ST'}
             </div>
             <div>
-              <div className="font-black text-slate-900 dark:text-white text-sm">
+              <div className="font-black text-slate-900 dark:text-white text-xs sm:text-sm">
                 {candidate.name}
               </div>
-              <div className="text-slate-500 dark:text-slate-400 text-[11px]">
+              <div className="text-slate-500 dark:text-slate-400 text-[10.5px]">
                 Parentage: {candidate.fatherName || '—'}
               </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 flex-wrap text-[11px]">
-            <span className="px-2.5 py-1 rounded-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 font-bold text-slate-700 dark:text-slate-300">
+          <div className="flex items-center gap-1.5 flex-wrap text-[10.5px]">
+            <span className="px-2 py-0.5 rounded bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 font-bold text-slate-700 dark:text-slate-300">
               Roll No: <span className="font-mono font-black text-indigo-600 dark:text-indigo-400">{candidate.rollNo || '—'}</span>
             </span>
-            <span className="px-2.5 py-1 rounded-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 font-bold text-slate-700 dark:text-slate-300">
+            <span className="px-2 py-0.5 rounded bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 font-bold text-slate-700 dark:text-slate-300">
               Reg No: <span className="font-mono font-black text-slate-800 dark:text-slate-200">{candidate.regNo || '—'}</span>
             </span>
-            <span className="px-2.5 py-1 rounded-md bg-indigo-50 dark:bg-indigo-950/50 border border-indigo-200 dark:border-indigo-800 font-bold text-indigo-700 dark:text-indigo-300">
+            <span className="px-2 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950/50 border border-indigo-200 dark:border-indigo-800 font-bold text-indigo-700 dark:text-indigo-300">
               {selectedClass} • {candidate.stream || 'General'}
             </span>
           </div>
         </div>
 
         {/* Modal Scrollable Body */}
-        <div className="p-4 sm:p-6 overflow-y-auto space-y-5 flex-1">
+        <div className="p-2.5 sm:p-4 overflow-y-auto space-y-3 flex-1">
           {errorMsg && (
-            <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-900 text-rose-800 dark:text-rose-200 text-xs flex items-center gap-2">
-              <AlertTriangle size={16} className="flex-shrink-0 text-rose-500" />
+            <div className="p-2.5 rounded-lg bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-900 text-rose-800 dark:text-rose-200 text-xs flex items-center gap-2">
+              <AlertTriangle size={15} className="flex-shrink-0 text-rose-500" />
               <span>{errorMsg}</span>
             </div>
           )}
 
           {/* Subject Marks Grid */}
           <div>
-            <div className="flex items-center justify-between mb-2.5">
-              <h4 className="text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5 m-0">
-                <Award size={14} className="text-indigo-500" /> Subject Evaluation Marks
+            <div className="flex items-center justify-between mb-1.5">
+              <h4 className="text-[11px] sm:text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5 m-0">
+                <Award size={13} className="text-indigo-500" /> Subject Evaluation Marks
               </h4>
-              <span className="text-[11px] text-slate-500 dark:text-slate-400">
+              <span className="text-[10.5px] text-slate-500 dark:text-slate-400">
                 Enter numbers (0–Max), <code className="font-black text-rose-600 dark:text-rose-400">AB</code> for Absent, or leave blank
               </span>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
               {Object.values(marksState).map(sub => {
                 const isModified = sub.val !== sub.originalVal;
                 const isAb = sub.val === 'AB';
@@ -426,58 +426,59 @@ export default function AdminGazetteRecordEditModal({
                 return (
                   <div
                     key={sub.code}
-                    className={`p-3 rounded-xl border transition-all ${
+                    className={`p-2 rounded-lg border transition-all ${
                       isModified
-                        ? 'bg-amber-50/50 dark:bg-amber-950/20 border-amber-300 dark:border-amber-800 shadow-sm'
+                        ? 'bg-amber-50/70 dark:bg-amber-950/30 border-amber-400 dark:border-amber-700 shadow-xs ring-1 ring-amber-400/30'
                         : sub.isEnrolled
-                        ? 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800'
-                        : 'bg-slate-50/60 dark:bg-slate-900/40 border-slate-200/60 dark:border-slate-800/60 opacity-80'
+                        ? 'bg-white dark:bg-slate-900 border-indigo-200/80 dark:border-indigo-900/70 shadow-2xs'
+                        : 'bg-slate-50/50 dark:bg-slate-900/40 border-slate-200/70 dark:border-slate-800/60 opacity-80 hover:opacity-100'
                     }`}
                   >
-                    <div className="flex items-start justify-between gap-1.5 mb-2">
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="font-mono font-black text-xs text-indigo-700 dark:text-indigo-400">
-                            {sub.code}
-                          </span>
-                          <span className="text-xs font-bold text-slate-900 dark:text-white truncate">
-                            {sub.name}
-                          </span>
-                        </div>
-                        <div className="text-[10px] text-slate-500 dark:text-slate-400">
-                          Max: {sub.maxMarks}M • Pass: {sub.minMarks}M
-                        </div>
+                    {/* Top Row: Code + Name + Badge */}
+                    <div className="flex items-center justify-between gap-1 mb-1">
+                      <div className="min-w-0 flex items-center gap-1.5 truncate">
+                        <span className="font-mono font-black text-xs text-indigo-600 dark:text-indigo-400 flex-shrink-0">
+                          {sub.code}
+                        </span>
+                        <span className="text-[11.5px] font-bold text-slate-900 dark:text-slate-100 truncate" title={sub.name}>
+                          {sub.name}
+                        </span>
                       </div>
 
-                      {/* Status / Enrolled Pill */}
-                      <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                      <div className="flex items-center gap-1 flex-shrink-0">
                         {sub.isEnrolled ? (
-                          <span className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase bg-teal-100 dark:bg-teal-950 text-teal-800 dark:text-teal-300 border border-teal-200 dark:border-teal-800">
+                          <span className="px-1.5 py-0.2 rounded text-[8.5px] font-black uppercase bg-teal-50 dark:bg-teal-950/80 text-teal-700 dark:text-teal-300 border border-teal-200/80 dark:border-teal-800">
                             Enrolled
                           </span>
                         ) : (
-                          <span className="px-1.5 py-0.5 rounded text-[9px] font-medium bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400">
+                          <span className="px-1 py-0.2 rounded text-[8.5px] font-medium bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500">
                             Elective
                           </span>
                         )}
 
                         {sub.updatedByAdmin && (
-                          <span className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800 flex items-center gap-0.5" title={`Previously edited by ${sub.updatedBy} (${sub.editReason || 'Admin Override'})`}>
-                            <ShieldCheck size={8} /> Admin Mod
+                          <span className="px-1 py-0.2 rounded text-[8px] font-black uppercase bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800 flex items-center gap-0.5" title={`Admin Mod: ${sub.updatedBy} (${sub.editReason || 'Override'})`}>
+                            <ShieldCheck size={8} /> Mod
                           </span>
                         )}
                       </div>
                     </div>
 
-                    {/* Input Controls */}
-                    <div className="flex items-center gap-1.5">
+                    {/* Middle Subline: Max / Pass */}
+                    <div className="flex items-center justify-between text-[9.5px] text-slate-500 dark:text-slate-400 mb-1.5 px-0.5">
+                      <span>Max: <strong>{sub.maxMarks}M</strong></span>
+                      <span>Pass: <strong>{sub.minMarks}M</strong></span>
+                    </div>
+
+                    {/* Controls Row: Input + AB + Reset + Result Badge */}
+                    <div className="flex items-center gap-1">
                       <input
                         type="text"
                         value={sub.val}
                         onChange={(e) => handleMarkChange(sub.code, e.target.value)}
                         placeholder="—"
                         maxLength={4}
-                        className={`w-20 px-2.5 py-1.5 rounded-lg text-center font-mono font-black text-sm border focus:outline-none focus:ring-2 transition-all ${
+                        className={`w-14 sm:w-16 h-7 px-1 text-center font-mono font-black text-xs rounded border focus:outline-none focus:ring-1.5 transition-all ${
                           isAb
                             ? 'bg-rose-100 dark:bg-rose-950 text-rose-800 dark:text-rose-200 border-rose-300 dark:border-rose-800 focus:ring-rose-400'
                             : isPass
@@ -491,7 +492,7 @@ export default function AdminGazetteRecordEditModal({
                       <button
                         type="button"
                         onClick={() => handleToggleAbsent(sub.code)}
-                        className={`px-2 py-1.5 rounded-lg font-black text-[11px] border transition-colors ${
+                        className={`h-7 px-1.5 rounded font-black text-[10px] border transition-colors ${
                           isAb
                             ? 'bg-rose-600 text-white border-rose-700 shadow-2xs'
                             : 'bg-slate-100 dark:bg-slate-800 hover:bg-rose-50 dark:hover:bg-rose-950 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'
@@ -505,23 +506,22 @@ export default function AdminGazetteRecordEditModal({
                         <button
                           type="button"
                           onClick={() => handleResetSubject(sub.code)}
-                          className="px-2 py-1.5 rounded-lg font-bold text-[11px] bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 transition-colors"
+                          className="h-7 px-1.5 rounded font-bold text-[9.5px] bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 transition-colors"
                           title={`Reset to original (${sub.originalVal || 'Empty'})`}
                         >
                           Reset
                         </button>
                       )}
 
-                      {/* Live Pass/Fail Indicator */}
-                      <div className="ml-auto">
+                      <div className="ml-auto flex-shrink-0">
                         {isPass && (
-                          <span className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 flex items-center gap-0.5">
-                            <CheckCircle2 size={12} /> Pass
+                          <span className="text-[9.5px] font-black text-emerald-600 dark:text-emerald-400 flex items-center gap-0.5">
+                            <CheckCircle2 size={11} /> Pass
                           </span>
                         )}
                         {isFail && (
-                          <span className="text-[10px] font-black text-rose-600 dark:text-rose-400 flex items-center gap-0.5">
-                            <XCircle size={12} /> {isAb ? 'Absent' : 'Reap'}
+                          <span className="text-[9.5px] font-black text-rose-600 dark:text-rose-400 flex items-center gap-0.5">
+                            <XCircle size={11} /> {isAb ? 'Absent' : 'Reap'}
                           </span>
                         )}
                       </div>
@@ -532,90 +532,95 @@ export default function AdminGazetteRecordEditModal({
             </div>
           </div>
 
-          {/* Live Assessment Calculation Preview */}
-          <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 flex flex-wrap items-center justify-between gap-3 text-xs">
-            <div className="flex items-center gap-4 flex-wrap">
-              <div>
-                <span className="text-slate-500 dark:text-slate-400 block text-[10px] uppercase font-bold">Total Marks</span>
-                <span className="font-mono font-black text-sm text-slate-900 dark:text-white">
-                  {assessmentSummary.totalObt} / {assessmentSummary.totalMax}
+          {/* Live Assessment Calculation Preview & Audit Row */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-2.5 items-stretch">
+            {/* Live Assessment Calculation Preview */}
+            <div className="lg:col-span-5 p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 flex flex-col justify-between gap-2 text-xs">
+              <div className="flex items-center justify-between gap-2 border-b border-slate-200 dark:border-slate-700/60 pb-1.5">
+                <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                  <Award size={12} className="text-indigo-500" /> Result Engine
+                </span>
+                <span className={`px-2 py-0.5 rounded text-[10.5px] font-black uppercase tracking-wider inline-block ${
+                  assessmentSummary.result === 'PASS'
+                    ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300'
+                    : assessmentSummary.result === 'ABSENT'
+                    ? 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300 border border-rose-300'
+                    : 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 border border-amber-300'
+                }`}>
+                  {assessmentSummary.result}
                 </span>
               </div>
-              <div>
-                <span className="text-slate-500 dark:text-slate-400 block text-[10px] uppercase font-bold">Percentage</span>
-                <span className="font-mono font-black text-sm text-indigo-600 dark:text-indigo-400">
-                  {assessmentSummary.pct}%
+
+              <div className="grid grid-cols-3 gap-2 text-center">
+                <div className="p-1 rounded bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800">
+                  <span className="text-slate-400 block text-[9px] uppercase font-bold">Total</span>
+                  <span className="font-mono font-black text-xs text-slate-900 dark:text-white">
+                    {assessmentSummary.totalObt} / {assessmentSummary.totalMax}
+                  </span>
+                </div>
+                <div className="p-1 rounded bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800">
+                  <span className="text-slate-400 block text-[9px] uppercase font-bold">Percent</span>
+                  <span className="font-mono font-black text-xs text-indigo-600 dark:text-indigo-400">
+                    {assessmentSummary.pct}%
+                  </span>
+                </div>
+                <div className="p-1 rounded bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800">
+                  <span className="text-slate-400 block text-[9px] uppercase font-bold">Evaluated</span>
+                  <span className="font-bold text-xs text-slate-700 dark:text-slate-300">
+                    {assessmentSummary.evalCount} Subs
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Audit Trail & Reason Input */}
+            <div className="lg:col-span-7 p-2.5 rounded-xl bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/60 flex flex-col justify-between gap-1.5">
+              <div className="flex items-center justify-between">
+                <label className="text-[11px] font-black text-slate-900 dark:text-white flex items-center gap-1 m-0">
+                  <ShieldCheck size={12} className="text-amber-600 dark:text-amber-400" />
+                  Audit Reason & Note <span className="text-rose-500">*</span>
+                </label>
+                <span className="text-[10px] font-mono text-slate-600 dark:text-slate-400">
+                  Admin: <strong className="text-indigo-600 dark:text-indigo-400">{adminEmail}</strong>
                 </span>
               </div>
-              <div>
-                <span className="text-slate-500 dark:text-slate-400 block text-[10px] uppercase font-bold">Evaluated</span>
-                <span className="font-bold text-slate-700 dark:text-slate-300">
-                  {assessmentSummary.evalCount} Subjects
-                </span>
+
+              {/* Quick Preset Chips */}
+              <div className="flex items-center gap-1 flex-wrap">
+                {REASON_PRESETS.map(preset => (
+                  <button
+                    key={preset}
+                    type="button"
+                    onClick={() => setEditReason(preset)}
+                    className={`px-1.5 py-0.5 rounded text-[9.5px] font-bold border transition-colors ${
+                      editReason === preset
+                        ? 'bg-amber-600 text-white border-amber-700'
+                        : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:bg-amber-50 dark:hover:bg-slate-800'
+                    }`}
+                  >
+                    {preset}
+                  </button>
+                ))}
               </div>
-            </div>
 
-            <div>
-              <span className="text-slate-500 dark:text-slate-400 block text-[10px] uppercase font-bold text-right">Calculated Result</span>
-              <span className={`px-2.5 py-1 rounded-md text-xs font-black uppercase tracking-wider inline-block ${
-                assessmentSummary.result === 'PASS'
-                  ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300'
-                  : assessmentSummary.result === 'ABSENT'
-                  ? 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300 border border-rose-300'
-                  : 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 border border-amber-300'
-              }`}>
-                {assessmentSummary.result}
-              </span>
+              <input
+                type="text"
+                value={editReason}
+                onChange={(e) => setEditReason(e.target.value)}
+                placeholder="e.g., Re-evaluation result update as per office memo #42..."
+                className="w-full px-2.5 py-1.5 rounded-lg text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-1.5 focus:ring-amber-500"
+              />
             </div>
-          </div>
-
-          {/* Audit Trail & Reason Input */}
-          <div className="p-4 rounded-xl bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/60 space-y-2.5">
-            <div className="flex items-center justify-between">
-              <label className="text-xs font-black text-slate-900 dark:text-white flex items-center gap-1.5 m-0">
-                <ShieldCheck size={14} className="text-amber-600 dark:text-amber-400" />
-                Administrative Reason & Audit Note <span className="text-rose-500">*</span>
-              </label>
-              <span className="text-[11px] font-mono text-slate-600 dark:text-slate-400">
-                Admin: <strong className="text-indigo-600 dark:text-indigo-400">{adminEmail}</strong>
-              </span>
-            </div>
-
-            {/* Quick Preset Chips */}
-            <div className="flex items-center gap-1.5 flex-wrap">
-              {REASON_PRESETS.map(preset => (
-                <button
-                  key={preset}
-                  type="button"
-                  onClick={() => setEditReason(preset)}
-                  className={`px-2 py-1 rounded-md text-[10px] font-bold border transition-colors ${
-                    editReason === preset
-                      ? 'bg-amber-600 text-white border-amber-700'
-                      : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:bg-amber-50 dark:hover:bg-slate-800'
-                  }`}
-                >
-                  {preset}
-                </button>
-              ))}
-            </div>
-
-            <input
-              type="text"
-              value={editReason}
-              onChange={(e) => setEditReason(e.target.value)}
-              placeholder="e.g., Re-evaluation result update as per office memo #42..."
-              className="w-full px-3 py-2 rounded-lg text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
-            />
           </div>
         </div>
 
         {/* Modal Footer */}
-        <div className="px-4 sm:px-6 py-3.5 bg-slate-50 dark:bg-slate-800/80 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3 flex-shrink-0">
+        <div className="px-3 sm:px-5 py-2 bg-slate-50 dark:bg-slate-800/80 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2 flex-shrink-0">
           <button
             type="button"
             onClick={onClose}
             disabled={isSaving}
-            className="px-4 py-2 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+            className="px-3.5 py-1.5 rounded-lg text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
           >
             Cancel
           </button>
@@ -625,7 +630,7 @@ export default function AdminGazetteRecordEditModal({
               type="button"
               onClick={handleSave}
               disabled={isSaving || !hasChanges}
-              className={`px-5 py-2 rounded-xl text-xs font-black flex items-center gap-2 shadow-sm transition-all ${
+              className={`px-4 py-1.5 rounded-lg text-xs font-black flex items-center gap-1.5 shadow-sm transition-all ${
                 isSaving || !hasChanges
                   ? 'bg-slate-300 dark:bg-slate-800 text-slate-500 dark:text-slate-600 cursor-not-allowed'
                   : 'bg-gradient-to-r from-amber-600 to-indigo-600 hover:from-amber-700 hover:to-indigo-700 text-white shadow-md hover:shadow-lg active:scale-95'
@@ -633,11 +638,11 @@ export default function AdminGazetteRecordEditModal({
             >
               {isSaving ? (
                 <>
-                  <RefreshCw size={14} className="animate-spin" /> Saving with Audit Stamp...
+                  <RefreshCw size={13} className="animate-spin" /> Saving...
                 </>
               ) : (
                 <>
-                  <Save size={14} /> Commit Admin Overrides
+                  <Save size={13} /> Commit Admin Overrides
                 </>
               )}
             </button>
