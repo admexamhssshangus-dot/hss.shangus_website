@@ -450,39 +450,40 @@ export default function CurriculumAndSubjectsManager() {
       )}
 
       {/* Main Module Card */}
-      <div className="p-3 sm:p-4 rounded-3xl border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs space-y-3">
+      <div className="p-2 sm:p-4 rounded-2xl sm:rounded-3xl border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs space-y-2.5 sm:space-y-3">
         {/* Top Header & Toolbar with Consistent [Save Changes] Button */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 dark:border-slate-800/80 pb-3 gap-3">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div className="w-8 h-8 rounded-2xl bg-teal-50 dark:bg-teal-950/60 border border-teal-200/60 dark:border-teal-800/60 flex items-center justify-center text-teal-600 dark:text-teal-400 shrink-0 shadow-2xs">
-              <BookOpen size={16} />
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 dark:border-slate-800/80 pb-2 sm:pb-3 gap-2 sm:gap-3">
+          <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
+            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl sm:rounded-2xl bg-teal-50 dark:bg-teal-950/60 border border-teal-200/60 dark:border-teal-800/60 flex items-center justify-center text-teal-600 dark:text-teal-400 shrink-0 shadow-2xs">
+              <BookOpen size={14} className="sm:hidden" />
+              <BookOpen size={16} className="hidden sm:inline" />
             </div>
             <div>
-              <h2 className="font-extrabold text-sm text-slate-900 dark:text-white leading-tight">
+              <h2 className="font-extrabold text-xs sm:text-sm text-slate-900 dark:text-white leading-tight">
                 Subjects, Streams & Feeder Schools
               </h2>
-              <p className="text-[10.5px] font-semibold text-slate-400 dark:text-slate-500">
+              <p className="text-[9.5px] sm:text-[10.5px] font-semibold text-slate-400 dark:text-slate-500">
                 Configure stream pools, compulsory/elective rules & feeder schools directory
               </p>
             </div>
           </div>
 
           {/* Consistent Standard Save Changes Button */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2 self-end sm:self-auto">
             <button
               type="button"
               onClick={handleUniversalSave}
               disabled={saving}
-              className="px-4 py-1.5 rounded-xl text-xs font-black bg-amber-600 hover:bg-amber-500 text-white shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50 transition-all active:scale-95"
+              className="px-2.5 py-1 sm:px-4 sm:py-1.5 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-black bg-amber-600 hover:bg-amber-500 text-white shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50 transition-all active:scale-95"
             >
-              {saving ? <RefreshCw size={13} className="animate-spin" /> : <Save size={13} />}
+              {saving ? <RefreshCw size={12} className="animate-spin" /> : <Save size={12} />}
               <span>Save Changes</span>
             </button>
           </div>
         </div>
 
         {/* Sub Navigation Bar */}
-        <div className="flex items-center gap-1.5 border-b border-slate-100 dark:border-slate-800 pb-2 overflow-x-auto no-scrollbar">
+        <div className="flex items-center gap-1 sm:gap-1.5 border-b border-slate-100 dark:border-slate-800 pb-1.5 sm:pb-2 overflow-x-auto no-scrollbar">
           {[
             { id: 'subjects', label: '1. Subjects & Streams Pools', shortLabel: '1. Pools', icon: BookOpen },
             { id: 'rules', label: '2. Admission Form Structure & Rules', shortLabel: '2. Form Rules', icon: Sliders },
@@ -495,13 +496,13 @@ export default function CurriculumAndSubjectsManager() {
                 key={sub.id}
                 type="button"
                 onClick={() => setActiveSubTab(sub.id)}
-                className={`py-1 px-3 rounded-xl font-black text-xs flex items-center gap-1.5 transition-all whitespace-nowrap cursor-pointer shrink-0 ${
+                className={`py-0.5 sm:py-1 px-2 sm:px-3 rounded-lg sm:rounded-xl font-black text-[10px] sm:text-xs flex items-center gap-1 sm:gap-1.5 transition-all whitespace-nowrap cursor-pointer shrink-0 ${
                   isActive
                     ? 'bg-teal-600 text-white shadow-xs ring-1 ring-teal-500/30'
                     : 'bg-slate-100 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
                 }`}
               >
-                <Icon size={13} />
+                <Icon size={12} />
                 <span className="sm:hidden">{sub.shortLabel}</span>
                 <span className="hidden sm:inline">{sub.label}</span>
               </button>
@@ -511,18 +512,18 @@ export default function CurriculumAndSubjectsManager() {
 
         {/* SUBTAB 1: SUBJECTS & STREAMS POOLS */}
         {activeSubTab === 'subjects' && (
-          <form onSubmit={handleSaveSubjects} className="space-y-3.5 pt-1">
+          <form onSubmit={handleSaveSubjects} className="space-y-2.5 sm:space-y-3.5 pt-0.5 sm:pt-1">
             {/* Class & Stream Selectors */}
-            <div className="p-3 rounded-2xl bg-slate-50/70 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-3">
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-black uppercase tracking-wider text-slate-500">Target Class:</span>
-                <div className="inline-flex p-1 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700">
+            <div className="p-2 sm:p-3 rounded-xl sm:rounded-2xl bg-slate-50/70 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-2 sm:gap-3">
+              <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                <span className="text-[10px] sm:text-xs font-black uppercase tracking-wider text-slate-500">Target Class:</span>
+                <div className="inline-flex p-0.5 sm:p-1 bg-white dark:bg-slate-900 rounded-lg sm:rounded-xl border border-slate-200 dark:border-slate-700">
                   {['9th', '10th', '11th', '12th'].map(c => (
                     <button
                       key={c}
                       type="button"
                       onClick={() => setSelectedClass(c)}
-                      className={`px-3 py-1 rounded-lg text-xs font-black transition-all cursor-pointer ${
+                      className={`px-2 py-0.5 sm:px-3 sm:py-1 rounded-md sm:rounded-lg text-[10.5px] sm:text-xs font-black transition-all cursor-pointer ${
                         selectedClass === c
                           ? 'bg-teal-600 text-white shadow-2xs'
                           : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
@@ -534,9 +535,9 @@ export default function CurriculumAndSubjectsManager() {
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-xs font-black uppercase tracking-wider text-slate-500">Stream:</span>
-                <div className="inline-flex p-1 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700">
+              <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                <span className="text-[10px] sm:text-xs font-black uppercase tracking-wider text-slate-500">Stream:</span>
+                <div className="inline-flex p-0.5 sm:p-1 bg-white dark:bg-slate-900 rounded-lg sm:rounded-xl border border-slate-200 dark:border-slate-700">
                   {['General', 'Science', 'Humanities', 'Commerce'].map(s => {
                     const isSec = selectedClass === '9th' || selectedClass === '10th';
                     if (isSec && s !== 'General') return null;
@@ -547,7 +548,7 @@ export default function CurriculumAndSubjectsManager() {
                         key={s}
                         type="button"
                         onClick={() => setSelectedStream(s)}
-                        className={`px-3 py-1 rounded-lg text-xs font-black transition-all cursor-pointer ${
+                        className={`px-2 py-0.5 sm:px-3 sm:py-1 rounded-md sm:rounded-lg text-[10.5px] sm:text-xs font-black transition-all cursor-pointer ${
                           selectedStream === s
                             ? 'bg-indigo-600 text-white shadow-2xs'
                             : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
@@ -562,18 +563,18 @@ export default function CurriculumAndSubjectsManager() {
                 <button
                   type="button"
                   onClick={handleExploreCombinations}
-                  className="px-3 py-1.5 rounded-xl font-black text-xs text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/80 hover:bg-indigo-100 border border-indigo-200 dark:border-indigo-800 flex items-center gap-1.5 cursor-pointer shadow-2xs transition-all"
+                  className="px-2 py-1 sm:px-3 sm:py-1.5 rounded-lg sm:rounded-xl font-black text-[10.5px] sm:text-xs text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/80 hover:bg-indigo-100 border border-indigo-200 dark:border-indigo-800 flex items-center gap-1 cursor-pointer shadow-2xs transition-all"
                 >
-                  <Wand2 size={13} className="text-indigo-600" />
+                  <Wand2 size={12} className="text-indigo-600" />
                   <span>Explore Combinations</span>
                 </button>
               </div>
             </div>
 
             {/* Constraints Row: Min / Max Subjects */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-3 rounded-2xl bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200/80 dark:border-amber-800/60">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 p-2 sm:p-3 rounded-xl sm:rounded-2xl bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200/80 dark:border-amber-800/60">
               <div>
-                <label className="block text-[10px] font-black uppercase text-amber-900 dark:text-amber-300 mb-1">
+                <label className="block text-[9px] sm:text-[10px] font-black uppercase text-amber-900 dark:text-amber-300 mb-0.5 sm:mb-1">
                   Min Total Subjects
                 </label>
                 <input
@@ -582,12 +583,12 @@ export default function CurriculumAndSubjectsManager() {
                   max="10"
                   value={minSubjects}
                   onChange={(e) => setMinSubjects(e.target.value)}
-                  className="w-full p-1.5 rounded-xl text-xs font-black border border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
+                  className="w-full p-1 sm:p-1.5 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-black border border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
                 />
               </div>
 
               <div>
-                <label className="block text-[10px] font-black uppercase text-amber-900 dark:text-amber-300 mb-1">
+                <label className="block text-[9px] sm:text-[10px] font-black uppercase text-amber-900 dark:text-amber-300 mb-0.5 sm:mb-1">
                   Max Total Subjects
                 </label>
                 <input
@@ -596,12 +597,12 @@ export default function CurriculumAndSubjectsManager() {
                   max="10"
                   value={maxSubjects}
                   onChange={(e) => setMaxSubjects(e.target.value)}
-                  className="w-full p-1.5 rounded-xl text-xs font-black border border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
+                  className="w-full p-1 sm:p-1.5 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-black border border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
                 />
               </div>
 
               <div>
-                <label className="block text-[10px] font-black uppercase text-amber-900 dark:text-amber-300 mb-1">
+                <label className="block text-[9px] sm:text-[10px] font-black uppercase text-amber-900 dark:text-amber-300 mb-0.5 sm:mb-1">
                   Group B Electives (Min - Max)
                 </label>
                 <div className="flex items-center gap-1">
@@ -611,7 +612,7 @@ export default function CurriculumAndSubjectsManager() {
                     max="10"
                     value={g1Min}
                     onChange={(e) => setG1Min(e.target.value)}
-                    className="w-1/2 p-1.5 rounded-xl text-xs font-black border border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
+                    className="w-1/2 p-1 sm:p-1.5 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-black border border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
                   />
                   <span className="text-slate-400 font-bold">-</span>
                   <input
@@ -620,13 +621,13 @@ export default function CurriculumAndSubjectsManager() {
                     max="10"
                     value={g1Max}
                     onChange={(e) => setG1Max(e.target.value)}
-                    className="w-1/2 p-1.5 rounded-xl text-xs font-black border border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
+                    className="w-1/2 p-1 sm:p-1.5 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-black border border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-[10px] font-black uppercase text-amber-900 dark:text-amber-300 mb-1">
+                <label className="block text-[9px] sm:text-[10px] font-black uppercase text-amber-900 dark:text-amber-300 mb-0.5 sm:mb-1">
                   Group C Vocational (Min - Max)
                 </label>
                 <div className="flex items-center gap-1">
@@ -636,7 +637,7 @@ export default function CurriculumAndSubjectsManager() {
                     max="10"
                     value={g2Min}
                     onChange={(e) => setG2Min(e.target.value)}
-                    className="w-1/2 p-1.5 rounded-xl text-xs font-black border border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
+                    className="w-1/2 p-1 sm:p-1.5 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-black border border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
                   />
                   <span className="text-slate-400 font-bold">-</span>
                   <input
@@ -645,35 +646,35 @@ export default function CurriculumAndSubjectsManager() {
                     max="10"
                     value={g2Max}
                     onChange={(e) => setG2Max(e.target.value)}
-                    className="w-1/2 p-1.5 rounded-xl text-xs font-black border border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
+                    className="w-1/2 p-1 sm:p-1.5 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-black border border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
                   />
                 </div>
               </div>
             </div>
 
             {/* 3 Subject Pools Columns */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 sm:gap-3">
               {/* Pool A: Compulsory */}
-              <div className="p-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xs space-y-2.5">
-                <div className="flex items-center justify-between pb-1.5 border-b border-slate-100 dark:border-slate-800">
-                  <span className="font-black text-xs text-indigo-700 dark:text-indigo-400">
+              <div className="p-2.5 sm:p-3 rounded-xl sm:rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xs space-y-2">
+                <div className="flex items-center justify-between pb-1 border-b border-slate-100 dark:border-slate-800">
+                  <span className="font-black text-[11px] sm:text-xs text-indigo-700 dark:text-indigo-400">
                     Group A: Compulsory ({groupA.length})
                   </span>
-                  <span className="text-[9.5px] font-bold bg-indigo-100 dark:bg-indigo-950 text-indigo-800 dark:text-indigo-300 px-2 py-0.5 rounded-full">
+                  <span className="text-[8.5px] sm:text-[9.5px] font-bold bg-indigo-100 dark:bg-indigo-950 text-indigo-800 dark:text-indigo-300 px-1.5 sm:px-2 py-0.5 rounded-full">
                     Auto-Locked
                   </span>
                 </div>
 
-                <div className="flex flex-wrap gap-1.5 min-h-[90px] p-2 bg-slate-50 dark:bg-slate-950/40 rounded-xl border border-slate-200/70 dark:border-slate-800/70">
+                <div className="flex flex-wrap gap-1 sm:gap-1.5 min-h-[60px] sm:min-h-[90px] p-1.5 sm:p-2 bg-slate-50 dark:bg-slate-950/40 rounded-lg sm:rounded-xl border border-slate-200/70 dark:border-slate-800/70">
                   {groupA.map((sub, i) => (
-                    <span key={i} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-100 dark:bg-indigo-950 text-indigo-900 dark:text-indigo-200 text-xs font-bold shadow-2xs">
+                    <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md sm:rounded-lg bg-indigo-100 dark:bg-indigo-950 text-indigo-900 dark:text-indigo-200 text-[10.5px] sm:text-xs font-bold shadow-2xs">
                       {sub}
                       <button
                         type="button"
                         onClick={() => setGroupA(groupA.filter((_, idx) => idx !== i))}
                         className="hover:text-rose-600 p-0.5"
                       >
-                        <X size={11} />
+                        <X size={10} />
                       </button>
                     </span>
                   ))}
@@ -682,13 +683,13 @@ export default function CurriculumAndSubjectsManager() {
                   )}
                 </div>
 
-                <div className="flex gap-1.5">
+                <div className="flex gap-1 sm:gap-1.5">
                   <input
                     type="text"
                     value={newSubA}
                     onChange={(e) => setNewSubA(e.target.value)}
                     placeholder="Add compulsory subject..."
-                    className="flex-1 px-2.5 py-1.5 rounded-xl text-xs border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white"
+                    className="flex-1 px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-lg sm:rounded-xl text-[11px] sm:text-xs border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white"
                   />
                   <button
                     type="button"
@@ -698,7 +699,7 @@ export default function CurriculumAndSubjectsManager() {
                         setNewSubA('');
                       }
                     }}
-                    className="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs"
+                    className="px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-lg sm:rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-[10.5px] sm:text-xs cursor-pointer"
                   >
                     Add
                   </button>
@@ -706,41 +707,41 @@ export default function CurriculumAndSubjectsManager() {
               </div>
 
               {/* Pool B: Electives */}
-              <div className="p-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xs space-y-2.5">
-                <div className="flex items-center justify-between pb-1.5 border-b border-slate-100 dark:border-slate-800">
-                  <span className="font-black text-xs text-teal-700 dark:text-teal-400">
+              <div className="p-2.5 sm:p-3 rounded-xl sm:rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xs space-y-2">
+                <div className="flex items-center justify-between pb-1 border-b border-slate-100 dark:border-slate-800">
+                  <span className="font-black text-[11px] sm:text-xs text-teal-700 dark:text-teal-400">
                     Group B: Electives ({groupB.length})
                   </span>
-                  <span className="text-[9.5px] font-bold bg-teal-100 dark:bg-teal-950 text-teal-800 dark:text-teal-300 px-2 py-0.5 rounded-full">
+                  <span className="text-[8.5px] sm:text-[9.5px] font-bold bg-teal-100 dark:bg-teal-950 text-teal-800 dark:text-teal-300 px-1.5 sm:px-2 py-0.5 rounded-full">
                     {g1Min}-{g1Max} Required
                   </span>
                 </div>
 
-                <div className="flex flex-wrap gap-1.5 min-h-[90px] p-2 bg-slate-50 dark:bg-slate-950/40 rounded-xl border border-slate-200/70 dark:border-slate-800/70">
+                <div className="flex flex-wrap gap-1 sm:gap-1.5 min-h-[60px] sm:min-h-[90px] p-1.5 sm:p-2 bg-slate-50 dark:bg-slate-950/40 rounded-lg sm:rounded-xl border border-slate-200/70 dark:border-slate-800/70">
                   {groupB.map((sub, i) => (
-                    <span key={i} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-teal-100 dark:bg-teal-950 text-teal-900 dark:text-teal-200 text-xs font-bold shadow-2xs">
+                    <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md sm:rounded-lg bg-teal-100 dark:bg-teal-950 text-teal-900 dark:text-teal-200 text-[10.5px] sm:text-xs font-bold shadow-2xs">
                       {sub}
                       <button
                         type="button"
                         onClick={() => setGroupB(groupB.filter((_, idx) => idx !== i))}
                         className="hover:text-rose-600 p-0.5"
                       >
-                        <X size={11} />
+                        <X size={10} />
                       </button>
                     </span>
                   ))}
                   {groupB.length === 0 && (
-                    <span className="text-slate-400 italic text-xs self-center">No group B electives configured</span>
+                    <span className="text-slate-400 italic text-[10px] sm:text-xs self-center">No group B electives configured</span>
                   )}
                 </div>
 
-                <div className="flex gap-1.5">
+                <div className="flex gap-1 sm:gap-1.5">
                   <input
                     type="text"
                     value={newSubB}
                     onChange={(e) => setNewSubB(e.target.value)}
                     placeholder="Add elective subject..."
-                    className="flex-1 px-2.5 py-1.5 rounded-xl text-xs border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white"
+                    className="flex-1 px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-lg sm:rounded-xl text-[11px] sm:text-xs border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white"
                   />
                   <button
                     type="button"
@@ -750,7 +751,7 @@ export default function CurriculumAndSubjectsManager() {
                         setNewSubB('');
                       }
                     }}
-                    className="px-3 py-1.5 rounded-xl bg-teal-600 hover:bg-teal-500 text-white font-bold text-xs"
+                    className="px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-lg sm:rounded-xl bg-teal-600 hover:bg-teal-500 text-white font-bold text-[10.5px] sm:text-xs cursor-pointer"
                   >
                     Add
                   </button>
@@ -758,41 +759,41 @@ export default function CurriculumAndSubjectsManager() {
               </div>
 
               {/* Pool C: Vocational / Skill */}
-              <div className="p-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xs space-y-2.5">
-                <div className="flex items-center justify-between pb-1.5 border-b border-slate-100 dark:border-slate-800">
-                  <span className="font-black text-xs text-amber-700 dark:text-amber-400">
+              <div className="p-2.5 sm:p-3 rounded-xl sm:rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xs space-y-2">
+                <div className="flex items-center justify-between pb-1 border-b border-slate-100 dark:border-slate-800">
+                  <span className="font-black text-[11px] sm:text-xs text-amber-700 dark:text-amber-400">
                     Group C: Skill & Voc. ({groupC.length})
                   </span>
-                  <span className="text-[9.5px] font-bold bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 px-2 py-0.5 rounded-full">
+                  <span className="text-[8.5px] sm:text-[9.5px] font-bold bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 px-1.5 sm:px-2 py-0.5 rounded-full">
                     {g2Min}-{g2Max} Required
                   </span>
                 </div>
 
-                <div className="flex flex-wrap gap-1.5 min-h-[90px] p-2 bg-slate-50 dark:bg-slate-950/40 rounded-xl border border-slate-200/70 dark:border-slate-800/70">
+                <div className="flex flex-wrap gap-1 sm:gap-1.5 min-h-[60px] sm:min-h-[90px] p-1.5 sm:p-2 bg-slate-50 dark:bg-slate-950/40 rounded-lg sm:rounded-xl border border-slate-200/70 dark:border-slate-800/70">
                   {groupC.map((sub, i) => (
-                    <span key={i} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-100 dark:bg-amber-950 text-amber-900 dark:text-amber-200 text-xs font-bold shadow-2xs">
+                    <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md sm:rounded-lg bg-amber-100 dark:bg-amber-950 text-amber-900 dark:text-amber-200 text-[10.5px] sm:text-xs font-bold shadow-2xs">
                       {sub}
                       <button
                         type="button"
                         onClick={() => setGroupC(groupC.filter((_, idx) => idx !== i))}
                         className="hover:text-rose-600 p-0.5"
                       >
-                        <X size={11} />
+                        <X size={10} />
                       </button>
                     </span>
                   ))}
                   {groupC.length === 0 && (
-                    <span className="text-slate-400 italic text-xs self-center">No group C skill subjects configured</span>
+                    <span className="text-slate-400 italic text-[10px] sm:text-xs self-center">No group C skill subjects configured</span>
                   )}
                 </div>
 
-                <div className="flex gap-1.5">
+                <div className="flex gap-1 sm:gap-1.5">
                   <input
                     type="text"
                     value={newSubC}
                     onChange={(e) => setNewSubC(e.target.value)}
                     placeholder="Add skill subject..."
-                    className="flex-1 px-2.5 py-1.5 rounded-xl text-xs border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white"
+                    className="flex-1 px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-lg sm:rounded-xl text-[11px] sm:text-xs border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white"
                   />
                   <button
                     type="button"
@@ -802,7 +803,7 @@ export default function CurriculumAndSubjectsManager() {
                         setNewSubC('');
                       }
                     }}
-                    className="px-3 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs"
+                    className="px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-lg sm:rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold text-[10.5px] sm:text-xs cursor-pointer"
                   >
                     Add
                   </button>
@@ -946,26 +947,26 @@ export default function CurriculumAndSubjectsManager() {
 
         {/* SUBTAB 3: FEEDER SCHOOLS REGISTRY */}
         {activeSubTab === 'schools' && (
-          <div className="space-y-3.5 pt-1">
+          <div className="space-y-2.5 sm:space-y-3.5 pt-0.5 sm:pt-1">
             {/* Feeder Schools Controls Bar */}
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 pb-2 border-b border-slate-100 dark:border-slate-800">
-              <div className="flex items-center gap-2">
-                <span className="font-black text-xs text-slate-800 dark:text-slate-200">
-                  Feeder Schools Directory ({feederSchools.length})
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 pb-1.5 sm:pb-2 border-b border-slate-100 dark:border-slate-800">
+              <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                <span className="font-black text-[11px] sm:text-xs text-slate-800 dark:text-slate-200">
+                  Feeder Schools ({feederSchools.length})
                 </span>
                 <button
                   type="button"
                   onClick={handleSortSchools}
-                  className="px-2.5 py-1 rounded-lg text-xs font-bold bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 flex items-center gap-1 cursor-pointer transition-colors"
+                  className="px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md sm:rounded-lg text-[10px] sm:text-xs font-bold bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 flex items-center gap-1 cursor-pointer transition-colors"
                   title="Sort schools alphabetically A to Z"
                 >
-                  <ArrowUpDown size={12} />
+                  <ArrowUpDown size={11} />
                   <span>A-Z</span>
                 </button>
                 <button
                   type="button"
                   onClick={handleResetDefaultSchools}
-                  className="px-2.5 py-1 rounded-lg text-xs font-bold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/60 hover:bg-amber-100 border border-amber-200 dark:border-amber-800/80 cursor-pointer transition-colors"
+                  className="px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md sm:rounded-lg text-[10px] sm:text-xs font-bold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/60 hover:bg-amber-100 border border-amber-200 dark:border-amber-800/80 cursor-pointer transition-colors"
                   title="Reset to 44 standard defaults"
                 >
                   Reset Defaults
@@ -973,38 +974,38 @@ export default function CurriculumAndSubjectsManager() {
               </div>
 
               <div className="relative sm:w-64">
-                <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                 <input
                   type="text"
                   value={schoolSearchTerm}
                   onChange={(e) => setSchoolSearchTerm(e.target.value)}
                   placeholder="Search feeder school..."
-                  className="w-full pl-7 pr-6 py-1 rounded-xl text-xs font-semibold bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white placeholder-slate-400 outline-none focus:ring-1 focus:ring-teal-500 transition-all"
+                  className="w-full pl-7 pr-6 py-1 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-semibold bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white placeholder-slate-400 outline-none focus:ring-1 focus:ring-teal-500 transition-all"
                 />
                 {schoolSearchTerm && (
                   <button onClick={() => setSchoolSearchTerm('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400">
-                    <X size={12} />
+                    <X size={11} />
                   </button>
                 )}
               </div>
             </div>
 
             {/* Add New School Form */}
-            <form onSubmit={handleAddSchool} className="flex gap-2">
+            <form onSubmit={handleAddSchool} className="flex gap-1.5 sm:gap-2">
               <input
                 type="text"
                 value={newSchoolName}
                 onChange={(e) => setNewSchoolName(e.target.value)}
-                placeholder="Enter new feeder school name (e.g. GMS Shangus)..."
-                className="flex-1 px-3 py-1.5 rounded-xl text-xs font-semibold border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-teal-500"
+                placeholder="Enter new feeder school name..."
+                className="flex-1 px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-semibold border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-teal-500"
               />
               <button
                 type="submit"
                 disabled={!newSchoolName.trim()}
-                className="px-4 py-1.5 rounded-xl text-xs font-black bg-teal-600 hover:bg-teal-500 disabled:opacity-50 text-white flex items-center gap-1 cursor-pointer transition-all shadow-2xs"
+                className="px-3 py-1 sm:px-4 sm:py-1.5 rounded-lg sm:rounded-xl text-[10.5px] sm:text-xs font-black bg-teal-600 hover:bg-teal-500 disabled:opacity-50 text-white flex items-center gap-1 cursor-pointer transition-all shadow-2xs shrink-0"
               >
-                <Plus size={13} />
-                <span>Add School</span>
+                <Plus size={12} />
+                <span>Add</span>
               </button>
             </form>
 
