@@ -414,7 +414,7 @@ export async function sendStaffPasswordReset(email) {
     url: `${window.location.origin}/portal/login`,
     handleCodeInApp: false,
   });
-  return { success: true };
+  return { success: true, message: `✨ Password reset email successfully sent to ${cleanEmail}.` };
 }
 
 /**
