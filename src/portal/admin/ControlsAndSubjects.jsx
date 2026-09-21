@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { 
   Settings, BookOpen, ShieldCheck, Sliders, Save, RefreshCw, CheckCircle2, AlertCircle, 
   Trash2, Wand2, Mail, Plus, X, Database, Sparkles, Copy, Download, UserPlus, Edit3, 
-  Lock, ShieldAlert, Check, ArrowRight, Layers, FileCheck, FileSpreadsheet, GitMerge, 
+  Lock, ShieldAlert, Check, ArrowRight, Layers, FileCheck, GitMerge, 
   PanelsTopLeft, Send, Key, UserCheck, Phone, GraduationCap, Eye, EyeOff, Search,
   RotateCcw, ArrowUpDown, Pencil, CalendarCheck, ChevronDown, ChevronUp, SlidersHorizontal
 } from 'lucide-react';
@@ -11,7 +11,6 @@ import { db } from '../../services/firebase';
 import { doc, getDoc, setDoc, collection, getDocs } from 'firebase/firestore';
 import { loadSiteSettings } from '../../utils/settingsLoader';
 import SessionArchivalModal from './SessionArchivalModal';
-import BulkFieldOverwriteModal from './BulkFieldOverwriteModal';
 import ConfirmModal from '../components/ConfirmModal';
 import { 
   createStaffAccount, 
@@ -229,11 +228,9 @@ export default function ControlsAndSubjects() {
   const [rolloverMonth, setRolloverMonth] = useState(10); // 1-12 (October)
   const [rolloverDay, setRolloverDay] = useState(15); // 1-31
 
-  // Master Student Data & Board Ingestion Hub States
-  const [showMasterHubModal, setShowMasterHubModal] = useState(false);
-  const [masterHubInitialMode, setMasterHubInitialMode] = useState('overwrite');
-  const strict3PointMatching = true;
+  // Administrative Ingestion & Admission Controls
   const [allowExpressZeroRestrictions, setAllowExpressZeroRestrictions] = useState(false);
+  const strict3PointMatching = true;
   const enable30DayRollback = true;
 
   // Email Functionality Toggles
@@ -1347,119 +1344,38 @@ export default function ControlsAndSubjects() {
             </div>
           </div>
 
-          {/* Master Student Data & Board Ingestion Control Center Card */}
-          <div className="p-3 sm:p-3.5 rounded-2xl border border-emerald-300 dark:border-emerald-800/60 bg-gradient-to-br from-emerald-50/70 via-white to-teal-50/40 dark:from-slate-900 dark:via-slate-900 dark:to-emerald-950/20 shadow-sm space-y-2.5">
-            <div className="flex items-center justify-between border-b border-emerald-200 dark:border-emerald-800/60 pb-2 flex-wrap gap-2">
-              <div className="flex items-center gap-2">
-                <div className="w-7 h-7 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0">
-                  <Database size={15} />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h4 className="font-black text-xs text-slate-900 dark:text-white leading-tight">Master Student Data & Board Ingestion Hub</h4>
-                    <span className="text-[9px] bg-emerald-600 text-white font-black px-2 py-0.5 rounded-full uppercase tracking-wider">Board Records & Sync</span>
-                  </div>
-                  <p className="text-[10.5px] font-bold text-slate-500 dark:text-slate-400 leading-tight mt-0.5">
-                    Board overwrites, spreadsheet sync, express intake, and document OCR
-                  </p>
-                </div>
+          {/* Admin Express Ingestion Policy */}
+          <div className="p-3 sm:p-3.5 rounded-2xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div className="flex items-start sm:items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-blue-500/10 border border-blue-500/30 flex items-center justify-center text-blue-600 dark:text-blue-400 shrink-0 mt-0.5 sm:mt-0">
+                <SlidersHorizontal size={16} />
               </div>
-
-              <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-1.5 w-full sm:w-auto">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMasterHubInitialMode('overwrite');
-                    setShowMasterHubModal(true);
-                  }}
-                  className="px-2.5 py-1.5 sm:py-1 rounded-xl font-black text-xs text-white bg-emerald-700 hover:bg-emerald-600 shadow-2xs flex items-center justify-center gap-1 cursor-pointer transition-all active:scale-95"
-                >
-                  <FileSpreadsheet size={12} />
-                  <span>Bulk Overwrite</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMasterHubInitialMode('express');
-                    setShowMasterHubModal(true);
-                  }}
-                  className="px-2.5 py-1.5 sm:py-1 rounded-xl font-black text-xs text-white bg-blue-600 hover:bg-blue-500 shadow-2xs flex items-center justify-center gap-1 cursor-pointer transition-all active:scale-95"
-                >
-                  <UserPlus size={12} />
-                  <span>Express Entry</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMasterHubInitialMode('gazette_ai');
-                    setShowMasterHubModal(true);
-                  }}
-                  className="px-2.5 py-1.5 sm:py-1 rounded-xl font-black text-xs text-white bg-purple-600 hover:bg-purple-500 shadow-2xs flex items-center justify-center gap-1 cursor-pointer transition-all active:scale-95"
-                >
-                  <Sparkles size={12} />
-                  <span>Gazette AI</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMasterHubInitialMode('admit_ai');
-                    setShowMasterHubModal(true);
-                  }}
-                  className="px-2.5 py-1.5 sm:py-1 rounded-xl font-black text-xs text-white bg-amber-600 hover:bg-amber-500 shadow-2xs flex items-center justify-center gap-1 cursor-pointer transition-all active:scale-95"
-                >
-                  <FileCheck size={12} />
-                  <span>Admit Card AI</span>
-                </button>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h4 className="font-black text-xs text-slate-900 dark:text-white leading-tight">Express Admin Ingestion</h4>
+                  <span className={`text-[9.5px] font-black px-2 py-0.5 rounded-full border ${
+                    allowExpressZeroRestrictions 
+                      ? 'bg-blue-100 dark:bg-blue-950 text-blue-800 dark:text-blue-300 border-blue-200 dark:border-blue-800' 
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700'
+                  }`}>
+                    {allowExpressZeroRestrictions ? 'Privileged Entry Allowed' : 'Standard Restrictions Active'}
+                  </span>
+                </div>
+                <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400 leading-tight mt-0.5">
+                  Permits authorized staff to insert single student records directly via the Express Intake tool without requiring standard pre-requisite lockouts or duplicate restrictions.
+                </p>
               </div>
             </div>
 
-            {/* Governance Policy Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-0.5">
-              <label className="flex items-center justify-between p-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/90 text-xs font-bold text-slate-800 dark:text-slate-200 shadow-2xs">
-                <div className="pr-2">
-                  <div className="font-black text-xs text-slate-900 dark:text-white">Strict 3-Point Matching</div>
-                  <div className="text-[10px] text-slate-400 font-normal">Session, Class & Reg No.</div>
-                </div>
-                <input
-                  type="checkbox"
-                  checked={strict3PointMatching}
-                  readOnly disabled aria-label="Required protection"
-                  className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 shrink-0"
-                />
-              </label>
-
-              <label className="flex items-center justify-between p-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/90 text-xs font-bold text-slate-800 dark:text-slate-200 cursor-pointer shadow-2xs">
-                <div className="pr-2">
-                  <div className="font-black text-xs text-slate-900 dark:text-white">Express Admin Ingestion</div>
-                  <div className="text-[10px] text-slate-400 font-normal">Privileged single-record entry</div>
-                </div>
-                <input
-                  type="checkbox"
-                  checked={allowExpressZeroRestrictions}
-                  onChange={(e) => setAllowExpressZeroRestrictions(e.target.checked)}
-                  className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 cursor-pointer shrink-0"
-                />
-              </label>
-
-              <label className="flex items-center justify-between p-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/90 text-xs font-bold text-slate-800 dark:text-slate-200 shadow-2xs">
-                <div className="pr-2">
-                  <div className="font-black text-xs text-slate-900 dark:text-white">Rollback Protection</div>
-                  <div className="text-[10px] text-slate-400 font-normal">Pre-update snapshot preservation</div>
-                </div>
-                <input
-                  type="checkbox"
-                  checked={enable30DayRollback}
-                  readOnly disabled aria-label="Required protection"
-                  className="w-4 h-4 rounded text-purple-600 focus:ring-purple-500 shrink-0"
-                />
-              </label>
-            </div>
-
-            <div className="flex items-center justify-between text-[10.5px] font-bold text-slate-500 dark:text-slate-400 px-1 pt-0.5 flex-wrap gap-2">
-              <span>Cohort Session: <strong className="text-slate-800 dark:text-slate-200 font-mono">{session}</strong></span>
-              <span>Supported: <strong className="text-slate-800 dark:text-slate-200">Classes 9th–12th</strong></span>
-              <span>Schema: <strong className="text-emerald-700 dark:text-emerald-400">40+ Core Fields & Results</strong></span>
-            </div>
+            <label className="flex items-center gap-2.5 self-end sm:self-center px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 text-xs font-black text-slate-800 dark:text-slate-200 cursor-pointer hover:border-blue-300 dark:hover:border-blue-600 transition-all shrink-0">
+              <span>{allowExpressZeroRestrictions ? 'Enabled' : 'Disabled'}</span>
+              <input
+                type="checkbox"
+                checked={allowExpressZeroRestrictions}
+                onChange={(e) => setAllowExpressZeroRestrictions(e.target.checked)}
+                className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
+              />
+            </label>
           </div>
 
           <button
