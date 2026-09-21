@@ -281,17 +281,18 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
       const bExact = isClassExact(b.className) ? 1 : 0;
       if (aExact !== bExact) return bExact - aExact;
 
+      // Canonical approved documents take priority over unapproved pending drafts
+      const aApproved = a.status === 'approved' ? 1 : (a.status === 'submitted' ? 0.5 : 0);
+      const bApproved = b.status === 'approved' ? 1 : (b.status === 'submitted' ? 0.5 : 0);
+      if (aApproved !== bApproved) return bApproved - aApproved;
+
       const countEval = (doc) => Array.isArray(doc?.records) ? doc.records.filter(r => {
         const m = r.totalMarks ?? r.practicalMarks;
         return m !== null && m !== undefined && m !== '' && !/^(a|ab|absent)$/i.test(String(m).trim());
       }).length : 0;
       const aEval = countEval(a);
       const bEval = countEval(b);
-      if (Math.abs(aEval - bEval) > 5) return bEval - aEval;
-
-      const aApproved = a.status === 'approved' ? 1 : (a.status === 'submitted' ? 0.5 : 0);
-      const bApproved = b.status === 'approved' ? 1 : (b.status === 'submitted' ? 0.5 : 0);
-      if (aApproved !== bApproved) return bApproved - aApproved;
+      if (aEval !== bEval) return bEval - aEval;
 
       const getTs = (d) => {
         const t = d.updatedAt || d.approvedAt || d.submittedAt;
