@@ -126,7 +126,8 @@ button, input, select, textarea { font: inherit; }
 @media (min-width: 48rem) {
   .hero-container {
     height: calc(100vh - var(--site-header-height, 7rem));
-    min-height: 36rem;
+    min-height: 32rem;
+    max-height: 48rem;
   }
 }
 

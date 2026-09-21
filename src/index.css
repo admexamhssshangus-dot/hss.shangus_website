@@ -991,6 +991,8 @@ html, body, #root {
 @media (min-width: 768px) {
   .hero-container {
     height: calc(100vh - var(--site-header-height, 120px));
+    min-height: 32rem;
+    max-height: 48rem;
   }
 }
 
