@@ -169,11 +169,24 @@ export default function PortalLayout() {
           return;
         }
 
-        // If 2-step verification is pending, do not establish an authenticated session
-        if (localStorage.getItem('hss_pending_admin_login')) {
-          setSessionStateStable({ loading: false, user: null, isAuthenticated: false });
-          if (!isOnPublicPage) navigate('/portal/login', { replace: true });
-          return;
+        // If 2-step verification is pending, check if already approved or expired before blocking
+        const pendingAdminLogin = localStorage.getItem('hss_pending_admin_login');
+        if (pendingAdminLogin) {
+          try {
+            const parsed = JSON.parse(pendingAdminLogin);
+            const approvedRaw = localStorage.getItem('hss_admin_auth_approved');
+            const isApproved = approvedRaw && JSON.parse(approvedRaw)?.email === parsed?.email;
+            const isExpired = !parsed.ts || (Date.now() - parsed.ts > 10 * 60 * 1000);
+            if (isApproved || isExpired || sessionManager.isLoggedIn()) {
+              localStorage.removeItem('hss_pending_admin_login');
+            } else if (!sessionManager.isLoggedIn()) {
+              setSessionStateStable({ loading: false, user: null, isAuthenticated: false });
+              if (!isOnPublicPage) navigate('/portal/login', { replace: true });
+              return;
+            }
+          } catch (_) {
+            localStorage.removeItem('hss_pending_admin_login');
+          }
         }
 
         // On public pages (login, register, etc.), do not auto-elevate session from raw Firebase Auth events

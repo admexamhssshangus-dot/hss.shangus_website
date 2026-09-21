@@ -468,6 +468,16 @@ function PracticalsLoader() {
   );
 }
 
+let memoryPracticalsData = null;
+let memoryPracticalsSettings = null;
+let memoryPracticalsTs = 0;
+
+export const invalidatePracticalsCache = () => {
+  memoryPracticalsData = null;
+  memoryPracticalsSettings = null;
+  memoryPracticalsTs = 0;
+};
+
 // ─────────────────────────────────────────────────────────────
 // MAIN ADMIN PRACTICALS PORTAL COMPONENT
 // ─────────────────────────────────────────────────────────────
@@ -568,9 +578,26 @@ export default function AdminPracticals() {
   const loadData = useCallback(async (force = false) => {
     setLoading(true);
     try {
+      const isFresh = !force && memoryPracticalsData && (Date.now() - memoryPracticalsTs < 3 * 60 * 1000);
+
+      const fetchPracticals = isFresh
+        ? Promise.resolve(memoryPracticalsData)
+        : getDocs(collection(db, 'practicalsData')).then(snap => {
+            memoryPracticalsData = snap;
+            memoryPracticalsTs = Date.now();
+            return snap;
+          });
+
+      const fetchSettings = (!force && memoryPracticalsSettings)
+        ? Promise.resolve(memoryPracticalsSettings)
+        : getDocs(collection(db, 'adminPracticalsSettings')).then(snap => {
+            memoryPracticalsSettings = snap;
+            return snap;
+          });
+
       const [ssRaw, setDocSnap, ts, admissionsData, masterRegistersData] = await Promise.all([
-        getDocs(collection(db, 'practicalsData')),
-        getDocs(collection(db, 'adminPracticalsSettings')),
+        fetchPracticals,
+        fetchSettings,
         getStaffDirectory().catch(err => {
           console.warn('getStaffDirectory error handled:', err?.message || err);
           return { docs: [], empty: true, forEach: () => {} };
@@ -932,16 +959,25 @@ export default function AdminPracticals() {
 
   useEffect(() => {
     loadData();
+    let debounceTimer = null;
     const handleUpdate = () => {
-      loadData(true);
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        loadData(false);
+      }, 350);
     };
+
+    const handleResultsUpdate = () => {
+      invalidatePracticalsCache();
+      handleUpdate();
+    };
+
     window.addEventListener('hss-student-updated', handleUpdate);
-    window.addEventListener('hss-admissions-updated', handleUpdate);
-    window.addEventListener('hss-results-updated', handleUpdate);
+    window.addEventListener('hss-results-updated', handleResultsUpdate);
     return () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
       window.removeEventListener('hss-student-updated', handleUpdate);
-      window.removeEventListener('hss-admissions-updated', handleUpdate);
-      window.removeEventListener('hss-results-updated', handleUpdate);
+      window.removeEventListener('hss-results-updated', handleResultsUpdate);
     };
   }, [loadData]);
 

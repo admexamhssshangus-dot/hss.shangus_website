@@ -373,23 +373,24 @@ export default function AdminGkTestManager({ allStudents = [], onRefresh }) {
         .catch(() => {});
     }
 
+    let debounceTimer = null;
     const handleUpdate = () => {
-      getCachedCollection('admissions', true, 0)
-        .then((docs) => {
-          if (Array.isArray(docs) && docs.length > 0) {
-            setDirectoryStudents(docs);
-          }
-        })
-        .catch(() => {});
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        getCachedCollection('admissions', false, 5 * 60 * 1000)
+          .then((docs) => {
+            if (Array.isArray(docs) && docs.length > 0) {
+              setDirectoryStudents(docs);
+            }
+          })
+          .catch(() => {});
+      }, 350);
     };
 
     window.addEventListener('hss-student-updated', handleUpdate);
-    window.addEventListener('hss-admissions-updated', handleUpdate);
-    window.addEventListener('hss-results-updated', handleUpdate);
     return () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
       window.removeEventListener('hss-student-updated', handleUpdate);
-      window.removeEventListener('hss-admissions-updated', handleUpdate);
-      window.removeEventListener('hss-results-updated', handleUpdate);
     };
   }, [allStudents]);
 
