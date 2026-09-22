@@ -15,6 +15,7 @@ import { loadAdmissionWorkspace, saveAdmissionDraft, submitAdmission } from '../
 import { invalidateStudentCaches } from '../../services/dbCache';
 import { logStudentActivity } from '../../services/adminActivityLogger';
 import { isValidAadhaar, areAadhaarsDistinct, isStrictIsoDate, normalizeDobToIso, validateMinimumAge, MIN_ADMISSION_AGE, isPersonNameField, sanitizePersonName, validatePersonName } from '../../utils/admissionValidation';
+import { DEFAULT_FORM_STRUCTURE } from '../../utils/defaultFormSchema';
 
 export const SUBJECT_CANONICAL_SYNONYMS = {
   'social studies': 'Social Science',
@@ -478,6 +479,14 @@ export default function AdmissionForm() {
   const initForm = useCallback(async () => {
     setLoading(true);
     setAlert(null);
+    let isCancelled = false;
+    const safetyTimer = setTimeout(() => {
+      if (!isCancelled) {
+        console.warn('Admission form initialization reached safety threshold; releasing loader.');
+        setLoading(false);
+      }
+    }, 10000);
+
     try {
       const [structResult, subjCfgResult, appDataResult] = await Promise.allSettled([
         appsScriptApi.getFormStructure(),
@@ -495,8 +504,7 @@ export default function AdmissionForm() {
         setFormStructure(structRes);
       } else {
         // Safe fallback to default form structure
-        const defStruct = require('../../services/appsScriptApi').DEFAULT_FORM_STRUCTURE;
-        if (Array.isArray(defStruct)) setFormStructure(defStruct);
+        if (Array.isArray(DEFAULT_FORM_STRUCTURE)) setFormStructure(DEFAULT_FORM_STRUCTURE);
       }
 
       let mergedSubjConfig = (subjCfgRes && subjCfgRes.data) ? subjCfgRes.data : (subjCfgRes || {});
@@ -681,7 +689,10 @@ export default function AdmissionForm() {
       console.error('Failed to initialize admission form:', err);
       setAlert({ type: 'error', text: err.userMessage || 'Failed to load form configuration.' });
     } finally {
-      setLoading(false);
+      clearTimeout(safetyTimer);
+      if (!isCancelled) {
+        setLoading(false);
+      }
     }
   }, [currentUser, requestedApplicationKey]);
 
@@ -2133,18 +2144,21 @@ export default function AdmissionForm() {
               />
 
               {/* Step checklist */}
-              <div className="space-y-2.5 text-left pt-2 text-xs font-bold text-slate-100 bg-slate-950/80 p-4 rounded-2xl border border-slate-700/90 shadow-inner">
-                <div className="flex items-center gap-2.5 text-emerald-400">
-                  <CheckCircle2 size={16} className="flex-shrink-0 text-emerald-400" />
-                  <span className="font-bold text-emerald-300">Checking form details</span>
+              <div
+                className="space-y-2.5 text-left pt-2 text-xs font-bold p-4 rounded-2xl border border-slate-700/90 shadow-inner"
+                style={{ backgroundColor: '#020617', color: '#f8fafc' }}
+              >
+                <div className="flex items-center gap-2.5" style={{ color: '#34d399' }}>
+                  <CheckCircle2 size={16} className="flex-shrink-0" style={{ color: '#34d399' }} />
+                  <span className="font-bold" style={{ color: '#6ee7b7' }}>Checking form details</span>
                 </div>
-                <div className="flex items-center gap-2.5 text-teal-300">
-                  <Loader2 size={16} className="animate-spin flex-shrink-0 text-teal-400" />
-                  <span className="font-bold text-teal-200">Saving student details</span>
+                <div className="flex items-center gap-2.5" style={{ color: '#2dd4bf' }}>
+                  <Loader2 size={16} className="animate-spin flex-shrink-0" style={{ color: '#2dd4bf' }} />
+                  <span className="font-bold" style={{ color: '#5eead4' }}>Saving student details</span>
                 </div>
-                <div className="flex items-center gap-2.5 text-slate-200">
+                <div className="flex items-center gap-2.5" style={{ color: '#cbd5e1' }}>
                   <div className="w-4 h-4 rounded-full border-2 border-teal-400/60 flex-shrink-0" />
-                  <span className="font-semibold text-slate-200">Finalizing submission</span>
+                  <span className="font-semibold" style={{ color: '#e2e8f0' }}>Finalizing submission</span>
                 </div>
               </div>
             </div>
