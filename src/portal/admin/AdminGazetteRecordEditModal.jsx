@@ -11,6 +11,7 @@ import { logAdminActivity } from '../../services/adminActivityLogger';
 import { formatPracticalDocId } from '../../utils/practicalsSettingsManager';
 import { showToast } from '../../components/common/GlobalToast';
 import { isStudentEnrolledInSubject, invalidatePracticalsCache } from './AdminPracticals';
+import { sanitizeForFirestore } from '../../utils/firestoreSanitizer';
 
 const REASON_PRESETS = [
   'Re-evaluation result',
@@ -306,7 +307,7 @@ export default function AdminGazetteRecordEditModal({
 
         // Save updated document back to practicalsData with admin audit stamp (preserving original practicalType)
         const preservedPracticalType = docData.practicalType || selectedEvalType || 'Pre-Board Test';
-        await setDoc(docRef, {
+        await setDoc(docRef, sanitizeForFirestore({
           ...docData,
           className: selectedClass,
           class: selectedClass,
@@ -325,7 +326,7 @@ export default function AdminGazetteRecordEditModal({
           updatedAt: nowIso,
           lastEditedBy: `Admin (${adminEmail}) - Direct Gazette Edit`,
           lastEditReason: effectiveReason
-        }, { merge: true });
+        }), { merge: true });
 
         // Also sync to corresponding pending document so pending submission inspect view stays consistent
         if (sourcePendingDoc) {
@@ -349,7 +350,7 @@ export default function AdminGazetteRecordEditModal({
               pendingRecords.push(updatedStudentEntry);
             }
 
-            await setDoc(pendingRef, {
+            await setDoc(pendingRef, sanitizeForFirestore({
               ...sourcePendingDoc,
               records: pendingRecords,
               updatedByAdmin: true,
@@ -357,7 +358,7 @@ export default function AdminGazetteRecordEditModal({
               updatedAt: nowIso,
               lastEditedBy: `Admin (${adminEmail}) - Direct Gazette Edit`,
               lastEditReason: effectiveReason
-            }, { merge: true });
+            }), { merge: true });
           } catch (pendingSyncErr) {
             console.warn('Pending document sync error (non-fatal):', pendingSyncErr);
           }
