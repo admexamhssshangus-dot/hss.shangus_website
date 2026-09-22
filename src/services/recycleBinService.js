@@ -133,6 +133,15 @@ export async function moveToRecycleBin(recordData, originalCollection = 'admissi
       await recycleDeletedFormNumber(formNo, recordData, adminEmail).catch(() => {});
     }
 
+    try {
+      const cur = parseInt(localStorage.getItem('hss_recycle_bin_count') || '0', 10);
+      const next = Math.max(0, cur + 1);
+      localStorage.setItem('hss_recycle_bin_count', String(next));
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('hss-recycle-bin-updated', { detail: { count: next } }));
+      }
+    } catch (_) {}
+
     return true;
   } catch (err) {
     console.error('moveToRecycleBin error:', err);
@@ -345,6 +354,15 @@ export async function restoreMultipleFromRecycleBin(trashDocIds = []) {
   invalidateCache('admissions');
   invalidateCache('masterRegisters');
 
+  try {
+    const cur = parseInt(localStorage.getItem('hss_recycle_bin_count') || '0', 10);
+    const next = Math.max(0, cur - transactionResult.length);
+    localStorage.setItem('hss_recycle_bin_count', String(next));
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('hss-recycle-bin-updated', { detail: { count: next } }));
+    }
+  } catch (_) {}
+
   return { success: true, restoredCount: transactionResult.length, records: transactionResult };
 }
 
@@ -366,6 +384,16 @@ export async function purgeFromRecycleBin(trashDocId) {
     if (!snap.exists()) throw new Error('Recycle-bin record no longer exists.');
     transaction.delete(trashRef);
   });
+
+  try {
+    const cur = parseInt(localStorage.getItem('hss_recycle_bin_count') || '0', 10);
+    const next = Math.max(0, cur - 1);
+    localStorage.setItem('hss_recycle_bin_count', String(next));
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('hss-recycle-bin-updated', { detail: { count: next } }));
+    }
+  } catch (_) {}
+
   return true;
 }
 
@@ -443,6 +471,13 @@ export async function emptyRecycleBin() {
     const softCleaned = await cleanOrphanedSoftDeletedDocs();
     invalidateCache('admissions');
     invalidateCache('masterRegisters');
+
+    try {
+      localStorage.setItem('hss_recycle_bin_count', '0');
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('hss-recycle-bin-updated', { detail: { count: 0 } }));
+      }
+    } catch (_) {}
 
     return {
       success: true,

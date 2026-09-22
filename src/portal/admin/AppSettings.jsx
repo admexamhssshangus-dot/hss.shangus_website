@@ -3,7 +3,7 @@ import { Settings, Save, RefreshCw, CheckCircle2, Hash, RotateCcw, Trash2, Shiel
 import appsScriptApi from '../../services/appsScriptApi';
 import { getFormNumberConfig, saveFormNumberConfig, getNextAvailableFormNumber, getDeletedFormsHistory } from '../../services/formNumberService';
 import { showToast } from '../../components/common/GlobalToast';
-import { fetchFirebaseStorageMetrics } from '../../services/firebaseMetricsApi';
+import { fetchFirebaseStorageMetrics, getAutomatedStorageMetrics } from '../../services/firebaseMetricsApi';
 import { emptyRecycleBin, sweepOrphanedStudentPhotos } from '../../services/recycleBinService';
 
 export default function AppSettings() {
@@ -14,7 +14,7 @@ export default function AppSettings() {
   const [allow12th, setAllow12th] = useState(true);
 
   // Firebase Cloud Storage & Quota States
-  const [metrics, setMetrics] = useState(null);
+  const [metrics, setMetrics] = useState(() => getAutomatedStorageMetrics());
   const [loadingMetrics, setLoadingMetrics] = useState(false);
   const [reclaimingSpace, setReclaimingSpace] = useState(false);
   const [sweepingPhotos, setSweepingPhotos] = useState(false);
@@ -68,8 +68,14 @@ export default function AppSettings() {
   const loadMetrics = async (force = false) => {
     setLoadingMetrics(true);
     try {
-      const data = await fetchFirebaseStorageMetrics({ force });
-      setMetrics(data);
+      const initial = getAutomatedStorageMetrics();
+      setMetrics(initial);
+      let data = null;
+      try {
+        data = await fetchFirebaseStorageMetrics({ force });
+      } catch (_) {}
+      const resolved = getAutomatedStorageMetrics({ serverData: data });
+      setMetrics(resolved);
     } catch (err) {
       console.warn('Could not load storage metrics:', err.message);
     } finally {

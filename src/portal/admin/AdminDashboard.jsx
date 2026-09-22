@@ -812,7 +812,7 @@ export default function AdminDashboard() {
                       style={activeTab === 'controls' ? undefined : { display: 'none' }}
                       aria-hidden={activeTab !== 'controls'}
                     >
-                      <ControlsAndSubjects />
+                      <ControlsAndSubjects applications={applications} />
                     </div>
                   )}
 
