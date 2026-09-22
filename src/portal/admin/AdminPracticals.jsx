@@ -3048,7 +3048,8 @@ function SelectedSubmissionModal({ selSub, submissions = [], onClose, absentMark
 
   const records = editableRecords;
   const canonicalSession = normalizePracticalSession(selSub?.sessionText || selSub?.session || selSub?.Session || '2024-25 (Oct-Nov)');
-  const evaluationType = toTitleCase(selSub?.practicalType || 'Internal');
+  const rawEvalType = selSub?.evaluationType || selSub?.evalType || selSub?.examTitle || selSub?.practicalType || selSub?.assessmentType || selSub?.type || '';
+  const evaluationType = rawEvalType ? toTitleCase(rawEvalType) : 'Internal';
 
   // Smart baseline resolution: accurately pick the comparison baseline (Live DB vs Prior Archive)
   const baselineDoc = useMemo(() => {
@@ -3452,10 +3453,10 @@ function SelectedSubmissionModal({ selSub, submissions = [], onClose, absentMark
                   className: formatClassDisplay(selSub.className || selSub.Class, selSub),
                   session: canonicalSession,
                   records: subRecords,
-                  isExternal: String(selSub.practicalType || '').toLowerCase().includes('ext'),
-                  evaluationType: selSub.practicalType || selSub.evaluationType || 'Internal',
-                  practicalType: selSub.practicalType || 'Internal',
-                  examTitle: selSub.practicalType || 'Internal',
+                  isExternal: String(selSub.practicalType || selSub.evaluationType || '').toLowerCase().includes('ext'),
+                  evaluationType: selSub.evaluationType || selSub.practicalType || selSub.evalType || selSub.examTitle || 'Pre-Board Test',
+                  practicalType: selSub.practicalType || selSub.evaluationType || selSub.evalType || 'Pre-Board Test',
+                  examTitle: selSub.examTitle || selSub.evaluationType || selSub.practicalType || 'Pre-Board Test',
                   maxMarks: selSub.maxMarks || 50,
                   minMarks: selSub.minMarks || 18
                 });
