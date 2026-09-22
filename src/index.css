@@ -1503,11 +1503,6 @@ html, body, #root {
 .theme-light .modern-loader-inverted .text-slate-100,
 .theme-light .modern-loader-inverted .text-slate-200,
 .theme-light .modern-loader-inverted .text-slate-300,
-.theme-light [class*="bg-slate-9"] .text-slate-100,
-.theme-light [class*="bg-slate-9"] .text-slate-200,
-.theme-light [class*="bg-slate-9"] .text-slate-300,
-.theme-light [class*="bg-slate-950"] span,
-.theme-light [class*="bg-slate-900"] span,
 .theme-light .tax-rules-modal .text-slate-100,
 .theme-light .tax-rules-modal .text-slate-200,
 .theme-light .tax-rules-modal .text-slate-300 {
