@@ -186,6 +186,75 @@ module.exports = function(app) {
     upstream.end(body);
   });
 
+  // Local development proxy for Firebase Storage & Quota Metrics
+  app.all('/.netlify/functions/fetch-firebase-metrics', async (req, res) => {
+    if (!assertLocalhost(req, res)) return;
+
+    try {
+      const dotenv = require('dotenv');
+      if (fs.existsSync(path.resolve(__dirname, '../.env.local'))) {
+        dotenv.config({ path: path.resolve(__dirname, '../.env.local'), override: true });
+      }
+      dotenv.config({ path: path.resolve(__dirname, '../.env') });
+    } catch (e) {}
+
+    if (process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
+      try {
+        try { delete require.cache[require.resolve('../netlify/functions/fetch-firebase-metrics')]; } catch (e) {}
+        const { handler } = require('../netlify/functions/fetch-firebase-metrics');
+        const reqOrigin = req.headers.origin || `http://${req.headers.host || 'localhost:3000'}`;
+        const result = await handler({
+          httpMethod: req.method,
+          headers: {
+            authorization: req.headers.authorization || '',
+            origin: reqOrigin,
+          },
+          body: JSON.stringify(req.body || {}),
+        });
+        Object.entries(result.headers || {}).forEach(([key, value]) => res.setHeader(key, value));
+        return res.status(result.statusCode || 500).send(result.body || '');
+      } catch (error) {
+        console.warn('Local fetch-firebase-metrics failed, falling back to upstream:', error.message);
+      }
+    }
+
+    const targetHostname = 'hssshangus.netlify.app';
+    const body = req.method !== 'GET' ? JSON.stringify(req.body || {}) : '';
+    const upstream = https.request({
+      hostname: targetHostname,
+      port: 443,
+      path: '/.netlify/functions/fetch-firebase-metrics',
+      method: req.method,
+      timeout: 15000,
+      headers: {
+        Authorization: req.headers.authorization || '',
+        'Content-Type': 'application/json',
+        ...(body ? { 'Content-Length': Buffer.byteLength(body) } : {}),
+        Origin: 'http://localhost:3000',
+      },
+    }, upstreamResponse => {
+      let responseBody = '';
+      upstreamResponse.setEncoding('utf8');
+      upstreamResponse.on('data', chunk => { responseBody += chunk; });
+      upstreamResponse.on('end', () => {
+        const fwd = ['access-control-allow-origin', 'access-control-allow-methods', 'access-control-allow-headers', 'vary'];
+        fwd.forEach(h => {
+          const v = upstreamResponse.headers[h];
+          if (v) res.setHeader(h, v);
+        });
+        res.setHeader('Cache-Control', 'no-store');
+        res.type('application/json').status(upstreamResponse.statusCode || 502).send(responseBody || '{}');
+      });
+    });
+    upstream.on('timeout', () => upstream.destroy(new Error('Metrics query timed out')));
+    upstream.on('error', error => {
+      console.error('Metrics relay error:', error.message);
+      if (!res.headersSent) res.status(502).json({ error: 'The metrics service is currently unavailable.' });
+    });
+    if (body) upstream.write(body);
+    upstream.end();
+  });
+
   // Local development proxy for Student Verification lookup
   app.post('/.netlify/functions/lookup-student', async (req, res) => {
     if (!assertLocalhost(req, res)) return;

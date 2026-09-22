@@ -415,3 +415,135 @@ export async function cleanOrphanedSoftDeletedDocs() {
     return 0;
   }
 }
+
+/**
+ * Permanently empties all documents in the recycleBin collection to immediately free up space.
+ */
+export async function emptyRecycleBin() {
+  try {
+    const snap = await getDocs(collection(db, RECYCLE_BIN_COLLECTION));
+    let purgedCount = 0;
+
+    if (!snap.empty) {
+      const docs = snap.docs;
+      const batchSize = 350;
+
+      for (let i = 0; i < docs.length; i += batchSize) {
+        const chunk = docs.slice(i, i + batchSize);
+        const batch = writeBatch(db);
+        chunk.forEach(d => {
+          batch.delete(doc(db, RECYCLE_BIN_COLLECTION, d.id));
+        });
+        await batch.commit();
+        purgedCount += chunk.length;
+      }
+    }
+
+    // Also clean any residual soft-deleted flagged items
+    const softCleaned = await cleanOrphanedSoftDeletedDocs();
+    invalidateCache('admissions');
+    invalidateCache('masterRegisters');
+
+    return {
+      success: true,
+      count: purgedCount + softCleaned,
+      purgedBin: purgedCount,
+      softCleaned,
+    };
+  } catch (err) {
+    console.error('emptyRecycleBin error:', err);
+    throw new Error(err.message || 'Failed to empty recycle bin.');
+  }
+}
+
+/**
+ * Sweep orphaned photo documents in studentPhotos that have no active parent record
+ * in admissions, masterRegisters, or recycleBin.
+ */
+export async function sweepOrphanedStudentPhotos() {
+  try {
+    // 1. Fetch photo documents
+    const photosSnap = await getDocs(collection(db, 'studentPhotos'));
+    if (photosSnap.empty) return { success: true, count: 0, scanned: 0 };
+
+    // 2. Fetch active and trash registers to build active reference sets
+    const [admSnap, mrSnap, binSnap] = await Promise.all([
+      getDocs(collection(db, 'admissions')).catch(() => null),
+      getDocs(collection(db, 'masterRegisters')).catch(() => null),
+      getDocs(collection(db, RECYCLE_BIN_COLLECTION)).catch(() => null),
+    ]);
+
+    const activeKeys = new Set();
+
+    const indexRecord = (data, docId) => {
+      if (!data) return;
+      if (docId) activeKeys.add(String(docId).toLowerCase().trim());
+      const fNo = data['Form Number'] || data['Form No.'] || data.formNo || data.formNumber;
+      if (fNo) {
+        const s = String(fNo).trim().toLowerCase();
+        activeKeys.add(s);
+        activeKeys.add(`photo_form_${s}`);
+      }
+      const reg = data['Board Registration Number'] || data['Board Registration No.'] || data.boardRegNo || data.regNo;
+      if (reg) {
+        const r = String(reg).replace(/[^a-zA-Z0-9]/g, '').toLowerCase().trim();
+        if (r) {
+          activeKeys.add(r);
+          activeKeys.add(`photo_${r}`);
+        }
+      }
+      if (data.photoRef) {
+        const pRef = String(data.photoRef).replace(/^studentPhotos\//, '').toLowerCase().trim();
+        if (pRef) activeKeys.add(pRef);
+      }
+    };
+
+    admSnap?.docs?.forEach(d => indexRecord(d.data(), d.id));
+    mrSnap?.docs?.forEach(d => indexRecord(d.data(), d.id));
+    binSnap?.docs?.forEach(d => {
+      const bData = d.data();
+      indexRecord(bData, d.id);
+      if (bData?.data) indexRecord(bData.data, bData.originalDocId);
+    });
+
+    // 3. Identify orphaned photos
+    const orphanDocIds = [];
+    photosSnap.docs.forEach(pDoc => {
+      const pId = pDoc.id.toLowerCase().trim();
+      const pData = pDoc.data() || {};
+      const reg = String(pData.boardRegNo || pData.regNo || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase().trim();
+      const form = String(pData.formNo || pData.formNumber || '').toLowerCase().trim();
+
+      const isReferenced =
+        activeKeys.has(pId) ||
+        (reg && (activeKeys.has(reg) || activeKeys.has(`photo_${reg}`))) ||
+        (form && (activeKeys.has(form) || activeKeys.has(`photo_form_${form}`)));
+
+      if (!isReferenced) {
+        orphanDocIds.push(pDoc.id);
+      }
+    });
+
+    if (orphanDocIds.length === 0) {
+      return { success: true, count: 0, scanned: photosSnap.size };
+    }
+
+    // 4. Batch delete orphans in chunks of 200
+    let deletedCount = 0;
+    const batchSize = 200;
+    for (let i = 0; i < orphanDocIds.length; i += batchSize) {
+      const chunk = orphanDocIds.slice(i, i + batchSize);
+      const batch = writeBatch(db);
+      chunk.forEach(id => batch.delete(doc(db, 'studentPhotos', id)));
+      await batch.commit();
+      deletedCount += chunk.length;
+    }
+
+    invalidateCache('studentPhotos');
+    return { success: true, count: deletedCount, scanned: photosSnap.size };
+  } catch (err) {
+    console.error('sweepOrphanedStudentPhotos error:', err);
+    throw new Error(err.message || 'Failed to sweep orphaned photos.');
+  }
+}
+
