@@ -169,6 +169,10 @@ const getStudentIdentityValues = (student) => {
     raw.boardRegNo,
     raw['Board Reg. No.'],
     raw['Board Registration Number'],
+    raw['Board Registration No. (Class 9th)'],
+    raw['DIET Registration No.'],
+    raw['DIET/Board Reg. No.'],
+    raw['DIET Reg. No.'],
     raw.currExamRoll,
     raw['Exam R.No. (Current)']
   ].map(cleanStudentIdentity).filter(Boolean);

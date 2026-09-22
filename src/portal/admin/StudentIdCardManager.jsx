@@ -112,7 +112,7 @@ function getPhotoLookupKeys(student) {
   const normalize = value => String(value || '').replace(/[^a-z0-9]/gi, '').toLowerCase();
   const className = normalizeStudentClass(student['Admission sought for class'] || student.Class || student.class);
   const band = ['9th', '10th'].includes(className) ? 'secondary' : ['11th', '12th'].includes(className) ? 'higher' : className;
-  const registration = normalize(student['Board Registration Number'] || student.boardRegNo || student.regNo);
+  const registration = normalize(student['Board Registration Number'] || student['Board Registration No. (Class 11th)'] || student['Board Registration No. (Class 10th)'] || student['Board Registration No. (Class 9th)'] || student['DIET Registration No.'] || student['DIET/Board Reg. No.'] || student['DIET Reg. No.'] || student['Board Reg. No.'] || student.boardRegNo || student.regNo);
   const formNumber = normalize(student['Form Number'] || student['Form No.'] || student.formNo);
   const session = normalize(student.Session || student.session);
   const documentId = student.id || student.docId || student._docId;

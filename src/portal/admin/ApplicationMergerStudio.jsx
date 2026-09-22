@@ -105,6 +105,16 @@ export default function ApplicationMergerStudio({ applications = [], onRefresh, 
       st['Board Registration No. (Class 10th)'] ||
       st['Board Registration No. (Class 11th)'] ||
       st['Board Registration No. (Class 12th)'] ||
+      st['Board Registration No. (Class 9th)'] ||
+      st['Board Registration No. (Class 8th)'] ||
+      st['Registration No. (allotted by JKBOSE)'] ||
+      st['Registration No. (allotted by DIET)'] ||
+      st['DIET Registration No.'] ||
+      st['DIET Registration No'] ||
+      st['DIET Registration Number'] ||
+      st['DIET/Board Reg. No.'] ||
+      st['DIET Reg. No.'] ||
+      st['DIET Reg No'] ||
       st['Board Reg. No.'] ||
       st['Board Reg No'] ||
       st['REG. NO.'] ||
@@ -115,6 +125,8 @@ export default function ApplicationMergerStudio({ applications = [], onRefresh, 
       st['Registration Number'] ||
       st.boardRegNo ||
       st.regNo ||
+      st.dietRegNo ||
+      st.dietRegistrationNo ||
       st.boardRegistrationNumber ||
       st.registrationNo ||
       '';

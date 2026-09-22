@@ -425,6 +425,12 @@ const normalizeStudentFields = (st, source = 'masterRegisters') => {
     st.regNo ||
     st['Board Registration No. (Class 11th)'] ||
     st['Board Registration No. (Class 10th)'] ||
+    st['Board Registration No. (Class 9th)'] ||
+    st['DIET Registration No.'] ||
+    st['DIET/Board Reg. No.'] ||
+    st['DIET Reg. No.'] ||
+    st['Registration No. (allotted by JKBOSE)'] ||
+    st['Registration No. (allotted by DIET)'] ||
     ''
   );
 

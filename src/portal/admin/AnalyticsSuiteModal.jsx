@@ -223,7 +223,7 @@ export default function AnalyticsSuiteModal({ isOpen, onClose, students = [] }) 
 
     sorted.forEach((s, idx) => {
       const formNo = String(s['Form No'] || s['Form Number'] || s['Form No.'] || s.formNo || s['F.NO.'] || '').trim();
-      const regNoRaw = String(s['Board Registration Number'] || s['Board Reg. No.'] || s.boardRegNo || s.regNo || s['REG. NO.'] || '').trim();
+      const regNoRaw = String(s['Board Registration Number'] || s['Board Registration No. (Class 11th)'] || s['Board Registration No. (Class 10th)'] || s['Board Registration No. (Class 9th)'] || s['DIET Registration No.'] || s['DIET/Board Reg. No.'] || s['DIET Reg. No.'] || s['Board Reg. No.'] || s.boardRegNo || s.regNo || s['Registration No. (allotted by JKBOSE)'] || s['Registration No. (allotted by DIET)'] || s['REG. NO.'] || '').trim();
       const regNo = isValidRegNoA(regNoRaw.replace(/[^a-z0-9]/gi, '').toLowerCase()) ? regNoRaw : '';
       const rollNo = getAssignedRollNo(s);
       const sClass = normalizeClassVal(s.class || s.Class || s['Class'] || s['Admission sought for class']);
