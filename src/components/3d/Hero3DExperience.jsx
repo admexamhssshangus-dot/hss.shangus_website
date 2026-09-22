@@ -484,8 +484,8 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
     // 2B. Emitted Words & Alphabets of Wisdom (Floating upward like enchanting lore on hover)
     function createWisdomGlyphTexture(text, isWord = false) {
       const canvas = document.createElement('canvas');
-      const width = isWord ? 180 : 64;
-      const height = 64;
+      const width = isWord ? 320 : 128;
+      const height = 128;
       canvas.width = width;
       canvas.height = height;
       const ctx = canvas.getContext('2d');
@@ -493,29 +493,39 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
 
       ctx.clearRect(0, 0, width, height);
 
-      // Warm luminous golden aura shadow
-      ctx.shadowColor = 'rgba(245, 158, 11, 0.95)';
-      ctx.shadowBlur = isWord ? 10 : 12;
+      // Deep, radiant golden ambient aura shadow
+      ctx.shadowColor = 'rgba(245, 158, 11, 1)';
+      ctx.shadowBlur = isWord ? 22 : 28;
 
-      // Elegant scholastic typography: serif for wisdom, classics, and knowledge
+      // Bold, regal scholastic typography
       ctx.font = isWord
-        ? `bold italic 26px "Cinzel", "Georgia", "Times New Roman", serif`
-        : `bold 38px "Cinzel", "Georgia", "Times New Roman", serif`;
+        ? `bold italic 48px "Cinzel", "Georgia", "Times New Roman", serif`
+        : `bold 72px "Cinzel", "Georgia", "Times New Roman", serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
 
-      // Warm radiant golden gradient
-      const grad = ctx.createLinearGradient(0, 10, 0, height - 10);
+      // Contrast border / rim stroke to ensure striking legibility on any theme
+      ctx.lineWidth = isWord ? 7 : 9;
+      ctx.strokeStyle = 'rgba(180, 83, 9, 0.95)';
+      ctx.strokeText(text, width / 2, height / 2);
+
+      // Second intense luminous gold glow layer
+      ctx.shadowColor = 'rgba(254, 240, 138, 1)';
+      ctx.shadowBlur = 14;
+
+      // Vibrant scholastic gold gradient
+      const grad = ctx.createLinearGradient(0, 15, 0, height - 15);
       grad.addColorStop(0, '#ffffff');
-      grad.addColorStop(0.3, '#fef08a');
-      grad.addColorStop(0.7, '#f59e0b');
+      grad.addColorStop(0.25, '#fef08a');
+      grad.addColorStop(0.65, '#f59e0b');
       grad.addColorStop(1, '#d97706');
 
       ctx.fillStyle = grad;
       ctx.fillText(text, width / 2, height / 2);
 
-      // Sharp core pass for crisp legibility
-      ctx.shadowBlur = 3;
+      // Specular diamond-white core pass for brilliant radiance
+      ctx.shadowBlur = 4;
+      ctx.shadowColor = '#ffffff';
       ctx.fillStyle = '#ffffff';
       ctx.fillText(text, width / 2, height / 2);
 
@@ -566,7 +576,7 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
 
     const glyphPool = glyphEntries.map(g => createWisdomGlyphTexture(g.text, g.isWord));
 
-    const bookGlyphCount = isMobile ? 8 : 14;
+    const bookGlyphCount = isMobile ? 12 : 20;
     const bookGlyphParticles = [];
 
     for (let i = 0; i < bookGlyphCount; i++) {
@@ -584,18 +594,18 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
         sprite,
         aspect: initialGlyph.aspect,
         isWord: initialGlyph.isWord,
-        baseScale: initialGlyph.isWord ? 0.095 : 0.125,
-        baseX: (Math.random() - 0.5) * 0.36,
-        baseZ: (Math.random() - 0.5) * 0.28,
-        y: 0.08 + (i / bookGlyphCount) * 1.14,
-        speed: 0.24 + Math.random() * 0.16,
-        driftX: (Math.random() - 0.5) * 1.4,
-        driftZ: (Math.random() - 0.5) * 1.4,
+        baseScale: initialGlyph.isWord ? 0.22 : 0.20,
+        baseX: (Math.random() - 0.5) * 0.44,
+        baseZ: (Math.random() - 0.5) * 0.34,
+        y: 0.08 + (i / bookGlyphCount) * 1.35,
+        speed: 0.22 + Math.random() * 0.16,
+        driftX: (Math.random() - 0.5) * 1.8,
+        driftZ: (Math.random() - 0.5) * 1.8,
         offset: Math.random() * Math.PI * 2
       };
 
       sprite.position.set(pData.baseX, pData.y, pData.baseZ);
-      const initScale = pData.baseScale * 0.82;
+      const initScale = pData.baseScale * 0.95;
       sprite.scale.set(initScale * pData.aspect, initScale, 1);
       bookAnchor.add(sprite);
       bookGlyphParticles.push(pData);
@@ -768,23 +778,91 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
       bubbles.push(bData);
     }
 
-    // 3F. Effervescent Reaction Vapor Micro-Particles (Rising from rim on hover)
-    const vaporCount = 8;
-    const vaporGeo = new THREE.SphereGeometry(0.016, 8, 8);
-    const vaporMat = new THREE.MeshBasicMaterial({
-      color: 0x67e8f9,
+    // 3F. Billowing Effervescent Discovery Fumes & Micro-Sparks (Rising majestically from rim on hover)
+    function createVolumetricVaporTexture(isEmerald = false) {
+      const canvas = document.createElement('canvas');
+      canvas.width = 128;
+      canvas.height = 128;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return null;
+
+      const grad = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
+      if (isEmerald) {
+        grad.addColorStop(0, 'rgba(255, 255, 255, 0.98)');
+        grad.addColorStop(0.18, 'rgba(167, 243, 208, 0.92)');
+        grad.addColorStop(0.42, 'rgba(52, 211, 153, 0.68)');
+        grad.addColorStop(0.70, 'rgba(16, 185, 129, 0.32)');
+        grad.addColorStop(1, 'rgba(16, 185, 129, 0)');
+      } else {
+        grad.addColorStop(0, 'rgba(255, 255, 255, 0.98)');
+        grad.addColorStop(0.18, 'rgba(165, 243, 252, 0.94)');
+        grad.addColorStop(0.42, 'rgba(34, 211, 238, 0.72)');
+        grad.addColorStop(0.70, 'rgba(6, 182, 212, 0.38)');
+        grad.addColorStop(1, 'rgba(6, 182, 212, 0)');
+      }
+
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, 128, 128);
+
+      const tex = new THREE.CanvasTexture(canvas);
+      tex.generateMipmaps = false;
+      return tex;
+    }
+
+    const vaporCyanTex = createVolumetricVaporTexture(false);
+    const vaporEmeraldTex = createVolumetricVaporTexture(true);
+
+    const vaporCount = isMobile ? 18 : 26;
+    const vaporParticles = [];
+
+    for (let i = 0; i < vaporCount; i++) {
+      const isEmerald = i % 3 === 0;
+      const tex = isEmerald ? vaporEmeraldTex : vaporCyanTex;
+      const spriteMat = new THREE.SpriteMaterial({
+        map: tex,
+        transparent: true,
+        opacity: 0,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending
+      });
+      const sprite = new THREE.Sprite(spriteMat);
+      const baseScale = 0.16 + Math.random() * 0.12;
+      sprite.scale.set(baseScale, baseScale, 1);
+      sprite.position.set(0, 0.66, 0);
+      flaskMeshGroup.add(sprite);
+
+      vaporParticles.push({
+        sprite,
+        baseScale,
+        y: 0.66 + (i / vaporCount) * 1.05,
+        speed: 0.22 + Math.random() * 0.18,
+        driftX: (Math.random() - 0.5) * 1.6,
+        driftZ: (Math.random() - 0.5) * 1.6,
+        rotSpeed: (Math.random() - 0.5) * 0.8,
+        baseRot: Math.random() * Math.PI * 2,
+        offset: Math.random() * Math.PI * 2
+      });
+    }
+
+    // Effervescent Micro-Sparks leaping out of reaction
+    const vaporSparkCount = 8;
+    const vaporSparkGeo = new THREE.SphereGeometry(0.018, 8, 8);
+    const vaporSparkMat = new THREE.MeshBasicMaterial({
+      color: 0xe0f2fe,
       transparent: true,
       opacity: 0
     });
-    const vaporParticles = [];
-    for (let i = 0; i < vaporCount; i++) {
-      const vMesh = new THREE.Mesh(vaporGeo, vaporMat.clone());
-      vMesh.position.set(0, 0.66, 0);
-      flaskMeshGroup.add(vMesh);
-      vaporParticles.push({
-        mesh: vMesh,
-        y: 0.66 + i * 0.08,
-        speed: 0.28 + Math.random() * 0.15,
+    const vaporSparks = [];
+    for (let i = 0; i < vaporSparkCount; i++) {
+      const sMesh = new THREE.Mesh(vaporSparkGeo, vaporSparkMat.clone());
+      sMesh.position.set(0, 0.66, 0);
+      flaskMeshGroup.add(sMesh);
+      vaporSparks.push({
+        mesh: sMesh,
+        y: 0.66 + (i / vaporSparkCount) * 0.8,
+        speed: 0.35 + Math.random() * 0.25,
+        radius: 0.02 + Math.random() * 0.05,
+        angle: Math.random() * Math.PI * 2,
         offset: Math.random() * Math.PI * 2
       });
     }
@@ -1025,7 +1103,7 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
       const bookScreenX = (projectedBook.x * 0.5 + 0.5) * rect.width;
       const bookScreenY = (-projectedBook.y * 0.5 + 0.5) * rect.height;
       const distToBook = Math.hypot(mouseRelX - bookScreenX, mouseRelY - bookScreenY);
-      const isDirectBookHover = distToBook < (isMobile ? 55 : 85);
+      const isDirectBookHover = distToBook < (isMobile ? 75 : 110);
 
       // Calculate Flask screen coordinates for direct hover
       const flaskWorldPos = new THREE.Vector3();
@@ -1034,7 +1112,7 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
       const flaskScreenX = (projectedFlask.x * 0.5 + 0.5) * rect.width;
       const flaskScreenY = (-projectedFlask.y * 0.5 + 0.5) * rect.height;
       const distToFlask = Math.hypot(mouseRelX - flaskScreenX, mouseRelY - flaskScreenY);
-      const isDirectFlaskHover = distToFlask < (isMobile ? 55 : 85);
+      const isDirectFlaskHover = distToFlask < (isMobile ? 75 : 110);
 
       const isDirectHover = distToAtom < hoverThreshold;
       if (dismissedRef.current) {
@@ -1290,17 +1368,17 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
         }
       });
 
-      // Emitted Words & Alphabets of Wisdom (Rising from open pages on hover)
+      // Emitted Words & Alphabets of Wisdom (Rising majestically from open pages on hover)
       bookGlyphParticles.forEach((p) => {
         if (bookLiftProgress > 0.05) {
-          p.y += p.speed * delta * (1.0 + bookLiftProgress * 1.5) * speedMult;
-          if (p.y > 1.25) {
+          p.y += p.speed * delta * (1.1 + bookLiftProgress * 1.6) * speedMult;
+          if (p.y > 1.45) {
             p.y = 0.08;
-            p.baseX = (Math.random() - 0.5) * 0.36;
-            p.baseZ = (Math.random() - 0.5) * 0.28;
+            p.baseX = (Math.random() - 0.5) * 0.44;
+            p.baseZ = (Math.random() - 0.5) * 0.34;
             p.offset = Math.random() * Math.PI * 2;
-            p.driftX = (Math.random() - 0.5) * 1.4;
-            p.driftZ = (Math.random() - 0.5) * 1.4;
+            p.driftX = (Math.random() - 0.5) * 1.8;
+            p.driftZ = (Math.random() - 0.5) * 1.8;
 
             // Dynamically rotate to another glyph from the pool
             const randomGlyph = glyphPool[Math.floor(Math.random() * glyphPool.length)];
@@ -1308,20 +1386,22 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
               p.sprite.material.map = randomGlyph.texture;
               p.aspect = randomGlyph.aspect;
               p.isWord = randomGlyph.isWord;
-              p.baseScale = randomGlyph.isWord ? 0.095 : 0.125;
+              p.baseScale = randomGlyph.isWord ? 0.22 : 0.20;
             }
           }
           p.sprite.position.y = p.y;
-          const normY = Math.max(0, Math.min(1, (p.y - 0.08) / 1.17));
-          p.sprite.position.x = p.baseX + Math.sin(time * 0.003 + p.offset) * 0.06 + (p.driftX * normY * 0.14);
-          p.sprite.position.z = p.baseZ + Math.cos(time * 0.0026 + p.offset) * 0.05 + (p.driftZ * normY * 0.10);
+          const normY = Math.max(0, Math.min(1, (p.y - 0.08) / 1.37));
+          p.sprite.position.x = p.baseX + Math.sin(time * 0.0032 + p.offset) * 0.08 + (p.driftX * normY * 0.22);
+          p.sprite.position.z = p.baseZ + Math.cos(time * 0.0028 + p.offset) * 0.07 + (p.driftZ * normY * 0.18);
 
-          const currentScale = p.baseScale * (0.82 + normY * 0.58);
+          // Gently expand as it rises into the air for bold prominence
+          const currentScale = p.baseScale * (0.95 + normY * 0.70);
           p.sprite.scale.set(currentScale * p.aspect, currentScale, 1);
-          p.sprite.material.rotation = Math.sin(time * 0.0022 + p.offset) * 0.22;
+          p.sprite.material.rotation = Math.sin(time * 0.0022 + p.offset) * 0.24;
 
+          // High visibility bell curve opacity
           const fade = Math.sin(normY * Math.PI);
-          p.sprite.material.opacity = fade * 0.95 * bookLiftProgress;
+          p.sprite.material.opacity = Math.min(1.0, fade * 1.45) * bookLiftProgress;
         } else {
           p.sprite.material.opacity = 0;
         }
@@ -1382,30 +1462,64 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
         b.mesh.position.z = Math.cos(b.angle) * b.radius;
       });
 
-      // Effervescent reaction vapor emerging from neck
+      // Billowing effervescent reaction vapor emerging from neck
       vaporParticles.forEach((v) => {
         if (flaskLiftProgress > 0.05) {
-          v.y += v.speed * delta * (1.0 + flaskLiftProgress * 1.5) * speedMult;
-          if (v.y > 1.25) {
+          v.y += v.speed * delta * (1.1 + flaskLiftProgress * 1.6) * speedMult;
+          if (v.y > 1.80) {
             v.y = 0.66;
+            v.driftX = (Math.random() - 0.5) * 1.8;
+            v.driftZ = (Math.random() - 0.5) * 1.8;
+            v.offset = Math.random() * Math.PI * 2;
           }
-          v.mesh.position.y = v.y;
-          v.mesh.position.x = Math.sin(time * 0.004 + v.offset) * 0.05;
-          v.mesh.position.z = Math.cos(time * 0.004 + v.offset) * 0.05;
-          const normY = (v.y - 0.66) / 0.59;
+          v.sprite.position.y = v.y;
+          const normY = Math.max(0, Math.min(1, (v.y - 0.66) / 1.14));
+
+          // Expanding billowing vortex as vapor climbs into the atmosphere
+          const swirlRadius = 0.04 + normY * 0.28;
+          v.sprite.position.x = Math.sin(time * 0.0035 + v.offset) * swirlRadius + (v.driftX * normY * 0.20);
+          v.sprite.position.z = Math.cos(time * 0.0032 + v.offset) * (swirlRadius * 0.85) + (v.driftZ * normY * 0.16);
+
+          // Billowing volumetric scale expansion (from ~0.18 up to ~0.58)
+          const currentScale = v.baseScale * (1.0 + normY * 2.2);
+          v.sprite.scale.set(currentScale, currentScale, 1);
+          v.sprite.material.rotation = v.baseRot + (time * 0.001 * v.rotSpeed);
+
+          // Prominent luminous bell-curve opacity
           const fade = Math.sin(normY * Math.PI);
-          v.mesh.material.opacity = fade * 0.85 * flaskLiftProgress;
-          v.mesh.scale.setScalar(0.8 + normY * 1.2);
+          v.sprite.material.opacity = Math.min(0.92, fade * 1.45) * flaskLiftProgress;
         } else {
-          v.mesh.material.opacity = 0;
+          v.sprite.material.opacity = 0;
+        }
+      });
+
+      // Leaping micro-sparks within the vapor plume
+      vaporSparks.forEach((s) => {
+        if (flaskLiftProgress > 0.05) {
+          s.y += s.speed * delta * (1.2 + flaskLiftProgress * 1.5) * speedMult;
+          s.angle += delta * 4.2 * speedMult;
+          if (s.y > 1.45) {
+            s.y = 0.66;
+            s.angle = Math.random() * Math.PI * 2;
+            s.radius = 0.02 + Math.random() * 0.06;
+          }
+          s.mesh.position.y = s.y;
+          const normY = (s.y - 0.66) / 0.79;
+          s.mesh.position.x = Math.sin(s.angle) * (s.radius + normY * 0.12);
+          s.mesh.position.z = Math.cos(s.angle) * (s.radius + normY * 0.10);
+          const fade = Math.sin(Math.max(0, Math.min(1, normY)) * Math.PI);
+          s.mesh.material.opacity = fade * 0.95 * flaskLiftProgress;
+          s.mesh.scale.setScalar(0.7 + Math.sin(time * 0.015 + s.offset) * 0.3);
+        } else {
+          s.mesh.material.opacity = 0;
         }
       });
 
       // Luminescent chemical reaction glow
-      flaskLight.intensity = 0.5 + (flaskLiftProgress * 3.4);
-      const activeLiquidEmissive = 0.5 + (flaskLiftProgress * (0.65 + Math.sin(time * 0.008 * speedMult) * 0.18));
+      flaskLight.intensity = 0.6 + (flaskLiftProgress * 5.2) + Math.sin(time * 0.008 * speedMult) * 0.4;
+      const activeLiquidEmissive = 0.5 + (flaskLiftProgress * (0.75 + Math.sin(time * 0.008 * speedMult) * 0.22));
       liquidMat.emissiveIntensity = activeLiquidEmissive;
-      meniscusMat.emissiveIntensity = 0.75 + (flaskLiftProgress * 0.55);
+      meniscusMat.emissiveIntensity = 0.85 + (flaskLiftProgress * 0.65);
 
       // -----------------------------------------------------------------------
       // 8D. STARDUST PARTICLES
@@ -1437,6 +1551,8 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
       intersectionObserver.disconnect();
 
       if (logoTexture) logoTexture.dispose();
+      if (vaporCyanTex) vaporCyanTex.dispose();
+      if (vaporEmeraldTex) vaporEmeraldTex.dispose();
       glyphPool.forEach((g) => {
         if (g && g.texture) g.texture.dispose();
       });
