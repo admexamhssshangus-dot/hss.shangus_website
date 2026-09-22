@@ -564,6 +564,19 @@ export function getSubjectOverride(subjectOverrides, subjectCode, targetClass = 
 }
 
 /**
+ * Strict evaluation class matcher helper
+ */
+export function isEvaluationClassMatch(stClass, targetClass) {
+  if (!stClass || !targetClass) return false;
+  const c1 = String(stClass).toLowerCase().replace(/class/gi, '').trim();
+  const c2 = String(targetClass).toLowerCase().replace(/class/gi, '').trim();
+  if (c1 === c2) return true;
+  const d1 = c1.match(/\d+/)?.[0];
+  const d2 = c2.match(/\d+/)?.[0];
+  return !!(d1 && d2 && d1 === d2);
+}
+
+/**
  * Default School Evaluation Presets (Pre-Board Tests, Golden Tests, etc.)
  */
 export const DEFAULT_SCHOOL_EVALUATIONS = [
@@ -572,7 +585,7 @@ export const DEFAULT_SCHOOL_EVALUATIONS = [
     title: 'Pre-Board Examination 2026',
     evalType: 'Pre-Board Test',
     session: '2025-26',
-    classes: ['10th', '11th', '12th'],
+    classes: ['9th', '10th', '11th', '12th'],
     allowedStatuses: ['approved'],
     isOpenForTeachers: true,
     isPublishedForStudents: true,
@@ -603,17 +616,25 @@ export function getEvaluationTypesForTeacher(settings, cls = '11th', session = '
   ];
 
   const customEvals = getActiveSchoolEvaluations(settings);
-  const normCls = String(cls || '').toLowerCase();
+  const normCls = String(cls || '').toLowerCase().trim();
   const normSess = String(session || '').trim().toLowerCase();
 
   const matchingCustom = customEvals.filter(ev => {
     if (ev.isOpenForTeachers === false) return false;
     // Session check (empty means any session)
-    if (ev.session && normSess && !normSess.includes(ev.session.toLowerCase())) return false;
+    if (ev.session && normSess) {
+      const evS = String(ev.session).trim().toLowerCase();
+      const sMatch = normSess.includes(evS) || evS.includes(normSess) ||
+        (evS.includes('2025') && normSess.includes('2025')) ||
+        (evS.includes('2026') && normSess.includes('2026'));
+      if (!sMatch) return false;
+    }
     // Class check
     if (Array.isArray(ev.classes) && ev.classes.length > 0) {
-      const clsMatch = ev.classes.some(c => normCls.includes(String(c).toLowerCase().replace(/class/i, '').trim()));
-      if (!clsMatch) return false;
+      const clsMatch = ev.classes.some(c => isEvaluationClassMatch(c, normCls));
+      // In secondary school context, if 10th is enabled for evaluation, also permit 9th
+      const isSecondaryFallback = (normCls.includes('9') && ev.classes.some(c => isEvaluationClassMatch(c, '10th')));
+      if (!clsMatch && !isSecondaryFallback) return false;
     }
     return true;
   });

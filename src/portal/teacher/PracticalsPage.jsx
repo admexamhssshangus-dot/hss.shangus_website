@@ -1162,6 +1162,13 @@ export default function PracticalsPage() {
 
   // Filter States
   const [selectedClass, setSelectedClass] = useState(initialClass);
+  const userHasSelectedClassRef = useRef(false);
+  const initialClassAssignedRef = useRef(Boolean(location.state?.selectedClass));
+
+  const handleClassChange = useCallback((newCls) => {
+    userHasSelectedClassRef.current = true;
+    setSelectedClass(newCls);
+  }, []);
 
   // Class-specific assigned subjects for the currently selected class
   const teacherClassAssignedSubjects = useMemo(() => {
@@ -1237,38 +1244,20 @@ export default function PracticalsPage() {
   const [crossSubjectSwitchModal, setCrossSubjectSwitchModal] = useState({ isOpen: false, targetSubject: '' });
   const [existingAwardInfo, setExistingAwardInfo] = useState({ canonical: null, pending: null });
 
-  // Default subject and class to teacher's registered values if not specified in location.state
+  // Default class to teacher's first assigned class once on initial profile load (if user has not manually selected a class)
   useEffect(() => {
-    if (!location.state?.selectedSubject && (allTeacherAssignedSubjects.length > 0 || teacherRegisteredSubject)) {
-      const isSecondary = selectedClass === '9th' || selectedClass === '10th' || selectedClass === '9' || selectedClass === '10';
-      const targetList = isSecondary ? SECONDARY_7_SUBJECTS : HIGHER_SECONDARY_15_SUBJECTS;
-
-      let matched = null;
-      const classAssigned = getTeacherAssignedSubjectsForClass(user, selectedClass);
-      if (classAssigned && classAssigned.length > 0) {
-        for (const sub of classAssigned) {
-          const m = targetList.find(s => isTeacherSubjectMatch(sub, s.name) || isTeacherSubjectMatch(sub, s.code));
-          if (m) { matched = m.name; break; }
-        }
-      }
-      if (!matched && allTeacherAssignedSubjects.length > 0) {
-        for (const sub of allTeacherAssignedSubjects) {
-          const m = targetList.find(s => isTeacherSubjectMatch(sub, s.name) || isTeacherSubjectMatch(sub, s.code));
-          if (m) { matched = m.name; break; }
-        }
-      }
-      if (!matched && teacherRegisteredSubject) {
-        const m = targetList.find(s => isTeacherSubjectMatch(teacherRegisteredSubject, s.name));
-        if (m) matched = m.name;
-      }
-      if (matched) setSelectedSubject(matched);
+    if (initialClassAssignedRef.current || userHasSelectedClassRef.current) return;
+    if (location.state?.selectedClass) {
+      initialClassAssignedRef.current = true;
+      return;
     }
-    if (!location.state?.selectedClass && teacherAssignedClasses.length > 0) {
+    if (teacherAssignedClasses.length > 0) {
       const raw = String(teacherAssignedClasses[0] || '');
       const clean = raw.includes('11') ? '11th' : (raw.includes('12') ? '12th' : (raw.includes('10') ? '10th' : (raw.includes('9') ? '9th' : '11th')));
       setSelectedClass(clean);
+      initialClassAssignedRef.current = true;
     }
-  }, [teacherRegisteredSubject, teacherAssignedClasses, allTeacherAssignedSubjects, user, selectedClass, location.state]);
+  }, [teacherAssignedClasses, location.state?.selectedClass]);
 
   // Synchronize filter states if user navigates with state (e.g. from Dashboard Submission History)
   useEffect(() => {
@@ -2004,7 +1993,7 @@ export default function PracticalsPage() {
             const rawStatus = String(st.status || st.admissionStatus || st['Admission Status'] || st['Status'] || '').toLowerCase().trim();
             const isStatusMatch = evalAllowedStatuses.some(statusFilter => {
               const sf = String(statusFilter).toLowerCase().trim();
-              return rawStatus.includes(sf) || (sf === 'approved' && (!rawStatus || rawStatus === 'approved' || rawStatus === 'confirmed'));
+              return rawStatus.includes(sf) || (sf === 'approved' && (!rawStatus || rawStatus === 'approved' || rawStatus === 'confirmed' || hasAssignedClassRoll(st)));
             });
             if (!isStatusMatch) return;
           }
@@ -2089,7 +2078,7 @@ export default function PracticalsPage() {
               const rawStatus = String(richSt.status || richSt.admissionStatus || richSt['Admission Status'] || richSt['Status'] || rec.status || '').toLowerCase().trim();
               const isStatusMatch = evalAllowedStatuses.some(statusFilter => {
                 const sf = String(statusFilter).toLowerCase().trim();
-                return rawStatus.includes(sf) || (sf === 'approved' && (!rawStatus || rawStatus === 'approved' || rawStatus === 'confirmed'));
+                return rawStatus.includes(sf) || (sf === 'approved' && (!rawStatus || rawStatus === 'approved' || rawStatus === 'confirmed' || hasAssignedClassRoll(richSt) || hasAssignedClassRoll(rec)));
               });
               if (!isStatusMatch) return;
             }
@@ -3595,7 +3584,7 @@ export default function PracticalsPage() {
                   <label className="text-[9.5px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block truncate">Class</label>
                   <select
                     value={selectedClass}
-                    onChange={(e) => setSelectedClass(e.target.value)}
+                    onChange={(e) => handleClassChange(e.target.value)}
                     className="practicals-select practicals-control w-full px-2 py-1 rounded-lg text-xs font-semibold h-8.5 border focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 shadow-2xs cursor-pointer transition-colors"
                   >
                     <option value="12th">Class 12th</option>
@@ -3749,7 +3738,7 @@ export default function PracticalsPage() {
                         <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 block mb-0.5">Class</label>
                         <select
                           value={selectedClass}
-                          onChange={(e) => setSelectedClass(e.target.value)}
+                          onChange={(e) => handleClassChange(e.target.value)}
                           className="portal-compact-select w-full border bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 shadow-2xs cursor-pointer"
                         >
                           <option value="12th">Class 12th</option>
