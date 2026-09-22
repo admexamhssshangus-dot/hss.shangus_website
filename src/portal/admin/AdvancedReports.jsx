@@ -241,16 +241,24 @@ export function formatStudentSubjects(rec, targetClass = '') {
   }
 
   // If explicit individual subject breakdown has >= 4 subjects, or is more complete than composite string, use it!
+  let finalTokens = [];
   if (cleanedExplicit.length >= 4 || (cleanedExplicit.length > 0 && cleanedExplicit.length >= rawBestTokens.length)) {
-    return cleanedExplicit.join(', ');
+    finalTokens = cleanedExplicit;
+  } else if (rawBestTokens.length > 0) {
+    finalTokens = rawBestTokens;
+  } else if (cleanedExplicit.length > 0) {
+    finalTokens = cleanedExplicit;
   }
 
-  if (rawBestTokens.length > 0) {
-    return rawBestTokens.join(', ');
+  if (tier === 'secondary' && finalTokens.length > 0) {
+    const hasLang = finalTokens.some(s => /\b(urdu|hindi)\b/i.test(s));
+    if (!hasLang) {
+      finalTokens.push('Urdu');
+    }
   }
 
-  if (cleanedExplicit.length > 0) {
-    return cleanedExplicit.join(', ');
+  if (finalTokens.length > 0) {
+    return finalTokens.join(', ');
   }
 
   return '—';

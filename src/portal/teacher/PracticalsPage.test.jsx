@@ -1,3 +1,13 @@
+jest.mock('react-router-dom', () => ({
+  Link: ({ children, to, ...props }) => <a href={to} {...props}>{children}</a>,
+  useLocation: () => ({ search: '' }),
+  useOutletContext: () => ({ user: {} })
+}));
+jest.mock('../../services/firebase', () => ({
+  db: {},
+  auth: { currentUser: null }
+}));
+
 import { 
   getEvaluationTypesForTeacher,
   getTeacherAssignedSubjectsForClass,
@@ -6,6 +16,11 @@ import {
   isTeacherSubjectMatch,
   isEvaluationClassMatch
 } from '../../utils/practicalsSettingsManager';
+import {
+  extractRawSubjectsString,
+  getAbbreviatedSubjects
+} from './PracticalsPage';
+import { getAbbreviatedSubjects as getPdfAbbreviatedSubjects } from '../../utils/practicalsPdfGenerator';
 
 describe('Practicals Dynamic Configuration and Roster Logic', () => {
   describe('Dynamic Subject Overrides from Edit School Assessment', () => {
@@ -315,6 +330,74 @@ describe('Practicals Dynamic Configuration and Roster Logic', () => {
 
       expect(getTeacherAssignedSubjectsForClass(legacyTeacher, '10th')).toEqual(['Science']);
       expect(getTeacherAssignedSubjectsForClass(legacyTeacher, '12th')).toEqual(['Environmental Science']);
+    });
+  });
+
+  describe('Secondary Class Subject Normalization & Stream Suppression', () => {
+    test('bulk-imported Class 10th student with 4 core subjects includes Urdu (UR) and suppresses stream code (S)', () => {
+      const student10th = {
+        name: 'Andleeb Reyaz',
+        class: '10th',
+        stream: 'Science', // Often set by default bulk ingestion
+        'Subjects to be taken in Class 10th': 'English, Social Studies, Science, MA'
+      };
+
+      const raw = extractRawSubjectsString(student10th, '10th');
+      expect(raw).toContain('Urdu');
+
+      const abbr = getAbbreviatedSubjects(student10th, '10th');
+      expect(abbr).toBe('EN, MA, SC, SS, UR');
+      expect(abbr).not.toContain('(S)');
+      expect(abbr).not.toContain('(H)');
+      expect(abbr).not.toContain('(G)');
+
+      // PDF generator parity
+      const pdfAbbr = getPdfAbbreviatedSubjects(student10th, '10th');
+      expect(pdfAbbr).toContain('UR');
+      expect(pdfAbbr).toContain('EN');
+      expect(pdfAbbr).toContain('SC');
+      expect(pdfAbbr).toContain('SS');
+      expect(pdfAbbr).toContain('MA');
+    });
+
+    test('Class 9th student with no explicit subjects defaults to all 5 core secondary subjects', () => {
+      const student9th = {
+        name: 'Atoofa Khurshid',
+        class: '9th'
+      };
+
+      const raw = extractRawSubjectsString(student9th, '9th');
+      expect(raw).toBe('English, Mathematics, Science, Social Science, Urdu');
+
+      const abbr = getAbbreviatedSubjects(student9th, '9th');
+      expect(abbr).toBe('EN, MA, SC, SS, UR');
+    });
+
+    test('Class 10th student with vocational subject retains both Urdu and vocational code', () => {
+      const studentVoc = {
+        name: 'Zuhaq Rafiq Bhat',
+        class: '10th',
+        'Subjects to be taken in Class 10th': 'English, Social Studies, Science, Mathematics, IT and ITES'
+      };
+
+      const raw = extractRawSubjectsString(studentVoc, '10th');
+      expect(raw).toContain('Urdu');
+      expect(raw).toContain('IT and ITES');
+
+      const abbr = getAbbreviatedSubjects(studentVoc, '10th');
+      expect(abbr).toBe('EN, MA, SC, SS, UR, ITE');
+    });
+
+    test('Higher Secondary (11th & 12th) preserves stream codes', () => {
+      const student12th = {
+        name: 'Senior Student',
+        class: '12th',
+        stream: 'Science',
+        'Subjects to be taken in Class 12th': 'General English, Physics, Chemistry, Biology'
+      };
+
+      const abbr = getAbbreviatedSubjects(student12th, '12th');
+      expect(abbr).toBe('EN, PH, CH, BI (S)');
     });
   });
 });

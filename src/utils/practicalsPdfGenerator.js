@@ -1138,6 +1138,7 @@ export function printConsolidatedAwardRoll({
 export function getAbbreviatedSubjects(st, className = '') {
   if (!st) return '';
   const clsName = String(className || st.Class || st.class || '').toLowerCase();
+  const isSecondary = clsName.includes('9') || clsName.includes('10');
   const is12 = clsName.includes('12');
 
   const multiSubCols = [
@@ -1150,9 +1151,15 @@ export function getAbbreviatedSubjects(st, className = '') {
     st['Subs'] ||
     st['subs'] ||
     (is12 ? (st['Subjects to be taken in Class 12th'] || st['Subjects Studied in Class 11th'] || st['Subjects in Class 11th']) : '') ||
+    (clsName.includes('10') ? (st['Subjects to be taken in Class 10th'] || st['Subjects Studied in Class 9th']) : '') ||
+    (clsName.includes('9') ? (st['Subjects to be taken in Class 9th'] || st['Subjects Studied in Class 8th']) : '') ||
     multiSubCols ||
     st['Subjects to be taken in Class 11th'] ||
     st['Subjects Studied in Class 11th'] ||
+    st['Subjects to be taken in Class 10th'] ||
+    st['Subjects to be taken in Class 9th'] ||
+    st['Subjects Studied in Class 10th'] ||
+    st['Subjects Studied in Class 9th'] ||
     st['Subjects'] ||
     st['Subject Combination'] ||
     st['streamSubjects'] ||
@@ -1161,6 +1168,7 @@ export function getAbbreviatedSubjects(st, className = '') {
   ).trim();
 
   if (!raw) {
+    if (isSecondary) return 'EN, MA, SC, SS, UR';
     const stStream = String(st.stream || st.Stream || '').toLowerCase();
     if (stStream.includes('non-med') || stStream.includes('nonmed')) return 'EN, PH, CH, MA';
     if (stStream.includes('med') || stStream.includes('science')) return 'EN, PH, CH, BI';
@@ -1175,7 +1183,10 @@ export function getAbbreviatedSubjects(st, className = '') {
     { regex: /\b(chemistry|chem|ch)\b/i, code: 'CH' },
     { regex: /\b(biology|botany|zoology|bio|bot|zoo|bi|bo|zo)\b/i, code: 'BI' },
     { regex: /\b(mathematics|maths|math|ma)\b/i, code: 'MA' },
+    { regex: /\b(social science|social studies|sst|ss)\b/i, code: 'SS' },
+    { regex: /\b(science|sci|sc)\b/i, code: 'SC' },
     { regex: /\b(urdu|ur)\b/i, code: 'UR' },
+    { regex: /\b(hindi|hn)\b/i, code: 'HN' },
     { regex: /\b(education|edu|ed)\b/i, code: 'ED' },
     { regex: /\b(history|hist|ht)\b/i, code: 'HT' },
     { regex: /\b(political science|pol sc|pol\. sc\.|pol science|ps)\b/i, code: 'PS' },
@@ -1202,11 +1213,29 @@ export function getAbbreviatedSubjects(st, className = '') {
     }
   });
 
+  if (isSecondary) {
+    if (!foundCodes.includes('UR') && !foundCodes.includes('HN')) {
+      foundCodes.push('UR');
+    }
+    const secondaryOrder = ['EN', 'MA', 'SC', 'SS', 'UR', 'HTC', 'ITE', 'HN'];
+    const ordered = [];
+    secondaryOrder.forEach(code => {
+      if (foundCodes.includes(code)) {
+        ordered.push(code);
+      }
+    });
+    foundCodes.forEach(code => {
+      if (!ordered.includes(code)) ordered.push(code);
+    });
+    return ordered.length > 0 ? ordered.join(', ') : 'EN, MA, SC, SS, UR';
+  }
+
   if (foundCodes.length > 0) {
     return foundCodes.join(', ');
   }
 
   // Clean raw string fallback (normalize Botany/Zoology to BI)
+  if (isSecondary) return 'EN, MA, SC, SS, UR';
   return raw
     .replace(/botany|zoology/gi, 'BI')
     .replace(/biology/gi, 'BI')

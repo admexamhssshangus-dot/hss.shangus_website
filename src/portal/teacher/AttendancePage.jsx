@@ -228,9 +228,20 @@ function getExamRollBadges(st) {
 }
 
 // Helper: Extract Student Subjects across all schemas
-function extractRawSubjectsString(rec) {
+function extractRawSubjectsString(rec, targetClass = '') {
   if (!rec) return '';
+
+  const cls = String(targetClass || rec['Class'] || rec['class'] || rec['className'] || rec['Admission sought for class'] || '').trim();
+  const isSecondary = cls.includes('9') || cls.includes('10');
+
+  const classSpecific =
+    (cls.includes('11') ? rec['Subjects to be taken in Class 11th'] : null) ||
+    (cls.includes('12') ? (rec['Subjects to be taken in Class 12th'] || rec['Subjects Studied in Class 11th']) : null) ||
+    (cls.includes('10') ? (rec['Subjects to be taken in Class 10th'] || rec['Subjects Studied in Class 9th']) : null) ||
+    (cls.includes('9') ? (rec['Subjects to be taken in Class 9th'] || rec['Subjects Studied in Class 8th']) : null);
+
   const subjectArrayOrStr = 
+    classSpecific ||
     rec['Subjects to be taken in Class 11th'] ||
     rec['Subjects to be taken in Class 12th'] ||
     rec['Subjects to be taken in Class 10th'] ||
@@ -253,58 +264,82 @@ function extractRawSubjectsString(rec) {
     rec['Subs'] ||
     rec['subs'];
 
+  let extracted = '';
   if (Array.isArray(subjectArrayOrStr) && subjectArrayOrStr.length > 0) {
     const cleaned = subjectArrayOrStr.filter(s => s && String(s).trim() !== '—').map(s => String(s).trim());
-    if (cleaned.length > 0) return cleaned.join(', ');
-  }
+    if (cleaned.length > 0) extracted = cleaned.join(', ');
+  } else if (typeof subjectArrayOrStr === 'string' && subjectArrayOrStr.trim() && subjectArrayOrStr.trim() !== '—') {
+    extracted = subjectArrayOrStr.trim();
+  } else {
+    const subjList = [];
+    const subjKeys = [
+      'Subjects1', 'Subjects2', 'Subjects3', 'Subjects4', 'Subjects5', 'Subjects6', 'Subject6',
+      'subject1', 'subject2', 'subject3', 'subject4', 'subject5', 'subject6'
+    ];
 
-  if (typeof subjectArrayOrStr === 'string' && subjectArrayOrStr.trim() && subjectArrayOrStr.trim() !== '—') {
-    return subjectArrayOrStr.trim();
-  }
+    subjKeys.forEach(k => {
+      const val = rec[k];
+      if (val && typeof val === 'string' && val.trim() && val.trim() !== '—' && !subjList.includes(val.trim())) {
+        subjList.push(val.trim());
+      }
+    });
 
-  const subjList = [];
-  const subjKeys = [
-    'Subjects1', 'Subjects2', 'Subjects3', 'Subjects4', 'Subjects5', 'Subjects6', 'Subject6',
-    'subject1', 'subject2', 'subject3', 'subject4', 'subject5', 'subject6'
-  ];
-
-  subjKeys.forEach(k => {
-    const val = rec[k];
-    if (val && typeof val === 'string' && val.trim() && val.trim() !== '—' && !subjList.includes(val.trim())) {
-      subjList.push(val.trim());
+    if (subjList.length > 0) {
+      extracted = subjList.join(', ');
     }
-  });
-
-  if (subjList.length > 0) {
-    return subjList.join(', ');
   }
-  return '';
+
+  // Secondary Class Intelligence:
+  if (isSecondary) {
+    if (!extracted || ['science', 'arts', 'commerce', 'humanities', 'medical', 'general'].includes(extracted.toLowerCase())) {
+      extracted = 'English, Mathematics, Science, Social Science, Urdu';
+    } else {
+      const hasLang = /\b(urdu|ur|hindi|hn)\b/i.test(extracted);
+      if (!hasLang) {
+        extracted = `${extracted}, Urdu`;
+      }
+    }
+  }
+
+  return extracted;
 }
 
 // Helper: Mandatory Abbreviate Subject Combinations with Stream Code (S = Science, H = Humanities, G = General)
-function getAbbreviatedSubjects(st) {
-  if (!st) return 'EN, PH, CH, BI (S)';
+function getAbbreviatedSubjects(st, targetClass = '') {
+  if (!st) return '';
 
-  // Extract Stream
-  const streamRaw = String(
-    st['Stream for Class 11th'] ||
-    st['Stream opted in Class 11th'] ||
-    st['Stream'] ||
-    st.stream ||
+  const clsRaw = String(
+    targetClass ||
+    st['Class'] ||
+    st['class'] ||
+    st['className'] ||
+    st['Admission sought for class'] ||
     ''
-  ).trim();
+  ).toLowerCase();
+  const isSecondary = clsRaw.includes('9') || clsRaw.includes('10');
 
+  // Extract Stream (Strictly for Higher Secondary 11th & 12th; Secondary has NO streams)
   let streamCode = '';
-  if (streamRaw.toLowerCase().includes('science') || streamRaw.toLowerCase().includes('med')) {
-    streamCode = 'S';
-  } else if (streamRaw.toLowerCase().includes('arts') || streamRaw.toLowerCase().includes('humanities')) {
-    streamCode = 'H';
-  } else if (streamRaw.toLowerCase().includes('commerce') || streamRaw.toLowerCase().includes('general')) {
-    streamCode = 'G';
+  if (!isSecondary) {
+    const streamRaw = String(
+      st['Stream for Class 11th'] ||
+      st['Stream opted in Class 11th'] ||
+      st['Stream'] ||
+      st.stream ||
+      ''
+    ).trim();
+
+    if (streamRaw.toLowerCase().includes('science') || streamRaw.toLowerCase().includes('med')) {
+      streamCode = 'S';
+    } else if (streamRaw.toLowerCase().includes('arts') || streamRaw.toLowerCase().includes('humanities')) {
+      streamCode = 'H';
+    } else if (streamRaw.toLowerCase().includes('commerce') || streamRaw.toLowerCase().includes('general')) {
+      streamCode = 'G';
+    }
   }
 
   // Extract Raw Subjects from all possible schema keys
-  const subjRaw = extractRawSubjectsString(st);
+  const subjRaw = extractRawSubjectsString(st, targetClass);
   let rawStr = subjRaw.trim();
 
   let subjectsStr = '';
@@ -322,8 +357,9 @@ function getAbbreviatedSubjects(st) {
       .replace(/Sociology/gi, 'SO')
       .replace(/Psychology/gi, 'PY')
       .replace(/Healthcare/gi, 'HTC')
-      .replace(/IT And ITES|IT\s*&\s*ITES/gi, 'ITE')
-      .replace(/Mathematics/gi, 'MA')
+      .replace(/IT And ITES|IT\s*&\s*ITES|IT\s+ITES/gi, 'ITE')
+      .replace(/Social Studies|Social Science|SST/gi, 'SS')
+      .replace(/Mathematics|Maths/gi, 'MA')
       .replace(/Geography/gi, 'GG')
       .replace(/Economics/gi, 'EC')
       .replace(/Chemistry/gi, 'CH')               // BEFORE 'History'
@@ -335,15 +371,50 @@ function getAbbreviatedSubjects(st) {
       .replace(/Education/gi, 'ED')               // After 'Physical Education'
       .replace(/Persian/gi, 'PE')
       .replace(/Arabic/gi, 'AR')
-      .replace(/Urdu/gi, 'UR');
+      .replace(/Urdu/gi, 'UR')
+      .replace(/\bHindi\b/gi, 'HN')
+      .replace(/\bScience\b/gi, 'SC')
+      .replace(/\bEnglish\b/gi, 'EN');
   }
 
-  // If subjects string is empty or equal to stream name, fallback to standard stream combination
-  if (!subjectsStr || ['science', 'arts', 'commerce', 'humanities', 'medical', 'general'].includes(subjectsStr.toLowerCase())) {
-    if (streamCode === 'S') subjectsStr = 'EN, PH, CH, BI';
-    else if (streamCode === 'H') subjectsStr = 'EN, UR, ED, PS';
-    else if (streamCode === 'G') subjectsStr = 'EN, AY, BS, EC';
-    else subjectsStr = 'EN, PH, CH, BI';
+  if (isSecondary) {
+    const tokens = subjectsStr.split(/[\s,]+/).filter(Boolean).map(t => t.toUpperCase());
+    const tokenSet = new Set(tokens);
+
+    if (!tokenSet.has('UR') && !tokenSet.has('HN')) {
+      tokenSet.add('UR');
+    }
+
+    const secondaryOrder = ['EN', 'MA', 'SC', 'SS', 'UR', 'HTC', 'ITE', 'HN'];
+    const ordered = [];
+    secondaryOrder.forEach(code => {
+      if (tokenSet.has(code)) {
+        ordered.push(code);
+        tokenSet.delete(code);
+      }
+    });
+    tokenSet.forEach(code => ordered.push(code));
+
+    subjectsStr = ordered.length > 0 ? ordered.join(', ') : 'EN, MA, SC, SS, UR';
+    streamCode = ''; // Secondary students NEVER have stream code
+  } else {
+    if (!subjectsStr || ['science', 'arts', 'commerce', 'humanities', 'medical', 'general'].includes(subjectsStr.toLowerCase())) {
+      if (streamCode === 'S') subjectsStr = 'EN, PH, CH, BI';
+      else if (streamCode === 'H') subjectsStr = 'EN, UR, ED, PS';
+      else if (streamCode === 'G') subjectsStr = 'EN, AY, BS, EC';
+      else subjectsStr = 'EN, PH, CH, BI';
+    }
+
+    // Infer stream from subject tokens if streamCode was not explicit
+    if (!streamCode && subjectsStr) {
+      if (/\b(PS|ED|HT|SO|UR|AR|PE|KS|PY)\b/i.test(subjectsStr)) {
+        streamCode = 'H';
+      } else if (/\b(AY|BS|EP)\b/i.test(subjectsStr)) {
+        streamCode = 'G';
+      } else if (/\b(PH|CH|BI|BO|ZO)\b/i.test(subjectsStr)) {
+        streamCode = 'S';
+      }
+    }
   }
 
   return streamCode ? `${subjectsStr} (${streamCode})` : subjectsStr;
@@ -1216,8 +1287,8 @@ export default function AttendancePage() {
         name: getStudentName(st),
         regNo: getRegNo(st),
         examRollBadges: getExamRollBadges(st),
-        subjectsAbbr: getAbbreviatedSubjects(st),
-        rawSubjects: (() => { const r = extractRawSubjectsString(st); return Array.isArray(r) ? r.join(', ') : String(r); })(),
+        subjectsAbbr: getAbbreviatedSubjects(st, selectedClass),
+        rawSubjects: (() => { const r = extractRawSubjectsString(st, selectedClass); return Array.isArray(r) ? r.join(', ') : String(r); })(),
         status: 'P',
         formNo: st.formNo || st['Form No.'] || st.id || '',
       }));
