@@ -1637,7 +1637,26 @@ export default function BulkFieldOverwriteModal({
           s5 = expandJkboseSubjectCodes(s5) || s5;
           s6 = expandJkboseSubjectCodes(s6) || s6;
 
-          const activeSubList = [s1, s2, s3, s4, s5, s6].map(s => String(s || '').trim()).filter(s => s && s !== '—' && s !== '-');
+          let activeSubList = [s1, s2, s3, s4, s5, s6].map(s => String(s || '').trim()).filter(s => s && s !== '—' && s !== '-');
+
+          // Secondary Class Intelligence (Classes 9th & 10th):
+          // In JKBOSE, all secondary students take Urdu as their 5th compulsory core language subject (unless Hindi is opted).
+          const stCls = payload['class'] || payload['Class'] || st.class || st.Class || targetClass;
+          const isSec = String(stCls).includes('9') || String(stCls).includes('10');
+          if (isSec) {
+            const hasUrduOrHindi = activeSubList.some(s => /\b(urdu|hindi)\b/i.test(s));
+            if (!hasUrduOrHindi) {
+              if (!s5 || s5 === '—' || s5 === '-') {
+                s5 = 'Urdu';
+              } else if (!s6 || s6 === '—' || s6 === '-') {
+                s6 = 'Urdu';
+              }
+              if (!activeSubList.includes('Urdu')) {
+                activeSubList.push('Urdu');
+              }
+            }
+          }
+
           const finalSubStr = activeSubList.join(', ');
 
           if (activeSubList.length > 0) {
@@ -1657,17 +1676,14 @@ export default function BulkFieldOverwriteModal({
             payload['selectedSubjects'] = activeSubList;
 
             // Write class tier specific subject fields
-            const stCls = payload['class'] || payload['Class'] || st.class || st.Class || targetClass;
             const isSenior = String(stCls).includes('11') || String(stCls).includes('12');
             if (!isSenior) {
               payload['Subjects to be taken in Class 10th'] = finalSubStr;
               payload['Subjects to be taken in Class 9th'] = finalSubStr;
               payload['Subjects Studied in Class 10th'] = finalSubStr;
               payload['Subjects Studied in Class 9th'] = finalSubStr;
-              if (!payload['Stream'] && !payload['stream']) {
-                payload['Stream'] = 'General';
-                payload['stream'] = 'General';
-              }
+              payload['Stream'] = 'General';
+              payload['stream'] = 'General';
             } else {
               if (String(stCls).includes('12')) {
                 payload['Subjects to be taken in Class 12th'] = finalSubStr;
