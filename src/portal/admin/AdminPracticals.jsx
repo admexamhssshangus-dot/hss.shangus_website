@@ -16,6 +16,7 @@ import { getCachedCollection, invalidateCollectionCache } from '../../services/d
 import { logAdminActivity } from '../../services/adminActivityLogger';
 import { showToast } from '../../components/common/GlobalToast';
 import { saveVersionToBin, getVersionsForDoc, restoreVersionFromBin } from '../../services/practicalsBinService';
+import { sanitizeForFirestore } from '../../utils/firestoreSanitizer';
 import {
   printIndividualAwardRoll,
   printIndividualWorkSheet,
@@ -984,7 +985,7 @@ export default function AdminPracticals() {
   const saveSettingsDoc = async (keyName, updatedSettings) => {
     setSaving(true);
     try {
-      await setDoc(doc(db, 'adminPracticalsSettings', 'config'), updatedSettings, { merge: true });
+      await setDoc(doc(db, 'adminPracticalsSettings', 'config'), sanitizeForFirestore(updatedSettings), { merge: true });
       try {
         localStorage.setItem('hss_admin_practicals_settings', JSON.stringify(updatedSettings));
       } catch (_) {}
@@ -1074,9 +1075,9 @@ export default function AdminPracticals() {
             }
           }
 
-          // 2. Prepare clean canonical document
+          // 2. Prepare clean canonical document (sanitized to remove any undefined fields)
           const { id: _ignoreId, ...pendingData } = pendingDoc;
-          const canonicalRecord = {
+          const canonicalRecord = sanitizeForFirestore({
             ...pendingData,
             id: targetDocId,
             status: 'approved',
@@ -1084,8 +1085,9 @@ export default function AdminPracticals() {
             isPendingApproval: false,
             approvedAt: new Date().toISOString(),
             approvedBy: auth.currentUser?.email || 'Administrator',
-            lastIntegratedAt: new Date().toISOString()
-          };
+            lastIntegratedAt: new Date().toISOString(),
+            updatedByAdmin: Boolean(pendingData.updatedByAdmin)
+          });
 
           // 3. Write canonical document
           await setDoc(canonicalRef, canonicalRecord);
@@ -1130,12 +1132,12 @@ export default function AdminPracticals() {
     setSaving(true);
     (async () => {
       try {
-        await setDoc(doc(db, 'practicalsData', pendingDoc.id), {
+        await setDoc(doc(db, 'practicalsData', pendingDoc.id), sanitizeForFirestore({
           status: 'rejected',
           rejectionReason: reason || 'Please review and re-verify awards list.',
           rejectedAt: new Date().toISOString(),
           rejectedBy: auth.currentUser?.email || 'Administrator'
-        }, { merge: true });
+        }), { merge: true });
 
         invalidateCollectionCache('practicalsData');
         invalidatePracticalsCache();
@@ -1179,14 +1181,14 @@ export default function AdminPracticals() {
       const adminEmail = auth.currentUser?.email || 'Administrator';
       const nowIso = new Date().toISOString();
 
-      const updatedPayload = {
+      const updatedPayload = sanitizeForFirestore({
         ...submissionDoc,
         records: updatedRecords,
         updatedByAdmin: true,
         updatedBy: adminEmail,
         updatedAt: nowIso,
         lastEditedBy: `Admin (${adminEmail})`
-      };
+      });
 
       await setDoc(docRef, updatedPayload, { merge: true });
 
@@ -3604,7 +3606,7 @@ function SelectedSubmissionModal({ selSub, submissions = [], onClose, absentMark
                     onApprove({
                       ...selSub,
                       records: editableRecords,
-                      updatedByAdmin: editedIndices.size > 0 ? true : selSub.updatedByAdmin
+                      updatedByAdmin: editedIndices.size > 0 ? true : Boolean(selSub.updatedByAdmin)
                     });
                   }
                 }}

@@ -11,6 +11,7 @@ import {
 } from 'firebase/firestore';
 import { invalidateCollectionCache } from './dbCache';
 import { logAdminActivity } from './adminActivityLogger';
+import { sanitizeForFirestore } from '../utils/firestoreSanitizer';
 
 const BIN_COLLECTION = 'practicalsBin';
 const MAX_VERSIONS_PER_DOC = 3;
@@ -60,7 +61,7 @@ export async function saveVersionToBin(canonicalDocId, documentData, reason = 'r
     };
 
     // 1. Write the new version snapshot into the bin
-    await setDoc(doc(db, BIN_COLLECTION, binDocId), binPayload);
+    await setDoc(doc(db, BIN_COLLECTION, binDocId), sanitizeForFirestore(binPayload));
 
     // 2. Fetch all existing versions for this document to enforce the 3-version limit
     await pruneOldVersions(canonicalDocId);
@@ -185,7 +186,7 @@ export async function restoreVersionFromBin(binDocId, canonicalDocId, adminUser 
   };
 
   // 4. Overwrite active document in practicalsData
-  await setDoc(activeDocRef, restoredPayload);
+  await setDoc(activeDocRef, sanitizeForFirestore(restoredPayload));
 
   // 5. Invalidate practicals cache so all pages reflect restored state immediately
   invalidateCollectionCache('practicalsData');
