@@ -33,7 +33,7 @@ export default function MasterRegisterQuickEditModal({
       gender: student.gender || student['Gender'] || 'Male',
       stream: student.stream || student['Stream'] || 'Science',
       subjects: student.subs || student.subjects || student['Subjects'] || '',
-      boardRegNo: student.boardRegNo || student.regNo || student['Board Registration Number'] || student['Board Reg. No.'] || '',
+      boardRegNo: student.boardRegNo || student.regNo || student['Board Registration Number'] || student['Board Registration No. (Class 9th)'] || student['DIET Registration No.'] || student['DIET/Board Reg. No.'] || student['Board Reg. No.'] || '',
       admNo: student.admNo || student['Admission No.'] || student['Adm. No.'] || '',
       classRollNo: student.classRollNo || student.rollNo || student['Class Roll No'] || student['Class Roll No.'] || '',
       category: student.category || student['Cat._JKBOSE'] || student['Category'] || 'General'
@@ -66,7 +66,7 @@ export default function MasterRegisterQuickEditModal({
     try {
       const normalized = (val) => String(val || '').toLowerCase().replace(/[^a-z0-9]/g, '');
       const formNo = student.formNo || student['Form Number'] || student['Form No.'] || student.id;
-      const regNo = student.boardRegNo || student.regNo || student['Board Registration Number'];
+      const regNo = student.boardRegNo || student.regNo || student['Board Registration Number'] || student['DIET Registration No.'] || student['DIET/Board Reg. No.'] || student['Board Registration No. (Class 9th)'];
       const studentName = student.studentName || student["Student's Name"];
 
       const cleanedSubs = cleanRawSubjectTokens(formData.subjects);
@@ -113,6 +113,9 @@ export default function MasterRegisterQuickEditModal({
         regNo: formData.boardRegNo.trim(),
         "Board Registration Number": formData.boardRegNo.trim(),
         "Board Reg. No.": formData.boardRegNo.trim(),
+        "DIET Registration No.": formData.boardRegNo.trim(),
+        "DIET/Board Reg. No.": formData.boardRegNo.trim(),
+        "Board Registration No. (Class 9th)": formData.boardRegNo.trim(),
 
         admNo: formData.admNo.trim(),
         "Admission No.": formData.admNo.trim(),

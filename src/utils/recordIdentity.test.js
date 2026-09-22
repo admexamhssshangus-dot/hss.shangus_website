@@ -31,3 +31,15 @@ test('locates nested record via direct arrayIndex or bi-annual cross-session upd
   const locatorBiAnnual = recordLocator(biAnnualStudent);
   expect(locateNestedRecord(source, locatorBiAnnual).index).toBe(1);
 });
+
+test('resolves DIET registration number for Class 9th and secondary admissions', () => {
+  const { recordIdentity } = require('./recordIdentity');
+  const student9th = {
+    'Form Number': '251316',
+    'Class': '9th',
+    'Session': '2025-26',
+    'DIET Registration No.': 'DIET012345'
+  };
+  const identity = recordIdentity(student9th);
+  expect(identity.reg).toBe('diet012345');
+});

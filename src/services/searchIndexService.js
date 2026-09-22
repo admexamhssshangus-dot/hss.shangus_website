@@ -655,8 +655,17 @@ export function createSearchIndexEntry(doc, source = 'admissions') {
     doc.boardRegNo ||
     doc['Board Registration Number'] ||
     doc['Board Registration No.'] ||
+    doc['Board Registration No. (Class 11th)'] ||
+    doc['Board Registration No. (Class 10th)'] ||
+    doc['Board Registration No. (Class 9th)'] ||
+    doc['Registration No. (allotted by JKBOSE)'] ||
+    doc['Registration No. (allotted by DIET)'] ||
+    doc['DIET Registration No.'] ||
+    doc['DIET/Board Reg. No.'] ||
+    doc['DIET Reg. No.'] ||
     doc['Board Reg. No.'] ||
     doc['Board Reg No'] ||
+    doc.dietRegNo ||
     doc.regNo
   ).replace(/^(N\/A|—)$/i, '').trim();
 
@@ -1111,7 +1120,7 @@ export function evaluateStudentRecord(s, parsed) {
 
   const sFormNo = String(s.fn || s.formNo || s['Form Number'] || s['Form No.'] || '').trim();
   const sAdmNo = String(s.an || s.admNo || s['Adm. No.'] || s['Admission No.'] || '').trim();
-  const sBoardRegNo = String(s.r || s.boardRegNo || s['Board Registration Number'] || s['Board Reg. No.'] || '').trim();
+  const sBoardRegNo = String(s.r || s.boardRegNo || s['Board Registration Number'] || s['Board Registration No. (Class 11th)'] || s['Board Registration No. (Class 10th)'] || s['Board Registration No. (Class 9th)'] || s['DIET Registration No.'] || s['DIET/Board Reg. No.'] || s['DIET Reg. No.'] || s['Board Reg. No.'] || s.dietRegNo || s.regNo || '').trim();
   const sRollNo = String(s.rn || s.classRollNo || s['Class Roll No'] || s.rollNo || '').trim();
   const sMob = String(s.mob || s.mobile || s['Mobile No. (with working WhatsApp)'] || '').trim();
   const sPMob = String(s.pmob || s.parentContact || s["Parent's Contact"] || s["Parent's Mobile No."] || '').trim();

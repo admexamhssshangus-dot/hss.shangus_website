@@ -133,7 +133,7 @@ export default function StudentResultEditorModal({
     if (!student) return;
 
     const formNo = String(student.formNo || raw['Form No.'] || raw.formNo || '').trim();
-    const regNo = String(student.regNo || raw['Board Reg. No.'] || raw.regNo || '').trim();
+    const regNo = String(student.regNo || student.boardRegNo || raw['Board Registration Number'] || raw['Board Reg. No.'] || raw['Board Registration No. (Class 9th)'] || raw['DIET Registration No.'] || raw['DIET/Board Reg. No.'] || raw.boardRegNo || raw.regNo || '').trim();
     const docId = formNo || student.id || regNo;
 
     if (!docId) {
@@ -247,7 +247,7 @@ export default function StudentResultEditorModal({
   if (!isOpen || !student) return null;
 
   const studentName = student.name || raw["Student's Name"] || '—';
-  const regNo = student.regNo || raw["Board Reg. No."] || raw.regNo || '—';
+  const regNo = student.regNo || student.boardRegNo || raw["Board Registration Number"] || raw["Board Reg. No."] || raw["Board Registration No. (Class 9th)"] || raw["DIET Registration No."] || raw["DIET/Board Reg. No."] || raw.boardRegNo || raw.regNo || '—';
   const formNo = student.formNo || raw["Form No."] || raw.formNo || '—';
   const className = student.selectedClass || raw["Class"] || '12th';
   const stream = student.selectedStream || raw["Stream"] || '—';

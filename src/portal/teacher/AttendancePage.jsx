@@ -171,14 +171,24 @@ function getRegNo(st) {
   if (!st) return '';
   return String(
     st['Board Registration Number'] ||
+    st['Board Registration No. (Class 11th)'] ||
+    st['Board Registration No. (Class 10th)'] ||
+    st['Board Registration No. (Class 9th)'] ||
+    st['DIET Registration No.'] ||
+    st['DIET/Board Reg. No.'] ||
+    st['DIET Reg. No.'] ||
+    st['Registration No. (allotted by JKBOSE)'] ||
+    st['Registration No. (allotted by DIET)'] ||
     st['Board Reg. No.'] ||
     st['Board Reg No'] ||
     st['Reg. No.'] ||
     st['Reg No'] ||
+    st['REG. NO.'] ||
     st['Registration No'] ||
     st['Registration Number'] ||
     st.boardRegNo ||
     st.regNo ||
+    st.dietRegNo ||
     st.registrationNo ||
     ''
   ).trim();

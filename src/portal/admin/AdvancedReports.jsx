@@ -593,7 +593,16 @@ export async function updateStudentDocument(student, updates) {
     updates['Board Registration No.'] ||
     updates['Board Registration No. (Class 10th)'] ||
     updates['Board Registration No. (Class 11th)'] ||
+    updates['Board Registration No. (Class 9th)'] ||
+    updates['Board Registration No. (Class 8th)'] ||
     updates['Registration No. (allotted by JKBOSE)'] ||
+    updates['Registration No. (allotted by DIET)'] ||
+    updates['DIET Registration No.'] ||
+    updates['DIET Registration No'] ||
+    updates['DIET Registration Number'] ||
+    updates['DIET/Board Reg. No.'] ||
+    updates['DIET Reg. No.'] ||
+    updates['DIET Reg No'] ||
     updates.regNo ||
     updates['REG. NO.'] ||
     updates['Registration No.'] ||
@@ -605,7 +614,16 @@ export async function updateStudentDocument(student, updates) {
     student?.['Board Registration No.'] ||
     student?.['Board Registration No. (Class 10th)'] ||
     student?.['Board Registration No. (Class 11th)'] ||
+    student?.['Board Registration No. (Class 9th)'] ||
+    student?.['Board Registration No. (Class 8th)'] ||
     student?.['Registration No. (allotted by JKBOSE)'] ||
+    student?.['Registration No. (allotted by DIET)'] ||
+    student?.['DIET Registration No.'] ||
+    student?.['DIET Registration No'] ||
+    student?.['DIET Registration Number'] ||
+    student?.['DIET/Board Reg. No.'] ||
+    student?.['DIET Reg. No.'] ||
+    student?.['DIET Reg No'] ||
     student?.regNo ||
     student?.['REG. NO.'] ||
     student?.['Registration No.'] ||
@@ -622,7 +640,12 @@ export async function updateStudentDocument(student, updates) {
       updates['Board Registration No.'] = newReg;
       updates['Board Registration No. (Class 10th)'] = newReg;
       updates['Board Registration No. (Class 11th)'] = newReg;
+      updates['Board Registration No. (Class 9th)'] = newReg;
       updates['Registration No. (allotted by JKBOSE)'] = newReg;
+      updates['Registration No. (allotted by DIET)'] = newReg;
+      updates['DIET Registration No.'] = newReg;
+      updates['DIET/Board Reg. No.'] = newReg;
+      updates['DIET Reg. No.'] = newReg;
       updates['REG. NO.'] = newReg;
       updates['Registration No.'] = newReg;
     }
@@ -1929,14 +1952,33 @@ export const extractRegNo = (st) => {
     st['Board Registration Number'] ||
     st['Board Registration No. (Class 11th)'] ||
     st['Board Registration No. (Class 10th)'] ||
+    st['Board Registration No. (Class 9th)'] ||
+    st['Board Registration No. (Class 8th)'] ||
+    st['Board Registration No.'] ||
+    st['Board Registration No'] ||
+    st['Registration No. (allotted by JKBOSE)'] ||
+    st['Registration No. (allotted by DIET)'] ||
+    st['DIET Registration No.'] ||
+    st['DIET Registration No'] ||
+    st['DIET Registration Number'] ||
+    st['DIET/Board Reg. No.'] ||
+    st['DIET Reg. No.'] ||
+    st['DIET Reg No'] ||
+    st['DIET Registration No. (Class 9th)'] ||
+    st['DIET Registration No. (Class 8th)'] ||
     st['Board Reg. No.'] ||
     st['Board Reg No'] ||
     st['Reg. No.'] ||
     st['Reg No'] ||
+    st['REG. NO.'] ||
+    st['REG NO'] ||
+    st['Registration No.'] ||
     st['Registration No'] ||
     st['Registration Number'] ||
     st.boardRegNo ||
     st.regNo ||
+    st.dietRegNo ||
+    st.dietRegistrationNo ||
     st.registrationNo ||
     ''
   ).replace(/^(N\/A|—)$/i, '').trim();
@@ -5012,7 +5054,18 @@ const COLUMN_DEFS = [
   },
   { key: 'class', label: 'Class', className: 'font-black whitespace-nowrap text-center' },
   { key: 'session', label: 'Session', className: 'font-black text-purple-700 dark:text-purple-400 whitespace-nowrap text-center' },
-  { key: 'boardRegNo', label: 'Reg. No.', className: 'font-mono text-[11px] leading-tight text-slate-700 dark:text-slate-300 whitespace-nowrap' },
+  {
+    key: 'boardRegNo',
+    label: 'Reg. No.',
+    className: 'font-mono text-[11px] leading-tight text-slate-700 dark:text-slate-300 whitespace-nowrap',
+    render: (val, student) => {
+      const reg = cleanRegNoVal(val) || extractRegNo(student);
+      if (!reg || reg === '—' || isPlaceholderRegNo(reg)) {
+        return <span className="font-mono text-slate-400 dark:text-slate-600">—</span>;
+      }
+      return <span className="font-mono font-bold text-slate-800 dark:text-slate-200">{reg}</span>;
+    }
+  },
   {
     key: 'photoId', label: 'Photo', className: 'text-center', render: (val, student) => {
       return <OnDemandStudentPhotoCell student={student} val={val} />;
@@ -5481,7 +5534,7 @@ function AdminStudentEditModal({ student, onClose, onSave, isSaving, restrictedC
       'Session': student?.session || student?.['Session'] || '2025-26',
       'Class Roll No': student?.classRollNo || student?.['Class Roll No'] || student?.['Class R.No.'] || student?.rollNo || '',
       'Adm. No.': student?.admNo || student?.['Adm. No.'] || '',
-      'Board Registration Number': student?.boardRegNo || student?.['Board Registration Number'] || student?.['Board Reg. No.'] || '',
+      'Board Registration Number': extractRegNo(student) || student?.boardRegNo || student?.['Board Registration Number'] || student?.['Board Reg. No.'] || student?.['DIET Registration No.'] || '',
       'Status': student?.status || student?.['Status'] || 'Submitted',
       'Stream': student?.stream || student?.['Stream'] || 'General',
 
@@ -6186,7 +6239,7 @@ export default function AdvancedReports({
       const sStream = updatedFields['Stream'] || updatedFields.stream || '';
       const sRoll = updatedFields['Class Roll No'] || updatedFields.classRollNo || '';
       const sAdm = updatedFields['Adm. No.'] || updatedFields.admNo || '';
-      const sReg = updatedFields['Board Registration Number'] || updatedFields.boardRegNo || '';
+      const sReg = updatedFields['Board Registration Number'] || updatedFields.boardRegNo || updatedFields['DIET Registration No.'] || updatedFields['DIET/Board Reg. No.'] || '';
       const sDob = updatedFields['DoB'] || updatedFields.dob || '';
       const sGender = updatedFields['Gender'] || updatedFields.gender || '';
       const sCat = updatedFields['Cat._JKBOSE'] || updatedFields['Category'] || updatedFields.category || '';
@@ -6264,7 +6317,13 @@ export default function AdvancedReports({
           boardRegNo: sReg,
           "Board Registration Number": sReg,
           "Board Reg. No.": sReg,
-          "Board Registration No.": sReg
+          "Board Registration No.": sReg,
+          "DIET Registration No.": sReg,
+          "DIET/Board Reg. No.": sReg,
+          "DIET Reg. No.": sReg,
+          "Board Registration No. (Class 9th)": sReg,
+          "Registration No. (allotted by JKBOSE)": sReg,
+          "Registration No. (allotted by DIET)": sReg
         } : {}),
         ...(sDob ? {
           dob: sDob,
@@ -8493,14 +8552,33 @@ export default function AdvancedReports({
         st['Board Registration Number'] ||
         st['Board Registration No. (Class 11th)'] ||
         st['Board Registration No. (Class 10th)'] ||
+        st['Board Registration No. (Class 9th)'] ||
+        st['Board Registration No. (Class 8th)'] ||
+        st['Board Registration No.'] ||
+        st['Board Registration No'] ||
+        st['Registration No. (allotted by JKBOSE)'] ||
+        st['Registration No. (allotted by DIET)'] ||
+        st['DIET Registration No.'] ||
+        st['DIET Registration No'] ||
+        st['DIET Registration Number'] ||
+        st['DIET/Board Reg. No.'] ||
+        st['DIET Reg. No.'] ||
+        st['DIET Reg No'] ||
+        st['DIET Registration No. (Class 9th)'] ||
+        st['DIET Registration No. (Class 8th)'] ||
         st['Board Reg. No.'] ||
         st['Board Reg No'] ||
         st['Reg. No.'] ||
         st['Reg No'] ||
+        st['REG. NO.'] ||
+        st['REG NO'] ||
+        st['Registration No.'] ||
         st['Registration No'] ||
         st['Registration Number'] ||
         st.boardRegNo ||
         st.regNo ||
+        st.dietRegNo ||
+        st.dietRegistrationNo ||
         st.registrationNo ||
         ''
       ).replace(/^(N\/A|—)$/i, '').trim();
@@ -9007,7 +9085,7 @@ export default function AdvancedReports({
       const finalAdmNo = resolveAdmNo(a) !== '—' ? resolveAdmNo(a) : resolveAdmNo(mergedRec);
 
       const regFromMaster = masterMatch ? extractRegNo(masterMatch) : '';
-      const regFromActive = extractRegNo(a);
+      const regFromActive = extractRegNo(a) || (mergedRec ? extractRegNo(mergedRec) : '');
       let finalBoardRegNo = regFromActive;
       if (regFromMaster && regFromMaster !== '—') {
         if (!regFromActive || regFromActive === '—' || regFromActive.endsWith('00000000') || regFromMaster !== regFromActive) {
@@ -10883,7 +10961,7 @@ export default function AdvancedReports({
       if (parsed.regNoOrFormNo) {
         const target = parsed.regNoOrFormNo.trim();
         matchedStudent = allStudents.find(s => {
-          const sReg = String(s.boardRegNo || s['Board Registration Number'] || s.regNo || '').replace(/[\s-]/g, '');
+          const sReg = String(extractRegNo(s) || s.boardRegNo || s['Board Registration Number'] || s.regNo || '').replace(/[\s-]/g, '');
           const sForm = String(s.formNo || s['Form Number'] || '').trim();
           const sId = String(s.id || '').trim();
           return sReg === target || sForm === target || sId === target;

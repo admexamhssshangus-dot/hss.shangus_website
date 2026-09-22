@@ -95,6 +95,11 @@ export async function updateStudentInRegIndex(studentData) {
 
   const rawReg = studentData['Board Registration Number'] ||
     studentData['Board Registration No. (Class 11th)'] ||
+    studentData['Board Registration No. (Class 10th)'] ||
+    studentData['Board Registration No. (Class 9th)'] ||
+    studentData['DIET Registration No.'] ||
+    studentData['DIET/Board Reg. No.'] ||
+    studentData['DIET Reg. No.'] ||
     studentData['Board Reg. No.'] ||
     studentData.boardRegNo ||
     studentData.regNo ||
@@ -152,6 +157,10 @@ export async function rebuildStudentRegIndex(admissionsList = [], masterList = [
     const rawReg = rec['Board Registration Number'] ||
       rec['Board Registration No. (Class 11th)'] ||
       rec['Board Registration No. (Class 10th)'] ||
+      rec['Board Registration No. (Class 9th)'] ||
+      rec['DIET Registration No.'] ||
+      rec['DIET/Board Reg. No.'] ||
+      rec['DIET Reg. No.'] ||
       rec['Board Reg. No.'] ||
       rec['Reg. No.'] ||
       rec.boardRegNo ||

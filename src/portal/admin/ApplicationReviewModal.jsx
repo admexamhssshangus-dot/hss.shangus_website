@@ -132,7 +132,7 @@ export default function ApplicationReviewModal({ app, onClose, onRefresh }) {
 
       // Synchronize photo across centralized studentPhotos
       await syncStudentPhotoOnRegUpdate({
-        newReg: app?.['Board Registration Number'] || app?.['Board Registration No.'] || app?.boardRegNo || app?.regNo,
+        newReg: app?.['Board Registration Number'] || app?.['Board Registration No.'] || app?.['Board Registration No. (Class 9th)'] || app?.['DIET Registration No.'] || app?.['DIET/Board Reg. No.'] || app?.['DIET Reg. No.'] || app?.boardRegNo || app?.regNo,
         student: app,
         photoData: compressedDataUrl
       });

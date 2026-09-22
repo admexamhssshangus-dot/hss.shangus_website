@@ -419,7 +419,9 @@ const BOARD_REGISTRATION_KEYS = [
   'Board Reg. No.', 'Board Reg No', 'Board Registration No. (Class 12th)',
   'Board Registration No. (Class 11th)', 'Board Registration No. (Class 10th)',
   'Board Registration No. (Class 9th)', 'Registration No. (allotted by JKBOSE)',
-  'Registration No. (allotted by JKBOSE )', 'Registration Number', 'Registration No.',
+  'Registration No. (allotted by JKBOSE )', 'Registration No. (allotted by DIET)',
+  'DIET Registration No.', 'DIET/Board Reg. No.', 'DIET Reg. No.', 'DIET Registration Number',
+  'Registration Number', 'Registration No.',
   'Registration No', 'Reg. No.', 'Reg No', 'boardReg', 'regNo'
 ];
 
