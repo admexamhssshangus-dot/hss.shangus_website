@@ -34,8 +34,28 @@ function renderHead(seo) {
 }
 
 const link = (route) => `<a href="${route}">${escapeHtml(PUBLIC_PAGES[route]?.label || 'Open Online Portal')}</a>`;
+
+function renderInitialLoader() {
+  return `<div class="initial-app-loader" role="status" aria-label="Loading Govt HSS Shangus" aria-live="polite">
+    <div class="loader-crest-container">
+      <div class="loader-spinner-track"></div>
+      <div class="loader-pulse-glow"></div>
+      <div class="loader-crest-card">
+        <img src="/logo.png" width="48" height="48" alt="HSS Shangus school crest" class="loader-crest-img">
+      </div>
+    </div>
+    <div class="loader-brand-title">Govt. Higher Secondary School Shangus</div>
+    <span class="loader-badge">Academic Portal</span>
+    <div class="loader-status-title">Loading School Data…</div>
+    <div class="loader-status-subtext">Nurturing Minds, Shaping Futures • Estd. 1917</div>
+    <div class="loader-progress-track" aria-hidden="true">
+      <div class="loader-progress-bar"></div>
+    </div>
+  </div>`;
+}
+
 function renderOverview(page) {
-  return `<div class="search-overview">
+  return `${renderInitialLoader()}<div class="search-overview">
     <header class="search-overview__header">
       <a href="/" class="search-overview__brand"><img src="/logo.png" width="64" height="64" alt="HSS Shangus school crest"><span>HSS Shangus<small>Govt. Higher Secondary School Shangus</small></span></a>
       <nav aria-label="Main navigation">${NAVIGATION.map(link).join(' ')}</nav>
