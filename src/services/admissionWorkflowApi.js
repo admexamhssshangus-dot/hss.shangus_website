@@ -16,9 +16,19 @@ function workflowError(message, status = 0, fieldErrors = {}) {
   return error;
 }
 
-async function request(action, payload = {}, { force = false } = {}) {
+async function request(action, payload = {}, { force = false, timeoutMs = 12000 } = {}) {
   if (!force && action === 'draft' && cachedServiceError && Date.now() < serviceUnavailableUntil) {
     throw cachedServiceError;
+  }
+
+  // If page just reloaded, allow Firebase Auth up to 3s to restore persistence from IndexedDB/LocalStorage
+  if (!auth.currentUser && typeof auth.authStateReady === 'function') {
+    try {
+      await Promise.race([
+        auth.authStateReady(),
+        new Promise(resolve => setTimeout(resolve, 3000))
+      ]);
+    } catch (_) {}
   }
 
   const user = auth.currentUser;
@@ -39,6 +49,9 @@ async function request(action, payload = {}, { force = false } = {}) {
     }
   }
 
+  const controller = new AbortController();
+  const timeoutTimer = setTimeout(() => controller.abort(), timeoutMs);
+
   let response;
   try {
     response = await fetch(ENDPOINT, {
@@ -47,13 +60,21 @@ async function request(action, payload = {}, { force = false } = {}) {
       cache: 'no-store',
       credentials: 'same-origin',
       body: JSON.stringify({ action, ...payload }),
+      signal: controller.signal,
     });
   } catch (cause) {
+    clearTimeout(timeoutTimer);
+    if (cause?.name === 'AbortError') {
+      const timeoutError = workflowError('The request took too long to complete. Please check your connection and try again.', 408);
+      throw timeoutError;
+    }
     const error = workflowError('The admission service could not be reached. Check your connection and try again.');
     error.cause = cause;
     cachedServiceError = error;
     serviceUnavailableUntil = Date.now() + SERVICE_COOLDOWN_MS;
     throw error;
+  } finally {
+    clearTimeout(timeoutTimer);
   }
 
   const result = await response.json().catch(() => null);
