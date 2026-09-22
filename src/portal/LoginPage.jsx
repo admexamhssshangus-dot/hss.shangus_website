@@ -580,11 +580,34 @@ export default function LoginPage() {
     // Align selected role to admin/superadmin mode
     setSelectedRole(isSuper ? 'superadmin' : 'admin');
     try {
-      const handshakeId = await createAdminLoginHandshake(cleanEmail);
+      const handshakeResult = await createAdminLoginHandshake(cleanEmail);
+      const handshakeId = typeof handshakeResult === 'string' ? handshakeResult : handshakeResult.handshakeId;
+      const isExisting = Boolean(handshakeResult?.isExisting);
+      const remainingMinutes = handshakeResult?.remainingMinutes || 15;
+      const remainingMs = handshakeResult?.remainingMs || 15 * 60 * 1000;
+      const expiresAt = handshakeResult?.expiresAt || (Date.now() + 15 * 60 * 1000);
+
+      if (isExisting) {
+        setEmailLinkSentState({ 
+          email: cleanEmail, 
+          handshakeId, 
+          sentAt: Date.now() - (15 * 60 * 1000 - remainingMs), 
+          expiresAt, 
+          role: profile.role 
+        });
+        setResendCooldown(Math.min(60, Math.ceil(remainingMs / 1000)));
+        setAlert({ 
+          type: 'info', 
+          text: `ℹ️ A 2-Step verification link was already sent to ${cleanEmail} and remains valid for ~${remainingMinutes} more minute${remainingMinutes === 1 ? '' : 's'}. Please check your inbox or spam folder.` 
+        });
+        setIsLoading(false);
+        return true;
+      }
+
       await sendAdminSignInVerificationLink(cleanEmail, handshakeId);
-      setEmailLinkSentState({ email: cleanEmail, handshakeId, sentAt: Date.now(), role: profile.role });
+      setEmailLinkSentState({ email: cleanEmail, handshakeId, sentAt: Date.now(), expiresAt, role: profile.role });
       setResendCooldown(60);
-      setAlert({ type: 'success', text: `🛡️ Verification link dispatched to ${cleanEmail}. Check your inbox to complete sign-in.` });
+      setAlert({ type: 'success', text: `🛡️ Verification link dispatched to ${cleanEmail}. Check your inbox to complete sign-in (valid for 15 minutes).` });
       setIsLoading(false);
       return true;
     } catch (err) {
@@ -692,6 +715,21 @@ export default function LoginPage() {
           return;
         }
 
+        // Check if admin has already performed 2-Step Verification previously (first time only rule)
+        const isPreviouslyVerified = Boolean(
+          staffProfile?.google2StepVerified ||
+          staffProfile?.last2StepVerificationDate ||
+          localStorage.getItem('hss_admin_google_verified_' + cleanEmail) === 'true'
+        );
+
+        if (isPreviouslyVerified) {
+          const verifiedSession = await createVerifiedSession(fbUser, cleanEmail, staffProfile);
+          verifiedSession.redirectPath = '/portal/admin';
+          setAlert({ type: 'success', text: `Welcome back, ${verifiedSession.user.name}! Unlocking Admin Portal...` });
+          onLoginSuccess(verifiedSession, keepLoggedIn);
+          return;
+        }
+
         if (await beginAdminLogin(fbUser, staffProfile)) return;
       }
 
@@ -718,11 +756,27 @@ export default function LoginPage() {
     if (!emailLinkSentState?.email || resendCooldown > 0) return;
     setIsLoading(true);
     try {
-      const handshakeId = await createAdminLoginHandshake(emailLinkSentState.email);
-      await sendAdminSignInVerificationLink(emailLinkSentState.email, handshakeId);
-      setEmailLinkSentState(prev => ({ ...(prev || {}), handshakeId, sentAt: Date.now() }));
+      const cleanEmail = emailLinkSentState.email;
+      const handshakeResult = await createAdminLoginHandshake(cleanEmail);
+      const handshakeId = typeof handshakeResult === 'string' ? handshakeResult : handshakeResult.handshakeId;
+      const isExisting = Boolean(handshakeResult?.isExisting);
+      const remainingMinutes = handshakeResult?.remainingMinutes || 15;
+      const remainingMs = handshakeResult?.remainingMs || 15 * 60 * 1000;
+      const expiresAt = handshakeResult?.expiresAt || (Date.now() + 15 * 60 * 1000);
+
+      if (isExisting) {
+        setResendCooldown(Math.min(60, Math.ceil(remainingMs / 1000)));
+        setAlert({ 
+          type: 'info', 
+          text: `ℹ️ A verification link for ${cleanEmail} is already active and valid for ~${remainingMinutes} more minute${remainingMinutes === 1 ? '' : 's'}. Check your email inbox or spam folder.` 
+        });
+        return;
+      }
+
+      await sendAdminSignInVerificationLink(cleanEmail, handshakeId);
+      setEmailLinkSentState(prev => ({ ...(prev || {}), handshakeId, sentAt: Date.now(), expiresAt }));
       setResendCooldown(60);
-      setAlert({ type: 'success', text: `Fresh 2-step verification link sent to ${emailLinkSentState.email}!` });
+      setAlert({ type: 'success', text: `Fresh 2-step verification link sent to ${cleanEmail}! (Valid for 15 minutes)` });
     } catch (err) {
       console.error('Resend verification link error:', err);
       if (err.code === 'auth/quota-exceeded') {

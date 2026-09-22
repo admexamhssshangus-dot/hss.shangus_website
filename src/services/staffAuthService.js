@@ -255,9 +255,14 @@ export async function resolveStaffRoleAndPerms(emailOrUser, forceFresh = false) 
     name: profile.name || user?.displayName || email.split('@')[0],
     subject: profile.subject || profile.teachingSubject || '',
     teachingSubject: profile.teachingSubject || profile.subject || '',
+    assignedSubjects: Array.isArray(profile.assignedSubjects) && profile.assignedSubjects.length > 0
+      ? profile.assignedSubjects
+      : (profile.subject || profile.teachingSubject || '').split(/[,;]+/).map(s => s.trim()).filter(Boolean),
     assignedClasses: Array.isArray(profile.assignedClasses)
       ? profile.assignedClasses
       : (profile.assignedClass ? [profile.assignedClass] : []),
+    google2StepVerified: Boolean(profile.google2StepVerified),
+    last2StepVerificationDate: profile.last2StepVerificationDate || null,
   };
 
   // Synchronize UID document in Firestore so subsequent queries are instant
@@ -273,7 +278,10 @@ export async function resolveStaffRoleAndPerms(emailOrUser, forceFresh = false) 
       isAdmin: resolved.isAdmin,
       subject: resolved.subject,
       teachingSubject: resolved.teachingSubject,
+      assignedSubjects: resolved.assignedSubjects,
       assignedClasses: resolved.assignedClasses,
+      google2StepVerified: resolved.google2StepVerified,
+      last2StepVerificationDate: resolved.last2StepVerificationDate,
       updatedAt: new Date().toISOString(),
     }, { merge: true }).catch(() => {});
 
@@ -314,27 +322,61 @@ export const recordTeacher2StepVerification = async () => {};
  */
 export async function createAdminLoginHandshake(email) {
   const cleanEmail = String(email || '').trim().toLowerCase();
-  const handshakeId = 'hsk_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 12);
+  const handshakeDocId = 'hsk_' + cleanEmail.replace(/[^a-z0-9]/g, '_');
+
+  // Check if an unexpired active pending handshake already exists for this admin
+  try {
+    const existingSnap = await getDoc(doc(db, 'adminAuthHandshakes', handshakeDocId));
+    if (existingSnap.exists()) {
+      const data = existingSnap.data();
+      const expiresAt = Number(data.expiresAt) || 0;
+      if (data.status === 'pending' && expiresAt > Date.now()) {
+        const remainingMs = expiresAt - Date.now();
+        try {
+          sessionStorage.setItem('hss_auth_handshake_id', handshakeDocId);
+          localStorage.setItem('hss_pending_admin_login', JSON.stringify({ email: cleanEmail, handshakeId: handshakeDocId, ts: Date.now(), expiresAt }));
+        } catch (_) {}
+        return {
+          handshakeId: handshakeDocId,
+          isExisting: true,
+          remainingMs,
+          expiresAt,
+          remainingMinutes: Math.ceil(remainingMs / 60000)
+        };
+      }
+    }
+  } catch (checkErr) {
+    console.warn('Note checking existing active handshake:', checkErr);
+  }
+
+  // Otherwise, create a fresh handshake with strict 15-minute validity
+  const expiresAt = Date.now() + 15 * 60 * 1000;
   const handshakeData = {
-    id: handshakeId,
+    id: handshakeDocId,
     email: cleanEmail,
     status: 'pending',
     createdAt: new Date().toISOString(),
-    expiresAt: Date.now() + 10 * 60 * 1000, // 10 minutes validity
+    expiresAt, // 15 minutes validity
   };
 
   try {
-    await setDoc(doc(db, 'adminAuthHandshakes', handshakeId), handshakeData);
+    await setDoc(doc(db, 'adminAuthHandshakes', handshakeDocId), handshakeData);
   } catch (err) {
     console.warn('Error writing admin auth handshake document:', err);
   }
 
   try {
-    sessionStorage.setItem('hss_auth_handshake_id', handshakeId);
-    localStorage.setItem('hss_pending_admin_login', JSON.stringify({ email: cleanEmail, handshakeId, ts: Date.now() }));
+    sessionStorage.setItem('hss_auth_handshake_id', handshakeDocId);
+    localStorage.setItem('hss_pending_admin_login', JSON.stringify({ email: cleanEmail, handshakeId: handshakeDocId, ts: Date.now(), expiresAt }));
   } catch (_) {}
 
-  return handshakeId;
+  return {
+    handshakeId: handshakeDocId,
+    isExisting: false,
+    remainingMs: 15 * 60 * 1000,
+    expiresAt,
+    remainingMinutes: 15
+  };
 }
 
 /**
@@ -343,23 +385,33 @@ export async function createAdminLoginHandshake(email) {
 export async function approveAdminLoginHandshake(handshakeId, email, firebaseUser) {
   if (!handshakeId) return;
   const cleanEmail = String(email || '').trim().toLowerCase();
+  const nowIso = new Date().toISOString();
   try {
     await setDoc(doc(db, 'adminAuthHandshakes', handshakeId), {
       status: 'approved',
       email: cleanEmail,
-      verifiedAt: new Date().toISOString(),
+      verifiedAt: nowIso,
       uid: firebaseUser?.uid || null,
     }, { merge: true });
   } catch (err) {
     console.warn('Error approving admin auth handshake:', err);
   }
 
+  const verificationPayload = {
+    google2StepVerified: true,
+    last2StepVerificationDate: nowIso,
+    updatedAt: nowIso,
+  };
+
   if (firebaseUser?.uid) {
     try {
-      await setDoc(doc(db, 'users', firebaseUser.uid), {
-        last2StepVerificationDate: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      }, { merge: true });
+      await setDoc(doc(db, 'users', firebaseUser.uid), verificationPayload, { merge: true });
+    } catch (_) {}
+  }
+  if (cleanEmail) {
+    try {
+      await setDoc(doc(db, 'users', cleanEmail), verificationPayload, { merge: true });
+      localStorage.setItem('hss_admin_google_verified_' + cleanEmail, 'true');
     } catch (_) {}
   }
 }
@@ -471,6 +523,7 @@ export async function createStaffAccount({
   designation = '',
   perms = ['reports'], 
   subject = '', 
+  assignedSubjects = [],
   assignedClasses = [], 
   mobile = '', 
   password = '', 
@@ -484,14 +537,20 @@ export async function createStaffAccount({
     ? assignedClasses.filter(Boolean)
     : (assignedClasses ? [assignedClasses] : []);
 
+  const cleanSubjects = Array.isArray(assignedSubjects) && assignedSubjects.length > 0
+    ? assignedSubjects.map(s => String(s || '').trim()).filter(Boolean)
+    : (subject ? String(subject).split(/[,;]+/).map(s => s.trim()).filter(Boolean) : []);
+  const primarySubject = cleanSubjects.join(', ') || String(subject || '').trim();
+
   const newAdminEntry = {
     name: cleanName,
     email: cleanEmail,
     role,
     designation: String(designation || '').trim(),
     perms: role === 'SuperAdmin' ? ['*'] : perms,
-    subject: subject.trim(),
-    teachingSubject: subject.trim(),
+    subject: primarySubject,
+    teachingSubject: primarySubject,
+    assignedSubjects: cleanSubjects,
     assignedClasses: cleanClasses,
     mobile: mobile.trim(),
     active: true,
@@ -590,6 +649,7 @@ export async function updateStaffAccount({
   designation = '',
   perms = [], 
   subject = '', 
+  assignedSubjects = [],
   assignedClasses = [], 
   mobile = '', 
   password = '',
@@ -605,14 +665,20 @@ export async function updateStaffAccount({
     ? assignedClasses.filter(Boolean)
     : (assignedClasses ? [assignedClasses] : []);
 
+  const cleanSubjects = Array.isArray(assignedSubjects) && assignedSubjects.length > 0
+    ? assignedSubjects.map(s => String(s || '').trim()).filter(Boolean)
+    : (subject ? String(subject).split(/[,;]+/).map(s => s.trim()).filter(Boolean) : []);
+  const primarySubject = cleanSubjects.join(', ') || String(subject || '').trim();
+
   const updatedEntry = {
     name: cleanName,
     email: cleanNew,
     role,
     designation: String(designation || '').trim(),
     perms: role === 'SuperAdmin' ? ['*'] : perms,
-    subject: subject.trim(),
-    teachingSubject: subject.trim(),
+    subject: primarySubject,
+    teachingSubject: primarySubject,
+    assignedSubjects: cleanSubjects,
     assignedClasses: cleanClasses,
     mobile: mobile.trim(),
     active: true,

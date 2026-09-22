@@ -1018,24 +1018,33 @@ export default function PracticalsPage() {
   const outletContext = useOutletContext() || {};
   const user = outletContext.user || null;
 
-  // Resolve teacher's officially assigned teaching subject
+  // Resolve teacher's officially assigned teaching subjects (supporting multiple subjects)
   const teacherRegisteredSubject = useMemo(() => {
+    if (Array.isArray(user?.assignedSubjects) && user.assignedSubjects.length > 0) {
+      return user.assignedSubjects.join(', ');
+    }
     const rawSubj = user?.subject || user?.teachingSubject || '';
     if (!rawSubj) return '';
     const norm = normalizeSubjectIdentity(rawSubj);
     return norm ? norm.name : String(rawSubj).trim();
-  }, [user?.subject, user?.teachingSubject]);
+  }, [user?.assignedSubjects, user?.subject, user?.teachingSubject]);
 
   // Initial subject defaulting: if navigated from history with state, use that;
-  // otherwise, default to the teacher's registered subject; fallback to Physics.
+  // otherwise, default to the teacher's first registered subject; fallback to Physics.
   const initialSubject = useMemo(() => {
     if (location.state?.selectedSubject) return location.state.selectedSubject;
+    if (Array.isArray(user?.assignedSubjects) && user.assignedSubjects.length > 0) {
+      for (const s of user.assignedSubjects) {
+        const match = SUBJECT_MAP.find(m => isTeacherSubjectMatch(s, m.name) || isTeacherSubjectMatch(s, m.code));
+        if (match) return match.name;
+      }
+    }
     if (teacherRegisteredSubject) {
-      const match = SUBJECT_MAP.find(s => s.name.toLowerCase() === teacherRegisteredSubject.toLowerCase());
+      const match = SUBJECT_MAP.find(s => isTeacherSubjectMatch(teacherRegisteredSubject, s.name));
       if (match) return match.name;
     }
     return 'Physics';
-  }, [location.state?.selectedSubject, teacherRegisteredSubject]);
+  }, [location.state?.selectedSubject, user?.assignedSubjects, teacherRegisteredSubject]);
 
   // Resolve teacher's officially assigned teaching classes
   const teacherAssignedClasses = useMemo(() => {
