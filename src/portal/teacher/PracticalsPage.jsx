@@ -35,6 +35,36 @@ export const SUBJECT_MAP = SUBJECT_CONFIG_DEFS.map(s => ({
   defaultMax: 20
 }));
 
+// Authoritative 7 Core Subjects for Secondary Classes (9th & 10th)
+export const SECONDARY_7_SUBJECTS = [
+  { code: 'EN', name: 'English', defaultMax: 50 },
+  { code: 'MA', name: 'Mathematics', defaultMax: 50 },
+  { code: 'SC', name: 'Science', defaultMax: 50 },
+  { code: 'SS', name: 'Social Science', defaultMax: 50 },
+  { code: 'UR', name: 'Urdu', defaultMax: 50 },
+  { code: 'HTC', name: 'Healthcare', defaultMax: 50 },
+  { code: 'ITE', name: 'IT and ITES', defaultMax: 50 },
+];
+
+// Authoritative 15 Core/Elective Subjects for Higher Secondary Classes (11th & 12th)
+export const HIGHER_SECONDARY_15_SUBJECTS = [
+  { code: 'EN', name: 'General English', defaultMax: 20 },
+  { code: 'PH', name: 'Physics', defaultMax: 20 },
+  { code: 'CH', name: 'Chemistry', defaultMax: 20 },
+  { code: 'BI', name: 'Biology', defaultMax: 20 },
+  { code: 'MA', name: 'Mathematics', defaultMax: 20 },
+  { code: 'ES', name: 'Environmental Science', defaultMax: 20 },
+  { code: 'PS', name: 'Political Science', defaultMax: 20 },
+  { code: 'HT', name: 'History', defaultMax: 20 },
+  { code: 'EC', name: 'Economics', defaultMax: 20 },
+  { code: 'ED', name: 'Education', defaultMax: 20 },
+  { code: 'UR', name: 'Urdu', defaultMax: 20 },
+  { code: 'PD', name: 'Physical Education', defaultMax: 20 },
+  { code: 'HTC', name: 'Healthcare', defaultMax: 20 },
+  { code: 'ITE', name: 'IT and ITES', defaultMax: 20 },
+  { code: 'AR', name: 'Arabic', defaultMax: 20 },
+];
+
 // Helper for Admission Number Formatting (handles numbers & sanitizes Excel formula errors)
 const cleanAdmNoVal = (val) => {
   if (val === null || val === undefined) return '';
@@ -254,6 +284,29 @@ function isSubjectOrStreamMatch(st, targetSubjectCode, targetSubjectName) {
     const regex = new RegExp('(^|[^A-Z0-9])' + token + '(?![A-Z0-9])', 'i');
     return regex.test(rawSubjStr);
   };
+
+  // Secondary Core Subjects (Classes 9th & 10th study the common curriculum)
+  const stuClass = extractStudentClass(st);
+  const isStuSecondary = stuClass === '9th' || stuClass === '10th' || stuClass === '9' || stuClass === '10';
+  if (isStuSecondary) {
+    return true;
+  }
+
+  // 1b. Science (Class 9th & 10th Core)
+  if (codeUpper === 'SC' || nameUpper === 'SCIENCE') {
+    if (isStuSecondary) return true;
+    if (hasToken('SC') || /\bSCIENCE\b/i.test(rawSubjStr)) return true;
+    if (isScienceStrict && !rawSubjStr) return true;
+    return false;
+  }
+
+  // 1c. Social Science (Class 9th & 10th Core)
+  if (codeUpper === 'SS' || nameUpper === 'SOCIAL SCIENCE' || nameUpper === 'SOCIAL STUDIES' || nameUpper === 'SST') {
+    if (isStuSecondary) return true;
+    if (hasToken('SS') || hasToken('SST') || /\b(SOCIAL\s*SCIENCE|SOCIAL\s*STUDIES|SST)\b/i.test(rawSubjStr)) return true;
+    if (isArts && !rawSubjStr) return true;
+    return false;
+  }
 
   // 2. Physics & Chemistry
   if (codeUpper === 'PH' || nameUpper === 'PHYSICS') {
@@ -541,7 +594,7 @@ function getRegNo(st) {
 
   // If a single reg field contains multiple reg numbers (e.g. "REG1 / REG2" or "REG1, REG2")
   if (newReg) {
-    const parts = newReg.split(/[/,;\s]+/).filter(p => p.length > 3 && !/^(N\/A|#N\/A|—|-)$/i.test(p));
+    const parts = newReg.split(/[/,;]+/).map(p => p.trim()).filter(p => p.replace(/[^A-Za-z0-9]/g, '').length >= 8 && !/^(N\/A|#N\/A|—|-)$/i.test(p));
     if (parts.length >= 2 && parts[0] !== parts[1]) {
       return `${parts[0]} (${parts[1]})`;
     }
@@ -1029,23 +1082,6 @@ export default function PracticalsPage() {
     return norm ? norm.name : String(rawSubj).trim();
   }, [user?.assignedSubjects, user?.subject, user?.teachingSubject]);
 
-  // Initial subject defaulting: if navigated from history with state, use that;
-  // otherwise, default to the teacher's first registered subject; fallback to Physics.
-  const initialSubject = useMemo(() => {
-    if (location.state?.selectedSubject) return location.state.selectedSubject;
-    if (Array.isArray(user?.assignedSubjects) && user.assignedSubjects.length > 0) {
-      for (const s of user.assignedSubjects) {
-        const match = SUBJECT_MAP.find(m => isTeacherSubjectMatch(s, m.name) || isTeacherSubjectMatch(s, m.code));
-        if (match) return match.name;
-      }
-    }
-    if (teacherRegisteredSubject) {
-      const match = SUBJECT_MAP.find(s => isTeacherSubjectMatch(teacherRegisteredSubject, s.name));
-      if (match) return match.name;
-    }
-    return 'Physics';
-  }, [location.state?.selectedSubject, user?.assignedSubjects, teacherRegisteredSubject]);
-
   // Resolve teacher's officially assigned teaching classes
   const teacherAssignedClasses = useMemo(() => {
     if (Array.isArray(user?.assignedClasses) && user.assignedClasses.length > 0) {
@@ -1061,12 +1097,65 @@ export default function PracticalsPage() {
     return s.includes('11') ? '11th' : (s.includes('12') ? '12th' : (s.includes('10') ? '10th' : (s.includes('9') ? '9th' : '11th')));
   }, [location.state?.selectedClass, teacherAssignedClasses]);
 
+  // Initial subject defaulting: if navigated from history with state, use that;
+  // otherwise, default to the teacher's first registered subject; fallback to Physics.
+  const initialSubject = useMemo(() => {
+    if (location.state?.selectedSubject) return location.state.selectedSubject;
+    const isSecondary = initialClass === '9th' || initialClass === '10th';
+    const targetList = isSecondary ? SECONDARY_7_SUBJECTS : HIGHER_SECONDARY_15_SUBJECTS;
+
+    if (Array.isArray(user?.assignedSubjects) && user.assignedSubjects.length > 0) {
+      for (const s of user.assignedSubjects) {
+        const match = targetList.find(m => isTeacherSubjectMatch(s, m.name) || isTeacherSubjectMatch(s, m.code));
+        if (match) return match.name;
+      }
+    }
+    if (teacherRegisteredSubject) {
+      const match = targetList.find(s => isTeacherSubjectMatch(teacherRegisteredSubject, s.name));
+      if (match) return match.name;
+    }
+    return targetList[0].name;
+  }, [location.state?.selectedSubject, initialClass, user?.assignedSubjects, teacherRegisteredSubject]);
+
   // Filter States
   const [selectedClass, setSelectedClass] = useState(initialClass);
   const [practicalType, setPracticalType] = useState(location.state?.practicalType || 'Internal Assessment');
   const [selectedSubject, setSelectedSubject] = useState(initialSubject);
   const [yearSuffix, setYearSuffix] = useState(location.state?.yearSuffix || CURRENT_SESSION);
   const [availableSessions, setAvailableSessions] = useState([CURRENT_SESSION]);
+  const [rosterScope, setRosterScope] = useState('all_class'); // 'all_class' | 'stream'
+
+  // Dynamic subject catalog filtered strictly to 7 subjects for Classes 9th & 10th and 15 subjects for Classes 11th & 12th
+  const displaySubjectMap = useMemo(() => {
+    const isSecondary = selectedClass === '9th' || selectedClass === '10th' || selectedClass === '9' || selectedClass === '10';
+    return isSecondary ? SECONDARY_7_SUBJECTS : HIGHER_SECONDARY_15_SUBJECTS;
+  }, [selectedClass]);
+
+  // Synchronize subject when switching class levels (e.g. Science for 9th/10th vs Environmental Science for 11th/12th)
+  useEffect(() => {
+    const isSecondary = selectedClass === '9th' || selectedClass === '10th' || selectedClass === '9' || selectedClass === '10';
+    const targetList = isSecondary ? SECONDARY_7_SUBJECTS : HIGHER_SECONDARY_15_SUBJECTS;
+
+    let assignedMatch = null;
+    if (Array.isArray(user?.assignedSubjects) && user.assignedSubjects.length > 0) {
+      for (const sub of user.assignedSubjects) {
+        const match = targetList.find(s => isTeacherSubjectMatch(sub, s.name) || isTeacherSubjectMatch(sub, s.code));
+        if (match) {
+          assignedMatch = match.name;
+          break;
+        }
+      }
+    }
+    if (!assignedMatch && teacherRegisteredSubject) {
+      const match = targetList.find(s => isTeacherSubjectMatch(teacherRegisteredSubject, s.name));
+      if (match) assignedMatch = match.name;
+    }
+
+    const isCurrentInTarget = targetList.some(s => s.name.toLowerCase() === String(selectedSubject || '').toLowerCase());
+    if (!isCurrentInTarget || (assignedMatch && !isTeacherSubjectMatch(assignedMatch, selectedSubject))) {
+      setSelectedSubject(assignedMatch || (isCurrentInTarget ? selectedSubject : targetList[0].name));
+    }
+  }, [selectedClass, user?.assignedSubjects, teacherRegisteredSubject]);
 
   // State for Cross-Subject switch confirmation modal & Existing award detection
   const [crossSubjectSwitchModal, setCrossSubjectSwitchModal] = useState({ isOpen: false, targetSubject: '' });
@@ -1074,16 +1163,29 @@ export default function PracticalsPage() {
 
   // Default subject and class to teacher's registered values if not specified in location.state
   useEffect(() => {
-    if (!location.state?.selectedSubject && teacherRegisteredSubject) {
-      const match = SUBJECT_MAP.find(s => s.name.toLowerCase() === teacherRegisteredSubject.toLowerCase());
-      if (match) setSelectedSubject(match.name);
+    if (!location.state?.selectedSubject && (user?.assignedSubjects?.length > 0 || teacherRegisteredSubject)) {
+      const isSecondary = selectedClass === '9th' || selectedClass === '10th' || selectedClass === '9' || selectedClass === '10';
+      const targetList = isSecondary ? SECONDARY_7_SUBJECTS : HIGHER_SECONDARY_15_SUBJECTS;
+
+      let matched = null;
+      if (Array.isArray(user?.assignedSubjects) && user.assignedSubjects.length > 0) {
+        for (const sub of user.assignedSubjects) {
+          const m = targetList.find(s => isTeacherSubjectMatch(sub, s.name) || isTeacherSubjectMatch(sub, s.code));
+          if (m) { matched = m.name; break; }
+        }
+      }
+      if (!matched && teacherRegisteredSubject) {
+        const m = targetList.find(s => isTeacherSubjectMatch(teacherRegisteredSubject, s.name));
+        if (m) matched = m.name;
+      }
+      if (matched) setSelectedSubject(matched);
     }
     if (!location.state?.selectedClass && teacherAssignedClasses.length > 0) {
       const raw = String(teacherAssignedClasses[0] || '');
       const clean = raw.includes('11') ? '11th' : (raw.includes('12') ? '12th' : (raw.includes('10') ? '10th' : (raw.includes('9') ? '9th' : '11th')));
       setSelectedClass(clean);
     }
-  }, [teacherRegisteredSubject, teacherAssignedClasses, location.state]);
+  }, [teacherRegisteredSubject, teacherAssignedClasses, user?.assignedSubjects, selectedClass, location.state]);
 
   // Synchronize filter states if user navigates with state (e.g. from Dashboard Submission History)
   useEffect(() => {
@@ -1512,12 +1614,14 @@ export default function PracticalsPage() {
               const rBoard = String(r.boardRollNo || r.boardRoll || '').trim();
               const rForm = String(r.formNo || '').trim();
               const rName = String(r.name || r.studentName || '').toLowerCase().trim();
+              const rReg = String(r.regNo || r.boardRegNo || r.registrationNo || r['Board Reg. No.'] || '').trim();
 
               const recObj = {
                 rollNo: rRoll || rBoard,
                 classRollNo: rRoll || rBoard,
                 boardRoll: rBoard,
                 boardRollNo: rBoard,
+                regNo: rReg,
                 name: r.name || r.studentName,
                 studentName: r.name || r.studentName,
                 parentName: r.parentName || '',
@@ -1535,6 +1639,19 @@ export default function PracticalsPage() {
               if (rBoard) savedMarksMap[rBoard] = recObj;
               if (rForm) savedMarksMap[rForm] = recObj;
               if (rName) savedMarksMap[rName] = recObj;
+              if (rReg) {
+                const cleanRReg = rReg.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+                if (cleanRReg.length >= 8) {
+                  savedMarksMap['reg_' + cleanRReg] = recObj;
+                }
+                const dualMatch = rReg.match(/^([^(]+)\s*\(([^)]+)\)$/);
+                if (dualMatch) {
+                  const r1 = dualMatch[1].replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+                  const r2 = dualMatch[2].replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+                  if (r1.length >= 8) savedMarksMap['reg_' + r1] = recObj;
+                  if (r2.length >= 8) savedMarksMap['reg_' + r2] = recObj;
+                }
+              }
             });
           }
 
@@ -1572,12 +1689,14 @@ export default function PracticalsPage() {
             const rBoard = String(r.boardRollNo || r.boardRoll || '').trim();
             const rForm = String(r.formNo || '').trim();
             const rName = String(r.name || r.studentName || '').toLowerCase().trim();
+            const rReg = String(r.regNo || r.boardRegNo || r.registrationNo || r['Board Reg. No.'] || '').trim();
 
             const recObj = {
               rollNo: rRoll || rBoard,
               classRollNo: rRoll || rBoard,
               boardRoll: rBoard,
               boardRollNo: rBoard,
+              regNo: rReg,
               name: r.name || r.studentName,
               studentName: r.name || r.studentName,
               parentName: r.parentName || '',
@@ -1595,6 +1714,19 @@ export default function PracticalsPage() {
             if (rBoard) savedMarksMap[rBoard] = recObj;
             if (rForm) savedMarksMap[rForm] = recObj;
             if (rName) savedMarksMap[rName] = recObj;
+            if (rReg) {
+              const cleanRReg = rReg.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+              if (cleanRReg.length >= 8) {
+                savedMarksMap['reg_' + cleanRReg] = recObj;
+              }
+              const dualMatch = rReg.match(/^([^(]+)\s*\(([^)]+)\)$/);
+              if (dualMatch) {
+                const r1 = dualMatch[1].replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+                const r2 = dualMatch[2].replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+                if (r1.length >= 8) savedMarksMap['reg_' + r1] = recObj;
+                if (r2.length >= 8) savedMarksMap['reg_' + r2] = recObj;
+              }
+            }
           });
         }
 
@@ -1615,7 +1747,7 @@ export default function PracticalsPage() {
         console.warn('Practicals read note:', e);
       }
 
-      const cacheKey = `${selectedClass}_${yearSuffix}_${selectedSubject}_${practicalType}`;
+      const cacheKey = `${selectedClass}_${yearSuffix}_${selectedSubject}_${practicalType}_${rosterScope}`;
       // Re-evaluate roster when saved marks exist in database to guarantee full sync
       let uniqueStudents = Object.keys(savedMarksMap).length > 0 ? null : masterRosterCacheRef.current[cacheKey];
 
@@ -1701,11 +1833,21 @@ export default function PracticalsPage() {
             }
           };
 
-          // 1. Reg No
+          // 1. Reg No (Strict Canonical Full Registration Matching)
           const rReg = getRegNo(it);
           if (rReg) {
-            setIfBetter(richByReg, rReg, it);
-            rReg.replace(/[()]/g, ' ').split(/\s+/).filter(Boolean).forEach(rg => setIfBetter(richByReg, rg, it));
+            const cleanFull = rReg.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+            if (cleanFull.length >= 8) {
+              setIfBetter(richByReg, cleanFull, it);
+            }
+            setIfBetter(richByReg, rReg.trim().toUpperCase(), it);
+            const dualMatch = rReg.match(/^([^(]+)\s*\(([^)]+)\)$/);
+            if (dualMatch) {
+              const r1 = dualMatch[1].replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+              const r2 = dualMatch[2].replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+              if (r1.length >= 8) setIfBetter(richByReg, r1, it);
+              if (r2.length >= 8) setIfBetter(richByReg, r2, it);
+            }
           }
 
           // 2. Form No
@@ -1748,6 +1890,8 @@ export default function PracticalsPage() {
 
         // Method 1: Filter candidates from masterRegisters & admissions by Class + Session + Subject + Assigned Class Roll No
         const evalAllowedStatuses = activeEvalOption?.evalConfig?.allowedStatuses;
+        const isSecondaryClass = selectedClass === '9th' || selectedClass === '10th' || selectedClass === '9' || selectedClass === '10';
+
         allCandidates.forEach(st => {
           const stClass = extractStudentClass(st);
           const stSession = st.session || st.Session || st['Academic Session'];
@@ -1762,11 +1906,13 @@ export default function PracticalsPage() {
             if (!isStatusMatch) return;
           }
 
+          const matchSubjOrAll = isSecondaryClass || rosterScope === 'all_class' || isSubjectOrStreamMatch(st, targetSubjCode, targetSubjName);
+
           if (
             hasAssignedClassRoll(st) &&
             isClassMatch(stClass, selectedClass) &&
             isSessionMatch(stSession, yearSuffix) &&
-            isSubjectOrStreamMatch(st, targetSubjCode, targetSubjName)
+            matchSubjOrAll
           ) {
             allDiscoveredStudents.push({
               ...st,
@@ -1799,10 +1945,20 @@ export default function PracticalsPage() {
             const rAdm   = extractRawAdmNo(rec);
 
             let richSt = null;
-            if (rReg) richSt = richByReg.get(rReg);
-            if (!richSt && rReg) {
-              const regs = rReg.replace(/[()]/g, ' ').split(/\s+/).filter(Boolean);
-              for (const rg of regs) { richSt = richByReg.get(rg); if (richSt) break; }
+            if (rReg) {
+              const cleanRReg = rReg.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+              if (cleanRReg.length >= 8) {
+                richSt = richByReg.get(cleanRReg);
+              }
+              if (!richSt) richSt = richByReg.get(rReg.trim().toUpperCase());
+              if (!richSt) {
+                const dualMatch = rReg.match(/^([^(]+)\s*\(([^)]+)\)$/);
+                if (dualMatch) {
+                  const r1 = dualMatch[1].replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+                  const r2 = dualMatch[2].replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+                  richSt = richByReg.get(r1) || richByReg.get(r2);
+                }
+              }
             }
             if (!richSt && rForm) richSt = richByForm.get(rForm);
             if (!richSt && rRoll) richSt = richByRoll.get(rRoll);
@@ -1901,6 +2057,7 @@ export default function PracticalsPage() {
       }
 
       // Filter by Subject Matcher & Strict Class Roll Check, and enrich with computed fields
+      const isSecondaryClass = selectedClass === '9th' || selectedClass === '10th' || selectedClass === '9' || selectedClass === '10';
       const subjectFiltered = uniqueStudents
         .filter(st => {
           // STRICT CHECK FIRST: Must have assigned Class Roll No
@@ -1920,6 +2077,7 @@ export default function PracticalsPage() {
             rawSubjects,
             subjectsAbbr: getAbbreviatedSubjects(st)
           };
+          if (isSecondaryClass || rosterScope === 'all_class') return true;
           return isSubjectMatch(enrichedSt, selectedSubject);
         })
         .map(st => {
@@ -2035,7 +2193,7 @@ export default function PracticalsPage() {
       setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedClass, selectedSubject, practicalType, yearSuffix]);
+  }, [selectedClass, selectedSubject, practicalType, yearSuffix, rosterScope]);
 
   useEffect(() => {
     fetchPracticalData();
@@ -3329,7 +3487,7 @@ export default function PracticalsPage() {
 
           {/* Desktop-only Expandable Filter Inputs Panel */}
           {showFilterSettings && (
-              <div className="hidden sm:grid grid-cols-5 gap-2 pt-2 border-t border-slate-200 dark:border-slate-800 animate-in fade-in duration-150">
+              <div className="hidden sm:grid grid-cols-6 gap-2 pt-2 border-t border-slate-200 dark:border-slate-800 animate-in fade-in duration-150">
                 <div className="space-y-0.5">
                   <label className="text-[9.5px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block truncate">Class</label>
                   <select
@@ -3344,10 +3502,23 @@ export default function PracticalsPage() {
                   </select>
                 </div>
 
+                <div className="space-y-0.5">
+                  <label className="text-[9.5px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block truncate">Roster Scope</label>
+                  <select
+                    value={rosterScope}
+                    onChange={(e) => setRosterScope(e.target.value)}
+                    className="practicals-select practicals-control w-full px-2 py-1 rounded-lg text-xs font-semibold h-8.5 border focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 shadow-2xs cursor-pointer transition-colors font-bold"
+                    title="Choose between evaluating all students in this class or only those enrolled in this specific stream/subject"
+                  >
+                    <option value="all_class">All Class Students</option>
+                    <option value="stream">Subject / Stream Only</option>
+                  </select>
+                </div>
+
                 <CustomSubjectSelect
                   selectedSubject={selectedSubject}
                   setSelectedSubject={setSelectedSubject}
-                  subjectMap={SUBJECT_MAP}
+                  subjectMap={displaySubjectMap}
                   currentSubjectObj={currentSubjectObj}
                   getSubjectMax={getSubjectMax}
                   subjectMaxMarks={subjectMaxMarks}
@@ -3420,9 +3591,14 @@ export default function PracticalsPage() {
                   </select>
                 </div>
 
-                <div className="col-span-5 px-1 py-0.5 text-[10.5px] text-indigo-800 dark:text-indigo-300 flex items-center gap-1 font-semibold">
-                  <Sparkles size={12} className="text-amber-500 shrink-0" />
-                  <span>Paper scale is <strong>{subjectMaxMarks} Max Marks</strong>. Scores entered will be automatically normalized to standard <strong>50 Marks</strong> on public scorecards & gazettes.</span>
+                <div className="col-span-6 px-1 py-0.5 text-[10.5px] text-indigo-800 dark:text-indigo-300 flex items-center justify-between flex-wrap gap-2 font-semibold">
+                  <div className="flex items-center gap-1">
+                    <Sparkles size={12} className="text-amber-500 shrink-0" />
+                    <span>Paper scale is <strong>{subjectMaxMarks} Max Marks</strong>. Scores entered will be automatically normalized to standard <strong>50 Marks</strong> on public scorecards & gazettes.</span>
+                  </div>
+                  <div className="text-[10px] font-mono text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-md border border-emerald-200 dark:border-emerald-800">
+                    {rosterScope === 'all_class' ? 'Displaying all enrolled students of class' : 'Filtered to students with matching stream/subject'}
+                  </div>
                 </div>
               </div>
             )}
@@ -3492,12 +3668,25 @@ export default function PracticalsPage() {
                       </div>
                     </div>
 
+                    {/* Roster Scope */}
+                    <div>
+                      <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 block mb-0.5">Roster Scope</label>
+                      <select
+                        value={rosterScope}
+                        onChange={(e) => setRosterScope(e.target.value)}
+                        className="portal-compact-select w-full border bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 shadow-2xs cursor-pointer font-bold"
+                      >
+                        <option value="all_class">All Class Students</option>
+                        <option value="stream">Subject / Stream Only</option>
+                      </select>
+                    </div>
+
                     {/* Subject (Single unified header rendered inside CustomSubjectSelect) */}
                     <div>
                       <CustomSubjectSelect
                         selectedSubject={selectedSubject}
                         setSelectedSubject={setSelectedSubject}
-                        subjectMap={SUBJECT_MAP}
+                        subjectMap={displaySubjectMap}
                         currentSubjectObj={currentSubjectObj}
                         getSubjectMax={getSubjectMax}
                         subjectMaxMarks={subjectMaxMarks}
@@ -4084,7 +4273,7 @@ export default function PracticalsPage() {
                       {/* Row 2: Streamlined Single-Line Continuous Metadata (Ellipsis without character collision) */}
                       <p className="text-[10px] text-slate-500 dark:text-slate-400 font-mono font-medium truncate pt-0.5 border-t border-slate-100 dark:border-slate-800/80 leading-normal">
                         {st.formNo && <span>F#{st.formNo} • </span>}
-                        {st.regNo && <span>R:{st.regNo.slice(-6)} • </span>}
+                        {st.regNo && <span>R:{st.regNo} • </span>}
                         {st.examRollNo && <span>E:{st.examRollNo} • </span>}
                         <span className="text-teal-700 dark:text-teal-400 font-sans font-medium">{allSubjs}</span>
                       </p>

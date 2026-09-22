@@ -83,7 +83,9 @@ export const SUBJECT_CONFIG_DEFS = [
   { code: 'TS',   name: 'Typewriting & Shorthand',         stream: 'Commerce',                 isLab: true },
   { code: 'TT',   name: 'Travel Tourism & Hotel Mgt',      stream: 'Arts / Commerce',          isLab: false },
 
-  // ─── 7. CLASS 10TH GENERAL / ADDITIONAL SUBJECTS ──────────────────────
+  // ─── 7. CLASS 9TH & 10TH GENERAL / CORE SUBJECTS ──────────────────────
+  { code: 'SC',   name: 'Science',                         stream: 'Class 9th & 10th',         isLab: true },
+  { code: 'SS',   name: 'Social Science',                  stream: 'Class 9th & 10th',         isLab: false },
   { code: 'SC',   name: 'Science (Class 10th)',            stream: 'Class 10th',               isLab: true },
   { code: 'SS',   name: 'Social Science (Class 10th)',     stream: 'Class 10th',               isLab: false },
   { code: 'AD',   name: 'Art and Drawing (Class 10th)',    stream: 'Class 10th',               isLab: true }
@@ -683,6 +685,8 @@ export function normalizeSubjectIdentity(subjInput) {
   if (lower.includes('hist') || lower === 'ht') return SUBJECT_CONFIG_DEFS.find(s => s.code === 'HT');
   if (lower.includes('econ') || lower === 'ec') return SUBJECT_CONFIG_DEFS.find(s => s.code === 'EC');
   if (lower.includes('soci') || lower === 'so') return SUBJECT_CONFIG_DEFS.find(s => s.code === 'SO');
+  if (lower === 'social science' || lower === 'social studies' || lower === 'sst' || lower === 'ss' || lower.includes('social science') || lower.includes('social studies')) return SUBJECT_CONFIG_DEFS.find(s => s.code === 'SS');
+  if (lower === 'science' || lower === 'sc' || lower === 'sci' || lower === 'general science' || (!lower.includes('social') && !lower.includes('environ') && !lower.includes('computer') && !lower.includes('pol') && lower.includes('science'))) return SUBJECT_CONFIG_DEFS.find(s => s.code === 'SC');
   if (lower.includes('acc') || lower === 'ay') return SUBJECT_CONFIG_DEFS.find(s => s.code === 'AY');
   if (lower.includes('busi') || lower === 'bs') return SUBJECT_CONFIG_DEFS.find(s => s.code === 'BS');
 
@@ -729,6 +733,14 @@ export function isTeacherSubjectMatch(teacherSubject, selectedSubject) {
 
     // Fallback simple string comparison
     const tStr = String(ts).toLowerCase().trim();
+    if (
+      (tStr.includes('environ') !== sStr.includes('environ')) ||
+      (tStr.includes('polit') !== sStr.includes('polit')) ||
+      (tStr.includes('computer') !== sStr.includes('computer')) ||
+      (tStr.includes('social') !== sStr.includes('social'))
+    ) {
+      return false;
+    }
     return tStr === sStr || tStr.includes(sStr) || sStr.includes(tStr);
   });
 }
