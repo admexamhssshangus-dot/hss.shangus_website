@@ -481,6 +481,126 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
       });
     }
 
+    // 2B. Emitted Words & Alphabets of Wisdom (Floating upward like enchanting lore on hover)
+    function createWisdomGlyphTexture(text, isWord = false) {
+      const canvas = document.createElement('canvas');
+      const width = isWord ? 180 : 64;
+      const height = 64;
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return { texture: null, aspect: width / height, text, isWord };
+
+      ctx.clearRect(0, 0, width, height);
+
+      // Warm luminous golden aura shadow
+      ctx.shadowColor = 'rgba(245, 158, 11, 0.95)';
+      ctx.shadowBlur = isWord ? 10 : 12;
+
+      // Elegant scholastic typography: serif for wisdom, classics, and knowledge
+      ctx.font = isWord
+        ? `bold italic 26px "Cinzel", "Georgia", "Times New Roman", serif`
+        : `bold 38px "Cinzel", "Georgia", "Times New Roman", serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+
+      // Warm radiant golden gradient
+      const grad = ctx.createLinearGradient(0, 10, 0, height - 10);
+      grad.addColorStop(0, '#ffffff');
+      grad.addColorStop(0.3, '#fef08a');
+      grad.addColorStop(0.7, '#f59e0b');
+      grad.addColorStop(1, '#d97706');
+
+      ctx.fillStyle = grad;
+      ctx.fillText(text, width / 2, height / 2);
+
+      // Sharp core pass for crisp legibility
+      ctx.shadowBlur = 3;
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText(text, width / 2, height / 2);
+
+      const texture = new THREE.CanvasTexture(canvas);
+      texture.minFilter = THREE.LinearFilter;
+      texture.magFilter = THREE.LinearFilter;
+      texture.generateMipmaps = false;
+
+      return {
+        texture,
+        aspect: width / height,
+        text,
+        isWord
+      };
+    }
+
+    const glyphEntries = [
+      // Inspiring Words of Wisdom & Knowledge
+      { text: 'WISDOM', isWord: true },
+      { text: 'LEARN', isWord: true },
+      { text: 'TRUTH', isWord: true },
+      { text: 'MIND', isWord: true },
+      { text: 'KNOW', isWord: true },
+      { text: 'READ', isWord: true },
+      { text: 'GROW', isWord: true },
+      { text: 'THINK', isWord: true },
+      { text: 'ASPIRE', isWord: true },
+      { text: 'CREATE', isWord: true },
+      // Alphabets & Scholastic/Scientific Glyphs
+      { text: 'A', isWord: false },
+      { text: 'B', isWord: false },
+      { text: 'C', isWord: false },
+      { text: 'α', isWord: false },
+      { text: 'β', isWord: false },
+      { text: 'π', isWord: false },
+      { text: 'Σ', isWord: false },
+      { text: 'Ω', isWord: false },
+      { text: 'λ', isWord: false },
+      { text: '∞', isWord: false },
+      { text: 'φ', isWord: false },
+      { text: 'ψ', isWord: false },
+      { text: 'e', isWord: false },
+      { text: '√', isWord: false },
+      { text: 'X', isWord: false },
+      { text: 'Y', isWord: false },
+      { text: 'Z', isWord: false }
+    ];
+
+    const glyphPool = glyphEntries.map(g => createWisdomGlyphTexture(g.text, g.isWord));
+
+    const bookGlyphCount = isMobile ? 8 : 14;
+    const bookGlyphParticles = [];
+
+    for (let i = 0; i < bookGlyphCount; i++) {
+      const initialGlyph = glyphPool[i % glyphPool.length];
+      const spriteMat = new THREE.SpriteMaterial({
+        map: initialGlyph.texture,
+        transparent: true,
+        opacity: 0,
+        depthWrite: false,
+        blending: THREE.NormalBlending
+      });
+      const sprite = new THREE.Sprite(spriteMat);
+
+      const pData = {
+        sprite,
+        aspect: initialGlyph.aspect,
+        isWord: initialGlyph.isWord,
+        baseScale: initialGlyph.isWord ? 0.095 : 0.125,
+        baseX: (Math.random() - 0.5) * 0.36,
+        baseZ: (Math.random() - 0.5) * 0.28,
+        y: 0.08 + (i / bookGlyphCount) * 1.14,
+        speed: 0.24 + Math.random() * 0.16,
+        driftX: (Math.random() - 0.5) * 1.4,
+        driftZ: (Math.random() - 0.5) * 1.4,
+        offset: Math.random() * Math.PI * 2
+      };
+
+      sprite.position.set(pData.baseX, pData.y, pData.baseZ);
+      const initScale = pData.baseScale * 0.82;
+      sprite.scale.set(initScale * pData.aspect, initScale, 1);
+      bookAnchor.add(sprite);
+      bookGlyphParticles.push(pData);
+    }
+
     masterGroup.add(bookAnchor);
 
     // =========================================================================
@@ -649,7 +769,7 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
     }
 
     // 3F. Effervescent Reaction Vapor Micro-Particles (Rising from rim on hover)
-    const vaporCount = 4;
+    const vaporCount = 8;
     const vaporGeo = new THREE.SphereGeometry(0.016, 8, 8);
     const vaporMat = new THREE.MeshBasicMaterial({
       color: 0x67e8f9,
@@ -663,7 +783,7 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
       flaskMeshGroup.add(vMesh);
       vaporParticles.push({
         mesh: vMesh,
-        y: 0.66 + i * 0.12,
+        y: 0.66 + i * 0.08,
         speed: 0.28 + Math.random() * 0.15,
         offset: Math.random() * Math.PI * 2
       });
@@ -898,6 +1018,24 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
       const distToAtom = Math.hypot(mouseRelX - atomScreenX, mouseRelY - atomScreenY);
       const hoverThreshold = isMobile ? 70 : 95;
 
+      // Calculate Book screen coordinates for direct hover
+      const bookWorldPos = new THREE.Vector3();
+      bookAnchor.getWorldPosition(bookWorldPos);
+      const projectedBook = bookWorldPos.clone().project(camera);
+      const bookScreenX = (projectedBook.x * 0.5 + 0.5) * rect.width;
+      const bookScreenY = (-projectedBook.y * 0.5 + 0.5) * rect.height;
+      const distToBook = Math.hypot(mouseRelX - bookScreenX, mouseRelY - bookScreenY);
+      const isDirectBookHover = distToBook < (isMobile ? 55 : 85);
+
+      // Calculate Flask screen coordinates for direct hover
+      const flaskWorldPos = new THREE.Vector3();
+      flaskAnchor.getWorldPosition(flaskWorldPos);
+      const projectedFlask = flaskWorldPos.clone().project(camera);
+      const flaskScreenX = (projectedFlask.x * 0.5 + 0.5) * rect.width;
+      const flaskScreenY = (-projectedFlask.y * 0.5 + 0.5) * rect.height;
+      const distToFlask = Math.hypot(mouseRelX - flaskScreenX, mouseRelY - flaskScreenY);
+      const isDirectFlaskHover = distToFlask < (isMobile ? 55 : 85);
+
       const isDirectHover = distToAtom < hoverThreshold;
       if (dismissedRef.current) {
         if (!isDirectHover) {
@@ -909,7 +1047,7 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
       }
 
       if (heroContainerEl && heroContainerEl.style) {
-        heroContainerEl.style.cursor = isDirectHover ? 'pointer' : '';
+        heroContainerEl.style.cursor = (isDirectHover || isDirectBookHover || isDirectFlaskHover) ? 'pointer' : '';
       }
 
       // Position and update HTML scientific tooltip card
@@ -1104,7 +1242,10 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
       // 8B. BOOK & FLASK: ENHANCED HOVER RESPONSIVE REACTION
       // -----------------------------------------------------------------------
       const isAdmissionsHovered = hoveredActionRef.current === 'admissions' || hoveredActionRef.current === 'slogan';
-      const targetBookLift = isAdmissionsHovered ? 1 : 0;
+      const isBookActive = isAdmissionsHovered || isDirectBookHover;
+      const isFlaskActive = isAdmissionsHovered || isDirectFlaskHover;
+
+      const targetBookLift = isBookActive ? 1 : 0;
       // Snappy spring-damped responsive lerp factor (0.14 vs old 0.08)
       bookLiftProgress += (targetBookLift - bookLiftProgress) * 0.14;
 
@@ -1122,7 +1263,7 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
       bookMeshGroup.rotation.y = 0.42 - (bookLiftProgress * 0.22);
       bookMeshGroup.rotation.z = -0.18 + (bookLiftProgress * 0.10);
 
-      if (isAdmissionsHovered) {
+      if (isBookActive) {
         continuousPageTurnCycle += delta * 3.6 * speedMult;
       }
 
@@ -1131,7 +1272,7 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
       const fanPeakAngle = -Math.PI / 36;
 
       flippingLeaves.forEach((leaf) => {
-        if (isAdmissionsHovered) {
+        if (isBookActive) {
           const leafPhase = (continuousPageTurnCycle + leaf.phaseOffset) % 1.0;
           const flutterWave = Math.sin(leafPhase * Math.PI);
           const turnAngle = rightRestAngle + (fanPeakAngle - rightRestAngle) * flutterWave;
@@ -1149,6 +1290,43 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
         }
       });
 
+      // Emitted Words & Alphabets of Wisdom (Rising from open pages on hover)
+      bookGlyphParticles.forEach((p) => {
+        if (bookLiftProgress > 0.05) {
+          p.y += p.speed * delta * (1.0 + bookLiftProgress * 1.5) * speedMult;
+          if (p.y > 1.25) {
+            p.y = 0.08;
+            p.baseX = (Math.random() - 0.5) * 0.36;
+            p.baseZ = (Math.random() - 0.5) * 0.28;
+            p.offset = Math.random() * Math.PI * 2;
+            p.driftX = (Math.random() - 0.5) * 1.4;
+            p.driftZ = (Math.random() - 0.5) * 1.4;
+
+            // Dynamically rotate to another glyph from the pool
+            const randomGlyph = glyphPool[Math.floor(Math.random() * glyphPool.length)];
+            if (randomGlyph && p.sprite.material.map !== randomGlyph.texture) {
+              p.sprite.material.map = randomGlyph.texture;
+              p.aspect = randomGlyph.aspect;
+              p.isWord = randomGlyph.isWord;
+              p.baseScale = randomGlyph.isWord ? 0.095 : 0.125;
+            }
+          }
+          p.sprite.position.y = p.y;
+          const normY = Math.max(0, Math.min(1, (p.y - 0.08) / 1.17));
+          p.sprite.position.x = p.baseX + Math.sin(time * 0.003 + p.offset) * 0.06 + (p.driftX * normY * 0.14);
+          p.sprite.position.z = p.baseZ + Math.cos(time * 0.0026 + p.offset) * 0.05 + (p.driftZ * normY * 0.10);
+
+          const currentScale = p.baseScale * (0.82 + normY * 0.58);
+          p.sprite.scale.set(currentScale * p.aspect, currentScale, 1);
+          p.sprite.material.rotation = Math.sin(time * 0.0022 + p.offset) * 0.22;
+
+          const fade = Math.sin(normY * Math.PI);
+          p.sprite.material.opacity = fade * 0.95 * bookLiftProgress;
+        } else {
+          p.sprite.material.opacity = 0;
+        }
+      });
+
       // Warm library knowledge illumination
       bookLight.intensity = bookLiftProgress * 3.8;
       activeFlippingPageMat.emissiveIntensity = 0.15 + (bookLiftProgress * 0.55);
@@ -1161,7 +1339,7 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
       // -----------------------------------------------------------------------
       // 8C. SCIENTIFIC FLASK: ENHANCED HOVER RESPONSIVE DISCOVERY REACTION
       // -----------------------------------------------------------------------
-      const targetFlaskLift = isAdmissionsHovered ? 1 : 0;
+      const targetFlaskLift = isFlaskActive ? 1 : 0;
       // Snappy spring-damped responsive lerp factor (0.14 vs old 0.10)
       flaskLiftProgress += (targetFlaskLift - flaskLiftProgress) * 0.14;
 
@@ -1180,8 +1358,8 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
       flaskMeshGroup.rotation.z = 0.12 - (flaskLiftProgress * 0.15);
 
       // Chemical solution vortex swirl inside flask
-      liquidMesh.rotation.y += delta * (isAdmissionsHovered ? 3.8 : 0.8) * speedMult;
-      meniscusMesh.rotation.y += delta * (isAdmissionsHovered ? 3.8 : 0.8) * speedMult;
+      liquidMesh.rotation.y += delta * (isFlaskActive ? 3.8 : 0.8) * speedMult;
+      meniscusMesh.rotation.y += delta * (isFlaskActive ? 3.8 : 0.8) * speedMult;
       meniscusMesh.position.y = 0.09 + Math.sin(time * 0.006 * speedMult) * (0.015 * flaskLiftProgress);
 
       // Stirring rod active laboratory motion
@@ -1190,10 +1368,10 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
       rodTipTop.position.x = -0.16 + Math.sin(time * 0.006 * speedMult) * (0.035 * flaskLiftProgress);
 
       // Effervescent micro-bubble spiral physics simulation
-      const bubbleSpeedMult = isAdmissionsHovered ? 3.8 : 1.0;
+      const bubbleSpeedMult = isFlaskActive ? 3.8 : 1.0;
       bubbles.forEach((b) => {
         b.y += b.speed * delta * bubbleSpeedMult * speedMult;
-        b.angle += delta * (isAdmissionsHovered ? 4.8 : 1.2) * speedMult;
+        b.angle += delta * (isFlaskActive ? 4.8 : 1.2) * speedMult;
         if (b.y > 0.09) {
           b.y = -0.28;
           b.radius = 0.04 + Math.random() * 0.18;
@@ -1259,6 +1437,9 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
       intersectionObserver.disconnect();
 
       if (logoTexture) logoTexture.dispose();
+      glyphPool.forEach((g) => {
+        if (g && g.texture) g.texture.dispose();
+      });
 
       scene.traverse((child) => {
         if (child.isMesh || child.isPoints || child.isSprite) {
