@@ -38,6 +38,7 @@ import {
 } from '../services/staffAuthService';
 import { sessionManager } from '../services/sessionManager';
 import ModernCaptcha from '../components/ModernCaptcha';
+import { normalizeTeacherClasses } from '../utils/practicalsSettingsManager';
 
 // Helper to quickly check if an email belongs to a teacher/faculty
 const isLikelyTeacherEmail = (rawEmail) => {
@@ -277,6 +278,15 @@ export default function LoginPage() {
     const sessionId = sessionManager.generateSessionId();
     sessionManager.setSessionId(sessionId);
 
+    const assignedClasses = normalizeTeacherClasses(
+      Array.isArray(staffProfile?.assignedClasses)
+        ? staffProfile.assignedClasses
+        : (staffProfile?.assignedClass ? [staffProfile.assignedClass] : [])
+    );
+    const assignedSubjects = Array.isArray(staffProfile?.assignedSubjects) && staffProfile.assignedSubjects.length > 0
+      ? staffProfile.assignedSubjects
+      : (staffProfile?.subject ? String(staffProfile.subject).split(/[,;]+/).map(s => s.trim()).filter(Boolean) : []);
+
     const resolvedUser = {
       email: emailLower,
       name: staffProfile?.name || activeUser?.displayName || emailLower.split('@')[0],
@@ -284,9 +294,10 @@ export default function LoginPage() {
       perms,
       subject: staffProfile?.subject || staffProfile?.teachingSubject || '',
       teachingSubject: staffProfile?.teachingSubject || staffProfile?.subject || '',
-      assignedClasses: Array.isArray(staffProfile?.assignedClasses)
-        ? staffProfile.assignedClasses
-        : (staffProfile?.assignedClass ? [staffProfile.assignedClass] : []),
+      assignedSubjects,
+      assignedClasses,
+      classSubjectMap: staffProfile?.classSubjectMap || null,
+      tierSubjects: staffProfile?.tierSubjects || null,
       mobile: staffProfile?.mobile || '',
       photoURL: activeUser?.photoURL || null,
       uid: activeUser?.uid || 'admin_handshake_auth',
@@ -662,9 +673,16 @@ export default function LoginPage() {
           perms: assignedPerms,
           subject: staffProfile?.subject || staffProfile?.teachingSubject || '',
           teachingSubject: staffProfile?.teachingSubject || staffProfile?.subject || '',
-          assignedClasses: Array.isArray(staffProfile?.assignedClasses)
-            ? staffProfile.assignedClasses
-            : (staffProfile?.assignedClass ? [staffProfile.assignedClass] : []),
+          assignedSubjects: Array.isArray(staffProfile?.assignedSubjects) && staffProfile.assignedSubjects.length > 0
+            ? staffProfile.assignedSubjects
+            : (staffProfile?.subject ? String(staffProfile.subject).split(/[,;]+/).map(s => s.trim()).filter(Boolean) : []),
+          assignedClasses: normalizeTeacherClasses(
+            Array.isArray(staffProfile?.assignedClasses)
+              ? staffProfile.assignedClasses
+              : (staffProfile?.assignedClass ? [staffProfile.assignedClass] : [])
+          ),
+          classSubjectMap: staffProfile?.classSubjectMap || null,
+          tierSubjects: staffProfile?.tierSubjects || null,
           isStaff,
           requestedRole: assignedRole,
           updatedAt: new Date().toISOString(),

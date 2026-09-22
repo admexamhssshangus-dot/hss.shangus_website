@@ -746,6 +746,234 @@ export function isTeacherSubjectMatch(teacherSubject, selectedSubject) {
 }
 
 /**
+ * Normalizes assigned class list: handles arrays, comma-separated tokens (e.g. '11th,12th'),
+ * deduplicates entries, and returns sorted standard classes: ['9th', '10th', '11th', '12th'].
+ */
+export function normalizeTeacherClasses(assignedClasses) {
+  if (!assignedClasses) return [];
+  const list = Array.isArray(assignedClasses) ? assignedClasses : [assignedClasses];
+  const set = new Set();
+
+  list.forEach(item => {
+    if (!item) return;
+    String(item).split(/[,;/|]+/).forEach(tok => {
+      const clean = tok.trim().toLowerCase();
+      if (!clean) return;
+      if (clean.includes('9')) set.add('9th');
+      else if (clean.includes('10')) set.add('10th');
+      else if (clean.includes('11')) set.add('11th');
+      else if (clean.includes('12')) set.add('12th');
+    });
+  });
+
+  const order = ['9th', '10th', '11th', '12th'];
+  return order.filter(c => set.has(c));
+}
+
+// Canonical Curriculum Lists by Tier
+export const SECONDARY_CURRICULUM_SUBJECTS = [
+  'English',
+  'Mathematics',
+  'Science',
+  'Social Science',
+  'Urdu',
+  'Healthcare',
+  'IT and ITES'
+];
+
+export const HIGHER_SECONDARY_CURRICULUM_SUBJECTS = [
+  'General English',
+  'Physics',
+  'Chemistry',
+  'Biology',
+  'Mathematics',
+  'Environmental Science',
+  'Political Science',
+  'History',
+  'Economics',
+  'Education',
+  'Urdu',
+  'Physical Education',
+  'Healthcare',
+  'IT and ITES',
+  'Arabic'
+];
+
+/**
+ * Maps a teacher's subject assignments to their exact classes.
+ * Supports:
+ * 1. user.classSubjectMap: { '9th': ['Science'], '11th': ['Environmental Science'] }
+ * 2. user.tierSubjects: { '9th-10th': ['Science'], '11th-12th': ['Environmental Science'] }
+ * 3. Legacy user.assignedSubjects & user.assignedClasses: intelligently maps subjects to classes by tier.
+ *
+ * Returns array of: { subject: string, classes: string[], classText: string, shortClassText: string, tier: string }
+ */
+export function getTeacherClassSubjectPermissions(user) {
+  if (!user) return [];
+  const classes = normalizeTeacherClasses(user.assignedClasses || user.assignedClass);
+  const formatClassText = (clsList) => (!clsList || clsList.length === 0) ? '' : 'Class ' + clsList.join(', ');
+
+  // 1. Explicit classSubjectMap
+  if (user.classSubjectMap && typeof user.classSubjectMap === 'object') {
+    const subjectToClasses = new Map();
+    classes.forEach(cls => {
+      const subs = user.classSubjectMap[cls];
+      if (Array.isArray(subs)) {
+        subs.forEach(s => {
+          if (!s) return;
+          if (!subjectToClasses.has(s)) subjectToClasses.set(s, new Set());
+          subjectToClasses.get(s).add(cls);
+        });
+      }
+    });
+
+    if (subjectToClasses.size > 0) {
+      const result = [];
+      const order = ['9th', '10th', '11th', '12th'];
+      subjectToClasses.forEach((clsSet, subject) => {
+        const sortedCls = order.filter(c => clsSet.has(c));
+        const tier = sortedCls.some(c => c === '11th' || c === '12th')
+          ? (sortedCls.some(c => c === '9th' || c === '10th') ? 'All Classes' : 'Higher Secondary')
+          : 'Secondary';
+        result.push({
+          subject,
+          classes: sortedCls,
+          classText: formatClassText(sortedCls),
+          shortClassText: sortedCls.join(', '),
+          tier
+        });
+      });
+      return result;
+    }
+  }
+
+  // 2. Explicit tierSubjects
+  if (user.tierSubjects && typeof user.tierSubjects === 'object') {
+    const secClasses = classes.filter(c => c === '9th' || c === '10th');
+    const hrClasses = classes.filter(c => c === '11th' || c === '12th');
+    const result = [];
+
+    const secSubs = Array.isArray(user.tierSubjects['9th-10th']) ? user.tierSubjects['9th-10th'] : [];
+    secSubs.forEach(sub => {
+      if (!sub) return;
+      const targetCls = secClasses.length > 0 ? secClasses : ['9th', '10th'];
+      result.push({
+        subject: sub,
+        classes: targetCls,
+        classText: formatClassText(targetCls),
+        shortClassText: targetCls.join(', '),
+        tier: 'Secondary'
+      });
+    });
+
+    const hrSubs = Array.isArray(user.tierSubjects['11th-12th']) ? user.tierSubjects['11th-12th'] : [];
+    hrSubs.forEach(sub => {
+      if (!sub) return;
+      const targetCls = hrClasses.length > 0 ? hrClasses : ['11th', '12th'];
+      result.push({
+        subject: sub,
+        classes: targetCls,
+        classText: formatClassText(targetCls),
+        shortClassText: targetCls.join(', '),
+        tier: 'Higher Secondary'
+      });
+    });
+
+    if (result.length > 0) return result;
+  }
+
+  // 3. Fallback: Parse assignedSubjects or subject string & map to classes by curriculum
+  const subjectsList = Array.isArray(user.assignedSubjects) && user.assignedSubjects.length > 0
+    ? user.assignedSubjects.filter(Boolean)
+    : (user.subject || user.teachingSubject || '')
+        .split(/[,;]+/)
+        .map(s => s.trim())
+        .filter(Boolean);
+
+  if (subjectsList.length === 0) {
+    if (classes.length > 0) {
+      return [{
+        subject: null,
+        classes,
+        classText: formatClassText(classes),
+        shortClassText: classes.join(', '),
+        tier: classes.some(c => c === '11th' || c === '12th') ? 'Higher Secondary' : 'Secondary'
+      }];
+    }
+    return [];
+  }
+
+  const secClasses = classes.filter(c => c === '9th' || c === '10th');
+  const hrClasses = classes.filter(c => c === '11th' || c === '12th');
+
+  const result = [];
+  subjectsList.forEach(rawSub => {
+    const norm = normalizeSubjectIdentity(rawSub);
+    const code = norm?.code || '';
+    const subName = norm?.name || rawSub;
+
+    let targetCls = [];
+    let tier = 'Secondary';
+
+    // Strictly Secondary
+    if (code === 'SC' || code === 'SS' || rawSub.toLowerCase().includes('social science')) {
+      targetCls = secClasses.length > 0 ? secClasses : (classes.length > 0 ? classes : ['9th', '10th']);
+      tier = 'Secondary';
+    }
+    // Strictly Higher Secondary
+    else if (
+      code === 'ES' || code === 'PH' || code === 'CH' || code === 'BI' || code === 'BO' || code === 'ZO' ||
+      code === 'PS' || code === 'HT' || code === 'EC' || code === 'ED' || code === 'PD' || code === 'AY' || code === 'BS' ||
+      rawSub.toLowerCase().includes('environ') || rawSub.toLowerCase().includes('general english')
+    ) {
+      targetCls = hrClasses.length > 0 ? hrClasses : (classes.length > 0 ? classes : ['11th', '12th']);
+      tier = 'Higher Secondary';
+    }
+    // Dual-tier / Vocational / Common (Healthcare, IT and ITES, English, Mathematics, Urdu)
+    else {
+      if (secClasses.length > 0 && hrClasses.length > 0) {
+        targetCls = classes;
+        tier = 'All Classes';
+      } else if (secClasses.length > 0) {
+        targetCls = secClasses;
+        tier = 'Secondary';
+      } else if (hrClasses.length > 0) {
+        targetCls = hrClasses;
+        tier = 'Higher Secondary';
+      } else {
+        targetCls = ['9th', '10th', '11th', '12th'];
+        tier = 'All Classes';
+      }
+    }
+
+    result.push({
+      subject: rawSub,
+      canonicalName: subName,
+      code,
+      classes: targetCls,
+      classText: formatClassText(targetCls),
+      shortClassText: targetCls.join(', '),
+      tier
+    });
+  });
+
+  return result;
+}
+
+/**
+ * Returns list of subjects assigned to teacher for a specific class.
+ */
+export function getTeacherAssignedSubjectsForClass(user, targetClass) {
+  if (!user) return [];
+  const permissions = getTeacherClassSubjectPermissions(user);
+  const cleanTarget = String(targetClass || '').toLowerCase().trim();
+  const matched = permissions.filter(p =>
+    p.subject && p.classes.some(c => c.toLowerCase() === cleanTarget || cleanTarget.includes(c.toLowerCase()))
+  );
+  return matched.map(m => m.subject);
+}
+
+/**
  * Canonical Document ID Generator for Practicals & Evaluations
  */
 export function formatPracticalDocId(cls, subject, practicalType, yearSuffix) {

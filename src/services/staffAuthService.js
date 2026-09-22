@@ -10,6 +10,7 @@ import {
   isBootstrapAdminEmail, 
   isBootstrapSuperAdminEmail 
 } from '../utils/authRoles';
+import { normalizeTeacherClasses } from '../utils/practicalsSettingsManager';
 
 export { 
   SUPERADMIN_EMAIL, 
@@ -258,9 +259,13 @@ export async function resolveStaffRoleAndPerms(emailOrUser, forceFresh = false) 
     assignedSubjects: Array.isArray(profile.assignedSubjects) && profile.assignedSubjects.length > 0
       ? profile.assignedSubjects
       : (profile.subject || profile.teachingSubject || '').split(/[,;]+/).map(s => s.trim()).filter(Boolean),
-    assignedClasses: Array.isArray(profile.assignedClasses)
-      ? profile.assignedClasses
-      : (profile.assignedClass ? [profile.assignedClass] : []),
+    assignedClasses: normalizeTeacherClasses(
+      Array.isArray(profile.assignedClasses)
+        ? profile.assignedClasses
+        : (profile.assignedClass ? [profile.assignedClass] : [])
+    ),
+    classSubjectMap: profile.classSubjectMap || null,
+    tierSubjects: profile.tierSubjects || null,
     google2StepVerified: Boolean(profile.google2StepVerified),
     last2StepVerificationDate: profile.last2StepVerificationDate || null,
   };
@@ -280,6 +285,8 @@ export async function resolveStaffRoleAndPerms(emailOrUser, forceFresh = false) 
       teachingSubject: resolved.teachingSubject,
       assignedSubjects: resolved.assignedSubjects,
       assignedClasses: resolved.assignedClasses,
+      classSubjectMap: resolved.classSubjectMap,
+      tierSubjects: resolved.tierSubjects,
       google2StepVerified: resolved.google2StepVerified,
       last2StepVerificationDate: resolved.last2StepVerificationDate,
       updatedAt: new Date().toISOString(),
@@ -525,6 +532,8 @@ export async function createStaffAccount({
   subject = '', 
   assignedSubjects = [],
   assignedClasses = [], 
+  tierSubjects = null,
+  classSubjectMap = null,
   mobile = '', 
   password = '', 
   sendSetupEmail = true 
@@ -533,9 +542,7 @@ export async function createStaffAccount({
   const cleanName = String(name || '').trim();
   if (!cleanEmail || !cleanName) throw new Error('Name and valid email are required.');
 
-  const cleanClasses = Array.isArray(assignedClasses)
-    ? assignedClasses.filter(Boolean)
-    : (assignedClasses ? [assignedClasses] : []);
+  const cleanClasses = normalizeTeacherClasses(assignedClasses);
 
   const cleanSubjects = Array.isArray(assignedSubjects) && assignedSubjects.length > 0
     ? assignedSubjects.map(s => String(s || '').trim()).filter(Boolean)
@@ -552,6 +559,8 @@ export async function createStaffAccount({
     teachingSubject: primarySubject,
     assignedSubjects: cleanSubjects,
     assignedClasses: cleanClasses,
+    tierSubjects: tierSubjects || null,
+    classSubjectMap: classSubjectMap || null,
     mobile: mobile.trim(),
     active: true,
   };
@@ -651,6 +660,8 @@ export async function updateStaffAccount({
   subject = '', 
   assignedSubjects = [],
   assignedClasses = [], 
+  tierSubjects = null,
+  classSubjectMap = null,
   mobile = '', 
   password = '',
   sendResetEmail = false 
@@ -661,9 +672,7 @@ export async function updateStaffAccount({
 
   if (!cleanNew || !cleanName) throw new Error('Name and valid email are required.');
 
-  const cleanClasses = Array.isArray(assignedClasses)
-    ? assignedClasses.filter(Boolean)
-    : (assignedClasses ? [assignedClasses] : []);
+  const cleanClasses = normalizeTeacherClasses(assignedClasses);
 
   const cleanSubjects = Array.isArray(assignedSubjects) && assignedSubjects.length > 0
     ? assignedSubjects.map(s => String(s || '').trim()).filter(Boolean)
@@ -680,6 +689,8 @@ export async function updateStaffAccount({
     teachingSubject: primarySubject,
     assignedSubjects: cleanSubjects,
     assignedClasses: cleanClasses,
+    tierSubjects: tierSubjects || null,
+    classSubjectMap: classSubjectMap || null,
     mobile: mobile.trim(),
     active: true,
   };

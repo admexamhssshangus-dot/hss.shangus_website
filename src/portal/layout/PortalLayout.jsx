@@ -13,6 +13,7 @@ import {
   isBootstrapAdminEmail,
   clearStaffProfileCache 
 } from '../../services/staffAuthService';
+import { normalizeTeacherClasses } from '../../utils/practicalsSettingsManager';
 
 // ---------------------------------------------------------------------------
 // Shared helper: resolve user profile from Firestore by email
@@ -45,9 +46,11 @@ async function resolveUserProfile(firebaseUser, forceFresh = false) {
 
   const userSubject = staffProfile?.subject || staffProfile?.teachingSubject || '';
   const userTeachingSubject = staffProfile?.teachingSubject || staffProfile?.subject || '';
-  const userAssignedClasses = Array.isArray(staffProfile?.assignedClasses)
-    ? staffProfile.assignedClasses
-    : (staffProfile?.assignedClass ? [staffProfile.assignedClass] : []);
+  const userAssignedClasses = normalizeTeacherClasses(
+    Array.isArray(staffProfile?.assignedClasses)
+      ? staffProfile.assignedClasses
+      : (staffProfile?.assignedClass ? [staffProfile.assignedClass] : [])
+  );
   const userMobile = staffProfile?.mobile || '';
 
   const userAssignedSubjects = Array.isArray(staffProfile?.assignedSubjects) && staffProfile.assignedSubjects.length > 0
@@ -63,6 +66,8 @@ async function resolveUserProfile(firebaseUser, forceFresh = false) {
     teachingSubject: userTeachingSubject,
     assignedSubjects: userAssignedSubjects,
     assignedClasses: userAssignedClasses,
+    classSubjectMap: staffProfile?.classSubjectMap || null,
+    tierSubjects: staffProfile?.tierSubjects || null,
     mobile: userMobile,
     token: tokenResult.token,
   };
@@ -207,20 +212,23 @@ export default function PortalLayout() {
         
         // If session is already authenticated and active for this email, refresh claims silently in background without blocking UI
         if (sessionStateRef.current.isAuthenticated && sessionStateRef.current.user?.email === cleanEmail) {
-          resolveUserProfile(fbUser, true).then(({ role: userRole, name: displayName, perms: userPerms, subject: userSubj, teachingSubject: userTeachSubj, assignedClasses: userClasses, mobile: userMob, token: verifiedToken }) => {
+          resolveUserProfile(fbUser, true).then((prof) => {
             if (auth.currentUser?.uid !== fbUser.uid) return;
             const updatedSession = {
               email: cleanEmail,
-              name: displayName,
-              role: userRole,
-              perms: userPerms,
-              subject: userSubj || '',
-              teachingSubject: userTeachSubj || userSubj || '',
-              assignedClasses: userClasses || [],
-              mobile: userMob || '',
+              name: prof.name,
+              role: prof.role,
+              perms: prof.perms,
+              subject: prof.subject || '',
+              teachingSubject: prof.teachingSubject || prof.subject || '',
+              assignedSubjects: prof.assignedSubjects || [],
+              assignedClasses: prof.assignedClasses || [],
+              classSubjectMap: prof.classSubjectMap || null,
+              tierSubjects: prof.tierSubjects || null,
+              mobile: prof.mobile || '',
               uid: fbUser.uid,
             };
-            sessionManager.saveSession({ user: updatedSession, token: verifiedToken }, localStorage.getItem('hss_persistent_login') !== 'false');
+            sessionManager.saveSession({ user: updatedSession, token: prof.token }, localStorage.getItem('hss_persistent_login') !== 'false');
             setSessionStateStable({ loading: false, user: updatedSession, isAuthenticated: true });
           }).catch((err) => {
             sessionManager.clearSession();
@@ -231,20 +239,23 @@ export default function PortalLayout() {
 
         // Full session restore on cold start / page refresh
         try {
-          const { role: userRole, name: displayName, perms: userPerms, subject: userSubj, teachingSubject: userTeachSubj, assignedClasses: userClasses, mobile: userMob, token: verifiedToken } = await resolveUserProfile(fbUser, true);
+          const prof = await resolveUserProfile(fbUser, true);
           if (auth.currentUser?.uid !== fbUser.uid) return;
           const defaultSession = {
             email: cleanEmail,
-            name: displayName,
-            role: userRole,
-            perms: userPerms,
-            subject: userSubj || '',
-            teachingSubject: userTeachSubj || userSubj || '',
-            assignedClasses: userClasses || [],
-            mobile: userMob || '',
+            name: prof.name,
+            role: prof.role,
+            perms: prof.perms,
+            subject: prof.subject || '',
+            teachingSubject: prof.teachingSubject || prof.subject || '',
+            assignedSubjects: prof.assignedSubjects || [],
+            assignedClasses: prof.assignedClasses || [],
+            classSubjectMap: prof.classSubjectMap || null,
+            tierSubjects: prof.tierSubjects || null,
+            mobile: prof.mobile || '',
             uid: fbUser.uid,
           };
-          sessionManager.saveSession({ user: defaultSession, token: verifiedToken }, localStorage.getItem('hss_persistent_login') !== 'false');
+          sessionManager.saveSession({ user: defaultSession, token: prof.token }, localStorage.getItem('hss_persistent_login') !== 'false');
           setSessionStateStable({ loading: false, user: defaultSession, isAuthenticated: true });
         } catch (err) {
           sessionManager.clearSession();
@@ -287,21 +298,24 @@ export default function PortalLayout() {
       clearStaffProfileCache();
       const fbUser = auth.currentUser;
       if (fbUser) {
-        resolveUserProfile(fbUser, true).then(({ role: userRole, name: displayName, perms: userPerms, subject: userSubj, teachingSubject: userTeachSubj, assignedClasses: userClasses, mobile: userMob, token: verifiedToken }) => {
+        resolveUserProfile(fbUser, true).then((prof) => {
           if (auth.currentUser?.uid !== fbUser.uid) return;
           const cleanEmail = String(fbUser.email || '').toLowerCase().trim();
           const updatedSession = {
             email: cleanEmail,
-            name: displayName,
-            role: userRole,
-            perms: userPerms,
-            subject: userSubj || '',
-            teachingSubject: userTeachSubj || userSubj || '',
-            assignedClasses: userClasses || [],
-            mobile: userMob || '',
+            name: prof.name,
+            role: prof.role,
+            perms: prof.perms,
+            subject: prof.subject || '',
+            teachingSubject: prof.teachingSubject || prof.subject || '',
+            assignedSubjects: prof.assignedSubjects || [],
+            assignedClasses: prof.assignedClasses || [],
+            classSubjectMap: prof.classSubjectMap || null,
+            tierSubjects: prof.tierSubjects || null,
+            mobile: prof.mobile || '',
             uid: fbUser.uid,
           };
-          sessionManager.saveSession({ user: updatedSession, token: verifiedToken }, localStorage.getItem('hss_persistent_login') !== 'false');
+          sessionManager.saveSession({ user: updatedSession, token: prof.token }, localStorage.getItem('hss_persistent_login') !== 'false');
           setSessionStateStable({ loading: false, user: updatedSession, isAuthenticated: true });
         }).catch(() => {});
       }

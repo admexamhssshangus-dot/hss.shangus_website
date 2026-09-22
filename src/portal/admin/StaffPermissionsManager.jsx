@@ -20,6 +20,12 @@ import {
   ADMIN_CATEGORIES,
   ROLE_PRESETS,
 } from './adminModuleCatalog';
+import {
+  normalizeTeacherClasses,
+  getTeacherClassSubjectPermissions,
+  normalizeSubjectIdentity,
+  isTeacherSubjectMatch
+} from '../../utils/practicalsSettingsManager';
 
 export const ALL_ADMIN_MODULES = ADMIN_MODULE_CATALOG.map(module => ({
   code: module.id,
@@ -102,10 +108,20 @@ const DEFAULT_ADMIN_USERS = [
     email: 'zahoorganie1234@gmail.com',
     role: 'Teacher',
     designation: 'Teacher',
-    perms: ['practicals'],
+    perms: ['attendanceMgmt', 'practicals'],
     subject: 'Science, Environmental Science',
     assignedSubjects: ['Science', 'Environmental Science'],
     assignedClasses: ['9th', '10th', '11th', '12th'],
+    tierSubjects: {
+      '9th-10th': ['Science'],
+      '11th-12th': ['Environmental Science'],
+    },
+    classSubjectMap: {
+      '9th': ['Science'],
+      '10th': ['Science'],
+      '11th': ['Environmental Science'],
+      '12th': ['Environmental Science'],
+    },
   },
 ];
 
@@ -159,28 +175,30 @@ export default function StaffPermissionsManager() {
           else loadedList = DEFAULT_ADMIN_USERS;
         }
 
-        // Normalize core institutional roles & emails
+        // Normalize core institutional roles, emails, classes, and subjects
         loadedList = loadedList.map((u) => {
           const clean = String(u.email || '').trim().toLowerCase();
+          const cleanClasses = normalizeTeacherClasses(u.assignedClasses || u.assignedClass);
+          const assignedSubjects = Array.isArray(u.assignedSubjects) && u.assignedSubjects.length > 0
+            ? u.assignedSubjects
+            : (u.subject || u.teachingSubject || '').split(/[,;]+/).map(s => s.trim()).filter(Boolean);
+
+          let updatedUser = {
+            ...u,
+            assignedClasses: cleanClasses,
+            assignedSubjects,
+          };
           if (clean === 'shahnawaz@gmail.com') {
-            return { ...u, email: 'shahnawaz13678@gmail.com' };
+            updatedUser.email = 'shahnawaz13678@gmail.com';
           }
           if (clean === 'adm.exam.hss.shangus@gmail.com') {
-            return {
-              ...u,
-              role: 'SuperAdmin',
-              perms: ALL_ADMIN_MODULES.map(m => m.code),
-            };
+            updatedUser.role = 'SuperAdmin';
+            updatedUser.perms = ALL_ADMIN_MODULES.map(m => m.code);
+          } else if (updatedUser.role === 'SuperAdmin') {
+            updatedUser.role = 'Admin';
+            updatedUser.perms = Array.isArray(u.perms) && u.perms.length > 0 ? u.perms : ['reports'];
           }
-          // Sole SuperAdmin policy
-          if (u.role === 'SuperAdmin') {
-            return {
-              ...u,
-              role: 'Admin',
-              perms: Array.isArray(u.perms) && u.perms.length > 0 ? u.perms : ['reports'],
-            };
-          }
-          return u;
+          return updatedUser;
         });
 
         // Query users collection for any additional registered faculty/teachers/admins
@@ -196,6 +214,11 @@ export default function StaffPermissionsManager() {
               if (isTeacher || isAdmin) {
                 const cleanE = String(data.email || '').trim().toLowerCase();
                 if (cleanE && !loadedList.some((a) => a.email.toLowerCase() === cleanE) && !extraStaff.some((s) => s.email.toLowerCase() === cleanE)) {
+                  const cleanClasses = normalizeTeacherClasses(data.assignedClasses || data.assignedClass || []);
+                  const assignedSubjects = Array.isArray(data.assignedSubjects) && data.assignedSubjects.length > 0
+                    ? data.assignedSubjects
+                    : (data.subject || data.teachingSubject || '').split(/[,;]+/).map(s => s.trim()).filter(Boolean);
+
                   extraStaff.push({
                     name: data.name || data.displayName || cleanE.split('@')[0],
                     email: cleanE,
@@ -204,7 +227,10 @@ export default function StaffPermissionsManager() {
                     perms: data.perms || (isTeacher ? ['attendanceMgmt', 'practicals'] : ['reports', 'analyticsReports']),
                     subject: data.subject || data.teachingSubject || '',
                     teachingSubject: data.teachingSubject || data.subject || '',
-                    assignedClasses: Array.isArray(data.assignedClasses) ? data.assignedClasses : (data.assignedClass ? [data.assignedClass] : []),
+                    assignedSubjects,
+                    assignedClasses: cleanClasses,
+                    tierSubjects: data.tierSubjects || null,
+                    classSubjectMap: data.classSubjectMap || null,
                     mobile: data.mobile || data.phone || '',
                   });
                 }
@@ -354,12 +380,14 @@ export default function StaffPermissionsManager() {
     setAdminForm({ 
       name: '', 
       email: '', 
-      role: 'Admin', 
+      role: 'Teacher', 
       designation: '',
-      perms: ['reports'],
+      perms: ['attendanceMgmt', 'practicals'],
       subject: '',
       assignedSubjects: [],
       assignedClasses: [],
+      tierSubjects: { '9th-10th': [], '11th-12th': [] },
+      classSubjectMap: {},
       mobile: '',
       password: '',
       sendSetupEmail: true
@@ -379,6 +407,30 @@ export default function StaffPermissionsManager() {
       ? user.assignedSubjects
       : (user.subject || user.teachingSubject || '').split(/[,;]+/).map(s => s.trim()).filter(Boolean);
 
+    const cleanClasses = normalizeTeacherClasses(user.assignedClasses || user.assignedClass);
+
+    // Reconstruct or extract tierSubjects
+    let tierSubjects = { '9th-10th': [], '11th-12th': [] };
+    if (user.tierSubjects && typeof user.tierSubjects === 'object') {
+      tierSubjects = {
+        '9th-10th': Array.isArray(user.tierSubjects['9th-10th']) ? [...user.tierSubjects['9th-10th']] : [],
+        '11th-12th': Array.isArray(user.tierSubjects['11th-12th']) ? [...user.tierSubjects['11th-12th']] : [],
+      };
+    } else {
+      existingSubjects.forEach(sub => {
+        const norm = normalizeSubjectIdentity(sub);
+        if (norm?.code === 'SC' || norm?.code === 'SS' || SECONDARY_SUBJECTS_LIST.includes(sub)) {
+          if (!tierSubjects['9th-10th'].includes(sub)) tierSubjects['9th-10th'].push(sub);
+        }
+        if (norm?.code === 'ES' || HIGHER_SECONDARY_SUBJECTS_LIST.includes(sub)) {
+          if (!tierSubjects['11th-12th'].includes(sub)) tierSubjects['11th-12th'].push(sub);
+        }
+        if (!tierSubjects['9th-10th'].includes(sub) && !tierSubjects['11th-12th'].includes(sub)) {
+          tierSubjects['11th-12th'].push(sub);
+        }
+      });
+    }
+
     setAdminForm({ 
       name: user.name || '', 
       email: user.email || '', 
@@ -387,14 +439,16 @@ export default function StaffPermissionsManager() {
       perms: Array.isArray(user.perms) ? [...user.perms] : ['reports'],
       subject: existingSubjects.join(', '),
       assignedSubjects: existingSubjects,
-      assignedClasses: Array.isArray(user.assignedClasses) ? [...user.assignedClasses] : (user.assignedClass ? [user.assignedClass] : []),
+      assignedClasses: cleanClasses,
+      tierSubjects,
+      classSubjectMap: user.classSubjectMap || {},
       mobile: user.mobile || '',
       password: '',
       sendSetupEmail: false
     });
 
-    const hasSec = Array.isArray(user.assignedClasses) && user.assignedClasses.some(c => c.includes('9') || c.includes('10'));
-    const hasHr = Array.isArray(user.assignedClasses) && user.assignedClasses.some(c => c.includes('11') || c.includes('12'));
+    const hasSec = cleanClasses.some(c => c === '9th' || c === '10th');
+    const hasHr = cleanClasses.some(c => c === '11th' || c === '12th');
     if (hasSec && !hasHr) {
       setSubjectTierTab('9th-10th');
     } else {
@@ -432,6 +486,7 @@ export default function StaffPermissionsManager() {
       return;
     }
 
+    const cleanClasses = normalizeTeacherClasses(adminForm.assignedClasses);
     const cleanSubjects = Array.isArray(adminForm.assignedSubjects) && adminForm.assignedSubjects.length > 0
       ? adminForm.assignedSubjects.map(s => String(s || '').trim()).filter(Boolean)
       : (adminForm.subject ? String(adminForm.subject).split(/[,;]+/).map(s => s.trim()).filter(Boolean) : []);
@@ -443,6 +498,22 @@ export default function StaffPermissionsManager() {
     }
     const cleanEmail = adminForm.email.trim().toLowerCase();
     setSaving(true);
+
+    const tierSubjects = adminForm.tierSubjects || { '9th-10th': [], '11th-12th': [] };
+    const classSubjectMap = {};
+    cleanClasses.forEach(cls => {
+      const isSec = cls === '9th' || cls === '10th';
+      const tierKey = isSec ? '9th-10th' : '11th-12th';
+      const tierSubs = Array.isArray(tierSubjects[tierKey]) && tierSubjects[tierKey].length > 0
+        ? tierSubjects[tierKey]
+        : cleanSubjects.filter(sub => {
+            const norm = normalizeSubjectIdentity(sub);
+            if (isSec && norm?.code === 'SC') return true;
+            if (!isSec && norm?.code === 'ES') return true;
+            return isSec ? SECONDARY_SUBJECTS_LIST.includes(sub) : HIGHER_SECONDARY_SUBJECTS_LIST.includes(sub);
+          });
+      classSubjectMap[cls] = tierSubs.length > 0 ? tierSubs : cleanSubjects;
+    });
 
     try {
       if (editingAdminEmail) {
@@ -459,7 +530,9 @@ export default function StaffPermissionsManager() {
           perms: adminForm.perms,
           subject: primarySubject,
           assignedSubjects: cleanSubjects,
-          assignedClasses: adminForm.assignedClasses || [],
+          assignedClasses: cleanClasses,
+          tierSubjects,
+          classSubjectMap,
           mobile: adminForm.mobile,
           sendResetEmail: adminForm.sendSetupEmail,
           password: adminForm.password,
@@ -476,7 +549,9 @@ export default function StaffPermissionsManager() {
                 perms: adminForm.perms,
                 subject: primarySubject,
                 assignedSubjects: cleanSubjects,
-                assignedClasses: adminForm.assignedClasses || [],
+                assignedClasses: cleanClasses,
+                tierSubjects,
+                classSubjectMap,
                 mobile: adminForm.mobile
               }
             : u
@@ -507,7 +582,9 @@ export default function StaffPermissionsManager() {
           perms: adminForm.perms,
           subject: primarySubject,
           assignedSubjects: cleanSubjects,
-          assignedClasses: adminForm.assignedClasses || [],
+          assignedClasses: cleanClasses,
+          tierSubjects,
+          classSubjectMap,
           mobile: adminForm.mobile,
           password: adminForm.password,
           sendSetupEmail: adminForm.sendSetupEmail,
@@ -523,7 +600,9 @@ export default function StaffPermissionsManager() {
             perms: adminForm.perms,
             subject: primarySubject,
             assignedSubjects: cleanSubjects,
-            assignedClasses: adminForm.assignedClasses || [],
+            assignedClasses: cleanClasses,
+            tierSubjects,
+            classSubjectMap,
             mobile: adminForm.mobile
           }
         ];
@@ -785,34 +864,53 @@ export default function StaffPermissionsManager() {
                           </span>
                         )}
 
-                        {/* Teaching Subject(s) (if teacher) */}
-                        {Array.isArray(user.assignedSubjects) && user.assignedSubjects.length > 0 ? (
-                          <div className="flex flex-wrap items-center gap-1">
-                            {user.assignedSubjects.map((sub) => (
-                              <span key={sub} className="px-1.5 py-0.5 rounded-md text-[8px] sm:text-[9px] font-bold bg-blue-100 dark:bg-blue-950 text-blue-800 dark:text-blue-300 border border-blue-200 dark:border-blue-800 shrink-0">
-                                {sub}
-                              </span>
-                            ))}
-                          </div>
-                        ) : user.subject ? (
-                          <div className="flex flex-wrap items-center gap-1">
-                            {user.subject.split(/[,;]+/).map((s) => s.trim()).filter(Boolean).map((sub) => (
-                              <span key={sub} className="px-1.5 py-0.5 rounded-md text-[8px] sm:text-[9px] font-bold bg-blue-100 dark:bg-blue-950 text-blue-800 dark:text-blue-300 border border-blue-200 dark:border-blue-800 shrink-0">
-                                {sub}
-                              </span>
-                            ))}
-                          </div>
-                        ) : null}
+                        {/* Teacher Subject & Class Permissions (Grouped Exactly Per Class) */}
+                        {isTeacher ? (() => {
+                          const permissions = getTeacherClassSubjectPermissions(user);
+                          if (permissions.length === 0) return null;
 
-                        {/* Assigned Classes */}
-                        {Array.isArray(user.assignedClasses) && user.assignedClasses.length > 0 && (
-                          <div className="flex flex-wrap items-center gap-0.5">
-                            {user.assignedClasses.map((cls) => (
-                              <span key={cls} className="px-1.5 py-0.2 rounded font-black text-[7.5px] sm:text-[8px] uppercase tracking-wider bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200/80 dark:border-emerald-800">
-                                Class {cls}
-                              </span>
-                            ))}
-                          </div>
+                          return (
+                            <div className="flex flex-wrap items-center gap-1">
+                              {permissions.map((perm, pIdx) => {
+                                if (!perm.subject) {
+                                  return (
+                                    <span key={pIdx} className="px-1.5 py-0.5 rounded-md font-bold text-[8px] sm:text-[9px] uppercase tracking-wider bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200/80 dark:border-emerald-800">
+                                      {perm.classText}
+                                    </span>
+                                  );
+                                }
+                                return (
+                                  <span
+                                    key={pIdx}
+                                    className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg text-[8.5px] sm:text-[9.5px] font-bold bg-blue-50/90 dark:bg-blue-950/60 text-blue-900 dark:text-blue-200 border border-blue-200 dark:border-blue-800 shadow-2xs"
+                                    title={`${perm.subject} assigned for ${perm.classText}`}
+                                  >
+                                    <span className="font-black text-indigo-700 dark:text-indigo-400 uppercase text-[7.5px] sm:text-[8px] tracking-wide">
+                                      {perm.classes.map(c => `Class ${c}`).join(', ')}:
+                                    </span>
+                                    <span className="font-extrabold text-slate-800 dark:text-slate-100">
+                                      {perm.subject}
+                                    </span>
+                                  </span>
+                                );
+                              })}
+                            </div>
+                          );
+                        })() : (
+                          /* Non-teacher staff classes (if assigned) */
+                          (() => {
+                            const cleanClasses = normalizeTeacherClasses(user.assignedClasses || user.assignedClass);
+                            if (cleanClasses.length === 0) return null;
+                            return (
+                              <div className="flex flex-wrap items-center gap-0.5">
+                                {cleanClasses.map((cls) => (
+                                  <span key={cls} className="px-1.5 py-0.2 rounded font-black text-[7.5px] sm:text-[8px] uppercase tracking-wider bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200/80 dark:border-emerald-800">
+                                    Class {cls}
+                                  </span>
+                                ))}
+                              </div>
+                            );
+                          })()
                         )}
 
                         {hasOutdatedStatus && (
@@ -1141,7 +1239,7 @@ export default function StaffPermissionsManager() {
                         {adminForm.assignedSubjects && adminForm.assignedSubjects.length > 0 && (
                           <button
                             type="button"
-                            onClick={() => setAdminForm({ ...adminForm, assignedSubjects: [], subject: '' })}
+                            onClick={() => setAdminForm({ ...adminForm, assignedSubjects: [], tierSubjects: { '9th-10th': [], '11th-12th': [] }, subject: '' })}
                             className="text-rose-500 hover:text-rose-600 cursor-pointer text-[9.5px] font-bold"
                           >
                             Clear All
@@ -1150,22 +1248,29 @@ export default function StaffPermissionsManager() {
                       </div>
                       <div className="flex flex-wrap items-center gap-1.5 min-h-[28px]">
                         {adminForm.assignedSubjects && adminForm.assignedSubjects.length > 0 ? (
-                          adminForm.assignedSubjects.map((sub) => (
+                          getTeacherClassSubjectPermissions(adminForm).filter(p => p.subject).map((perm, pIdx) => (
                             <span
-                              key={sub}
-                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-bold bg-emerald-600 text-white shadow-2xs animate-fadeIn"
+                              key={pIdx}
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-bold bg-emerald-600 text-white shadow-2xs animate-fadeIn"
                             >
-                              <span>{sub}</span>
+                              <span className="text-[10px] font-black uppercase text-emerald-200">
+                                {perm.classes.map(c => `Class ${c}`).join(', ')}:
+                              </span>
+                              <span className="font-extrabold">{perm.subject}</span>
                               <button
                                 type="button"
                                 onClick={() => {
-                                  const next = adminForm.assignedSubjects.filter((s) => s !== sub);
-                                  setAdminForm({ ...adminForm, assignedSubjects: next, subject: next.join(', ') });
+                                  const next = (adminForm.assignedSubjects || []).filter((s) => s !== perm.subject);
+                                  const nextTier = {
+                                    '9th-10th': (adminForm.tierSubjects?.['9th-10th'] || []).filter(s => s !== perm.subject),
+                                    '11th-12th': (adminForm.tierSubjects?.['11th-12th'] || []).filter(s => s !== perm.subject),
+                                  };
+                                  setAdminForm({ ...adminForm, assignedSubjects: next, tierSubjects: nextTier, subject: next.join(', ') });
                                 }}
                                 className="hover:opacity-75 cursor-pointer p-0.5 -mr-0.5"
-                                title={`Remove ${sub}`}
+                                title={`Remove ${perm.subject}`}
                               >
-                                <X size={11} />
+                                <X size={12} />
                               </button>
                             </span>
                           ))
@@ -1189,9 +1294,16 @@ export default function StaffPermissionsManager() {
                               type="button"
                               onClick={() => {
                                 const current = new Set(adminForm.assignedSubjects || []);
-                                SECONDARY_SUBJECTS_LIST.forEach(s => current.add(s));
-                                const next = Array.from(current);
-                                setAdminForm({ ...adminForm, assignedSubjects: next, subject: next.join(', ') });
+                                const currentTier = new Set(adminForm.tierSubjects?.['9th-10th'] || []);
+                                SECONDARY_SUBJECTS_LIST.forEach(s => { current.add(s); currentTier.add(s); });
+                                const nextClasses = Array.from(new Set([...(adminForm.assignedClasses || []), '9th', '10th']));
+                                setAdminForm({ 
+                                  ...adminForm, 
+                                  assignedSubjects: Array.from(current), 
+                                  assignedClasses: nextClasses,
+                                  tierSubjects: { ...(adminForm.tierSubjects || {}), '9th-10th': Array.from(currentTier) },
+                                  subject: Array.from(current).join(', ') 
+                                });
                               }}
                               className="text-emerald-700 dark:text-emerald-300 hover:underline cursor-pointer"
                             >
@@ -1208,8 +1320,20 @@ export default function StaffPermissionsManager() {
                                 type="button"
                                 onClick={() => {
                                   const current = adminForm.assignedSubjects || [];
+                                  const currentTier = adminForm.tierSubjects?.['9th-10th'] || [];
                                   const next = isChecked ? current.filter((s) => s !== sub) : [...current, sub];
-                                  setAdminForm({ ...adminForm, assignedSubjects: next, subject: next.join(', ') });
+                                  const nextTier = isChecked ? currentTier.filter((s) => s !== sub) : [...currentTier, sub];
+                                  let nextClasses = [...(adminForm.assignedClasses || [])];
+                                  if (!isChecked && !nextClasses.some(c => c === '9th' || c === '10th')) {
+                                    nextClasses = Array.from(new Set([...nextClasses, '9th', '10th']));
+                                  }
+                                  setAdminForm({ 
+                                    ...adminForm, 
+                                    assignedSubjects: next, 
+                                    assignedClasses: nextClasses,
+                                    tierSubjects: { ...(adminForm.tierSubjects || {}), '9th-10th': nextTier },
+                                    subject: next.join(', ') 
+                                  });
                                 }}
                                 className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer flex items-center gap-2 ${
                                   isChecked
@@ -1239,9 +1363,16 @@ export default function StaffPermissionsManager() {
                               type="button"
                               onClick={() => {
                                 const current = new Set(adminForm.assignedSubjects || []);
-                                HIGHER_SECONDARY_SUBJECTS_LIST.forEach(s => current.add(s));
-                                const next = Array.from(current);
-                                setAdminForm({ ...adminForm, assignedSubjects: next, subject: next.join(', ') });
+                                const currentTier = new Set(adminForm.tierSubjects?.['11th-12th'] || []);
+                                HIGHER_SECONDARY_SUBJECTS_LIST.forEach(s => { current.add(s); currentTier.add(s); });
+                                const nextClasses = Array.from(new Set([...(adminForm.assignedClasses || []), '11th', '12th']));
+                                setAdminForm({ 
+                                  ...adminForm, 
+                                  assignedSubjects: Array.from(current), 
+                                  assignedClasses: nextClasses,
+                                  tierSubjects: { ...(adminForm.tierSubjects || {}), '11th-12th': Array.from(currentTier) },
+                                  subject: Array.from(current).join(', ') 
+                                });
                               }}
                               className="text-emerald-700 dark:text-emerald-300 hover:underline cursor-pointer"
                             >
@@ -1258,8 +1389,20 @@ export default function StaffPermissionsManager() {
                                 type="button"
                                 onClick={() => {
                                   const current = adminForm.assignedSubjects || [];
+                                  const currentTier = adminForm.tierSubjects?.['11th-12th'] || [];
                                   const next = isChecked ? current.filter((s) => s !== sub) : [...current, sub];
-                                  setAdminForm({ ...adminForm, assignedSubjects: next, subject: next.join(', ') });
+                                  const nextTier = isChecked ? currentTier.filter((s) => s !== sub) : [...currentTier, sub];
+                                  let nextClasses = [...(adminForm.assignedClasses || [])];
+                                  if (!isChecked && !nextClasses.some(c => c === '11th' || c === '12th')) {
+                                    nextClasses = Array.from(new Set([...nextClasses, '11th', '12th']));
+                                  }
+                                  setAdminForm({ 
+                                    ...adminForm, 
+                                    assignedSubjects: next, 
+                                    assignedClasses: nextClasses,
+                                    tierSubjects: { ...(adminForm.tierSubjects || {}), '11th-12th': nextTier },
+                                    subject: next.join(', ') 
+                                  });
                                 }}
                                 className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer flex items-center gap-2 ${
                                   isChecked
@@ -1292,7 +1435,14 @@ export default function StaffPermissionsManager() {
                             const clean = customSubjectInput.trim();
                             if (clean && !(adminForm.assignedSubjects || []).includes(clean)) {
                               const next = [...(adminForm.assignedSubjects || []), clean];
-                              setAdminForm({ ...adminForm, assignedSubjects: next, subject: next.join(', ') });
+                              const tierKey = subjectTierTab;
+                              const currentTier = adminForm.tierSubjects?.[tierKey] || [];
+                              setAdminForm({ 
+                                ...adminForm, 
+                                assignedSubjects: next, 
+                                tierSubjects: { ...(adminForm.tierSubjects || {}), [tierKey]: [...currentTier, clean] },
+                                subject: next.join(', ') 
+                              });
                               setCustomSubjectInput('');
                             }
                           }
@@ -1306,7 +1456,14 @@ export default function StaffPermissionsManager() {
                           const clean = customSubjectInput.trim();
                           if (clean && !(adminForm.assignedSubjects || []).includes(clean)) {
                             const next = [...(adminForm.assignedSubjects || []), clean];
-                            setAdminForm({ ...adminForm, assignedSubjects: next, subject: next.join(', ') });
+                            const tierKey = subjectTierTab;
+                            const currentTier = adminForm.tierSubjects?.[tierKey] || [];
+                            setAdminForm({ 
+                              ...adminForm, 
+                              assignedSubjects: next, 
+                              tierSubjects: { ...(adminForm.tierSubjects || {}), [tierKey]: [...currentTier, clean] },
+                              subject: next.join(', ') 
+                            });
                             setCustomSubjectInput('');
                           }
                         }}
@@ -1318,19 +1475,27 @@ export default function StaffPermissionsManager() {
 
                     {/* Assigned Classes Checkboxes */}
                     <div className="pt-2 border-t border-emerald-200/60 dark:border-emerald-800/60 space-y-1.5">
-                      <label className="block text-[11px] font-black text-emerald-950 dark:text-emerald-200">
-                        Assigned Classes (Evaluation & Registers)
-                      </label>
+                      <div className="flex items-center justify-between">
+                        <label className="block text-[11px] font-black text-emerald-950 dark:text-emerald-200">
+                          Assigned Classes (Evaluation & Registers)
+                        </label>
+                        <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400">
+                          Currently in {subjectTierTab === '9th-10th' ? 'Secondary' : 'Higher Secondary'} mode
+                        </span>
+                      </div>
                       <div className="flex flex-wrap items-center gap-2">
                         {['9th', '10th', '11th', '12th'].map((cls) => {
                           const isSelected = (adminForm.assignedClasses || []).includes(cls);
+                          const isCurrentTier = subjectTierTab === '9th-10th' ? (cls === '9th' || cls === '10th') : (cls === '11th' || cls === '12th');
                           return (
                             <label
                               key={cls}
                               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold cursor-pointer transition-all ${
                                 isSelected
                                   ? 'bg-emerald-600 text-white border-emerald-600 shadow-2xs'
-                                  : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-slate-300'
+                                  : isCurrentTier
+                                  ? 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-emerald-300 dark:border-emerald-700/80 hover:border-emerald-500'
+                                  : 'bg-slate-50 dark:bg-slate-950 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-800'
                               }`}
                             >
                               <input
@@ -1340,7 +1505,7 @@ export default function StaffPermissionsManager() {
                                   setAdminForm((prev) => ({
                                     ...prev,
                                     assignedClasses: event.target.checked
-                                      ? [...(prev.assignedClasses || []), cls]
+                                      ? normalizeTeacherClasses([...(prev.assignedClasses || []), cls])
                                       : (prev.assignedClasses || []).filter((v) => v !== cls),
                                   }))
                                 }

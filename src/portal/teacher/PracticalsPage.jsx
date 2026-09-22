@@ -24,7 +24,10 @@ import {
   SUBJECT_CONFIG_DEFS,
   isTeacherSubjectMatch,
   normalizeSubjectIdentity,
-  formatPracticalDocId
+  formatPracticalDocId,
+  getTeacherAssignedSubjectsForClass,
+  getTeacherClassSubjectPermissions,
+  normalizeTeacherClasses
 } from '../../utils/practicalsSettingsManager';
 import ModernLoader from '../../components/ModernLoader';
 
@@ -938,6 +941,8 @@ function CustomSubjectSelect({
   subjectMaxMarks, 
   minPassMarks,
   teacherRegisteredSubject,
+  teacherAssignedSubjects = [],
+  allTeacherSubjects = [],
   onAttemptCrossSubject
 }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -960,12 +965,31 @@ function CustomSubjectSelect({
   );
 
   const selectedItem = subjectMap.find(s => s.name === selectedSubject) || subjectMap[0];
-  const isCurrentlyCrossSubject = Boolean(
-    teacherRegisteredSubject && !isTeacherSubjectMatch(teacherRegisteredSubject, selectedSubject)
-  );
+
+  // Check if a subject is assigned to this teacher (either for this class, across classes, or via registered string)
+  const checkIsSubjectAssigned = (subName) => {
+    if (!subName) return false;
+    if (Array.isArray(teacherAssignedSubjects) && teacherAssignedSubjects.length > 0) {
+      if (teacherAssignedSubjects.some(s => isTeacherSubjectMatch(s, subName))) return true;
+    }
+    if (Array.isArray(allTeacherSubjects) && allTeacherSubjects.length > 0) {
+      if (allTeacherSubjects.some(s => isTeacherSubjectMatch(s, subName))) return true;
+    }
+    if (teacherRegisteredSubject && isTeacherSubjectMatch(teacherRegisteredSubject, subName)) {
+      return true;
+    }
+    return false;
+  };
+
+  const hasAnyAssigned = (Array.isArray(teacherAssignedSubjects) && teacherAssignedSubjects.length > 0) ||
+    (Array.isArray(allTeacherSubjects) && allTeacherSubjects.length > 0) ||
+    Boolean(teacherRegisteredSubject);
+
+  const isCurrentlyCrossSubject = Boolean(hasAnyAssigned && !checkIsSubjectAssigned(selectedSubject));
 
   const handleSelect = (subName) => {
-    if (teacherRegisteredSubject && !isTeacherSubjectMatch(teacherRegisteredSubject, subName)) {
+    const isAssigned = checkIsSubjectAssigned(subName);
+    if (hasAnyAssigned && !isAssigned) {
       if (onAttemptCrossSubject) {
         onAttemptCrossSubject(subName);
       } else {
@@ -1004,7 +1028,7 @@ function CustomSubjectSelect({
       >
         <span className="truncate flex items-center gap-1">
           <span>{selectedItem.name} ({selectedItem.code})</span>
-          {teacherRegisteredSubject && isTeacherSubjectMatch(teacherRegisteredSubject, selectedItem.name) && (
+          {checkIsSubjectAssigned(selectedItem.name) && (
             <span className="text-[9px] font-extrabold text-emerald-600 dark:text-emerald-400 shrink-0">
               (Assigned)
             </span>
@@ -1027,7 +1051,7 @@ function CustomSubjectSelect({
             {filtered.map((s) => {
               const isSelected = s.name === selectedSubject;
               const sMax = getSubjectMax ? getSubjectMax(s.code) : s.defaultMax;
-              const isTeacherAssigned = teacherRegisteredSubject && isTeacherSubjectMatch(teacherRegisteredSubject, s.name);
+              const isTeacherAssigned = checkIsSubjectAssigned(s.name);
 
               return (
                 <button
@@ -1071,21 +1095,31 @@ export default function PracticalsPage() {
   const outletContext = useOutletContext() || {};
   const user = outletContext.user || null;
 
-  // Resolve teacher's officially assigned teaching subjects (supporting multiple subjects)
-  const teacherRegisteredSubject = useMemo(() => {
+  // Resolve all teacher's officially assigned teaching subjects (supporting multiple subjects)
+  const allTeacherAssignedSubjects = useMemo(() => {
     if (Array.isArray(user?.assignedSubjects) && user.assignedSubjects.length > 0) {
-      return user.assignedSubjects.join(', ');
+      return user.assignedSubjects;
+    }
+    const rawSubj = user?.subject || user?.teachingSubject || '';
+    if (!rawSubj) return [];
+    return String(rawSubj).split(',').map(s => s.trim()).filter(Boolean);
+  }, [user?.assignedSubjects, user?.subject, user?.teachingSubject]);
+
+  // Overall teacher registered subject label
+  const teacherRegisteredSubject = useMemo(() => {
+    if (allTeacherAssignedSubjects.length > 0) {
+      return allTeacherAssignedSubjects.join(', ');
     }
     const rawSubj = user?.subject || user?.teachingSubject || '';
     if (!rawSubj) return '';
     const norm = normalizeSubjectIdentity(rawSubj);
     return norm ? norm.name : String(rawSubj).trim();
-  }, [user?.assignedSubjects, user?.subject, user?.teachingSubject]);
+  }, [allTeacherAssignedSubjects, user?.subject, user?.teachingSubject]);
 
-  // Resolve teacher's officially assigned teaching classes
+  // Resolve teacher's officially assigned teaching classes (normalized and deduplicated)
   const teacherAssignedClasses = useMemo(() => {
     if (Array.isArray(user?.assignedClasses) && user.assignedClasses.length > 0) {
-      return user.assignedClasses;
+      return normalizeTeacherClasses(user.assignedClasses);
     }
     return [];
   }, [user?.assignedClasses]);
@@ -1098,14 +1132,23 @@ export default function PracticalsPage() {
   }, [location.state?.selectedClass, teacherAssignedClasses]);
 
   // Initial subject defaulting: if navigated from history with state, use that;
-  // otherwise, default to the teacher's first registered subject; fallback to Physics.
+  // otherwise, default to the teacher's class-specific assigned subject, then first assigned subject, fallback to Physics.
   const initialSubject = useMemo(() => {
     if (location.state?.selectedSubject) return location.state.selectedSubject;
     const isSecondary = initialClass === '9th' || initialClass === '10th';
     const targetList = isSecondary ? SECONDARY_7_SUBJECTS : HIGHER_SECONDARY_15_SUBJECTS;
 
-    if (Array.isArray(user?.assignedSubjects) && user.assignedSubjects.length > 0) {
-      for (const s of user.assignedSubjects) {
+    // Check class-specific assigned subjects first
+    const classAssigned = getTeacherAssignedSubjectsForClass(user, initialClass);
+    if (classAssigned && classAssigned.length > 0) {
+      for (const s of classAssigned) {
+        const match = targetList.find(m => isTeacherSubjectMatch(s, m.name) || isTeacherSubjectMatch(s, m.code));
+        if (match) return match.name;
+      }
+    }
+
+    if (allTeacherAssignedSubjects.length > 0) {
+      for (const s of allTeacherAssignedSubjects) {
         const match = targetList.find(m => isTeacherSubjectMatch(s, m.name) || isTeacherSubjectMatch(s, m.code));
         if (match) return match.name;
       }
@@ -1115,10 +1158,33 @@ export default function PracticalsPage() {
       if (match) return match.name;
     }
     return targetList[0].name;
-  }, [location.state?.selectedSubject, initialClass, user?.assignedSubjects, teacherRegisteredSubject]);
+  }, [location.state?.selectedSubject, initialClass, user, allTeacherAssignedSubjects, teacherRegisteredSubject]);
 
   // Filter States
   const [selectedClass, setSelectedClass] = useState(initialClass);
+
+  // Class-specific assigned subjects for the currently selected class
+  const teacherClassAssignedSubjects = useMemo(() => {
+    const assigned = getTeacherAssignedSubjectsForClass(user, selectedClass);
+    if (assigned && assigned.length > 0) return assigned;
+    // Fallback: filter allTeacherAssignedSubjects against current class curriculum
+    const isSecondary = selectedClass === '9th' || selectedClass === '10th' || selectedClass === '9' || selectedClass === '10';
+    const targetList = isSecondary ? SECONDARY_7_SUBJECTS : HIGHER_SECONDARY_15_SUBJECTS;
+    const matched = allTeacherAssignedSubjects.filter(sub =>
+      targetList.some(t => isTeacherSubjectMatch(sub, t.name) || isTeacherSubjectMatch(sub, t.code))
+    );
+    if (matched.length > 0) return matched;
+    return [];
+  }, [user, selectedClass, allTeacherAssignedSubjects]);
+
+  // Primary subject display string for current class
+  const teacherClassRegisteredSubject = useMemo(() => {
+    if (teacherClassAssignedSubjects.length > 0) {
+      return teacherClassAssignedSubjects.join(', ');
+    }
+    return teacherRegisteredSubject;
+  }, [teacherClassAssignedSubjects, teacherRegisteredSubject]);
+
   const [practicalType, setPracticalType] = useState(location.state?.practicalType || 'Internal Assessment');
   const [selectedSubject, setSelectedSubject] = useState(initialSubject);
   const [yearSuffix, setYearSuffix] = useState(location.state?.yearSuffix || CURRENT_SESSION);
@@ -1137,8 +1203,18 @@ export default function PracticalsPage() {
     const targetList = isSecondary ? SECONDARY_7_SUBJECTS : HIGHER_SECONDARY_15_SUBJECTS;
 
     let assignedMatch = null;
-    if (Array.isArray(user?.assignedSubjects) && user.assignedSubjects.length > 0) {
-      for (const sub of user.assignedSubjects) {
+    const classAssigned = getTeacherAssignedSubjectsForClass(user, selectedClass);
+    if (classAssigned && classAssigned.length > 0) {
+      for (const sub of classAssigned) {
+        const match = targetList.find(s => isTeacherSubjectMatch(sub, s.name) || isTeacherSubjectMatch(sub, s.code));
+        if (match) {
+          assignedMatch = match.name;
+          break;
+        }
+      }
+    }
+    if (!assignedMatch && allTeacherAssignedSubjects.length > 0) {
+      for (const sub of allTeacherAssignedSubjects) {
         const match = targetList.find(s => isTeacherSubjectMatch(sub, s.name) || isTeacherSubjectMatch(sub, s.code));
         if (match) {
           assignedMatch = match.name;
@@ -1155,7 +1231,7 @@ export default function PracticalsPage() {
     if (!isCurrentInTarget || (assignedMatch && !isTeacherSubjectMatch(assignedMatch, selectedSubject))) {
       setSelectedSubject(assignedMatch || (isCurrentInTarget ? selectedSubject : targetList[0].name));
     }
-  }, [selectedClass, user?.assignedSubjects, teacherRegisteredSubject]);
+  }, [selectedClass, user, allTeacherAssignedSubjects, teacherRegisteredSubject]);
 
   // State for Cross-Subject switch confirmation modal & Existing award detection
   const [crossSubjectSwitchModal, setCrossSubjectSwitchModal] = useState({ isOpen: false, targetSubject: '' });
@@ -1163,13 +1239,20 @@ export default function PracticalsPage() {
 
   // Default subject and class to teacher's registered values if not specified in location.state
   useEffect(() => {
-    if (!location.state?.selectedSubject && (user?.assignedSubjects?.length > 0 || teacherRegisteredSubject)) {
+    if (!location.state?.selectedSubject && (allTeacherAssignedSubjects.length > 0 || teacherRegisteredSubject)) {
       const isSecondary = selectedClass === '9th' || selectedClass === '10th' || selectedClass === '9' || selectedClass === '10';
       const targetList = isSecondary ? SECONDARY_7_SUBJECTS : HIGHER_SECONDARY_15_SUBJECTS;
 
       let matched = null;
-      if (Array.isArray(user?.assignedSubjects) && user.assignedSubjects.length > 0) {
-        for (const sub of user.assignedSubjects) {
+      const classAssigned = getTeacherAssignedSubjectsForClass(user, selectedClass);
+      if (classAssigned && classAssigned.length > 0) {
+        for (const sub of classAssigned) {
+          const m = targetList.find(s => isTeacherSubjectMatch(sub, s.name) || isTeacherSubjectMatch(sub, s.code));
+          if (m) { matched = m.name; break; }
+        }
+      }
+      if (!matched && allTeacherAssignedSubjects.length > 0) {
+        for (const sub of allTeacherAssignedSubjects) {
           const m = targetList.find(s => isTeacherSubjectMatch(sub, s.name) || isTeacherSubjectMatch(sub, s.code));
           if (m) { matched = m.name; break; }
         }
@@ -1185,7 +1268,7 @@ export default function PracticalsPage() {
       const clean = raw.includes('11') ? '11th' : (raw.includes('12') ? '12th' : (raw.includes('10') ? '10th' : (raw.includes('9') ? '9th' : '11th')));
       setSelectedClass(clean);
     }
-  }, [teacherRegisteredSubject, teacherAssignedClasses, user?.assignedSubjects, selectedClass, location.state]);
+  }, [teacherRegisteredSubject, teacherAssignedClasses, allTeacherAssignedSubjects, user, selectedClass, location.state]);
 
   // Synchronize filter states if user navigates with state (e.g. from Dashboard Submission History)
   useEffect(() => {
@@ -1327,9 +1410,29 @@ export default function PracticalsPage() {
   });
 
   const isCrossSubject = useMemo(() => {
-    if (!teacherRegisteredSubject) return false;
-    return !isTeacherSubjectMatch(teacherRegisteredSubject, selectedSubject);
-  }, [teacherRegisteredSubject, selectedSubject]);
+    if (!selectedSubject) return false;
+    // If no registered subjects at all, not cross-subject
+    if (!teacherRegisteredSubject && allTeacherAssignedSubjects.length === 0) return false;
+
+    // 1. Check if selectedSubject matches any subject assigned for THIS specific class
+    if (teacherClassAssignedSubjects && teacherClassAssignedSubjects.length > 0) {
+      const matchesClassAssigned = teacherClassAssignedSubjects.some(sub => isTeacherSubjectMatch(sub, selectedSubject));
+      if (matchesClassAssigned) return false;
+    }
+
+    // 2. Check if selectedSubject matches any assigned subject globally for the teacher
+    if (allTeacherAssignedSubjects && allTeacherAssignedSubjects.length > 0) {
+      const matchesAnyAssigned = allTeacherAssignedSubjects.some(sub => isTeacherSubjectMatch(sub, selectedSubject));
+      if (matchesAnyAssigned) return false;
+    }
+
+    // 3. Fallback to teacherRegisteredSubject string matching
+    if (teacherRegisteredSubject && isTeacherSubjectMatch(teacherRegisteredSubject, selectedSubject)) {
+      return false;
+    }
+
+    return true;
+  }, [teacherRegisteredSubject, allTeacherAssignedSubjects, teacherClassAssignedSubjects, selectedSubject]);
 
   const isOverwrite = useMemo(() => {
     return Boolean(
@@ -2617,7 +2720,7 @@ export default function PracticalsPage() {
         minMarks: minPassMarks,
         submittedByEmail: auth.currentUser?.email || user?.email || '',
         submittedByName: user?.name || auth.currentUser?.displayName || 'Faculty Member',
-        teacherRegisteredSubject: teacherRegisteredSubject || '',
+        teacherRegisteredSubject: teacherClassRegisteredSubject || teacherRegisteredSubject || '',
         isCrossSubject,
         isOverwrite,
         submittedAt: new Date().toISOString(),
@@ -2786,7 +2889,7 @@ export default function PracticalsPage() {
         minMarks: minPassMarks,
         submittedByEmail: auth.currentUser?.email || user?.email || '',
         submittedByName: user?.name || auth.currentUser?.displayName || 'Faculty Member',
-        teacherRegisteredSubject: teacherRegisteredSubject || '',
+        teacherRegisteredSubject: teacherClassRegisteredSubject || teacherRegisteredSubject || '',
         isCrossSubject,
         isOverwrite,
         previousAwardSummary: existingAwardInfo?.canonical ? {
@@ -3196,10 +3299,10 @@ export default function PracticalsPage() {
             </div>
 
             <div className="flex items-center gap-1.5 shrink-0">
-              {teacherRegisteredSubject && (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-black bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20" title={`Your officially assigned teaching subject is ${teacherRegisteredSubject}`}>
+              {teacherClassRegisteredSubject && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-black bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20" title={`Your officially assigned teaching subject for ${selectedClass} is ${teacherClassRegisteredSubject}`}>
                   <Award size={11} className="text-emerald-600" />
-                  <span className="hidden xs:inline">Assigned:</span> {teacherRegisteredSubject}
+                  <span className="hidden xs:inline">Assigned:</span> {teacherClassRegisteredSubject}
                 </span>
               )}
               <div className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">
@@ -3268,17 +3371,17 @@ export default function PracticalsPage() {
                     </span>
                   </div>
                   <p className="text-[11px] font-medium leading-relaxed">
-                    You are officially registered for <strong>{teacherRegisteredSubject}</strong>, but are currently evaluating <strong>{selectedSubject}</strong>. You may submit awards, but this submission will be flagged as a Cross-Subject Award and will require Administrator Approval before final integration.
+                    You are officially registered for <strong>{teacherClassRegisteredSubject || teacherRegisteredSubject}</strong>, but are currently evaluating <strong>{selectedSubject}</strong>. You may submit awards, but this submission will be flagged as a Cross-Subject Award and will require Administrator Approval before final integration.
                   </p>
                 </div>
               </div>
               <button
                 type="button"
-                onClick={() => setSelectedSubject(teacherRegisteredSubject)}
+                onClick={() => setSelectedSubject(teacherClassRegisteredSubject || teacherRegisteredSubject)}
                 className="shrink-0 px-2.5 py-1 rounded-lg text-[10.5px] font-black bg-white dark:bg-slate-900 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700 hover:bg-amber-100 dark:hover:bg-amber-900/40 transition-all cursor-pointer shadow-2xs active:scale-95"
-                title={`Switch back to ${teacherRegisteredSubject}`}
+                title={`Switch back to ${teacherClassRegisteredSubject || teacherRegisteredSubject}`}
               >
-                Revert to {teacherRegisteredSubject}
+                Revert to {teacherClassRegisteredSubject || teacherRegisteredSubject}
               </button>
             </div>
           )}
@@ -3523,7 +3626,9 @@ export default function PracticalsPage() {
                   getSubjectMax={getSubjectMax}
                   subjectMaxMarks={subjectMaxMarks}
                   minPassMarks={minPassMarks}
-                  teacherRegisteredSubject={teacherRegisteredSubject}
+                  teacherRegisteredSubject={teacherClassRegisteredSubject}
+                  teacherAssignedSubjects={teacherClassAssignedSubjects}
+                  allTeacherSubjects={allTeacherAssignedSubjects}
                   onAttemptCrossSubject={(subName) => setCrossSubjectSwitchModal({ isOpen: true, targetSubject: subName })}
                 />
 
@@ -3691,7 +3796,9 @@ export default function PracticalsPage() {
                         getSubjectMax={getSubjectMax}
                         subjectMaxMarks={subjectMaxMarks}
                         minPassMarks={minPassMarks}
-                        teacherRegisteredSubject={teacherRegisteredSubject}
+                        teacherRegisteredSubject={teacherClassRegisteredSubject}
+                        teacherAssignedSubjects={teacherClassAssignedSubjects}
+                        allTeacherSubjects={allTeacherAssignedSubjects}
                         onAttemptCrossSubject={(subName) => setCrossSubjectSwitchModal({ isOpen: true, targetSubject: subName })}
                       />
                     </div>
@@ -4532,7 +4639,7 @@ export default function PracticalsPage() {
                     </span>
                   </div>
                   <p className="text-[11px] sm:text-[11.5px] leading-relaxed text-slate-700 dark:text-slate-300">
-                    Your assigned subject in school records is <strong className="text-indigo-600 dark:text-indigo-400">{teacherRegisteredSubject}</strong>, while this award list is for <strong className="text-amber-600 dark:text-amber-400">{selectedSubject}</strong>. Your submission will be staged safely as a pending request and integrated into official database records upon administrative approval.
+                    Your assigned subject in school records is <strong className="text-indigo-600 dark:text-indigo-400">{teacherClassRegisteredSubject || teacherRegisteredSubject}</strong>, while this award list is for <strong className="text-amber-600 dark:text-amber-400">{selectedSubject}</strong>. Your submission will be staged safely as a pending request and integrated into official database records upon administrative approval.
                   </p>
                 </div>
               </div>
@@ -4865,7 +4972,7 @@ export default function PracticalsPage() {
                   Cross-Subject Award Submission
                 </h3>
                 <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
-                  You are registered under <strong className="text-indigo-600 dark:text-indigo-400">{teacherRegisteredSubject}</strong>, but you are switching to enter awards for <strong className="text-amber-600 dark:text-amber-400">{crossSubjectSwitchModal.targetSubject}</strong>.
+                  You are registered under <strong className="text-indigo-600 dark:text-indigo-400">{teacherClassRegisteredSubject || teacherRegisteredSubject || 'your assigned subjects'}</strong>, but you are switching to enter awards for <strong className="text-amber-600 dark:text-amber-400">{crossSubjectSwitchModal.targetSubject} ({selectedClass})</strong>.
                 </p>
               </div>
             </div>
@@ -4886,7 +4993,7 @@ export default function PracticalsPage() {
                 onClick={() => setCrossSubjectSwitchModal({ isOpen: false, targetSubject: '' })}
                 className="w-full sm:w-auto px-4 py-2.5 sm:py-2 min-h-[42px] sm:min-h-[36px] rounded-xl text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 cursor-pointer active:scale-98 transition-all flex items-center justify-center"
               >
-                Cancel & Keep {teacherRegisteredSubject}
+                Cancel & Keep {teacherClassRegisteredSubject || teacherRegisteredSubject || 'Assigned Subject'}
               </button>
               <button
                 type="button"
@@ -4896,7 +5003,7 @@ export default function PracticalsPage() {
                 }}
                 className="w-full sm:w-auto px-4 py-2.5 sm:py-2 min-h-[42px] sm:min-h-[36px] rounded-xl text-xs font-black bg-amber-600 hover:bg-amber-500 text-white shadow-md cursor-pointer flex items-center justify-center gap-1.5 active:scale-98 transition-all"
               >
-                Continue to {crossSubjectSwitchModal.targetSubject}
+                Continue to {crossSubjectSwitchModal.targetSubject} ({selectedClass})
               </button>
             </div>
           </div>
