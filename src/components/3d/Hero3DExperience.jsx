@@ -310,35 +310,53 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
 
     const electronValenceGeo = new THREE.SphereGeometry(0.052, 12, 12);
 
-    // Primary Equatorial L-Shell Ring (holding 4 valence electrons at 90° intervals)
+    // -------------------------------------------------------------------------
+    // 4 Spatially Oriented Valence Orbital Rings (Tetrahedral / 3D sp³ Geometry)
+    // Each carrying exactly one valence electron (total 4 valence electrons)
+    // -------------------------------------------------------------------------
+    const valenceRingMat4 = new THREE.MeshStandardMaterial({
+      color: 0xf59e0b,
+      emissive: 0xd97706,
+      emissiveIntensity: 0.45,
+      metalness: 0.92,
+      roughness: 0.2
+    });
+
+    // Ring 1 (Cyan / Electric Blue, Orbital Plane 1)
     const ringV1 = new THREE.Mesh(valenceRingGeo, valenceRingMat1);
     ringV1.rotation.set(0.40, 0.35, 0);
     atomInteractiveGroup.add(ringV1);
 
-    // Valence Electron 3 (L-shell, 0°)
+    // Valence Electron 3 on Ring 1
     const electron3 = new THREE.Mesh(electronValenceGeo, electronMat);
     ringV1.add(electron3);
 
-    // Valence Electron 4 (L-shell, 90°)
-    const electron4 = new THREE.Mesh(electronValenceGeo, electronMat);
-    ringV1.add(electron4);
-
-    // Valence Electron 5 (L-shell, 180°)
-    const electron5 = new THREE.Mesh(electronValenceGeo, electronMat);
-    ringV1.add(electron5);
-
-    // Valence Electron 6 (L-shell, 270°)
-    const electron6 = new THREE.Mesh(electronValenceGeo, electronMat);
-    ringV1.add(electron6);
-
-    // Dual 3D Tilted Orbital Rings (±28°) providing authentic gyroscopic depth
+    // Ring 2 (Emerald Green, Orbital Plane 2)
     const ringV2 = new THREE.Mesh(valenceRingGeo, valenceRingMat2);
     ringV2.rotation.set(-0.48, -0.42, 0.35);
     atomInteractiveGroup.add(ringV2);
 
+    // Valence Electron 4 on Ring 2
+    const electron4 = new THREE.Mesh(electronValenceGeo, electronMat);
+    ringV2.add(electron4);
+
+    // Ring 3 (Amethyst Purple, Orbital Plane 3)
     const ringV3 = new THREE.Mesh(valenceRingGeo, valenceRingMat3);
     ringV3.rotation.set(0.95, -0.55, -0.45);
     atomInteractiveGroup.add(ringV3);
+
+    // Valence Electron 5 on Ring 3
+    const electron5 = new THREE.Mesh(electronValenceGeo, electronMat);
+    ringV3.add(electron5);
+
+    // Ring 4 (Amber Gold, Orbital Plane 4)
+    const ringV4 = new THREE.Mesh(valenceRingGeo, valenceRingMat4);
+    ringV4.rotation.set(-0.82, 0.60, 0.45);
+    atomInteractiveGroup.add(ringV4);
+
+    // Valence Electron 6 on Ring 4
+    const electron6 = new THREE.Mesh(electronValenceGeo, electronMat);
+    ringV4.add(electron6);
 
     masterGroup.add(atomAnchor);
 
@@ -1295,26 +1313,31 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
       // Quantum speed boost when mouse is actively moving
       const mouseSpeedBoost = 1.0 + Math.hypot(mouseNormX, mouseNormY) * 3.0;
 
-      // 1. Inner Shell (K-Shell, n=1) Electrons Animation:
-      // Exactly 2 electrons orbiting at radius 0.52, separated by 180° (matching Bohr diagram)
-      // Speed is ~3.2 rad/s (2x valence speed, obeying Bohr velocity v_n ∝ 1/n)
-      innerElectronAngle += 3.2 * delta * speedMult * mouseSpeedBoost;
+      // 1. Inner Shell (K-Shell, n=1) Core Electrons Animation:
+      // Exactly 2 electrons orbiting at radius 0.52, separated by 180° (Pauli-paired ground state)
+      // High-speed orbit (~5.4 rad/s vs valence ~1.3 rad/s), obeying Bohr/quantum dynamics (ω ∝ 1/n³)
+      innerElectronAngle += 5.4 * delta * speedMult * mouseSpeedBoost;
       electron1.position.set(Math.cos(innerElectronAngle) * innerRingRadius, Math.sin(innerElectronAngle) * innerRingRadius, 0);
       electron2.position.set(Math.cos(innerElectronAngle + Math.PI) * innerRingRadius, Math.sin(innerElectronAngle + Math.PI) * innerRingRadius, 0);
 
       // 2. Outer Valence Shell (L-Shell, n=2) Electrons Animation:
-      // Exactly 4 electrons orbiting at radius 0.98, spaced at 90° intervals (0, π/2, π, 3π/2)
-      valenceElectronAngle1 += 1.6 * delta * speedMult * mouseSpeedBoost;
-      electron3.position.set(Math.cos(valenceElectronAngle1) * valenceRadius, Math.sin(valenceElectronAngle1) * valenceRadius, 0);
-      electron4.position.set(Math.cos(valenceElectronAngle1 + Math.PI / 2) * valenceRadius, Math.sin(valenceElectronAngle1 + Math.PI / 2) * valenceRadius, 0);
-      electron5.position.set(Math.cos(valenceElectronAngle1 + Math.PI) * valenceRadius, Math.sin(valenceElectronAngle1 + Math.PI) * valenceRadius, 0);
-      electron6.position.set(Math.cos(valenceElectronAngle1 + (3 * Math.PI) / 2) * valenceRadius, Math.sin(valenceElectronAngle1 + (3 * Math.PI) / 2) * valenceRadius, 0);
+      // Exactly 4 valence electrons, each traversing its own distinct 3D spatial orbital ring (tetrahedral sp³ orientation)
+      valenceElectronAngle1 += 1.35 * delta * speedMult * mouseSpeedBoost;
+      valenceElectronAngle2 += 1.25 * delta * speedMult * mouseSpeedBoost;
+      valenceElectronAngle3 += 1.40 * delta * speedMult * mouseSpeedBoost;
+      valenceElectronAngle4 += 1.30 * delta * speedMult * mouseSpeedBoost;
 
-      // Quantum relativistic orbital precession
-      ringV1.rotation.z += 0.20 * delta * speedMult;
-      ringV2.rotation.z -= 0.18 * delta * speedMult;
-      ringV3.rotation.z += 0.16 * delta * speedMult;
-      innerRing.rotation.z += 0.32 * delta * speedMult;
+      electron3.position.set(Math.cos(valenceElectronAngle1) * valenceRadius, Math.sin(valenceElectronAngle1) * valenceRadius, 0);
+      electron4.position.set(Math.cos(valenceElectronAngle2) * valenceRadius, Math.sin(valenceElectronAngle2) * valenceRadius, 0);
+      electron5.position.set(Math.cos(valenceElectronAngle3) * valenceRadius, Math.sin(valenceElectronAngle3) * valenceRadius, 0);
+      electron6.position.set(Math.cos(valenceElectronAngle4) * valenceRadius, Math.sin(valenceElectronAngle4) * valenceRadius, 0);
+
+      // Quantum relativistic orbital precession across all 4 spatial valence planes + inner ring
+      ringV1.rotation.z += 0.18 * delta * speedMult;
+      ringV2.rotation.z -= 0.16 * delta * speedMult;
+      ringV3.rotation.z += 0.15 * delta * speedMult;
+      ringV4.rotation.z -= 0.17 * delta * speedMult;
+      innerRing.rotation.z += 0.35 * delta * speedMult;
 
       // -----------------------------------------------------------------------
       // 8B. BOOK & FLASK: ENHANCED HOVER RESPONSIVE REACTION
