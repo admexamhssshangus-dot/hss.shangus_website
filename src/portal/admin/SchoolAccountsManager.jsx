@@ -1331,13 +1331,13 @@ export default function SchoolAccountsManager({ user }) {
                       />
                     </th>
                     <th className="p-2.5 w-12 text-center">#</th>
-                    <th className="p-2.5">CPIS / PAN</th>
+                    <th className="p-2.5 whitespace-nowrap">CPIS / PAN</th>
                     <th className="p-2.5">Name / Designation</th>
-                    <th className="p-2.5 text-right">Gross Salary (Annual)</th>
-                    <th className="p-2.5 text-right">Total Tax</th>
-                    <th className="p-2.5 text-right">TDS (Up-to-Date)</th>
-                    <th className="p-2.5 text-right">Tax Payable Now</th>
-                    <th className="p-2.5 text-center">Actions</th>
+                    <th className="p-2.5 text-right whitespace-nowrap">Gross Salary (Annual)</th>
+                    <th className="p-2.5 text-right whitespace-nowrap">Total Tax</th>
+                    <th className="p-2.5 text-right whitespace-nowrap">TDS (Up-to-Date)</th>
+                    <th className="p-2.5 text-right whitespace-nowrap">Tax Payable Now</th>
+                    <th className="p-2.5 text-center whitespace-nowrap">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 text-slate-800 dark:text-slate-200 font-medium">
@@ -1439,23 +1439,23 @@ export default function SchoolAccountsManager({ user }) {
                               </div>
                               <div className="text-[11px] text-slate-500 dark:text-slate-400">{emp.designation || 'Staff Member'}</div>
                             </td>
-                            <td className="p-2.5 text-right font-mono font-bold text-slate-800 dark:text-slate-200">
+                            <td className="p-2.5 text-right font-mono font-bold text-slate-800 dark:text-slate-200 whitespace-nowrap">
                               ₹{gross.toLocaleString('en-IN')}
                             </td>
-                            <td className="p-2.5 text-right font-mono font-bold text-slate-700 dark:text-slate-300">
+                            <td className="p-2.5 text-right font-mono font-bold text-slate-700 dark:text-slate-300 whitespace-nowrap">
                               ₹{calc.totalTax.toLocaleString('en-IN')}
                             </td>
-                            <td className="p-2.5 text-right font-mono text-slate-600 dark:text-slate-400">
+                            <td className="p-2.5 text-right font-mono text-slate-600 dark:text-slate-400 whitespace-nowrap">
                               ₹{tds.toLocaleString('en-IN')}
                             </td>
-                            <td className="p-2.5 text-right font-mono font-bold">
+                            <td className="p-2.5 text-right font-mono font-bold whitespace-nowrap">
                               {calc.taxPayableNow > 0 ? (
                                 <span className="text-rose-600 dark:text-rose-400 font-black">₹{calc.taxPayableNow.toLocaleString('en-IN')}</span>
                               ) : (
                                 <span className="text-emerald-600 dark:text-emerald-400 font-black">NIL</span>
                               )}
                             </td>
-                            <td className="p-2.5 text-center">
+                            <td className="p-2.5 text-center whitespace-nowrap">
                               <div className="flex items-center justify-center gap-1">
                                 <button
                                   type="button"
