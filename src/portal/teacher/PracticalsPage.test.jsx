@@ -3,7 +3,8 @@ import {
   getTeacherAssignedSubjectsForClass,
   getTeacherClassSubjectPermissions,
   normalizeTeacherClasses,
-  isTeacherSubjectMatch
+  isTeacherSubjectMatch,
+  isEvaluationClassMatch
 } from '../../utils/practicalsSettingsManager';
 
 describe('Practicals Dynamic Configuration and Roster Logic', () => {
@@ -59,6 +60,27 @@ describe('Practicals Dynamic Configuration and Roster Logic', () => {
       const boOverride = unitTestOption.evalConfig.subjectOverrides?.['BO'];
       expect(boOverride).toBeUndefined();
       expect(unitTestOption.evalConfig.maxMarks).toBe(40);
+    });
+
+    test('makes Pre-Board Test available for Class 10th and Class 9th in 2025-26', () => {
+      const evalTypes10th = getEvaluationTypesForTeacher(null, '10th', '2025-26');
+      const preBoard10th = evalTypes10th.find(e => e.value === 'Pre-Board Test');
+      expect(preBoard10th).toBeDefined();
+      expect(preBoard10th.evalConfig?.title).toContain('Pre-Board');
+
+      const evalTypes9th = getEvaluationTypesForTeacher(null, '9th', '2025-26');
+      const preBoard9th = evalTypes9th.find(e => e.value === 'Pre-Board Test');
+      expect(preBoard9th).toBeDefined();
+    });
+
+    test('isEvaluationClassMatch accurately matches various class string formats', () => {
+      expect(isEvaluationClassMatch('10th', '10th')).toBe(true);
+      expect(isEvaluationClassMatch('10', '10th')).toBe(true);
+      expect(isEvaluationClassMatch('Class 10th', '10th')).toBe(true);
+      expect(isEvaluationClassMatch('Class 9th', '9th')).toBe(true);
+      expect(isEvaluationClassMatch('9', 'Class 9th')).toBe(true);
+      expect(isEvaluationClassMatch('10th', '9th')).toBe(false);
+      expect(isEvaluationClassMatch('11th', '12th')).toBe(false);
     });
   });
 

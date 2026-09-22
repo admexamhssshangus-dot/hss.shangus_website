@@ -17,7 +17,7 @@ const PRESET_EVALUATIONS = [
     title: 'Pre-Board Examination 2026',
     evalType: 'Pre-Board Test',
     session: '2025-26',
-    classes: ['10th', '11th', '12th'],
+    classes: ['9th', '10th', '11th', '12th'],
     allowedStatuses: ['approved'],
     maxMarks: 50,
     minMarks: 18,
@@ -33,7 +33,7 @@ const PRESET_EVALUATIONS = [
     title: 'Golden Test / Winter Assessment 2026',
     evalType: 'Golden Test',
     session: '2025-26',
-    classes: ['11th', '12th'],
+    classes: ['9th', '10th', '11th', '12th'],
     allowedStatuses: ['approved'],
     maxMarks: 50,
     minMarks: 18,
@@ -49,7 +49,7 @@ const PRESET_EVALUATIONS = [
     title: 'Unit Test & Internal Assessment 2026',
     evalType: 'Unit Assessment',
     session: '2025-26',
-    classes: ['10th', '11th', '12th'],
+    classes: ['9th', '10th', '11th', '12th'],
     allowedStatuses: ['approved', 'provisional'],
     maxMarks: 50,
     minMarks: 18,
@@ -60,7 +60,7 @@ const PRESET_EVALUATIONS = [
   }
 ];
 
-const AVAILABLE_CLASSES = ['10th', '11th', '12th'];
+const AVAILABLE_CLASSES = ['9th', '10th', '11th', '12th'];
 const AVAILABLE_STATUSES = [
   { id: 'approved', label: 'Approved (Confirmed)', default: true },
   { id: 'provisional', label: 'Provisional Admission', default: false },
@@ -87,7 +87,7 @@ export default function SchoolAssessmentsHub({ allStudents = [], onSwitchToGazet
     title: 'Pre-Board Examination 2026',
     evalType: 'Pre-Board Test',
     session: '2025-26',
-    classes: ['10th', '11th', '12th'],
+    classes: ['9th', '10th', '11th', '12th'],
     allowedStatuses: ['approved'],
     maxMarks: 50,
     minMarks: 18,
@@ -192,7 +192,7 @@ export default function SchoolAssessmentsHub({ allStudents = [], onSwitchToGazet
         title: preset.title,
         evalType: preset.evalType,
         session: preset.session || '2025-26',
-        classes: preset.classes || ['10th', '11th', '12th'],
+        classes: preset.classes || ['9th', '10th', '11th', '12th'],
         allowedStatuses: preset.allowedStatuses || ['approved'],
         maxMarks: preset.maxMarks || 50,
         minMarks: preset.minMarks || 18,
@@ -208,7 +208,7 @@ export default function SchoolAssessmentsHub({ allStudents = [], onSwitchToGazet
         title: '',
         evalType: 'Pre-Board Test',
         session: '2025-26',
-        classes: ['10th', '11th', '12th'],
+        classes: ['9th', '10th', '11th', '12th'],
         allowedStatuses: ['approved'],
         maxMarks: 50,
         minMarks: 18,
