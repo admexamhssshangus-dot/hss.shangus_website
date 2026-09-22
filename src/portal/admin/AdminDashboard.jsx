@@ -107,6 +107,10 @@ function getInitialTab() {
       if (urlTab === 'curriculum' || urlTab === 'subjects' || urlTab === 'streams' || urlTab === 'feederSchools') return 'curriculum';
       if (urlTab === 'staff' || urlTab === 'permissions' || urlTab === 'staffPermissions') return 'staff';
       if (urlTab === 'controls' || urlTab === 'admissionControls' || urlTab === 'systemControls') return 'controls';
+      if (urlTab === 'storage' || urlTab === 'quota') {
+        try { sessionStorage.setItem('hss_admin_controls_subtab', 'storage'); } catch (_) {}
+        return 'controls';
+      }
       if (urlTab === 'docStudio') {
         const sub = searchParams.get('subtab');
         if (sub === 'letter') return 'officialLetter';
@@ -123,6 +127,10 @@ function getInitialTab() {
       if (stored === 'curriculum' || stored === 'subjects' || stored === 'streams' || stored === 'feederSchools') return 'curriculum';
       if (stored === 'staff' || stored === 'permissions' || stored === 'staffPermissions') return 'staff';
       if (stored === 'controls' || stored === 'admissionControls' || stored === 'systemControls') return 'controls';
+      if (stored === 'storage' || stored === 'quota') {
+        try { sessionStorage.setItem('hss_admin_controls_subtab', 'storage'); } catch (_) {}
+        return 'controls';
+      }
       if (stored === 'docStudio') return 'customRoster';
       return stored;
     }
@@ -170,8 +178,19 @@ export default function AdminDashboard() {
     }
   }, [user]);
 
-  const setActiveTab = useCallback((tab) => {
-    if (!tab) return;
+  const setActiveTab = useCallback((rawTab) => {
+    if (!rawTab) return;
+    let tab = rawTab;
+    if (tab === 'storage' || tab === 'quota') {
+      try {
+        sessionStorage.setItem('hss_admin_controls_subtab', 'storage');
+        const url = new URL(window.location.href);
+        url.searchParams.set('tab', 'controls');
+        url.searchParams.set('subtab', 'storage');
+        window.history.replaceState(null, '', url.toString());
+      } catch (_) {}
+      tab = 'controls';
+    }
     if (tab === 'boardSync') {
       setMountedTabs(prev => {
         if (prev.has('reports')) return prev;

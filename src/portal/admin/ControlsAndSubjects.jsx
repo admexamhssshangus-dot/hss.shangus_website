@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   Settings, Sliders, BookOpen, Database, Save, RefreshCw, 
   CheckCircle2, AlertCircle, X, Mail, ShieldCheck, Layers, 
-  FileCheck, ArrowRight, ShieldAlert, Sparkles, Check
+  FileCheck, ArrowRight, ShieldAlert, Sparkles, Check, HardDrive, Image, Trash2
 } from 'lucide-react';
 import appsScriptApi from '../../services/appsScriptApi';
 import { db } from '../../services/firebase';
@@ -11,15 +11,20 @@ import { loadSiteSettings } from '../../utils/settingsLoader';
 import SessionArchivalModal from './SessionArchivalModal';
 import ConfirmModal from '../components/ConfirmModal';
 import { logAdminActivity } from '../../services/adminActivityLogger';
+import { fetchFirebaseStorageMetrics } from '../../services/firebaseMetricsApi';
+import { emptyRecycleBin, sweepOrphanedStudentPhotos } from '../../services/recycleBinService';
+import { showToast } from '../../components/common/GlobalToast';
 
 export default function ControlsAndSubjects() {
   const getInitialControlsSubTab = () => {
     try {
       const searchParams = new URLSearchParams(window.location.search);
+      const urlTab = searchParams.get('tab');
       const urlSubTab = searchParams.get('subtab');
-      if (urlSubTab && ['controls', 'rollover', 'lab'].includes(urlSubTab)) return urlSubTab === 'lab' ? 'rollover' : urlSubTab;
+      if (urlTab === 'storage' || urlTab === 'quota') return 'storage';
+      if (urlSubTab && ['controls', 'rollover', 'lab', 'storage', 'quota'].includes(urlSubTab)) return urlSubTab === 'lab' ? 'rollover' : (urlSubTab === 'quota' ? 'storage' : urlSubTab);
       const saved = sessionStorage.getItem('hss_admin_controls_subtab');
-      if (saved && ['controls', 'rollover', 'lab'].includes(saved)) return saved === 'lab' ? 'rollover' : saved;
+      if (saved && ['controls', 'rollover', 'lab', 'storage', 'quota'].includes(saved)) return saved === 'lab' ? 'rollover' : (saved === 'quota' ? 'storage' : saved);
     } catch (_) {}
     return 'controls';
   };
@@ -74,10 +79,67 @@ export default function ControlsAndSubjects() {
   // Session Rollover Modal State
   const [showArchivalModal, setShowArchivalModal] = useState(false);
 
+  // Firebase Cloud Storage & Quota States
+  const [metrics, setMetrics] = useState(null);
+  const [loadingMetrics, setLoadingMetrics] = useState(false);
+  const [reclaimingSpace, setReclaimingSpace] = useState(false);
+  const [sweepingPhotos, setSweepingPhotos] = useState(false);
+
   // Loading & Alert Notification States
   const [saving, setSaving] = useState(false);
   const [alert, setAlert] = useState(null);
   const [confirmModalConfig, setConfirmModalConfig] = useState(null);
+
+  // Fetch Firebase Cloud Storage Quota & Capacity Metrics
+  const loadMetrics = async (force = false) => {
+    setLoadingMetrics(true);
+    try {
+      const data = await fetchFirebaseStorageMetrics({ force });
+      setMetrics(data);
+    } catch (err) {
+      console.warn('Could not load storage metrics:', err.message);
+    } finally {
+      setLoadingMetrics(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeSubTab === 'storage') {
+      loadMetrics(false);
+    }
+  }, [activeSubTab]);
+
+  const handleEmptyRecycleBin = async () => {
+    if (!window.confirm('Are you sure you want to permanently purge all items in the Recycle Bin? This action cannot be undone and will immediately reclaim Firestore storage space.')) return;
+    setReclaimingSpace(true);
+    try {
+      const result = await emptyRecycleBin();
+      showToast(`Recycle bin purged. Permanently deleted ${result.count} soft-deleted items.`, 'success');
+      await loadMetrics(true);
+    } catch (err) {
+      showToast(err.message || 'Failed to empty recycle bin.', 'error');
+    } finally {
+      setReclaimingSpace(false);
+    }
+  };
+
+  const handleSweepOrphanPhotos = async () => {
+    if (!window.confirm('Scan studentPhotos collection for orphaned images whose admission records have been deleted?')) return;
+    setSweepingPhotos(true);
+    try {
+      const result = await sweepOrphanedStudentPhotos();
+      if (result.count > 0) {
+        showToast(`Sweep completed: Removed ${result.count} orphaned student photos.`, 'success');
+      } else {
+        showToast('Sweep completed: Zero orphaned photos found. Storage is clean.', 'info');
+      }
+      await loadMetrics(true);
+    } catch (err) {
+      showToast(err.message || 'Failed to sweep orphaned photos.', 'error');
+    } finally {
+      setSweepingPhotos(false);
+    }
+  };
 
   // Load existing app settings from Firestore / Local Storage
   useEffect(() => {
@@ -290,6 +352,7 @@ export default function ControlsAndSubjects() {
           {[
             { id: 'controls', label: '1. Admission & System Controls', shortLabel: '1. Controls', icon: Sliders },
             { id: 'rollover', label: '2. Annual Session Rollover', shortLabel: '2. Rollover', icon: Database },
+            { id: 'storage', label: '3. Cloud Storage & Quota Health', shortLabel: '3. Storage & Quota', icon: HardDrive },
           ].map((sub) => {
             const Icon = sub.icon;
             const isActive = activeSubTab === sub.id;
@@ -580,6 +643,176 @@ export default function ControlsAndSubjects() {
                 <span>Analyze & Preview Archival</span>
                 <ArrowRight size={13} />
               </button>
+            </div>
+          </div>
+        )}
+
+        {/* SUBTAB 3: FIREBASE CLOUD STORAGE & QUOTA HEALTH */}
+        {activeSubTab === 'storage' && (
+          <div className="space-y-2.5 sm:space-y-3.5 pt-0.5 sm:pt-1">
+            <div className="p-3 sm:p-5 rounded-xl sm:rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xs space-y-3.5 sm:space-y-4">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 sm:gap-3 border-b border-slate-100 dark:border-slate-800 pb-2.5 sm:pb-3">
+                <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
+                  <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl sm:rounded-2xl bg-teal-50 dark:bg-teal-950/60 border border-teal-200/60 dark:border-teal-800/60 text-teal-600 dark:text-teal-400 flex items-center justify-center shrink-0 shadow-2xs">
+                    <Database size={16} className="sm:hidden" />
+                    <Database size={19} className="hidden sm:inline" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                      <h3 className="font-extrabold text-xs sm:text-sm text-slate-900 dark:text-white leading-tight">
+                        Firebase Cloud Storage & Quota Health
+                      </h3>
+                      <span className="text-[9px] sm:text-[10px] font-bold px-1.5 sm:px-2 py-0.5 rounded-full bg-teal-500/10 text-teal-700 dark:text-teal-300 border border-teal-500/20">
+                        Spark Free Tier (1,024 MB)
+                      </span>
+                    </div>
+                    <p className="text-slate-500 dark:text-slate-400 text-[9.5px] sm:text-[10.5px] font-semibold">
+                      Authoritative database telemetry from Google Cloud Monitoring & live Firestore indexes.
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => loadMetrics(true)}
+                  disabled={loadingMetrics}
+                  className="px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-lg sm:rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1.5 cursor-pointer disabled:opacity-50 text-[10.5px] sm:text-xs shadow-2xs self-end sm:self-auto transition-all active:scale-95"
+                  title="Refresh database quota metrics"
+                >
+                  <RefreshCw size={11} className={loadingMetrics ? 'animate-spin text-teal-600' : ''} />
+                  <span>{loadingMetrics ? 'Syncing...' : 'Refresh Metrics'}</span>
+                </button>
+              </div>
+
+              {metrics ? (
+                <div className="space-y-3 sm:space-y-3.5">
+                  {/* Storage Progress Bar */}
+                  <div className="space-y-2 p-2.5 sm:p-3.5 rounded-xl sm:rounded-2xl bg-slate-50/70 dark:bg-slate-950/40 border border-slate-200/80 dark:border-slate-800/80">
+                    <div className="flex items-center justify-between font-extrabold text-[11px] sm:text-xs">
+                      <span className="text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                        <HardDrive size={13} className="text-teal-600 shrink-0" />
+                        <span>Storage Used: <strong className="text-teal-700 dark:text-teal-400 font-mono">{metrics.storageMB} MB</strong> of {metrics.quotaMB} MB</span>
+                      </span>
+                      <span className="font-mono text-slate-600 dark:text-slate-300">
+                        {metrics.percentUsed}% ({metrics.freeMB} MB Free)
+                      </span>
+                    </div>
+
+                    <div className="w-full h-2.5 sm:h-3 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden p-0.5 border border-slate-300/60 dark:border-slate-700/60">
+                      <div
+                        className={`h-full rounded-full transition-all duration-500 ${
+                          metrics.percentUsed >= 85
+                            ? 'bg-rose-500'
+                            : metrics.percentUsed >= 70
+                              ? 'bg-amber-500'
+                              : 'bg-gradient-to-r from-teal-500 to-emerald-500'
+                        }`}
+                        style={{ width: `${Math.min(100, Math.max(3, metrics.percentUsed))}%` }}
+                      />
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-1 text-[9.5px] sm:text-[10.5px] text-slate-500 dark:text-slate-400">
+                      <span className="flex items-center gap-1.5 font-bold">
+                        <span className={`w-2 h-2 rounded-full shrink-0 ${metrics.capacityStatus?.level === 'critical' ? 'bg-rose-500 animate-ping' : metrics.capacityStatus?.level === 'warning' ? 'bg-amber-500' : 'bg-emerald-500'}`} />
+                        <span className={metrics.capacityStatus?.level === 'critical' ? 'text-rose-600 dark:text-rose-400 font-extrabold' : metrics.capacityStatus?.level === 'warning' ? 'text-amber-600 dark:text-amber-400 font-extrabold' : 'text-emerald-700 dark:text-emerald-400 font-bold'}>
+                          {metrics.capacityStatus?.message || 'Storage capacity is optimal.'}
+                        </span>
+                      </span>
+                      {metrics.lastSampledAt && (
+                        <span className="font-mono text-[9px] sm:text-[10px] text-slate-400 dark:text-slate-500">
+                          Sample: {new Date(metrics.lastSampledAt).toLocaleString('en-IN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })} ({metrics.source === 'cloud_monitoring' ? 'Cloud Monitoring v3' : 'Estimated'})
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Collection Breakdown Grid */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-2.5">
+                    <div className="p-2 sm:p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/40 space-y-0.5">
+                      <div className="text-[9.5px] sm:text-[10.5px] font-bold text-slate-500 flex items-center gap-1">
+                        <Layers size={11} className="text-teal-600 shrink-0" /> Active Admissions
+                      </div>
+                      <div className="text-sm sm:text-base font-black text-slate-900 dark:text-white font-mono">
+                        {metrics.counts?.admissions?.toLocaleString() || 0}
+                      </div>
+                      <div className="text-[8.5px] sm:text-[9.5px] text-slate-400">Class 9th–12th forms</div>
+                    </div>
+
+                    <div className="p-2 sm:p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/40 space-y-0.5">
+                      <div className="text-[9.5px] sm:text-[10.5px] font-bold text-slate-500 flex items-center gap-1">
+                        <Database size={11} className="text-blue-600 shrink-0" /> Master Registers
+                      </div>
+                      <div className="text-sm sm:text-base font-black text-slate-900 dark:text-white font-mono">
+                        {metrics.counts?.masterRegisters?.toLocaleString() || 0}
+                      </div>
+                      <div className="text-[8.5px] sm:text-[9.5px] text-slate-400">Historic student archives</div>
+                    </div>
+
+                    <div className="p-2 sm:p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/40 space-y-0.5">
+                      <div className="text-[9.5px] sm:text-[10.5px] font-bold text-slate-500 flex items-center gap-1">
+                        <Image size={11} className="text-amber-600 shrink-0" /> Student Photos
+                      </div>
+                      <div className="text-sm sm:text-base font-black text-slate-900 dark:text-white font-mono">
+                        {metrics.counts?.studentPhotos?.toLocaleString() || 0}
+                      </div>
+                      <div className="text-[8.5px] sm:text-[9.5px] text-slate-400">~60–75 KB compressed</div>
+                    </div>
+
+                    <div className="p-2 sm:p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/40 space-y-0.5">
+                      <div className="text-[9.5px] sm:text-[10.5px] font-bold text-slate-500 flex items-center gap-1">
+                        <Trash2 size={11} className="text-red-500 shrink-0" /> Recycle Bin
+                      </div>
+                      <div className="text-sm sm:text-base font-black text-slate-900 dark:text-white font-mono">
+                        {metrics.counts?.recycleBin?.toLocaleString() || 0}
+                      </div>
+                      <div className="text-[8.5px] sm:text-[9.5px] text-slate-400">Soft-deleted trash items</div>
+                    </div>
+                  </div>
+
+                  {/* Maintenance / Space Reclamation Toolbar */}
+                  <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div className="text-[9.5px] sm:text-[10.5px] text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                      <Sparkles size={12} className="text-teal-600 shrink-0" />
+                      <span>Purge soft-deleted records from the Recycle Bin to immediately release database storage.</span>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 self-end sm:self-auto flex-wrap">
+                      <button
+                        type="button"
+                        onClick={handleSweepOrphanPhotos}
+                        disabled={sweepingPhotos}
+                        className="px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-lg sm:rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold text-[10px] sm:text-[11px] cursor-pointer disabled:opacity-50 flex items-center gap-1 shadow-2xs transition-all active:scale-95"
+                        title="Detect and delete photo documents without corresponding student records"
+                      >
+                        <Image size={11} className={sweepingPhotos ? 'animate-spin' : ''} />
+                        <span>{sweepingPhotos ? 'Sweeping...' : 'Sweep Orphan Photos'}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={handleEmptyRecycleBin}
+                        disabled={reclaimingSpace || (metrics.counts?.recycleBin || 0) === 0}
+                        className="px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg sm:rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-[10px] sm:text-[11px] cursor-pointer disabled:opacity-50 flex items-center gap-1 shadow-2xs transition-all active:scale-95"
+                        title="Permanently empty all items currently in the Recycle Bin"
+                      >
+                        <Trash2 size={11} className={reclaimingSpace ? 'animate-spin' : ''} />
+                        <span>{reclaimingSpace ? 'Purging Bin...' : `Empty Recycle Bin (${metrics.counts?.recycleBin || 0})`}</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 flex items-center justify-between text-slate-500 text-[11px]">
+                  <span>{loadingMetrics ? 'Synchronizing storage metrics with Google Cloud…' : 'Storage metrics ready to fetch.'}</span>
+                  <button
+                    type="button"
+                    onClick={() => loadMetrics(true)}
+                    className="font-bold text-teal-600 dark:text-teal-400 hover:underline cursor-pointer"
+                  >
+                    Load Metrics
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         )}
