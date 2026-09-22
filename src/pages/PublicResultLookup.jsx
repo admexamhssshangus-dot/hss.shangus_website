@@ -1555,22 +1555,12 @@ export default function PublicResultLookup() {
           });
         }
 
-        // Match 4: Robust Registration Suffix or JKBOSE Reg Typo/Fuzzy Match (e.g. '2501010000610001' vs '2501100020610001' or suffix '610001')
-        if (!matchedStudent && cleanDigitsOnly.length >= 5 && cleanDigitsOnly.length < 10) {
+        // Match 4: Exact Full Registration Match (100% full match, no suffix/partial collision)
+        if (!matchedStudent && cleanDigitsOnly.length >= 8) {
           matchedStudent = candidateMatches(s => {
-            const rDigits = String(s.boardRegNo || '').replace(/\D/g, '');
-            if (!rDigits || rDigits.length < 5) return false;
-            // Short query is suffix of registration
-            if (rDigits.endsWith(cleanDigitsOnly)) {
-              return !targetClsKey || classKey(s.className) === targetClsKey;
-            }
-            // 14-16 digit JKBOSE pattern: matching session prefix (first 4) & roll suffix (last 6)
-            if (rDigits.length >= 12 && cleanDigitsOnly.length >= 12) {
-              const prefixMatch = rDigits.slice(0, 4) === cleanDigitsOnly.slice(0, 4);
-              const suffixMatch = rDigits.slice(-6) === cleanDigitsOnly.slice(-6);
-              return prefixMatch && suffixMatch && (!targetClsKey || classKey(s.className) === targetClsKey);
-            }
-            return false;
+            const rDigits = String(s.boardRegNo || s.regNo || '').replace(/\D/g, '');
+            if (!rDigits || rDigits.length < 8) return false;
+            return rDigits === cleanDigitsOnly && (!targetClsKey || classKey(s.className) === targetClsKey);
           });
         }
 
@@ -1587,7 +1577,7 @@ export default function PublicResultLookup() {
                   const rForm = String(r.formNo || r.fNo || '').trim().toLowerCase();
                   const rRoll = String(r.classRollNo || r.roll || '').trim().toLowerCase();
                   const qClean = normQ.replace(/[^a-z0-9]/g, '');
-                  return (rReg && (rReg === qClean || (qClean.length < 10 && rReg.length >= 6 && qClean.length >= 6 && rReg.endsWith(qClean)))) ||
+                  return (rReg && rReg === qClean) ||
                          (rForm && rForm === normQ) ||
                          (rRoll && rRoll === normQ);
                 });
@@ -1640,7 +1630,7 @@ export default function PublicResultLookup() {
                 const rReg = String(r.regNo || r.boardRegNo || r.reg || '').replace(/[^a-z0-9]/g, '');
                 const rForm = String(r.formNo || r.fNo || '').trim().toLowerCase();
                 const rRoll = String(r.classRollNo || r.rollNo || r.roll || '').trim().toLowerCase();
-                const isRegMatch = Boolean(rReg && (rReg === qClean || (qClean.length < 10 && rReg.length >= 6 && qClean.length >= 6 && rReg.endsWith(qClean))));
+                const isRegMatch = Boolean(rReg && rReg === qClean);
                 const isFormMatch = Boolean(rForm && rForm === normQ);
                 const isRollMatch = Boolean(rRoll && rRoll === normQ);
                 return isRegMatch || isFormMatch || isRollMatch;
@@ -1682,7 +1672,7 @@ export default function PublicResultLookup() {
                 const stReg = String(st.boardRegNo || st.regNo || st['Board Registration Number'] || st['Board Reg. No.'] || '').replace(/[^a-z0-9]/g, '');
                 const stForm = String(st.formNo || st['Form Number'] || '').trim().toLowerCase();
                 const stRoll = String(st.classRollNo || st['Class Roll No'] || '').trim().toLowerCase();
-                const isRegMatch = Boolean(stReg && (stReg === qClean || (qClean.length < 10 && stReg.length >= 6 && qClean.length >= 6 && stReg.endsWith(qClean))));
+                const isRegMatch = Boolean(stReg && stReg === qClean);
                 const isFormMatch = Boolean(stForm && stForm === normQ);
                 const isRollMatch = Boolean(stRoll && stRoll === normQ);
                 return isRegMatch || isFormMatch || isRollMatch;
@@ -1702,7 +1692,7 @@ export default function PublicResultLookup() {
                     if (cForm && fForm && cForm === fForm) return true;
                     const cReg = String(c.boardRegNo || '').replace(/[^a-z0-9]/g, '');
                     const fReg = String(found.boardRegNo || found.regNo || found['Board Registration Number'] || '').replace(/[^a-z0-9]/g, '');
-                    if (cReg && fReg && (cReg === fReg || (cReg.length >= 5 && fReg.length >= 5 && (cReg.endsWith(fReg.slice(-5)) || fReg.endsWith(cReg.slice(-5)))))) return true;
+                    if (cReg && fReg && cReg === fReg) return true;
                     const cName = String(c.name || '').trim().toLowerCase().replace(/[^a-z]/g, '');
                     const fName = String(found.name || found.studentName || found["Student's Name (as per school records)"] || found["Student's Name"] || '').trim().toLowerCase().replace(/[^a-z]/g, '');
                     const cDad = String(c.fatherName || '').trim().toLowerCase().replace(/[^a-z]/g, '');
@@ -1829,14 +1819,16 @@ export default function PublicResultLookup() {
           const rReg = identityKey(rec.regNo || rec.boardRegNo || rec.reg);
           const sReg = identityKey(matchedStudent.boardRegNo || matchedStudent.regNo);
           if (rReg && sReg) {
-            const isFullReg = rReg.length >= 10 && sReg.length >= 10;
-            const isRegMatched = isFullReg ? rReg === sReg : (rReg === sReg || rReg.endsWith(sReg) || sReg.endsWith(rReg));
-            if (isRegMatched) {
-              if (rName && sName && !isNameMatch) {
-                // Name mismatch between different candidates; reject suffix collision
-              } else {
+            const isBothFull = rReg.length >= 8 && sReg.length >= 8;
+            if (isBothFull) {
+              if (rReg === sReg) {
+                if (rName && sName && !isNameMatch) return false;
                 return true;
               }
+              return false; // Strict conflict rejection: differing registrations must NEVER match
+            } else if (rReg === sReg) {
+              if (rName && sName && !isNameMatch) return false;
+              return true;
             }
           }
 

@@ -254,8 +254,11 @@ export default function AdminGazetteRecordEditModal({
         // Check if student record exists in records array using comprehensive multi-factor matching
         const recIndex = records.findIndex(r => {
           if (!r) return false;
-          const rReg = String(r.boardRegNo || r.boardRollNo || r.regNo || r['Board Reg. No.'] || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase();
-          if (regVal && regVal !== '—' && regVal.length >= 8 && rReg && rReg.length >= 8 && rReg === regVal) return true;
+          const rReg = String(r.boardRegNo || r.regNo || r['Board Reg. No.'] || r['Board Registration Number'] || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+          if (regVal && regVal !== '—' && regVal.length >= 8 && rReg && rReg.length >= 8) {
+            if (rReg === regVal) return true;
+            return false; // Strict registration match: if both have valid registrations and differ, reject immediately
+          }
 
           const rExam = String(r.examRollNo || '').trim().toUpperCase();
           if (examVal && examVal !== '—' && examVal.length >= 6 && rExam && rExam === examVal) return true;
@@ -280,10 +283,10 @@ export default function AdminGazetteRecordEditModal({
         const updatedStudentEntry = {
           rollNo: rollVal !== '—' ? rollVal : (records[recIndex]?.rollNo || ''),
           classRollNo: rollVal !== '—' ? rollVal : (records[recIndex]?.classRollNo || ''),
-          boardRollNo: regVal !== '—' ? regVal : (records[recIndex]?.boardRollNo || ''),
-          boardRegNo: regVal !== '—' ? regVal : (records[recIndex]?.boardRegNo || ''),
-          regNo: regVal !== '—' ? regVal : (records[recIndex]?.regNo || ''),
-          examRollNo: examVal !== '—' ? examVal : (records[recIndex]?.examRollNo || ''),
+          boardRollNo: examVal && examVal !== '—' ? examVal : (records[recIndex]?.boardRollNo || ''),
+          boardRegNo: rawReg && rawReg !== '—' ? rawReg : (records[recIndex]?.boardRegNo || ''),
+          regNo: rawReg && rawReg !== '—' ? rawReg : (records[recIndex]?.regNo || ''),
+          examRollNo: examVal && examVal !== '—' ? examVal : (records[recIndex]?.examRollNo || ''),
           name: nameVal || records[recIndex]?.name || '',
           studentName: nameVal || records[recIndex]?.studentName || '',
           parentName: parentVal || records[recIndex]?.parentName || '',

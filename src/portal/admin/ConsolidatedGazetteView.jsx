@@ -105,9 +105,17 @@ function matchStudentRecord(rec, student, identity) {
 
   // 1. Board Registration Number (100% authoritative exact match)
   const rowReg = identityKey(rec.regNo || rec.boardRegNo || rec.reg);
-  if (rowReg && identity.reg && rowReg === identity.reg) {
-    if (rowName && stuName && !isNameMatch) return false;
-    return true;
+  if (rowReg && identity.reg) {
+    if (rowReg.length >= 8 && identity.reg.length >= 8) {
+      if (rowReg === identity.reg) {
+        if (rowName && stuName && !isNameMatch) return false;
+        return true;
+      }
+      return false; // Strict registration match: if both have valid registration numbers and differ, reject immediately
+    } else if (rowReg === identity.reg) {
+      if (rowName && stuName && !isNameMatch) return false;
+      return true;
+    }
   }
 
   // 2. Form Number
@@ -118,7 +126,7 @@ function matchStudentRecord(rec, student, identity) {
   }
 
   // 3. Class Roll Number
-  const rowRoll = identityKey(rec.rollNo || rec.classRollNo || rec.roll || rec.examRollNo);
+  const rowRoll = identityKey(rec.rollNo || rec.classRollNo || rec.roll);
   if (rowRoll && identity.roll && rowRoll === identity.roll && rowRoll !== '-' && rowRoll !== '—' && rowRoll !== 'n/a') {
     if (rowName && stuName && !isNameMatch) return false;
     return true;

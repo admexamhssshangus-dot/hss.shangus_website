@@ -707,8 +707,13 @@ describe('Score Normalization and Flexible Biology Display', () => {
       const rReg = rec.regNo || rec.boardRegNo;
       const sReg = tamana.boardRegNo;
       if (rReg && sReg) {
-        const isFullReg = rReg.length >= 10 && sReg.length >= 10;
-        if (isFullReg ? rReg === sReg : (rReg === sReg || rReg.endsWith(sReg) || sReg.endsWith(rReg))) return true;
+        const isBothFull = rReg.length >= 8 && sReg.length >= 8;
+        if (isBothFull) {
+          if (rReg === sReg) return true;
+          return false; // Strict conflict rejection
+        } else if (rReg === sReg) {
+          return true;
+        }
       }
       const rForm = rec.formNo;
       const sForm = tamana.formNo;

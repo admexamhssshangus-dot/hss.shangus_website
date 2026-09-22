@@ -50,12 +50,18 @@ async function resolveUserProfile(firebaseUser, forceFresh = false) {
     : (staffProfile?.assignedClass ? [staffProfile.assignedClass] : []);
   const userMobile = staffProfile?.mobile || '';
 
+  const userAssignedSubjects = Array.isArray(staffProfile?.assignedSubjects) && staffProfile.assignedSubjects.length > 0
+    ? staffProfile.assignedSubjects
+    : (staffProfile?.subject ? String(staffProfile.subject).split(/[,;]+/).map(s => s.trim()).filter(Boolean) : []);
+
   return {
+    email: emailLower,
     role,
     name: staffProfile?.name || firebaseUser.displayName || emailLower.split('@')[0],
     perms,
     subject: userSubject,
     teachingSubject: userTeachingSubject,
+    assignedSubjects: userAssignedSubjects,
     assignedClasses: userAssignedClasses,
     mobile: userMobile,
     token: tokenResult.token,

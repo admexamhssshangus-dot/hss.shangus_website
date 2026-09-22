@@ -33,45 +33,38 @@ export const ALL_ADMIN_MODULES = ADMIN_MODULE_CATALOG.map(module => ({
   isQuickAction: Boolean(module.isQuickAction),
 }));
 
-// Official School Predefined Subject Catalogues (From Academics Curriculum & Admission System)
-export const SECONDARY_SUBJECTS_CATALOGUE = [
-  { group: 'Core / Compulsory (Group A)', subjects: ['English', 'Mathematics', 'Science', 'Social Science'] },
-  { group: 'Languages (Group B)', subjects: ['Urdu', 'Arabic', 'Hindi', 'Kashmiri'] },
-  { group: 'Vocational / Applied Skills (Group C)', subjects: ['Healthcare', 'IT and ITES'] },
+// Official School Predefined Subject Catalogues (Exactly 7 for 9th & 10th, 15 for 11th & 12th)
+export const SECONDARY_SUBJECTS_LIST = [
+  'English',
+  'Mathematics',
+  'Science',
+  'Social Science',
+  'Urdu',
+  'Healthcare',
+  'IT and ITES'
 ];
 
-export const HIGHER_SECONDARY_SUBJECTS_CATALOGUE = [
-  {
-    stream: 'Science Stream',
-    groups: [
-      { label: 'Compulsory', subjects: ['General English', 'Physics', 'Chemistry'] },
-      { label: 'Core Electives', subjects: ['Biology', 'Botany', 'Zoology', 'Mathematics'] },
-      { label: 'Applied & Elective', subjects: ['Environmental Science', 'Physical Education', 'Healthcare', 'IT and ITES'] },
-    ]
-  },
-  {
-    stream: 'Humanities / Arts Stream',
-    groups: [
-      { label: 'Compulsory', subjects: ['General English'] },
-      { label: 'Core Electives', subjects: ['Political Science', 'History', 'Economics', 'Education', 'Urdu', 'Mathematics'] },
-      { label: 'Applied & Elective', subjects: ['Environmental Science', 'Physical Education', 'Healthcare', 'IT and ITES'] },
-    ]
-  },
-  {
-    stream: 'Commerce Stream',
-    groups: [
-      { label: 'Compulsory', subjects: ['General English', 'Accountancy', 'Business Studies'] },
-      { label: 'Core Electives', subjects: ['Economics', 'Entrepreneurship', 'Mathematics'] },
-      { label: 'Applied & Elective', subjects: ['Environmental Science', 'Physical Education', 'Healthcare', 'IT and ITES'] },
-    ]
-  },
-  {
-    stream: 'Vocational & Physical Education',
-    groups: [
-      { label: 'Skill & Applied Practicals', subjects: ['Physical Education', 'Healthcare', 'IT and ITES'] }
-    ]
-  }
+export const HIGHER_SECONDARY_SUBJECTS_LIST = [
+  'General English',
+  'Physics',
+  'Chemistry',
+  'Biology',
+  'Mathematics',
+  'Environmental Science',
+  'Political Science',
+  'History',
+  'Economics',
+  'Education',
+  'Urdu',
+  'Physical Education',
+  'Healthcare',
+  'IT and ITES',
+  'Arabic'
 ];
+
+// Backwards-compatibility aliases
+export const SECONDARY_SUBJECTS_CATALOGUE = [{ group: 'Secondary Subjects', subjects: SECONDARY_SUBJECTS_LIST }];
+export const HIGHER_SECONDARY_SUBJECTS_CATALOGUE = [{ stream: 'Higher Secondary Subjects', groups: [{ label: 'Subjects', subjects: HIGHER_SECONDARY_SUBJECTS_LIST }] }];
 
 const DEFAULT_ADMIN_USERS = [
   {
@@ -103,6 +96,16 @@ const DEFAULT_ADMIN_USERS = [
     email: 'majidhassannajar@gmail.com',
     role: 'Admin',
     perms: ['reports'],
+  },
+  {
+    name: 'Zahoor Ahmad Ganie',
+    email: 'zahoorganie1234@gmail.com',
+    role: 'Teacher',
+    designation: 'Teacher',
+    perms: ['practicals'],
+    subject: 'Science, Environmental Science',
+    assignedSubjects: ['Science', 'Environmental Science'],
+    assignedClasses: ['9th', '10th', '11th', '12th'],
   },
 ];
 
@@ -1176,89 +1179,104 @@ export default function StaffPermissionsManager() {
 
                     {/* Subject Catalogue Grid by Tier */}
                     {subjectTierTab === '9th-10th' ? (
-                      <div className="space-y-2.5 pt-0.5">
-                        {SECONDARY_SUBJECTS_CATALOGUE.map((cat, idx) => (
-                          <div key={idx} className="space-y-1">
-                            <div className="text-[10px] font-black uppercase tracking-wider text-emerald-800 dark:text-emerald-300">
-                              {cat.group}
-                            </div>
-                            <div className="flex flex-wrap gap-1.5">
-                              {cat.subjects.map((sub) => {
-                                const isChecked = (adminForm.assignedSubjects || []).includes(sub);
-                                return (
-                                  <button
-                                    key={sub}
-                                    type="button"
-                                    onClick={() => {
-                                      const current = adminForm.assignedSubjects || [];
-                                      const next = isChecked ? current.filter((s) => s !== sub) : [...current, sub];
-                                      setAdminForm({ ...adminForm, assignedSubjects: next, subject: next.join(', ') });
-                                    }}
-                                    className={`px-2.5 py-1 rounded-xl text-xs font-bold border transition-all cursor-pointer flex items-center gap-1.5 ${
-                                      isChecked
-                                        ? 'bg-emerald-600 text-white border-emerald-600 shadow-2xs scale-[1.02]'
-                                        : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:border-emerald-400'
-                                    }`}
-                                  >
-                                    <span className={`w-3.5 h-3.5 rounded flex items-center justify-center border text-[9px] ${
-                                      isChecked ? 'border-white bg-white/20' : 'border-slate-300 dark:border-slate-700'
-                                    }`}>
-                                      {isChecked && <Check size={10} strokeWidth={3} />}
-                                    </span>
-                                    <span>{sub}</span>
-                                  </button>
-                                );
-                              })}
-                            </div>
+                      <div className="space-y-2 pt-0.5">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10.5px] font-black uppercase tracking-wider text-emerald-800 dark:text-emerald-300">
+                            Secondary Curriculum ({SECONDARY_SUBJECTS_LIST.length} Subjects)
+                          </span>
+                          <div className="flex items-center gap-2 text-[10px] font-bold">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const current = new Set(adminForm.assignedSubjects || []);
+                                SECONDARY_SUBJECTS_LIST.forEach(s => current.add(s));
+                                const next = Array.from(current);
+                                setAdminForm({ ...adminForm, assignedSubjects: next, subject: next.join(', ') });
+                              }}
+                              className="text-emerald-700 dark:text-emerald-300 hover:underline cursor-pointer"
+                            >
+                              Select All 7
+                            </button>
                           </div>
-                        ))}
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {SECONDARY_SUBJECTS_LIST.map((sub) => {
+                            const isChecked = (adminForm.assignedSubjects || []).includes(sub);
+                            return (
+                              <button
+                                key={sub}
+                                type="button"
+                                onClick={() => {
+                                  const current = adminForm.assignedSubjects || [];
+                                  const next = isChecked ? current.filter((s) => s !== sub) : [...current, sub];
+                                  setAdminForm({ ...adminForm, assignedSubjects: next, subject: next.join(', ') });
+                                }}
+                                className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer flex items-center gap-2 ${
+                                  isChecked
+                                    ? 'bg-emerald-600 text-white border-emerald-600 shadow-2xs scale-[1.02]'
+                                    : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:border-emerald-400'
+                                }`}
+                              >
+                                <span className={`w-4 h-4 rounded flex items-center justify-center border text-[9.5px] ${
+                                  isChecked ? 'border-white bg-white/20' : 'border-slate-300 dark:border-slate-700'
+                                }`}>
+                                  {isChecked && <Check size={11} strokeWidth={3} />}
+                                </span>
+                                <span>{sub}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
                       </div>
                     ) : (
-                      <div className="space-y-2.5 pt-0.5">
-                        {HIGHER_SECONDARY_SUBJECTS_CATALOGUE.map((streamBlock, sIdx) => (
-                          <div key={sIdx} className="p-2.5 rounded-xl bg-white/70 dark:bg-slate-900/60 border border-emerald-100 dark:border-emerald-900/40 space-y-2">
-                            <div className="text-[10.5px] font-black text-emerald-900 dark:text-emerald-200 border-b border-emerald-100 dark:border-emerald-900/40 pb-1">
-                              {streamBlock.stream}
-                            </div>
-                            <div className="space-y-2">
-                              {streamBlock.groups.map((grp, gIdx) => (
-                                <div key={gIdx} className="space-y-1">
-                                  <span className="text-[9.5px] font-bold uppercase tracking-wider text-slate-400">
-                                    {grp.label}
-                                  </span>
-                                  <div className="flex flex-wrap gap-1.5">
-                                    {grp.subjects.map((sub) => {
-                                      const isChecked = (adminForm.assignedSubjects || []).includes(sub);
-                                      return (
-                                        <button
-                                          key={sub}
-                                          type="button"
-                                          onClick={() => {
-                                            const current = adminForm.assignedSubjects || [];
-                                            const next = isChecked ? current.filter((s) => s !== sub) : [...current, sub];
-                                            setAdminForm({ ...adminForm, assignedSubjects: next, subject: next.join(', ') });
-                                          }}
-                                          className={`px-2.5 py-1 rounded-xl text-xs font-bold border transition-all cursor-pointer flex items-center gap-1.5 ${
-                                            isChecked
-                                              ? 'bg-emerald-600 text-white border-emerald-600 shadow-2xs scale-[1.02]'
-                                              : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:border-emerald-400'
-                                          }`}
-                                        >
-                                          <span className={`w-3.5 h-3.5 rounded flex items-center justify-center border text-[9px] ${
-                                            isChecked ? 'border-white bg-white/20' : 'border-slate-300 dark:border-slate-700'
-                                          }`}>
-                                            {isChecked && <Check size={10} strokeWidth={3} />}
-                                          </span>
-                                          <span>{sub}</span>
-                                        </button>
-                                      );
-                                    })}
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
+                      <div className="space-y-2 pt-0.5">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10.5px] font-black uppercase tracking-wider text-emerald-800 dark:text-emerald-300">
+                            Higher Secondary Curriculum ({HIGHER_SECONDARY_SUBJECTS_LIST.length} Subjects)
+                          </span>
+                          <div className="flex items-center gap-2 text-[10px] font-bold">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const current = new Set(adminForm.assignedSubjects || []);
+                                HIGHER_SECONDARY_SUBJECTS_LIST.forEach(s => current.add(s));
+                                const next = Array.from(current);
+                                setAdminForm({ ...adminForm, assignedSubjects: next, subject: next.join(', ') });
+                              }}
+                              className="text-emerald-700 dark:text-emerald-300 hover:underline cursor-pointer"
+                            >
+                              Select All 15
+                            </button>
                           </div>
-                        ))}
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {HIGHER_SECONDARY_SUBJECTS_LIST.map((sub) => {
+                            const isChecked = (adminForm.assignedSubjects || []).includes(sub);
+                            return (
+                              <button
+                                key={sub}
+                                type="button"
+                                onClick={() => {
+                                  const current = adminForm.assignedSubjects || [];
+                                  const next = isChecked ? current.filter((s) => s !== sub) : [...current, sub];
+                                  setAdminForm({ ...adminForm, assignedSubjects: next, subject: next.join(', ') });
+                                }}
+                                className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer flex items-center gap-2 ${
+                                  isChecked
+                                    ? 'bg-emerald-600 text-white border-emerald-600 shadow-2xs scale-[1.02]'
+                                    : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:border-emerald-400'
+                                }`}
+                              >
+                                <span className={`w-4 h-4 rounded flex items-center justify-center border text-[9.5px] ${
+                                  isChecked ? 'border-white bg-white/20' : 'border-slate-300 dark:border-slate-700'
+                                }`}>
+                                  {isChecked && <Check size={11} strokeWidth={3} />}
+                                </span>
+                                <span>{sub}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
                       </div>
                     )}
 
