@@ -567,6 +567,7 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
             absentSubjectsCount++;
             evaluatedSubjectsCount++;
             totalMax += sMeta.maxMarks;
+            const isAdmMod = Boolean(foundRecord.updatedByAdmin || foundRecord.adminModified || foundRecord.isOverride || foundRecord.isAdmMod);
             subjectMarks[code] = {
               obtained: 'AB',
               isAbsent: true,
@@ -574,10 +575,10 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
               isFailed: true,
               maxMarks: sMeta.maxMarks,
               minMarks: sMeta.minMarks,
-              updatedByAdmin: Boolean(foundRecord.updatedByAdmin || foundRecordDoc?.updatedByAdmin),
-              updatedBy: foundRecord.updatedBy || foundRecordDoc?.updatedBy || '',
-              updatedAt: foundRecord.updatedAt || foundRecordDoc?.updatedAt || '',
-              editReason: foundRecord.editReason || foundRecordDoc?.editReason || '',
+              updatedByAdmin: isAdmMod,
+              updatedBy: isAdmMod ? (foundRecord.updatedBy || 'Administrator') : '',
+              updatedAt: isAdmMod ? (foundRecord.updatedAt || '') : '',
+              editReason: isAdmMod ? (foundRecord.editReason || '') : '',
               docId: foundRecordDoc?.id || '',
             };
           } else if (hasNumeric) {
@@ -625,6 +626,7 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
             totalMax += sMeta.maxMarks;
             if (!isPass) failedSubjectsCount++;
 
+            const isAdmMod = Boolean(foundRecord.updatedByAdmin || foundRecord.adminModified || foundRecord.isOverride || foundRecord.isAdmMod);
             subjectMarks[code] = {
               obtained: marksVal,
               nativeMark: numeric,
@@ -634,10 +636,10 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
               isFailed: !isPass,
               maxMarks: sMeta.maxMarks,
               minMarks: sMeta.minMarks,
-              updatedByAdmin: Boolean(foundRecord.updatedByAdmin || foundRecordDoc?.updatedByAdmin),
-              updatedBy: foundRecord.updatedBy || foundRecordDoc?.updatedBy || '',
-              updatedAt: foundRecord.updatedAt || foundRecordDoc?.updatedAt || '',
-              editReason: foundRecord.editReason || foundRecordDoc?.editReason || '',
+              updatedByAdmin: isAdmMod,
+              updatedBy: isAdmMod ? (foundRecord.updatedBy || 'Administrator') : '',
+              updatedAt: isAdmMod ? (foundRecord.updatedAt || '') : '',
+              editReason: isAdmMod ? (foundRecord.editReason || '') : '',
               docId: foundRecordDoc?.id || '',
             };
           } else {
