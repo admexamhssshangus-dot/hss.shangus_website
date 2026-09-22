@@ -75,7 +75,7 @@ async function authenticate(event) {
   if (process.env.REQUIRE_VERIFIED_STUDENT_EMAIL === 'true' && decoded.email_verified !== true) {
     throw Object.assign(new Error('Please verify your email address before using admissions.'), { status: 403 });
   }
-  if (process.env.REQUIRE_APP_CHECK !== 'false') {
+  if (process.env.REQUIRE_APP_CHECK === 'true') {
     const appCheckToken = String(event.headers['x-firebase-appcheck'] || '');
     if (!appCheckToken) throw Object.assign(new Error('App verification is required.'), { status: 401 });
     await getAppCheck(getAdminApp()).verifyToken(appCheckToken);
