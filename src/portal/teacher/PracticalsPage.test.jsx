@@ -1,4 +1,10 @@
-import { getEvaluationTypesForTeacher } from '../../utils/practicalsSettingsManager';
+import { 
+  getEvaluationTypesForTeacher,
+  getTeacherAssignedSubjectsForClass,
+  getTeacherClassSubjectPermissions,
+  normalizeTeacherClasses,
+  isTeacherSubjectMatch
+} from '../../utils/practicalsSettingsManager';
 
 describe('Practicals Dynamic Configuration and Roster Logic', () => {
   describe('Dynamic Subject Overrides from Edit School Assessment', () => {
@@ -202,6 +208,91 @@ describe('Practicals Dynamic Configuration and Roster Logic', () => {
       expect(formatted[0].practicalMarks).toBe('24');
       expect(formatted[1].practicalMarks).toBe(''); // Blank student stays blank
       expect(formatted[2].practicalMarks).toBe('AB');
+    });
+  });
+
+  describe('Class-Aware Teacher Subject Permissions & Cross-Subject Prevention', () => {
+    const zahoorSir = {
+      name: 'Zahoor Ahmad Ganie',
+      email: 'zahoorganie1234@gmail.com',
+      assignedClasses: ['11th,12th', '11th', '12th', '10th', '9th'],
+      assignedSubjects: ['Science', 'Environmental Science'],
+      tierSubjects: {
+        '9th-10th': ['Science'],
+        '11th-12th': ['Environmental Science']
+      },
+      classSubjectMap: {
+        '9th': ['Science'],
+        '10th': ['Science'],
+        '11th': ['Environmental Science'],
+        '12th': ['Environmental Science']
+      }
+    };
+
+    test('normalizes composite and duplicate classes cleanly', () => {
+      const normalized = normalizeTeacherClasses(zahoorSir.assignedClasses);
+      expect(normalized).toEqual(['9th', '10th', '11th', '12th']);
+    });
+
+    test('resolves structured class-subject permissions grouped per class/tier', () => {
+      const permissions = getTeacherClassSubjectPermissions(zahoorSir);
+      expect(permissions).toHaveLength(2);
+
+      const sciencePerm = permissions.find(p => p.subject === 'Science');
+      expect(sciencePerm).toBeDefined();
+      expect(sciencePerm.classes).toEqual(['9th', '10th']);
+      expect(sciencePerm.classText).toBe('Class 9th, 10th');
+
+      const evsPerm = permissions.find(p => p.subject === 'Environmental Science');
+      expect(evsPerm).toBeDefined();
+      expect(evsPerm.classes).toEqual(['11th', '12th']);
+      expect(evsPerm.classText).toBe('Class 11th, 12th');
+    });
+
+    test('retrieves correct assigned subjects for each specific class', () => {
+      expect(getTeacherAssignedSubjectsForClass(zahoorSir, '10th')).toEqual(['Science']);
+      expect(getTeacherAssignedSubjectsForClass(zahoorSir, '9th')).toEqual(['Science']);
+      expect(getTeacherAssignedSubjectsForClass(zahoorSir, '11th')).toEqual(['Environmental Science']);
+      expect(getTeacherAssignedSubjectsForClass(zahoorSir, '12th')).toEqual(['Environmental Science']);
+    });
+
+    test('ensures evaluating Science in Class 10th does NOT trigger cross-subject status', () => {
+      const selectedClass = '10th';
+      const selectedSubject = 'Science';
+
+      const classAssigned = getTeacherAssignedSubjectsForClass(zahoorSir, selectedClass);
+      const allAssigned = zahoorSir.assignedSubjects;
+
+      const isClassMatch = classAssigned.some(s => isTeacherSubjectMatch(s, selectedSubject));
+      const isAnyMatch = allAssigned.some(s => isTeacherSubjectMatch(s, selectedSubject));
+
+      const isCrossSubject = !(isClassMatch || isAnyMatch);
+      expect(isCrossSubject).toBe(false);
+    });
+
+    test('ensures evaluating an unassigned subject like Urdu triggers cross-subject status', () => {
+      const selectedClass = '10th';
+      const selectedSubject = 'Urdu';
+
+      const classAssigned = getTeacherAssignedSubjectsForClass(zahoorSir, selectedClass);
+      const allAssigned = zahoorSir.assignedSubjects;
+
+      const isClassMatch = classAssigned.some(s => isTeacherSubjectMatch(s, selectedSubject));
+      const isAnyMatch = allAssigned.some(s => isTeacherSubjectMatch(s, selectedSubject));
+
+      const isCrossSubject = !(isClassMatch || isAnyMatch);
+      expect(isCrossSubject).toBe(true);
+    });
+
+    test('falls back gracefully to curriculum tier matching when classSubjectMap is absent', () => {
+      const legacyTeacher = {
+        name: 'Zahoor Ahmad Ganie',
+        assignedClasses: ['9th', '10th', '11th', '12th'],
+        assignedSubjects: ['Science', 'Environmental Science']
+      };
+
+      expect(getTeacherAssignedSubjectsForClass(legacyTeacher, '10th')).toEqual(['Science']);
+      expect(getTeacherAssignedSubjectsForClass(legacyTeacher, '12th')).toEqual(['Environmental Science']);
     });
   });
 });

@@ -1,7 +1,7 @@
 import { captureFields, restoreFields, applyRecordPatch, rollbackMutationJob } from './recordMutationService';
 import { doc, getDoc, runTransaction } from 'firebase/firestore';
 jest.mock('./firebase', () => ({ db: {} }));
-jest.mock('./dbCache', () => ({ invalidateCache: jest.fn() }));
+jest.mock('./dbCache', () => ({ invalidateCache: jest.fn(), invalidateStudentCaches: jest.fn() }));
 jest.mock('firebase/firestore', () => ({ collection: jest.fn(), doc: jest.fn(), getDoc: jest.fn(), getDocs: jest.fn(),
   runTransaction: jest.fn(), setDoc: jest.fn(), serverTimestamp: jest.fn(() => 'SERVER_TIME') }));
 test('restores missing fields and preserves unrelated later edits', () => {
