@@ -698,24 +698,39 @@ export function normalizeSubjectIdentity(subjInput) {
  * If teacher has no registered subject, returns true (no restriction).
  */
 export function isTeacherSubjectMatch(teacherSubject, selectedSubject) {
-  if (!teacherSubject || !String(teacherSubject).trim()) return true;
+  if (!teacherSubject) return true;
   if (!selectedSubject || !String(selectedSubject).trim()) return true;
 
-  const tNorm = normalizeSubjectIdentity(teacherSubject);
-  const sNorm = normalizeSubjectIdentity(selectedSubject);
-
-  if (tNorm && sNorm) {
-    if (tNorm.code === sNorm.code) return true;
-    // Biology equivalence (Botany / Zoology / Biology)
-    const bioCodes = new Set(['BI', 'BO', 'ZO']);
-    if (bioCodes.has(tNorm.code) && bioCodes.has(sNorm.code)) return true;
-    return false;
+  // Support array of subjects, single subject string, or comma/semicolon/slash delimited string
+  let teacherSubjectsList = [];
+  if (Array.isArray(teacherSubject)) {
+    teacherSubjectsList = teacherSubject.filter(Boolean);
+  } else if (typeof teacherSubject === 'string') {
+    teacherSubjectsList = teacherSubject.split(/[,;/|]+/).map(s => s.trim()).filter(Boolean);
   }
 
-  // Fallback simple string comparison
-  const tStr = String(teacherSubject).toLowerCase().trim();
+  if (teacherSubjectsList.length === 0) return true;
+
+  const sNorm = normalizeSubjectIdentity(selectedSubject);
   const sStr = String(selectedSubject).toLowerCase().trim();
-  return tStr === sStr || tStr.includes(sStr) || sStr.includes(tStr);
+
+  return teacherSubjectsList.some(ts => {
+    const tNorm = normalizeSubjectIdentity(ts);
+    if (tNorm && sNorm) {
+      if (tNorm.code === sNorm.code) return true;
+      // Biology equivalence (Botany / Zoology / Biology)
+      const bioCodes = new Set(['BI', 'BO', 'ZO']);
+      if (bioCodes.has(tNorm.code) && bioCodes.has(sNorm.code)) return true;
+      // Science equivalence (Science / Physics / Chemistry / Biology in lower classes)
+      if (tNorm.code === 'SC' && ['PH', 'CH', 'BI', 'BO', 'ZO'].includes(sNorm.code)) return true;
+      if (sNorm.code === 'SC' && ['PH', 'CH', 'BI', 'BO', 'ZO'].includes(tNorm.code)) return true;
+      return false;
+    }
+
+    // Fallback simple string comparison
+    const tStr = String(ts).toLowerCase().trim();
+    return tStr === sStr || tStr.includes(sStr) || sStr.includes(tStr);
+  });
 }
 
 /**

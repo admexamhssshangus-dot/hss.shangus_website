@@ -33,6 +33,46 @@ export const ALL_ADMIN_MODULES = ADMIN_MODULE_CATALOG.map(module => ({
   isQuickAction: Boolean(module.isQuickAction),
 }));
 
+// Official School Predefined Subject Catalogues (From Academics Curriculum & Admission System)
+export const SECONDARY_SUBJECTS_CATALOGUE = [
+  { group: 'Core / Compulsory (Group A)', subjects: ['English', 'Mathematics', 'Science', 'Social Science'] },
+  { group: 'Languages (Group B)', subjects: ['Urdu', 'Arabic', 'Hindi', 'Kashmiri'] },
+  { group: 'Vocational / Applied Skills (Group C)', subjects: ['Healthcare', 'IT and ITES'] },
+];
+
+export const HIGHER_SECONDARY_SUBJECTS_CATALOGUE = [
+  {
+    stream: 'Science Stream',
+    groups: [
+      { label: 'Compulsory', subjects: ['General English', 'Physics', 'Chemistry'] },
+      { label: 'Core Electives', subjects: ['Biology', 'Botany', 'Zoology', 'Mathematics'] },
+      { label: 'Applied & Elective', subjects: ['Environmental Science', 'Physical Education', 'Healthcare', 'IT and ITES'] },
+    ]
+  },
+  {
+    stream: 'Humanities / Arts Stream',
+    groups: [
+      { label: 'Compulsory', subjects: ['General English'] },
+      { label: 'Core Electives', subjects: ['Political Science', 'History', 'Economics', 'Education', 'Urdu', 'Mathematics'] },
+      { label: 'Applied & Elective', subjects: ['Environmental Science', 'Physical Education', 'Healthcare', 'IT and ITES'] },
+    ]
+  },
+  {
+    stream: 'Commerce Stream',
+    groups: [
+      { label: 'Compulsory', subjects: ['General English', 'Accountancy', 'Business Studies'] },
+      { label: 'Core Electives', subjects: ['Economics', 'Entrepreneurship', 'Mathematics'] },
+      { label: 'Applied & Elective', subjects: ['Environmental Science', 'Physical Education', 'Healthcare', 'IT and ITES'] },
+    ]
+  },
+  {
+    stream: 'Vocational & Physical Education',
+    groups: [
+      { label: 'Skill & Applied Practicals', subjects: ['Physical Education', 'Healthcare', 'IT and ITES'] }
+    ]
+  }
+];
+
 const DEFAULT_ADMIN_USERS = [
   {
     name: 'Sheikh Gulfam (SuperAdmin)',
@@ -84,6 +124,8 @@ export default function StaffPermissionsManager() {
   const [showPasswordText, setShowPasswordText] = useState(false);
   const [editingAdminEmail, setEditingAdminEmail] = useState(null);
   const [userToDelete, setUserToDelete] = useState(null);
+  const [subjectTierTab, setSubjectTierTab] = useState('11th-12th'); // '9th-10th' | '11th-12th'
+  const [customSubjectInput, setCustomSubjectInput] = useState('');
 
   const [adminForm, setAdminForm] = useState({ 
     name: '', 
@@ -92,6 +134,7 @@ export default function StaffPermissionsManager() {
     designation: '',
     perms: ['reports'],
     subject: '',
+    assignedSubjects: [],
     assignedClasses: [],
     mobile: '',
     password: '',
@@ -260,6 +303,11 @@ export default function StaffPermissionsManager() {
         const cleanClasses = Array.isArray(account.assignedClasses)
           ? account.assignedClasses.filter(Boolean)
           : (account.assignedClasses ? [account.assignedClasses] : []);
+        const cleanSubjects = Array.isArray(account.assignedSubjects) && account.assignedSubjects.length > 0
+          ? account.assignedSubjects.filter(Boolean)
+          : (account.subject ? String(account.subject).split(/[,;]+/).map(s => s.trim()).filter(Boolean) : []);
+        const primarySubj = cleanSubjects.join(', ') || account.subject || '';
+
         try {
           await setDoc(doc(db, 'users', cleanEmail), {
             name: account.name,
@@ -267,8 +315,9 @@ export default function StaffPermissionsManager() {
             role: isSuper ? 'SuperAdmin' : (account.role || 'Admin'),
             designation: account.designation || '',
             perms: isSuper ? ALL_ADMIN_MODULES.map(m => m.code) : (account.perms || []),
-            subject: account.subject || '',
-            teachingSubject: account.subject || '',
+            subject: primarySubj,
+            teachingSubject: primarySubj,
+            assignedSubjects: cleanSubjects,
             assignedClasses: cleanClasses,
             mobile: account.mobile || '',
             updatedAt: new Date().toISOString(),
@@ -306,11 +355,14 @@ export default function StaffPermissionsManager() {
       designation: '',
       perms: ['reports'],
       subject: '',
+      assignedSubjects: [],
       assignedClasses: [],
       mobile: '',
       password: '',
       sendSetupEmail: true
     });
+    setSubjectTierTab('11th-12th');
+    setCustomSubjectInput('');
     setShowAdminModal(true);
   };
 
@@ -318,18 +370,34 @@ export default function StaffPermissionsManager() {
     const cleanEmail = String(user.email || '').trim().toLowerCase();
     const isSuperTarget = cleanEmail === 'adm.exam.hss.shangus@gmail.com';
     setEditingAdminEmail(user.email);
+
+    // Normalize existing assigned subjects from array or delimited string
+    const existingSubjects = Array.isArray(user.assignedSubjects) && user.assignedSubjects.length > 0
+      ? user.assignedSubjects
+      : (user.subject || user.teachingSubject || '').split(/[,;]+/).map(s => s.trim()).filter(Boolean);
+
     setAdminForm({ 
       name: user.name || '', 
       email: user.email || '', 
       role: isSuperTarget ? 'SuperAdmin' : (user.role === 'Teacher' ? 'Teacher' : 'Admin'), 
       designation: user.designation || user.label || '',
       perms: Array.isArray(user.perms) ? [...user.perms] : ['reports'],
-      subject: user.subject || '',
-      assignedClasses: user.assignedClasses || [],
+      subject: existingSubjects.join(', '),
+      assignedSubjects: existingSubjects,
+      assignedClasses: Array.isArray(user.assignedClasses) ? [...user.assignedClasses] : (user.assignedClass ? [user.assignedClass] : []),
       mobile: user.mobile || '',
       password: '',
       sendSetupEmail: false
     });
+
+    const hasSec = Array.isArray(user.assignedClasses) && user.assignedClasses.some(c => c.includes('9') || c.includes('10'));
+    const hasHr = Array.isArray(user.assignedClasses) && user.assignedClasses.some(c => c.includes('11') || c.includes('12'));
+    if (hasSec && !hasHr) {
+      setSubjectTierTab('9th-10th');
+    } else {
+      setSubjectTierTab('11th-12th');
+    }
+    setCustomSubjectInput('');
     setShowAdminModal(true);
   };
 
@@ -360,8 +428,14 @@ export default function StaffPermissionsManager() {
       setModalError('Please enter both Full Name and Email Address.');
       return;
     }
-    if (adminForm.role === 'Teacher' && !adminForm.subject.trim()) {
-      setModalError('Please specify the Assigned Teaching Subject for this faculty member.');
+
+    const cleanSubjects = Array.isArray(adminForm.assignedSubjects) && adminForm.assignedSubjects.length > 0
+      ? adminForm.assignedSubjects.map(s => String(s || '').trim()).filter(Boolean)
+      : (adminForm.subject ? String(adminForm.subject).split(/[,;]+/).map(s => s.trim()).filter(Boolean) : []);
+    const primarySubject = cleanSubjects.join(', ');
+
+    if (adminForm.role === 'Teacher' && cleanSubjects.length === 0) {
+      setModalError('Please select or add at least one Assigned Teaching Subject for this faculty member.');
       return;
     }
     const cleanEmail = adminForm.email.trim().toLowerCase();
@@ -380,7 +454,8 @@ export default function StaffPermissionsManager() {
           role: resolvedRole,
           designation: adminForm.designation?.trim() || '',
           perms: adminForm.perms,
-          subject: adminForm.subject,
+          subject: primarySubject,
+          assignedSubjects: cleanSubjects,
           assignedClasses: adminForm.assignedClasses || [],
           mobile: adminForm.mobile,
           sendResetEmail: adminForm.sendSetupEmail,
@@ -396,7 +471,8 @@ export default function StaffPermissionsManager() {
                 role: resolvedRole, 
                 designation: adminForm.designation?.trim() || '',
                 perms: adminForm.perms,
-                subject: adminForm.subject,
+                subject: primarySubject,
+                assignedSubjects: cleanSubjects,
                 assignedClasses: adminForm.assignedClasses || [],
                 mobile: adminForm.mobile
               }
@@ -426,7 +502,8 @@ export default function StaffPermissionsManager() {
           role: resolvedRole,
           designation: adminForm.designation?.trim() || '',
           perms: adminForm.perms,
-          subject: adminForm.subject,
+          subject: primarySubject,
+          assignedSubjects: cleanSubjects,
           assignedClasses: adminForm.assignedClasses || [],
           mobile: adminForm.mobile,
           password: adminForm.password,
@@ -441,7 +518,8 @@ export default function StaffPermissionsManager() {
             role: resolvedRole, 
             designation: adminForm.designation?.trim() || '',
             perms: adminForm.perms,
-            subject: adminForm.subject,
+            subject: primarySubject,
+            assignedSubjects: cleanSubjects,
             assignedClasses: adminForm.assignedClasses || [],
             mobile: adminForm.mobile
           }
@@ -704,11 +782,34 @@ export default function StaffPermissionsManager() {
                           </span>
                         )}
 
-                        {/* Teaching Subject (if teacher) */}
-                        {user.subject && (
-                          <span className="px-1.5 py-0.5 rounded-md text-[8px] sm:text-[9px] font-bold bg-blue-100 dark:bg-blue-950 text-blue-800 dark:text-blue-300 border border-blue-200 dark:border-blue-800 shrink-0">
-                            {user.subject}
-                          </span>
+                        {/* Teaching Subject(s) (if teacher) */}
+                        {Array.isArray(user.assignedSubjects) && user.assignedSubjects.length > 0 ? (
+                          <div className="flex flex-wrap items-center gap-1">
+                            {user.assignedSubjects.map((sub) => (
+                              <span key={sub} className="px-1.5 py-0.5 rounded-md text-[8px] sm:text-[9px] font-bold bg-blue-100 dark:bg-blue-950 text-blue-800 dark:text-blue-300 border border-blue-200 dark:border-blue-800 shrink-0">
+                                {sub}
+                              </span>
+                            ))}
+                          </div>
+                        ) : user.subject ? (
+                          <div className="flex flex-wrap items-center gap-1">
+                            {user.subject.split(/[,;]+/).map((s) => s.trim()).filter(Boolean).map((sub) => (
+                              <span key={sub} className="px-1.5 py-0.5 rounded-md text-[8px] sm:text-[9px] font-bold bg-blue-100 dark:bg-blue-950 text-blue-800 dark:text-blue-300 border border-blue-200 dark:border-blue-800 shrink-0">
+                                {sub}
+                              </span>
+                            ))}
+                          </div>
+                        ) : null}
+
+                        {/* Assigned Classes */}
+                        {Array.isArray(user.assignedClasses) && user.assignedClasses.length > 0 && (
+                          <div className="flex flex-wrap items-center gap-0.5">
+                            {user.assignedClasses.map((cls) => (
+                              <span key={cls} className="px-1.5 py-0.2 rounded font-black text-[7.5px] sm:text-[8px] uppercase tracking-wider bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200/80 dark:border-emerald-800">
+                                Class {cls}
+                              </span>
+                            ))}
+                          </div>
                         )}
 
                         {hasOutdatedStatus && (
@@ -991,28 +1092,218 @@ export default function StaffPermissionsManager() {
 
                 {/* Faculty Subject & Classes Assignment (if Teacher) */}
                 {adminForm.role === 'Teacher' && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 rounded-2xl bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-200/80 dark:border-emerald-800/60">
-                    <div className="space-y-1">
-                      <label className="block text-[11px] font-extrabold text-emerald-900 dark:text-emerald-300">
-                        Assigned Teaching Subject <span className="text-rose-500">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        value={adminForm.subject}
-                        onChange={(e) => setAdminForm({ ...adminForm, subject: e.target.value })}
-                        placeholder="e.g. Physics, Chemistry, Biology, Mathematics..."
-                        className="w-full px-3 py-1.5 rounded-xl text-xs font-bold border border-emerald-300 dark:border-emerald-700/80 bg-white dark:bg-slate-900 text-slate-900 dark:text-white placeholder-slate-400 outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
-                      />
-                      <p className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-400 pt-0.5">
-                        Restricts this teacher to their assigned subject practicals and attendance register.
-                      </p>
+                  <div className="space-y-3 p-3 sm:p-4 rounded-2xl bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-200/80 dark:border-emerald-800/60">
+                    {/* Header with Class Tier Selector Tabs */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-emerald-200/60 dark:border-emerald-800/60 pb-2.5">
+                      <div>
+                        <label className="block text-xs font-black text-emerald-950 dark:text-emerald-200">
+                          Assigned Teaching Subject(s) <span className="text-rose-500">*</span>
+                        </label>
+                        <p className="text-[10px] font-medium text-emerald-800/80 dark:text-emerald-400/80">
+                          Check all subjects this faculty member teaches across secondary and higher secondary levels.
+                        </p>
+                      </div>
+
+                      {/* Class Tier Tabs (9th-10th vs 11th-12th) */}
+                      <div className="inline-flex p-0.5 bg-white dark:bg-slate-900 rounded-xl border border-emerald-200 dark:border-emerald-800 shadow-2xs self-start sm:self-auto">
+                        <button
+                          type="button"
+                          onClick={() => setSubjectTierTab('9th-10th')}
+                          className={`px-2.5 py-1 rounded-lg text-[10.5px] font-extrabold cursor-pointer transition-all ${
+                            subjectTierTab === '9th-10th'
+                              ? 'bg-emerald-600 text-white shadow-xs'
+                              : 'text-slate-600 dark:text-slate-300 hover:text-emerald-700'
+                          }`}
+                        >
+                          Secondary (9th & 10th)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setSubjectTierTab('11th-12th')}
+                          className={`px-2.5 py-1 rounded-lg text-[10.5px] font-extrabold cursor-pointer transition-all ${
+                            subjectTierTab === '11th-12th'
+                              ? 'bg-emerald-600 text-white shadow-xs'
+                              : 'text-slate-600 dark:text-slate-300 hover:text-emerald-700'
+                          }`}
+                        >
+                          Higher Secondary (11th & 12th)
+                        </button>
+                      </div>
                     </div>
 
-                    <div className="space-y-1">
-                      <label className="block text-[11px] font-extrabold text-emerald-900 dark:text-emerald-300">
-                        Assigned Classes
+                    {/* Selected Subjects Chips Summary */}
+                    <div className="p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-emerald-200/60 dark:border-emerald-800/60 space-y-1.5">
+                      <div className="flex items-center justify-between text-[10px] font-bold text-slate-500 dark:text-slate-400">
+                        <span>Active Subject Assignment ({adminForm.assignedSubjects?.length || 0})</span>
+                        {adminForm.assignedSubjects && adminForm.assignedSubjects.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => setAdminForm({ ...adminForm, assignedSubjects: [], subject: '' })}
+                            className="text-rose-500 hover:text-rose-600 cursor-pointer text-[9.5px] font-bold"
+                          >
+                            Clear All
+                          </button>
+                        )}
+                      </div>
+                      <div className="flex flex-wrap items-center gap-1.5 min-h-[28px]">
+                        {adminForm.assignedSubjects && adminForm.assignedSubjects.length > 0 ? (
+                          adminForm.assignedSubjects.map((sub) => (
+                            <span
+                              key={sub}
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-bold bg-emerald-600 text-white shadow-2xs animate-fadeIn"
+                            >
+                              <span>{sub}</span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const next = adminForm.assignedSubjects.filter((s) => s !== sub);
+                                  setAdminForm({ ...adminForm, assignedSubjects: next, subject: next.join(', ') });
+                                }}
+                                className="hover:opacity-75 cursor-pointer p-0.5 -mr-0.5"
+                                title={`Remove ${sub}`}
+                              >
+                                <X size={11} />
+                              </button>
+                            </span>
+                          ))
+                        ) : (
+                          <span className="text-xs font-medium text-amber-600 dark:text-amber-400 italic">
+                            No subjects selected yet — check below or add custom subjects
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Subject Catalogue Grid by Tier */}
+                    {subjectTierTab === '9th-10th' ? (
+                      <div className="space-y-2.5 pt-0.5">
+                        {SECONDARY_SUBJECTS_CATALOGUE.map((cat, idx) => (
+                          <div key={idx} className="space-y-1">
+                            <div className="text-[10px] font-black uppercase tracking-wider text-emerald-800 dark:text-emerald-300">
+                              {cat.group}
+                            </div>
+                            <div className="flex flex-wrap gap-1.5">
+                              {cat.subjects.map((sub) => {
+                                const isChecked = (adminForm.assignedSubjects || []).includes(sub);
+                                return (
+                                  <button
+                                    key={sub}
+                                    type="button"
+                                    onClick={() => {
+                                      const current = adminForm.assignedSubjects || [];
+                                      const next = isChecked ? current.filter((s) => s !== sub) : [...current, sub];
+                                      setAdminForm({ ...adminForm, assignedSubjects: next, subject: next.join(', ') });
+                                    }}
+                                    className={`px-2.5 py-1 rounded-xl text-xs font-bold border transition-all cursor-pointer flex items-center gap-1.5 ${
+                                      isChecked
+                                        ? 'bg-emerald-600 text-white border-emerald-600 shadow-2xs scale-[1.02]'
+                                        : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:border-emerald-400'
+                                    }`}
+                                  >
+                                    <span className={`w-3.5 h-3.5 rounded flex items-center justify-center border text-[9px] ${
+                                      isChecked ? 'border-white bg-white/20' : 'border-slate-300 dark:border-slate-700'
+                                    }`}>
+                                      {isChecked && <Check size={10} strokeWidth={3} />}
+                                    </span>
+                                    <span>{sub}</span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="space-y-2.5 pt-0.5">
+                        {HIGHER_SECONDARY_SUBJECTS_CATALOGUE.map((streamBlock, sIdx) => (
+                          <div key={sIdx} className="p-2.5 rounded-xl bg-white/70 dark:bg-slate-900/60 border border-emerald-100 dark:border-emerald-900/40 space-y-2">
+                            <div className="text-[10.5px] font-black text-emerald-900 dark:text-emerald-200 border-b border-emerald-100 dark:border-emerald-900/40 pb-1">
+                              {streamBlock.stream}
+                            </div>
+                            <div className="space-y-2">
+                              {streamBlock.groups.map((grp, gIdx) => (
+                                <div key={gIdx} className="space-y-1">
+                                  <span className="text-[9.5px] font-bold uppercase tracking-wider text-slate-400">
+                                    {grp.label}
+                                  </span>
+                                  <div className="flex flex-wrap gap-1.5">
+                                    {grp.subjects.map((sub) => {
+                                      const isChecked = (adminForm.assignedSubjects || []).includes(sub);
+                                      return (
+                                        <button
+                                          key={sub}
+                                          type="button"
+                                          onClick={() => {
+                                            const current = adminForm.assignedSubjects || [];
+                                            const next = isChecked ? current.filter((s) => s !== sub) : [...current, sub];
+                                            setAdminForm({ ...adminForm, assignedSubjects: next, subject: next.join(', ') });
+                                          }}
+                                          className={`px-2.5 py-1 rounded-xl text-xs font-bold border transition-all cursor-pointer flex items-center gap-1.5 ${
+                                            isChecked
+                                              ? 'bg-emerald-600 text-white border-emerald-600 shadow-2xs scale-[1.02]'
+                                              : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:border-emerald-400'
+                                          }`}
+                                        >
+                                          <span className={`w-3.5 h-3.5 rounded flex items-center justify-center border text-[9px] ${
+                                            isChecked ? 'border-white bg-white/20' : 'border-slate-300 dark:border-slate-700'
+                                          }`}>
+                                            {isChecked && <Check size={10} strokeWidth={3} />}
+                                          </span>
+                                          <span>{sub}</span>
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Custom / Quick Write-In Subject Adder */}
+                    <div className="pt-2 border-t border-emerald-200/60 dark:border-emerald-800/60 flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={customSubjectInput}
+                        onChange={(e) => setCustomSubjectInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            const clean = customSubjectInput.trim();
+                            if (clean && !(adminForm.assignedSubjects || []).includes(clean)) {
+                              const next = [...(adminForm.assignedSubjects || []), clean];
+                              setAdminForm({ ...adminForm, assignedSubjects: next, subject: next.join(', ') });
+                              setCustomSubjectInput('');
+                            }
+                          }
+                        }}
+                        placeholder="Type any custom / other subject..."
+                        className="flex-1 px-3 py-1.5 rounded-xl text-xs font-bold border border-emerald-300 dark:border-emerald-700/80 bg-white dark:bg-slate-900 text-slate-900 dark:text-white placeholder-slate-400 outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const clean = customSubjectInput.trim();
+                          if (clean && !(adminForm.assignedSubjects || []).includes(clean)) {
+                            const next = [...(adminForm.assignedSubjects || []), clean];
+                            setAdminForm({ ...adminForm, assignedSubjects: next, subject: next.join(', ') });
+                            setCustomSubjectInput('');
+                          }
+                        }}
+                        className="px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white shadow-xs cursor-pointer transition-all active:scale-95"
+                      >
+                        + Add Subject
+                      </button>
+                    </div>
+
+                    {/* Assigned Classes Checkboxes */}
+                    <div className="pt-2 border-t border-emerald-200/60 dark:border-emerald-800/60 space-y-1.5">
+                      <label className="block text-[11px] font-black text-emerald-950 dark:text-emerald-200">
+                        Assigned Classes (Evaluation & Registers)
                       </label>
-                      <div className="flex flex-wrap items-center gap-2 pt-0.5">
+                      <div className="flex flex-wrap items-center gap-2">
                         {['9th', '10th', '11th', '12th'].map((cls) => {
                           const isSelected = (adminForm.assignedClasses || []).includes(cls);
                           return (
