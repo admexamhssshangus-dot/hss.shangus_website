@@ -2944,10 +2944,15 @@ function CsvImportModal({ onClose, onSuccess }) {
 // ─────────────────────────────────────────────────────────────
 // SELECTED SUBMISSION RECORDS MODAL
 // ─────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
+// SELECTED SUBMISSION RECORDS MODAL (MINIMAL-COMPACT & RESPONSIVE)
+// ─────────────────────────────────────────────────────────────
 function SelectedSubmissionModal({ selSub, submissions = [], onClose, absentMarker, allStudents = [], onApprove, onReject, onSaveDirect }) {
   const [modalSearch, setModalSearch] = useState('');
-  const [diffFilter, setDiffFilter] = useState('all'); // 'all' | 'changed_only'
+  const [diffFilter, setDiffFilter] = useState('all'); // 'all' | 'changed_only' | 'absent_only'
   const [fetchedCanonicalDoc, setFetchedCanonicalDoc] = useState(null);
+  const [binVersions, setBinVersions] = useState([]);
+  const [comparisonSource, setComparisonSource] = useState('auto'); // 'auto' | 'live' | 'bin_<id>'
   const [isEditMode, setIsEditMode] = useState(false);
   const [editableRecords, setEditableRecords] = useState(() => Array.isArray(selSub?.records) ? [...selSub.records] : []);
   const [editedIndices, setEditedIndices] = useState(new Set());
@@ -3011,7 +3016,7 @@ function SelectedSubmissionModal({ selSub, submissions = [], onClose, absentMark
     return (submissions || []).find(s => s.id === targetDocId) || fetchedCanonicalDoc;
   }, [submissions, targetDocId, fetchedCanonicalDoc]);
 
-  // Fallback: If not in memory and it is an overwrite or pending approval submission, fetch canonical doc from Firestore
+  // Fetch canonical doc from Firestore if not present in memory
   useEffect(() => {
     let isMounted = true;
     if (!liveCanonicalDoc && targetDocId && (selSub?.isOverwrite || String(selSub?.id || '').startsWith('pending_') || selSub?.status === 'pending_approval')) {
@@ -3026,7 +3031,131 @@ function SelectedSubmissionModal({ selSub, submissions = [], onClose, absentMark
     return () => { isMounted = false; };
   }, [targetDocId, liveCanonicalDoc, selSub]);
 
-  // Build high-performance lookup maps from database for full student enrichment (Hooks called unconditionally)
+  // Load prior versions from Version Bin for accurate historical diff comparison
+  useEffect(() => {
+    let isMounted = true;
+    if (targetDocId && (selSub?.isOverwrite || String(selSub?.id || '').startsWith('pending_') || selSub?.status === 'pending_approval')) {
+      getVersionsForDoc(targetDocId)
+        .then(versions => {
+          if (isMounted && Array.isArray(versions)) {
+            setBinVersions(versions);
+          }
+        })
+        .catch(err => console.warn('[SelectedSubmissionModal] Failed to load bin versions:', err));
+    }
+    return () => { isMounted = false; };
+  }, [targetDocId, selSub]);
+
+  const records = editableRecords;
+  const canonicalSession = normalizePracticalSession(selSub?.sessionText || selSub?.session || selSub?.Session || '2024-25 (Oct-Nov)');
+  const evaluationType = toTitleCase(selSub?.practicalType || 'Internal');
+
+  // Smart baseline resolution: accurately pick the comparison baseline (Live DB vs Prior Archive)
+  const baselineDoc = useMemo(() => {
+    if (comparisonSource === 'live') {
+      return liveCanonicalDoc;
+    }
+    if (comparisonSource && comparisonSource.startsWith('bin_')) {
+      const match = binVersions.find(v => v.id === comparisonSource);
+      if (match) return match;
+    }
+
+    // Auto mode:
+    // 1. Check if liveCanonicalDoc has diffs vs current records
+    if (liveCanonicalDoc && Array.isArray(liveCanonicalDoc.records) && liveCanonicalDoc.records.length > 0) {
+      const hasLiveDiff = records.some((r, i) => {
+        const c = liveCanonicalDoc.records[i];
+        if (!c) return false;
+        const cP = String(c.practicalMarks ?? '').trim().toUpperCase();
+        const rP = String(r.practicalMarks ?? '').trim().toUpperCase();
+        const cT = String(c.totalMarks ?? '').trim().toUpperCase();
+        const rT = String(r.totalMarks ?? '').trim().toUpperCase();
+        return (cP !== rP && (cP !== '' || rP !== '')) || (cT !== rT && (cT !== '' || rT !== ''));
+      });
+      if (hasLiveDiff) {
+        return liveCanonicalDoc;
+      }
+    }
+
+    // 2. If live has 0 diffs and this is an overwrite revision, inspect Version Bin for prior marks
+    if (binVersions.length > 0) {
+      const versionWithDiff = binVersions.find(v => {
+        const vRecs = Array.isArray(v.records) ? v.records : (Array.isArray(v.data?.records) ? v.data.records : []);
+        return records.some((r, i) => {
+          const b = vRecs[i];
+          if (!b) return false;
+          const bP = String(b.practicalMarks ?? '').trim().toUpperCase();
+          const rP = String(r.practicalMarks ?? '').trim().toUpperCase();
+          const bT = String(b.totalMarks ?? '').trim().toUpperCase();
+          const rT = String(r.totalMarks ?? '').trim().toUpperCase();
+          return (bP !== rP && (bP !== '' || rP !== '')) || (bT !== rT && (bT !== '' || rT !== ''));
+        });
+      });
+      if (versionWithDiff) return versionWithDiff;
+      return binVersions[0];
+    }
+
+    return liveCanonicalDoc;
+  }, [comparisonSource, liveCanonicalDoc, binVersions, records]);
+
+  // Clean label describing the active comparison baseline
+  const baselineLabel = useMemo(() => {
+    if (!baselineDoc) return 'No baseline found';
+    if (baselineDoc === liveCanonicalDoc) {
+      return `Live DB (${liveCanonicalDoc.records?.length || 0} recs)`;
+    }
+    const dateStr = baselineDoc.archivedAt || baselineDoc.versionTimestamp || baselineDoc.createdAt;
+    const formattedDate = dateStr ? new Date(dateStr).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Archive';
+    const recCount = baselineDoc.recordsCount || baselineDoc.records?.length || baselineDoc.data?.records?.length || 0;
+    return `Prior Archive (${formattedDate} • ${recCount} recs)`;
+  }, [baselineDoc, liveCanonicalDoc]);
+
+  // Robust field extractors
+  const getCleanReg = useCallback((r) => cleanRegistrationNumber(
+    r.boardRegNo || r.regNo || r['Board Reg. No.'] || r['Board Registration Number'] || r.boardRegistrationNumber || ''
+  ), []);
+  const getCleanExam = useCallback((r) => String(
+    r.examRollNo || r.examRoll || r['Exam Roll No'] || (/^\d{8,}$/.test(String(r.rollNo)) ? r.rollNo : '') || ''
+  ).trim().toUpperCase(), []);
+  const getCleanForm = useCallback((r) => String(
+    r.formNo || r.fNo || r['Form No'] || r.admissionNo || ''
+  ).trim().toLowerCase(), []);
+  const getCleanClassRoll = useCallback((r) => String(
+    r.classRollNo || r.classRoll || (r.rollNo && !/^\d{8,}$/.test(String(r.rollNo)) ? r.rollNo : '') || ''
+  ).trim(), []);
+  const getCleanName = useCallback((r) => toTitleCase(
+    r.name || r.studentName || r["Student's Name"] || ''
+  ).trim().toLowerCase(), []);
+  const getCleanFather = useCallback((r) => toTitleCase(
+    r.parentage || r.parentName || r.fatherName || r["Father's Name"] || ''
+  ).trim().toLowerCase(), []);
+
+  // Multi-key indexed map of baseline records for infallible student resolution
+  const oldRecordsMap = useMemo(() => {
+    const map = new Map();
+    const baseRecs = baselineDoc ? (Array.isArray(baselineDoc.records) ? baselineDoc.records : (Array.isArray(baselineDoc.data?.records) ? baselineDoc.data.records : [])) : [];
+    baseRecs.forEach((r, idx) => {
+      if (!r) return;
+      const reg = getCleanReg(r);
+      const exam = getCleanExam(r);
+      const form = getCleanForm(r);
+      const roll = getCleanClassRoll(r);
+      const name = getCleanName(r);
+      const father = getCleanFather(r);
+
+      if (reg && reg.length >= 8) map.set(`reg_${reg}`, r);
+      if (exam && exam !== '—' && exam !== 'NA' && exam.length >= 5) map.set(`exam_${exam}`, r);
+      if (roll && roll !== '—' && roll !== 'N/A') map.set(`roll_${roll}`, r);
+      if (roll && name) map.set(`roll_${roll}_${name}`, r);
+      if (form && form !== '—' && form !== 'na') map.set(`form_${form}`, r);
+      if (name && father) map.set(`name_${name}_${father}`, r);
+      else if (name) map.set(`name_${name}`, r);
+      map.set(`idx_${idx}`, r);
+    });
+    return map;
+  }, [baselineDoc, getCleanReg, getCleanExam, getCleanForm, getCleanClassRoll, getCleanName, getCleanFather]);
+
+  // Build high-performance lookup maps from all database students
   const studentByReg = useMemo(() => {
     const m = new Map();
     (allStudents || []).forEach(st => {
@@ -3040,7 +3169,16 @@ function SelectedSubmissionModal({ selSub, submissions = [], onClose, absentMark
     const m = new Map();
     (allStudents || []).forEach(st => {
       const exam = String(st['Exam R.No. (Current)'] || st.examRollNo || st['Exam Roll No'] || '').trim().toUpperCase();
-      if (exam && exam !== '—' && exam !== 'NA' && exam.length >= 6) m.set(exam, st);
+      if (exam && exam !== '—' && exam !== 'NA' && exam.length >= 5) m.set(exam, st);
+    });
+    return m;
+  }, [allStudents]);
+
+  const studentByRoll = useMemo(() => {
+    const m = new Map();
+    (allStudents || []).forEach(st => {
+      const roll = getRollNo(st);
+      if (roll && roll !== '—' && roll !== 'N/A') m.set(String(roll).trim(), st);
     });
     return m;
   }, [allStudents]);
@@ -3056,73 +3194,58 @@ function SelectedSubmissionModal({ selSub, submissions = [], onClose, absentMark
     return m;
   }, [allStudents]);
 
-  // Index existing live canonical records for fast comparison
-  const oldRecordsMap = useMemo(() => {
-    const map = new Map();
-    if (!liveCanonicalDoc || !Array.isArray(liveCanonicalDoc.records)) return map;
-
-    liveCanonicalDoc.records.forEach(r => {
-      if (!r) return;
-      const cleanReg = cleanRegistrationNumber(r.boardRegNo || r.regNo || r['Board Reg. No.'] || '');
-      const cleanExam = String(r.examRollNo || (/^\d{8,}$/.test(String(r.rollNo)) ? r.rollNo : '') || '').trim().toUpperCase();
-      const formNo = String(r.formNo || r.fNo || '').trim().toLowerCase();
-      const classRoll = String(r.classRollNo || r.classRoll || (r.rollNo && !/^\d{8,}$/.test(String(r.rollNo)) ? r.rollNo : '') || '').trim();
-      const name = toTitleCase(r.name || r.studentName || '').trim().toLowerCase();
-      const father = toTitleCase(r.parentage || r.parentName || r.fatherName || '').trim().toLowerCase();
-
-      if (cleanReg && cleanReg.length >= 8) map.set(`reg_${cleanReg}`, r);
-      if (formNo && formNo !== '—' && formNo !== 'na') map.set(`form_${formNo}`, r);
-      if (cleanExam && cleanExam !== '—' && cleanExam !== 'NA' && cleanExam.length >= 6) map.set(`exam_${cleanExam}`, r);
-      if (classRoll && name) map.set(`roll_${classRoll}_${name}`, r);
-      if (name && father) map.set(`name_${name}_${father}`, r);
-      else if (name) map.set(`name_${name}`, r);
-    });
-
-    return map;
-  }, [liveCanonicalDoc]);
-
-  const records = editableRecords;
-  const canonicalSession = normalizePracticalSession(selSub?.sessionText || selSub?.session || selSub?.Session || '2024-25 (Oct-Nov)');
-  const evaluationType = toTitleCase(selSub?.practicalType || 'Internal');
-
-  // Enriched records with diff annotations against previous live document
+  // Enriched records with diff annotations against baseline
   const enrichedRecords = useMemo(() => {
     const normalizeMark = (m) => {
       if (m === null || m === undefined || m === '' || m === '—') return '—';
       const s = String(m).trim().toUpperCase();
-      if (s === 'AB' || s === 'A' || s === 'ABS') return 'AB';
+      if (s === 'AB' || s === 'A' || s === 'ABS' || s === 'ABSENT') return 'AB';
+      const num = Number(s);
+      if (!isNaN(num)) return String(num);
       return s;
     };
 
     const normalizeViva = (v) => {
       if (v === null || v === undefined || v === '' || v === '—' || String(v).trim() === '0') return '—';
       const s = String(v).trim().toUpperCase();
-      if (s === 'AB' || s === 'A' || s === 'ABS') return 'AB';
+      if (s === 'AB' || s === 'A' || s === 'ABS' || s === 'ABSENT') return 'AB';
+      const num = Number(s);
+      if (!isNaN(num)) return num === 0 ? '—' : String(num);
       return s;
     };
 
     return records.map((r, i) => {
-      const cleanReg = cleanRegistrationNumber(r.boardRegNo || r.regNo || r['Board Reg. No.'] || '');
-      const cleanExam = String(r.examRollNo || (/^\d{8,}$/.test(String(r.rollNo)) ? r.rollNo : '') || '').trim().toUpperCase();
-      const formNo = String(r.formNo || r.fNo || '').trim().toLowerCase();
-      const classRoll = String(r.classRollNo || r.classRoll || (r.rollNo && !/^\d{8,}$/.test(String(r.rollNo)) ? r.rollNo : '') || '').trim();
-      const rName = toTitleCase(r.name || r.studentName || '').trim().toLowerCase();
-      const rFather = toTitleCase(r.parentage || r.parentName || r.fatherName || '').trim().toLowerCase();
+      const reg = getCleanReg(r);
+      const exam = getCleanExam(r);
+      const roll = getCleanClassRoll(r);
+      const form = getCleanForm(r);
+      const name = getCleanName(r);
+      const father = getCleanFather(r);
 
-      const oldRec = (cleanReg && oldRecordsMap.get(`reg_${cleanReg}`)) ||
-                     (formNo && oldRecordsMap.get(`form_${formNo}`)) ||
-                     (cleanExam && oldRecordsMap.get(`exam_${cleanExam}`)) ||
-                     (classRoll && rName && oldRecordsMap.get(`roll_${classRoll}_${rName}`)) ||
-                     (rName && rFather && oldRecordsMap.get(`name_${rName}_${rFather}`)) ||
-                     (rName && oldRecordsMap.get(`name_${rName}`)) ||
-                     null;
+      let oldRec = (reg && oldRecordsMap.get(`reg_${reg}`)) ||
+                   (exam && oldRecordsMap.get(`exam_${exam}`)) ||
+                   (roll && name && oldRecordsMap.get(`roll_${roll}_${name}`)) ||
+                   (roll && oldRecordsMap.get(`roll_${roll}`)) ||
+                   (form && oldRecordsMap.get(`form_${form}`)) ||
+                   (name && father && oldRecordsMap.get(`name_${name}_${father}`)) ||
+                   (name && oldRecordsMap.get(`name_${name}`)) ||
+                   null;
+
+      if (!oldRec && oldRecordsMap.has(`idx_${i}`)) {
+        const cand = oldRecordsMap.get(`idx_${i}`);
+        const cRoll = getCleanClassRoll(cand);
+        const cName = getCleanName(cand);
+        if ((roll && cRoll && roll === cRoll) || (name && cName && (name.includes(cName) || cName.includes(name)))) {
+          oldRec = cand;
+        }
+      }
 
       if (!oldRec) {
         return {
           ...r,
           originalIndex: i,
           hasDiff: false,
-          isNewStudent: Boolean(liveCanonicalDoc && liveCanonicalDoc.records?.length > 0),
+          isNewStudent: Boolean(baselineDoc && (baselineDoc.records?.length > 0 || baselineDoc.data?.records?.length > 0)),
           diff: null
         };
       }
@@ -3137,7 +3260,6 @@ function SelectedSubmissionModal({ selSub, submissions = [], onClose, absentMark
       const pracChanged = oldPrac !== newPrac;
       const vivaChanged = oldViva !== newViva;
       const totalChanged = oldTot !== newTot;
-      // Real diff exists if practical or total changed, or if viva truly changed between meaningful values
       const hasDiff = pracChanged || totalChanged || (vivaChanged && (oldViva !== '—' || newViva !== '—'));
 
       return {
@@ -3158,27 +3280,35 @@ function SelectedSubmissionModal({ selSub, submissions = [], onClose, absentMark
         } : null
       };
     });
-  }, [records, oldRecordsMap, liveCanonicalDoc]);
+  }, [records, oldRecordsMap, baselineDoc, getCleanReg, getCleanExam, getCleanClassRoll, getCleanForm, getCleanName, getCleanFather]);
 
   const diffSummary = useMemo(() => {
     let changed = 0;
     let newStudents = 0;
+    let absents = 0;
     enrichedRecords.forEach(r => {
       if (r.hasDiff) changed++;
       if (r.isNewStudent) newStudents++;
+      const v = String(r.totalMarks ?? r.practicalMarks ?? '').toUpperCase();
+      if (v === 'AB' || v === 'A' || v === 'ABS' || v === (absentMarker || 'AB')) absents++;
     });
     return {
       changed,
       newStudents,
-      hasLiveDoc: Boolean(liveCanonicalDoc && liveCanonicalDoc.records?.length > 0)
+      absents,
+      hasBaseline: Boolean(baselineDoc && (baselineDoc.records?.length > 0 || baselineDoc.data?.records?.length > 0))
     };
-  }, [enrichedRecords, liveCanonicalDoc]);
+  }, [enrichedRecords, baselineDoc, absentMarker]);
 
   if (!selSub) return null;
 
   const filteredRecords = enrichedRecords.filter(r => {
     if (diffFilter === 'changed_only' && !r.hasDiff && !r.isNewStudent) {
       return false;
+    }
+    if (diffFilter === 'absent_only') {
+      const v = String(r.totalMarks ?? r.practicalMarks ?? '').toUpperCase();
+      if (v !== 'AB' && v !== 'A' && v !== 'ABS' && v !== (absentMarker || 'AB')) return false;
     }
     if (!modalSearch.trim()) return true;
     const q = modalSearch.toLowerCase().trim();
@@ -3190,50 +3320,76 @@ function SelectedSubmissionModal({ selSub, submissions = [], onClose, absentMark
   });
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="w-full max-w-5xl bg-white dark:bg-slate-900 rounded-3xl p-4 sm:p-6 shadow-2xl border border-slate-200 dark:border-slate-800 flex flex-col max-h-[92vh] space-y-3">
-        {/* Header with Title & Detailed Metadata Badges */}
-        <div className="flex items-start justify-between border-b border-slate-100 dark:border-slate-800 pb-3 gap-3">
-          <div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <h3 className="text-base sm:text-lg font-black text-slate-900 dark:text-white">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-3 bg-slate-950/75 backdrop-blur-xs animate-in fade-in duration-150">
+      <div className="w-full max-w-6xl bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 flex flex-col max-h-[96vh] overflow-hidden">
+        
+        {/* Compact Header */}
+        <div className="px-3.5 py-2.5 bg-slate-50/90 dark:bg-slate-900/90 border-b border-slate-200/90 dark:border-slate-800 flex items-center justify-between gap-2.5 flex-wrap">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <h3 className="text-sm sm:text-base font-black text-slate-900 dark:text-white tracking-tight truncate">
                 Class {formatClassDisplay(selSub.className || selSub.Class, selSub)} — {selSub.subjectName || selSub.Subject || NAMES[selSub.subjectCode] || selSub.subjectCode}
               </h3>
-              <span className="px-2.5 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 font-black text-[11px] border border-indigo-200 dark:border-indigo-800">
-                Session: {canonicalSession}
+              <span className="px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 font-bold text-[10px] border border-indigo-200/90 dark:border-indigo-800/80">
+                {canonicalSession}
               </span>
-              <span className="px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 font-bold text-[10.5px] border border-emerald-200 dark:border-emerald-800">
-                {evaluationType} Practical
+              <span className="px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 font-semibold text-[10px] border border-emerald-200/90 dark:border-emerald-800/80">
+                {evaluationType}
               </span>
               {selSub.isCrossSubject && (
-                <span className="px-2 py-0.5 rounded-full bg-purple-50 dark:bg-purple-950/50 text-purple-700 dark:text-purple-300 font-extrabold text-[10.5px] border border-purple-200 dark:border-purple-800">
-                  Cross-Subject (Assigned: {selSub.teacherRegisteredSubject || 'Other'})
+                <span className="px-1.5 py-0.5 rounded-full bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 font-extrabold text-[9.5px] border border-purple-200/90 dark:border-purple-800/80">
+                  Cross-Subject
                 </span>
               )}
               {selSub.isOverwrite && (
-                <span className="px-2 py-0.5 rounded-full bg-rose-50 dark:bg-rose-950/50 text-rose-700 dark:text-rose-300 font-extrabold text-[10.5px] border border-rose-200 dark:border-rose-800">
-                  Overwrite Revision
+                <span className="px-2 py-0.5 rounded-full bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 font-black text-[10px] border border-rose-200/90 dark:border-rose-800/80 flex items-center gap-1">
+                  <History size={10} /> Overwrite Revision
                 </span>
               )}
-              {diffSummary.hasLiveDoc && diffSummary.changed > 0 && (
-                <span className="px-2.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-200 font-black text-[10.5px] border border-amber-300 dark:border-amber-700 flex items-center gap-1 shadow-2xs">
+              {diffSummary.changed > 0 ? (
+                <span className="px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-200 font-black text-[10px] border border-amber-300 dark:border-amber-700 flex items-center gap-1 shadow-2xs">
                   <Sparkles size={11} className="text-amber-600 dark:text-amber-400" />
-                  {diffSummary.changed} {diffSummary.changed === 1 ? 'Mark Change' : 'Marks Changes'}
+                  {diffSummary.changed} {diffSummary.changed === 1 ? 'Mark Updated' : 'Marks Updated'}
                 </span>
+              ) : (
+                selSub.isOverwrite && (
+                  <span className="px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 font-medium text-[9.5px] border border-slate-200 dark:border-slate-700">
+                    No Marks Changed vs Baseline
+                  </span>
+                )
               )}
             </div>
-            <div className="text-xs font-semibold text-slate-500 mt-1 flex items-center gap-2 flex-wrap">
-              <span>Submitted by: <strong className="text-slate-800 dark:text-slate-200">{selSub.teacherName || selSub['Teacher Name'] || selSub.teacherEmail || 'Faculty'}</strong> {selSub.teacherEmail && <span className="font-mono text-slate-400">({selSub.teacherEmail})</span>}</span>
+
+            <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400 mt-0.5 flex items-center gap-1.5 flex-wrap">
+              <span>Submitted by: <strong className="text-slate-800 dark:text-slate-200 font-semibold">{selSub.teacherName || selSub['Teacher Name'] || selSub.teacherEmail || 'Faculty'}</strong></span>
               <span>•</span>
-              <span className="font-bold text-indigo-600">{records.length} Student Records</span>
-              {diffSummary.hasLiveDoc && (
-                <>
-                  <span>•</span>
-                  <span className="text-slate-400 font-semibold text-[11px]">
-                    Live DB: <strong className="text-slate-600 dark:text-slate-300">{liveCanonicalDoc.records?.length || 0} Records</strong>
-                  </span>
-                </>
-              )}
+              <span className="font-bold text-indigo-600 dark:text-indigo-400">{records.length} Student Records</span>
+              <span>•</span>
+              {/* Baseline Source Switcher */}
+              <div className="inline-flex items-center gap-1">
+                <span className="text-slate-400 text-[10px]">Baseline:</span>
+                <select
+                  value={comparisonSource}
+                  onChange={(e) => setComparisonSource(e.target.value)}
+                  className="px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-[10.5px] font-bold text-slate-700 dark:text-slate-300 outline-none cursor-pointer focus:ring-1 focus:ring-indigo-500 shadow-2xs"
+                  title="Select baseline document for diff comparison"
+                >
+                  <option value="auto">Auto ({baselineLabel})</option>
+                  {liveCanonicalDoc && (
+                    <option value="live">Live Database ({liveCanonicalDoc.records?.length || 0} recs)</option>
+                  )}
+                  {binVersions.map((bv, idx) => {
+                    const dStr = bv.archivedAt || bv.versionTimestamp || bv.createdAt;
+                    const fDate = dStr ? new Date(dStr).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Archive';
+                    const recLen = bv.recordsCount || bv.records?.length || bv.data?.records?.length || 0;
+                    return (
+                      <option key={bv.id} value={bv.id}>
+                        Archive #{idx + 1}: {fDate} ({recLen} recs)
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
               {selSub.timestamp && (
                 <>
                   <span>•</span>
@@ -3242,20 +3398,22 @@ function SelectedSubmissionModal({ selSub, submissions = [], onClose, absentMark
               )}
             </div>
           </div>
-          <div className="flex items-center gap-2">
+
+          {/* Action Buttons Top Right */}
+          <div className="flex items-center gap-1.5 shrink-0">
             <button
               type="button"
               onClick={() => setIsEditMode(prev => !prev)}
-              className={`px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer border ${
+              className={`px-2.5 py-1 rounded-lg font-bold text-xs flex items-center gap-1 transition-all cursor-pointer border ${
                 isEditMode
-                  ? 'bg-amber-500 hover:bg-amber-600 text-white border-amber-600 shadow-sm'
-                  : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border-slate-300 dark:border-slate-700'
+                  ? 'bg-amber-500 hover:bg-amber-600 text-white border-amber-600 shadow-2xs'
+                  : 'bg-white hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 shadow-2xs'
               }`}
             >
-              <Edit3 size={13} />
-              <span>{isEditMode ? 'Done Editing' : 'Admin Edit Marks'}</span>
+              <Edit3 size={12} />
+              <span>{isEditMode ? 'Done' : 'Admin Edit'}</span>
               {editedIndices.size > 0 && (
-                <span className="px-1.5 py-0.2 rounded-full bg-amber-600 text-white font-mono text-[9.5px] font-black">
+                <span className="px-1.5 py-0.2 rounded-full bg-amber-600 text-white font-mono text-[9px] font-black">
                   {editedIndices.size}
                 </span>
               )}
@@ -3302,25 +3460,25 @@ function SelectedSubmissionModal({ selSub, submissions = [], onClose, absentMark
                   minMarks: selSub.minMarks || 18
                 });
               }}
-              className="px-2.5 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 dark:bg-indigo-950/60 dark:hover:bg-indigo-900/80 dark:text-indigo-300 font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer border border-indigo-200 dark:border-indigo-800"
+              className="px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 dark:bg-indigo-950/60 dark:hover:bg-indigo-900/80 dark:text-indigo-300 font-bold text-xs flex items-center gap-1 transition-colors cursor-pointer border border-indigo-200 dark:border-indigo-800"
             >
-              <Printer size={13} />
+              <Printer size={12} />
               <span>Print Award Roll</span>
             </button>
-            <button onClick={onClose} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors cursor-pointer text-slate-400 hover:text-slate-600">
-              <X size={20} />
+            <button onClick={onClose} className="p-1.5 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-lg transition-colors cursor-pointer text-slate-400 hover:text-slate-600">
+              <X size={18} />
             </button>
           </div>
         </div>
 
-        {/* Admin Edit Banner */}
+        {/* Admin Inline Edit Notification Banner */}
         {isEditMode && (
-          <div className="bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/80 rounded-xl px-3 py-2 flex items-center justify-between text-xs text-amber-800 dark:text-amber-200 gap-2 flex-wrap">
-            <div className="flex items-center gap-2">
-              <Sparkles size={14} className="text-amber-600 dark:text-amber-400 shrink-0" />
+          <div className="bg-amber-50 dark:bg-amber-950/40 border-b border-amber-200 dark:border-amber-800/80 px-3 py-1.5 flex items-center justify-between text-xs text-amber-800 dark:text-amber-200 gap-2 flex-wrap">
+            <div className="flex items-center gap-1.5">
+              <Sparkles size={13} className="text-amber-600 dark:text-amber-400 shrink-0" />
               <span>
-                <strong>Admin Inline Editing Active:</strong> You can modify marks directly in the table below.
-                {editedIndices.size > 0 && ` (${editedIndices.size} student marks updated)`}
+                <strong>Admin Editing Mode:</strong> You can edit student marks directly in the table.
+                {editedIndices.size > 0 && ` (${editedIndices.size} modified)`}
               </span>
             </div>
             {onSaveDirect && editedIndices.size > 0 && (
@@ -3336,63 +3494,76 @@ function SelectedSubmissionModal({ selSub, submissions = [], onClose, absentMark
                     setIsSavingDirect(false);
                   }
                 }}
-                className="px-2.5 py-1 rounded-lg text-xs font-black bg-amber-600 hover:bg-amber-700 text-white shadow-2xs cursor-pointer flex items-center gap-1 shrink-0"
+                className="px-2.5 py-0.5 rounded text-xs font-black bg-amber-600 hover:bg-amber-700 text-white shadow-2xs cursor-pointer flex items-center gap-1 shrink-0"
               >
-                <Save size={12} />
+                <Save size={11} />
                 <span>{isSavingDirect ? 'Saving...' : 'Save Edits to DB'}</span>
               </button>
             )}
           </div>
         )}
 
-        {/* Search Filter Strip & Quick Diff Toggle */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
+        {/* Minimal-Compact Filter & Search Strip */}
+        <div className="px-3.5 py-1.5 bg-slate-50/60 dark:bg-slate-900/60 border-b border-slate-200/80 dark:border-slate-800 flex items-center justify-between gap-2 flex-wrap">
           <div className="flex items-center gap-2 flex-wrap">
-            <div className="relative w-full sm:w-72">
+            <div className="relative w-48 sm:w-64">
               <input
                 type="text"
                 placeholder="Search roll, reg, student or father..."
                 value={modalSearch}
                 onChange={e => setModalSearch(e.target.value)}
-                className="w-full pl-8 pr-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500 shadow-2xs"
+                className="w-full pl-7 pr-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-xs font-semibold outline-none focus:ring-1 focus:ring-indigo-500 shadow-2xs"
               />
-              <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+              <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400" />
             </div>
 
-            {/* Quick Diff Filter Pill Toggle */}
-            {diffSummary.hasLiveDoc && diffSummary.changed > 0 && (
-              <div className="inline-flex p-0.5 bg-slate-100 dark:bg-slate-800 rounded-xl text-[11px] font-bold border border-slate-200 dark:border-slate-700">
-                <button
-                  type="button"
-                  onClick={() => setDiffFilter('all')}
-                  className={`px-2.5 py-1 rounded-lg cursor-pointer transition-all ${
-                    diffFilter === 'all'
-                      ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-2xs font-black'
-                      : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
-                  }`}
-                >
-                  All ({records.length})
-                </button>
+            {/* Quick Filter Pill Toggle */}
+            <div className="inline-flex p-0.5 bg-slate-100 dark:bg-slate-800 rounded-lg text-[11px] font-bold border border-slate-200 dark:border-slate-700">
+              <button
+                type="button"
+                onClick={() => setDiffFilter('all')}
+                className={`px-2 py-0.5 rounded-md cursor-pointer transition-all ${
+                  diffFilter === 'all'
+                    ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-2xs font-black'
+                    : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                }`}
+              >
+                All ({records.length})
+              </button>
+              {diffSummary.changed > 0 && (
                 <button
                   type="button"
                   onClick={() => setDiffFilter('changed_only')}
-                  className={`px-2.5 py-1 rounded-lg cursor-pointer transition-all flex items-center gap-1.5 ${
+                  className={`px-2 py-0.5 rounded-md cursor-pointer transition-all flex items-center gap-1 ${
                     diffFilter === 'changed_only'
                       ? 'bg-amber-500 text-white shadow-2xs font-black'
-                      : 'text-amber-700 dark:text-amber-300 hover:bg-amber-100/50 dark:hover:bg-amber-950/40'
+                      : 'text-amber-700 dark:text-amber-300 hover:bg-amber-100/60 dark:hover:bg-amber-950/50'
                   }`}
                 >
-                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400 dark:bg-amber-300 animate-ping inline-block" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400 dark:bg-amber-200 animate-ping inline-block" />
                   <span>Only Changed ({diffSummary.changed})</span>
                 </button>
-              </div>
-            )}
+              )}
+              {diffSummary.absents > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setDiffFilter('absent_only')}
+                  className={`px-2 py-0.5 rounded-md cursor-pointer transition-all ${
+                    diffFilter === 'absent_only'
+                      ? 'bg-rose-500 text-white shadow-2xs font-black'
+                      : 'text-rose-600 dark:text-rose-400 hover:bg-rose-100/60 dark:hover:bg-rose-950/50'
+                  }`}
+                >
+                  Absent ({diffSummary.absents})
+                </button>
+              )}
+            </div>
           </div>
 
-          <div className="flex items-center justify-between sm:justify-end gap-2.5 text-[11px] font-bold text-slate-400">
-            {diffSummary.hasLiveDoc && diffSummary.changed > 0 && (
-              <span className="text-amber-600 dark:text-amber-400 font-black">
-                {diffSummary.changed} student{diffSummary.changed === 1 ? '' : 's'} modified
+          <div className="flex items-center gap-2 text-[11px] font-semibold text-slate-400">
+            {diffSummary.changed > 0 && (
+              <span className="text-amber-600 dark:text-amber-400 font-bold flex items-center gap-1">
+                <Sparkles size={11} /> {diffSummary.changed} student{diffSummary.changed === 1 ? '' : 's'} modified
               </span>
             )}
             <span>
@@ -3401,72 +3572,74 @@ function SelectedSubmissionModal({ selSub, submissions = [], onClose, absentMark
           </div>
         </div>
 
-        {/* Data Table with Full Database Cross-Referencing & Inline Marks Diff */}
-        <div className="flex-1 overflow-auto rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950">
+        {/* Dense Minimal-Compact Responsive Table */}
+        <div className="flex-1 overflow-auto bg-white dark:bg-slate-950 min-h-0">
           <table className="w-full text-left text-xs border-collapse">
-            <thead className="bg-slate-100 dark:bg-slate-900 text-[10px] uppercase font-black tracking-wider text-slate-500 sticky top-0 shadow-xs">
+            <thead className="bg-slate-100/90 dark:bg-slate-900/90 backdrop-blur-xs text-[10px] uppercase font-bold tracking-wider text-slate-500 sticky top-0 shadow-xs z-10">
               <tr>
-                <th className="py-2.5 px-3 text-center w-10">S.No</th>
-                <th className="py-2.5 px-3">Class Roll</th>
-                <th className="py-2.5 px-3">Exam Roll</th>
-                <th className="py-2.5 px-3">Board Reg. No.</th>
-                <th className="py-2.5 px-3">Student Name</th>
-                <th className="py-2.5 px-3">Father / Parentage</th>
-                <th className="py-2.5 px-3">Stream</th>
-                <th className="py-2.5 px-3 text-center">Marks (Prac / Viva)</th>
-                <th className="py-2.5 px-3 text-right">Total Marks</th>
+                <th className="py-2 px-2 text-center w-8">#</th>
+                <th className="py-2 px-2 text-center w-12">Roll</th>
+                <th className="py-2 px-2 text-center w-16">Exam Roll</th>
+                <th className="py-2 px-2.5 w-36 whitespace-nowrap">Board Reg. No.</th>
+                <th className="py-2 px-2.5 min-w-[150px]">Student Name</th>
+                <th className="py-2 px-2.5 min-w-[140px]">Father / Parentage</th>
+                <th className="py-2 px-2 text-center w-16">Stream</th>
+                <th className="py-2 px-2 text-center w-28 whitespace-nowrap">Marks (Prac / Viva)</th>
+                <th className="py-2 px-3 text-right w-20">Total</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-200 dark:divide-slate-800 font-semibold bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300">
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80 font-medium bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300">
               {filteredRecords.map((r, i) => {
                 const v = String(r.totalMarks ?? r.practicalMarks ?? '').toUpperCase();
                 const isAbs = v === (absentMarker || 'AB') || v === 'A' || v === 'ABS';
                 
-                const cleanReg = cleanRegistrationNumber(r.boardRegNo || r.regNo || r['Board Reg. No.'] || '');
-                const cleanExam = String(r.examRollNo || (/^\d{8,}$/.test(String(r.rollNo)) ? r.rollNo : '') || '').trim().toUpperCase();
-                const rName = toTitleCase(r.name || r.studentName || '').trim().toLowerCase();
-                const rFather = toTitleCase(r.parentage || r.parentName || r.fatherName || '').trim().toLowerCase();
+                const cleanReg = getCleanReg(r);
+                const cleanExam = getCleanExam(r);
+                const rName = getCleanName(r);
+                const rFather = getCleanFather(r);
+                const rRoll = getCleanClassRoll(r);
 
                 // Cross-reference with database students
                 const dbSt = (cleanReg && studentByReg.get(cleanReg)) ||
                              (cleanExam && studentByExam.get(cleanExam)) ||
+                             (rRoll && studentByRoll.get(rRoll)) ||
                              (rName && rFather && studentByName.get(`${rName}_${rFather}`)) ||
                              (rName && studentByName.get(rName));
 
                 const studentName = toTitleCase(r.name || r.studentName || (dbSt && (dbSt["Student's Name (as per school records)"] || dbSt["Student's Name"] || dbSt.studentName)) || '—');
                 const parent = toTitleCase(r.parentage || r.parentName || r.fatherName || (dbSt && (dbSt["Father's/Guardian's Name (as per school records)"] || dbSt["Father's Name"] || dbSt.fatherName)) || '—');
-                const classRoll = r.classRollNo || r.classRoll || (r.rollNo && !/^\d{8,}$/.test(String(r.rollNo)) ? r.rollNo : '') || (dbSt ? getRollNo(dbSt) : '') || '—';
+                const classRoll = rRoll || (dbSt ? getRollNo(dbSt) : '') || '—';
                 const examRoll = cleanExam || (dbSt ? (dbSt['Exam R.No. (Current)'] || dbSt.examRollNo) : '') || '—';
                 const boardReg = cleanReg || (dbSt ? (dbSt['Board Registration Number'] || dbSt.regNo) : '') || '—';
                 const streamVal = r.stream || (dbSt ? (getStudentStreamStr(dbSt, selSub.className || selSub.Class) || dbSt.Stream || dbSt.stream) : '') || '';
 
                 const rowBgClass = r.hasDiff
-                  ? 'bg-amber-50/70 dark:bg-amber-950/30 border-l-4 border-l-amber-500'
-                  : (isAbs ? 'bg-rose-50/50 dark:bg-rose-950/20' : '');
+                  ? 'bg-amber-50/50 dark:bg-amber-950/25 border-l-3 border-l-amber-500'
+                  : (isAbs ? 'bg-rose-50/30 dark:bg-rose-950/15' : '');
 
                 return (
-                  <tr key={i} className={`hover:bg-slate-100/70 dark:hover:bg-slate-800 transition-colors ${rowBgClass}`}>
-                    <td className="py-2 px-3 text-center font-mono text-[10px] text-slate-400">{r.sNo || i + 1}</td>
-                    <td className="py-2 px-3 font-mono font-bold text-indigo-600 dark:text-indigo-400">{classRoll}</td>
-                    <td className="py-2 px-3 font-mono font-bold text-slate-800 dark:text-slate-200">{examRoll}</td>
-                    <td className="py-2 px-3 font-mono text-[11px] text-slate-500">{boardReg}</td>
-                    <td className="py-2 px-3 font-bold text-slate-900 dark:text-slate-100">
-                      <div className="flex items-center gap-1.5">
-                        <span>{studentName}</span>
+                  <tr key={i} className={`hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors ${rowBgClass}`}>
+                    <td className="py-1.5 px-2 text-center font-mono text-[10px] text-slate-400">{r.sNo || i + 1}</td>
+                    <td className="py-1.5 px-2 text-center font-mono font-bold text-indigo-600 dark:text-indigo-400 text-xs">{classRoll}</td>
+                    <td className="py-1.5 px-2 text-center font-mono text-slate-600 dark:text-slate-400 text-xs">{examRoll}</td>
+                    <td className="py-1.5 px-2.5 font-mono text-[11px] text-slate-600 dark:text-slate-400 whitespace-nowrap tracking-tight">{boardReg}</td>
+                    <td className="py-1.5 px-2.5 font-bold text-slate-900 dark:text-slate-100 text-xs">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="truncate max-w-[180px]">{studentName}</span>
                         {r.hasDiff && (
-                          <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-amber-100 dark:bg-amber-900/60 text-amber-800 dark:text-amber-200 border border-amber-300 dark:border-amber-700">
+                          <span className="px-1.5 py-0.2 rounded text-[9px] font-black bg-amber-100 dark:bg-amber-900/70 text-amber-800 dark:text-amber-200 border border-amber-300/80 dark:border-amber-700/80 shadow-2xs uppercase tracking-tight">
                             Updated
                           </span>
                         )}
                         {r.isNewStudent && (
-                          <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-200 border border-emerald-300 dark:border-emerald-700">
+                          <span className="px-1.5 py-0.2 rounded text-[9px] font-black bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-200 border border-emerald-300 dark:border-emerald-700">
                             New
                           </span>
                         )}
                       </div>
                     </td>
-                    <td className="py-2 px-3 text-slate-500">{parent}</td>
-                    <td className="py-2 px-3">
+                    <td className="py-1.5 px-2.5 text-slate-500 dark:text-slate-400 text-[11px] truncate max-w-[160px]">{parent}</td>
+                    <td className="py-1.5 px-2 text-center">
                       {streamVal ? (
                         <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
                           {toTitleCase(streamVal)}
@@ -3477,7 +3650,7 @@ function SelectedSubmissionModal({ selSub, submissions = [], onClose, absentMark
                     </td>
 
                     {/* Marks (Prac / Viva) with Inline Old vs New Diff or Inline Admin Editing */}
-                    <td className="py-2 px-3 text-center font-mono">
+                    <td className="py-1.5 px-2 text-center font-mono text-xs">
                       {isEditMode ? (
                         <div className="inline-flex items-center justify-center gap-1">
                           <input
@@ -3485,7 +3658,7 @@ function SelectedSubmissionModal({ selSub, submissions = [], onClose, absentMark
                             value={r.practicalMarks ?? ''}
                             placeholder={`0-${subjectMaxMarks}`}
                             onChange={(e) => handleInlineMarkChange(r.originalIndex, 'practicalMarks', e.target.value)}
-                            className={`w-16 px-1.5 py-0.5 rounded border text-center font-mono font-bold text-xs outline-none focus:ring-1 focus:ring-amber-500 uppercase ${
+                            className={`w-14 px-1 py-0.5 rounded border text-center font-mono font-bold text-xs outline-none focus:ring-1 focus:ring-amber-500 uppercase ${
                               editedIndices.has(r.originalIndex)
                                 ? 'bg-amber-50 dark:bg-amber-950/70 border-amber-400 text-amber-900 dark:text-amber-200'
                                 : 'bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100'
@@ -3494,7 +3667,7 @@ function SelectedSubmissionModal({ selSub, submissions = [], onClose, absentMark
                           <button
                             type="button"
                             onClick={() => handleInlineMarkChange(r.originalIndex, 'practicalMarks', (r.practicalMarks === 'AB' || r.practicalMarks === 'A') ? '' : 'AB')}
-                            className={`px-1.5 py-0.5 rounded font-mono text-[10px] font-black border transition-all cursor-pointer ${
+                            className={`px-1 py-0.5 rounded font-mono text-[9.5px] font-black border transition-all cursor-pointer ${
                               (r.practicalMarks === 'AB' || r.practicalMarks === 'A')
                                 ? 'bg-rose-500 text-white border-rose-600'
                                 : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:text-amber-600'
@@ -3505,18 +3678,13 @@ function SelectedSubmissionModal({ selSub, submissions = [], onClose, absentMark
                           </button>
                         </div>
                       ) : r.hasDiff && (r.diff.pracChanged || r.diff.vivaChanged) ? (
-                        <div className="inline-flex flex-col items-center leading-tight">
-                          <div className="flex items-center justify-center gap-1">
-                            <span className="line-through text-slate-400 text-[10.5px]">
-                              {r.diff.oldPrac}{r.diff.oldViva !== '—' ? ` / ${r.diff.oldViva}` : ''}
-                            </span>
-                            <span className="text-amber-500 text-[10px]">➔</span>
-                            <span className="font-black text-amber-700 dark:text-amber-300 text-xs">
-                              {r.practicalMarks ?? '—'}{r.vivaMarks ? ` / ${r.vivaMarks}` : ''}
-                            </span>
-                          </div>
-                          <span className="text-[8.5px] font-bold text-amber-600 dark:text-amber-400 uppercase tracking-tight">
-                            Revised
+                        <div className="inline-flex items-center justify-center gap-1.5 leading-tight">
+                          <span className="line-through text-slate-400 text-[10px]">
+                            {r.diff.oldPrac}{r.diff.oldViva !== '—' ? ` / ${r.diff.oldViva}` : ''}
+                          </span>
+                          <span className="text-amber-500 font-bold text-[10px]">➔</span>
+                          <span className="font-black text-amber-700 dark:text-amber-300 text-xs">
+                            {r.practicalMarks ?? '—'}{r.vivaMarks ? ` / ${r.vivaMarks}` : ''}
                           </span>
                         </div>
                       ) : (
@@ -3525,22 +3693,20 @@ function SelectedSubmissionModal({ selSub, submissions = [], onClose, absentMark
                     </td>
 
                     {/* Total Marks with Inline Old vs New Diff or Live Recalculated Score */}
-                    <td className={'py-2 px-3 text-right font-black font-mono ' + (isAbs ? 'text-rose-600' : 'text-emerald-600')}>
+                    <td className={'py-1.5 px-3 text-right font-black font-mono text-xs ' + (isAbs ? 'text-rose-600' : 'text-emerald-600')}>
                       {isEditMode ? (
-                        <span className={'text-xs font-black ' + (isAbs ? 'text-rose-600' : 'text-emerald-600')}>
+                        <span>
                           {r.totalMarks ?? r.practicalMarks ?? '—'}
                         </span>
                       ) : r.hasDiff && r.diff.totalChanged ? (
-                        <div className="inline-flex flex-col items-end leading-tight">
-                          <div className="flex items-center justify-end gap-1">
-                            <span className="line-through text-slate-400 font-semibold text-[10.5px]">
-                              {r.diff.oldTot}
-                            </span>
-                            <span className="text-amber-500 text-[10px]">➔</span>
-                            <span className={'text-xs font-black ' + (isAbs ? 'text-rose-600' : 'text-emerald-600')}>
-                              {r.totalMarks ?? r.practicalMarks ?? '—'}
-                            </span>
-                          </div>
+                        <div className="inline-flex items-center justify-end gap-1.5 leading-tight">
+                          <span className="line-through text-slate-400 font-semibold text-[10px]">
+                            {r.diff.oldTot}
+                          </span>
+                          <span className="text-amber-500 font-bold text-[10px]">➔</span>
+                          <span className={'font-black ' + (isAbs ? 'text-rose-600' : 'text-emerald-600')}>
+                            {r.totalMarks ?? r.practicalMarks ?? '—'}
+                          </span>
                         </div>
                       ) : (
                         <span>{r.totalMarks ?? r.practicalMarks ?? '—'}</span>
@@ -3551,10 +3717,10 @@ function SelectedSubmissionModal({ selSub, submissions = [], onClose, absentMark
               })}
               {filteredRecords.length === 0 && (
                 <tr>
-                  <td colSpan={9} className="p-8 text-center text-slate-400 font-bold">
+                  <td colSpan={9} className="p-8 text-center text-slate-400 font-bold text-xs">
                     {diffFilter === 'changed_only'
-                      ? 'No marks changes detected in this submission.'
-                      : 'No individual records found matching search.'}
+                      ? 'No marks changes detected vs the active comparison baseline.'
+                      : (diffFilter === 'absent_only' ? 'No absent students in this submission.' : 'No records found matching search.')}
                   </td>
                 </tr>
               )}
@@ -3562,13 +3728,19 @@ function SelectedSubmissionModal({ selSub, submissions = [], onClose, absentMark
           </table>
         </div>
 
+        {/* Compact Footer */}
         {(String(selSub?.id || '').startsWith('pending_') || selSub.status === 'pending_approval' || selSub.isPendingApproval) ? (
-          <div className="flex flex-col sm:flex-row items-center justify-between border-t border-slate-100 dark:border-slate-800 pt-3 gap-2">
-            <div className="text-xs font-bold text-amber-700 dark:text-amber-300 flex items-center gap-1.5">
-              <ShieldAlert size={16} />
+          <div className="px-3.5 py-2.5 bg-slate-50/90 dark:bg-slate-900/90 border-t border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-2">
+            <div className="text-xs font-semibold text-amber-700 dark:text-amber-300 flex items-center gap-1.5">
+              <ShieldAlert size={15} className="shrink-0" />
               <span>Pending Administrator Verification & Approval</span>
+              {diffSummary.changed > 0 && (
+                <span className="hidden sm:inline text-slate-400 text-[11px] font-normal">
+                  ({diffSummary.changed} student marks modified in this revision)
+                </span>
+              )}
             </div>
-            <div className="flex items-center gap-2 w-full sm:w-auto justify-end flex-wrap">
+            <div className="flex items-center gap-1.5 w-full sm:w-auto justify-end flex-wrap">
               {onSaveDirect && editedIndices.size > 0 && (
                 <button
                   type="button"
@@ -3582,9 +3754,9 @@ function SelectedSubmissionModal({ selSub, submissions = [], onClose, absentMark
                       setIsSavingDirect(false);
                     }
                   }}
-                  className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-amber-600 hover:bg-amber-700 text-white shadow-sm cursor-pointer flex items-center gap-1.5"
+                  className="px-3 py-1.5 rounded-lg text-xs font-bold bg-amber-600 hover:bg-amber-700 text-white shadow-2xs cursor-pointer flex items-center gap-1"
                 >
-                  <Save size={13} />
+                  <Save size={12} />
                   <span>{isSavingDirect ? 'Saving...' : `Save ${editedIndices.size} Edits`}</span>
                 </button>
               )}
@@ -3594,7 +3766,7 @@ function SelectedSubmissionModal({ selSub, submissions = [], onClose, absentMark
                   onClose();
                   if (onReject) onReject(selSub);
                 }}
-                className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-rose-50 dark:bg-rose-950/50 text-rose-600 dark:text-rose-400 hover:bg-rose-100 border border-rose-200 dark:border-rose-900 cursor-pointer"
+                className="px-3 py-1.5 rounded-lg text-xs font-bold bg-rose-50 dark:bg-rose-950/50 text-rose-600 dark:text-rose-400 hover:bg-rose-100 border border-rose-200 dark:border-rose-900 cursor-pointer"
               >
                 Request Revision / Reject
               </button>
@@ -3610,16 +3782,16 @@ function SelectedSubmissionModal({ selSub, submissions = [], onClose, absentMark
                     });
                   }
                 }}
-                className="px-4 py-1.5 rounded-xl text-xs font-black bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm cursor-pointer flex items-center gap-1.5"
+                className="px-3.5 py-1.5 rounded-lg text-xs font-black bg-emerald-600 hover:bg-emerald-500 text-white shadow-2xs cursor-pointer flex items-center gap-1"
               >
-                <CheckCircle2 size={14} />
+                <CheckCircle2 size={13} />
                 <span>{editedIndices.size > 0 ? `Approve with ${editedIndices.size} Edits & Integrate` : 'Approve & Integrate into DB'}</span>
               </button>
             </div>
           </div>
         ) : (
           editedIndices.size > 0 && onSaveDirect && (
-            <div className="flex items-center justify-between border-t border-slate-100 dark:border-slate-800 pt-3 gap-2">
+            <div className="px-3.5 py-2.5 bg-slate-50/90 dark:bg-slate-900/90 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2">
               <span className="text-xs font-bold text-amber-700 dark:text-amber-300">
                 You have {editedIndices.size} unsaved mark edit{editedIndices.size === 1 ? '' : 's'}.
               </span>
@@ -3635,9 +3807,9 @@ function SelectedSubmissionModal({ selSub, submissions = [], onClose, absentMark
                     setIsSavingDirect(false);
                   }
                 }}
-                className="px-4 py-1.5 rounded-xl text-xs font-black bg-indigo-600 hover:bg-indigo-500 text-white shadow-sm cursor-pointer flex items-center gap-1.5"
+                className="px-3.5 py-1.5 rounded-lg text-xs font-black bg-indigo-600 hover:bg-indigo-500 text-white shadow-2xs cursor-pointer flex items-center gap-1"
               >
-                <Save size={14} />
+                <Save size={13} />
                 <span>{isSavingDirect ? 'Saving...' : `Save ${editedIndices.size} Edits to Live Database`}</span>
               </button>
             </div>
