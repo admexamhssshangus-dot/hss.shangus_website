@@ -3875,21 +3875,38 @@ export default function CustomRosterDocumentBuilderView({
   const handlePrint = async () => {
     setIsExporting(true);
     try {
-      const printableRows = await Promise.all(processedRows.map(async (row) => {
-        const student = row._rawStudent || row;
-        const resolvedPhoto = await fetchStudentPhotoOnDemand(student).catch(() => '');
-        return {
-          ...row,
-          studentPhoto: resolvedPhoto && resolvedPhoto !== '/logo.png' && resolvedPhoto !== '—'
-            ? (formatPhotoDisplayUrl(resolvedPhoto) || resolvedPhoto)
-            : ''
-        };
-      }));
+      let finalPrintableRows = activeIncludedRows;
 
-      // Filter to only include checked (non-skipped) rows with strictly sequential S.No.
-      const finalPrintableRows = printableRows
-        .filter(r => !deselectedRowKeys.has(getRosterRowId(r)))
-        .map((r, idx) => ({ ...r, sno: idx + 1 }));
+      // Only attempt on-demand photo resolution if a photo column is actively configured
+      if (hasPhotoColumn) {
+        const BATCH_SIZE = 4;
+        const resolvedList = [];
+        for (let i = 0; i < activeIncludedRows.length; i += BATCH_SIZE) {
+          const chunk = activeIncludedRows.slice(i, i + BATCH_SIZE);
+          const chunkResults = await Promise.all(chunk.map(async (row) => {
+            const student = row._rawStudent || row;
+            const existingPhoto = row.studentPhoto || (student ? (resolveStudentPhoto(student) || getStudentPhotoUrl(student)) : '');
+            if (existingPhoto && existingPhoto !== '/logo.png' && existingPhoto !== '—') {
+              return {
+                ...row,
+                studentPhoto: formatPhotoDisplayUrl(existingPhoto) || existingPhoto
+              };
+            }
+            const resolvedPhoto = await Promise.race([
+              fetchStudentPhotoOnDemand(student).catch(() => ''),
+              new Promise(res => setTimeout(() => res(''), 1500))
+            ]);
+            return {
+              ...row,
+              studentPhoto: resolvedPhoto && resolvedPhoto !== '/logo.png' && resolvedPhoto !== '—'
+                ? (formatPhotoDisplayUrl(resolvedPhoto) || resolvedPhoto)
+                : ''
+            };
+          }));
+          resolvedList.push(...chunkResults);
+        }
+        finalPrintableRows = resolvedList;
+      }
 
       printCustomRosterTable({
         title: docTitle || (layoutMode === 'two_column_attendance' ? 'DAILY ATTENDANCE SHEET' : 'STUDENT ROSTER'),
@@ -3904,6 +3921,9 @@ export default function CustomRosterDocumentBuilderView({
         examDetails: effectiveExamDetails,
         rowsPerColumn: attendanceRowsPerColumn
       });
+    } catch (err) {
+      console.error('Print generation error:', err);
+      showToast('Failed to open print dialog: ' + (err.message || 'Unknown error'), 'error');
     } finally {
       setIsExporting(false);
     }

@@ -259,20 +259,49 @@ export function printCustomRosterTable({
  * Reusable helper to send HTML to an offscreen iframe and trigger browser print.
  */
 function executePrintIframe(html, title = 'Document') {
-  let iframe = document.getElementById('custom-roster-print-frame');
-  if (!iframe) {
-    iframe = document.createElement('iframe');
-    iframe.id = 'custom-roster-print-frame';
-    iframe.style.position = 'fixed';
-    iframe.style.left = '-9999px';
-    iframe.style.top = '0';
-    iframe.style.width = '1024px';
-    iframe.style.height = '768px';
-    iframe.style.border = '0';
-    iframe.style.opacity = '0';
-    iframe.style.pointerEvents = 'none';
-    document.body.appendChild(iframe);
+  const isMobile = typeof navigator !== 'undefined' && (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth < 768);
+
+  // On mobile browsers, hidden iframes cannot open the native print dialog.
+  // We use window.open directly for seamless mobile printing.
+  if (isMobile) {
+    try {
+      const printWin = window.open('', '_blank');
+      if (printWin) {
+        printWin.document.open();
+        printWin.document.write(html);
+        printWin.document.close();
+        printWin.focus();
+        setTimeout(() => {
+          try {
+            printWin.print();
+          } catch (e) {
+            console.warn('Mobile print window invocation note:', e);
+          }
+        }, 500);
+        return;
+      }
+    } catch (popupErr) {
+      console.warn('Mobile print window popup blocked, falling back to iframe print:', popupErr);
+    }
   }
+
+  // Remove existing iframe to prevent stale state or listeners
+  const existingFrame = document.getElementById('custom-roster-print-frame');
+  if (existingFrame && existingFrame.parentNode) {
+    existingFrame.parentNode.removeChild(existingFrame);
+  }
+
+  const iframe = document.createElement('iframe');
+  iframe.id = 'custom-roster-print-frame';
+  iframe.style.position = 'fixed';
+  iframe.style.left = '-9999px';
+  iframe.style.top = '0';
+  iframe.style.width = '1024px';
+  iframe.style.height = '768px';
+  iframe.style.border = '0';
+  iframe.style.opacity = '0';
+  iframe.style.pointerEvents = 'none';
+  document.body.appendChild(iframe);
 
   const doc = iframe.contentWindow.document;
   doc.open();
@@ -284,7 +313,19 @@ function executePrintIframe(html, title = 'Document') {
       iframe.contentWindow.focus();
       iframe.contentWindow.print();
     } catch (err) {
-      console.warn('Print error:', err);
+      console.warn('Iframe print failed, falling back to popup window:', err);
+      try {
+        const fallbackWin = window.open('', '_blank');
+        if (fallbackWin) {
+          fallbackWin.document.open();
+          fallbackWin.document.write(html);
+          fallbackWin.document.close();
+          fallbackWin.focus();
+          setTimeout(() => {
+            try { fallbackWin.print(); } catch (_) {}
+          }, 350);
+        }
+      } catch (_) {}
     }
   };
 

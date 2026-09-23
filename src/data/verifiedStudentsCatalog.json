@@ -331,11 +331,11 @@
     "fatherName": "Ab Qayoom Khan",
     "className": "10th",
     "classRollNo": "",
-    "boardRegNo": "0",
-    "stream": "",
+    "boardRegNo": "",
+    "stream": "General",
     "session": "2025-26",
-    "photoUrl": "https://drive.google.com/file/d/1UnxwCv8_eRSPgPvinyPkRQwg68NSXl9F/view?usp=drivesdk",
-    "dob": "2011-10-08",
+    "photoUrl": "",
+    "dob": "",
     "subjects": [
       {
         "code": "EN",
@@ -671,11 +671,11 @@
     "fatherName": "Nisar Ah Bhat",
     "className": "10th",
     "classRollNo": "",
-    "boardRegNo": "Nill",
-    "stream": "",
+    "boardRegNo": "",
+    "stream": "General",
     "session": "2025-26",
-    "photoUrl": "https://drive.google.com/file/d/1BIRP_5m8QLkBICHOpvvCdCVh5ZdsrF8k/view?usp=drivesdk",
-    "dob": "2011-10-20",
+    "photoUrl": "",
+    "dob": "",
     "subjects": [
       {
         "code": "EN",
@@ -1144,10 +1144,10 @@
     "className": "10th",
     "classRollNo": "",
     "boardRegNo": "",
-    "stream": "",
+    "stream": "General",
     "session": "2025-26",
-    "photoUrl": "https://drive.google.com/file/d/1VmFD7Xw7gslWWpioHtw_aiq6CZynJuSh/view?usp=drivesdk",
-    "dob": "2011-10-18",
+    "photoUrl": "",
+    "dob": "",
     "subjects": [
       {
         "code": "EN",
@@ -16764,11 +16764,11 @@
     "fatherName": "Muzaffer Ahmed Khan Gojar",
     "className": "10th",
     "classRollNo": "",
-    "boardRegNo": "0",
-    "stream": "",
+    "boardRegNo": "",
+    "stream": "General",
     "session": "2025-26",
-    "photoUrl": "https://drive.google.com/file/d/1sj7S9v2XN9J_Si5cJC3YlyB_7P6kDD2F/view?usp=drivesdk",
-    "dob": "2011-10-08",
+    "photoUrl": "",
+    "dob": "",
     "subjects": [
       {
         "code": "EN",
@@ -22753,6 +22753,2186 @@
       {
         "code": "PD",
         "name": "Physical Education"
+      }
+    ]
+  },
+  {
+    "fNo": "251191",
+    "name": "Andleeb Reyaz",
+    "fatherName": "Reyaz Ahmad Bhat",
+    "className": "10th",
+    "classRollNo": "1",
+    "boardRegNo": "2501010000610001",
+    "stream": "General",
+    "session": "2025-26",
+    "photoUrl": "",
+    "dob": "18-10-2011",
+    "subjects": [
+      {
+        "code": "EN",
+        "name": "General English"
+      },
+      {
+        "code": "SS",
+        "name": "Social Science"
+      },
+      {
+        "code": "SC",
+        "name": "Science"
+      },
+      {
+        "code": "MA",
+        "name": "Mathematics"
+      },
+      {
+        "code": "UR",
+        "name": "Urdu"
+      }
+    ]
+  },
+  {
+    "fNo": "251192",
+    "name": "Zuhaq Rafiq Bhat",
+    "fatherName": "Rafiq Ahmad Bhat",
+    "className": "10th",
+    "classRollNo": "2",
+    "boardRegNo": "2501000000610002",
+    "stream": "General",
+    "session": "2025-26",
+    "photoUrl": "",
+    "dob": "25-10-2011",
+    "subjects": [
+      {
+        "code": "EN",
+        "name": "General English"
+      },
+      {
+        "code": "SS",
+        "name": "Social Science"
+      },
+      {
+        "code": "SC",
+        "name": "Science"
+      },
+      {
+        "code": "MA",
+        "name": "Mathematics"
+      },
+      {
+        "code": "UR",
+        "name": "Urdu"
+      }
+    ]
+  },
+  {
+    "fNo": "251193",
+    "name": "Atoofa Khurshid",
+    "fatherName": "Khurshid Ahmad Hajam",
+    "className": "10th",
+    "classRollNo": "3",
+    "boardRegNo": "2501012000610003",
+    "stream": "General",
+    "session": "2025-26",
+    "photoUrl": "",
+    "dob": "08-10-2011",
+    "subjects": [
+      {
+        "code": "EN",
+        "name": "General English"
+      },
+      {
+        "code": "SS",
+        "name": "Social Science"
+      },
+      {
+        "code": "SC",
+        "name": "Science"
+      },
+      {
+        "code": "MA",
+        "name": "Mathematics"
+      },
+      {
+        "code": "UR",
+        "name": "Urdu"
+      }
+    ]
+  },
+  {
+    "fNo": "251194",
+    "name": "Mohammad Murtaza Kanth",
+    "fatherName": "Late Manzoor Hussain Kanth",
+    "className": "10th",
+    "classRollNo": "4",
+    "boardRegNo": "2501000000610004",
+    "stream": "General",
+    "session": "2025-26",
+    "photoUrl": "",
+    "dob": "25-12-2011",
+    "subjects": [
+      {
+        "code": "EN",
+        "name": "General English"
+      },
+      {
+        "code": "SS",
+        "name": "Social Science"
+      },
+      {
+        "code": "SC",
+        "name": "Science"
+      },
+      {
+        "code": "MA",
+        "name": "Mathematics"
+      },
+      {
+        "code": "UR",
+        "name": "Urdu"
+      }
+    ]
+  },
+  {
+    "fNo": "251195",
+    "name": "Mehreen Amin",
+    "fatherName": "Mohammad Amin Band",
+    "className": "10th",
+    "classRollNo": "5",
+    "boardRegNo": "2501011000610005",
+    "stream": "General",
+    "session": "2025-26",
+    "photoUrl": "",
+    "dob": "09-10-2011",
+    "subjects": [
+      {
+        "code": "EN",
+        "name": "General English"
+      },
+      {
+        "code": "SS",
+        "name": "Social Science"
+      },
+      {
+        "code": "SC",
+        "name": "Science"
+      },
+      {
+        "code": "MA",
+        "name": "Mathematics"
+      },
+      {
+        "code": "UR",
+        "name": "Urdu"
+      }
+    ]
+  },
+  {
+    "fNo": "251196",
+    "name": "Mohammad Hameem Bhat",
+    "fatherName": "Mohammad Rafiq Bhat",
+    "className": "10th",
+    "classRollNo": "6",
+    "boardRegNo": "2501000000610006",
+    "stream": "General",
+    "session": "2025-26",
+    "photoUrl": "",
+    "dob": "06-10-2011",
+    "subjects": [
+      {
+        "code": "EN",
+        "name": "General English"
+      },
+      {
+        "code": "SS",
+        "name": "Social Science"
+      },
+      {
+        "code": "SC",
+        "name": "Science"
+      },
+      {
+        "code": "MA",
+        "name": "Mathematics"
+      },
+      {
+        "code": "UR",
+        "name": "Urdu"
+      }
+    ]
+  },
+  {
+    "fNo": "251197",
+    "name": "Faizan Ahmad Bhat",
+    "fatherName": "Mohd Ayoub Bhat",
+    "className": "10th",
+    "classRollNo": "7",
+    "boardRegNo": "2501000000610007",
+    "stream": "General",
+    "session": "2025-26",
+    "photoUrl": "",
+    "dob": "09-10-2011",
+    "subjects": [
+      {
+        "code": "EN",
+        "name": "General English"
+      },
+      {
+        "code": "SS",
+        "name": "Social Science"
+      },
+      {
+        "code": "SC",
+        "name": "Science"
+      },
+      {
+        "code": "MA",
+        "name": "Mathematics"
+      },
+      {
+        "code": "UR",
+        "name": "Urdu"
+      }
+    ]
+  },
+  {
+    "fNo": "251198",
+    "name": "Zuha Batool",
+    "fatherName": "Nisar Ahmad Ganie",
+    "className": "10th",
+    "classRollNo": "8",
+    "boardRegNo": "2501010000610008",
+    "stream": "General",
+    "session": "2025-26",
+    "photoUrl": "",
+    "dob": "12-10-2011",
+    "subjects": [
+      {
+        "code": "EN",
+        "name": "General English"
+      },
+      {
+        "code": "SS",
+        "name": "Social Science"
+      },
+      {
+        "code": "SC",
+        "name": "Science"
+      },
+      {
+        "code": "MA",
+        "name": "Mathematics"
+      },
+      {
+        "code": "UR",
+        "name": "Urdu"
+      }
+    ]
+  },
+  {
+    "fNo": "251199",
+    "name": "Mohammad Irfan Wani",
+    "fatherName": "Abdul Majeed Wani",
+    "className": "10th",
+    "classRollNo": "9",
+    "boardRegNo": "2501000000610009",
+    "stream": "General",
+    "session": "2025-26",
+    "photoUrl": "",
+    "dob": "12-10-2011",
+    "subjects": [
+      {
+        "code": "EN",
+        "name": "General English"
+      },
+      {
+        "code": "SS",
+        "name": "Social Science"
+      },
+      {
+        "code": "SC",
+        "name": "Science"
+      },
+      {
+        "code": "MA",
+        "name": "Mathematics"
+      },
+      {
+        "code": "UR",
+        "name": "Urdu"
+      }
+    ]
+  },
+  {
+    "fNo": "251200",
+    "name": "Sharika Hussain",
+    "fatherName": "Mohammad Hussain Rather",
+    "className": "10th",
+    "classRollNo": "10",
+    "boardRegNo": "2501011000610010",
+    "stream": "General",
+    "session": "2025-26",
+    "photoUrl": "",
+    "dob": "23-01-2012",
+    "subjects": [
+      {
+        "code": "EN",
+        "name": "General English"
+      },
+      {
+        "code": "SS",
+        "name": "Social Science"
+      },
+      {
+        "code": "SC",
+        "name": "Science"
+      },
+      {
+        "code": "MA",
+        "name": "Mathematics"
+      },
+      {
+        "code": "UR",
+        "name": "Urdu"
+      }
+    ]
+  },
+  {
+    "fNo": "251201",
+    "name": "Adnan Ishaq Mugloo",
+    "fatherName": "Mohammad Ishaq Mugloo",
+    "className": "10th",
+    "classRollNo": "11",
+    "boardRegNo": "2501003000610011",
+    "stream": "General",
+    "session": "2025-26",
+    "photoUrl": "",
+    "dob": "15-10-2011",
+    "subjects": [
+      {
+        "code": "EN",
+        "name": "General English"
+      },
+      {
+        "code": "SS",
+        "name": "Social Science"
+      },
+      {
+        "code": "SC",
+        "name": "Science"
+      },
+      {
+        "code": "MA",
+        "name": "Mathematics"
+      },
+      {
+        "code": "UR",
+        "name": "Urdu"
+      }
+    ]
+  },
+  {
+    "fNo": "251202",
+    "name": "Salman Mushtaq",
+    "fatherName": "Mushtaq Ahmad Ganie",
+    "className": "10th",
+    "classRollNo": "12",
+    "boardRegNo": "2501003000610012",
+    "stream": "General",
+    "session": "2025-26",
+    "photoUrl": "",
+    "dob": "01-10-2011",
+    "subjects": [
+      {
+        "code": "EN",
+        "name": "General English"
+      },
+      {
+        "code": "SS",
+        "name": "Social Science"
+      },
+      {
+        "code": "SC",
+        "name": "Science"
+      },
+      {
+        "code": "MA",
+        "name": "Mathematics"
+      },
+      {
+        "code": "UR",
+        "name": "Urdu"
+      }
+    ]
+  },
+  {
+    "fNo": "251203",
+    "name": "Mohammad Sameer Khan",
+    "fatherName": "Mohammad Akram Khan",
+    "className": "10th",
+    "classRollNo": "13",
+    "boardRegNo": "2501000000610013",
+    "stream": "General",
+    "session": "2025-26",
+    "photoUrl": "",
+    "dob": "06-06-2012",
+    "subjects": [
+      {
+        "code": "EN",
+        "name": "General English"
+      },
+      {
+        "code": "SS",
+        "name": "Social Science"
+      },
+      {
+        "code": "SC",
+        "name": "Science"
+      },
+      {
+        "code": "MA",
+        "name": "Mathematics"
+      },
+      {
+        "code": "UR",
+        "name": "Urdu"
+      }
+    ]
+  },
+  {
+    "fNo": "251204",
+    "name": "Furqan Amin Bhat",
+    "fatherName": "Mohmmad Amin Bhat",
+    "className": "10th",
+    "classRollNo": "14",
+    "boardRegNo": "2501000000610014",
+    "stream": "General",
+    "session": "2025-26",
+    "photoUrl": "",
+    "dob": "10-10-2011",
+    "subjects": [
+      {
+        "code": "EN",
+        "name": "General English"
+      },
+      {
+        "code": "SS",
+        "name": "Social Science"
+      },
+      {
+        "code": "SC",
+        "name": "Science"
+      },
+      {
+        "code": "MA",
+        "name": "Mathematics"
+      },
+      {
+        "code": "UR",
+        "name": "Urdu"
+      }
+    ]
+  },
+  {
+    "fNo": "251205",
+    "name": "Mohammad Zeeshan Bhat",
+    "fatherName": "Mohammad Iqbal Bhat",
+    "className": "10th",
+    "classRollNo": "15",
+    "boardRegNo": "2501000000610015",
+    "stream": "General",
+    "session": "2025-26",
+    "photoUrl": "",
+    "dob": "10-10-2012",
+    "subjects": [
+      {
+        "code": "EN",
+        "name": "General English"
+      },
+      {
+        "code": "SS",
+        "name": "Social Science"
+      },
+      {
+        "code": "SC",
+        "name": "Science"
+      },
+      {
+        "code": "MA",
+        "name": "Mathematics"
+      },
+      {
+        "code": "UR",
+        "name": "Urdu"
+      }
+    ]
+  },
+  {
+    "fNo": "251206",
+    "name": "Iqra Jan",
+    "fatherName": "Gh-Mohi-Ud-Din Bhat",
+    "className": "10th",
+    "classRollNo": "16",
+    "boardRegNo": "2501013000610016",
+    "stream": "General",
+    "session": "2025-26",
+    "photoUrl": "",
+    "dob": "15-10-2011",
+    "subjects": [
+      {
+        "code": "EN",
+        "name": "General English"
+      },
+      {
+        "code": "SS",
+        "name": "Social Science"
+      },
+      {
+        "code": "SC",
+        "name": "Science"
+      },
+      {
+        "code": "MA",
+        "name": "Mathematics"
+      },
+      {
+        "code": "UR",
+        "name": "Urdu"
+      }
+    ]
+  },
+  {
+    "fNo": "251223",
+    "name": "Aroowa Bilal",
+    "fatherName": "Bilal Ahmad Shigun",
+    "className": "10th",
+    "classRollNo": "17",
+    "boardRegNo": "2501010000610017",
+    "stream": "General",
+    "session": "2025-26",
+    "photoUrl": "",
+    "dob": "05-10-2011",
+    "subjects": [
+      {
+        "code": "EN",
+        "name": "General English"
+      },
+      {
+        "code": "SS",
+        "name": "Social Science"
+      },
+      {
+        "code": "SC",
+        "name": "Science"
+      },
+      {
+        "code": "MA",
+        "name": "Mathematics"
+      },
+      {
+        "code": "UR",
+        "name": "Urdu"
+      }
+    ]
+  },
+  {
+    "fNo": "251224",
+    "name": "Iram Bilal",
+    "fatherName": "Bilal Ahmad Bhat",
+    "className": "10th",
+    "classRollNo": "18",
+    "boardRegNo": "2501010000610018",
+    "stream": "General",
+    "session": "2025-26",
+    "photoUrl": "",
+    "dob": "28-10-2009",
+    "subjects": [
+      {
+        "code": "EN",
+        "name": "General English"
+      },
+      {
+        "code": "SS",
+        "name": "Social Science"
+      },
+      {
+        "code": "SC",
+        "name": "Science"
+      },
+      {
+        "code": "MA",
+        "name": "Mathematics"
+      },
+      {
+        "code": "UR",
+        "name": "Urdu"
+      }
+    ]
+  },
+  {
+    "fNo": "251225",
+    "name": "Gowhar Ahmad Bhat",
+    "fatherName": "Mohammad Ashraf Bhat",
+    "className": "10th",
+    "classRollNo": "19",
+    "boardRegNo": "2501003000610019",
+    "stream": "General",
+    "session": "2025-26",
+    "photoUrl": "",
+    "dob": "20-04-2011",
+    "subjects": [
+      {
+        "code": "EN",
+        "name": "General English"
+      },
+      {
+        "code": "SS",
+        "name": "Social Science"
+      },
+      {
+        "code": "SC",
+        "name": "Science"
+      },
+      {
+        "code": "MA",
+        "name": "Mathematics"
+      },
+      {
+        "code": "UR",
+        "name": "Urdu"
+      }
+    ]
+  },
+  {
+    "fNo": "251226",
+    "name": "Absar Ashiq Sheergojri",
+    "fatherName": "Ashiq Hussain Sheergojri",
+    "className": "10th",
+    "classRollNo": "20",
+    "boardRegNo": "2501003000610020",
+    "stream": "General",
+    "session": "2025-26",
+    "photoUrl": "",
+    "dob": "04-07-2012",
+    "subjects": [
+      {
+        "code": "EN",
+        "name": "General English"
+      },
+      {
+        "code": "SS",
+        "name": "Social Science"
+      },
+      {
+        "code": "SC",
+        "name": "Science"
+      },
+      {
+        "code": "MA",
+        "name": "Mathematics"
+      },
+      {
+        "code": "UR",
+        "name": "Urdu"
+      }
+    ]
+  },
+  {
+    "fNo": "251227",
+    "name": "Firash Nazir Mir",
+    "fatherName": "Nazir Ahmad Mir",
+    "className": "10th",
+    "classRollNo": "21",
+    "boardRegNo": "2501000000610021",
+    "stream": "General",
+    "session": "2025-26",
+    "photoUrl": "",
+    "dob": "07-10-2011",
+    "subjects": [
+      {
+        "code": "EN",
+        "name": "General English"
+      },
+      {
+        "code": "SS",
+        "name": "Social Science"
+      },
+      {
+        "code": "SC",
+        "name": "Science"
+      },
+      {
+        "code": "MA",
+        "name": "Mathematics"
+      },
+      {
+        "code": "UR",
+        "name": "Urdu"
+      }
+    ]
+  },
+  {
+    "fNo": "251228",
+    "name": "Rownaq Jan",
+    "fatherName": "Nazir Ahmad Ganie",
+    "className": "10th",
+    "classRollNo": "22",
+    "boardRegNo": "2501010000610022",
+    "stream": "General",
+    "session": "2025-26",
+    "photoUrl": "",
+    "dob": "17-10-2011",
+    "subjects": [
+      {
+        "code": "EN",
+        "name": "General English"
+      },
+      {
+        "code": "SS",
+        "name": "Social Science"
+      },
+      {
+        "code": "SC",
+        "name": "Science"
+      },
+      {
+        "code": "MA",
+        "name": "Mathematics"
+      },
+      {
+        "code": "UR",
+        "name": "Urdu"
+      }
+    ]
+  },
+  {
+    "fNo": "251229",
+    "name": "Shazib Ahmad Mir",
+    "fatherName": "Tariq Ahmad Mir",
+    "className": "10th",
+    "classRollNo": "23",
+    "boardRegNo": "2501000000610023",
+    "stream": "General",
+    "session": "2025-26",
+    "photoUrl": "",
+    "dob": "31-10-2011",
+    "subjects": [
+      {
+        "code": "EN",
+        "name": "General English"
+      },
+      {
+        "code": "SS",
+        "name": "Social Science"
+      },
+      {
+        "code": "SC",
+        "name": "Science"
+      },
+      {
+        "code": "MA",
+        "name": "Mathematics"
+      },
+      {
+        "code": "UR",
+        "name": "Urdu"
+      }
+    ]
+  },
+  {
+    "fNo": "251230",
+    "name": "Murtiza Nisar",
+    "fatherName": "Nisar Ahmad Wani",
+    "className": "10th",
+    "classRollNo": "24",
+    "boardRegNo": "2501010000610024",
+    "stream": "General",
+    "session": "2025-26",
+    "photoUrl": "",
+    "dob": "19-10-2012",
+    "subjects": [
+      {
+        "code": "EN",
+        "name": "General English"
+      },
+      {
+        "code": "SS",
+        "name": "Social Science"
+      },
+      {
+        "code": "SC",
+        "name": "Science"
+      },
+      {
+        "code": "MA",
+        "name": "Mathematics"
+      },
+      {
+        "code": "UR",
+        "name": "Urdu"
+      }
+    ]
+  },
+  {
+    "fNo": "251231",
+    "name": "Sharik Maqbool Sheikh Mochi",
+    "fatherName": "Mohammad Maqbool Sheikh Mochi",
+    "className": "10th",
+    "classRollNo": "25",
+    "boardRegNo": "2501001000610025",
+    "stream": "General",
+    "session": "2025-26",
+    "photoUrl": "",
+    "dob": "03-10-2011",
+    "subjects": [
+      {
+        "code": "EN",
+        "name": "General English"
+      },
+      {
+        "code": "SS",
+        "name": "Social Science"
+      },
+      {
+        "code": "SC",
+        "name": "Science"
+      },
+      {
+        "code": "MA",
+        "name": "Mathematics"
+      },
+      {
+        "code": "UR",
+        "name": "Urdu"
+      }
+    ]
+  },
+  {
+    "fNo": "251232",
+    "name": "Sahil Ahmad Itoo",
+    "fatherName": "Nisar Ahmad Itoo",
+    "className": "10th",
+    "classRollNo": "26",
+    "boardRegNo": "2501000000610026",
+    "stream": "General",
+    "session": "2025-26",
+    "photoUrl": "",
+    "dob": "25-10-2010",
+    "subjects": [
+      {
+        "code": "EN",
+        "name": "General English"
+      },
+      {
+        "code": "SS",
+        "name": "Social Science"
+      },
+      {
+        "code": "SC",
+        "name": "Science"
+      },
+      {
+        "code": "MA",
+        "name": "Mathematics"
+      },
+      {
+        "code": "UR",
+        "name": "Urdu"
+      },
+      {
+        "code": "ITE",
+        "name": "IT & ITeS"
+      }
+    ]
+  },
+  {
+    "fNo": "251233",
+    "name": "Farhan Hameed Wani",
+    "fatherName": "Abdul Hameed Wani",
+    "className": "10th",
+    "classRollNo": "27",
+    "boardRegNo": "2501003000610027",
+    "stream": "General",
+    "session": "2025-26",
+    "photoUrl": "",
+    "dob": "08-10-2011",
+    "subjects": [
+      {
+        "code": "EN",
+        "name": "General English"
+      },
+      {
+        "code": "SS",
+        "name": "Social Science"
+      },
+      {
+        "code": "SC",
+        "name": "Science"
+      },
+      {
+        "code": "MA",
+        "name": "Mathematics"
+      },
+      {
+        "code": "UR",
+        "name": "Urdu"
+      },
+      {
+        "code": "HC",
+        "name": "Healthcare"
+      }
+    ]
+  },
+  {
+    "fNo": "251234",
+    "name": "Mehran Riyaz Sheikh",
+    "fatherName": "Riyaz Ahmad Sheikh",
+    "className": "10th",
+    "classRollNo": "28",
+    "boardRegNo": "2501003000610028",
+    "stream": "General",
+    "session": "2025-26",
+    "photoUrl": "",
+    "dob": "04-10-2011",
+    "subjects": [
+      {
+        "code": "EN",
+        "name": "General English"
+      },
+      {
+        "code": "SS",
+        "name": "Social Science"
+      },
+      {
+        "code": "SC",
+        "name": "Science"
+      },
+      {
+        "code": "MA",
+        "name": "Mathematics"
+      },
+      {
+        "code": "UR",
+        "name": "Urdu"
+      },
+      {
+        "code": "ITE",
+        "name": "IT & ITeS"
+      }
+    ]
+  },
+  {
+    "fNo": "251235",
+    "name": "Zameer Ahmad Wani",
+    "fatherName": "Gulzar Ahmad Wani",
+    "className": "10th",
+    "classRollNo": "29",
+    "boardRegNo": "2501000000610029",
+    "stream": "General",
+    "session": "2025-26",
+    "photoUrl": "",
+    "dob": "28-10-2010",
+    "subjects": [
+      {
+        "code": "EN",
+        "name": "General English"
+      },
+      {
+        "code": "SS",
+        "name": "Social Science"
+      },
+      {
+        "code": "SC",
+        "name": "Science"
+      },
+      {
+        "code": "MA",
+        "name": "Mathematics"
+      },
+      {
+        "code": "UR",
+        "name": "Urdu"
+      },
+      {
+        "code": "HC",
+        "name": "Healthcare"
+      }
+    ]
+  },
+  {
+    "fNo": "251236",
+    "name": "Shahid Nisar Bhat",
+    "fatherName": "Nisar Ahmad Bhat",
+    "className": "10th",
+    "classRollNo": "30",
+    "boardRegNo": "2501003000610030",
+    "stream": "General",
+    "session": "2025-26",
+    "photoUrl": "",
+    "dob": "20-10-2011",
+    "subjects": [
+      {
+        "code": "EN",
+        "name": "General English"
+      },
+      {
+        "code": "SS",
+        "name": "Social Science"
+      },
+      {
+        "code": "SC",
+        "name": "Science"
+      },
+      {
+        "code": "MA",
+        "name": "Mathematics"
+      },
+      {
+        "code": "UR",
+        "name": "Urdu"
+      },
+      {
+        "code": "ITE",
+        "name": "IT & ITeS"
+      }
+    ]
+  },
+  {
+    "fNo": "251237",
+    "name": "Suhaib Ahmad Kutay",
+    "fatherName": "Mushtaq Ahmad Kutay",
+    "className": "10th",
+    "classRollNo": "31",
+    "boardRegNo": "2501003000610031",
+    "stream": "General",
+    "session": "2025-26",
+    "photoUrl": "",
+    "dob": "22-10-2011",
+    "subjects": [
+      {
+        "code": "EN",
+        "name": "General English"
+      },
+      {
+        "code": "SS",
+        "name": "Social Science"
+      },
+      {
+        "code": "SC",
+        "name": "Science"
+      },
+      {
+        "code": "MA",
+        "name": "Mathematics"
+      },
+      {
+        "code": "UR",
+        "name": "Urdu"
+      },
+      {
+        "code": "ITE",
+        "name": "IT & ITeS"
+      }
+    ]
+  },
+  {
+    "fNo": "251238",
+    "name": "Muneeb Bashir",
+    "fatherName": "Bashir Ahmad Malik",
+    "className": "10th",
+    "classRollNo": "32",
+    "boardRegNo": "2501003000610032",
+    "stream": "General",
+    "session": "2025-26",
+    "photoUrl": "",
+    "dob": "10-10-2010",
+    "subjects": [
+      {
+        "code": "EN",
+        "name": "General English"
+      },
+      {
+        "code": "SS",
+        "name": "Social Science"
+      },
+      {
+        "code": "SC",
+        "name": "Science"
+      },
+      {
+        "code": "MA",
+        "name": "Mathematics"
+      },
+      {
+        "code": "UR",
+        "name": "Urdu"
+      },
+      {
+        "code": "HC",
+        "name": "Healthcare"
+      }
+    ]
+  },
+  {
+    "fNo": "251239",
+    "name": "Sahil Nazir",
+    "fatherName": "Nazir Ahmad Bhat",
+    "className": "10th",
+    "classRollNo": "33",
+    "boardRegNo": "2501000000610033",
+    "stream": "General",
+    "session": "2025-26",
+    "photoUrl": "",
+    "dob": "10-10-2011",
+    "subjects": [
+      {
+        "code": "EN",
+        "name": "General English"
+      },
+      {
+        "code": "SS",
+        "name": "Social Science"
+      },
+      {
+        "code": "SC",
+        "name": "Science"
+      },
+      {
+        "code": "MA",
+        "name": "Mathematics"
+      },
+      {
+        "code": "UR",
+        "name": "Urdu"
+      },
+      {
+        "code": "HC",
+        "name": "Healthcare"
+      }
+    ]
+  },
+  {
+    "fNo": "251240",
+    "name": "Shahid Mushtaq Padder",
+    "fatherName": "Mushtaq Ahmad Padder",
+    "className": "10th",
+    "classRollNo": "34",
+    "boardRegNo": "2501000000610034",
+    "stream": "General",
+    "session": "2025-26",
+    "photoUrl": "",
+    "dob": "25-05-2009",
+    "subjects": [
+      {
+        "code": "EN",
+        "name": "General English"
+      },
+      {
+        "code": "SS",
+        "name": "Social Science"
+      },
+      {
+        "code": "SC",
+        "name": "Science"
+      },
+      {
+        "code": "MA",
+        "name": "Mathematics"
+      },
+      {
+        "code": "UR",
+        "name": "Urdu"
+      },
+      {
+        "code": "ITE",
+        "name": "IT & ITeS"
+      }
+    ]
+  },
+  {
+    "fNo": "251241",
+    "name": "Umer Javid Alie",
+    "fatherName": "Javid Ahmad Alie",
+    "className": "10th",
+    "classRollNo": "35",
+    "boardRegNo": "2501003000610035",
+    "stream": "General",
+    "session": "2025-26",
+    "photoUrl": "",
+    "dob": "15-11-2010",
+    "subjects": [
+      {
+        "code": "EN",
+        "name": "General English"
+      },
+      {
+        "code": "SS",
+        "name": "Social Science"
+      },
+      {
+        "code": "SC",
+        "name": "Science"
+      },
+      {
+        "code": "MA",
+        "name": "Mathematics"
+      },
+      {
+        "code": "UR",
+        "name": "Urdu"
+      },
+      {
+        "code": "HC",
+        "name": "Healthcare"
+      }
+    ]
+  },
+  {
+    "fNo": "251242",
+    "name": "Talib Nazir",
+    "fatherName": "Nazir Ahmad Sheikh",
+    "className": "10th",
+    "classRollNo": "36",
+    "boardRegNo": "2501000000610036",
+    "stream": "General",
+    "session": "2025-26",
+    "photoUrl": "",
+    "dob": "06-10-2011",
+    "subjects": [
+      {
+        "code": "EN",
+        "name": "General English"
+      },
+      {
+        "code": "SS",
+        "name": "Social Science"
+      },
+      {
+        "code": "SC",
+        "name": "Science"
+      },
+      {
+        "code": "MA",
+        "name": "Mathematics"
+      },
+      {
+        "code": "UR",
+        "name": "Urdu"
+      },
+      {
+        "code": "HC",
+        "name": "Healthcare"
+      }
+    ]
+  },
+  {
+    "fNo": "251243",
+    "name": "Talib Ahmad Khan",
+    "fatherName": "Abdul Qayoom Khan",
+    "className": "10th",
+    "classRollNo": "37",
+    "boardRegNo": "2501000000610037",
+    "stream": "General",
+    "session": "2025-26",
+    "photoUrl": "",
+    "dob": "03-10-2011",
+    "subjects": [
+      {
+        "code": "EN",
+        "name": "General English"
+      },
+      {
+        "code": "SS",
+        "name": "Social Science"
+      },
+      {
+        "code": "SC",
+        "name": "Science"
+      },
+      {
+        "code": "MA",
+        "name": "Mathematics"
+      },
+      {
+        "code": "UR",
+        "name": "Urdu"
+      },
+      {
+        "code": "HC",
+        "name": "Healthcare"
+      }
+    ]
+  },
+  {
+    "fNo": "251244",
+    "name": "Tajamul Islam",
+    "fatherName": "Abdul Qayoom Mir",
+    "className": "10th",
+    "classRollNo": "38",
+    "boardRegNo": "2501000000610038",
+    "stream": "General",
+    "session": "2025-26",
+    "photoUrl": "",
+    "dob": "01-10-2011",
+    "subjects": [
+      {
+        "code": "EN",
+        "name": "General English"
+      },
+      {
+        "code": "SS",
+        "name": "Social Science"
+      },
+      {
+        "code": "SC",
+        "name": "Science"
+      },
+      {
+        "code": "MA",
+        "name": "Mathematics"
+      },
+      {
+        "code": "UR",
+        "name": "Urdu"
+      },
+      {
+        "code": "ITE",
+        "name": "IT & ITeS"
+      }
+    ]
+  },
+  {
+    "fNo": "251245",
+    "name": "Movin Javeed Wani",
+    "fatherName": "Javeed Ahmad Wani",
+    "className": "10th",
+    "classRollNo": "39",
+    "boardRegNo": "2501000000610039",
+    "stream": "General",
+    "session": "2025-26",
+    "photoUrl": "",
+    "dob": "24-11-2009",
+    "subjects": [
+      {
+        "code": "EN",
+        "name": "General English"
+      },
+      {
+        "code": "SS",
+        "name": "Social Science"
+      },
+      {
+        "code": "SC",
+        "name": "Science"
+      },
+      {
+        "code": "MA",
+        "name": "Mathematics"
+      },
+      {
+        "code": "UR",
+        "name": "Urdu"
+      },
+      {
+        "code": "ITE",
+        "name": "IT & ITeS"
+      }
+    ]
+  },
+  {
+    "fNo": "251246",
+    "name": "Mudasir Ahmad Khan Gojar",
+    "fatherName": "Bilal Ahmad Khan Gojar",
+    "className": "10th",
+    "classRollNo": "40",
+    "boardRegNo": "2501002000610040",
+    "stream": "General",
+    "session": "2025-26",
+    "photoUrl": "",
+    "dob": "08-05-2011",
+    "subjects": [
+      {
+        "code": "EN",
+        "name": "General English"
+      },
+      {
+        "code": "SS",
+        "name": "Social Science"
+      },
+      {
+        "code": "SC",
+        "name": "Science"
+      },
+      {
+        "code": "MA",
+        "name": "Mathematics"
+      },
+      {
+        "code": "UR",
+        "name": "Urdu"
+      },
+      {
+        "code": "ITE",
+        "name": "IT & ITeS"
+      }
+    ]
+  },
+  {
+    "fNo": "251247",
+    "name": "Zahid Shafi Najar",
+    "fatherName": "Mohammad Shafi Najar",
+    "className": "10th",
+    "classRollNo": "41",
+    "boardRegNo": "2501005000610041",
+    "stream": "General",
+    "session": "2025-26",
+    "photoUrl": "",
+    "dob": "05-03-2012",
+    "subjects": [
+      {
+        "code": "EN",
+        "name": "General English"
+      },
+      {
+        "code": "SS",
+        "name": "Social Science"
+      },
+      {
+        "code": "SC",
+        "name": "Science"
+      },
+      {
+        "code": "MA",
+        "name": "Mathematics"
+      },
+      {
+        "code": "UR",
+        "name": "Urdu"
+      },
+      {
+        "code": "HC",
+        "name": "Healthcare"
+      }
+    ]
+  },
+  {
+    "fNo": "251248",
+    "name": "Suhail Ahmad Ahanger",
+    "fatherName": "Bashir Ahmad Ahanger",
+    "className": "10th",
+    "classRollNo": "42",
+    "boardRegNo": "2501005000610042",
+    "stream": "General",
+    "session": "2025-26",
+    "photoUrl": "",
+    "dob": "17-10-2011",
+    "subjects": [
+      {
+        "code": "EN",
+        "name": "General English"
+      },
+      {
+        "code": "SS",
+        "name": "Social Science"
+      },
+      {
+        "code": "SC",
+        "name": "Science"
+      },
+      {
+        "code": "MA",
+        "name": "Mathematics"
+      },
+      {
+        "code": "UR",
+        "name": "Urdu"
+      },
+      {
+        "code": "ITE",
+        "name": "IT & ITeS"
+      }
+    ]
+  },
+  {
+    "fNo": "251249",
+    "name": "Umair Bin Shabir Lone",
+    "fatherName": "Shabir Ahmad Lone",
+    "className": "10th",
+    "classRollNo": "43",
+    "boardRegNo": "2501000000610043",
+    "stream": "General",
+    "session": "2025-26",
+    "photoUrl": "",
+    "dob": "17-10-2011",
+    "subjects": [
+      {
+        "code": "EN",
+        "name": "General English"
+      },
+      {
+        "code": "SS",
+        "name": "Social Science"
+      },
+      {
+        "code": "SC",
+        "name": "Science"
+      },
+      {
+        "code": "MA",
+        "name": "Mathematics"
+      },
+      {
+        "code": "UR",
+        "name": "Urdu"
+      },
+      {
+        "code": "ITE",
+        "name": "IT & ITeS"
+      }
+    ]
+  },
+  {
+    "fNo": "251250",
+    "name": "Bilal Ahmad Mahroo",
+    "fatherName": "Mushtaq Ahmad Mahroo",
+    "className": "10th",
+    "classRollNo": "44",
+    "boardRegNo": "2501000000610044",
+    "stream": "General",
+    "session": "2025-26",
+    "photoUrl": "",
+    "dob": "05-02-2012",
+    "subjects": [
+      {
+        "code": "EN",
+        "name": "General English"
+      },
+      {
+        "code": "SS",
+        "name": "Social Science"
+      },
+      {
+        "code": "SC",
+        "name": "Science"
+      },
+      {
+        "code": "MA",
+        "name": "Mathematics"
+      },
+      {
+        "code": "UR",
+        "name": "Urdu"
+      },
+      {
+        "code": "HC",
+        "name": "Healthcare"
+      }
+    ]
+  },
+  {
+    "fNo": "251251",
+    "name": "Murtaza Mushtaq",
+    "fatherName": "Mushtaq Ahmad Mochi",
+    "className": "10th",
+    "classRollNo": "45",
+    "boardRegNo": "2501000000610045",
+    "stream": "General",
+    "session": "2025-26",
+    "photoUrl": "",
+    "dob": "10-07-2012",
+    "subjects": [
+      {
+        "code": "EN",
+        "name": "General English"
+      },
+      {
+        "code": "SS",
+        "name": "Social Science"
+      },
+      {
+        "code": "SC",
+        "name": "Science"
+      },
+      {
+        "code": "MA",
+        "name": "Mathematics"
+      },
+      {
+        "code": "UR",
+        "name": "Urdu"
+      },
+      {
+        "code": "HC",
+        "name": "Healthcare"
+      }
+    ]
+  },
+  {
+    "fNo": "251297",
+    "name": "Suhaib Yousuf",
+    "fatherName": "Mohammad Yousuf Mir",
+    "className": "10th",
+    "classRollNo": "46",
+    "boardRegNo": "2501000000610046",
+    "stream": "General",
+    "session": "2025-26",
+    "photoUrl": "",
+    "dob": "",
+    "subjects": [
+      {
+        "code": "EN",
+        "name": "General English"
+      },
+      {
+        "code": "SS",
+        "name": "Social Science"
+      },
+      {
+        "code": "SC",
+        "name": "Science"
+      },
+      {
+        "code": "MA",
+        "name": "Mathematics"
+      },
+      {
+        "code": "HC",
+        "name": "Healthcare"
+      },
+      {
+        "code": "UR",
+        "name": "Urdu"
+      }
+    ]
+  },
+  {
+    "fNo": "251298",
+    "name": "Owais Ahmad Bhat",
+    "fatherName": "Javid Ahmad Bhat",
+    "className": "10th",
+    "classRollNo": "47",
+    "boardRegNo": "2501000000610047",
+    "stream": "General",
+    "session": "2025-26",
+    "photoUrl": "",
+    "dob": "18-10-2011",
+    "subjects": [
+      {
+        "code": "EN",
+        "name": "General English"
+      },
+      {
+        "code": "SS",
+        "name": "Social Science"
+      },
+      {
+        "code": "SC",
+        "name": "Science"
+      },
+      {
+        "code": "MA",
+        "name": "Mathematics"
+      },
+      {
+        "code": "UR",
+        "name": "Urdu"
+      },
+      {
+        "code": "HC",
+        "name": "Healthcare"
+      }
+    ]
+  },
+  {
+    "fNo": "251299",
+    "name": "Ishfaq Ahmad Gojar Doie",
+    "fatherName": "Liyaqat Ahmad Gojar Doie",
+    "className": "10th",
+    "classRollNo": "48",
+    "boardRegNo": "2501002000610048",
+    "stream": "General",
+    "session": "2025-26",
+    "photoUrl": "",
+    "dob": "09-10-2012",
+    "subjects": [
+      {
+        "code": "EN",
+        "name": "General English"
+      },
+      {
+        "code": "SS",
+        "name": "Social Science"
+      },
+      {
+        "code": "SC",
+        "name": "Science"
+      },
+      {
+        "code": "MA",
+        "name": "Mathematics"
+      },
+      {
+        "code": "UR",
+        "name": "Urdu"
+      },
+      {
+        "code": "HC",
+        "name": "Healthcare"
+      }
+    ]
+  },
+  {
+    "fNo": "251300",
+    "name": "Zeeshan Farooq",
+    "fatherName": "Farooq Ahmad Ganie",
+    "className": "10th",
+    "classRollNo": "49",
+    "boardRegNo": "2501000000610049",
+    "stream": "General",
+    "session": "2025-26",
+    "photoUrl": "",
+    "dob": "18-10-2011",
+    "subjects": [
+      {
+        "code": "EN",
+        "name": "General English"
+      },
+      {
+        "code": "SS",
+        "name": "Social Science"
+      },
+      {
+        "code": "SC",
+        "name": "Science"
+      },
+      {
+        "code": "MA",
+        "name": "Mathematics"
+      },
+      {
+        "code": "UR",
+        "name": "Urdu"
+      },
+      {
+        "code": "HC",
+        "name": "Healthcare"
+      }
+    ]
+  },
+  {
+    "fNo": "251301",
+    "name": "Nasir Ahmad Gojjar",
+    "fatherName": "Zaffar Ali Gojjar",
+    "className": "10th",
+    "classRollNo": "50",
+    "boardRegNo": "2501002000610050",
+    "stream": "General",
+    "session": "2025-26",
+    "photoUrl": "",
+    "dob": "17-04-2012",
+    "subjects": [
+      {
+        "code": "EN",
+        "name": "General English"
+      },
+      {
+        "code": "SS",
+        "name": "Social Science"
+      },
+      {
+        "code": "SC",
+        "name": "Science"
+      },
+      {
+        "code": "MA",
+        "name": "Mathematics"
+      },
+      {
+        "code": "UR",
+        "name": "Urdu"
+      },
+      {
+        "code": "HC",
+        "name": "Healthcare"
+      }
+    ]
+  },
+  {
+    "fNo": "251302",
+    "name": "Syed Safwan Siraj",
+    "fatherName": "Syed Siraj Ud Din",
+    "className": "10th",
+    "classRollNo": "51",
+    "boardRegNo": "2501000000610051",
+    "stream": "General",
+    "session": "2025-26",
+    "photoUrl": "",
+    "dob": "08-03-2011",
+    "subjects": [
+      {
+        "code": "EN",
+        "name": "General English"
+      },
+      {
+        "code": "SS",
+        "name": "Social Science"
+      },
+      {
+        "code": "SC",
+        "name": "Science"
+      },
+      {
+        "code": "MA",
+        "name": "Mathematics"
+      },
+      {
+        "code": "UR",
+        "name": "Urdu"
+      },
+      {
+        "code": "ITE",
+        "name": "IT & ITeS"
+      }
+    ]
+  },
+  {
+    "fNo": "251303",
+    "name": "Mohd Ikhlas Kochak",
+    "fatherName": "Manzoor Ahmad Kochak",
+    "className": "10th",
+    "classRollNo": "52",
+    "boardRegNo": "2501000000610052",
+    "stream": "General",
+    "session": "2025-26",
+    "photoUrl": "",
+    "dob": "05-10-2011",
+    "subjects": [
+      {
+        "code": "EN",
+        "name": "General English"
+      },
+      {
+        "code": "SS",
+        "name": "Social Science"
+      },
+      {
+        "code": "SC",
+        "name": "Science"
+      },
+      {
+        "code": "MA",
+        "name": "Mathematics"
+      },
+      {
+        "code": "UR",
+        "name": "Urdu"
+      },
+      {
+        "code": "ITE",
+        "name": "IT & ITeS"
+      }
+    ]
+  },
+  {
+    "fNo": "251304",
+    "name": "Yasir Javaid Mahroo",
+    "fatherName": "Javaid Ahmad Mahroo",
+    "className": "10th",
+    "classRollNo": "53",
+    "boardRegNo": "2501003000610053",
+    "stream": "General",
+    "session": "2025-26",
+    "photoUrl": "",
+    "dob": "01-11-2011",
+    "subjects": [
+      {
+        "code": "EN",
+        "name": "General English"
+      },
+      {
+        "code": "SS",
+        "name": "Social Science"
+      },
+      {
+        "code": "SC",
+        "name": "Science"
+      },
+      {
+        "code": "MA",
+        "name": "Mathematics"
+      },
+      {
+        "code": "UR",
+        "name": "Urdu"
+      },
+      {
+        "code": "HC",
+        "name": "Healthcare"
+      }
+    ]
+  },
+  {
+    "fNo": "251305",
+    "name": "Burhan Nisar",
+    "fatherName": "Nisar Ahmad Bhat",
+    "className": "10th",
+    "classRollNo": "54",
+    "boardRegNo": "2501000000610054",
+    "stream": "General",
+    "session": "2025-26",
+    "photoUrl": "",
+    "dob": "15-10-2011",
+    "subjects": [
+      {
+        "code": "EN",
+        "name": "General English"
+      },
+      {
+        "code": "SS",
+        "name": "Social Science"
+      },
+      {
+        "code": "SC",
+        "name": "Science"
+      },
+      {
+        "code": "MA",
+        "name": "Mathematics"
+      },
+      {
+        "code": "UR",
+        "name": "Urdu"
+      },
+      {
+        "code": "HC",
+        "name": "Healthcare"
+      }
+    ]
+  },
+  {
+    "fNo": "251306",
+    "name": "Mohmad Zia Wani",
+    "fatherName": "Bilal Ahmad Wani",
+    "className": "10th",
+    "classRollNo": "55",
+    "boardRegNo": "2501000000610055",
+    "stream": "General",
+    "session": "2025-26",
+    "photoUrl": "",
+    "dob": "13-11-2009",
+    "subjects": [
+      {
+        "code": "EN",
+        "name": "General English"
+      },
+      {
+        "code": "SS",
+        "name": "Social Science"
+      },
+      {
+        "code": "SC",
+        "name": "Science"
+      },
+      {
+        "code": "MA",
+        "name": "Mathematics"
+      },
+      {
+        "code": "UR",
+        "name": "Urdu"
+      },
+      {
+        "code": "ITE",
+        "name": "IT & ITeS"
+      }
+    ]
+  },
+  {
+    "fNo": "251307",
+    "name": "Azraar Ahmad Bhat",
+    "fatherName": "Gull Mohd Bhat",
+    "className": "10th",
+    "classRollNo": "56",
+    "boardRegNo": "2501000000610056",
+    "stream": "General",
+    "session": "2025-26",
+    "photoUrl": "",
+    "dob": "14-02-2011",
+    "subjects": [
+      {
+        "code": "EN",
+        "name": "General English"
+      },
+      {
+        "code": "SS",
+        "name": "Social Science"
+      },
+      {
+        "code": "SC",
+        "name": "Science"
+      },
+      {
+        "code": "MA",
+        "name": "Mathematics"
+      },
+      {
+        "code": "UR",
+        "name": "Urdu"
+      },
+      {
+        "code": "ITE",
+        "name": "IT & ITeS"
+      }
+    ]
+  },
+  {
+    "fNo": "251308",
+    "name": "Suhaib Nazir",
+    "fatherName": "Nazir Ahmad Bhat",
+    "className": "10th",
+    "classRollNo": "57",
+    "boardRegNo": "2501000000610057",
+    "stream": "General",
+    "session": "2025-26",
+    "photoUrl": "",
+    "dob": "10-04-2011",
+    "subjects": [
+      {
+        "code": "EN",
+        "name": "General English"
+      },
+      {
+        "code": "SS",
+        "name": "Social Science"
+      },
+      {
+        "code": "SC",
+        "name": "Science"
+      },
+      {
+        "code": "MA",
+        "name": "Mathematics"
+      },
+      {
+        "code": "UR",
+        "name": "Urdu"
+      },
+      {
+        "code": "HC",
+        "name": "Healthcare"
+      }
+    ]
+  },
+  {
+    "fNo": "251309",
+    "name": "Mohammad Asif Mir Pahari",
+    "fatherName": "Gulzar Ahmad Mir Pahari",
+    "className": "10th",
+    "classRollNo": "58",
+    "boardRegNo": "2501002000610058",
+    "stream": "General",
+    "session": "2025-26",
+    "photoUrl": "",
+    "dob": "11-11-2010",
+    "subjects": [
+      {
+        "code": "EN",
+        "name": "General English"
+      },
+      {
+        "code": "SS",
+        "name": "Social Science"
+      },
+      {
+        "code": "SC",
+        "name": "Science"
+      },
+      {
+        "code": "MA",
+        "name": "Mathematics"
+      },
+      {
+        "code": "UR",
+        "name": "Urdu"
+      },
+      {
+        "code": "HC",
+        "name": "Healthcare"
+      }
+    ]
+  },
+  {
+    "fNo": "251310",
+    "name": "Ishfaq Ahmad Mahroo",
+    "fatherName": "Shabir Ahmad Mahroo",
+    "className": "10th",
+    "classRollNo": "59",
+    "boardRegNo": "2501003000610059",
+    "stream": "General",
+    "session": "2025-26",
+    "photoUrl": "",
+    "dob": "21-11-2011",
+    "subjects": [
+      {
+        "code": "EN",
+        "name": "General English"
+      },
+      {
+        "code": "SS",
+        "name": "Social Science"
+      },
+      {
+        "code": "SC",
+        "name": "Science"
+      },
+      {
+        "code": "MA",
+        "name": "Mathematics"
+      },
+      {
+        "code": "UR",
+        "name": "Urdu"
+      },
+      {
+        "code": "ITE",
+        "name": "IT & ITeS"
+      }
+    ]
+  },
+  {
+    "fNo": "251311",
+    "name": "Mumin Syed Khan",
+    "fatherName": "Mohammad Sayed Khan",
+    "className": "10th",
+    "classRollNo": "60",
+    "boardRegNo": "2501003000610060",
+    "stream": "General",
+    "session": "2025-26",
+    "photoUrl": "",
+    "dob": "25-10-2011",
+    "subjects": [
+      {
+        "code": "EN",
+        "name": "General English"
+      },
+      {
+        "code": "SS",
+        "name": "Social Science"
+      },
+      {
+        "code": "SC",
+        "name": "Science"
+      },
+      {
+        "code": "MA",
+        "name": "Mathematics"
+      },
+      {
+        "code": "UR",
+        "name": "Urdu"
+      },
+      {
+        "code": "HC",
+        "name": "Healthcare"
       }
     ]
   }

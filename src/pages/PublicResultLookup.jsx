@@ -1636,7 +1636,20 @@ export default function PublicResultLookup() {
                 return isRegMatch || isFormMatch || isRollMatch;
               });
               if (rec) {
-                const enrolled = extractEnrolledSubjects(rec);
+                let enrolled = extractEnrolledSubjects(rec);
+                if (!Array.isArray(enrolled) || enrolled.length === 0) {
+                  const targetSecCls = classKey(sec.className || selectedClass);
+                  const isSec = ['10th', '9th', '10', '9'].includes(targetSecCls);
+                  if (isSec) {
+                    enrolled = [
+                      { code: 'EN', name: 'General English' },
+                      { code: 'MA', name: 'Mathematics' },
+                      { code: 'SC', name: 'Science' },
+                      { code: 'SS', name: 'Social Science' },
+                      { code: 'UR', name: 'Urdu' }
+                    ];
+                  }
+                }
                 matchedStudent = {
                   name: rec.name || rec.studentName,
                   fatherName: rec.parentName || rec.fatherName || '—',
