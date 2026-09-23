@@ -14,7 +14,7 @@ import * as THREE from 'three';
  *    - Outer Valence Shell (2s² 2p²): Ground state Aufbau configuration with 2 electrons in 2s and 2 electrons in 2p.
  *    - Gyroscopically follows mouse location and tilts with quantum relativistic precession.
  * 2. 📖 Open Book of Wisdom:
- *    - Positioned gracefully beside the motto on the left, symbolizing foundational theory, concepts, and scholastic inquiry across all streams (Humanities, Sciences, and Arts).
+ *    - Positioned gracefully beside the motto on the left, symbolizing foundational theory, concepts, and scholastic inquiry across all streams (Humanities, Sciences, and others).
  *    - When hovered: cascading fluttering/slipping pages arching upward in elegant fan waves.
  * 3. 🧪 Scientific Laboratory Apparatus (Erlenmeyer Flask of Discovery):
  *    - Positioned gracefully beside the motto on the right, symbolizing experimentation, practical testing, and hands-on innovation across all streams.
@@ -1126,7 +1126,7 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
         title: 'Open Book of Wisdom',
         subtitle: 'Theme: Foundational Theory & Concepts',
         subtitleColor: 'text-amber-300',
-        body: 'Flanking our motto on the left, the <span class="text-amber-300 font-semibold">Book of Wisdom</span> embodies foundational theory, deep inquiry, and conceptual knowledge across all streams—Humanities, Sciences, and Arts. Its cascading pages symbolize the rich intellectual and moral grounding essential to <span class="text-amber-300 font-semibold">&quot;nurture minds and shape futures&quot;</span> in every student.'
+        body: 'Flanking our motto on the left, the <span class="text-amber-300 font-semibold">Book of Wisdom</span> embodies foundational theory, deep inquiry, and conceptual knowledge across all streams—Humanities, Sciences, and others. Its cascading pages symbolize the rich intellectual and moral grounding essential to <span class="text-amber-300 font-semibold">&quot;nurture minds and shape futures&quot;</span> in every student.'
       },
       flask: {
         badge: '🧪',
