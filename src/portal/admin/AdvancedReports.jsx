@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback, useDeferredValue } from 'react';
 import { createPortal } from 'react-dom';
 import JSZip from 'jszip';
-import { RefreshCw, Search, SearchX, Wrench, Columns, Printer, Check, X, Play, ChevronDown, ChevronLeft, ChevronRight, CheckSquare, Square, FileSpreadsheet, FileText, Maximize2, Settings, Hash, Layers, Mail, CreditCard, Camera, Upload, Image as ImageIcon, Download, Copy, Save, RotateCcw, Lock, LogOut, Unlock, Eye, History, Key, MessageSquare, AlertOctagon, Trash2, CheckCircle2, ClipboardCheck, CalendarCheck, Calendar, List, Edit3, UserCheck, User, Users, BookOpen, Landmark, CheckCircle, Loader2, PlusCircle, ShieldCheck, ShieldAlert, BarChart2, Building2, Database, Zap, Sliders, Sparkles, Star, FolderDown, Globe } from 'lucide-react';
+import { RefreshCw, Search, SearchX, Wrench, Columns, Printer, Check, X, Play, ChevronDown, ChevronLeft, ChevronRight, CheckSquare, Square, FileSpreadsheet, FileText, Maximize2, Settings, Hash, Layers, Mail, CreditCard, Camera, Upload, Image as ImageIcon, Download, Copy, Save, RotateCcw, Lock, LogOut, Unlock, Eye, History, Key, MessageSquare, AlertOctagon, Trash2, CheckCircle2, ClipboardCheck, CalendarCheck, Calendar, List, Edit3, UserCheck, User, Users, BookOpen, Landmark, CheckCircle, Loader2, PlusCircle, ShieldCheck, ShieldAlert, BarChart2, Building2, Database, Zap, Sliders, Sparkles, Star, FolderDown, Globe, Phone, ExternalLink } from 'lucide-react';
 import appsScriptApi from '../../services/appsScriptApi';
 import { db, auth, ensureFirestoreConnected } from '../../services/firebase';
 import { sendPasswordResetEmail } from 'firebase/auth';
@@ -6108,6 +6108,7 @@ export default function AdvancedReports({
   const [showArchivalModal, setShowArchivalModal] = useState(false);
   const [showGoogleContactsModal, setShowGoogleContactsModal] = useState(false);
   const [googleContactsInitialIds, setGoogleContactsInitialIds] = useState(null);
+  const [returnToToolsModalOnClose, setReturnToToolsModalOnClose] = useState(false);
   const [dismissRolloverBanner, setDismissRolloverBanner] = useState(false);
   const [siteSettings, setSiteSettings] = useState(null);
   const [hasUnseenToolsUpdate, setHasUnseenToolsUpdate] = useState(false);
@@ -7262,7 +7263,7 @@ export default function AdvancedReports({
       const toolsParam = params.get('tools') || params.get('openTools');
       if (toolsParam) {
         setShowToolsModal(true);
-        if (['bulk_forms', 'db_editor', 'photo_export', 'photo_manager', 'db_backup'].includes(toolsParam)) {
+        if (['bulk_forms', 'db_editor', 'photo_export', 'photo_manager', 'db_backup', 'google_contacts'].includes(toolsParam)) {
           setActiveToolsTab(toolsParam);
         }
       }
@@ -7485,13 +7486,14 @@ export default function AdvancedReports({
   useEffect(() => {
     if (!showToolsModal) return;
     const handleKeyDown = (e) => {
+      if (showGoogleContactsModal || previewPhotoModal) return;
       if (e.key === 'Escape') {
         setShowToolsModal(false);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [showToolsModal]);
+  }, [showToolsModal, showGoogleContactsModal, previewPhotoModal]);
 
   const handleRefreshCloudPhotos = async () => {
     setLoadingPhotosFromCloud(true);
@@ -13226,7 +13228,8 @@ export default function AdvancedReports({
                       type="button"
                       onClick={() => {
                         if (t.id === 'google_contacts') {
-                          setShowToolsModal(false);
+                          setActiveToolsTab('google_contacts');
+                          setReturnToToolsModalOnClose(true);
                           setGoogleContactsInitialIds(null);
                           setShowGoogleContactsModal(true);
                         } else {
@@ -14988,6 +14991,96 @@ export default function AdvancedReports({
                 </div>
               </div>
             )}
+
+            {/* Tool Content 5: Google Contacts CSV Bulk Exporter */}
+            {activeToolsTab === 'google_contacts' && (
+              <div className="space-y-4 p-3 sm:p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm animate-fadeIn">
+                <div className="flex items-start justify-between flex-wrap gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
+                  <div className="flex items-start gap-3">
+                    <div className="p-2.5 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white shadow-md shadow-blue-500/20 shrink-0">
+                      <Users size={20} />
+                    </div>
+                    <div>
+                      <div className="font-black text-sm sm:text-base text-slate-900 dark:text-white flex items-center gap-2">
+                        <span>Bulk Google Contacts CSV Exporter</span>
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+                          vCards & CSV Ready
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5 max-w-2xl">
+                        Batch export clean student and guardian contacts with customizable display name formulas, smart phone number normalization (+91 prefixing), duplicate phone deduplication, and direct one-click import into Android, iOS, or Google Contacts.
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setReturnToToolsModalOnClose(true);
+                      setGoogleContactsInitialIds(null);
+                      setShowGoogleContactsModal(true);
+                    }}
+                    className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:from-blue-700 hover:to-indigo-700 text-white font-black text-xs shadow-md shadow-blue-500/20 flex items-center gap-2 cursor-pointer transition-all hover:scale-[1.02] active:scale-[0.98]"
+                  >
+                    <Users size={14} />
+                    <span>Launch Contacts Exporter</span>
+                  </button>
+                </div>
+
+                {/* Feature Highlights Grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200/80 dark:border-slate-800/80 space-y-1">
+                    <p className="text-[11px] font-black text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                      <CheckCircle2 size={13} className="text-emerald-500 shrink-0" />
+                      Standard Google CSV Format
+                    </p>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-relaxed">
+                      Complies with RFC 4180 specification with 38 standard Google Contacts header fields.
+                    </p>
+                  </div>
+
+                  <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200/80 dark:border-slate-800/80 space-y-1">
+                    <p className="text-[11px] font-black text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                      <Sparkles size={13} className="text-amber-500 shrink-0" />
+                      Dynamic Name Formulas
+                    </p>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-relaxed">
+                      Combine tokens like <code className="font-mono text-indigo-600 dark:text-indigo-400">{'{Name}'}</code>, <code className="font-mono text-indigo-600 dark:text-indigo-400">{'{Roll}'}</code>, <code className="font-mono text-indigo-600 dark:text-indigo-400">{'{Class}'}</code>, and <code className="font-mono text-indigo-600 dark:text-indigo-400">{'{Session}'}</code>.
+                    </p>
+                  </div>
+
+                  <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200/80 dark:border-slate-800/80 space-y-1">
+                    <p className="text-[11px] font-black text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                      <Phone size={13} className="text-blue-500 shrink-0" />
+                      Phone Normalization & Dedupe
+                    </p>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-relaxed">
+                      Auto cleans 10-digit Indian numbers, trims extra chars, and combines duplicates across sibling records.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Quick Action Footer */}
+                <div className="p-3 rounded-xl bg-blue-50/60 dark:bg-blue-950/30 border border-blue-200/60 dark:border-blue-800/50 flex items-center justify-between flex-wrap gap-2 text-xs">
+                  <div className="text-[11px] text-blue-900 dark:text-blue-300 font-bold flex items-center gap-2">
+                    <Users size={14} className="text-blue-600 dark:text-blue-400" />
+                    <span>Eligible cohort records available across active admissions and master archives.</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setReturnToToolsModalOnClose(true);
+                      setGoogleContactsInitialIds(null);
+                      setShowGoogleContactsModal(true);
+                    }}
+                    className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-black text-xs transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
+                  >
+                    <span>Configure & Export CSV</span>
+                    <ExternalLink size={12} />
+                  </button>
+                </div>
+              </div>
+            )}
             </div>
           </div>
         </div>,
@@ -14997,7 +15090,7 @@ export default function AdvancedReports({
       {/* MODAL 3: Photo Preview Modal Popup */}
       {previewPhotoModal && createPortal(
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-md animate-fadeIn"
+          className="fixed inset-0 z-[100020] flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-md animate-fadeIn"
           onClick={() => setPreviewPhotoModal(null)}
         >
           <div
@@ -15433,8 +15526,12 @@ export default function AdvancedReports({
         onClose={() => {
           setShowGoogleContactsModal(false);
           setGoogleContactsInitialIds(null);
+          if (returnToToolsModalOnClose) {
+            setShowToolsModal(true);
+            setReturnToToolsModalOnClose(false);
+          }
         }}
-        students={currentAdmissions}
+        students={allStudents && allStudents.length > 0 ? allStudents : [...(currentAdmissions || []), ...(masterHistoricalRecords || [])]}
         initialSelectedIds={googleContactsInitialIds}
         activeSession={siteSettings?.academicSession || '2025-26'}
       />
