@@ -5,7 +5,8 @@
 // standardized contact cards, and export directly to Google Contacts CSV.
 // =================================================================
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import {
   X, Download, Users, Phone, Search, Filter, CheckCircle2,
   AlertTriangle, ExternalLink, HelpCircle, FileSpreadsheet,
@@ -192,11 +193,34 @@ export default function GoogleContactsExportModal({
     showToast('Copied contact preview format to clipboard!', 'info');
   };
 
+  // Handle ESC key cleanly dismissing modal and stopping propagation
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        onClose?.();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown, true);
+    return () => window.removeEventListener('keydown', handleKeyDown, true);
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
-  return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-1.5 sm:p-4 bg-slate-950/75 backdrop-blur-sm animate-fadeIn">
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl sm:rounded-2xl shadow-2xl max-w-2xl sm:max-w-3xl w-full max-h-[96vh] sm:max-h-[88vh] flex flex-col overflow-hidden text-slate-800 dark:text-slate-100">
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[100005] flex items-center justify-center p-1.5 sm:p-4 bg-slate-950/80 backdrop-blur-md animate-fadeIn"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="google-contacts-modal-title"
+    >
+      <div
+        className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl sm:rounded-2xl shadow-2xl max-w-2xl sm:max-w-3xl w-full max-h-[96vh] sm:max-h-[88vh] flex flex-col overflow-hidden text-slate-800 dark:text-slate-100 animate-scaleUp"
+        onClick={(e) => e.stopPropagation()}
+      >
         
         {/* Compact Header Bar */}
         <div className="flex items-center justify-between px-3 py-2 sm:px-4 sm:py-2.5 border-b border-slate-100 dark:border-slate-800 bg-gradient-to-r from-blue-50/80 via-indigo-50/50 to-teal-50/50 dark:from-slate-800/60 dark:via-slate-800/40 dark:to-slate-800/60 shrink-0">
@@ -542,6 +566,7 @@ export default function GoogleContactsExportModal({
         </div>
 
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
