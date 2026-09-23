@@ -2,9 +2,19 @@
  * In-browser canvas image compressor.
  * Downscales images to portrait student photo dimensions (max 300x360) and compresses to ~5-15 KB JPEG.
  */
-export const compressImageFile = (file, maxWidth = 300, maxHeight = 360, quality = 0.8) => {
+export const compressImageFile = (file, maxWidth = 300, maxHeight = 360, quality = 0.75) => {
   return new Promise((resolve, reject) => {
     if (!file) return resolve(null);
+    let targetWidth = maxWidth;
+    let targetHeight = maxHeight;
+    let targetQuality = quality;
+
+    if (typeof maxWidth === 'object' && maxWidth !== null) {
+      targetWidth = maxWidth.maxWidth || 300;
+      targetHeight = maxWidth.maxHeight || 360;
+      targetQuality = maxWidth.quality !== undefined ? maxWidth.quality : 0.75;
+    }
+
     const reader = new FileReader();
     reader.onload = (e) => {
       const img = new Image();
@@ -14,14 +24,14 @@ export const compressImageFile = (file, maxWidth = 300, maxHeight = 360, quality
         let height = img.height;
 
         if (width > height) {
-          if (width > maxWidth) {
-            height = Math.round((height * maxWidth) / width);
-            width = maxWidth;
+          if (width > targetWidth) {
+            height = Math.round((height * targetWidth) / width);
+            width = targetWidth;
           }
         } else {
-          if (height > maxHeight) {
-            width = Math.round((width * maxHeight) / height);
-            height = maxHeight;
+          if (height > targetHeight) {
+            width = Math.round((width * targetHeight) / height);
+            height = targetHeight;
           }
         }
 
@@ -35,13 +45,12 @@ export const compressImageFile = (file, maxWidth = 300, maxHeight = 360, quality
 
         ctx.drawImage(img, 0, 0, width, height);
 
-        // Base64 adds about 33% overhead, so keep the encoded value small
-        // enough for an efficient Firestore admission document.
-        let outputQuality = Math.min(Math.max(quality, 0.4), 0.86);
+        // 75% quality gives optimal crispness (~12-18 KB JPEG) while minimizing Firestore document size
+        let outputQuality = Math.min(Math.max(targetQuality, 0.35), 0.82);
         let dataUrl = canvas.toDataURL('image/jpeg', outputQuality);
-        const maxEncodedLength = 100 * 1024; // approximately 75 KiB JPEG
-        while (dataUrl.length > maxEncodedLength && outputQuality > 0.42) {
-          outputQuality = Math.max(0.42, outputQuality - 0.1);
+        const maxEncodedLength = 80 * 1024; // approximately 60 KiB JPEG safety cap
+        while (dataUrl.length > maxEncodedLength && outputQuality > 0.40) {
+          outputQuality = Math.max(0.40, outputQuality - 0.08);
           dataUrl = canvas.toDataURL('image/jpeg', outputQuality);
         }
         if (dataUrl.length > maxEncodedLength) {
@@ -76,25 +85,25 @@ export const parsePhotoFilename = (filename) => {
   let admNo = '';
   let studentName = '';
 
-  const regNoMatch = cleanName.match(/\b\d{14,17}\b/);
-  const formNoMatch = cleanName.match(/\b2[0-9]\d{4}\b/);
-  const admNoMatch = cleanName.match(/\b(?:adm|admno)?[_-]?(\d{3,5})\b/i);
+  const regNoMatch = cleanName.match(/(?:^|[_\s-])(\d{14,17})(?:[_\s-]|$)/);
+  const formNoMatch = cleanName.match(/(?:^|[_\s-])(2[0-9]\d{4})(?:[_\s-]|$)/);
+  const admNoMatch = cleanName.match(/(?:^|[_\s-])(?:adm|admno)?[_-]?(\d{3,5})(?:[_\s-]|$)/i);
 
   if (regNoMatch) {
-    regNoOrFormNo = regNoMatch[0];
+    regNoOrFormNo = regNoMatch[1];
   } else if (formNoMatch) {
-    regNoOrFormNo = formNoMatch[0];
+    regNoOrFormNo = formNoMatch[1];
   }
 
   if (admNoMatch && admNoMatch[1]) {
     admNo = admNoMatch[1];
   }
 
-  const classMatch = cleanName.match(/\b(9th|10th|11th|12th)\b/i);
-  if (classMatch) className = classMatch[0];
+  const classMatch = cleanName.match(/(?:^|[_\s-])(9th|10th|11th|12th)(?:[_\s-]|$)/i);
+  if (classMatch) className = classMatch[1];
 
-  const sessionMatch = cleanName.match(/\b20\d{2}-\d{2}\b/);
-  if (sessionMatch) session = sessionMatch[0];
+  const sessionMatch = cleanName.match(/(?:^|[_\s-])(20\d{2}-\d{2})(?:[_\s-]|$)/);
+  if (sessionMatch) session = sessionMatch[1];
 
   const nameParts = parts.filter(p => 
     !/\b(9th|10th|11th|12th)\b/i.test(p) &&
@@ -406,3 +415,117 @@ export const cleanStudentPhotoPayload = (payload) => {
 };
 
 export const resolveStudentPhoto = getStudentPhotoUrl;
+
+/**
+ * Formats a clean, professional, descriptive filename for downloading a student photo.
+ * e.g. "9th_F251316_DIET012345_Zakir_Gulzar_photo.jpg" or "10th_F251020_Aadil_Ahmad_photo.jpg"
+ * Eliminates empty dashes '—', illegal filesystem characters, and undefined tokens.
+ */
+export const getStudentPhotoDownloadFilename = (student, ext = 'jpg') => {
+  if (!student) return `student_photo.${ext.replace(/^\./, '')}`;
+
+  const clean = (val) => {
+    if (!val) return '';
+    const str = String(val).trim();
+    if (['—', '-', '--', 'n/a', 'na', 'null', 'undefined', 'none', '.'].includes(str.toLowerCase())) return '';
+    return str
+      .replace(/[\\/:*?"<>|\r\n\t]+/g, '_')
+      .replace(/\s+/g, '_')
+      .replace(/_+/g, '_')
+      .replace(/^_+|_+$/g, '')
+      .trim();
+  };
+
+  const name = clean(
+    student.studentName ||
+    student["Student's Name (as per school records)"] ||
+    student["Student's Name"] ||
+    student.name
+  ) || 'Student';
+
+  const formNo = clean(
+    student.formNo ||
+    student['Form Number'] ||
+    student['Form No.'] ||
+    student['FormNo'] ||
+    student.form_no
+  );
+
+  const regNo = clean(
+    student.boardRegNo ||
+    student.regNo ||
+    student['Registration No.'] ||
+    student['Registration No'] ||
+    student['Board Registration No. (Class 9th)'] ||
+    student['Board Registration No. (Class 10th)'] ||
+    student['Board Registration No. (Class 11th)'] ||
+    student['Board Registration No. (Class 12th)'] ||
+    student['Board Registration Number'] ||
+    student.reg_no
+  );
+
+  const cls = clean(
+    student.class ||
+    student.Class ||
+    student['Admission sought for class']
+  );
+
+  const roll = clean(
+    student.classRollNo ||
+    student.rollNo ||
+    student['Class Roll No'] ||
+    student['Roll No.'] ||
+    student['Roll No']
+  );
+
+  const parts = [];
+  if (cls) parts.push(cls);
+  if (formNo) parts.push(`F${formNo}`);
+  if (regNo && regNo !== formNo) parts.push(regNo);
+  if (roll) parts.push(`R${roll}`);
+  parts.push(name);
+
+  const cleanExt = ext.replace(/^\./, '');
+  return `${parts.join('_')}_photo.${cleanExt}`;
+};
+
+/**
+ * Downloads a photo with a guaranteed custom filename, supporting both Base64 Data URLs and remote URLs.
+ */
+export const downloadPhotoFile = (url, filename = 'student_photo.jpg') => {
+  if (!url || typeof window === 'undefined') return;
+
+  if (url.startsWith('data:image/')) {
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    return;
+  }
+
+  // Remote URL: fetch as blob to guarantee the browser enforces the custom filename
+  fetch(url, { mode: 'cors' })
+    .then(res => res.blob())
+    .then(blob => {
+      const blobUrl = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 2000);
+    })
+    .catch(() => {
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    });
+};

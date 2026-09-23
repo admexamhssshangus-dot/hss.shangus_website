@@ -890,7 +890,7 @@ export default function DynamicFormField({
 
     setPhotoProcessing(true);
     try {
-      const dataUrl = await compressStudentPhoto(file, 300, 360, 0.82);
+      const dataUrl = await compressStudentPhoto(file, 300, 360, 0.75);
       if (!dataUrl || !dataUrl.startsWith('data:image/')) throw new Error('Image compression failed');
       onChange(name, dataUrl);
     } catch (err) {

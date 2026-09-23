@@ -715,7 +715,7 @@ export default function ControlsAndSubjects({ applications = [] } = {}) {
                 <div className="flex items-center gap-1.5 sm:gap-2 self-end sm:self-auto flex-wrap">
                   <div className="px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-lg sm:rounded-xl border border-teal-300 dark:border-teal-700/70 bg-teal-50/70 dark:bg-teal-950/40 font-bold text-teal-800 dark:text-teal-200 flex items-center gap-1.5 text-[10.5px] sm:text-xs shadow-2xs">
                     <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
-                    <span>Auto-Synced: <strong className="font-mono font-black">{metrics?.storageMB || 164.8} MB</strong></span>
+                    <span>Auto-Synced: <strong className="font-mono font-black">{metrics?.storageMB || 125.8} MB</strong></span>
                   </div>
 
                   <button

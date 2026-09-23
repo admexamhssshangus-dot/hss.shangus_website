@@ -113,7 +113,7 @@ export default function ApplicationReviewModal({ app, onClose, onRefresh }) {
     if (!file) return;
     setPhotoUploading(true);
     try {
-      const compressedDataUrl = await compressImageFile(file, 300, 360, 0.82);
+      const compressedDataUrl = await compressImageFile(file, 300, 360, 0.75);
       setCurrentPhoto(compressedDataUrl);
 
       // Save to local photo cache immediately

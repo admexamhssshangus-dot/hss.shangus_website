@@ -6,7 +6,8 @@ const CACHE_KEY = 'hss_firebase_storage_metrics';
 const CACHE_TTL_MS = 15 * 60 * 1000; // 15 minutes
 const STORAGE_COUNTS_KEY = 'hss_storage_collection_counts';
 
-export const GOOGLE_CLOUD_BASELINE_MIB = 164.83; // Authoritative metric from Google Cloud Console Metrics Explorer
+export const GOOGLE_CLOUD_BASELINE_MIB = 125.82; // Authoritative metric from Google Cloud Console Metrics Explorer (data_and_index_storage_bytes)
+export const GOOGLE_CLOUD_BASELINE_TIMESTAMP = '2026-09-23T01:30:00.000Z'; // Sampled Sep 23, 2026, 07:00:00 AM IST
 export const SPARK_QUOTA_MB = 1024.0; // 1 GiB free tier
 
 /**
@@ -133,16 +134,30 @@ export function resolveAccurateCollectionCounts(applications = [], serverCounts 
 export function getAutomatedStorageMetrics({ applications = [], serverData = null } = {}) {
   const counts = resolveAccurateCollectionCounts(applications, serverData?.counts);
 
-  // Authoritative benchmark from Google Cloud Console (164.83 MiB)
+  // Authoritative benchmark from Google Cloud Console (125.82 MiB)
   let benchmarkMiB = GOOGLE_CLOUD_BASELINE_MIB;
   let source = 'Google Cloud Console (Auto-Calibrated)';
-  let lastSampledAt = '2026-09-22T05:30:00.000Z';
+  let lastSampledAt = GOOGLE_CLOUD_BASELINE_TIMESTAMP;
+
+  // Check if a calibrated benchmark was saved in local site_settings or localStorage
+  try {
+    const rawStored = localStorage.getItem('site_settings');
+    if (rawStored) {
+      const parsed = JSON.parse(rawStored);
+      if (parsed?.cloudStorageBenchmark?.mib && Number(parsed.cloudStorageBenchmark.mib) > 0) {
+        benchmarkMiB = Number(parsed.cloudStorageBenchmark.mib);
+        if (parsed.cloudStorageBenchmark.sampledAt) lastSampledAt = parsed.cloudStorageBenchmark.sampledAt;
+        if (parsed.cloudStorageBenchmark.source) source = parsed.cloudStorageBenchmark.source;
+      }
+    }
+  } catch (_) {}
 
   // If server provided live Cloud Monitoring telemetry, use it
   if (serverData && serverData.storageMB && serverData.storageMB > 30) {
     benchmarkMiB = serverData.storageMB;
     if (serverData.lastSampledAt) lastSampledAt = serverData.lastSampledAt;
     if (serverData.source === 'cloud_monitoring') source = 'Google Cloud Monitoring v3';
+    else if (serverData.source === 'cloud_console_benchmark') source = 'Google Cloud Console Benchmark';
   }
 
   const quotaMB = SPARK_QUOTA_MB;
