@@ -2,6 +2,7 @@
   "globalAdmissionsClosed": false,
   "practicalsSubmissionOpen": true,
   "attendanceSubmissionOpen": true,
+  "enableAdmin2StepVerification": true,
   "defaultNewNoticeDays": 7,
   "admissionsClosed": {
     "9th": false,

@@ -39,6 +39,7 @@ import {
 import { sessionManager } from '../services/sessionManager';
 import ModernCaptcha from '../components/ModernCaptcha';
 import { normalizeTeacherClasses } from '../utils/practicalsSettingsManager';
+import { loadSiteSettings } from '../utils/settingsLoader';
 
 // Helper to quickly check if an email belongs to a teacher/faculty
 const isLikelyTeacherEmail = (rawEmail) => {
@@ -724,36 +725,24 @@ export default function LoginPage() {
           return;
         }
 
-        // Direct Super Admin bypass when signing in with master institutional credentials
-        if (isSuperAdminEmail(cleanEmail)) {
-          const verifiedSession = await createVerifiedSession(fbUser, cleanEmail, staffProfile);
-          verifiedSession.redirectPath = '/portal/admin';
-          setAlert({ type: 'success', text: 'Welcome back, Super Admin! Unlocking dashboard...' });
-          onLoginSuccess(verifiedSession, keepLoggedIn);
-          return;
-        }
-
-        // Check if admin has already performed 2-Step Verification previously (first time only rule)
-        const isPreviouslyVerified = Boolean(
-          staffProfile?.google2StepVerified ||
-          staffProfile?.last2StepVerificationDate ||
-          localStorage.getItem('hss_admin_google_verified_' + cleanEmail) === 'true'
-        );
-
-        if (isPreviouslyVerified) {
-          const verifiedSession = await createVerifiedSession(fbUser, cleanEmail, staffProfile);
-          verifiedSession.redirectPath = '/portal/admin';
-          setAlert({ type: 'success', text: `Welcome back, ${verifiedSession.user.name}! Unlocking Admin Portal...` });
-          onLoginSuccess(verifiedSession, keepLoggedIn);
-          return;
-        }
-
-        if (await beginAdminLogin(fbUser, staffProfile)) return;
+        // Direct entry for all authorized administrative accounts signing in with Google OAuth
+        // (Google OAuth already cryptographically verifies identity and active browser session)
+        const verifiedSession = await createVerifiedSession(fbUser, cleanEmail, staffProfile);
+        verifiedSession.redirectPath = '/portal/admin';
+        const roleLabel = isSuperAdminEmail(cleanEmail) ? 'Super Admin' : (verifiedSession.user.name || 'Administrator');
+        setAlert({ type: 'success', text: `Welcome back, ${roleLabel}! Unlocking Admin Portal...` });
+        onLoginSuccess(verifiedSession, keepLoggedIn);
+        return;
       }
 
       // --- 3. STUDENT TAB (DEFAULT) ---
       const verifiedSession = await createVerifiedSession(fbUser, cleanEmail, staffProfile);
-      setAlert({ type: 'success', text: 'Login successful! Redirecting to Portal...' });
+      if (isAdmin) {
+        verifiedSession.redirectPath = '/portal/admin';
+        setAlert({ type: 'success', text: `Welcome back, ${verifiedSession.user.name}! Redirecting to Admin Portal...` });
+      } else {
+        setAlert({ type: 'success', text: 'Login successful! Redirecting to Portal...' });
+      }
       onLoginSuccess(verifiedSession, keepLoggedIn);
     } catch (err) {
       console.error('Google Sign-In failed:', err);
@@ -865,8 +854,14 @@ export default function LoginPage() {
           return;
         }
 
-        // Admin 2-Step Verification Interception
-        if (await beginAdminLogin(userCred.user, staffProfile)) return;
+        // Check if 2-Step Verification is required for admin email/password login
+        const siteSettings = await loadSiteSettings().catch(() => null);
+        const require2Step = siteSettings?.enableAdmin2StepVerification ?? true;
+
+        if (require2Step) {
+          // Admin 2-Step Verification Interception
+          if (await beginAdminLogin(userCred.user, staffProfile)) return;
+        }
 
         // If 2SV is bypassed or not active, redirect directly
         const verifiedSession = await createVerifiedSession(userCred.user, cleanEmail, staffProfile);
