@@ -13763,7 +13763,7 @@ export default function AdvancedReports({
               </div>
 
               {/* Tools Sub Navigation (Compact Pill Tabs) */}
-              <div className="flex items-center gap-1 p-0.5 sm:p-1 rounded-lg sm:rounded-xl border border-slate-200/90 dark:border-slate-800 bg-slate-100/90 dark:bg-slate-800/80 text-xs overflow-x-auto no-scrollbar shadow-inner">
+              <div className="flex items-center gap-1 p-0.5 sm:p-1 rounded-lg sm:rounded-xl border border-slate-200/90 dark:border-slate-800 bg-slate-100/90 dark:bg-slate-800/80 text-xs overflow-x-auto no-scrollbar shadow-inner touch-pan-x overscroll-x-contain scroll-smooth">
                 {[
                   { id: 'bulk_forms', label: 'Bulk Forms', icon: Printer },
                   { id: 'db_editor', label: 'Class & Roll Shift', icon: RefreshCw },
@@ -15212,363 +15212,426 @@ export default function AdvancedReports({
 
             {/* Tool Content 4: Database Backup & Excel Suite */}
             {activeToolsTab === 'db_backup' && (
-              <div className="space-y-2.5 p-2 sm:p-2.5 rounded-xl bg-slate-50/80 dark:bg-slate-950/70 border border-slate-200/90 dark:border-slate-800 animate-fadeIn">
-                <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800/80 pb-2 flex-wrap gap-2">
-                  <div className="flex items-center gap-1.5">
-                    <div className="p-1 rounded-lg bg-amber-500/15 text-amber-600 dark:text-amber-400">
-                      <Database size={14} />
+              <div className="space-y-2.5 p-1.5 sm:p-2.5 rounded-xl bg-slate-50/60 dark:bg-slate-950/50 border border-slate-200/80 dark:border-slate-800/80 animate-fadeIn">
+                {/* Minimal Header */}
+                <div className="flex flex-col xs:flex-row xs:items-center justify-between gap-1.5 border-b border-slate-200/80 dark:border-slate-800/80 pb-2">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <div className="p-1 rounded-md bg-amber-500/10 text-amber-600 dark:text-amber-400 shrink-0">
+                      <Database size={13} />
                     </div>
-                    <div>
-                      <div className="font-black text-xs sm:text-sm text-slate-900 dark:text-white leading-tight">
-                        Database Backup, Session Master Register & CMS Suite
+                    <div className="min-w-0">
+                      <div className="font-black text-xs text-slate-900 dark:text-white leading-tight truncate">
+                        Database Backup & Institutional Registers
                       </div>
                       <p className="text-slate-500 dark:text-slate-400 text-[10px] font-medium hidden sm:block">
-                        Export multi-session master registers (2006–2026), full database workbooks, public website configs, or disaster recovery archives.
+                        Multi-session master registers, database workbooks, CMS mirrors & disaster recovery archives.
                       </p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-1.5 text-[10px] font-black">
-                    <span className="px-2 py-0.5 rounded-lg bg-amber-50 dark:bg-amber-950/60 text-amber-900 dark:text-amber-200 border border-amber-300/80 dark:border-amber-700/80">
+                  <div className="flex items-center gap-1.5 text-[9.5px] sm:text-[10px] font-bold shrink-0 self-end xs:self-auto">
+                    <span className="px-2 py-0.5 rounded-md bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800">
                       Total: {allStudents.length}
                     </span>
-                    <span className="px-2 py-0.5 rounded-lg bg-teal-50 dark:bg-teal-950/60 text-teal-900 dark:text-teal-200 border border-teal-300/80 dark:border-teal-700/80">
+                    <span className="px-2 py-0.5 rounded-md bg-teal-50 dark:bg-teal-950/60 text-teal-700 dark:text-teal-300 border border-teal-200 dark:border-teal-800">
                       Filtered: {filteredStudents.length}
                     </span>
                   </div>
                 </div>
 
-                {/* ─── 1. SESSION MASTER REGISTER EXPORTER ─── */}
-                <div className="p-2.5 sm:p-3 rounded-xl bg-white dark:bg-slate-900 border border-amber-500/30 dark:border-amber-500/20 shadow-2xs space-y-2 hover:border-amber-500/50 transition-all">
-                  <div className="flex items-center justify-between flex-wrap gap-1.5">
-                    <div className="font-black text-xs text-slate-900 dark:text-white flex items-center gap-1.5">
-                      <div className="p-1 rounded-md bg-amber-100 dark:bg-amber-950/80 text-amber-700 dark:text-amber-300">
-                        <FileSpreadsheet size={13} />
+                {/* ─── GROUP 1: INSTITUTIONAL EXCEL WORKBOOKS & REGISTERS ─── */}
+                <div className="space-y-2 p-2 sm:p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-2xs">
+                  {/* Master Multi-Sheet Excel Card */}
+                  <div className="p-2 sm:p-2.5 rounded-lg bg-teal-50/30 dark:bg-teal-950/15 border border-teal-500/20 dark:border-teal-500/20 space-y-2">
+                    <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2">
+                      <div className="flex items-start gap-1.5 min-w-0">
+                        <div className="p-1 rounded-md bg-teal-600 text-white shrink-0 shadow-2xs">
+                          <FileSpreadsheet size={13} />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="font-black text-xs text-slate-900 dark:text-white">
+                              Master Multi-Sheet Excel Backup (.xlsx)
+                            </span>
+                            <span className="text-[8px] px-1.5 py-0.2 rounded bg-teal-600 text-white font-extrabold uppercase tracking-wider">
+                              Recommended
+                            </span>
+                          </div>
+                          <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium leading-tight mt-0.5">
+                            Comprehensive workbook with 7 dedicated sheets covering admissions, faculty, notices, settings & audits.
+                          </p>
+                        </div>
                       </div>
-                      <span>Historical & Current Session Master Register (.xlsx)</span>
-                      <span className="text-[9px] px-1.5 py-0.2 rounded bg-amber-500/15 text-amber-800 dark:text-amber-300 font-extrabold uppercase border border-amber-500/30">
-                        2006–2026
-                      </span>
+
+                      {/* Action Buttons - Fully Responsive Mobile Stack / Desktop Row */}
+                      <div className="flex flex-col xs:flex-row sm:flex-row items-stretch sm:items-center gap-1.5 w-full sm:w-auto shrink-0">
+                        <button
+                          type="button"
+                          disabled={isExportingDbExcel || isExportingDbZip}
+                          onClick={handleDownloadFullDatabaseExcel}
+                          className="w-full sm:w-auto px-2.5 py-1.5 rounded-lg bg-teal-700 hover:bg-teal-600 text-white font-bold text-[11px] sm:text-xs shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 transition-all"
+                        >
+                          {isExportingDbExcel ? (
+                            <>
+                              <RefreshCw size={12} className="animate-spin" />
+                              <span>Compiling...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Download size={12} />
+                              <span>Download Excel {masterMultiColumnMode === 'all' ? '(100+ Cols)' : '(.xlsx)'}</span>
+                            </>
+                          )}
+                        </button>
+
+                        <button
+                          type="button"
+                          disabled={isExportingDbZip || isExportingDbExcel}
+                          onClick={handleDownloadMasterBackupZip}
+                          className="w-full sm:w-auto px-2.5 py-1.5 rounded-lg bg-indigo-700 hover:bg-indigo-600 text-white font-bold text-[11px] sm:text-xs shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 transition-all"
+                          title="Downloads single compressed ZIP containing Master Excel, Disaster Recovery JSON, Settings, Faculty, Notices, and Manifest"
+                        >
+                          {isExportingDbZip ? (
+                            <>
+                              <RefreshCw size={12} className="animate-spin" />
+                              <span>Creating ZIP...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Archive size={12} />
+                              <span>Master Backup ZIP (.zip)</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
                     </div>
-                    <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded">
-                      48 Standard Columns • Multi-Session Tabs
-                    </span>
+
+                    {/* Scope & Column Controls - Fits cleanly without truncating on mobile */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 p-1.5 rounded-lg bg-white/90 dark:bg-slate-900/90 border border-teal-500/20 dark:border-teal-700/30 text-xs">
+                      {/* Data Scope Control */}
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between text-[10px] font-bold text-slate-600 dark:text-slate-400">
+                          <span>Student Data Scope:</span>
+                          <span className="text-teal-700 dark:text-teal-400 font-black">
+                            {masterMultiScope === 'filtered' ? `${masterFilteredStudentsCount} Students` : `${totalCandidateStudentsCount} Total`}
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-1 p-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-[10px] sm:text-[10.5px]">
+                          <button
+                            type="button"
+                            onClick={() => setMasterMultiScope('filtered')}
+                            className={`py-1 px-1 rounded transition-all cursor-pointer text-center font-bold truncate ${
+                              masterMultiScope === 'filtered'
+                                ? 'bg-teal-700 text-white shadow-2xs'
+                                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                            }`}
+                            title="Downloads records matching active Class, Stream, Session, and Status filters"
+                          >
+                            <span className="hidden sm:inline">Filtered Scope</span>
+                            <span className="sm:hidden">Filtered</span> ({masterFilteredStudentsCount})
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setMasterMultiScope('all')}
+                            className={`py-1 px-1 rounded transition-all cursor-pointer text-center font-bold truncate ${
+                              masterMultiScope === 'all'
+                                ? 'bg-teal-700 text-white shadow-2xs'
+                                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                            }`}
+                            title="Downloads all institutional records across admissions and digitized archives"
+                          >
+                            <span className="hidden sm:inline">All Records</span>
+                            <span className="sm:hidden">All</span> ({totalCandidateStudentsCount})
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Column Detail Level Control */}
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between text-[10px] font-bold text-slate-600 dark:text-slate-400">
+                          <span>Admissions Columns:</span>
+                          <span className="text-teal-700 dark:text-teal-400 font-black">
+                            {masterMultiColumnMode === 'important' ? '48 Standard' : '100+ Complete'}
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-1 p-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-[10px] sm:text-[10.5px]">
+                          <button
+                            type="button"
+                            onClick={() => setMasterMultiColumnMode('important')}
+                            className={`py-1 px-1 rounded transition-all cursor-pointer text-center font-bold truncate ${
+                              masterMultiColumnMode === 'important'
+                                ? 'bg-teal-700 text-white shadow-2xs'
+                                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                            }`}
+                            title="Exports curated 48 standard official columns (Recommended)"
+                          >
+                            <span className="hidden sm:inline">Important Only</span>
+                            <span className="sm:hidden">Standard</span> (48)
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setMasterMultiColumnMode('all')}
+                            className={`py-1 px-1 rounded transition-all cursor-pointer text-center font-bold truncate ${
+                              masterMultiColumnMode === 'all'
+                                ? 'bg-teal-700 text-white shadow-2xs'
+                                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                            }`}
+                            title="Exports exhaustive 100+ columns including all fields, metadata, and raw properties"
+                          >
+                            <span className="hidden sm:inline">All Details</span>
+                            <span className="sm:hidden">Full</span> (100+)
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Dedicated Sheet Badges - Compact & Wrap-Friendly */}
+                    <div className="flex flex-wrap gap-1">
+                      {[
+                        masterMultiColumnMode === 'all' ? '1. Student_Admissions (100+ Cols)' : '1. Student_Admissions (48 Cols)',
+                        '2. Faculty_Directory (12 Cols)',
+                        '3. Notices_Circulars',
+                        '4. Site_Settings',
+                        '5. Admin_Accounts',
+                        '6. Practicals_Awards',
+                        '7. System_Metadata'
+                      ].map(t => (
+                        <span key={t} className="px-1.5 py-0.5 rounded bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-teal-500/20 dark:border-teal-700/30 text-[9px] font-mono font-bold">
+                          {t}
+                        </span>
+                      ))}
+                    </div>
                   </div>
 
-                  {/* Class, Stream, Sessions & Status Controls */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 text-xs">
-                    <div className="space-y-0.5">
-                      <label className="block text-[10px] font-black text-slate-600 dark:text-slate-400">
-                        Target Class:
-                      </label>
-                      <MultiSelectCheckboxDropdown
-                        label="Classes"
-                        options={availableClasses}
-                        selected={masterExportSelectedClasses}
-                        onChange={setMasterExportSelectedClasses}
-                        align="left"
-                      />
+                  {/* Session Master Register Exporter (Historical 2006–2026) */}
+                  <div className="p-2 sm:p-2.5 rounded-lg bg-amber-50/25 dark:bg-amber-950/10 border border-amber-500/20 dark:border-amber-500/20 space-y-2">
+                    <div className="flex flex-col xs:flex-row xs:items-center justify-between gap-1">
+                      <div className="font-black text-xs text-slate-900 dark:text-white flex items-center gap-1.5">
+                        <div className="p-1 rounded-md bg-amber-100 dark:bg-amber-950/80 text-amber-700 dark:text-amber-300">
+                          <FileSpreadsheet size={12} />
+                        </div>
+                        <span>Historical & Session Master Register (.xlsx)</span>
+                        <span className="text-[8.5px] px-1.5 py-0.2 rounded bg-amber-500/15 text-amber-800 dark:text-amber-300 font-extrabold uppercase border border-amber-500/30">
+                          2006–2026
+                        </span>
+                      </div>
+                      <span className="text-[9.5px] text-slate-500 dark:text-slate-400 font-medium">
+                        48 Standard Columns • Multi-Session Tabs
+                      </span>
                     </div>
 
-                    <div className="space-y-0.5">
-                      <label className="block text-[10px] font-black text-slate-600 dark:text-slate-400">
-                        Academic Stream:
-                      </label>
-                      <select
-                        value={masterExportStream}
-                        onChange={(e) => setMasterExportStream(e.target.value)}
-                        className="w-full p-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-xs font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-amber-500 transition-all"
+                    {/* Class, Stream, Sessions & Status Controls */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 text-xs">
+                      <div className="space-y-0.5">
+                        <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400">
+                          Target Class:
+                        </label>
+                        <MultiSelectCheckboxDropdown
+                          label="Classes"
+                          options={availableClasses}
+                          selected={masterExportSelectedClasses}
+                          onChange={setMasterExportSelectedClasses}
+                          align="left"
+                        />
+                      </div>
+
+                      <div className="space-y-0.5">
+                        <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400">
+                          Academic Stream:
+                        </label>
+                        <select
+                          value={masterExportStream}
+                          onChange={(e) => setMasterExportStream(e.target.value)}
+                          className="w-full p-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-xs font-bold text-slate-900 dark:text-white focus:ring-1 focus:ring-amber-500"
+                        >
+                          <option value="ALL">All Streams</option>
+                          {availableStreams.map(st => (
+                            <option key={st} value={st}>{st}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="space-y-0.5">
+                        <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400">
+                          Academic Sessions:
+                        </label>
+                        <MultiSelectCheckboxDropdown
+                          label="Sessions"
+                          options={allKnownSessions}
+                          selected={masterExportSelectedSessions}
+                          onChange={handleMasterExportSessionsChange}
+                          align="left"
+                          presetAction={{ label: 'Active', value: ['2025-26'], title: 'Select Active Session 2025-26' }}
+                        />
+                      </div>
+
+                      <div className="space-y-0.5">
+                        <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400">
+                          Admission Status:
+                        </label>
+                        <MultiSelectCheckboxDropdown
+                          label="Status"
+                          options={availableStatuses}
+                          selected={masterExportSelectedStatuses}
+                          onChange={(val) => setMasterExportSelectedStatuses(val)}
+                          align="right"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Export Trigger Footer */}
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 pt-1.5 border-t border-slate-200/60 dark:border-slate-800/60">
+                      <div className="text-[10px] text-slate-600 dark:text-slate-400 font-medium truncate">
+                        Scope:{' '}
+                        <span className="font-bold text-slate-900 dark:text-white">
+                          {masterExportSelectedSessions.length === 0 || masterExportSelectedSessions.length === allKnownSessions.length
+                            ? 'All Sessions'
+                            : masterExportSelectedSessions.includes('__NONE__')
+                              ? 'No Sessions'
+                              : `${masterExportSelectedSessions.length} Sess`}
+                        </span>
+                        {' • '}Class: <span className="font-bold text-slate-900 dark:text-white">{masterExportSelectedClasses.length === 0 ? 'All' : masterExportSelectedClasses.includes('__NONE__') ? 'None' : masterExportSelectedClasses.join(', ')}</span>
+                        {' • '}Stream: <span className="font-bold text-slate-900 dark:text-white">{masterExportStream}</span>
+                        {' • '}Status: <span className="font-bold text-slate-900 dark:text-white">{masterExportSelectedStatuses.length === 0 ? 'All' : masterExportSelectedStatuses.includes('__NONE__') ? 'None' : masterExportSelectedStatuses.join(', ')}</span>
+                      </div>
+
+                      <button
+                        type="button"
+                        disabled={isExportingMasterRegister || masterExportSelectedSessions.includes('__NONE__')}
+                        onClick={handleDownloadSessionMasterRegister}
+                        className="w-full sm:w-auto px-2.5 py-1.5 rounded-lg bg-amber-700 hover:bg-amber-600 text-white font-bold text-[11px] sm:text-xs shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 transition-all shrink-0"
                       >
-                        <option value="ALL">All Streams</option>
-                        {availableStreams.map(st => (
-                          <option key={st} value={st}>{st}</option>
-                        ))}
-                      </select>
+                        {isExportingMasterRegister ? (
+                          <>
+                            <RefreshCw size={12} className="animate-spin" />
+                            <span>Generating...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Download size={12} />
+                            <span>Download Master Register (.xlsx)</span>
+                          </>
+                        )}
+                      </button>
                     </div>
-
-                    <div className="space-y-0.5">
-                      <label className="block text-[10px] font-black text-slate-600 dark:text-slate-400">
-                        Academic Sessions:
-                      </label>
-                      <MultiSelectCheckboxDropdown
-                        label="Sessions"
-                        options={allKnownSessions}
-                        selected={masterExportSelectedSessions}
-                        onChange={handleMasterExportSessionsChange}
-                        align="left"
-                        presetAction={{ label: 'Active', value: ['2025-26'], title: 'Select Active Session 2025-26' }}
-                      />
-                    </div>
-
-                    <div className="space-y-0.5">
-                      <label className="block text-[10px] font-black text-slate-600 dark:text-slate-400">
-                        Admission Status:
-                      </label>
-                      <MultiSelectCheckboxDropdown
-                        label="Status"
-                        options={availableStatuses}
-                        selected={masterExportSelectedStatuses}
-                        onChange={(val) => setMasterExportSelectedStatuses(val)}
-                        align="right"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Export Trigger */}
-                  <div className="flex items-center justify-between flex-wrap gap-2 pt-1.5 border-t border-slate-100 dark:border-slate-800">
-                    <div className="text-[10px] sm:text-[10.5px] text-slate-600 dark:text-slate-400 font-medium truncate max-w-xl">
-                      Scope:{' '}
-                      <span className="font-black text-slate-900 dark:text-white">
-                        {masterExportSelectedSessions.length === 0 || masterExportSelectedSessions.length === allKnownSessions.length
-                          ? 'All Sessions'
-                          : masterExportSelectedSessions.includes('__NONE__')
-                            ? 'No Sessions'
-                            : `${masterExportSelectedSessions.length} Sess`}
-                      </span>
-                      {' • '}Class: <span className="font-black text-slate-900 dark:text-white">{masterExportSelectedClasses.length === 0 ? 'All Classes' : masterExportSelectedClasses.includes('__NONE__') ? 'None' : masterExportSelectedClasses.join(', ')}</span>
-                      {' • '}Stream: <span className="font-black text-slate-900 dark:text-white">{masterExportStream}</span>
-                      {' • '}Status: <span className="font-black text-slate-900 dark:text-white">{masterExportSelectedStatuses.length === 0 ? 'All Status' : masterExportSelectedStatuses.includes('__NONE__') ? 'None' : masterExportSelectedStatuses.join(', ')}</span>
-                    </div>
-
-                    <button
-                      type="button"
-                      disabled={isExportingMasterRegister || masterExportSelectedSessions.includes('__NONE__')}
-                      onClick={handleDownloadSessionMasterRegister}
-                      className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white font-black text-xs shadow-2xs hover:shadow flex items-center gap-1.5 cursor-pointer disabled:opacity-50 transition-all ml-auto"
-                    >
-                      {isExportingMasterRegister ? (
-                        <>
-                          <RefreshCw size={13} className="animate-spin" />
-                          <span>Generating...</span>
-                        </>
-                      ) : (
-                        <>
-                          <Download size={13} />
-                          <span>Download Master Register (.xlsx)</span>
-                        </>
-                      )}
-                    </button>
                   </div>
                 </div>
 
-                {/* ─── 2. MASTER MULTI-SHEET DATABASE BACKUP CARD ─── */}
-                <div className="p-2.5 sm:p-3 rounded-xl bg-gradient-to-br from-teal-50/60 via-white to-emerald-50/50 dark:from-teal-950/25 dark:via-slate-900 dark:to-emerald-950/25 border border-teal-500/40 dark:border-teal-500/30 shadow-2xs space-y-2">
-                  <div className="flex items-start justify-between flex-wrap gap-2">
-                    <div className="flex items-start gap-2">
-                      <div className="p-1.5 rounded-lg bg-teal-600 text-white font-black shrink-0 shadow-2xs">
-                        <FileSpreadsheet size={15} />
+                {/* ─── GROUP 2: SYSTEM DISASTER RECOVERY & JSON BACKUP ─── */}
+                <div className="p-2 sm:p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-2xs">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div className="flex items-start gap-1.5 min-w-0">
+                      <div className="p-1 rounded-md bg-amber-500/10 text-amber-600 dark:text-amber-400 shrink-0">
+                        <Save size={13} />
                       </div>
-                      <div className="space-y-0.5">
-                        <div className="font-black text-xs sm:text-sm text-slate-900 dark:text-white flex items-center gap-1.5">
-                          <span>Master Multi-Sheet Excel Database Backup (.xlsx)</span>
-                          <span className="text-[8.5px] px-1.5 py-0.2 rounded bg-teal-600 text-white font-extrabold uppercase tracking-wider">
-                            Recommended
-                          </span>
+                      <div className="min-w-0">
+                        <div className="font-black text-xs text-slate-900 dark:text-white">
+                          Full JSON Disaster Recovery & Database Restore
                         </div>
-                        <p className="text-[10px] text-slate-600 dark:text-slate-300 font-medium">
-                          Single comprehensive workbook with <strong>7 dedicated sheets</strong> covering admissions, faculty, notices, settings, and audits:
+                        <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium leading-tight">
+                          Complete raw Firestore document tree (all collections, rules & accounts) for disaster recovery or database migration.
                         </p>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-1.5 flex-wrap shrink-0">
+                    <div className="flex items-center gap-1.5 w-full sm:w-auto shrink-0 pt-1 sm:pt-0 border-t sm:border-t-0 border-slate-100 dark:border-slate-800">
                       <button
                         type="button"
-                        disabled={isExportingDbExcel || isExportingDbZip}
-                        onClick={handleDownloadFullDatabaseExcel}
-                        className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-teal-700 to-emerald-700 hover:from-teal-600 hover:to-emerald-600 text-white font-black text-xs shadow-2xs hover:shadow flex items-center gap-1.5 cursor-pointer disabled:opacity-50 transition-all hover:scale-[1.01] active:scale-[0.99]"
+                        disabled={isExportingDbJson}
+                        onClick={handleDownloadFullDatabaseJson}
+                        className="flex-1 sm:flex-none px-2.5 py-1.5 rounded-lg bg-amber-700 hover:bg-amber-600 text-white font-bold text-[11px] sm:text-xs shadow-2xs flex items-center justify-center gap-1 cursor-pointer disabled:opacity-50 transition-all"
                       >
-                        {isExportingDbExcel ? (
+                        {isExportingDbJson ? (
                           <>
-                            <RefreshCw size={13} className="animate-spin" />
-                            <span>Compiling...</span>
+                            <RefreshCw size={11} className="animate-spin" />
+                            <span>Exporting...</span>
                           </>
                         ) : (
                           <>
-                            <Download size={13} />
-                            <span>Download Master Excel {masterMultiColumnMode === 'all' ? '(100+ Cols)' : '(.xlsx)'}</span>
+                            <Download size={11} />
+                            <span>Export JSON</span>
                           </>
                         )}
                       </button>
 
-                      <button
-                        type="button"
-                        disabled={isExportingDbZip || isExportingDbExcel}
-                        onClick={handleDownloadMasterBackupZip}
-                        className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-indigo-700 to-purple-700 hover:from-indigo-600 hover:to-purple-600 text-white font-black text-xs shadow-2xs hover:shadow flex items-center gap-1.5 cursor-pointer disabled:opacity-50 transition-all hover:scale-[1.01] active:scale-[0.99]"
-                        title="Downloads single compressed ZIP containing Master Excel, Disaster Recovery JSON, Settings, Faculty, Notices, and Manifest"
-                      >
-                        {isExportingDbZip ? (
-                          <>
-                            <RefreshCw size={13} className="animate-spin" />
-                            <span>Creating ZIP...</span>
-                          </>
-                        ) : (
-                          <>
-                            <Archive size={13} />
-                            <span>Master Backup ZIP (.zip)</span>
-                          </>
-                        )}
-                      </button>
+                      <label className="flex-1 sm:flex-none px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold text-[11px] sm:text-xs shadow-2xs flex items-center justify-center gap-1 cursor-pointer transition-all">
+                        <Upload size={11} />
+                        <span>{isRestoringDb ? 'Restoring...' : 'Restore JSON'}</span>
+                        <input
+                          type="file"
+                          accept=".json"
+                          disabled={isRestoringDb}
+                          onChange={handleRestoreDatabaseJson}
+                          className="hidden"
+                        />
+                      </label>
                     </div>
-                  </div>
-
-                  {/* Interactive Export Options Controls: Scope & Column Detail Level */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2 p-2 rounded-lg bg-white/80 dark:bg-slate-900/80 border border-teal-500/20 dark:border-teal-700/30 text-xs">
-                    {/* Data Scope Control */}
-                    <div className="space-y-1">
-                      <div className="flex items-center justify-between text-[10px] font-black text-slate-700 dark:text-slate-300">
-                        <span>Student Data Scope:</span>
-                        <span className="text-teal-700 dark:text-teal-400 font-bold">
-                          {masterMultiScope === 'filtered' ? `${masterFilteredStudentsCount} Students in Filter` : `${totalCandidateStudentsCount} Total Students`}
-                        </span>
-                      </div>
-                      <div className="grid grid-cols-2 gap-1 p-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-[10.5px] font-bold">
-                        <button
-                          type="button"
-                          onClick={() => setMasterMultiScope('filtered')}
-                          className={`py-1 px-1.5 rounded transition-all cursor-pointer text-center truncate ${
-                            masterMultiScope === 'filtered'
-                              ? 'bg-teal-700 text-white shadow-2xs font-black'
-                              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                          }`}
-                          title="Downloads records matching the active Class, Stream, Session, and Status filters configured above"
-                        >
-                          Filtered Scope ({masterFilteredStudentsCount})
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setMasterMultiScope('all')}
-                          className={`py-1 px-1.5 rounded transition-all cursor-pointer text-center truncate ${
-                            masterMultiScope === 'all'
-                              ? 'bg-teal-700 text-white shadow-2xs font-black'
-                              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                          }`}
-                          title="Downloads all institutional records across admissions and digitized archives regardless of filters"
-                        >
-                          All Records ({totalCandidateStudentsCount})
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Column Detail Level Control */}
-                    <div className="space-y-1">
-                      <div className="flex items-center justify-between text-[10px] font-black text-slate-700 dark:text-slate-300">
-                        <span>Admissions Column Level:</span>
-                        <span className="text-teal-700 dark:text-teal-400 font-bold">
-                          {masterMultiColumnMode === 'important' ? '48 Standard Columns' : '100+ Complete Details'}
-                        </span>
-                      </div>
-                      <div className="grid grid-cols-2 gap-1 p-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-[10.5px] font-bold">
-                        <button
-                          type="button"
-                          onClick={() => setMasterMultiColumnMode('important')}
-                          className={`py-1 px-1.5 rounded transition-all cursor-pointer text-center truncate ${
-                            masterMultiColumnMode === 'important'
-                              ? 'bg-teal-700 text-white shadow-2xs font-black'
-                              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                          }`}
-                          title="Exports curated 48 important and official columns (Recommended default)"
-                        >
-                          Important Only (Default)
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setMasterMultiColumnMode('all')}
-                          className={`py-1 px-1.5 rounded transition-all cursor-pointer text-center truncate ${
-                            masterMultiColumnMode === 'all'
-                              ? 'bg-teal-700 text-white shadow-2xs font-black'
-                              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                          }`}
-                          title="Exports exhaustive 100+ columns including all fields, metadata, document links, and raw properties"
-                        >
-                          All Details (100+ Cols)
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* 7 Dedicated Sheet Badges */}
-                  <div className="flex flex-wrap gap-1">
-                    {[
-                      masterMultiColumnMode === 'all' ? '1. Student_Admissions (100+ Cols)' : '1. Student_Admissions (48 Cols)',
-                      '2. Faculty_Directory (12 Cols)',
-                      '3. Notices_Circulars',
-                      '4. Site_Settings',
-                      '5. Admin_Accounts',
-                      '6. Practicals_Awards',
-                      '7. System_Metadata'
-                    ].map(t => (
-                      <span key={t} className="px-1.5 py-0.2 rounded bg-white/90 dark:bg-slate-800 text-slate-800 dark:text-slate-200 border border-teal-500/20 dark:border-teal-700/40 text-[9px] font-mono font-bold">
-                        {t}
-                      </span>
-                    ))}
                   </div>
                 </div>
 
-                {/* ─── 3. PUBLIC WEBSITE CONFIGURATION FILES (CMS public/slides/) ─── */}
-                <div className="p-2.5 sm:p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xs space-y-2">
-                  <div className="flex items-center justify-between flex-wrap gap-1.5">
+                {/* ─── GROUP 3: PUBLIC WEBSITE STATIC CONFIGURATION MIRRORS ─── */}
+                <div className="p-2 sm:p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-2xs space-y-1.5">
+                  <div className="flex items-center justify-between flex-wrap gap-1">
                     <div className="font-black text-xs text-slate-900 dark:text-white flex items-center gap-1.5">
-                      <div className="p-1 rounded-md bg-indigo-100 dark:bg-indigo-950/80 text-indigo-600 dark:text-indigo-400">
+                      <div className="p-1 rounded-md bg-indigo-500/10 text-indigo-600 dark:text-indigo-400">
                         <FolderDown size={13} />
                       </div>
-                      <span>Public Website Static Configuration Backups (CMS public/slides/)</span>
+                      <span>Public Website Static Configuration Mirrors (CMS public/slides/)</span>
                     </div>
-                    <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">
+                    <span className="text-[9.5px] text-slate-500 dark:text-slate-400 font-medium hidden sm:inline">
                       Frontend JSON & text configuration mirrors
                     </span>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5 text-xs">
                     {/* settings.json */}
-                    <div className="p-2 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 flex flex-col justify-between gap-1.5 hover:border-amber-500/40 transition-colors">
+                    <div className="p-1.5 sm:p-2 rounded-lg bg-slate-50 dark:bg-slate-800/40 border border-slate-200/80 dark:border-slate-700/60 flex flex-col justify-between gap-1.5">
                       <div>
-                        <div className="font-black text-[11px] text-slate-900 dark:text-white flex items-center gap-1">
-                          <Settings size={12} className="text-amber-600" />
+                        <div className="font-bold text-[11px] text-slate-900 dark:text-white flex items-center gap-1">
+                          <Settings size={11} className="text-amber-600" />
                           <span>settings.json</span>
                         </div>
                         <p className="text-[9.5px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">
-                          Metadata, banner carousel, vision & contacts.
+                          Banner carousel, vision, metadata & contacts.
                         </p>
                       </div>
                       <button
                         type="button"
                         onClick={handleDownloadSettingsJson}
-                        className="w-full py-1 rounded-md bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold text-[10px] flex items-center justify-center gap-1 cursor-pointer transition-all shadow-2xs"
+                        className="w-full py-1 px-2 rounded-md bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold text-[10px] flex items-center justify-center gap-1 cursor-pointer transition-all shadow-2xs"
                       >
-                        <Download size={11} />
+                        <Download size={10} />
                         <span>Download settings.json</span>
                       </button>
                     </div>
 
                     {/* notices.txt */}
-                    <div className="p-2 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 flex flex-col justify-between gap-1.5 hover:border-blue-500/40 transition-colors">
+                    <div className="p-1.5 sm:p-2 rounded-lg bg-slate-50 dark:bg-slate-800/40 border border-slate-200/80 dark:border-slate-700/60 flex flex-col justify-between gap-1.5">
                       <div>
-                        <div className="font-black text-[11px] text-slate-900 dark:text-white flex items-center gap-1">
-                          <FileText size={12} className="text-blue-600" />
+                        <div className="font-bold text-[11px] text-slate-900 dark:text-white flex items-center gap-1">
+                          <FileText size={11} className="text-blue-600" />
                           <span>notices.txt</span>
                         </div>
                         <p className="text-[9.5px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">
-                          Live announcement board ticker & notices.
+                          Live announcement ticker & active notices.
                         </p>
                       </div>
                       <button
                         type="button"
                         onClick={handleDownloadNoticesTxt}
-                        className="w-full py-1 rounded-md bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold text-[10px] flex items-center justify-center gap-1 cursor-pointer transition-all shadow-2xs"
+                        className="w-full py-1 px-2 rounded-md bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold text-[10px] flex items-center justify-center gap-1 cursor-pointer transition-all shadow-2xs"
                       >
-                        <Download size={11} />
+                        <Download size={10} />
                         <span>Download notices.txt</span>
                       </button>
                     </div>
 
                     {/* faculty.json */}
-                    <div className="p-2 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 flex flex-col justify-between gap-1.5 hover:border-emerald-500/40 transition-colors">
+                    <div className="p-1.5 sm:p-2 rounded-lg bg-slate-50 dark:bg-slate-800/40 border border-slate-200/80 dark:border-slate-700/60 flex flex-col justify-between gap-1.5">
                       <div>
-                        <div className="font-black text-[11px] text-slate-900 dark:text-white flex items-center gap-1">
-                          <Users size={12} className="text-emerald-600" />
+                        <div className="font-bold text-[11px] text-slate-900 dark:text-white flex items-center gap-1">
+                          <Users size={11} className="text-emerald-600" />
                           <span>faculty.json</span>
-                          <span className="text-[8px] px-1 py-0.2 rounded bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 font-extrabold uppercase">
+                          <span className="text-[7.5px] px-1 py-0.2 rounded bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 font-bold uppercase">
                             Sanitized
                           </span>
                         </div>
@@ -15579,63 +15642,11 @@ export default function AdvancedReports({
                       <button
                         type="button"
                         onClick={handleDownloadFacultyJson}
-                        className="w-full py-1 rounded-md bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold text-[10px] flex items-center justify-center gap-1 cursor-pointer transition-all shadow-2xs"
+                        className="w-full py-1 px-2 rounded-md bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold text-[10px] flex items-center justify-center gap-1 cursor-pointer transition-all shadow-2xs"
                       >
-                        <Download size={11} />
+                        <Download size={10} />
                         <span>Download faculty.json</span>
                       </button>
-                    </div>
-                  </div>
-                </div>
-
-                {/* ─── 4. FULL JSON DISASTER RECOVERY BACKUP & RESTORE ─── */}
-                <div className="p-2.5 sm:p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xs space-y-2">
-                  <div className="flex items-start justify-between flex-wrap gap-2">
-                    <div className="flex items-start gap-2">
-                      <div className="p-1.5 rounded-lg bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 font-black shrink-0">
-                        <Save size={14} />
-                      </div>
-                      <div className="space-y-0.5">
-                        <div className="font-black text-xs sm:text-sm text-slate-900 dark:text-white flex items-center gap-1.5">
-                          <span>Full JSON Disaster Recovery Backup & Database Restore</span>
-                        </div>
-                        <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">
-                          Complete raw Firestore document tree (all collections, rules & accounts) for disaster recovery or database migration.
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      <button
-                        type="button"
-                        disabled={isExportingDbJson}
-                        onClick={handleDownloadFullDatabaseJson}
-                        className="px-3 py-1.5 rounded-lg bg-amber-700 hover:bg-amber-600 text-white font-black text-xs shadow-2xs flex items-center gap-1 cursor-pointer disabled:opacity-50 transition-all hover:scale-[1.01] active:scale-[0.99]"
-                      >
-                        {isExportingDbJson ? (
-                          <>
-                            <RefreshCw size={12} className="animate-spin" />
-                            <span>Exporting...</span>
-                          </>
-                        ) : (
-                          <>
-                            <Download size={12} />
-                            <span>Export JSON (.json)</span>
-                          </>
-                        )}
-                      </button>
-
-                      <label className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-black text-xs shadow-2xs flex items-center gap-1 cursor-pointer transition-all hover:scale-[1.01] active:scale-[0.99]">
-                        <Upload size={12} />
-                        <span>{isRestoringDb ? 'Restoring...' : 'Restore JSON'}</span>
-                        <input
-                          type="file"
-                          accept=".json"
-                          disabled={isRestoringDb}
-                          onChange={handleRestoreDatabaseJson}
-                          className="hidden"
-                        />
-                      </label>
                     </div>
                   </div>
                 </div>
