@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback, useDeferredValue } from 'react';
 import { createPortal } from 'react-dom';
 import JSZip from 'jszip';
-import { RefreshCw, Search, SearchX, Wrench, Columns, Printer, Check, X, Play, ChevronDown, ChevronLeft, ChevronRight, CheckSquare, Square, FileSpreadsheet, FileText, Maximize2, Settings, Hash, Layers, Mail, CreditCard, Camera, Upload, Image as ImageIcon, Download, Copy, Save, RotateCcw, Lock, LogOut, Unlock, Eye, History, Key, MessageSquare, AlertOctagon, Trash2, CheckCircle2, ClipboardCheck, CalendarCheck, Calendar, List, Edit3, UserCheck, User, Users, BookOpen, Landmark, CheckCircle, Loader2, PlusCircle, ShieldCheck, ShieldAlert, BarChart2, Building2, Database, Zap, Sliders, Sparkles, Star, FolderDown, Globe, Phone, ExternalLink } from 'lucide-react';
+import { RefreshCw, Search, SearchX, Wrench, Columns, Printer, Check, X, Play, ChevronDown, ChevronLeft, ChevronRight, CheckSquare, Square, FileSpreadsheet, FileText, Maximize2, Settings, Hash, Layers, Mail, CreditCard, Camera, Upload, Image as ImageIcon, Download, Copy, Save, RotateCcw, Lock, LogOut, Unlock, Eye, History, Key, MessageSquare, AlertOctagon, Trash2, CheckCircle2, ClipboardCheck, CalendarCheck, Calendar, List, Edit3, UserCheck, User, Users, BookOpen, Landmark, CheckCircle, Loader2, PlusCircle, ShieldCheck, ShieldAlert, BarChart2, Building2, Database, Zap, Sliders, Sparkles, Star, FolderDown, Globe, Phone, ExternalLink, Archive } from 'lucide-react';
 import appsScriptApi from '../../services/appsScriptApi';
 import { db, auth, ensureFirestoreConnected } from '../../services/firebase';
 import { sendPasswordResetEmail } from 'firebase/auth';
@@ -7457,12 +7457,14 @@ export default function AdvancedReports({
 
   // Master Register & CMS Public Configurations Exporter States
   const [masterExportSelectedSessions, setMasterExportSelectedSessions] = useState(() => ['2025-26']);
+  const [masterExportSelectedClasses, setMasterExportSelectedClasses] = useState([]); // [] means All Classes
   const [masterExportClass, setMasterExportClass] = useState('ALL');
   const [masterExportStream, setMasterExportStream] = useState('ALL');
   const [masterExportSelectedStatuses, setMasterExportSelectedStatuses] = useState(() => ['Approved', 'Submitted']);
   const [isExportingMasterRegister, setIsExportingMasterRegister] = useState(false);
   const [masterMultiScope, setMasterMultiScope] = useState('filtered'); // 'filtered' | 'all'
   const [masterMultiColumnMode, setMasterMultiColumnMode] = useState('important'); // 'important' | 'all'
+  const [isExportingDbZip, setIsExportingDbZip] = useState(false);
 
   // Auto-sync photos from Cloud Firestore when Photo Exporter tab is active
   useEffect(() => {
@@ -7561,7 +7563,11 @@ export default function AdvancedReports({
         studentsToExport = candidatePool.filter(s => {
           const sSess = String(s.session || '').trim().toLowerCase();
           if (!isAllSess && !normSelectedSessions.has(sSess)) return false;
-          if (masterExportClass !== 'ALL') {
+          if (masterExportSelectedClasses && masterExportSelectedClasses.length > 0) {
+            if (masterExportSelectedClasses.includes('__NONE__')) return false;
+            const normClasses = new Set(masterExportSelectedClasses.map(c => normalizeClassVal(c)));
+            if (!normClasses.has(normalizeClassVal(s.class))) return false;
+          } else if (masterExportClass !== 'ALL') {
             if (normalizeClassVal(s.class) !== normalizeClassVal(masterExportClass)) return false;
           }
           if (masterExportStream !== 'ALL') {
@@ -7783,378 +7789,20 @@ export default function AdvancedReports({
         console.warn('Practicals fetch note for backup:', e);
       }
 
-      const cleanVal = (val) => {
-        if (val === undefined || val === null || val === '—' || val === 'N/A' || val === '-' || val === 'null' || val === 'undefined') return '';
-        if (typeof val === 'object') {
-          if (val.toDate && typeof val.toDate === 'function') {
-            return val.toDate().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
-          }
-          if (val.seconds) {
-            return new Date(val.seconds * 1000).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
-          }
-          return JSON.stringify(val);
-        }
-        return String(val).trim();
-      };
+      const scopeDesc = masterMultiScope === 'filtered' 
+        ? `Filtered Scope (${masterExportSelectedSessions.join(', ')} | ${masterExportSelectedClasses.length > 0 ? masterExportSelectedClasses.join(', ') : masterExportClass} | ${masterExportStream} | ${masterExportSelectedStatuses.join(', ')})`
+        : 'All Institutional Database Records';
 
-      const autoColWidths = (headers, rows) => {
-        return headers.map((h, colIdx) => {
-          let maxLen = h.length;
-          rows.forEach(row => {
-            const cell = row[colIdx];
-            if (cell) {
-              const len = String(cell).length;
-              if (len > maxLen) maxLen = len;
-            }
-          });
-          return { wch: Math.min(Math.max(maxLen + 3, 10), 45) };
-        });
-      };
-
-      const wb = XLSX.utils.book_new();
-
-      // --- SHEET 1: Student_Admissions (Important 47 Columns vs Complete 100+ Details) ---
-      let studentHeaders = [];
-      let studentRows = [];
-
-      if (masterMultiColumnMode === 'important') {
-        studentHeaders = [
-          'S.No.', 'Class Roll No', 'Admission No', 'Form No', 'Class', 'Session',
-          'Stream', 'Board Reg No', "Student's Name", "Father's Name", "Mother's Name",
-          'Date of Birth', 'Gender', 'Category', 'PEN No', 'Aadhaar No', "Father's Aadhaar",
-          'Mobile (Student)', 'Mobile (Parent)', 'Email Address', 'Permanent Address / Village',
-          'Tehsil', 'District', 'PIN Code', 'Subject 1', 'Subject 2', 'Subject 3',
-          'Subject 4', 'Subject 5', 'Subject 6', 'Composite Subjects',
-          'Previous School', 'Previous Exam Roll No', 'Previous Marks Obtained',
-          'Previous Max Marks', 'Previous Percentage', 'Previous Division / Result',
-          'Current Exam Roll No', 'Current Result', 'Marks / Reappear (Current)',
-          'Admission Date', 'Status', 'Bank Account No', 'Bank Name', 'IFSC Code', 'Payment Ref / UTR', 'Remarks'
-        ];
-
-        studentRows = studentsToExport.map((s, idx) => {
-          const sClass = normalizeClassVal(s.class || s.Class || s['Admission sought for class'] || '');
-          const indivSubs = extractIndividualSubjectsList(s, sClass);
-          const formattedSubs = s.subs || s.subjects || s['Subjects'] || formatStudentSubjects(s, sClass);
-          return [
-            s.sno || idx + 1,
-            cleanVal(s.classRollNo || getStudentRollVal(s)),
-            cleanVal(formatStudentAdmNo(s) || s.admNo || s.admissionNo || s['Admission No'] || s['Adm. No.']),
-            cleanVal(s.formNo || s['Form Number'] || s['Form No.']),
-            cleanVal(sClass),
-            cleanVal(s.session || s.Session),
-            cleanVal(s.stream || s.Stream || resolveStudentStream(s)),
-            cleanVal(extractRegNo(s) || s.boardRegNo || s['Board Registration Number']),
-            cleanVal(getStudentName(s) || s.studentName),
-            cleanVal(getFatherName(s) || s.fatherName),
-            cleanVal(s.motherName || s["Mother's Name"] || s["Mother's Name (as per school records)"]),
-            cleanVal(s.dob || s.DoB || s['Date of Birth'] || s["DoB (as per school records)"] || s['DoB (figures)']),
-            cleanVal(s.gender || s['Gender']),
-            cleanVal(s.category || s['Category'] || s['Cat._JKBOSE'] || s['Social category']),
-            cleanVal(s.penNo || s.pen || s['PEN No'] || s['PEN No.'] || s['PEN']),
-            cleanVal(s.aadhar || s.aadhaar || s.aadhaarNo || s.aadharNo || s['Aadhar No.'] || s['Aadhaar Number'] || s['Aadhaar No.']),
-            cleanVal(s.fatherAadhar || s.fatherAadhaar || s["Father's Aadhar No."] || s["Father's Aadhaar No."]),
-            cleanVal(s.mobile || s.phone || s['Mobile No.'] || s['Mobile Number'] || s["Mobile No. (with working WhatsApp)"] || s["Student's Contact"]),
-            cleanVal(s.parentContact || s.alternateMobile || s['Alternate Mobile No.'] || s["Parent's Contact"] || s["Parent's Mobile No."]),
-            cleanVal(s.email || s.email1 || s['Email Address'] || s['Email']),
-            cleanVal(s.residence || s.village || s.address || s['Residence (Village, District)'] || s['Name of your village'] || s['Village/Town'] || s['Permanent Address']),
-            cleanVal(s.tehsil || s['Tehsil']),
-            cleanVal(s.district || s['District']),
-            cleanVal(s.pinCode || s.pincode || s['PIN code'] || s['Pin Code'] || s['Pincode']),
-            cleanVal(s.subjects1 || indivSubs[0] || s['Subjects1']),
-            cleanVal(s.subjects2 || indivSubs[1] || s['Subjects2']),
-            cleanVal(s.subjects3 || indivSubs[2] || s['Subjects3']),
-            cleanVal(s.subjects4 || indivSubs[3] || s['Subjects4']),
-            cleanVal(s.subjects5 || indivSubs[4] || s['Subjects5']),
-            cleanVal(s.subjects6 || s.subject6 || indivSubs[5] || s['Subject6'] || s['Subjects6']),
-            cleanVal(formattedSubs),
-            cleanVal(s.prevSchool || s['Previous School'] || s['Name of the Institution last attended'] || s['Previous School Name']),
-            cleanVal(s.prevExamRollNo || s.prevRollNo || s['Exam R.No. (Prev.)'] || s['Roll No. (Class 10th)'] || s['Previous Roll No']),
-            cleanVal(s.prevMarksObt || s['Marks Obt. (Prev.)'] || s['Marks Obtained (Class 10th)']),
-            cleanVal(s.prevMaxMarks || s['Max. Marks (Prev.)'] || s['Max Marks (Class 10th)']),
-            cleanVal(s.prevPercentage || s['%age (Prev.)'] || s['Percentage (Class 10th)']),
-            cleanVal(s.prevDivision || s.prevResultMarks || s['Div/Distinc (Prev.)'] || s['Previous Result / Marks']),
-            cleanVal(s.currExamRollNo || s['Exam R.No. (Current)'] || s.boardRoll || s.boardRollNo),
-            cleanVal(s.currResult || s['Result (Current)'] || s.result),
-            cleanVal(s.currMarksReapp || s['Marks/Reapp (Current)']),
-            cleanVal(s.admDate || s.admissionDate || s.onlineSubmDate || s['Adm. Date'] || s['Online Subm. Date'] || s.timestamp),
-            cleanVal(getStudentEffectiveStatus(s) || s.status || s['Status'] || 'Active'),
-            cleanVal(s.bankAccount || s['Bank Account No.'] || s.paymentRef || s.utrNo || s['Payment Reference']),
-            cleanVal(s.bankName || s['Bank Name'] || s['Name of Bank']),
-            cleanVal(s.ifsc || s['IFSC code'] || s['IFSC Code']),
-            cleanVal(s.paymentRef || s.utrNo || s['Payment Reference']),
-            cleanVal(s.remarks || s['Remarks'])
-          ];
-        });
-      } else {
-        // --- 100+ Comprehensive Columns Mode ---
-        const ALL_100_COLUMN_DEFS = [
-          // 1. Primary Identifiers & Enrollment
-          { id: 'sno', label: 'S.No.', getVal: (s, idx) => idx + 1 },
-          { id: 'classRollNo', label: 'Class Roll No', getVal: (s) => s.classRollNo || getStudentRollVal(s) },
-          { id: 'admNo', label: 'Admission No', getVal: (s) => formatStudentAdmNo(s) || s.admNo || s.admissionNo || s['Admission No'] || s['Adm. No.'] },
-          { id: 'formNo', label: 'Form No', getVal: (s) => s.formNo || s['Form Number'] || s['Form No.'] },
-          { id: 'class', label: 'Class', getVal: (s) => normalizeClassVal(s.class || s.Class || s['Admission sought for class'] || '') },
-          { id: 'session', label: 'Session', getVal: (s) => s.session || s.Session || s['Academic Session'] },
-          { id: 'stream', label: 'Stream', getVal: (s) => s.stream || s.Stream || resolveStudentStream(s) },
-          { id: 'section', label: 'Section', getVal: (s) => s.section || s.Section || s['Section'] },
-          { id: 'boardRegNo', label: 'Board Reg No', getVal: (s) => extractRegNo(s) || s.boardRegNo || s['Board Registration Number'] },
-          { id: 'boardName', label: 'Board Name', getVal: (s) => s.boardName || s['Board Name'] || s.board || 'JKBOSE' },
-          { id: 'penNo', label: 'PEN No', getVal: (s) => s.penNo || s.pen || s['PEN No'] || s['PEN No.'] || s['PEN'] },
-          { id: 'apaarId', label: 'APAAR ID', getVal: (s) => s.apaarId || s.apaar || s['APAAR ID'] || s['APAAR'] },
-          { id: 'readmission', label: 'Re-admission Status', getVal: (s) => s.readmission || s['readmission'] || s['Re-admission'] || (s.isReadmission ? 'Yes' : 'No') },
-          { id: 'oldAdmNo', label: 'Old Admission No', getVal: (s) => s.oldAdmNo || s['Old Admission No.'] || s['Old Adm. No.'] },
-
-          // 2. Personal & Demographics
-          { id: 'studentName', label: "Student's Name", getVal: (s) => getStudentName(s) || s.studentName },
-          { id: 'fatherName', label: "Father's Name", getVal: (s) => getFatherName(s) || s.fatherName },
-          { id: 'motherName', label: "Mother's Name", getVal: (s) => s.motherName || s["Mother's Name"] || s["Mother's Name (as per school records)"] },
-          { id: 'dob', label: 'Date of Birth', getVal: (s) => s.dob || s.DoB || s['Date of Birth'] || s["DoB (as per school records)"] || s['DoB (figures)'] },
-          { id: 'dobWords', label: 'DoB (in words)', getVal: (s) => s.dobWords || convertDobToWords(s.dob || s.DoB) || s['DoB (words)'] },
-          { id: 'gender', label: 'Gender', getVal: (s) => s.gender || s['Gender'] },
-          { id: 'category', label: 'Category', getVal: (s) => s.category || s['Category'] || s['Cat._JKBOSE'] },
-          { id: 'socialCategory', label: 'Social Category', getVal: (s) => s.socialCategory || s['Social category'] },
-          { id: 'socioEconomicCategory', label: 'Socio-Economic Category', getVal: (s) => s.socioEconomicCategory || s['Socio-economic category'] },
-          { id: 'religion', label: 'Religion', getVal: (s) => s.religion || s['Religion'] },
-          { id: 'bloodGroup', label: 'Blood Group', getVal: (s) => s.bloodType || s.bloodGroup || s['Blood Type'] || s['Blood Group'] },
-          { id: 'height', label: 'Height (cm)', getVal: (s) => s.height || s['Height (cm)'] || s['Height'] },
-          { id: 'weight', label: 'Weight (kg)', getVal: (s) => s.weight || s['Weight (kg)'] || s['Weight'] },
-          { id: 'disabilityStatus', label: 'Disability Status', getVal: (s) => s.disabilityStatus || s['Disability Status'] },
-          { id: 'disabilityType', label: 'Disability Type', getVal: (s) => s.disabilityType || s['Disability Type'] },
-          { id: 'orphanStatus', label: 'Orphan Status', getVal: (s) => s.orphanStatus || s['Orphan Status'] || (s.isOrphan ? 'Yes' : '') },
-          { id: 'aadhar', label: 'Aadhaar Number', getVal: (s) => s.aadhar || s.aadhaar || s.aadhaarNo || s.aadharNo || s['Aadhaar Number'] || s['Aadhaar No.'] },
-          { id: 'fatherAadhar', label: "Father's Aadhaar", getVal: (s) => s.fatherAadhar || s.fatherAadhaar || s["Father's Aadhar No."] || s["Father's Aadhaar No."] },
-          { id: 'motherAadhar', label: "Mother's Aadhaar", getVal: (s) => s.motherAadhar || s.motherAadhaar || s["Mother's Aadhar No."] },
-
-          // 3. Contact & Address
-          { id: 'mobile', label: 'Mobile (Student)', getVal: (s) => s.mobile || s.phone || s['Mobile No.'] || s['Mobile Number'] || s["Mobile No. (with working WhatsApp)"] },
-          { id: 'parentContact', label: 'Mobile (Parent)', getVal: (s) => s.parentContact || s.alternateMobile || s['Alternate Mobile No.'] || s["Parent's Contact"] || s["Parent's Mobile No."] },
-          { id: 'email', label: 'Primary Email', getVal: (s) => s.email || s.email1 || s['Email Address'] || s['Email'] },
-          { id: 'email2', label: 'Alternate Email', getVal: (s) => s.email2 || s['email2'] || s.alternateEmail },
-          { id: 'houseNo', label: 'House No.', getVal: (s) => s.houseNo || s['House No.'] },
-          { id: 'residence', label: 'Permanent Address / Village', getVal: (s) => s.residence || s.village || s.address || s['Residence (Village, District)'] || s['Permanent Address'] },
-          { id: 'village', label: 'Village / Town', getVal: (s) => s.village || s['Village/Town'] || s['Name of your village'] },
-          { id: 'block', label: 'Block', getVal: (s) => s.block || s['Block'] },
-          { id: 'tehsil', label: 'Tehsil', getVal: (s) => s.tehsil || s['Tehsil'] },
-          { id: 'district', label: 'District', getVal: (s) => s.district || s['District'] },
-          { id: 'state', label: 'State / UT', getVal: (s) => s.state || s['State/UT'] || 'Jammu & Kashmir' },
-          { id: 'pinCode', label: 'PIN Code', getVal: (s) => s.pinCode || s.pincode || s['PIN code'] || s['Pin Code'] },
-
-          // 4. Subjects & Curriculum
-          { id: 'subjects1', label: 'Subject 1', getVal: (s) => s.subjects1 || extractIndividualSubjectsList(s, normalizeClassVal(s.class))[0] || s['Subjects1'] },
-          { id: 'subjects2', label: 'Subject 2', getVal: (s) => s.subjects2 || extractIndividualSubjectsList(s, normalizeClassVal(s.class))[1] || s['Subjects2'] },
-          { id: 'subjects3', label: 'Subject 3', getVal: (s) => s.subjects3 || extractIndividualSubjectsList(s, normalizeClassVal(s.class))[2] || s['Subjects3'] },
-          { id: 'subjects4', label: 'Subject 4', getVal: (s) => s.subjects4 || extractIndividualSubjectsList(s, normalizeClassVal(s.class))[3] || s['Subjects4'] },
-          { id: 'subjects5', label: 'Subject 5', getVal: (s) => s.subjects5 || extractIndividualSubjectsList(s, normalizeClassVal(s.class))[4] || s['Subjects5'] },
-          { id: 'subjects6', label: 'Subject 6 (Additional)', getVal: (s) => s.subjects6 || s.subject6 || extractIndividualSubjectsList(s, normalizeClassVal(s.class))[5] || s['Subject6'] || s['Subjects6'] },
-          { id: 'subs', label: 'Composite Subjects', getVal: (s) => s.subs || s.subjects || s['Subjects'] || formatStudentSubjects(s, normalizeClassVal(s.class)) },
-          { id: 'vocationalSubject', label: 'Vocational Subject', getVal: (s) => s.vocationalSubject || s['Vocational Subject'] },
-          { id: 'vocationalPercentage', label: 'Vocational %age', getVal: (s) => s.vocationalPercentage || s['Vocational %age'] },
-
-          // 5. Previous Academic History
-          { id: 'prevSchool', label: 'Previous School', getVal: (s) => s.prevSchool || s['Previous School'] || s['Name of the Institution last attended'] },
-          { id: 'prevComplexHead', label: 'Previous Complex Head', getVal: (s) => s.prevComplexHead || s['Previous Complex Head'] },
-          { id: 'prevExamRollNo', label: 'Previous Exam Roll No', getVal: (s) => s.prevExamRollNo || s.prevRollNo || s['Exam R.No. (Prev.)'] || s['Roll No. (Class 10th)'] },
-          { id: 'prevExamMode', label: 'Previous Exam Mode', getVal: (s) => s.prevExamMode || s['Exam Mode (Prev.)'] },
-          { id: 'prevMarksObt', label: 'Previous Marks Obtained', getVal: (s) => s.prevMarksObt || s['Marks Obt. (Prev.)'] || s['Marks Obtained (Class 10th)'] },
-          { id: 'prevMaxMarks', label: 'Previous Max Marks', getVal: (s) => s.prevMaxMarks || s['Max. Marks (Prev.)'] || s['Max Marks (Class 10th)'] },
-          { id: 'prevPercentage', label: 'Previous Percentage', getVal: (s) => s.prevPercentage || s['%age (Prev.)'] || s['Percentage (Class 10th)'] },
-          { id: 'prevDivision', label: 'Previous Division / Result', getVal: (s) => s.prevDivision || s.prevResultMarks || s['Div/Distinc (Prev.)'] || s['Previous Result / Marks'] },
-          { id: 'prevCcDc', label: 'Previous CC/DC No. & Date', getVal: (s) => s.prevCcDc || s['CC/DC No. & Date (Prev. insitution)'] },
-
-          // 6. Current Academic Progress & Results
-          { id: 'currExamRollNo', label: 'Current Exam Roll No', getVal: (s) => s.currExamRollNo || s['Exam R.No. (Current)'] || s.boardRoll || s.boardRollNo },
-          { id: 'currExamMode', label: 'Current Exam Mode', getVal: (s) => s.currExamMode || s['Exam Mode (Current)'] },
-          { id: 'currResult', label: 'Current Result', getVal: (s) => s.currResult || s['Result (Current)'] || s.result },
-          { id: 'currMarksReapp', label: 'Marks / Reappear (Current)', getVal: (s) => s.currMarksReapp || s['Marks/Reapp (Current)'] },
-          { id: 'withdrawalDate', label: 'Date of Withdrawal', getVal: (s) => s.withdrawalDate || s['Date of withdrawl'] },
-          { id: 'currCcDc', label: 'CC/DC Issued (This Institution)', getVal: (s) => s.currCcDc || s['No. & Date of CC/DC Issued (This Institution)'] },
-
-          // 7. Banking & Payment Information
-          { id: 'bankAccount', label: 'Bank Account Number', getVal: (s) => s.bankAccount || s['Bank Account No.'] || s.accountNo },
-          { id: 'bankName', label: 'Bank Name', getVal: (s) => s.bankName || s['Bank Name'] || s['Name of Bank'] },
-          { id: 'ifsc', label: 'IFSC Code', getVal: (s) => s.ifsc || s['IFSC code'] || s['IFSC Code'] },
-          { id: 'accountHolder', label: 'Account Holder Name', getVal: (s) => s.accountHolder || s['Account Holder Name'] },
-          { id: 'paymentRef', label: 'Payment Reference / UTR', getVal: (s) => s.paymentRef || s.utrNo || s['Payment Reference'] },
-          { id: 'feeAmount', label: 'Fee Amount Paid', getVal: (s) => s.feeAmount || s['Fee Amount'] || s.amountPaid },
-          { id: 'receiptNo', label: 'Fee Receipt Number', getVal: (s) => s.receiptNo || s['Receipt No.'] || s.feeReceiptNo },
-          { id: 'paymentDate', label: 'Fee Payment Date', getVal: (s) => s.paymentDate || s['Payment Date'] },
-          { id: 'feeStatus', label: 'Fee Status', getVal: (s) => s.feeStatus || s['Fee Status'] || s.feePaymentStatus },
-
-          // 8. Media & Document URLs
-          { id: 'photoUrl', label: 'Student Photo URL', getVal: (s) => s.photoUrl || s.photo || s.photoId || s['Photo URL'] },
-          { id: 'signatureUrl', label: 'Student Signature URL', getVal: (s) => s.signatureUrl || s.signature || s['Signature URL'] },
-          { id: 'pdfUrl', label: 'Official Admission PDF URL', getVal: (s) => s.pdfUrl || s['PDF_URL'] || s.applicationPdfUrl },
-          { id: 'marksheetUrl', label: 'Marksheet Document URL', getVal: (s) => s.marksheetUrl || s['Marksheet URL'] || s.marksheetDoc },
-          { id: 'provisionalCertUrl', label: 'Provisional Certificate URL', getVal: (s) => s.provisionalCertUrl || s['Provisional Certificate URL'] },
-          { id: 'antiDrugDocUrl', label: 'Anti-Drug Undertaking URL', getVal: (s) => s.antiDrugDocUrl || s['Anti Drug Doc URL'] },
-          { id: 'undertakingAccepted', label: 'Anti-Drug Undertaking Accepted', getVal: (s) => s.undertakingAccepted ? 'Yes' : (s.antiDrugUndertaking ? 'Yes' : '') },
-          { id: 'libraryCardGenerated', label: 'Library Card Generated', getVal: (s) => s.libraryCardGenerated ? 'Yes' : '' },
-
-          // 9. System, Audit & Database Metadata
-          { id: 'status', label: 'Admission Status', getVal: (s) => getStudentEffectiveStatus(s) || s.status || s['Status'] || 'Active' },
-          { id: 'onlineSubmDate', label: 'Online Submission Date', getVal: (s) => s.onlineSubmDate || s['Online Subm. Date'] || s.submittedAt },
-          { id: 'admDate', label: 'Admission Date', getVal: (s) => s.admDate || s.admissionDate || s['Adm. Date'] || s.timestamp },
-          { id: 'createdAt', label: 'Record Created Timestamp', getVal: (s) => s.createdAt ? (s.createdAt.toDate ? s.createdAt.toDate().toISOString() : s.createdAt) : '' },
-          { id: 'updatedAt', label: 'Record Last Updated Timestamp', getVal: (s) => s.updatedAt ? (s.updatedAt.toDate ? s.updatedAt.toDate().toISOString() : s.updatedAt) : '' },
-          { id: 'lastEditedBy', label: 'Last Edited By', getVal: (s) => s.lastEditedBy || s.editedBy || '' },
-          { id: 'isDirect', label: 'Direct Ingestion Record', getVal: (s) => s._isDirectIngested ? 'Yes' : '' },
-          { id: 'docId', label: 'Database Document ID', getVal: (s) => s.id || s.docId || s._docId || '' },
-          { id: 'recordSource', label: 'Record Source Collection', getVal: (s) => s._source || (s._isHistorical ? 'masterRegisters (Historical)' : 'admissions (Active)') },
-          { id: 'jkboseBatchId', label: 'JKBOSE Batch ID', getVal: (s) => s.jkboseBatchId || s.batchId || s.importBatch || '' },
-          { id: 'remarks', label: 'Administrative Remarks', getVal: (s) => s.remarks || s['Remarks'] }
-        ];
-
-        // Discover any extra arbitrary dynamic keys present across any record in studentsToExport
-        const coveredKeySet = new Set(ALL_100_COLUMN_DEFS.map(d => d.id.toLowerCase()));
-        ['formno', 'admissionno', 'classrollno', 'studentname', 'fathername', 'mothername', 'dob', 'gender', 'category', 'stream', 'session', 'class', 'aadhar', 'mobile', 'address', 'residence', 'village', 'status', 'remarks', 'email', 'subs', 'subjects', 'photo', 'signature', 'pen', 'apaar', 'id', 'sno'].forEach(k => coveredKeySet.add(k));
-
-        const extraKeys = new Set();
-        studentsToExport.forEach(s => {
-          Object.keys(s).forEach(k => {
-            if (!k || k.startsWith('_') || typeof s[k] === 'function') return;
-            const norm = k.toLowerCase().replace(/[^a-z0-9]/g, '');
-            if (!coveredKeySet.has(norm) && !coveredKeySet.has(k.toLowerCase())) {
-              extraKeys.add(k);
-            }
-          });
-        });
-
-        const extraDefs = Array.from(extraKeys).sort().map(k => ({
-          id: k,
-          label: `Extra: ${k}`,
-          getVal: (s) => s[k]
-        }));
-
-        const finalDefs = [...ALL_100_COLUMN_DEFS, ...extraDefs];
-        studentHeaders = finalDefs.map(d => d.label);
-        studentRows = studentsToExport.map((s, idx) => finalDefs.map(d => cleanVal(d.getVal(s, idx))));
-      }
-
-      const wsStudents = XLSX.utils.aoa_to_sheet([studentHeaders, ...studentRows]);
-      wsStudents['!cols'] = autoColWidths(studentHeaders, studentRows);
-      XLSX.utils.book_append_sheet(wb, wsStudents, 'Student_Admissions');
-
-      // --- SHEET 2: Faculty_Directory (12 Comprehensive Columns) ---
-      const facultyHeaders = [
-        'S.No.', 'Full Name', 'Designation', 'Department', 'Subject / Stream',
-        'Highest Qualification', 'Phone / Mobile Number', 'Email Address',
-        'Assigned Classes', 'Assigned Subjects', 'Status', 'Photo Reference'
-      ];
-      const facultyRows = facultyList.map((f, idx) => [
-        idx + 1,
-        cleanVal(f.name || f.fullName || f.staffName),
-        cleanVal(f.designation || f.post || f.role),
-        cleanVal(f.department),
-        cleanVal(f.subject || f.teachingSubject || f.stream),
-        cleanVal(f.qualification || f.highestDegree),
-        cleanVal(f.phone || f.mobile || f.contact),
-        cleanVal(f.email),
-        cleanVal(Array.isArray(f.assignedClasses) ? f.assignedClasses.join(', ') : (f.assignedClasses || '')),
-        cleanVal(Array.isArray(f.assignedSubjects) ? f.assignedSubjects.join(', ') : (f.assignedSubjects || '')),
-        cleanVal(f.status || 'Active'),
-        cleanVal(f.photo || f.photoUrl || '')
-      ]);
-      const wsFaculty = XLSX.utils.aoa_to_sheet([facultyHeaders, ...facultyRows]);
-      wsFaculty['!cols'] = autoColWidths(facultyHeaders, facultyRows);
-      XLSX.utils.book_append_sheet(wb, wsFaculty, 'Faculty_Directory');
-
-      // --- SHEET 3: Notices_Circulars (8 Columns) ---
-      const noticeHeaders = [
-        'S.No.', 'Title / Subject', 'Category', 'Publication Date',
-        'Description / Content', 'Attachment Link / URL', 'Display Days', 'Status'
-      ];
-      const noticeRows = noticesList.map((n, idx) => [
-        idx + 1,
-        cleanVal(n.title || n.subject || 'Circular Announcement'),
-        cleanVal(n.category || 'General Notice'),
-        cleanVal(n.date || n.timestamp || ''),
-        cleanVal(n.text || n.description || n.content || ''),
-        cleanVal(n.url || n.link || n.pdfUrl || ''),
-        cleanVal(n.days || ''),
-        cleanVal(n.status || (n.archived ? 'Archived' : 'Active'))
-      ]);
-      const wsNotices = XLSX.utils.aoa_to_sheet([noticeHeaders, ...noticeRows]);
-      wsNotices['!cols'] = autoColWidths(noticeHeaders, noticeRows);
-      XLSX.utils.book_append_sheet(wb, wsNotices, 'Notices_Circulars');
-
-      // --- SHEET 4: Site_Settings ---
-      const settingHeaders = ['Configuration Parameter / Category', 'Configured Value'];
-      const settingRows = [];
-      const appendSettingValues = (obj, prefix = '') => {
-        Object.entries(obj).forEach(([k, v]) => {
-          const fullK = prefix ? `${prefix}.${k}` : k;
-          if (v !== null && typeof v === 'object' && !Array.isArray(v)) {
-            appendSettingValues(v, fullK);
-          } else {
-            settingRows.push([
-              cleanVal(fullK),
-              cleanVal(Array.isArray(v) ? JSON.stringify(v) : v)
-            ]);
-          }
-        });
-      };
-      appendSettingValues(settingsObj);
-      const wsSettings = XLSX.utils.aoa_to_sheet([settingHeaders, ...settingRows]);
-      wsSettings['!cols'] = autoColWidths(settingHeaders, settingRows);
-      XLSX.utils.book_append_sheet(wb, wsSettings, 'Site_Settings');
-
-      // --- SHEET 5: Admin_Accounts (9 Columns) ---
-      const adminHeaders = [
-        'S.No.', 'Full Name', 'Admin Email', 'Assigned Role',
-        'Authorized Modules / Tabs', 'Assigned Classes', 'Assigned Subjects',
-        'Contact Mobile', 'Account Status'
-      ];
-      const adminRows = adminsList.map((a, idx) => [
-        idx + 1,
-        cleanVal(a.name || a.fullName || 'Administrator'),
-        cleanVal(a.email || (typeof a === 'string' ? a : '')),
-        cleanVal(a.role || 'Admin'),
-        cleanVal(Array.isArray(a.perms) ? a.perms.join(', ') : (Array.isArray(a.tabs) ? a.tabs.join(', ') : (a.allowedTabs || 'All Modules'))),
-        cleanVal(Array.isArray(a.assignedClasses) ? a.assignedClasses.join(', ') : (a.assignedClasses || 'All Classes')),
-        cleanVal(Array.isArray(a.assignedSubjects) ? a.assignedSubjects.join(', ') : (a.assignedSubjects || a.subject || 'All Subjects')),
-        cleanVal(a.mobile || a.phone || ''),
-        cleanVal(a.status || 'Active')
-      ]);
-      const wsAdmins = XLSX.utils.aoa_to_sheet([adminHeaders, ...adminRows]);
-      wsAdmins['!cols'] = autoColWidths(adminHeaders, adminRows);
-      XLSX.utils.book_append_sheet(wb, wsAdmins, 'Admin_Accounts');
-
-      // --- SHEET 6: Practicals_Awards ---
-      const practicalHeaders = ['S.No.', 'Record ID / Session', 'Class', 'Subject', 'Total Records Enrolled', 'Evaluator Email', 'Last Updated'];
-      const practicalRows = practicalsList.map((p, idx) => [
-        idx + 1,
-        cleanVal(p.id || p.session),
-        cleanVal(p.class || p.className),
-        cleanVal(p.subject || p.subjectName),
-        cleanVal(Array.isArray(p.students) ? p.students.length : (p.count || 0)),
-        cleanVal(p.evaluator || p.teacherEmail || p.updatedBy),
-        cleanVal(p.updatedAt || p.timestamp || '')
-      ]);
-      const wsPracticals = XLSX.utils.aoa_to_sheet([practicalHeaders, ...practicalRows]);
-      wsPracticals['!cols'] = autoColWidths(practicalHeaders, practicalRows);
-      XLSX.utils.book_append_sheet(wb, wsPracticals, 'Practicals_Awards');
-
-      // --- SHEET 7: System_Metadata ---
-      const metaHeaders = ['Audit Attribute', 'System Value'];
-      const metaRows = [
-        ['Institution Name', 'Govt. Higher Secondary School Shangus'],
-        ['Portal System', 'Enterprise School Management & Admission Suite'],
-        ['Export Timestamp', new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })],
-        ['Total Students in Database Backup', String(studentsToExport.length)],
-        ['Active Admissions in Scope', String(studentsToExport.filter(s => !s._isHistorical).length)],
-        ['Historical Digitized Records in Scope', String(studentsToExport.filter(s => s._isHistorical).length)],
-        ['Student Columns Mode', masterMultiColumnMode === 'all' ? `All Fields & Raw Attributes (${studentHeaders.length} Columns)` : `Important Only (${studentHeaders.length} Standard Columns)`],
-        ['Student Data Scope', masterMultiScope === 'filtered' ? `Filtered Scope (${masterExportSelectedSessions.join(', ')} | ${masterExportClass} | ${masterExportStream} | ${masterExportSelectedStatuses.join(', ')})` : 'All Institutional Database Records'],
-        ['Total Faculty Members', String(facultyList.length)],
-        ['Total Notices & Circulars', String(noticesList.length)],
-        ['Total Admin Accounts', String(adminsList.length)],
-        ['Total Practicals Batches', String(practicalsList.length)],
-        ['Platform Architecture', 'React 19, Cloud Firestore, SheetJS Enterprise Engine'],
-        ['Backup Engine Version', '2026.3 (Multi-Sheet Comprehensive XLSX)']
-      ];
-      const wsMeta = XLSX.utils.aoa_to_sheet([metaHeaders, ...metaRows]);
-      wsMeta['!cols'] = autoColWidths(metaHeaders, metaRows);
-      XLSX.utils.book_append_sheet(wb, wsMeta, 'System_Metadata');
+      const { wb, studentHeaders } = buildMasterDatabaseWorkbook(
+        studentsToExport,
+        facultyList,
+        noticesList,
+        settingsObj,
+        adminsList,
+        practicalsList,
+        masterMultiColumnMode,
+        scopeDesc
+      );
 
       // Write file
       const dateStr = new Date().toISOString().slice(0, 10);
@@ -8164,12 +7812,638 @@ export default function AdvancedReports({
       XLSX.writeFile(wb, filename);
 
       logAdminActivity('Full Database Backup Exported', `Generated complete multi-sheet Excel backup (${filename}) containing ${studentsToExport.length} students (${studentHeaders.length} columns), ${facultyList.length} faculty, ${noticesList.length} notices, and system settings.`);
-      showToast(`✅ Master Database Backup successfully generated & downloaded (${filename}) with ${studentsToExport.length} students (${masterMultiColumnMode === 'all' ? `${studentHeaders.length} columns` : '47 standard columns'}) across 7 sheets!`, 'success');
+      showToast(`✅ Master Database Backup successfully generated & downloaded (${filename}) with ${studentsToExport.length} students (${masterMultiColumnMode === 'all' ? `${studentHeaders.length} columns` : '48 standard columns'}) across 7 sheets!`, 'success');
     } catch (err) {
       console.error('Database backup error:', err);
       showToast('Error generating full database backup: ' + (err.message || 'Unknown error'), 'error');
     } finally {
       setIsExportingDbExcel(false);
+    }
+  };
+
+  // Helper function to build the comprehensive 7-sheet Master Database Workbook
+  const buildMasterDatabaseWorkbook = (studentsToExport, facultyList, noticesList, settingsObj, adminsList, practicalsList, columnMode = 'important', scopeDesc = '') => {
+    const MAX_EXCEL_CELL_CHARS = 32000;
+    const cleanVal = (val) => {
+      if (val === undefined || val === null || val === '—' || val === 'N/A' || val === '-' || val === 'null' || val === 'undefined') return '';
+      let res = '';
+      if (typeof val === 'object') {
+        if (val.toDate && typeof val.toDate === 'function') {
+          res = val.toDate().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
+        } else if (val.seconds) {
+          res = new Date(val.seconds * 1000).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
+        } else {
+          res = JSON.stringify(val);
+        }
+      } else {
+        res = String(val).trim();
+      }
+
+      // Intercept and sanitize any residual Base64 strings to prevent cell bloat & SheetJS crash
+      if (res.startsWith('data:image/') || res.startsWith('data:application/')) {
+        const approxKb = Math.round(res.length / 1024);
+        return `[Embedded Base64 Media (${approxKb} KB)]`;
+      }
+
+      // Enforce hard ceiling for Excel's 32,767 cell limit
+      if (res.length > MAX_EXCEL_CELL_CHARS) {
+        return res.slice(0, MAX_EXCEL_CELL_CHARS) + '... [TRUNCATED]';
+      }
+
+      return res;
+    };
+
+    const autoColWidths = (headers, rows) => {
+      return headers.map((h, colIdx) => {
+        let maxLen = h.length;
+        rows.forEach(row => {
+          const cell = row[colIdx];
+          if (cell) {
+            const len = String(cell).length;
+            if (len > maxLen) maxLen = len;
+          }
+        });
+        return { wch: Math.min(Math.max(maxLen + 3, 10), 45) };
+      });
+    };
+
+    const wb = XLSX.utils.book_new();
+
+    // Helper for student photo filename matching Bulk Photo Exporter
+    const getStudentPhotoFileNameForExcel = (s) => {
+      const p = getStudentPhotoUrl(s) || s.photoUrl || s.photo || s.photoId;
+      if (p && typeof p === 'string' && p.length > 20 && p !== '/logo.png') {
+        return getStudentPhotoDownloadFilename(s);
+      }
+      return '';
+    };
+
+    // --- SHEET 1: Student_Admissions (Important 48 Columns vs Complete 100+ Details) ---
+    let studentHeaders = [];
+    let studentRows = [];
+
+    if (columnMode === 'important') {
+      studentHeaders = [
+        'S.No.', 'Class Roll No', 'Admission No', 'Form No', 'Class', 'Session',
+        'Stream', 'Board Reg No', "Student's Name", "Father's Name", "Mother's Name",
+        'Date of Birth', 'Gender', 'Category', 'PEN No', 'Aadhaar No', "Father's Aadhaar",
+        'Mobile (Student)', 'Mobile (Parent)', 'Email Address', 'Permanent Address / Village',
+        'Tehsil', 'District', 'PIN Code', 'Subject 1', 'Subject 2', 'Subject 3',
+        'Subject 4', 'Subject 5', 'Subject 6', 'Composite Subjects',
+        'Previous School', 'Previous Exam Roll No', 'Previous Marks Obtained',
+        'Previous Max Marks', 'Previous Percentage', 'Previous Division / Result',
+        'Current Exam Roll No', 'Current Result', 'Marks / Reappear (Current)',
+        'Admission Date', 'Status', 'Bank Account No', 'Bank Name', 'IFSC Code', 'Payment Ref / UTR',
+        'Student Photo File', 'Remarks'
+      ];
+
+      studentRows = studentsToExport.map((s, idx) => {
+        const sClass = normalizeClassVal(s.class || s.Class || s['Admission sought for class'] || '');
+        const indivSubs = extractIndividualSubjectsList(s, sClass);
+        const formattedSubs = s.subs || s.subjects || s['Subjects'] || formatStudentSubjects(s, sClass);
+        return [
+          s.sno || idx + 1,
+          cleanVal(s.classRollNo || getStudentRollVal(s)),
+          cleanVal(formatStudentAdmNo(s) || s.admNo || s.admissionNo || s['Admission No'] || s['Adm. No.']),
+          cleanVal(s.formNo || s['Form Number'] || s['Form No.']),
+          cleanVal(sClass),
+          cleanVal(s.session || s.Session),
+          cleanVal(s.stream || s.Stream || resolveStudentStream(s)),
+          cleanVal(extractRegNo(s) || s.boardRegNo || s['Board Registration Number']),
+          cleanVal(getStudentName(s) || s.studentName),
+          cleanVal(getFatherName(s) || s.fatherName),
+          cleanVal(s.motherName || s["Mother's Name"] || s["Mother's Name (as per school records)"]),
+          cleanVal(s.dob || s.DoB || s['Date of Birth'] || s["DoB (as per school records)"] || s['DoB (figures)']),
+          cleanVal(s.gender || s['Gender']),
+          cleanVal(s.category || s['Category'] || s['Cat._JKBOSE'] || s['Social category']),
+          cleanVal(s.penNo || s.pen || s['PEN No'] || s['PEN No.'] || s['PEN']),
+          cleanVal(s.aadhar || s.aadhaar || s.aadhaarNo || s.aadharNo || s['Aadhar No.'] || s['Aadhaar Number'] || s['Aadhaar No.']),
+          cleanVal(s.fatherAadhar || s.fatherAadhaar || s["Father's Aadhar No."] || s["Father's Aadhaar No."]),
+          cleanVal(s.mobile || s.phone || s['Mobile No.'] || s['Mobile Number'] || s["Mobile No. (with working WhatsApp)"] || s["Student's Contact"]),
+          cleanVal(s.parentContact || s.alternateMobile || s['Alternate Mobile No.'] || s["Parent's Contact"] || s["Parent's Mobile No."]),
+          cleanVal(s.email || s.email1 || s['Email Address'] || s['Email']),
+          cleanVal(s.residence || s.village || s.address || s['Residence (Village, District)'] || s['Name of your village'] || s['Village/Town'] || s['Permanent Address']),
+          cleanVal(s.tehsil || s['Tehsil']),
+          cleanVal(s.district || s['District']),
+          cleanVal(s.pinCode || s.pincode || s['PIN code'] || s['Pin Code'] || s['Pincode']),
+          cleanVal(s.subjects1 || indivSubs[0] || s['Subjects1']),
+          cleanVal(s.subjects2 || indivSubs[1] || s['Subjects2']),
+          cleanVal(s.subjects3 || indivSubs[2] || s['Subjects3']),
+          cleanVal(s.subjects4 || indivSubs[3] || s['Subjects4']),
+          cleanVal(s.subjects5 || indivSubs[4] || s['Subjects5']),
+          cleanVal(s.subjects6 || s.subject6 || indivSubs[5] || s['Subject6'] || s['Subjects6']),
+          cleanVal(formattedSubs),
+          cleanVal(s.prevSchool || s['Previous School'] || s['Name of the Institution last attended'] || s['Previous School Name']),
+          cleanVal(s.prevExamRollNo || s.prevRollNo || s['Exam R.No. (Prev.)'] || s['Roll No. (Class 10th)'] || s['Previous Roll No']),
+          cleanVal(s.prevMarksObt || s['Marks Obt. (Prev.)'] || s['Marks Obtained (Class 10th)']),
+          cleanVal(s.prevMaxMarks || s['Max. Marks (Prev.)'] || s['Max Marks (Class 10th)']),
+          cleanVal(s.prevPercentage || s['%age (Prev.)'] || s['Percentage (Class 10th)']),
+          cleanVal(s.prevDivision || s.prevResultMarks || s['Div/Distinc (Prev.)'] || s['Previous Result / Marks']),
+          cleanVal(s.currExamRollNo || s['Exam R.No. (Current)'] || s.boardRoll || s.boardRollNo),
+          cleanVal(s.currResult || s['Result (Current)'] || s.result),
+          cleanVal(s.currMarksReapp || s['Marks/Reapp (Current)']),
+          cleanVal(s.admDate || s.admissionDate || s.onlineSubmDate || s['Adm. Date'] || s['Online Subm. Date'] || s.timestamp),
+          cleanVal(getStudentEffectiveStatus(s) || s.status || s['Status'] || 'Active'),
+          cleanVal(s.bankAccount || s['Bank Account No.'] || s.paymentRef || s.utrNo || s['Payment Reference']),
+          cleanVal(s.bankName || s['Bank Name'] || s['Name of Bank']),
+          cleanVal(s.ifsc || s['IFSC code'] || s['IFSC Code']),
+          cleanVal(s.paymentRef || s.utrNo || s['Payment Reference']),
+          cleanVal(getStudentPhotoFileNameForExcel(s)),
+          cleanVal(s.remarks || s['Remarks'])
+        ];
+      });
+    } else {
+      // 100+ Columns Mode
+      const ALL_100_COLUMN_DEFS = [
+        // 1. Primary Identifiers & Enrollment
+        { id: 'sno', label: 'S.No.', getVal: (s, idx) => idx + 1 },
+        { id: 'classRollNo', label: 'Class Roll No', getVal: (s) => s.classRollNo || getStudentRollVal(s) },
+        { id: 'admNo', label: 'Admission No', getVal: (s) => formatStudentAdmNo(s) || s.admNo || s.admissionNo || s['Admission No'] || s['Adm. No.'] },
+        { id: 'formNo', label: 'Form No', getVal: (s) => s.formNo || s['Form Number'] || s['Form No.'] },
+        { id: 'class', label: 'Class', getVal: (s) => normalizeClassVal(s.class || s.Class || s['Admission sought for class'] || '') },
+        { id: 'session', label: 'Session', getVal: (s) => s.session || s.Session || s['Academic Session'] },
+        { id: 'stream', label: 'Stream', getVal: (s) => s.stream || s.Stream || resolveStudentStream(s) },
+        { id: 'section', label: 'Section', getVal: (s) => s.section || s.Section || s['Section'] },
+        { id: 'boardRegNo', label: 'Board Reg No', getVal: (s) => extractRegNo(s) || s.boardRegNo || s['Board Registration Number'] },
+        { id: 'boardName', label: 'Board Name', getVal: (s) => s.boardName || s['Board Name'] || s.board || 'JKBOSE' },
+        { id: 'penNo', label: 'PEN No', getVal: (s) => s.penNo || s.pen || s['PEN No'] || s['PEN No.'] || s['PEN'] },
+        { id: 'apaarId', label: 'APAAR ID', getVal: (s) => s.apaarId || s.apaar || s['APAAR ID'] || s['APAAR'] },
+        { id: 'readmission', label: 'Re-admission Status', getVal: (s) => s.readmission || s['readmission'] || s['Re-admission'] || (s.isReadmission ? 'Yes' : 'No') },
+        { id: 'oldAdmNo', label: 'Old Admission No', getVal: (s) => s.oldAdmNo || s['Old Admission No.'] || s['Old Adm. No.'] },
+
+        // 2. Personal & Demographics
+        { id: 'studentName', label: "Student's Name", getVal: (s) => getStudentName(s) || s.studentName },
+        { id: 'fatherName', label: "Father's Name", getVal: (s) => getFatherName(s) || s.fatherName },
+        { id: 'motherName', label: "Mother's Name", getVal: (s) => s.motherName || s["Mother's Name"] || s["Mother's Name (as per school records)"] },
+        { id: 'dob', label: 'Date of Birth', getVal: (s) => s.dob || s.DoB || s['Date of Birth'] || s["DoB (as per school records)"] || s['DoB (figures)'] },
+        { id: 'dobWords', label: 'DoB (in words)', getVal: (s) => s.dobWords || convertDobToWords(s.dob || s.DoB) || s['DoB (words)'] },
+        { id: 'gender', label: 'Gender', getVal: (s) => s.gender || s['Gender'] },
+        { id: 'category', label: 'Category', getVal: (s) => s.category || s['Category'] || s['Cat._JKBOSE'] },
+        { id: 'socialCategory', label: 'Social Category', getVal: (s) => s.socialCategory || s['Social category'] },
+        { id: 'socioEconomicCategory', label: 'Socio-Economic Category', getVal: (s) => s.socioEconomicCategory || s['Socio-economic category'] },
+        { id: 'religion', label: 'Religion', getVal: (s) => s.religion || s['Religion'] },
+        { id: 'bloodGroup', label: 'Blood Group', getVal: (s) => s.bloodType || s.bloodGroup || s['Blood Type'] || s['Blood Group'] },
+        { id: 'height', label: 'Height (cm)', getVal: (s) => s.height || s['Height (cm)'] || s['Height'] },
+        { id: 'weight', label: 'Weight (kg)', getVal: (s) => s.weight || s['Weight (kg)'] || s['Weight'] },
+        { id: 'disabilityStatus', label: 'Disability Status', getVal: (s) => s.disabilityStatus || s['Disability Status'] },
+        { id: 'disabilityType', label: 'Disability Type', getVal: (s) => s.disabilityType || s['Disability Type'] },
+        { id: 'orphanStatus', label: 'Orphan Status', getVal: (s) => s.orphanStatus || s['Orphan Status'] || (s.isOrphan ? 'Yes' : '') },
+        { id: 'aadhar', label: 'Aadhaar Number', getVal: (s) => s.aadhar || s.aadhaar || s.aadhaarNo || s.aadharNo || s['Aadhaar Number'] || s['Aadhaar No.'] },
+        { id: 'fatherAadhar', label: "Father's Aadhaar", getVal: (s) => s.fatherAadhar || s.fatherAadhaar || s["Father's Aadhar No."] || s["Father's Aadhaar No."] },
+        { id: 'motherAadhar', label: "Mother's Aadhaar", getVal: (s) => s.motherAadhar || s.motherAadhaar || s["Mother's Aadhar No."] },
+
+        // 3. Contact & Address
+        { id: 'mobile', label: 'Mobile (Student)', getVal: (s) => s.mobile || s.phone || s['Mobile No.'] || s['Mobile Number'] || s["Mobile No. (with working WhatsApp)"] },
+        { id: 'parentContact', label: 'Mobile (Parent)', getVal: (s) => s.parentContact || s.alternateMobile || s['Alternate Mobile No.'] || s["Parent's Contact"] || s["Parent's Mobile No."] },
+        { id: 'email', label: 'Primary Email', getVal: (s) => s.email || s.email1 || s['Email Address'] || s['Email'] },
+        { id: 'email2', label: 'Alternate Email', getVal: (s) => s.email2 || s['email2'] || s.alternateEmail },
+        { id: 'houseNo', label: 'House No.', getVal: (s) => s.houseNo || s['House No.'] },
+        { id: 'residence', label: 'Permanent Address / Village', getVal: (s) => s.residence || s.village || s.address || s['Residence (Village, District)'] || s['Permanent Address'] },
+        { id: 'village', label: 'Village / Town', getVal: (s) => s.village || s['Village/Town'] || s['Name of your village'] },
+        { id: 'block', label: 'Block', getVal: (s) => s.block || s['Block'] },
+        { id: 'tehsil', label: 'Tehsil', getVal: (s) => s.tehsil || s['Tehsil'] },
+        { id: 'district', label: 'District', getVal: (s) => s.district || s['District'] },
+        { id: 'state', label: 'State / UT', getVal: (s) => s.state || s['State/UT'] || 'Jammu & Kashmir' },
+        { id: 'pinCode', label: 'PIN Code', getVal: (s) => s.pinCode || s.pincode || s['PIN code'] || s['Pin Code'] },
+
+        // 4. Subjects & Curriculum
+        { id: 'subjects1', label: 'Subject 1', getVal: (s) => s.subjects1 || extractIndividualSubjectsList(s, normalizeClassVal(s.class))[0] || s['Subjects1'] },
+        { id: 'subjects2', label: 'Subject 2', getVal: (s) => s.subjects2 || extractIndividualSubjectsList(s, normalizeClassVal(s.class))[1] || s['Subjects2'] },
+        { id: 'subjects3', label: 'Subject 3', getVal: (s) => s.subjects3 || extractIndividualSubjectsList(s, normalizeClassVal(s.class))[2] || s['Subjects3'] },
+        { id: 'subjects4', label: 'Subject 4', getVal: (s) => s.subjects4 || extractIndividualSubjectsList(s, normalizeClassVal(s.class))[3] || s['Subjects4'] },
+        { id: 'subjects5', label: 'Subject 5', getVal: (s) => s.subjects5 || extractIndividualSubjectsList(s, normalizeClassVal(s.class))[4] || s['Subjects5'] },
+        { id: 'subjects6', label: 'Subject 6 (Additional)', getVal: (s) => s.subjects6 || s.subject6 || extractIndividualSubjectsList(s, normalizeClassVal(s.class))[5] || s['Subject6'] || s['Subjects6'] },
+        { id: 'subs', label: 'Composite Subjects', getVal: (s) => s.subs || s.subjects || s['Subjects'] || formatStudentSubjects(s, normalizeClassVal(s.class)) },
+        { id: 'vocationalSubject', label: 'Vocational Subject', getVal: (s) => s.vocationalSubject || s['Vocational Subject'] },
+        { id: 'vocationalPercentage', label: 'Vocational %age', getVal: (s) => s.vocationalPercentage || s['Vocational %age'] },
+
+        // 5. Previous Academic History
+        { id: 'prevSchool', label: 'Previous School', getVal: (s) => s.prevSchool || s['Previous School'] || s['Name of the Institution last attended'] },
+        { id: 'prevComplexHead', label: 'Previous Complex Head', getVal: (s) => s.prevComplexHead || s['Previous Complex Head'] },
+        { id: 'prevExamRollNo', label: 'Previous Exam Roll No', getVal: (s) => s.prevExamRollNo || s.prevRollNo || s['Exam R.No. (Prev.)'] || s['Roll No. (Class 10th)'] },
+        { id: 'prevExamMode', label: 'Previous Exam Mode', getVal: (s) => s.prevExamMode || s['Exam Mode (Prev.)'] },
+        { id: 'prevMarksObt', label: 'Previous Marks Obtained', getVal: (s) => s.prevMarksObt || s['Marks Obt. (Prev.)'] || s['Marks Obtained (Class 10th)'] },
+        { id: 'prevMaxMarks', label: 'Previous Max Marks', getVal: (s) => s.prevMaxMarks || s['Max. Marks (Prev.)'] || s['Max Marks (Class 10th)'] },
+        { id: 'prevPercentage', label: 'Previous Percentage', getVal: (s) => s.prevPercentage || s['%age (Prev.)'] || s['Percentage (Class 10th)'] },
+        { id: 'prevDivision', label: 'Previous Division / Result', getVal: (s) => s.prevDivision || s.prevResultMarks || s['Div/Distinc (Prev.)'] || s['Previous Result / Marks'] },
+        { id: 'prevCcDc', label: 'Previous CC/DC No. & Date', getVal: (s) => s.prevCcDc || s['CC/DC No. & Date (Prev. insitution)'] },
+
+        // 6. Current Academic Progress & Results
+        { id: 'currExamRollNo', label: 'Current Exam Roll No', getVal: (s) => s.currExamRollNo || s['Exam R.No. (Current)'] || s.boardRoll || s.boardRollNo },
+        { id: 'currExamMode', label: 'Current Exam Mode', getVal: (s) => s.currExamMode || s['Exam Mode (Current)'] },
+        { id: 'currResult', label: 'Current Result', getVal: (s) => s.currResult || s['Result (Current)'] || s.result },
+        { id: 'currMarksReapp', label: 'Marks / Reappear (Current)', getVal: (s) => s.currMarksReapp || s['Marks/Reapp (Current)'] },
+        { id: 'withdrawalDate', label: 'Date of Withdrawal', getVal: (s) => s.withdrawalDate || s['Date of withdrawl'] },
+        { id: 'currCcDc', label: 'CC/DC Issued (This Institution)', getVal: (s) => s.currCcDc || s['No. & Date of CC/DC Issued (This Institution)'] },
+
+        // 7. Banking & Payment Information
+        { id: 'bankAccount', label: 'Bank Account Number', getVal: (s) => s.bankAccount || s['Bank Account No.'] || s.accountNo },
+        { id: 'bankName', label: 'Bank Name', getVal: (s) => s.bankName || s['Bank Name'] || s['Name of Bank'] },
+        { id: 'ifsc', label: 'IFSC Code', getVal: (s) => s.ifsc || s['IFSC code'] || s['IFSC Code'] },
+        { id: 'accountHolder', label: 'Account Holder Name', getVal: (s) => s.accountHolder || s['Account Holder Name'] },
+        { id: 'paymentRef', label: 'Payment Reference / UTR', getVal: (s) => s.paymentRef || s.utrNo || s['Payment Reference'] },
+        { id: 'feeAmount', label: 'Fee Amount Paid', getVal: (s) => s.feeAmount || s['Fee Amount'] || s.amountPaid },
+        { id: 'receiptNo', label: 'Fee Receipt Number', getVal: (s) => s.receiptNo || s['Receipt No.'] || s.feeReceiptNo },
+        { id: 'paymentDate', label: 'Fee Payment Date', getVal: (s) => s.paymentDate || s['Payment Date'] },
+        { id: 'feeStatus', label: 'Fee Status', getVal: (s) => s.feeStatus || s['Fee Status'] || s.feePaymentStatus },
+
+        // 8. Media & Document References (Clean Filenames, No Base64 Blobs)
+        { id: 'photoUrl', label: 'Student Photo File', getVal: (s) => getStudentPhotoFileNameForExcel(s) },
+        { id: 'photoCloudUrl', label: 'Student Photo Cloud Link', getVal: (s) => {
+          const raw = s.photoUrl || s.photo || '';
+          return (typeof raw === 'string' && (raw.startsWith('http://') || raw.startsWith('https://'))) ? raw : '';
+        }},
+        { id: 'signatureUrl', label: 'Student Signature File', getVal: (s) => {
+          const raw = s.signatureUrl || s.signature;
+          if (raw && typeof raw === 'string' && raw.length > 20) {
+            if (raw.startsWith('http://') || raw.startsWith('https://')) return raw;
+            return `${(getStudentRollVal(s) || s.formNo || 'student')}_signature.jpg`;
+          }
+          return '';
+        }},
+        { id: 'pdfUrl', label: 'Official Admission PDF URL', getVal: (s) => s.pdfUrl || s['PDF_URL'] || s.applicationPdfUrl },
+        { id: 'marksheetUrl', label: 'Marksheet Document Link', getVal: (s) => {
+          const raw = s.marksheetUrl || s['Marksheet URL'] || s.marksheetDoc;
+          if (raw && typeof raw === 'string' && (raw.startsWith('http://') || raw.startsWith('https://'))) return raw;
+          return raw ? `${(getStudentRollVal(s) || s.formNo || 'student')}_marksheet.jpg` : '';
+        }},
+        { id: 'provisionalCertUrl', label: 'Provisional Certificate Link', getVal: (s) => {
+          const raw = s.provisionalCertUrl || s['Provisional Certificate URL'];
+          if (raw && typeof raw === 'string' && (raw.startsWith('http://') || raw.startsWith('https://'))) return raw;
+          return raw ? `${(getStudentRollVal(s) || s.formNo || 'student')}_provisional.jpg` : '';
+        }},
+        { id: 'antiDrugDocUrl', label: 'Anti-Drug Undertaking Link', getVal: (s) => {
+          const raw = s.antiDrugDocUrl || s['Anti Drug Doc URL'];
+          if (raw && typeof raw === 'string' && (raw.startsWith('http://') || raw.startsWith('https://'))) return raw;
+          return raw ? `${(getStudentRollVal(s) || s.formNo || 'student')}_antidrug.jpg` : '';
+        }},
+        { id: 'undertakingAccepted', label: 'Anti-Drug Undertaking Accepted', getVal: (s) => s.undertakingAccepted ? 'Yes' : (s.antiDrugUndertaking ? 'Yes' : '') },
+        { id: 'libraryCardGenerated', label: 'Library Card Generated', getVal: (s) => s.libraryCardGenerated ? 'Yes' : '' },
+
+        // 9. System, Audit & Database Metadata
+        { id: 'status', label: 'Admission Status', getVal: (s) => getStudentEffectiveStatus(s) || s.status || s['Status'] || 'Active' },
+        { id: 'onlineSubmDate', label: 'Online Submission Date', getVal: (s) => s.onlineSubmDate || s['Online Subm. Date'] || s.submittedAt },
+        { id: 'admDate', label: 'Admission Date', getVal: (s) => s.admDate || s.admissionDate || s['Adm. Date'] || s.timestamp },
+        { id: 'createdAt', label: 'Record Created Timestamp', getVal: (s) => s.createdAt ? (s.createdAt.toDate ? s.createdAt.toDate().toISOString() : s.createdAt) : '' },
+        { id: 'updatedAt', label: 'Record Last Updated Timestamp', getVal: (s) => s.updatedAt ? (s.updatedAt.toDate ? s.updatedAt.toDate().toISOString() : s.updatedAt) : '' },
+        { id: 'lastEditedBy', label: 'Last Edited By', getVal: (s) => s.lastEditedBy || s.editedBy || '' },
+        { id: 'isDirect', label: 'Direct Ingestion Record', getVal: (s) => s._isDirectIngested ? 'Yes' : '' },
+        { id: 'docId', label: 'Database Document ID', getVal: (s) => s.id || s.docId || s._docId || '' },
+        { id: 'recordSource', label: 'Record Source Collection', getVal: (s) => s._source || (s._isHistorical ? 'masterRegisters (Historical)' : 'admissions (Active)') },
+        { id: 'jkboseBatchId', label: 'JKBOSE Batch ID', getVal: (s) => s.jkboseBatchId || s.batchId || s.importBatch || '' },
+        { id: 'remarks', label: 'Administrative Remarks', getVal: (s) => s.remarks || s['Remarks'] }
+      ];
+
+      // Discover any extra arbitrary dynamic keys present across any record in studentsToExport
+      const coveredKeySet = new Set(ALL_100_COLUMN_DEFS.map(d => d.id.toLowerCase()));
+      ['formno', 'admissionno', 'classrollno', 'studentname', 'fathername', 'mothername', 'dob', 'gender', 'category', 'stream', 'session', 'class', 'aadhar', 'mobile', 'address', 'residence', 'village', 'status', 'remarks', 'email', 'subs', 'subjects', 'photo', 'signature', 'pen', 'apaar', 'id', 'sno'].forEach(k => coveredKeySet.add(k));
+
+      const extraKeys = new Set();
+      studentsToExport.forEach(s => {
+        Object.keys(s).forEach(k => {
+          if (!k || k.startsWith('_') || typeof s[k] === 'function') return;
+          const norm = k.toLowerCase().replace(/[^a-z0-9]/g, '');
+          if (!coveredKeySet.has(norm) && !coveredKeySet.has(k.toLowerCase())) {
+            extraKeys.add(k);
+          }
+        });
+      });
+
+      const extraDefs = Array.from(extraKeys).sort().map(k => ({
+        id: k,
+        label: `Extra: ${k}`,
+        getVal: (s) => s[k]
+      }));
+
+      const finalDefs = [...ALL_100_COLUMN_DEFS, ...extraDefs];
+      studentHeaders = finalDefs.map(d => d.label);
+      studentRows = studentsToExport.map((s, idx) => finalDefs.map(d => cleanVal(d.getVal(s, idx))));
+    }
+
+    const wsStudents = XLSX.utils.aoa_to_sheet([studentHeaders, ...studentRows]);
+    wsStudents['!cols'] = autoColWidths(studentHeaders, studentRows);
+    XLSX.utils.book_append_sheet(wb, wsStudents, 'Student_Admissions');
+
+    // --- SHEET 2: Faculty_Directory (12 Columns with Safe Photo Filename) ---
+    const facultyHeaders = [
+      'S.No.', 'Full Name', 'Designation', 'Department', 'Subject / Stream',
+      'Highest Qualification', 'Phone / Mobile Number', 'Email Address',
+      'Assigned Classes', 'Assigned Subjects', 'Status', 'Photo Reference'
+    ];
+    const facultyRows = facultyList.map((f, idx) => [
+      idx + 1,
+      cleanVal(f.name || f.fullName || f.staffName),
+      cleanVal(f.designation || f.post || f.role),
+      cleanVal(f.department),
+      cleanVal(f.subject || f.teachingSubject || f.stream),
+      cleanVal(f.qualification || f.highestDegree),
+      cleanVal(f.phone || f.mobile || f.contact),
+      cleanVal(f.email),
+      cleanVal(Array.isArray(f.assignedClasses) ? f.assignedClasses.join(', ') : (f.assignedClasses || '')),
+      cleanVal(Array.isArray(f.assignedSubjects) ? f.assignedSubjects.join(', ') : (f.assignedSubjects || '')),
+      cleanVal(f.status || 'Active'),
+      cleanVal(f.photo || f.photoUrl ? `faculty_${(f.name || f.fullName || 'staff').toLowerCase().replace(/[^a-z0-9]+/g, '_')}_photo.jpg` : '')
+    ]);
+    const wsFaculty = XLSX.utils.aoa_to_sheet([facultyHeaders, ...facultyRows]);
+    wsFaculty['!cols'] = autoColWidths(facultyHeaders, facultyRows);
+    XLSX.utils.book_append_sheet(wb, wsFaculty, 'Faculty_Directory');
+
+    // --- SHEET 3: Notices_Circulars (8 Columns) ---
+    const noticeHeaders = [
+      'S.No.', 'Title / Subject', 'Category', 'Publication Date',
+      'Description / Content', 'Attachment Link / URL', 'Display Days', 'Status'
+    ];
+    const noticeRows = (Array.isArray(noticesList) ? noticesList : []).map((n, idx) => [
+      idx + 1,
+      cleanVal(n.title || n.subject || 'Circular Announcement'),
+      cleanVal(n.category || 'General Notice'),
+      cleanVal(n.date || n.timestamp || ''),
+      cleanVal(n.text || n.description || n.content || ''),
+      cleanVal(n.url || n.link || n.pdfUrl || ''),
+      cleanVal(n.days || ''),
+      cleanVal(n.status || (n.archived ? 'Archived' : 'Active'))
+    ]);
+    const wsNotices = XLSX.utils.aoa_to_sheet([noticeHeaders, ...noticeRows]);
+    wsNotices['!cols'] = autoColWidths(noticeHeaders, noticeRows);
+    XLSX.utils.book_append_sheet(wb, wsNotices, 'Notices_Circulars');
+
+    // --- SHEET 4: Site_Settings ---
+    const settingHeaders = ['Configuration Parameter / Category', 'Configured Value'];
+    const settingRows = [];
+    const appendSettingValues = (obj, prefix = '') => {
+      Object.entries(obj).forEach(([k, v]) => {
+        const fullK = prefix ? `${prefix}.${k}` : k;
+        if (v !== null && typeof v === 'object' && !Array.isArray(v)) {
+          appendSettingValues(v, fullK);
+        } else {
+          settingRows.push([
+            cleanVal(fullK),
+            cleanVal(Array.isArray(v) ? JSON.stringify(v) : v)
+          ]);
+        }
+      });
+    };
+    appendSettingValues(settingsObj);
+    const wsSettings = XLSX.utils.aoa_to_sheet([settingHeaders, ...settingRows]);
+    wsSettings['!cols'] = autoColWidths(settingHeaders, settingRows);
+    XLSX.utils.book_append_sheet(wb, wsSettings, 'Site_Settings');
+
+    // --- SHEET 5: Admin_Accounts (9 Columns) ---
+    const adminHeaders = [
+      'S.No.', 'Full Name', 'Admin Email', 'Assigned Role',
+      'Authorized Modules / Tabs', 'Assigned Classes', 'Assigned Subjects',
+      'Contact Mobile', 'Account Status'
+    ];
+    const adminRows = adminsList.map((a, idx) => [
+      idx + 1,
+      cleanVal(a.name || a.fullName || 'Administrator'),
+      cleanVal(a.email || (typeof a === 'string' ? a : '')),
+      cleanVal(a.role || 'Admin'),
+      cleanVal(Array.isArray(a.perms) ? a.perms.join(', ') : (Array.isArray(a.tabs) ? a.tabs.join(', ') : (a.allowedTabs || 'All Modules'))),
+      cleanVal(Array.isArray(a.assignedClasses) ? a.assignedClasses.join(', ') : (a.assignedClasses || 'All Classes')),
+      cleanVal(Array.isArray(a.assignedSubjects) ? a.assignedSubjects.join(', ') : (a.assignedSubjects || a.subject || 'All Subjects')),
+      cleanVal(a.mobile || a.phone || ''),
+      cleanVal(a.status || 'Active')
+    ]);
+    const wsAdmins = XLSX.utils.aoa_to_sheet([adminHeaders, ...adminRows]);
+    wsAdmins['!cols'] = autoColWidths(adminHeaders, adminRows);
+    XLSX.utils.book_append_sheet(wb, wsAdmins, 'Admin_Accounts');
+
+    // --- SHEET 6: Practicals_Awards ---
+    const practicalHeaders = ['S.No.', 'Record ID / Session', 'Class', 'Subject', 'Total Records Enrolled', 'Evaluator Email', 'Last Updated'];
+    const practicalRows = practicalsList.map((p, idx) => [
+      idx + 1,
+      cleanVal(p.id || p.session),
+      cleanVal(p.class || p.className),
+      cleanVal(p.subject || p.subjectName),
+      cleanVal(Array.isArray(p.records) ? p.records.length : (Array.isArray(p.students) ? p.students.length : (p.count || 0))),
+      cleanVal(p.evaluator || p.teacherEmail || p.updatedBy),
+      cleanVal(p.updatedAt || p.timestamp || '')
+    ]);
+    const wsPracticals = XLSX.utils.aoa_to_sheet([practicalHeaders, ...practicalRows]);
+    wsPracticals['!cols'] = autoColWidths(practicalHeaders, practicalRows);
+    XLSX.utils.book_append_sheet(wb, wsPracticals, 'Practicals_Awards');
+
+    // --- SHEET 7: System_Metadata ---
+    const metaHeaders = ['Audit Attribute', 'System Value'];
+    const metaRows = [
+      ['Institution Name', 'Govt. Higher Secondary School Shangus'],
+      ['Portal System', 'Enterprise School Management & Admission Suite'],
+      ['Export Timestamp', new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })],
+      ['Total Students in Database Backup', String(studentsToExport.length)],
+      ['Active Admissions in Scope', String(studentsToExport.filter(s => !s._isHistorical).length)],
+      ['Historical Digitized Records in Scope', String(studentsToExport.filter(s => s._isHistorical).length)],
+      ['Student Columns Mode', columnMode === 'all' ? `All Fields & Raw Attributes (${studentHeaders.length} Columns)` : `Important Only (${studentHeaders.length} Standard Columns)`],
+      ['Student Data Scope', scopeDesc || 'Institutional Scope'],
+      ['Total Faculty Members', String(facultyList.length)],
+      ['Total Notices & Circulars', String(noticesList.length)],
+      ['Total Admin Accounts', String(adminsList.length)],
+      ['Total Practicals Batches', String(practicalsList.length)],
+      ['Platform Architecture', 'React 19, Cloud Firestore, SheetJS Enterprise Engine'],
+      ['Backup Engine Version', '2026.4 (Multi-Sheet Safe Cell XLSX)']
+    ];
+    const wsMeta = XLSX.utils.aoa_to_sheet([metaHeaders, ...metaRows]);
+    wsMeta['!cols'] = autoColWidths(metaHeaders, metaRows);
+    XLSX.utils.book_append_sheet(wb, wsMeta, 'System_Metadata');
+
+    return { wb, studentHeaders };
+  };
+
+  // ─── All-in-One Master Backup ZIP Exporter (.zip) ───
+  const handleDownloadMasterBackupZip = async () => {
+    setIsExportingDbZip(true);
+    try {
+      showToast('Compiling Complete All-in-One Master Backup ZIP Archive...', 'info');
+
+      // 1. Compile student register across all sessions
+      let candidatePool = [];
+      if (masterHistoricalRecords && masterHistoricalRecords.length > 0) {
+        const histMap = new Map();
+        masterHistoricalRecords.forEach((item, idx) => {
+          const key = item.boardRegNo || item.formNo || item.classRollNo ? `${item.session || ''}_${item.class || ''}_${item.boardRegNo || item.formNo || item.classRollNo}_${idx}` : `h_${idx}`;
+          histMap.set(key, item);
+        });
+        candidatePool = [...(currentAdmissions || []), ...Array.from(histMap.values())];
+      } else {
+        candidatePool = (allStudents && allStudents.length > 0) ? allStudents : (currentAdmissions || []);
+      }
+
+      if (!window._hssMasterRegistersIsFull) {
+        showToast('Hydrating complete 2006–2026 master register archives...', 'info');
+        const fullChunks = await getMasterRegistersScoped({ forceAll: true });
+        if (Array.isArray(fullChunks) && fullChunks.length > 0) {
+          const formatted = flattenAndFormatMasterRegisters(fullChunks);
+          setMasterHistoricalRecords(formatted);
+          const histMap = new Map();
+          formatted.forEach((item, idx) => {
+            const key = item.boardRegNo || item.formNo || item.classRollNo ? `${item.session || ''}_${item.class || ''}_${item.boardRegNo || item.formNo || item.classRollNo}_${idx}` : `h_${idx}`;
+            histMap.set(key, item);
+          });
+          candidatePool = [...(currentAdmissions || []), ...Array.from(histMap.values())];
+        }
+      }
+
+      let studentsToExport = candidatePool;
+      if (masterMultiScope === 'filtered') {
+        const isAllSess = masterExportSelectedSessions.length === 0 || masterExportSelectedSessions.length === allKnownSessions.length;
+        const activeSessList = masterExportSelectedSessions.length === 0 ? allKnownSessions : masterExportSelectedSessions.filter(s => s !== '__NONE__');
+        const normSelectedSessions = new Set(activeSessList.map(s => String(s).trim().toLowerCase()));
+
+        studentsToExport = candidatePool.filter(s => {
+          const sSess = String(s.session || '').trim().toLowerCase();
+          if (!isAllSess && !normSelectedSessions.has(sSess)) return false;
+          if (masterExportSelectedClasses && masterExportSelectedClasses.length > 0) {
+            if (masterExportSelectedClasses.includes('__NONE__')) return false;
+            const normClasses = new Set(masterExportSelectedClasses.map(c => normalizeClassVal(c)));
+            if (!normClasses.has(normalizeClassVal(s.class))) return false;
+          } else if (masterExportClass !== 'ALL') {
+            if (normalizeClassVal(s.class) !== normalizeClassVal(masterExportClass)) return false;
+          }
+          if (masterExportStream !== 'ALL') {
+            if (String(s.stream || '').trim().toLowerCase() !== String(masterExportStream).trim().toLowerCase()) return false;
+          }
+          if (masterExportSelectedStatuses && masterExportSelectedStatuses.length > 0) {
+            if (masterExportSelectedStatuses.includes('__NONE__')) return false;
+            const normStatuses = new Set(masterExportSelectedStatuses.map(st => String(st).trim().toLowerCase()));
+            const eff = getStudentEffectiveStatus(s).toLowerCase();
+            if (!normStatuses.has(eff)) return false;
+          }
+          return true;
+        });
+      }
+
+      // 2. Fetch other collections
+      let facultyList = [];
+      try {
+        const facSnap = await getDoc(doc(db, 'systemSettings', 'facultyPrivate'));
+        if (facSnap.exists()) {
+          const data = facSnap.data();
+          const list = data?.items || data?.members || data?.faculty;
+          if (Array.isArray(list) && list.length > 0) facultyList = list;
+        } else {
+          const facSnap2 = await getDoc(doc(db, 'site', 'faculty'));
+          if (facSnap2.exists()) {
+            const data2 = facSnap2.data();
+            const list2 = data2?.items || data2?.members || data2?.faculty;
+            if (Array.isArray(list2) && list2.length > 0) facultyList = list2;
+          }
+        }
+      } catch (_) {}
+
+      let noticesList = [];
+      try {
+        const notSnap = await getDoc(doc(db, 'site', 'notices'));
+        if (notSnap.exists()) noticesList = notSnap.data();
+      } catch (_) {}
+
+      let settingsObj = {};
+      try {
+        const setSnap = await getDoc(doc(db, 'site', 'settings'));
+        if (setSnap.exists()) settingsObj = setSnap.data() || {};
+      } catch (_) {}
+
+      let adminsList = [];
+      try {
+        const permSnap = await getDoc(doc(db, 'adminSettings', 'permissions'));
+        if (permSnap.exists() && Array.isArray(permSnap.data()?.users)) {
+          adminsList = permSnap.data().users;
+        }
+      } catch (_) {}
+
+      let practicalsList = [];
+      try {
+        const pracSnap = await getDocs(collection(db, 'practicalsData'));
+        pracSnap.forEach(d => practicalsList.push({ id: d.id, ...d.data() }));
+      } catch (_) {}
+
+      // 3. Build Excel Workbook
+      const scopeDesc = masterMultiScope === 'filtered' 
+        ? `Filtered Scope (${masterExportSelectedSessions.join(', ')} | ${masterExportSelectedClasses.length > 0 ? masterExportSelectedClasses.join(', ') : masterExportClass} | ${masterExportStream} | ${masterExportSelectedStatuses.join(', ')})`
+        : 'All Institutional Database Records';
+
+      const { wb } = buildMasterDatabaseWorkbook(
+        studentsToExport,
+        facultyList,
+        noticesList,
+        settingsObj,
+        adminsList,
+        practicalsList,
+        masterMultiColumnMode,
+        scopeDesc
+      );
+
+      const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+
+      // 4. Build JSON Disaster Recovery Payload
+      const fullBackupPayload = {
+        meta: {
+          institution: 'Govt. Higher Secondary School Shangus',
+          system: 'GHSS Shangus Enterprise Portal',
+          version: '2026.4',
+          exportTimestamp: new Date().toISOString(),
+          totalStudents: studentsToExport.length,
+          totalFaculty: facultyList.length,
+          totalAdmins: adminsList.length
+        },
+        students: studentsToExport,
+        faculty: facultyList,
+        notices: noticesList,
+        settings: settingsObj,
+        admins: adminsList,
+        practicals: practicalsList
+      };
+
+      const dateStr = new Date().toISOString().slice(0, 10);
+      const zip = new JSZip();
+
+      // Excel inside ZIP
+      zip.file(`HSS_Shangus_Master_Database_${dateStr}.xlsx`, excelBuffer);
+
+      // JSON Disaster Recovery inside ZIP
+      zip.file(`HSS_Shangus_Disaster_Recovery_${dateStr}.json`, JSON.stringify(fullBackupPayload, null, 2));
+
+      // CMS Public Mirrors inside ZIP
+      const cmsFolder = zip.folder('CMS_Public_Mirrors');
+      if (cmsFolder) {
+        cmsFolder.file('settings.json', JSON.stringify(settingsObj, null, 2));
+        cmsFolder.file('faculty.json', JSON.stringify(facultyList.map(f => {
+          const { pan, aadhar, salary, ...safe } = f;
+          return safe;
+        }), null, 2));
+        cmsFolder.file('notices.json', JSON.stringify(noticesList, null, 2));
+      }
+
+      // Manifest
+      zip.file('BACKUP_MANIFEST.txt', [
+        '========================================================================================',
+        'GOVT. HIGHER SECONDARY SCHOOL SHANGUS — MASTER ALL-IN-ONE SYSTEM BACKUP ARCHIVE',
+        `Generated At   : ${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}`,
+        `Students Scope : ${studentsToExport.length} Students (${masterMultiScope === 'filtered' ? 'Filtered Scope' : 'Full Database Universe'})`,
+        `Column Mode    : ${masterMultiColumnMode === 'all' ? '100+ Complete Details' : '48 Standardized Columns'}`,
+        `Faculty Members: ${facultyList.length}`,
+        `Notices Feed   : ${Array.isArray(noticesList) ? noticesList.length : Object.keys(noticesList || {}).length}`,
+        `Admin Accounts : ${adminsList.length}`,
+        `Archive Format : ZIP Containing Multi-Sheet Excel (.xlsx), Lossless JSON (.json), and CMS Mirrors`,
+        '========================================================================================'
+      ].join('\n'));
+
+      const zipBlob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 } });
+      const zipUrl = URL.createObjectURL(zipBlob);
+      const a = document.createElement('a');
+      a.href = zipUrl;
+      a.download = `HSS_Shangus_Master_Backup_Archive_${dateStr}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(zipUrl);
+
+      logAdminActivity('Master Backup ZIP Exported', `Exported all-in-one ZIP archive (${(zipBlob.size / 1024 / 1024).toFixed(2)} MB) for ${studentsToExport.length} students.`);
+      showToast(`✅ All-in-One Master Backup ZIP successfully downloaded (${(zipBlob.size / 1024 / 1024).toFixed(2)} MB)!`, 'success');
+    } catch (err) {
+      console.error('Master ZIP backup error:', err);
+      showToast('Error generating Master ZIP backup: ' + (err.message || 'Unknown error'), 'error');
+    } finally {
+      setIsExportingDbZip(false);
     }
   };
 
@@ -8509,7 +8783,11 @@ export default function AdvancedReports({
       let matchedStudents = candidatePool.filter(s => {
         const sSess = String(s.session || '').trim().toLowerCase();
         if (!isAllSess && !normSelectedSessions.has(sSess)) return false;
-        if (masterExportClass !== 'ALL') {
+        if (masterExportSelectedClasses && masterExportSelectedClasses.length > 0) {
+          if (masterExportSelectedClasses.includes('__NONE__')) return false;
+          const normClasses = new Set(masterExportSelectedClasses.map(c => normalizeClassVal(c)));
+          if (!normClasses.has(normalizeClassVal(s.class))) return false;
+        } else if (masterExportClass !== 'ALL') {
           if (normalizeClassVal(s.class) !== normalizeClassVal(masterExportClass)) return false;
         }
         if (masterExportStream !== 'ALL') {
@@ -8596,23 +8874,34 @@ export default function AdvancedReports({
         'Bank Name',
         'IFSC Code',
         'Payment Ref / UTR',
+        'Student Photo File',
         'Remarks'
       ];
 
       const cleanVal = (v) => {
         if (v === null || v === undefined || v === '') return '—';
-        const str = String(v).trim();
-        return (str === '' || str === 'null' || str === 'undefined') ? '—' : str;
+        let str = String(v).trim();
+        if (str === '' || str === 'null' || str === 'undefined') return '—';
+        if (str.startsWith('data:image/') || str.startsWith('data:application/')) {
+          return `[Embedded Media (${Math.round(str.length / 1024)} KB)]`;
+        }
+        if (str.length > 32000) {
+          return str.slice(0, 32000) + '... [TRUNCATED]';
+        }
+        return str;
       };
 
       const formatStudentRow = (s, idx) => {
         const sClass = normalizeClassVal(s.class || s.Class || s['Admission sought for class'] || '');
         const indivSubs = extractIndividualSubjectsList(s, sClass);
         const formattedSubs = s.subs || s.subjects || s['Subjects'] || formatStudentSubjects(s, sClass);
+        const photoFileName = (getStudentPhotoUrl(s) || s.photoUrl || s.photo || s.photoId)
+          ? getStudentPhotoDownloadFilename(s)
+          : '—';
         return [
           idx + 1,
           cleanVal(s.classRollNo || getStudentRollVal(s)),
-          cleanVal(s.admNo || s.admissionNo || s['Admission No'] || s['Adm. No.']),
+          cleanVal(formatStudentAdmNo(s) || s.admNo || s.admissionNo || s['Admission No'] || s['Adm. No.']),
           cleanVal(s.formNo || s['Form Number'] || s['Form No.']),
           cleanVal(sClass),
           cleanVal(s.session || s.Session),
@@ -8656,6 +8945,7 @@ export default function AdvancedReports({
           cleanVal(s.bankName || s['Bank Name'] || s['Name of Bank']),
           cleanVal(s.ifsc || s['IFSC code'] || s['IFSC Code']),
           cleanVal(s.paymentRef || s.utrNo || s['Payment Reference']),
+          cleanVal(photoFileName),
           cleanVal(s.remarks || s['Remarks'])
         ];
       };
@@ -10309,7 +10599,11 @@ export default function AdvancedReports({
     return pool.filter(s => {
       const sSess = String(s.session || '').trim().toLowerCase();
       if (!isAllSess && !normSelectedSessions.has(sSess)) return false;
-      if (masterExportClass !== 'ALL') {
+      if (masterExportSelectedClasses && masterExportSelectedClasses.length > 0) {
+        if (masterExportSelectedClasses.includes('__NONE__')) return false;
+        const normClasses = new Set(masterExportSelectedClasses.map(c => normalizeClassVal(c)));
+        if (!normClasses.has(normalizeClassVal(s.class))) return false;
+      } else if (masterExportClass !== 'ALL') {
         if (normalizeClassVal(s.class) !== normalizeClassVal(masterExportClass)) return false;
       }
       if (masterExportStream !== 'ALL') {
@@ -10323,7 +10617,7 @@ export default function AdvancedReports({
       }
       return true;
     }).length;
-  }, [allStudents, currentAdmissions, masterHistoricalRecords, masterExportSelectedSessions, masterExportClass, masterExportStream, masterExportSelectedStatuses, allKnownSessions]);
+  }, [allStudents, currentAdmissions, masterHistoricalRecords, masterExportSelectedSessions, masterExportSelectedClasses, masterExportClass, masterExportStream, masterExportSelectedStatuses, allKnownSessions]);
 
   const totalCandidateStudentsCount = useMemo(() => {
     if (masterHistoricalRecords && masterHistoricalRecords.length > 0) {
@@ -11861,34 +12155,9 @@ export default function AdvancedReports({
     return photoExportCandidates;
   }, [photoExportCandidates, photoPreviewFilter, photoSyncVersion]);
 
-  // Strict Naming Format: <ClassRollNo>_<RegistrationNo>_<StudentName>_<Class>_<Session>.ext
+  // Standardized Naming Format matching Bulk Photo Exporter & Master Excel: <Class>_F<FormNo>_<RegNo>_R<RollNo>_<StudentName>_photo.<ext>
   const formatPhotoExportFilename = (student, ext = 'jpg') => {
-    const cleanSegment = (val, fallback) => {
-      if (!val) return fallback;
-      const s = String(val)
-        .trim()
-        .replace(/[\\/:*?"<>|\r\n\t]+/g, '-') // Replace illegal filesystem chars
-        .replace(/\s+/g, ' ')
-        .trim();
-      return (s && s !== '—' && s !== 'N/A' && s !== 'null' && s !== 'undefined' && s !== '-') ? s : fallback;
-    };
-
-    const roll = cleanSegment(getStudentRollVal(student), 'NoRoll');
-    const reg = cleanSegment(
-      extractRegNoClean(student) || 
-      student.boardRegNo || 
-      student['Board Registration Number'] || 
-      student['Board Registration No.'] || 
-      student['Registration No.'] || 
-      student.regNo || 
-      student.registrationNo, 
-      'NoReg'
-    );
-    const name = cleanSegment(getStudentName(student), 'Student');
-    const cls = cleanSegment(normalizeClassVal(student.class || student.Class || student['Admission sought for class']), 'Class');
-    const session = cleanSegment(student.session || student.Session || student['Academic Session'], 'Session');
-
-    return `${roll}_${reg}_${name}_${cls}_${session}.${ext}`;
+    return getStudentPhotoDownloadFilename(student, ext);
   };
 
   const handleExportPhotosZip = async () => {
@@ -13433,27 +13702,27 @@ export default function AdvancedReports({
 
       {/* MODAL 2: Admin Tools (🛠 Tools) */}
       {showToolsModal && createPortal(
-        <div className="fixed inset-0 z-[99999] flex items-center justify-center p-2 sm:p-4 bg-slate-950/80 backdrop-blur-md animate-fadeIn" role="dialog" aria-modal="true" aria-labelledby="administrative-tools-title">
-          <div className="w-full max-w-5xl rounded-2xl border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-2xl flex flex-col max-h-[94vh] sm:max-h-[90vh] overflow-hidden my-auto animate-scaleUp">
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center p-1 sm:p-3 bg-slate-950/80 backdrop-blur-md animate-fadeIn" role="dialog" aria-modal="true" aria-labelledby="administrative-tools-title">
+          <div className="w-full max-w-5xl rounded-xl sm:rounded-2xl border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-2xl flex flex-col max-h-[96vh] sm:max-h-[92vh] overflow-hidden my-auto animate-scaleUp">
             
-            {/* ─── FROZEN / PINNED HEADER & SUB-NAV (Stays visible on scroll down) ─── */}
-            <div className="shrink-0 p-3 sm:p-4 pb-2.5 border-b border-slate-200/90 dark:border-slate-800 bg-white/98 dark:bg-slate-900/98 backdrop-blur-md space-y-2.5 z-20 shadow-xs">
+            {/* ─── FROZEN / PINNED HEADER & SUB-NAV (Compact & Minimal) ─── */}
+            <div className="shrink-0 px-2.5 py-2 sm:px-4 sm:py-2.5 border-b border-slate-200/90 dark:border-slate-800 bg-white/98 dark:bg-slate-900/98 backdrop-blur-md space-y-1.5 z-20 shadow-xs">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2.5">
-                  <div className="p-1.5 rounded-xl bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30 shadow-2xs">
-                    <Wrench size={17} />
+                <div className="flex items-center gap-2">
+                  <div className="p-1 rounded-lg bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30">
+                    <Wrench size={15} />
                   </div>
                   <div>
-                    <div className="flex items-center gap-2">
-                      <h3 id="administrative-tools-title" className="font-black text-sm sm:text-base text-slate-900 dark:text-white leading-tight">
+                    <div className="flex items-center gap-1.5">
+                      <h3 id="administrative-tools-title" className="font-black text-xs sm:text-sm text-slate-900 dark:text-white leading-tight">
                         Administrative Tools Suite
                       </h3>
-                      <span className="text-[9.5px] font-black px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-500/30 uppercase tracking-wider">
+                      <span className="text-[9px] font-black px-1.5 py-0.2 rounded bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-500/30 uppercase tracking-wider">
                         Enterprise
                       </span>
                     </div>
-                    <p className="text-[10.5px] text-slate-500 dark:text-slate-400 font-medium hidden sm:block">
-                      Bulk Processing, Master Register Exporters, Photos & Cloud Backups
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium hidden sm:block">
+                      Bulk Operations, Master Register Exporters, Photos & Cloud Backups
                     </p>
                   </div>
                 </div>
@@ -13462,24 +13731,24 @@ export default function AdvancedReports({
                 <button
                   type="button"
                   onClick={() => setShowToolsModal(false)}
-                  className="px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-100/90 hover:bg-rose-50 dark:bg-slate-800 dark:hover:bg-rose-950/40 text-slate-600 hover:text-rose-600 dark:text-slate-300 dark:hover:text-rose-300 transition-all cursor-pointer shadow-2xs hover:scale-105 active:scale-95 flex items-center gap-1.5"
+                  className="p-1 sm:px-2 sm:py-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-100/90 hover:bg-rose-50 dark:bg-slate-800 dark:hover:bg-rose-950/40 text-slate-600 hover:text-rose-600 dark:text-slate-300 dark:hover:text-rose-300 transition-all cursor-pointer shadow-2xs flex items-center gap-1"
                   title="Close Administrative Tools (Esc)"
                   aria-label="Close Administrative Tools"
                 >
-                  <span className="text-[10px] font-bold hidden sm:inline text-slate-500 dark:text-slate-400">Esc</span>
-                  <X size={16} />
+                  <span className="text-[9.5px] font-bold hidden sm:inline text-slate-500 dark:text-slate-400">Esc</span>
+                  <X size={15} />
                 </button>
               </div>
 
-              {/* Tools Sub Navigation */}
-              <div className="flex items-center gap-1 p-1 rounded-xl border border-slate-200/90 dark:border-slate-800 bg-slate-100/90 dark:bg-slate-800/80 text-xs font-black overflow-x-auto no-scrollbar shadow-inner">
+              {/* Tools Sub Navigation (Compact Pill Tabs) */}
+              <div className="flex items-center gap-1 p-0.5 sm:p-1 rounded-lg sm:rounded-xl border border-slate-200/90 dark:border-slate-800 bg-slate-100/90 dark:bg-slate-800/80 text-xs overflow-x-auto no-scrollbar shadow-inner">
                 {[
-                  { id: 'bulk_forms', label: 'Bulk Forms Generator', icon: Printer },
-                  { id: 'db_editor', label: 'Bulk Class & Session', icon: RefreshCw },
-                  { id: 'photo_export', label: 'Bulk Photo Exporter (ZIP)', icon: Camera },
-                  { id: 'photo_manager', label: 'Photo Upload & Sync', icon: Upload },
-                  { id: 'db_backup', label: 'Database Backup & Excel', icon: Database },
-                  { id: 'google_contacts', label: 'Google Contacts CSV', icon: Users, isAction: true },
+                  { id: 'bulk_forms', label: 'Bulk Forms', icon: Printer },
+                  { id: 'db_editor', label: 'Class & Roll Shift', icon: RefreshCw },
+                  { id: 'photo_export', label: 'Photo ZIP', icon: Camera },
+                  { id: 'photo_manager', label: 'Photo Sync', icon: Upload },
+                  { id: 'db_backup', label: 'Database & Backup', icon: Database },
+                  { id: 'google_contacts', label: 'Google Contacts', icon: Users, isAction: true },
                 ].map(t => {
                   const Icon = t.icon;
                   const isActive = activeToolsTab === t.id;
@@ -13497,13 +13766,13 @@ export default function AdvancedReports({
                           setActiveToolsTab(t.id);
                         }
                       }}
-                      className={`py-1.5 px-2.5 sm:px-3 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap text-[11px] sm:text-xs font-black select-none ${
+                      className={`py-1 px-2 sm:px-2.5 rounded-md sm:rounded-lg transition-all cursor-pointer flex items-center gap-1 sm:gap-1.5 whitespace-nowrap text-[10.5px] sm:text-xs font-black select-none ${
                         isActive
-                          ? 'bg-amber-600 text-white shadow-xs scale-[1.02]'
+                          ? 'bg-amber-600 text-white shadow-xs'
                           : 'text-slate-700 dark:text-slate-300 hover:bg-slate-200/90 dark:hover:bg-slate-700/60'
                       }`}
                     >
-                      <Icon size={13} className={isActive ? 'text-white' : 'text-slate-500 dark:text-slate-400'} />
+                      <Icon size={12} className={isActive ? 'text-white' : 'text-slate-500 dark:text-slate-400'} />
                       <span>{t.label}</span>
                     </button>
                   );
@@ -13511,8 +13780,8 @@ export default function AdvancedReports({
               </div>
             </div>
 
-            {/* ─── SCROLLABLE TAB CONTENT BODY (flex-1 overflow-y-auto) ─── */}
-            <div className="flex-1 overflow-y-auto p-2.5 sm:p-4 space-y-3.5 scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-700 overscroll-contain">
+            {/* ─── SCROLLABLE TAB CONTENT BODY (flex-1 overflow-y-auto compact) ─── */}
+            <div className="flex-1 overflow-y-auto p-2 sm:p-3 space-y-2.5 scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-700 overscroll-contain">
               {/* Tool Content 0: Bulk Forms Generator */}
               {activeToolsTab === 'bulk_forms' && (
               <div className="space-y-2.5 p-2.5 sm:p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800">
@@ -14600,11 +14869,11 @@ export default function AdvancedReports({
                       File Naming Standard:
                     </span>
                     <span className="text-[10px] font-mono text-purple-800 dark:text-purple-300 bg-purple-100 dark:bg-purple-900/60 px-1.5 py-0.2 rounded font-bold">
-                      &lt;ClassRollNo&gt;_&lt;RegistrationNo&gt;_&lt;StudentName&gt;_&lt;Class&gt;_&lt;Session&gt;.jpg
+                      &lt;Class&gt;_F&lt;FormNo&gt;_&lt;RegNo&gt;_R&lt;RollNo&gt;_&lt;StudentName&gt;_photo.jpg
                     </span>
                   </div>
                   <div className="text-[10.5px] font-bold text-slate-600 dark:text-slate-400">
-                    Sample: <span className="font-mono text-purple-700 dark:text-purple-300 font-extrabold break-all">{photoExportCandidates[0] ? formatPhotoExportFilename(photoExportCandidates[0]) : '101_22N-123456_Aadil Ahmad_11th_2025-26.jpg'}</span>
+                    Sample: <span className="font-mono text-purple-700 dark:text-purple-300 font-extrabold break-all">{photoExportCandidates[0] ? formatPhotoExportFilename(photoExportCandidates[0]) : '9th_F251316_DIET012345_zakir_gulzar_photo.jpg'}</span>
                   </div>
                 </div>
 
@@ -14921,72 +15190,71 @@ export default function AdvancedReports({
 
             {/* Tool Content 4: Database Backup & Excel Suite */}
             {activeToolsTab === 'db_backup' && (
-              <div className="space-y-3 p-3 sm:p-3.5 rounded-2xl bg-slate-50/80 dark:bg-slate-950/70 border border-slate-200/90 dark:border-slate-800 animate-fadeIn">
-                <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800/80 pb-2.5 flex-wrap gap-2">
-                  <div>
-                    <div className="font-black text-xs sm:text-sm text-slate-900 dark:text-white flex items-center gap-2">
-                      <div className="p-1 rounded-lg bg-amber-500/15 text-amber-600 dark:text-amber-400">
-                        <Database size={15} />
-                      </div>
-                      <span>Database Backup, Session Master Register & CMS Suite</span>
+              <div className="space-y-2.5 p-2 sm:p-2.5 rounded-xl bg-slate-50/80 dark:bg-slate-950/70 border border-slate-200/90 dark:border-slate-800 animate-fadeIn">
+                <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800/80 pb-2 flex-wrap gap-2">
+                  <div className="flex items-center gap-1.5">
+                    <div className="p-1 rounded-lg bg-amber-500/15 text-amber-600 dark:text-amber-400">
+                      <Database size={14} />
                     </div>
-                    <p className="text-slate-600 dark:text-slate-400 text-[11px] font-medium mt-0.5">
-                      Export multi-session master registers (2006–2026), full database workbooks, public website configs, or disaster recovery archives.
-                    </p>
+                    <div>
+                      <div className="font-black text-xs sm:text-sm text-slate-900 dark:text-white leading-tight">
+                        Database Backup, Session Master Register & CMS Suite
+                      </div>
+                      <p className="text-slate-500 dark:text-slate-400 text-[10px] font-medium hidden sm:block">
+                        Export multi-session master registers (2006–2026), full database workbooks, public website configs, or disaster recovery archives.
+                      </p>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-1.5 text-[11px] font-black">
-                    <span className="px-2.5 py-1 rounded-xl bg-amber-50 dark:bg-amber-950/60 text-amber-900 dark:text-amber-200 border border-amber-300/80 dark:border-amber-700/80 shadow-2xs">
-                      Total Hydrated Students: {allStudents.length}
+                  <div className="flex items-center gap-1.5 text-[10px] font-black">
+                    <span className="px-2 py-0.5 rounded-lg bg-amber-50 dark:bg-amber-950/60 text-amber-900 dark:text-amber-200 border border-amber-300/80 dark:border-amber-700/80">
+                      Total: {allStudents.length}
                     </span>
-                    <span className="px-2.5 py-1 rounded-xl bg-teal-50 dark:bg-teal-950/60 text-teal-900 dark:text-teal-200 border border-teal-300/80 dark:border-teal-700/80 shadow-2xs">
+                    <span className="px-2 py-0.5 rounded-lg bg-teal-50 dark:bg-teal-950/60 text-teal-900 dark:text-teal-200 border border-teal-300/80 dark:border-teal-700/80">
                       Filtered: {filteredStudents.length}
                     </span>
                   </div>
                 </div>
 
-                {/* ─── 1. SESSION MASTER REGISTER EXPORTER (2006–2026 MULTI-SESSION CHECKBOX) ─── */}
-                <div className="p-3 sm:p-4 rounded-2xl bg-white dark:bg-slate-900 border border-amber-500/30 dark:border-amber-500/20 shadow-xs space-y-3 hover:border-amber-500/50 transition-all">
-                  <div className="flex items-center justify-between flex-wrap gap-2">
-                    <div className="font-black text-xs sm:text-sm text-slate-900 dark:text-white flex items-center gap-2">
-                      <div className="p-1.5 rounded-lg bg-amber-100 dark:bg-amber-950/80 text-amber-700 dark:text-amber-300">
-                        <FileSpreadsheet size={15} />
+                {/* ─── 1. SESSION MASTER REGISTER EXPORTER ─── */}
+                <div className="p-2.5 sm:p-3 rounded-xl bg-white dark:bg-slate-900 border border-amber-500/30 dark:border-amber-500/20 shadow-2xs space-y-2 hover:border-amber-500/50 transition-all">
+                  <div className="flex items-center justify-between flex-wrap gap-1.5">
+                    <div className="font-black text-xs text-slate-900 dark:text-white flex items-center gap-1.5">
+                      <div className="p-1 rounded-md bg-amber-100 dark:bg-amber-950/80 text-amber-700 dark:text-amber-300">
+                        <FileSpreadsheet size={13} />
                       </div>
                       <span>Historical & Current Session Master Register (.xlsx)</span>
-                      <span className="text-[9.5px] px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-800 dark:text-amber-300 font-extrabold uppercase tracking-wide border border-amber-500/30">
-                        2006–2026 Digitized
+                      <span className="text-[9px] px-1.5 py-0.2 rounded bg-amber-500/15 text-amber-800 dark:text-amber-300 font-extrabold uppercase border border-amber-500/30">
+                        2006–2026
                       </span>
                     </div>
-                    <span className="text-[10.5px] text-slate-500 dark:text-slate-400 font-medium bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md">
-                      47 Standardized Columns • Multi-Session Tabs
+                    <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded">
+                      48 Standard Columns • Multi-Session Tabs
                     </span>
                   </div>
 
                   {/* Class, Stream, Sessions & Status Controls */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 text-xs">
-                    <div className="space-y-1">
-                      <label className="block text-[10.5px] font-black text-slate-600 dark:text-slate-400">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 text-xs">
+                    <div className="space-y-0.5">
+                      <label className="block text-[10px] font-black text-slate-600 dark:text-slate-400">
                         Target Class:
                       </label>
-                      <select
-                        value={masterExportClass}
-                        onChange={(e) => setMasterExportClass(e.target.value)}
-                        className="w-full p-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-xs font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-amber-500 transition-all"
-                      >
-                        <option value="ALL">All Classes (11th & 12th)</option>
-                        {availableClasses.map(c => (
-                          <option key={c} value={c}>Class {c}</option>
-                        ))}
-                      </select>
+                      <MultiSelectCheckboxDropdown
+                        label="Classes"
+                        options={availableClasses}
+                        selected={masterExportSelectedClasses}
+                        onChange={setMasterExportSelectedClasses}
+                        align="left"
+                      />
                     </div>
 
-                    <div className="space-y-1">
-                      <label className="block text-[10.5px] font-black text-slate-600 dark:text-slate-400">
+                    <div className="space-y-0.5">
+                      <label className="block text-[10px] font-black text-slate-600 dark:text-slate-400">
                         Academic Stream:
                       </label>
                       <select
                         value={masterExportStream}
                         onChange={(e) => setMasterExportStream(e.target.value)}
-                        className="w-full p-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-xs font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-amber-500 transition-all"
+                        className="w-full p-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-xs font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-amber-500 transition-all"
                       >
                         <option value="ALL">All Streams</option>
                         {availableStreams.map(st => (
@@ -14995,8 +15263,8 @@ export default function AdvancedReports({
                       </select>
                     </div>
 
-                    <div className="space-y-1">
-                      <label className="block text-[10.5px] font-black text-slate-600 dark:text-slate-400">
+                    <div className="space-y-0.5">
+                      <label className="block text-[10px] font-black text-slate-600 dark:text-slate-400">
                         Academic Sessions:
                       </label>
                       <MultiSelectCheckboxDropdown
@@ -15009,8 +15277,8 @@ export default function AdvancedReports({
                       />
                     </div>
 
-                    <div className="space-y-1">
-                      <label className="block text-[10.5px] font-black text-slate-600 dark:text-slate-400">
+                    <div className="space-y-0.5">
+                      <label className="block text-[10px] font-black text-slate-600 dark:text-slate-400">
                         Admission Status:
                       </label>
                       <MultiSelectCheckboxDropdown
@@ -15024,17 +15292,17 @@ export default function AdvancedReports({
                   </div>
 
                   {/* Export Trigger */}
-                  <div className="flex items-center justify-between flex-wrap gap-2.5 pt-2 border-t border-slate-100 dark:border-slate-800">
-                    <div className="text-[11px] text-slate-600 dark:text-slate-400 font-medium">
+                  <div className="flex items-center justify-between flex-wrap gap-2 pt-1.5 border-t border-slate-100 dark:border-slate-800">
+                    <div className="text-[10px] sm:text-[10.5px] text-slate-600 dark:text-slate-400 font-medium truncate max-w-xl">
                       Scope:{' '}
                       <span className="font-black text-slate-900 dark:text-white">
                         {masterExportSelectedSessions.length === 0 || masterExportSelectedSessions.length === allKnownSessions.length
-                          ? 'All Historical Sessions (2006–2026)'
+                          ? 'All Sessions'
                           : masterExportSelectedSessions.includes('__NONE__')
                             ? 'No Sessions'
-                            : `${masterExportSelectedSessions.length} Session(s)`}
+                            : `${masterExportSelectedSessions.length} Sess`}
                       </span>
-                      {' • '}Class: <span className="font-black text-slate-900 dark:text-white">{masterExportClass === 'ALL' ? 'All Classes' : `Class ${masterExportClass}`}</span>
+                      {' • '}Class: <span className="font-black text-slate-900 dark:text-white">{masterExportSelectedClasses.length === 0 ? 'All Classes' : masterExportSelectedClasses.includes('__NONE__') ? 'None' : masterExportSelectedClasses.join(', ')}</span>
                       {' • '}Stream: <span className="font-black text-slate-900 dark:text-white">{masterExportStream}</span>
                       {' • '}Status: <span className="font-black text-slate-900 dark:text-white">{masterExportSelectedStatuses.length === 0 ? 'All Status' : masterExportSelectedStatuses.includes('__NONE__') ? 'None' : masterExportSelectedStatuses.join(', ')}</span>
                     </div>
@@ -15043,17 +15311,17 @@ export default function AdvancedReports({
                       type="button"
                       disabled={isExportingMasterRegister || masterExportSelectedSessions.includes('__NONE__')}
                       onClick={handleDownloadSessionMasterRegister}
-                      className="px-4 py-2 rounded-xl bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white font-black text-xs shadow-sm hover:shadow flex items-center gap-2 cursor-pointer disabled:opacity-50 transition-all"
+                      className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white font-black text-xs shadow-2xs hover:shadow flex items-center gap-1.5 cursor-pointer disabled:opacity-50 transition-all ml-auto"
                     >
                       {isExportingMasterRegister ? (
                         <>
-                          <RefreshCw size={14} className="animate-spin" />
-                          <span>Generating Register...</span>
+                          <RefreshCw size={13} className="animate-spin" />
+                          <span>Generating...</span>
                         </>
                       ) : (
                         <>
-                          <Download size={14} />
-                          <span>Download Master Register Excel (.xlsx)</span>
+                          <Download size={13} />
+                          <span>Download Master Register (.xlsx)</span>
                         </>
                       )}
                     </button>
@@ -15061,74 +15329,96 @@ export default function AdvancedReports({
                 </div>
 
                 {/* ─── 2. MASTER MULTI-SHEET DATABASE BACKUP CARD ─── */}
-                <div className="p-3.5 sm:p-4 rounded-2xl bg-gradient-to-br from-teal-50/60 via-white to-emerald-50/50 dark:from-teal-950/25 dark:via-slate-900 dark:to-emerald-950/25 border-2 border-teal-500/40 dark:border-teal-500/30 shadow-xs space-y-3">
-                  <div className="flex items-start justify-between flex-wrap gap-3">
-                    <div className="flex items-start gap-3">
-                      <div className="p-2.5 rounded-xl bg-teal-600 text-white font-black shrink-0 shadow-xs">
-                        <FileSpreadsheet size={18} />
+                <div className="p-2.5 sm:p-3 rounded-xl bg-gradient-to-br from-teal-50/60 via-white to-emerald-50/50 dark:from-teal-950/25 dark:via-slate-900 dark:to-emerald-950/25 border border-teal-500/40 dark:border-teal-500/30 shadow-2xs space-y-2">
+                  <div className="flex items-start justify-between flex-wrap gap-2">
+                    <div className="flex items-start gap-2">
+                      <div className="p-1.5 rounded-lg bg-teal-600 text-white font-black shrink-0 shadow-2xs">
+                        <FileSpreadsheet size={15} />
                       </div>
-                      <div className="space-y-1">
-                        <div className="font-black text-xs sm:text-sm text-slate-900 dark:text-white flex items-center gap-2">
+                      <div className="space-y-0.5">
+                        <div className="font-black text-xs sm:text-sm text-slate-900 dark:text-white flex items-center gap-1.5">
                           <span>Master Multi-Sheet Excel Database Backup (.xlsx)</span>
-                          <span className="text-[9px] px-2 py-0.5 rounded-full bg-teal-600 text-white font-extrabold uppercase tracking-wider shadow-2xs">
+                          <span className="text-[8.5px] px-1.5 py-0.2 rounded bg-teal-600 text-white font-extrabold uppercase tracking-wider">
                             Recommended
                           </span>
                         </div>
-                        <p className="text-[11px] text-slate-600 dark:text-slate-300 font-medium">
-                          Compiles a single, comprehensive Microsoft Excel workbook containing <strong>7 dedicated tabs</strong> with institutional data from admissions to historical archives:
+                        <p className="text-[10px] text-slate-600 dark:text-slate-300 font-medium">
+                          Single comprehensive workbook with <strong>7 dedicated sheets</strong> covering admissions, faculty, notices, settings, and audits:
                         </p>
                       </div>
                     </div>
 
-                    <button
-                      type="button"
-                      disabled={isExportingDbExcel}
-                      onClick={handleDownloadFullDatabaseExcel}
-                      className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-teal-700 to-emerald-700 hover:from-teal-600 hover:to-emerald-600 text-white font-black text-xs shadow-md hover:shadow-lg flex items-center gap-2 cursor-pointer disabled:opacity-50 transition-all shrink-0 hover:scale-[1.02] active:scale-[0.98]"
-                    >
-                      {isExportingDbExcel ? (
-                        <>
-                          <RefreshCw size={14} className="animate-spin" />
-                          <span>Compiling Multi-Sheet...</span>
-                        </>
-                      ) : (
-                        <>
-                          <Download size={14} />
-                          <span>Download Master Excel {masterMultiColumnMode === 'all' ? '(100+ Cols)' : '(.xlsx)'}</span>
-                        </>
-                      )}
-                    </button>
+                    <div className="flex items-center gap-1.5 flex-wrap shrink-0">
+                      <button
+                        type="button"
+                        disabled={isExportingDbExcel || isExportingDbZip}
+                        onClick={handleDownloadFullDatabaseExcel}
+                        className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-teal-700 to-emerald-700 hover:from-teal-600 hover:to-emerald-600 text-white font-black text-xs shadow-2xs hover:shadow flex items-center gap-1.5 cursor-pointer disabled:opacity-50 transition-all hover:scale-[1.01] active:scale-[0.99]"
+                      >
+                        {isExportingDbExcel ? (
+                          <>
+                            <RefreshCw size={13} className="animate-spin" />
+                            <span>Compiling...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Download size={13} />
+                            <span>Download Master Excel {masterMultiColumnMode === 'all' ? '(100+ Cols)' : '(.xlsx)'}</span>
+                          </>
+                        )}
+                      </button>
+
+                      <button
+                        type="button"
+                        disabled={isExportingDbZip || isExportingDbExcel}
+                        onClick={handleDownloadMasterBackupZip}
+                        className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-indigo-700 to-purple-700 hover:from-indigo-600 hover:to-purple-600 text-white font-black text-xs shadow-2xs hover:shadow flex items-center gap-1.5 cursor-pointer disabled:opacity-50 transition-all hover:scale-[1.01] active:scale-[0.99]"
+                        title="Downloads single compressed ZIP containing Master Excel, Disaster Recovery JSON, Settings, Faculty, Notices, and Manifest"
+                      >
+                        {isExportingDbZip ? (
+                          <>
+                            <RefreshCw size={13} className="animate-spin" />
+                            <span>Creating ZIP...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Archive size={13} />
+                            <span>Master Backup ZIP (.zip)</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
                   </div>
 
                   {/* Interactive Export Options Controls: Scope & Column Detail Level */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 p-2.5 rounded-xl bg-white/80 dark:bg-slate-900/80 border border-teal-500/20 dark:border-teal-700/30 text-xs">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2 p-2 rounded-lg bg-white/80 dark:bg-slate-900/80 border border-teal-500/20 dark:border-teal-700/30 text-xs">
                     {/* Data Scope Control */}
                     <div className="space-y-1">
-                      <div className="flex items-center justify-between text-[10.5px] font-black text-slate-700 dark:text-slate-300">
+                      <div className="flex items-center justify-between text-[10px] font-black text-slate-700 dark:text-slate-300">
                         <span>Student Data Scope:</span>
                         <span className="text-teal-700 dark:text-teal-400 font-bold">
                           {masterMultiScope === 'filtered' ? `${masterFilteredStudentsCount} Students in Filter` : `${totalCandidateStudentsCount} Total Students`}
                         </span>
                       </div>
-                      <div className="grid grid-cols-2 gap-1.5 p-0.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-[11px] font-bold">
+                      <div className="grid grid-cols-2 gap-1 p-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-[10.5px] font-bold">
                         <button
                           type="button"
                           onClick={() => setMasterMultiScope('filtered')}
-                          className={`py-1.5 px-2 rounded-md transition-all cursor-pointer text-center truncate ${
+                          className={`py-1 px-1.5 rounded transition-all cursor-pointer text-center truncate ${
                             masterMultiScope === 'filtered'
-                              ? 'bg-teal-700 text-white shadow-xs font-black'
+                              ? 'bg-teal-700 text-white shadow-2xs font-black'
                               : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                           }`}
-                          title="Downloads records from admissions to history matching the active Class, Stream, Session, and Status filters configured above"
+                          title="Downloads records matching the active Class, Stream, Session, and Status filters configured above"
                         >
                           Filtered Scope ({masterFilteredStudentsCount})
                         </button>
                         <button
                           type="button"
                           onClick={() => setMasterMultiScope('all')}
-                          className={`py-1.5 px-2 rounded-md transition-all cursor-pointer text-center truncate ${
+                          className={`py-1 px-1.5 rounded transition-all cursor-pointer text-center truncate ${
                             masterMultiScope === 'all'
-                              ? 'bg-teal-700 text-white shadow-xs font-black'
+                              ? 'bg-teal-700 text-white shadow-2xs font-black'
                               : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                           }`}
                           title="Downloads all institutional records across admissions and digitized archives regardless of filters"
@@ -15140,31 +15430,31 @@ export default function AdvancedReports({
 
                     {/* Column Detail Level Control */}
                     <div className="space-y-1">
-                      <div className="flex items-center justify-between text-[10.5px] font-black text-slate-700 dark:text-slate-300">
+                      <div className="flex items-center justify-between text-[10px] font-black text-slate-700 dark:text-slate-300">
                         <span>Admissions Column Level:</span>
                         <span className="text-teal-700 dark:text-teal-400 font-bold">
-                          {masterMultiColumnMode === 'important' ? '47 Standard Columns' : '100+ Complete Details'}
+                          {masterMultiColumnMode === 'important' ? '48 Standard Columns' : '100+ Complete Details'}
                         </span>
                       </div>
-                      <div className="grid grid-cols-2 gap-1.5 p-0.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-[11px] font-bold">
+                      <div className="grid grid-cols-2 gap-1 p-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-[10.5px] font-bold">
                         <button
                           type="button"
                           onClick={() => setMasterMultiColumnMode('important')}
-                          className={`py-1.5 px-2 rounded-md transition-all cursor-pointer text-center truncate ${
+                          className={`py-1 px-1.5 rounded transition-all cursor-pointer text-center truncate ${
                             masterMultiColumnMode === 'important'
-                              ? 'bg-teal-700 text-white shadow-xs font-black'
+                              ? 'bg-teal-700 text-white shadow-2xs font-black'
                               : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                           }`}
-                          title="Exports curated 47 important and official columns (Recommended default)"
+                          title="Exports curated 48 important and official columns (Recommended default)"
                         >
                           Important Only (Default)
                         </button>
                         <button
                           type="button"
                           onClick={() => setMasterMultiColumnMode('all')}
-                          className={`py-1.5 px-2 rounded-md transition-all cursor-pointer text-center truncate ${
+                          className={`py-1 px-1.5 rounded transition-all cursor-pointer text-center truncate ${
                             masterMultiColumnMode === 'all'
-                              ? 'bg-teal-700 text-white shadow-xs font-black'
+                              ? 'bg-teal-700 text-white shadow-2xs font-black'
                               : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                           }`}
                           title="Exports exhaustive 100+ columns including all fields, metadata, document links, and raw properties"
@@ -15176,9 +15466,9 @@ export default function AdvancedReports({
                   </div>
 
                   {/* 7 Dedicated Sheet Badges */}
-                  <div className="flex flex-wrap gap-1.5">
+                  <div className="flex flex-wrap gap-1">
                     {[
-                      masterMultiColumnMode === 'all' ? '1. Student_Admissions (100+ Cols)' : '1. Student_Admissions (47 Cols)',
+                      masterMultiColumnMode === 'all' ? '1. Student_Admissions (100+ Cols)' : '1. Student_Admissions (48 Cols)',
                       '2. Faculty_Directory (12 Cols)',
                       '3. Notices_Circulars',
                       '4. Site_Settings',
@@ -15186,90 +15476,90 @@ export default function AdvancedReports({
                       '6. Practicals_Awards',
                       '7. System_Metadata'
                     ].map(t => (
-                      <span key={t} className="px-2 py-0.5 rounded-lg bg-white/90 dark:bg-slate-800 text-slate-800 dark:text-slate-200 border border-teal-500/20 dark:border-teal-700/40 text-[10px] font-mono font-bold shadow-2xs">
+                      <span key={t} className="px-1.5 py-0.2 rounded bg-white/90 dark:bg-slate-800 text-slate-800 dark:text-slate-200 border border-teal-500/20 dark:border-teal-700/40 text-[9px] font-mono font-bold">
                         {t}
                       </span>
                     ))}
                   </div>
                 </div>
 
-                {/* ─── 3. PUBLIC WEBSITE CONFIGURATION FILES (public/slides/) ─── */}
-                <div className="p-3 sm:p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs space-y-2.5">
-                  <div className="flex items-center justify-between flex-wrap gap-2">
-                    <div className="font-black text-xs sm:text-sm text-slate-900 dark:text-white flex items-center gap-2">
-                      <div className="p-1 rounded-lg bg-indigo-100 dark:bg-indigo-950/80 text-indigo-600 dark:text-indigo-400">
-                        <FolderDown size={15} />
+                {/* ─── 3. PUBLIC WEBSITE CONFIGURATION FILES (CMS public/slides/) ─── */}
+                <div className="p-2.5 sm:p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xs space-y-2">
+                  <div className="flex items-center justify-between flex-wrap gap-1.5">
+                    <div className="font-black text-xs text-slate-900 dark:text-white flex items-center gap-1.5">
+                      <div className="p-1 rounded-md bg-indigo-100 dark:bg-indigo-950/80 text-indigo-600 dark:text-indigo-400">
+                        <FolderDown size={13} />
                       </div>
                       <span>Public Website Static Configuration Backups (CMS public/slides/)</span>
                     </div>
-                    <span className="text-[10.5px] text-slate-500 dark:text-slate-400 font-medium">
-                      Direct downloads for frontend JSON and text configuration mirrors
+                    <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">
+                      Frontend JSON & text configuration mirrors
                     </span>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
                     {/* settings.json */}
-                    <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 flex flex-col justify-between gap-2 hover:border-amber-500/40 transition-colors">
+                    <div className="p-2 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 flex flex-col justify-between gap-1.5 hover:border-amber-500/40 transition-colors">
                       <div>
-                        <div className="font-black text-[11.5px] text-slate-900 dark:text-white flex items-center gap-1.5">
-                          <Settings size={13} className="text-amber-600" />
+                        <div className="font-black text-[11px] text-slate-900 dark:text-white flex items-center gap-1">
+                          <Settings size={12} className="text-amber-600" />
                           <span>settings.json</span>
                         </div>
-                        <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
-                          School metadata, banner carousel, vision & contact info.
+                        <p className="text-[9.5px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">
+                          Metadata, banner carousel, vision & contacts.
                         </p>
                       </div>
                       <button
                         type="button"
                         onClick={handleDownloadSettingsJson}
-                        className="w-full py-1.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold text-[11px] flex items-center justify-center gap-1.5 cursor-pointer transition-all shadow-2xs hover:scale-[1.01]"
+                        className="w-full py-1 rounded-md bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold text-[10px] flex items-center justify-center gap-1 cursor-pointer transition-all shadow-2xs"
                       >
-                        <Download size={12} />
+                        <Download size={11} />
                         <span>Download settings.json</span>
                       </button>
                     </div>
 
                     {/* notices.txt */}
-                    <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 flex flex-col justify-between gap-2 hover:border-blue-500/40 transition-colors">
+                    <div className="p-2 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 flex flex-col justify-between gap-1.5 hover:border-blue-500/40 transition-colors">
                       <div>
-                        <div className="font-black text-[11.5px] text-slate-900 dark:text-white flex items-center gap-1.5">
-                          <FileText size={13} className="text-blue-600" />
+                        <div className="font-black text-[11px] text-slate-900 dark:text-white flex items-center gap-1">
+                          <FileText size={12} className="text-blue-600" />
                           <span>notices.txt</span>
                         </div>
-                        <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
-                          Live announcement board ticker and notifications feed.
+                        <p className="text-[9.5px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">
+                          Live announcement board ticker & notices.
                         </p>
                       </div>
                       <button
                         type="button"
                         onClick={handleDownloadNoticesTxt}
-                        className="w-full py-1.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold text-[11px] flex items-center justify-center gap-1.5 cursor-pointer transition-all shadow-2xs hover:scale-[1.01]"
+                        className="w-full py-1 rounded-md bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold text-[10px] flex items-center justify-center gap-1 cursor-pointer transition-all shadow-2xs"
                       >
-                        <Download size={12} />
+                        <Download size={11} />
                         <span>Download notices.txt</span>
                       </button>
                     </div>
 
                     {/* faculty.json */}
-                    <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 flex flex-col justify-between gap-2 hover:border-emerald-500/40 transition-colors">
+                    <div className="p-2 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 flex flex-col justify-between gap-1.5 hover:border-emerald-500/40 transition-colors">
                       <div>
-                        <div className="font-black text-[11.5px] text-slate-900 dark:text-white flex items-center gap-1.5">
-                          <Users size={13} className="text-emerald-600" />
+                        <div className="font-black text-[11px] text-slate-900 dark:text-white flex items-center gap-1">
+                          <Users size={12} className="text-emerald-600" />
                           <span>faculty.json</span>
-                          <span className="text-[8.5px] px-1.5 py-0.2 rounded bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 font-extrabold uppercase">
+                          <span className="text-[8px] px-1 py-0.2 rounded bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 font-extrabold uppercase">
                             Sanitized
                           </span>
                         </div>
-                        <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
-                          Public directory with private salary/tax/PAN data stripped.
+                        <p className="text-[9.5px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">
+                          Directory with salary/tax stripped.
                         </p>
                       </div>
                       <button
                         type="button"
                         onClick={handleDownloadFacultyJson}
-                        className="w-full py-1.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold text-[11px] flex items-center justify-center gap-1.5 cursor-pointer transition-all shadow-2xs hover:scale-[1.01]"
+                        className="w-full py-1 rounded-md bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold text-[10px] flex items-center justify-center gap-1 cursor-pointer transition-all shadow-2xs"
                       >
-                        <Download size={12} />
+                        <Download size={11} />
                         <span>Download faculty.json</span>
                       </button>
                     </div>
@@ -15277,45 +15567,45 @@ export default function AdvancedReports({
                 </div>
 
                 {/* ─── 4. FULL JSON DISASTER RECOVERY BACKUP & RESTORE ─── */}
-                <div className="p-3 sm:p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs space-y-2.5">
-                  <div className="flex items-start justify-between flex-wrap gap-3">
-                    <div className="flex items-start gap-3">
-                      <div className="p-2 rounded-xl bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 font-black shrink-0">
-                        <Save size={17} />
+                <div className="p-2.5 sm:p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xs space-y-2">
+                  <div className="flex items-start justify-between flex-wrap gap-2">
+                    <div className="flex items-start gap-2">
+                      <div className="p-1.5 rounded-lg bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 font-black shrink-0">
+                        <Save size={14} />
                       </div>
                       <div className="space-y-0.5">
-                        <div className="font-black text-xs sm:text-sm text-slate-900 dark:text-white flex items-center gap-2">
+                        <div className="font-black text-xs sm:text-sm text-slate-900 dark:text-white flex items-center gap-1.5">
                           <span>Full JSON Disaster Recovery Backup & Database Restore</span>
                         </div>
-                        <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
-                          Complete raw Firestore document tree (all collections, rules & accounts) for offline disaster recovery, server backup, or cross-environment database migration.
+                        <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">
+                          Complete raw Firestore document tree (all collections, rules & accounts) for disaster recovery or database migration.
                         </p>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2 shrink-0">
+                    <div className="flex items-center gap-1.5 shrink-0">
                       <button
                         type="button"
                         disabled={isExportingDbJson}
                         onClick={handleDownloadFullDatabaseJson}
-                        className="px-4 py-2 rounded-xl bg-amber-700 hover:bg-amber-600 text-white font-black text-xs shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50 transition-all hover:scale-[1.02] active:scale-[0.98]"
+                        className="px-3 py-1.5 rounded-lg bg-amber-700 hover:bg-amber-600 text-white font-black text-xs shadow-2xs flex items-center gap-1 cursor-pointer disabled:opacity-50 transition-all hover:scale-[1.01] active:scale-[0.99]"
                       >
                         {isExportingDbJson ? (
                           <>
-                            <RefreshCw size={13} className="animate-spin" />
+                            <RefreshCw size={12} className="animate-spin" />
                             <span>Exporting...</span>
                           </>
                         ) : (
                           <>
-                            <Download size={13} />
-                            <span>Export JSON Backup (.json)</span>
+                            <Download size={12} />
+                            <span>Export JSON (.json)</span>
                           </>
                         )}
                       </button>
 
-                      <label className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-black text-xs shadow-xs flex items-center gap-1.5 cursor-pointer transition-all hover:scale-[1.02] active:scale-[0.98]">
-                        <Upload size={13} />
-                        <span>{isRestoringDb ? 'Restoring...' : 'Restore from JSON'}</span>
+                      <label className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-black text-xs shadow-2xs flex items-center gap-1 cursor-pointer transition-all hover:scale-[1.01] active:scale-[0.99]">
+                        <Upload size={12} />
+                        <span>{isRestoringDb ? 'Restoring...' : 'Restore JSON'}</span>
                         <input
                           type="file"
                           accept=".json"
