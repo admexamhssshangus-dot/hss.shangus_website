@@ -4,7 +4,7 @@ import {
   ShieldCheck, Eye, EyeOff, Lock, User, GraduationCap, UserCheck, 
   AlertCircle, CheckCircle, ArrowRight, RefreshCw, Crown, Sparkles, 
   KeyRound, Mail, School, Award, CheckCircle2, ChevronRight, Compass,
-  Send, ExternalLink, ArrowLeft, ShieldAlert
+  Send, ExternalLink, ArrowLeft, ShieldAlert, X
 } from 'lucide-react';
 import SEO from '../components/SEO';
 import ModernLoader from '../components/ModernLoader';
@@ -153,6 +153,7 @@ export default function LoginPage() {
 
   // Window 2: Successful verification confirmation state (when link was clicked in this tab)
   const [window2VerifiedState, setWindow2VerifiedState] = useState(null);
+  const [closeTabNote, setCloseTabNote] = useState(false);
 
   // Permanent flag for this tab: if opened via verification link, NEVER redirect to dashboard
   const isEmailVerificationTabRef = useRef(
@@ -228,16 +229,10 @@ export default function LoginPage() {
     return () => clearInterval(timer);
   }, [resendCooldown]);
 
-  // Window 2: Smooth auto-redirect once email verification link approves
-  useEffect(() => {
-    if (!window2VerifiedState?.verifiedSession) return;
-    const timer = setTimeout(() => {
-      isEmailVerificationTabRef.current = false;
-      onLoginSuccess(window2VerifiedState.verifiedSession, true);
-      navigate(window2VerifiedState.redirectPath || '/portal/admin', { replace: true });
-    }, 2000);
-    return () => clearTimeout(timer);
-  }, [window2VerifiedState, onLoginSuccess, navigate]);
+  // Window 2 verification confirmation:
+  // Strictly acts as a verification gateway and NEVER automatically redirects to the dashboard.
+  // The original requester window (Window 1) will detect the approval in real-time and load the dashboard.
+
 
   // Helper to construct verified user session
   const createVerifiedSession = async (firebaseUser, overrideEmail = null, cachedStaffProfile = null) => {
@@ -1345,30 +1340,59 @@ export default function LoginPage() {
                   </div>
                 </div>
 
-                <div className="space-y-2.5 pt-1">
-                  <div className="p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-800 dark:text-emerald-300 text-xs font-bold text-center">
-                    ✓ Identity verified and approved! Your authenticated session is ready.
+                <div className="space-y-3 pt-1">
+                  <div className="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-800 dark:text-emerald-300 text-xs font-bold text-center space-y-1">
+                    <div className="flex items-center justify-center gap-1.5 font-black text-emerald-700 dark:text-emerald-400">
+                      <CheckCircle2 size={16} />
+                      <span>Login Access Granted</span>
+                    </div>
+                    <p className="text-[11px] text-slate-600 dark:text-slate-400 font-normal">
+                      Your original login window has been authorized and is loading the {window2VerifiedState.role === 'Teacher' ? 'Teacher Workspace' : 'Admin Dashboard'}.
+                    </p>
                   </div>
+
+                  {/* Primary Action: Close Tab */}
                   <button
                     type="button"
                     onClick={() => {
-                      isEmailVerificationTabRef.current = false;
-                      localStorage.removeItem('hss_pending_admin_login');
-                      localStorage.removeItem('emailForSignIn');
-                      sessionStorage.removeItem('hss_auth_handshake_id');
-                      if (window2VerifiedState?.verifiedSession) {
-                        onLoginSuccess(window2VerifiedState.verifiedSession, true);
-                      }
-                      navigate(window2VerifiedState?.redirectPath || '/portal/admin', { replace: true });
+                      setCloseTabNote(true);
+                      window.close();
                     }}
-                    className="w-full py-2.5 rounded-xl font-black text-xs bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white cursor-pointer transition-all shadow-md hover:shadow-lg active:scale-95 flex items-center justify-center gap-2"
+                    className="w-full py-2.5 rounded-xl font-black text-xs bg-slate-800 hover:bg-slate-900 dark:bg-slate-700 dark:hover:bg-slate-600 text-white cursor-pointer transition-all shadow-md hover:shadow-lg active:scale-95 flex items-center justify-center gap-2"
                   >
-                    <span>Open {window2VerifiedState.role === 'Teacher' ? 'Teacher Workspace' : 'Admin Dashboard'} Now</span>
-                    <ChevronRight size={15} />
+                    <X size={15} />
+                    <span>Close This Window</span>
                   </button>
-                  <p className="text-[11px] text-slate-400 dark:text-slate-500 m-0 text-center">
-                    Auto-redirecting in 2 seconds... Or click above to continue.
-                  </p>
+
+                  {closeTabNote ? (
+                    <p className="text-[11px] text-amber-600 dark:text-amber-400 font-bold bg-amber-50 dark:bg-amber-950/40 p-2 rounded-lg border border-amber-200 dark:border-amber-800 text-center animate-fadeIn">
+                      ℹ️ You can now safely close this browser tab (or press Ctrl+W / tap ✕).
+                    </p>
+                  ) : (
+                    <p className="text-[10.5px] text-slate-400 dark:text-slate-500 m-0 text-center">
+                      You can safely close this browser window or tab.
+                    </p>
+                  )}
+
+                  {/* Optional Fallback Link if original window was lost */}
+                  <div className="pt-2 border-t border-slate-100 dark:border-slate-800/80">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        isEmailVerificationTabRef.current = false;
+                        localStorage.removeItem('hss_pending_admin_login');
+                        localStorage.removeItem('emailForSignIn');
+                        sessionStorage.removeItem('hss_auth_handshake_id');
+                        if (window2VerifiedState?.verifiedSession) {
+                          onLoginSuccess(window2VerifiedState.verifiedSession, true);
+                        }
+                        navigate(window2VerifiedState?.redirectPath || '/portal/admin', { replace: true });
+                      }}
+                      className="text-[10.5px] font-bold text-slate-400 hover:text-teal-600 dark:hover:text-teal-400 cursor-pointer underline transition-colors"
+                    >
+                      Need to access the dashboard on this device instead? Click here
+                    </button>
+                  </div>
                 </div>
               </div>
             ) : emailLinkSentState ? (
