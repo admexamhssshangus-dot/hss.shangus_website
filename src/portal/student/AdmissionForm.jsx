@@ -416,6 +416,7 @@ export default function AdmissionForm() {
   const [searchParams] = useSearchParams();
   const requestedApplicationKey = searchParams.get('application') || '';
   const requestedUpgradeMode = searchParams.get('mode') === 'upgrade';
+  const initialAppId = (requestedApplicationKey && !/^\d{4,8}$/.test(requestedApplicationKey)) ? requestedApplicationKey : '';
   // Loading & Data States
   const [loading, setLoading] = useState(true);
   const [formStructure, setFormStructure] = useState([]);
@@ -436,10 +437,10 @@ export default function AdmissionForm() {
   const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
   const [showInfoBanner, setShowInfoBanner] = useState(true); // dismissible notice banner
   const [submittedSuccessData, setSubmittedSuccessData] = useState(null); // confirmation popup data
-  const [applicationId, setApplicationId] = useState('');
+  const [applicationId, setApplicationId] = useState(initialAppId);
   const [admissionAvailability, setAdmissionAvailability] = useState({ globalClosed: false, classesClosed: {} });
   const [draftState, setDraftState] = useState('idle');
-  const applicationIdRef = useRef('');
+  const applicationIdRef = useRef(initialAppId);
   const submissionKeyRef = useRef('');
   const autosaveServiceUnavailableRef = useRef(false);
   const [upgradeMode, setUpgradeMode] = useState(requestedUpgradeMode);
@@ -551,8 +552,24 @@ export default function AdmissionForm() {
         if (!Array.isArray(apps) || apps.length === 0) return {};
         const valid = apps.filter(item => !isInactive(item));
         if (valid.length === 0) return {};
-        return valid.find(item => String(item.docId || item.applicationId || item['Form Number'] || item.FormNo || item.formNo || '') === String(requestedApplicationKey)) ||
-               valid.find(item => ['Submitted', 'Approved', 'Provisional', 'Under Review', 'Draft'].includes(item.Status || item.status)) ||
+        if (requestedApplicationKey) {
+          const directMatch = valid.find(item => String(item.docId || item.applicationId || '') === String(requestedApplicationKey)) ||
+            valid.find(item => String(item['Form Number'] || item.FormNo || item.formNo || '') === String(requestedApplicationKey) && item.Status !== 'Draft') ||
+            valid.find(item => String(item['Form Number'] || item.FormNo || item.formNo || '') === String(requestedApplicationKey));
+          if (directMatch) return directMatch;
+        }
+        // If candidate has a Rejected application with active correction window, prioritize it!
+        const rejectedActive = valid.find(item => {
+          const stat = item.Status || item.status;
+          if (stat !== 'Rejected') return false;
+          const edUntil = item.editableUntil || item.editUnlockedUntil;
+          const millis = typeof edUntil === 'object' ? Number(edUntil._seconds || edUntil.seconds || 0) * 1000 : Date.parse(edUntil || '') || Number(edUntil || 0) || 0;
+          return millis > Date.now() || !edUntil || item.isEditable === true;
+        });
+        if (rejectedActive) return rejectedActive;
+
+        return valid.find(item => ['Submitted', 'Approved', 'Provisional', 'Under Review'].includes(item.Status || item.status)) ||
+               valid.find(item => item.Status === 'Draft' || item.status === 'Draft') ||
                valid.find(item => ['Withdrawn', 'Rejected'].includes(item.Status || item.status)) ||
                valid[0];
       };
@@ -596,10 +613,10 @@ export default function AdmissionForm() {
       };
 
       const assignedFormNo = cleanFNoVal(
-        existing['Form Number'] || existing['FormNo'] || existing['Form No.'] || existing['formNo']
+        existing['Form Number'] || existing['FormNo'] || existing['Form No.'] || existing['formNo'] || (/^\d{4,8}$/.test(requestedApplicationKey) ? requestedApplicationKey : '')
       );
 
-      const existingId = existing.docId || existing.applicationId || assignedFormNo || '';
+      const existingId = existing.docId || (existing.id && !/^\d{4,8}$/.test(existing.id) ? existing.id : '') || (requestedApplicationKey && !/^\d{4,8}$/.test(requestedApplicationKey) ? requestedApplicationKey : '') || '';
       setApplicationId(existingId);
       applicationIdRef.current = existingId;
       // Pre-fill student photo only from authenticated cloud data or the user profile.
@@ -630,13 +647,11 @@ export default function AdmissionForm() {
         'photoUrl': preloadedPhoto,
       };
 
-      // If re-applying afresh from a withdrawn or historical record, preserve the form number and doc id
+      // Preserve clean form number if present
       if (assignedFormNo) {
         mergedData['Form Number'] = assignedFormNo;
         mergedData.FormNo = assignedFormNo;
         mergedData.formNo = assignedFormNo;
-        setApplicationId(String(assignedFormNo));
-        applicationIdRef.current = String(assignedFormNo);
       }
 
       // Ensure class 11th/12th stream and admission types are cleanly defaulted if missing
@@ -741,10 +756,12 @@ export default function AdmissionForm() {
         // Never replace an ID assigned by a subsequent submission.
         if (!applicationIdRef.current && result.applicationId) applicationIdRef.current = result.applicationId;
         if (cancelled) return;
-        if (result.formNumber || result.applicationId) {
-          const assignedNo = result.formNumber || result.applicationId;
-          applicationIdRef.current = String(assignedNo);
-          setApplicationId(String(assignedNo));
+        if (result.applicationId) {
+          applicationIdRef.current = result.applicationId;
+          setApplicationId(result.applicationId);
+        }
+        if (result.formNumber) {
+          const assignedNo = result.formNumber;
           if (!formData['Form Number'] || formData['Form Number'] !== assignedNo) {
             setFormData(prev => ({
               ...prev,
@@ -1052,10 +1069,12 @@ export default function AdmissionForm() {
         'Email Address': formData['Email Address'] || currentUser?.email || '',
       };
       const res = await saveAdmissionDraft({ formData: draftPayload, applicationId: applicationIdRef.current, force: true });
-      if (res.formNumber || res.applicationId) {
-        const assignedNo = res.formNumber || res.applicationId;
-        applicationIdRef.current = String(assignedNo);
-        setApplicationId(String(assignedNo));
+      if (res.applicationId) {
+        applicationIdRef.current = res.applicationId;
+        setApplicationId(res.applicationId);
+      }
+      if (res.formNumber) {
+        const assignedNo = res.formNumber;
         setFormData(prev => ({
           ...prev,
           'Form Number': assignedNo,
@@ -1998,16 +2017,19 @@ export default function AdmissionForm() {
       if (!submissionKeyRef.current) {
         submissionKeyRef.current = window.crypto?.randomUUID?.() || `${Date.now()}_${Math.random().toString(36).slice(2)}`;
       }
-      const currentAssignedFNo = applicationIdRef.current || applicationId || formData['Form Number'] || formData.FormNo || formData.formNo || '';
+      const targetDocId = applicationIdRef.current || applicationId || '';
+      const existingFormNo = formData['Form Number'] || formData.FormNo || formData.formNo || '';
       const submissionFormData = {
         ...formData,
-        'Form Number': currentAssignedFNo || formData['Form Number'],
-        FormNo: currentAssignedFNo || formData.FormNo,
-        formNo: currentAssignedFNo || formData.formNo,
+        ...(existingFormNo ? {
+          'Form Number': existingFormNo,
+          FormNo: existingFormNo,
+          formNo: existingFormNo,
+        } : {}),
       };
       const res = await submitAdmission({
         formData: submissionFormData,
-        applicationId: currentAssignedFNo || applicationIdRef.current || applicationId,
+        applicationId: targetDocId,
         submissionKey: submissionKeyRef.current,
         upgradeMode,
       });
@@ -2038,9 +2060,9 @@ export default function AdmissionForm() {
       }
 
       if (res?.success === true && res.applicationId && res.formNumber) {
-        const formNo = res.formNumber || res['Form Number'] || res.formNo || res.data?.['Form Number'] || res.data?.formNo;
-        applicationIdRef.current = res.applicationId || res.data?.docId || applicationIdRef.current || String(formNo);
-        setApplicationId(applicationIdRef.current);
+        const formNo = res.formNumber;
+        applicationIdRef.current = res.applicationId;
+        setApplicationId(res.applicationId);
         const submittedData = {
           ...formData,
           'Form Number': formNo,
@@ -2777,21 +2799,23 @@ export default function AdmissionForm() {
 
             {/* Rejected / Correction Notice Banner */}
             {currentStatus === 'Rejected' && !isFormLocked && (
-              <div className="mb-3 flex flex-col items-start gap-3 rounded-2xl border-2 border-red-500/60 bg-gradient-to-r from-red-500/15 via-amber-500/10 to-red-500/15 p-4 text-xs font-semibold text-red-900 dark:text-red-100 shadow-md animate-fadeIn">
-                <div className="flex items-start gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-red-500/20 text-red-600 dark:text-red-400 flex items-center justify-center flex-shrink-0 mt-0.5 border border-red-500/40">
+              <div className="mb-4 flex flex-col items-start gap-3 rounded-2xl border-2 border-red-500/60 bg-gradient-to-r from-red-500/15 via-amber-500/10 to-red-500/15 p-4 text-xs font-semibold text-red-900 dark:text-red-100 shadow-md animate-fadeIn">
+                <div className="flex items-start gap-3 w-full">
+                  <div className="w-10 h-10 rounded-xl bg-red-500/20 text-red-600 dark:text-red-400 flex items-center justify-center flex-shrink-0 mt-0.5 border border-red-500/40">
                     <AlertCircle size={22} />
                   </div>
-                  <div className="space-y-1">
-                    <div className="text-sm font-black text-red-800 dark:text-red-200 flex items-center gap-2">
+                  <div className="space-y-1.5 flex-1">
+                    <div className="text-sm font-black text-red-800 dark:text-red-200 flex items-center gap-2 flex-wrap">
                       <span>⚠️ Application Returned for Correction</span>
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-red-600 text-white">Action Required</span>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-red-600 text-white shadow-xs">Action Required</span>
+                      <span className="text-[11px] text-amber-700 dark:text-amber-300 font-bold ml-auto">Edit Window Active</span>
                     </div>
-                    <div className="text-xs text-red-700 dark:text-red-300 leading-relaxed">
-                      <strong>School Verification Note:</strong> <span className="underline decoration-red-400 font-bold">{formData.rejectionReason || formData['Rejection Reason'] || 'Please check and correct your application details/documents.'}</span>
+                    <div className="text-xs text-red-700 dark:text-red-300 leading-relaxed bg-white/60 dark:bg-slate-900/60 p-2.5 rounded-xl border border-red-500/20">
+                      <strong>School Verification Note:</strong> <span className="font-bold underline decoration-red-400">{formData.rejectionReason || formData['Rejection Reason'] || 'Please check and correct your application details/documents.'}</span>
                     </div>
-                    <p className="text-[11px] text-red-600 dark:text-red-400">
+                    <p className="text-[11px] text-slate-600 dark:text-slate-300">
                       Update the necessary fields or documents below, then click <strong>"Confirm & Resubmit Application"</strong> to submit your corrections for re-review.
+                      {formData['Payment Status'] === 'PAID & VERIFIED' ? ' ✅ Your online fee payment is retained — you will NOT be asked to pay fee again.' : ''}
                     </p>
                   </div>
                 </div>
@@ -2842,20 +2866,6 @@ export default function AdmissionForm() {
               </div>
             )}
 
-            {/* Rejection Alert Banner (Within 3 Days) */}
-            {rejectedEditable && (
-              <div className="p-4 rounded-2xl bg-red-500/10 border border-red-500/30 text-red-700 dark:text-red-300 text-xs font-semibold space-y-1 animate-fadeIn mb-4">
-                <div className="flex items-center gap-2 font-extrabold text-sm">
-                  <AlertCircle size={18} className="text-red-500 flex-shrink-0" />
-                  <span>⚠️ Application Returned for Correction (3-Day Edit Window Active)</span>
-                </div>
-                <p>Reason for rejection: <strong className="text-red-600">{formData.rejectionReason || formData['Rejection Reason'] || formData['Rejected Reason'] || 'Please correct specified details.'}</strong></p>
-                <p className="text-[11px] text-slate-500">
-                  You can edit and resubmit your details below. {formData['Payment Status'] === 'PAID & VERIFIED' ? '✅ Your online fee payment is retained — you will NOT be asked to pay fee again.' : ''}
-                </p>
-              </div>
-            )}
-
             {/* Rejection Expired Banner */}
             {currentStatus === 'Rejected' && !rejectedEditable && (
               <div className="p-4 rounded-2xl bg-red-500/10 border border-red-500/30 text-red-700 dark:text-red-300 text-xs font-semibold space-y-1 animate-fadeIn mb-4">
@@ -2863,7 +2873,7 @@ export default function AdmissionForm() {
                   <AlertCircle size={18} className="text-red-500 flex-shrink-0" />
                   <span>🚫 Correction Window Expired</span>
                 </div>
-                <p>The 3-day correction window for this rejected application has passed. Form editing is locked. Please contact the admission office to request unlock.</p>
+                <p>The correction window for this rejected application has passed. Form editing is locked. Please contact the admission office to request unlock.</p>
               </div>
             )}
 
