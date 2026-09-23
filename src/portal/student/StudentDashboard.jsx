@@ -8,7 +8,7 @@ import LogoutConfirmModal from '../components/LogoutConfirmModal';
 import { auth, db } from '../../services/firebase';
 import { sendEmailVerification } from 'firebase/auth';
 import { doc, setDoc, collection, query, where, getDocs } from 'firebase/firestore';
-import { selectStudentApplication } from '../../utils/studentApplicationSelection';
+import { selectStudentApplication, applicationRank } from '../../utils/studentApplicationSelection';
 import { generateStudentAdmissionPdf, generateProvisionalAdmissionPdf } from '../../utils/pdfGenerator';
 import { loadAdmissionWorkspace, withdrawAdmission } from '../../services/admissionWorkflowApi';
 import { getStudentPhotoUrl, formatPhotoDisplayUrl } from '../../utils/imageCompressor';
@@ -231,9 +231,57 @@ export default function StudentDashboard() {
         }
       }
 
-      if (applications.length > 0) {
-        setAllApplications(applications);
-        let currentApp = selectStudentApplication(applications, activeSession);
+      // Deduplicate applications:
+      // 1. By exact document ID
+      // 2. By assigned Form Number (keep higher-priority record)
+      // 3. By Class & Session (drop stray unassigned drafts if active form exists)
+      const cleanApplications = (() => {
+        if (!applications.length) return [];
+        const byId = new Map();
+        applications.forEach(a => {
+          const id = a.docId || a.id;
+          if (id) byId.set(id, a);
+        });
+        const list = byId.size > 0 ? [...byId.values()] : applications;
+
+        const byFormNo = new Map();
+        const nonFormApps = [];
+        list.forEach(app => {
+          const rawFNo = app['Form Number'] || app.FormNo || app.formNo;
+          const cleanFNo = rawFNo && /^\d{4,8}$/.test(String(rawFNo).trim()) ? String(rawFNo).trim() : '';
+          if (cleanFNo) {
+            if (!byFormNo.has(cleanFNo)) {
+              byFormNo.set(cleanFNo, app);
+            } else {
+              const prev = byFormNo.get(cleanFNo);
+              if (applicationRank(app) < applicationRank(prev)) {
+                byFormNo.set(cleanFNo, app);
+              }
+            }
+          } else {
+            nonFormApps.push(app);
+          }
+        });
+
+        const merged = [...byFormNo.values()];
+        nonFormApps.forEach(draftApp => {
+          const dCls = draftApp['Admission sought for class'] || draftApp.class || '';
+          const dSession = String(draftApp.Session || draftApp.session || activeSession).replace(/[–—]/g, '-').trim();
+          const hasActiveApp = merged.some(m => {
+            const mCls = m['Admission sought for class'] || m.class || '';
+            const mSession = String(m.Session || m.session || activeSession).replace(/[–—]/g, '-').trim();
+            return mCls === dCls && mSession === dSession && applicationRank(m) <= 2;
+          });
+          if (!hasActiveApp) {
+            merged.push(draftApp);
+          }
+        });
+        return merged;
+      })();
+
+      if (cleanApplications.length > 0) {
+        setAllApplications(cleanApplications);
+        let currentApp = selectStudentApplication(cleanApplications, activeSession);
         if (currentApp && (currentApp.Session || currentApp.session || currentApp['Academic Session'])) {
           activeSession = currentApp.Session || currentApp.session || currentApp['Academic Session'];
         }
@@ -246,7 +294,7 @@ export default function StudentDashboard() {
           try {
             localStorage.setItem(`hss_student_app_${user.uid}`, JSON.stringify({
               currentApp,
-              applications,
+              applications: cleanApplications,
               activeSession,
               cachedAt: Date.now()
             }));
@@ -443,9 +491,16 @@ export default function StudentDashboard() {
   const isFormEditable = status === 'Draft' || isWithin3DaysRejection || isUnlockedByAdmin;
 
   const applicationRoute = (mode = '') => {
-    const key = appData?.docId || appData?.applicationId || appData?.['Form Number'] || appData?.FormNo || appData?.formNo || '';
+    const docId = appData?.docId || appData?.id || '';
+    const rawFNo = appData?.['Form Number'] || appData?.FormNo || appData?.formNo || '';
+    const cleanFNo = rawFNo && /^\d{4,8}$/.test(String(rawFNo).trim()) ? String(rawFNo).trim() : '';
     const params = new URLSearchParams();
-    if (key) params.set('application', String(key));
+    if (docId && !/^\d{4,8}$/.test(docId)) {
+      params.set('application', String(docId));
+    } else if (cleanFNo) {
+      params.set('application', cleanFNo);
+    }
+    if (cleanFNo) params.set('form', cleanFNo);
     if (mode) params.set('mode', mode);
     const query = params.toString();
     return `/portal/student/application${query ? `?${query}` : ''}`;
@@ -634,13 +689,18 @@ export default function StudentDashboard() {
                     Your Applications ({allApplications.length}):
                   </span>
                   {allApplications.map((app, idx) => {
-                    const isCurrent = (app.docId || app['Form Number'] || idx) === (appData?.docId || appData?.['Form Number'] || 0);
-                    const appFNum = app['Form Number'] || app.formNo || app.docId || `#${idx + 1}`;
+                    const isCurrent = (app.docId && appData?.docId && app.docId === appData.docId) ||
+                      (app['Form Number'] && appData?.['Form Number'] && app['Form Number'] === appData['Form Number']) ||
+                      (!appData?.docId && !appData?.['Form Number'] && idx === 0);
+                    const isDraft = (app.Status || app.status) === 'Draft';
+                    const rawFNo = app['Form Number'] || app.FormNo || app.formNo;
+                    const cleanFNo = rawFNo && /^\d{4,8}$/.test(String(rawFNo).trim()) ? String(rawFNo).trim() : '';
+                    const appLabel = cleanFNo ? `Form #${cleanFNo}` : (isDraft ? 'Draft' : `Application #${idx + 1}`);
                     const appCls = app['Admission sought for class'] || app.class || 'N/A';
                     const appStrm = app['Stream for Class 11th'] || app['Stream opted in Class 11th'] || app.Stream || '';
                     return (
                       <button
-                        key={app.docId || idx}
+                        key={app.docId || cleanFNo || idx}
                         type="button"
                         onClick={() => {
                           setAppData(app);
@@ -654,7 +714,7 @@ export default function StudentDashboard() {
                             : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700'
                         }`}
                       >
-                        <span>Form #{appFNum}</span>
+                        <span>{appLabel}</span>
                         <span className="text-[10px] opacity-80">(Class {appCls}{appStrm ? ` • ${appStrm}` : ''})</span>
                       </button>
                     );

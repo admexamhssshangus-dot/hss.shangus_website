@@ -6437,7 +6437,21 @@ export default function AdvancedReports({
         } : {}),
         ...(sStatus ? {
           status: sStatus,
-          Status: sStatus
+          Status: sStatus,
+          ...(sStatus === 'Rejected' ? {
+            isEditable: true,
+            editableUntil: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+            isApproved: false,
+            approvedAt: null,
+          } : sStatus === 'Approved' ? {
+            isApproved: true,
+            isEditable: false,
+            editableUntil: null,
+            approvedAt: new Date().toISOString(),
+          } : {
+            isEditable: false,
+            editableUntil: null,
+          }),
         } : {}),
         ...(sSubs ? {
           subs: typeof sSubs === 'string' ? sSubs : sSubs.join(', '),
@@ -11126,7 +11140,22 @@ export default function AdvancedReports({
             updatedAt: new Date().toISOString(),
             lastEditedBy: `Admin (${user?.email || 'System'})`
           };
-          if (nextStatus === 'Rejected') payload.rejectionReason = customReason || reasonCategory;
+          if (nextStatus === 'Rejected') {
+            payload.rejectionReason = customReason || reasonCategory;
+            payload['Rejection Reason'] = customReason || reasonCategory;
+            payload.isEditable = true;
+            payload.editableUntil = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+            payload.isApproved = false;
+            payload.approvedAt = null;
+          } else if (nextStatus === 'Approved') {
+            payload.isApproved = true;
+            payload.isEditable = false;
+            payload.editableUntil = null;
+            payload.approvedAt = new Date().toISOString();
+          } else {
+            payload.isEditable = false;
+            payload.editableUntil = null;
+          }
           await runSelectedMutation(student => updateExactAdmissionDocument(student, { ...payload }));
           const selectedIds = new Set(selectedTableStudents.map(getExactAdmissionDocId));
           setCurrentAdmissions(previous => previous.map(student =>

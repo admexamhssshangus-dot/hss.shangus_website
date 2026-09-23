@@ -467,7 +467,13 @@ async function saveDraft(db, token, body) {
 
   const cls = normalizeClass(sanitized['Admission sought for class']);
   const session = normalizeSession(valueOf(sanitized, 'Session', 'session'));
-  const inputFormNo = cleanString(valueOf(sanitized, 'Form Number', 'FormNo', 'formNo'), 20);
+  let inputFormNo = cleanString(valueOf(sanitized, 'Form Number', 'FormNo', 'formNo'), 20);
+
+  // If requestedId is numeric (a form number rather than a Firestore doc ID), treat it as inputFormNo
+  if (requestedId && /^\d{4,8}$/.test(requestedId)) {
+    if (!inputFormNo) inputFormNo = requestedId;
+    requestedId = '';
+  }
 
   return db.runTransaction(async tx => {
     let existing = null;
@@ -484,33 +490,50 @@ async function saveDraft(db, token, body) {
     // If requestedId did not exist or was empty, check if user has an existing application
     // with matching Form Number, or existing Rejected/Draft for this class/session
     if (!existing) {
-      const ownedSnaps = await tx.get(db.collection('admissions').where('ownerUid', '==', token.uid));
+      const email = String(token.email || '').toLowerCase();
+      const queries = [tx.get(db.collection('admissions').where('ownerUid', '==', token.uid))];
+      if (email && token.email_verified === true) {
+        queries.push(tx.get(db.collection('admissions').where('emailNormalized', '==', email)));
+        queries.push(tx.get(db.collection('admissions').where('Email Address', '==', email)));
+      }
+      const snaps = await Promise.all(queries);
+      const candidateDocs = new Map();
+      snaps.forEach(s => s.docs.forEach(d => candidateDocs.set(d.id, d)));
+      const candidates = [...candidateDocs.values()].filter(d => {
+        const dData = d.data();
+        return !['Deleted', 'Purged', 'Withdrawn'].includes(dData.Status) && dData._deleted !== true;
+      });
+
       // 1. Match by form number if present
-      if (inputFormNo || (requestedId && /^\d{4,8}$/.test(requestedId))) {
-        const targetFNo = inputFormNo || requestedId;
-        const matchedByFNo = ownedSnaps.docs.find(d => {
+      const targetFNo = inputFormNo || (body.formNumber ? String(body.formNumber).trim() : '');
+      if (targetFNo) {
+        const matchedByFNo = candidates.find(d => {
           const dData = d.data();
           const dFNo = cleanString(valueOf(dData, 'Form Number', 'FormNo', 'formNo'), 20);
-          return dFNo === targetFNo && !['Deleted', 'Purged', 'Withdrawn'].includes(dData.Status) && dData._deleted !== true;
+          return dFNo === targetFNo;
         });
         if (matchedByFNo) {
           existing = matchedByFNo;
           targetRef = matchedByFNo.ref;
         }
       }
-      // 2. Match by class and session
+
+      // 2. Match by class and session (prioritizing Rejected over Draft)
       if (!existing && cls && session) {
-        const matchedByCls = ownedSnaps.docs.find(d => {
+        const matchingCls = candidates.filter(d => {
           const dData = d.data();
           const dCls = dData.classCanonical || normalizeClass(dData['Admission sought for class']);
           const dSession = dData.sessionCanonical || normalizeSession(valueOf(dData, 'Session', 'session'));
-          return dCls === cls && dSession === session &&
-            ['Rejected', 'Draft'].includes(dData.Status) &&
-            dData._deleted !== true;
+          return dCls === cls && dSession === session && ['Rejected', 'Draft'].includes(dData.Status);
         });
-        if (matchedByCls) {
-          existing = matchedByCls;
-          targetRef = matchedByCls.ref;
+        matchingCls.sort((a, b) => {
+          const rankA = a.data().Status === 'Rejected' ? 0 : 1;
+          const rankB = b.data().Status === 'Rejected' ? 0 : 1;
+          return rankA - rankB;
+        });
+        if (matchingCls.length > 0) {
+          existing = matchingCls[0];
+          targetRef = matchingCls[0].ref;
         }
       }
     }
@@ -781,6 +804,10 @@ async function submitApplication(db, token, body) {
       formNo: formNumber,
       Status: 'Submitted',
       status: 'Submitted',
+      isEditable: false,
+      editableUntil: null,
+      editUnlocked: false,
+      editUnlockedUntil: null,
       rejectionReason: '',
       'Rejection Reason': '',
       rejectedAt: null,
