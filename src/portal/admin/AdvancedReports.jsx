@@ -2748,12 +2748,24 @@ function StatusActionDropdown({ student, onViewEdit, onRefresh, onDeleteRecord, 
             'Status': 'Provisional',
             'status': 'Provisional',
             'provisionalAt': new Date().toISOString(),
-            'provisionalBy': 'Admin'
+            'provisionalBy': 'Admin',
+            'Class Roll No': '',
+            'Class R.No.': '',
+            classRollNo: '',
+            rollNo: '',
+            isApproved: false,
+            approvedAt: null
           });
           setLocalStatus('Provisional');
+          setLocalRoll('');
           if (student) {
             student.status = 'Provisional';
             student.Status = 'Provisional';
+            student.classRollNo = '';
+            student.rollNo = '';
+            student['Class Roll No'] = '';
+            student.isApproved = false;
+            student.approvedAt = null;
           }
           if (onRefresh) onRefresh();
           setDialogConfig({
@@ -2799,17 +2811,27 @@ function StatusActionDropdown({ student, onViewEdit, onRefresh, onDeleteRecord, 
           await updateStudentDocument(student, {
             'Status': 'Submitted',
             'status': 'Submitted',
+            'Class Roll No': '',
+            'Class R.No.': '',
+            classRollNo: '',
+            rollNo: '',
             'rejectionReason': '',
             'Rejection Reason': '',
             isApproved: false,
             approvedAt: null
           });
           setLocalStatus('Submitted');
+          setLocalRoll('');
           if (student) {
             student.status = 'Submitted';
             student.Status = 'Submitted';
+            student.classRollNo = '';
+            student.rollNo = '';
+            student['Class Roll No'] = '';
             student.rejectionReason = '';
             student['Rejection Reason'] = '';
+            student.isApproved = false;
+            student.approvedAt = null;
           }
           if (onRefresh) onRefresh();
           setDialogConfig({
@@ -3165,7 +3187,7 @@ function StatusActionDropdown({ student, onViewEdit, onRefresh, onDeleteRecord, 
               </button>
             )}
 
-            {!isProv && !isWithdrawn && !isApp && (
+            {!isProv && !isWithdrawn && (
               <button
                 type="button"
                 onClick={handleMarkProvisional}
@@ -3176,7 +3198,7 @@ function StatusActionDropdown({ student, onViewEdit, onRefresh, onDeleteRecord, 
               </button>
             )}
 
-            {(isProv || isRejt) && !isWithdrawn && (
+            {!isSub && !isWithdrawn && (
               <button
                 type="button"
                 onClick={handleMarkSubmitted}

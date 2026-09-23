@@ -461,33 +461,104 @@ function canClaimExisting(existing, token) {
 
 async function saveDraft(db, token, body) {
   const sanitized = sanitizeValue(body.formData || {});
-  const requestedId = cleanString(body.applicationId, 128);
+  let requestedId = cleanString(body.applicationId, 128);
   if (requestedId && !/^[a-zA-Z0-9_-]{1,128}$/.test(requestedId)) throw Object.assign(new Error('Invalid application ID.'), { status: 400 });
   ['Aadhar No.', "Father's Aadhar No.", 'Bank Account No.', 'Student Photo', 'photo_id', 'photo', 'photoUrl', 'photoPath'].forEach(key => delete sanitized[key]);
-  const ref = requestedId ? db.collection('admissions').doc(requestedId) : db.collection('admissions').doc();
-  await db.runTransaction(async tx => {
-    const existing = await tx.get(ref);
-    if (existing.exists) {
+
+  const cls = normalizeClass(sanitized['Admission sought for class']);
+  const session = normalizeSession(valueOf(sanitized, 'Session', 'session'));
+  const inputFormNo = cleanString(valueOf(sanitized, 'Form Number', 'FormNo', 'formNo'), 20);
+
+  return db.runTransaction(async tx => {
+    let existing = null;
+    let targetRef = null;
+
+    if (requestedId) {
+      const snap = await tx.get(db.collection('admissions').doc(requestedId));
+      if (snap.exists) {
+        existing = snap;
+        targetRef = snap.ref;
+      }
+    }
+
+    // If requestedId did not exist or was empty, check if user has an existing application
+    // with matching Form Number, or existing Rejected/Draft for this class/session
+    if (!existing) {
+      const ownedSnaps = await tx.get(db.collection('admissions').where('ownerUid', '==', token.uid));
+      // 1. Match by form number if present
+      if (inputFormNo || (requestedId && /^\d{4,8}$/.test(requestedId))) {
+        const targetFNo = inputFormNo || requestedId;
+        const matchedByFNo = ownedSnaps.docs.find(d => {
+          const dData = d.data();
+          const dFNo = cleanString(valueOf(dData, 'Form Number', 'FormNo', 'formNo'), 20);
+          return dFNo === targetFNo && !['Deleted', 'Purged', 'Withdrawn'].includes(dData.Status) && dData._deleted !== true;
+        });
+        if (matchedByFNo) {
+          existing = matchedByFNo;
+          targetRef = matchedByFNo.ref;
+        }
+      }
+      // 2. Match by class and session
+      if (!existing && cls && session) {
+        const matchedByCls = ownedSnaps.docs.find(d => {
+          const dData = d.data();
+          const dCls = dData.classCanonical || normalizeClass(dData['Admission sought for class']);
+          const dSession = dData.sessionCanonical || normalizeSession(valueOf(dData, 'Session', 'session'));
+          return dCls === cls && dSession === session &&
+            ['Rejected', 'Draft'].includes(dData.Status) &&
+            dData._deleted !== true;
+        });
+        if (matchedByCls) {
+          existing = matchedByCls;
+          targetRef = matchedByCls.ref;
+        }
+      }
+    }
+
+    if (!targetRef) {
+      targetRef = requestedId && !/^\d{4,8}$/.test(requestedId)
+        ? db.collection('admissions').doc(requestedId)
+        : db.collection('admissions').doc();
+    }
+
+    if (existing?.exists) {
       const prior = existing.data();
       if (!canClaimExisting(prior, token)) throw Object.assign(new Error('Application access denied.'), { status: 403 });
       if (!['Draft', 'Rejected'].includes(prior.Status)) throw Object.assign(new Error('This application is locked and cannot be changed.'), { status: 409 });
       if (prior.Status === 'Rejected' && prior.editableUntil?.toMillis?.() < Date.now()) throw Object.assign(new Error('The correction window has expired.'), { status: 409 });
     }
-    const cls = normalizeClass(sanitized['Admission sought for class']);
-    const session = normalizeSession(valueOf(sanitized, 'Session', 'session'));
-    tx.set(ref, {
+
+    const priorData = existing?.exists ? existing.data() : {};
+    const isPriorRejected = priorData.Status === 'Rejected';
+    const formNumber = cleanString(valueOf(priorData, 'Form Number', 'FormNo', 'formNo') || inputFormNo, 20);
+
+    tx.set(targetRef, {
       ...sanitized,
       ownerUid: token.uid,
       emailNormalized: String(token.email || '').toLowerCase(),
       classCanonical: cls || null,
       sessionCanonical: session || null,
-      Status: existing.exists && existing.data().Status === 'Rejected' ? 'Rejected' : 'Draft',
+      ...(formNumber ? { 'Form Number': formNumber, FormNo: formNumber, formNo: formNumber } : {}),
+      Status: isPriorRejected ? 'Rejected' : 'Draft',
+      status: isPriorRejected ? 'Rejected' : 'Draft',
+      ...(isPriorRejected ? {
+        rejectionReason: priorData.rejectionReason || priorData['Rejection Reason'] || '',
+        'Rejection Reason': priorData['Rejection Reason'] || priorData.rejectionReason || '',
+        editableUntil: priorData.editableUntil || null,
+        isEditable: true,
+      } : {}),
       workflowVersion: 2,
       updatedAt: FieldValue.serverTimestamp(),
-      ...(!existing.exists ? { createdAt: FieldValue.serverTimestamp() } : {}),
+      ...(!existing?.exists ? { createdAt: FieldValue.serverTimestamp() } : {}),
     }, { merge: true });
+
+    return {
+      success: true,
+      applicationId: targetRef.id,
+      formNumber: formNumber || null,
+      savedAt: new Date().toISOString()
+    };
   });
-  return { success: true, applicationId: ref.id, savedAt: new Date().toISOString() };
 }
 
 async function submitApplication(db, token, body) {
@@ -510,7 +581,7 @@ async function submitApplication(db, token, body) {
   const submissionKey = cleanString(body.submissionKey, 128);
   if (!/^[a-zA-Z0-9_-]{16,128}$/.test(submissionKey)) throw Object.assign(new Error('Invalid submission key.'), { status: 400 });
 
-  const appRef = applicationId ? db.collection('admissions').doc(applicationId) : db.collection('admissions').doc();
+  let appRef = applicationId && !/^\d{4,8}$/.test(applicationId) ? db.collection('admissions').doc(applicationId) : null;
   const keyRef = db.collection('admissionSubmissionKeys').doc(`${token.uid}_${submissionKey}`);
   const counterRef = db.collection('systemSettings').doc('formNumberConfig');
   const settingsRef = db.collection('site').doc('settings');
@@ -523,8 +594,8 @@ async function submitApplication(db, token, body) {
 
   return db.runTransaction(async tx => {
     const legacyEmailQuery = db.collection('admissions').where('Email Address', '==', String(token.email || '').toLowerCase());
-    const [keySnap, existingSnap, counterSnap, settingsSnap, ownedSnap, legacyEmailSnap, photoSnap, recordIndexSnap] = await Promise.all([
-      tx.get(keyRef), tx.get(appRef), tx.get(counterRef), tx.get(settingsRef),
+    const [keySnap, counterSnap, settingsSnap, ownedSnap, legacyEmailSnap, photoSnap, recordIndexSnap] = await Promise.all([
+      tx.get(keyRef), tx.get(counterRef), tx.get(settingsRef),
       tx.get(db.collection('admissions').where('ownerUid', '==', token.uid)),
       tx.get(legacyEmailQuery),
       photoRef ? tx.get(photoRef) : Promise.resolve(null),
@@ -536,7 +607,36 @@ async function submitApplication(db, token, body) {
       throw Object.assign(new Error(`Admissions for Class ${normalized.cls} are currently closed.`), { status: 409 });
     }
 
-    let existing = existingSnap.exists ? existingSnap.data() : null;
+    const candidateDocs = new Map();
+    [...ownedSnap.docs, ...legacyEmailSnap.docs].forEach(doc => candidateDocs.set(doc.id, doc));
+
+    let existingSnap = null;
+    if (appRef) {
+      existingSnap = await tx.get(appRef);
+      if (!existingSnap.exists) existingSnap = null;
+    }
+
+    // Resolve true document reference if not found by direct ID
+    if (!existingSnap) {
+      const inputFNo = cleanString(valueOf(sanitized, 'Form Number', 'FormNo', 'formNo') || applicationId, 20);
+      const matched = [...candidateDocs.values()].find(d => {
+        const dData = d.data();
+        const dFNo = cleanString(valueOf(dData, 'Form Number', 'FormNo', 'formNo'), 20);
+        if (inputFNo && dFNo === inputFNo && !['Withdrawn', 'Purged', 'Deleted'].includes(dData.Status)) return true;
+        const dCls = dData.classCanonical || normalizeClass(valueOf(dData, 'Admission sought for class', 'class'));
+        const dSession = dData.sessionCanonical || normalizeSession(valueOf(dData, 'Session', 'session'));
+        return dCls === normalized.cls && dSession === normalized.session && ['Rejected', 'Draft'].includes(dData.Status);
+      });
+      if (matched) {
+        appRef = matched.ref;
+        existingSnap = matched;
+      } else {
+        if (!appRef) appRef = db.collection('admissions').doc();
+        existingSnap = await tx.get(appRef);
+      }
+    }
+
+    let existing = existingSnap?.exists ? existingSnap.data() : null;
     if (existing && !canClaimExisting(existing, token)) throw Object.assign(new Error('Application access denied.'), { status: 403 });
     const upgradeMode = body.upgradeMode === true;
     if (existing && !['Draft', 'Rejected'].includes(existing.Status) && !(upgradeMode && existing.isProvisional === true)) {
@@ -546,8 +646,6 @@ async function submitApplication(db, token, body) {
       throw Object.assign(new Error('The correction window has expired.'), { status: 409 });
     }
 
-    const candidateDocs = new Map();
-    [...ownedSnap.docs, ...legacyEmailSnap.docs].forEach(doc => candidateDocs.set(doc.id, doc));
     const duplicate = [...candidateDocs.values()].find(doc => {
       if (doc.id === appRef.id) return false;
       const item = doc.data();
@@ -560,9 +658,26 @@ async function submitApplication(db, token, body) {
         item._purged !== true;
     });
     if (duplicate) throw Object.assign(new Error(`An active application already exists for Class ${normalized.cls} in ${normalized.session}.`), { status: 409 });
-    if (recordIndexSnap?.exists && recordIndexSnap.data()?.applicationId !== appRef.id &&
-      ['Submitted', 'Under Review', 'Approved'].includes(recordIndexSnap.data()?.status)) {
-      throw Object.assign(new Error(`An active application already exists for this registration number in Class ${normalized.cls}, ${normalized.session}.`), { status: 409 });
+
+    // Validate registration index: allow resubmission if owner is the same or prior record was rejected/withdrawn
+    if (recordIndexSnap?.exists && recordIndexSnap.data()?.applicationId !== appRef.id) {
+      const idxData = recordIndexSnap.data() || {};
+      const isSameOwner = idxData.ownerUid === token.uid;
+      let isIndexedActive = ['Submitted', 'Under Review', 'Approved'].includes(idxData.status);
+      if (isIndexedActive) {
+        const indexedDocSnap = await tx.get(db.collection('admissions').doc(idxData.applicationId));
+        if (indexedDocSnap.exists) {
+          const idxDocData = indexedDocSnap.data();
+          if (['Rejected', 'Withdrawn', 'Draft', 'Purged', 'Deleted'].includes(idxDocData.Status) || idxDocData._deleted === true) {
+            isIndexedActive = false;
+          }
+        } else {
+          isIndexedActive = false;
+        }
+      }
+      if (isIndexedActive && !isSameOwner) {
+        throw Object.assign(new Error(`An active application already exists for this registration number in Class ${normalized.cls}, ${normalized.session}.`), { status: 409 });
+      }
     }
 
     // Duplicate Mobile Guard for Same Academic Session
@@ -611,6 +726,20 @@ async function submitApplication(db, token, body) {
       tx.set(counterRef, { ...counter, nextFormNumber: validNum + 1, session: activeSession }, { merge: true });
     }
 
+    // Clean up any phantom duplicate draft documents for this student
+    [...candidateDocs.values()].forEach(cDoc => {
+      if (cDoc.id !== appRef.id) {
+        const cData = cDoc.data();
+        const cFNo = cleanString(valueOf(cData, 'Form Number', 'FormNo', 'formNo'), 20);
+        const isDupDraft = (cData.Status === 'Draft' || cData.status === 'Draft') &&
+          (cDoc.id === formNumber || (cFNo && cFNo === formNumber) ||
+           (cData.classCanonical === normalized.cls && cData.sessionCanonical === normalized.session));
+        if (isDupDraft) {
+          tx.delete(cDoc.ref);
+        }
+      }
+    });
+
     const now = FieldValue.serverTimestamp();
     const result = { success: true, applicationId: appRef.id, formNumber, status: 'Submitted' };
     let resolvedPhotoRef = photoRef?.path || cleanString(existing?.photoRef, 256) || null;
@@ -651,6 +780,10 @@ async function submitApplication(db, token, body) {
       FormNo: formNumber,
       formNo: formNumber,
       Status: 'Submitted',
+      status: 'Submitted',
+      rejectionReason: '',
+      'Rejection Reason': '',
+      rejectedAt: null,
       isProvisional: isCurrentlyProvisional,
       wasProvisional: wasProvisional,
       upgradedFromProvisional: isUpgraded,
@@ -708,7 +841,16 @@ async function withdrawApplication(db, token, body) {
       throw Object.assign(new Error('This application can no longer be withdrawn online. Please contact the admission office.'), { status: 409 });
     }
     const now = FieldValue.serverTimestamp();
-    tx.update(ref, { ownerUid: token.uid, Status: 'Withdrawn', withdrawnAt: now, updatedAt: now });
+    tx.update(ref, { ownerUid: token.uid, Status: 'Withdrawn', status: 'Withdrawn', withdrawnAt: now, updatedAt: now });
+
+    const regNo = registrationNumberFrom(prior);
+    const session = normalizeSession(prior.Session || prior.session);
+    const cls = normalizeClass(prior['Admission sought for class'] || prior.class);
+    if (regNo && session && cls) {
+      const idxRef = db.collection('studentApplicationIndex').doc(applicationIndexId(regNo, session, cls));
+      tx.set(idxRef, { status: 'Withdrawn', updatedAt: now }, { merge: true });
+    }
+
     tx.create(db.collection('admissionAuditLogs').doc(), {
       ownerUid: token.uid, applicationId, formNumber: prior['Form Number'] || null,
       action: 'student_application_withdrawn', createdAt: now,
