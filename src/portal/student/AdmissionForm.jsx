@@ -414,7 +414,7 @@ export function validateSubjectSelection(targetClass = '11th', stream = 'Science
 export default function AdmissionForm() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const requestedApplicationKey = searchParams.get('application') || '';
+  const requestedApplicationKey = searchParams.get('application') || searchParams.get('form') || '';
   const requestedUpgradeMode = searchParams.get('mode') === 'upgrade';
   const initialAppId = (requestedApplicationKey && !/^\d{4,8}$/.test(requestedApplicationKey)) ? requestedApplicationKey : '';
   // Loading & Data States
@@ -745,7 +745,7 @@ export default function AdmissionForm() {
   // Debounced, owner-scoped server draft. Sensitive identifiers and photos are
   // excluded by admissionWorkflowApi and never placed in browser storage.
   useEffect(() => {
-    if (Object.keys(formData).length === 0 || isFormLocked || isSubmitting || submittedSuccessData || autosaveServiceUnavailableRef.current) return undefined;
+    if (loading || Object.keys(formData).length === 0 || isFormLocked || isSubmitting || submittedSuccessData || autosaveServiceUnavailableRef.current) return undefined;
     if (!formData['Admission sought for class'] && !formData["Student's Name (as per school records)"]) return undefined;
     let cancelled = false;
     const timer = setTimeout(async () => {
@@ -753,10 +753,13 @@ export default function AdmissionForm() {
       try {
         const result = await saveAdmissionDraft({ formData, applicationId: applicationIdRef.current });
         // Keep the first server ID even if typing invalidated this snapshot.
-        // Never replace an ID assigned by a subsequent submission.
-        if (!applicationIdRef.current && result.applicationId) applicationIdRef.current = result.applicationId;
+        // Never replace an ID assigned by a subsequent submission or loaded form.
+        if (!applicationIdRef.current && result.applicationId) {
+          applicationIdRef.current = result.applicationId;
+          setApplicationId(result.applicationId);
+        }
         if (cancelled) return;
-        if (result.applicationId) {
+        if (result.applicationId && !applicationIdRef.current) {
           applicationIdRef.current = result.applicationId;
           setApplicationId(result.applicationId);
         }
@@ -782,7 +785,7 @@ export default function AdmissionForm() {
       }
     }, 10000);
     return () => { cancelled = true; clearTimeout(timer); };
-  }, [formData, isFormLocked, isSubmitting, submittedSuccessData]);
+  }, [loading, formData, isFormLocked, isSubmitting, submittedSuccessData]);
 
   useEffect(() => {
     if (isFormLocked || Object.keys(formData).length === 0) return undefined;
