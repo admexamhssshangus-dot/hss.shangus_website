@@ -7481,6 +7481,18 @@ export default function AdvancedReports({
     }
   }, [showToolsModal, activeToolsTab]);
 
+  // Handle ESC key to cleanly dismiss Tools Modal
+  useEffect(() => {
+    if (!showToolsModal) return;
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        setShowToolsModal(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [showToolsModal]);
+
   const handleRefreshCloudPhotos = async () => {
     setLoadingPhotosFromCloud(true);
     try {
@@ -7499,64 +7511,211 @@ export default function AdvancedReports({
     try {
       showToast('Compiling Full Multi-Sheet Database Backup into Excel (.xlsx)...', 'info');
 
-      // 1. Fetch auxiliary collections from Cloud Firestore
-      let facultyList = [];
-      let noticesList = [];
-      let settingsObj = {};
-      let adminsList = [];
-      let practicalsList = [];
+      // 1. Compile complete student register across all sessions (active admissions + full 2006-2026 master registers)
+      let fullCandidateStudents = allStudents || [];
+      try {
+        if (!window._hssMasterRegistersIsFull) {
+          showToast('Hydrating complete institutional student registers from Cloud Firestore...', 'info');
+          const fullChunks = await getMasterRegistersScoped({ forceAll: true });
+          if (Array.isArray(fullChunks) && fullChunks.length > 0) {
+            const formatted = flattenAndFormatMasterRegisters(fullChunks);
+            setMasterHistoricalRecords(formatted);
+            const histMap = new Map();
+            formatted.forEach((item, idx) => {
+              const key = item.boardRegNo || item.formNo || item.classRollNo ? `${item.session || ''}_${item.class || ''}_${item.boardRegNo || item.formNo || item.classRollNo}_${idx}` : `h_${idx}`;
+              histMap.set(key, item);
+            });
+            fullCandidateStudents = [...(currentAdmissions || []), ...Array.from(histMap.values())];
+          }
+        } else if (masterHistoricalRecords && masterHistoricalRecords.length > 0) {
+          const histMap = new Map();
+          masterHistoricalRecords.forEach((item, idx) => {
+            const key = item.boardRegNo || item.formNo || item.classRollNo ? `${item.session || ''}_${item.class || ''}_${item.boardRegNo || item.formNo || item.classRollNo}_${idx}` : `h_${idx}`;
+            histMap.set(key, item);
+          });
+          fullCandidateStudents = [...(currentAdmissions || []), ...Array.from(histMap.values())];
+        }
+      } catch (err) {
+        console.warn('Student register compilation note for backup:', err);
+      }
 
+      // 2. Fetch authoritative faculty and staff records with multi-tier fallback
+      let facultyList = [];
       try {
         const facSnap = await getDoc(doc(db, 'systemSettings', 'facultyPrivate'));
         if (facSnap.exists()) {
-          facultyList = facSnap.data()?.members || facSnap.data()?.faculty || [];
-        } else {
-          const facSnap2 = await getDoc(doc(db, 'site', 'faculty'));
-          if (facSnap2.exists()) facultyList = facSnap2.data()?.members || facSnap2.data()?.faculty || [];
+          const data = facSnap.data();
+          const list = data?.items || data?.members || data?.faculty;
+          if (Array.isArray(list) && list.length > 0) facultyList = list;
         }
       } catch (e) {
-        console.warn('Faculty fetch note for backup:', e);
+        console.warn('Faculty fetch note from systemSettings/facultyPrivate:', e);
       }
 
+      if (!facultyList.length) {
+        try {
+          const facSnap2 = await getDoc(doc(db, 'site', 'faculty'));
+          if (facSnap2.exists()) {
+            const data2 = facSnap2.data();
+            const list2 = data2?.items || data2?.members || data2?.faculty;
+            if (Array.isArray(list2) && list2.length > 0) facultyList = list2;
+          }
+        } catch (e) {
+          console.warn('Faculty fetch note from site/faculty:', e);
+        }
+      }
+
+      if (!facultyList.length) {
+        try {
+          const cached = localStorage.getItem('site_faculty') || localStorage.getItem('hss_public_faculty');
+          if (cached) {
+            const parsed = JSON.parse(cached);
+            if (Array.isArray(parsed) && parsed.length > 0) facultyList = parsed;
+          }
+        } catch (_) {}
+      }
+
+      if (!facultyList.length) {
+        try {
+          const r = await fetch('/slides/faculty.json?t=' + Date.now(), { cache: 'no-cache' });
+          if (r.ok) {
+            const data = await r.json();
+            if (Array.isArray(data) && data.length > 0) facultyList = data;
+          }
+        } catch (e) {
+          console.warn('Faculty fetch note from /slides/faculty.json:', e);
+        }
+      }
+
+      // 3. Fetch notices and circulars with line parser fallback
+      let noticesList = [];
       try {
         const notSnap = await getDoc(doc(db, 'site', 'notices'));
         if (notSnap.exists()) {
           const nData = notSnap.data();
-          noticesList = Array.isArray(nData?.items) ? nData.items : (Array.isArray(nData?.notices) ? nData.notices : []);
-          if (!noticesList.length && nData?.text) {
-            noticesList = [{ title: 'Main Circular Text', text: nData.text, date: new Date().toISOString() }];
+          if (Array.isArray(nData?.items) && nData.items.length > 0) {
+            noticesList = nData.items;
+          } else if (Array.isArray(nData?.notices) && nData.notices.length > 0) {
+            noticesList = nData.notices;
+          } else if (nData?.text && typeof nData.text === 'string') {
+            noticesList = nData.text.split(/\r?\n/).map(l => l.trim()).filter(Boolean).map((line, idx) => {
+              const parts = line.split(',');
+              return {
+                id: idx + 1,
+                date: parts[0]?.trim() || '',
+                title: parts[1]?.trim() || line,
+                url: parts[2]?.trim() || '#',
+                days: parts[3]?.trim() || '',
+                status: 'Active'
+              };
+            });
           }
         }
       } catch (e) {
-        console.warn('Notices fetch note for backup:', e);
+        console.warn('Notices fetch note from site/notices:', e);
       }
 
+      if (!noticesList.length) {
+        try {
+          const local = localStorage.getItem('site_notices');
+          if (local) {
+            noticesList = local.split(/\r?\n/).map(l => l.trim()).filter(Boolean).map((line, idx) => {
+              const parts = line.split(',');
+              return {
+                id: idx + 1,
+                date: parts[0]?.trim() || '',
+                title: parts[1]?.trim() || line,
+                url: parts[2]?.trim() || '#',
+                days: parts[3]?.trim() || '',
+                status: 'Active'
+              };
+            });
+          }
+        } catch (_) {}
+      }
+
+      if (!noticesList.length) {
+        try {
+          const res = await fetch('/slides/notices.txt?t=' + Date.now(), { cache: 'no-cache' });
+          if (res.ok) {
+            const text = await res.text();
+            if (text && !text.trim().startsWith('<')) {
+              noticesList = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean).map((line, idx) => {
+                const parts = line.split(',');
+                return {
+                  id: idx + 1,
+                  date: parts[0]?.trim() || '',
+                  title: parts[1]?.trim() || line,
+                  url: parts[2]?.trim() || '#',
+                  days: parts[3]?.trim() || '',
+                  status: 'Active'
+                };
+              });
+            }
+          }
+        } catch (_) {}
+      }
+
+      // 4. Fetch site configuration
+      let settingsObj = {};
       try {
         const setSnap = await getDoc(doc(db, 'site', 'settings'));
         if (setSnap.exists()) {
           settingsObj = setSnap.data() || {};
         }
       } catch (e) {
-        console.warn('Settings fetch note for backup:', e);
+        console.warn('Settings fetch note from site/settings:', e);
+      }
+      if (Object.keys(settingsObj).length === 0) {
+        try {
+          const loaded = await loadSiteSettings();
+          if (loaded) settingsObj = loaded;
+        } catch (_) {}
       }
 
+      // 5. Fetch administrators and staff permission profiles
+      let adminsList = [];
       try {
-        const admSnap = await getDoc(doc(db, 'systemSettings', 'adminDirectory'));
-        if (admSnap.exists()) {
-          adminsList = admSnap.data()?.admins || admSnap.data()?.users || [];
-        } else {
-          const admSnap2 = await getDoc(doc(db, 'site', 'admins'));
-          if (admSnap2.exists()) adminsList = admSnap2.data()?.admins || [];
+        const permSnap = await getDoc(doc(db, 'adminSettings', 'permissions'));
+        if (permSnap.exists() && Array.isArray(permSnap.data()?.users)) {
+          adminsList = permSnap.data().users;
         }
       } catch (e) {
-        console.warn('Admins fetch note for backup:', e);
+        console.warn('Admins fetch note from adminSettings/permissions:', e);
       }
 
+      if (!adminsList.length) {
+        try {
+          const admSnap = await getDoc(doc(db, 'systemSettings', 'adminDirectory'));
+          if (admSnap.exists()) {
+            adminsList = admSnap.data()?.admins || admSnap.data()?.users || [];
+          }
+        } catch (_) {}
+      }
+
+      if (!adminsList.length) {
+        try {
+          const admSnap2 = await getDoc(doc(db, 'site', 'admins'));
+          if (admSnap2.exists()) adminsList = admSnap2.data()?.admins || [];
+        } catch (_) {}
+      }
+
+      if (!adminsList.length) {
+        try {
+          const cached = localStorage.getItem('hss_admin_users_permissions_v1');
+          if (cached) {
+            const parsed = JSON.parse(cached);
+            if (Array.isArray(parsed) && parsed.length > 0) adminsList = parsed;
+          }
+        } catch (_) {}
+      }
+
+      // 6. Fetch practicals evaluation batches
+      let practicalsList = [];
       try {
         const pracSnap = await getDocs(collection(db, 'practicalsData'));
         pracSnap.forEach(d => {
-          const pData = d.data();
-          practicalsList.push({ id: d.id, ...pData });
+          practicalsList.push({ id: d.id, ...d.data() });
         });
       } catch (e) {
         console.warn('Practicals fetch note for backup:', e);
@@ -7584,68 +7743,116 @@ export default function AdvancedReports({
 
       const wb = XLSX.utils.book_new();
 
-      // --- SHEET 1: Student_Admissions ---
+      // --- SHEET 1: Student_Admissions (47 Standardized Columns) ---
       const studentHeaders = [
         'S.No.', 'Class Roll No', 'Admission No', 'Form No', 'Class', 'Session',
-        'Board Reg No', "Student's Name", "Father's Name", "Mother's Name",
-        'Aadhaar No', "Father's Aadhaar", 'PEN No', 'Date of Birth', 'Address / Village',
-        'Gender', 'Category', 'Stream', 'Subjects', 'Mobile (Student)', 'Mobile (Parent)',
-        'Admission Date', 'Status'
+        'Stream', 'Board Reg No', "Student's Name", "Father's Name", "Mother's Name",
+        'Date of Birth', 'Gender', 'Category', 'PEN No', 'Aadhaar No', "Father's Aadhaar",
+        'Mobile (Student)', 'Mobile (Parent)', 'Email Address', 'Permanent Address / Village',
+        'Tehsil', 'District', 'PIN Code', 'Subject 1', 'Subject 2', 'Subject 3',
+        'Subject 4', 'Subject 5', 'Subject 6', 'Composite Subjects',
+        'Previous School', 'Previous Exam Roll No', 'Previous Marks Obtained',
+        'Previous Max Marks', 'Previous Percentage', 'Previous Division / Result',
+        'Current Exam Roll No', 'Current Result', 'Marks / Reappear (Current)',
+        'Admission Date', 'Status', 'Bank Account No', 'Bank Name', 'IFSC Code', 'Payment Ref / UTR', 'Remarks'
       ];
-      const studentRows = (allStudents || []).map((s, idx) => [
-        s.sno || idx + 1,
-        cleanVal(s.classRollNo),
-        cleanVal(s.admNo),
-        cleanVal(s.formNo),
-        cleanVal(s.class),
-        cleanVal(s.session),
-        cleanVal(s.boardRegNo),
-        cleanVal(s.studentName),
-        cleanVal(s.fatherName),
-        cleanVal(s.motherName),
-        cleanVal(s.aadhar),
-        cleanVal(s.fatherAadhar),
-        cleanVal(s.penNo),
-        cleanVal(s.dob),
-        cleanVal(s.village),
-        cleanVal(s.gender),
-        cleanVal(s.category),
-        cleanVal(s.stream),
-        cleanVal(s.subs),
-        cleanVal(s.mobile),
-        cleanVal(s.parentContact),
-        cleanVal(s.admissionDate || s.timestamp || s.created_at),
-        cleanVal(s.status || 'Active')
-      ]);
+
+      const studentRows = fullCandidateStudents.map((s, idx) => {
+        const sClass = normalizeClassVal(s.class || s.Class || s['Admission sought for class'] || '');
+        const indivSubs = extractIndividualSubjectsList(s, sClass);
+        const formattedSubs = s.subs || s.subjects || s['Subjects'] || formatStudentSubjects(s, sClass);
+        return [
+          s.sno || idx + 1,
+          cleanVal(s.classRollNo || getStudentRollVal(s)),
+          cleanVal(s.admNo || s.admissionNo || s['Admission No'] || s['Adm. No.']),
+          cleanVal(s.formNo || s['Form Number'] || s['Form No.']),
+          cleanVal(sClass),
+          cleanVal(s.session || s.Session),
+          cleanVal(s.stream || s.Stream || resolveStudentStream(s)),
+          cleanVal(extractRegNo(s) || s.boardRegNo || s['Board Registration Number']),
+          cleanVal(getStudentName(s) || s.studentName),
+          cleanVal(getFatherName(s) || s.fatherName),
+          cleanVal(s.motherName || s["Mother's Name"] || s["Mother's Name (as per school records)"]),
+          cleanVal(s.dob || s.DoB || s['Date of Birth'] || s["DoB (as per school records)"] || s['DoB (figures)']),
+          cleanVal(s.gender || s['Gender']),
+          cleanVal(s.category || s['Category'] || s['Cat._JKBOSE'] || s['Social category']),
+          cleanVal(s.penNo || s.pen || s['PEN No'] || s['PEN No.'] || s['PEN']),
+          cleanVal(s.aadhar || s.aadhaar || s.aadhaarNo || s.aadharNo || s['Aadhar No.'] || s['Aadhaar Number'] || s['Aadhaar No.']),
+          cleanVal(s.fatherAadhar || s.fatherAadhaar || s["Father's Aadhar No."] || s["Father's Aadhaar No."]),
+          cleanVal(s.mobile || s.phone || s['Mobile No.'] || s['Mobile Number'] || s["Mobile No. (with working WhatsApp)"] || s["Student's Contact"]),
+          cleanVal(s.parentContact || s.alternateMobile || s['Alternate Mobile No.'] || s["Parent's Contact"] || s["Parent's Mobile No."]),
+          cleanVal(s.email || s.email1 || s['Email Address'] || s['Email']),
+          cleanVal(s.residence || s.village || s.address || s['Residence (Village, District)'] || s['Name of your village'] || s['Village/Town'] || s['Permanent Address']),
+          cleanVal(s.tehsil || s['Tehsil']),
+          cleanVal(s.district || s['District']),
+          cleanVal(s.pinCode || s.pincode || s['PIN code'] || s['Pin Code'] || s['Pincode']),
+          cleanVal(s.subjects1 || indivSubs[0] || s['Subjects1']),
+          cleanVal(s.subjects2 || indivSubs[1] || s['Subjects2']),
+          cleanVal(s.subjects3 || indivSubs[2] || s['Subjects3']),
+          cleanVal(s.subjects4 || indivSubs[3] || s['Subjects4']),
+          cleanVal(s.subjects5 || indivSubs[4] || s['Subjects5']),
+          cleanVal(s.subjects6 || s.subject6 || indivSubs[5] || s['Subject6'] || s['Subjects6']),
+          cleanVal(formattedSubs),
+          cleanVal(s.prevSchool || s['Previous School'] || s['Name of the Institution last attended'] || s['Previous School Name']),
+          cleanVal(s.prevExamRollNo || s.prevRollNo || s['Exam R.No. (Prev.)'] || s['Roll No. (Class 10th)'] || s['Previous Roll No']),
+          cleanVal(s.prevMarksObt || s['Marks Obt. (Prev.)'] || s['Marks Obtained (Class 10th)']),
+          cleanVal(s.prevMaxMarks || s['Max. Marks (Prev.)'] || s['Max Marks (Class 10th)']),
+          cleanVal(s.prevPercentage || s['%age (Prev.)'] || s['Percentage (Class 10th)']),
+          cleanVal(s.prevDivision || s.prevResultMarks || s['Div/Distinc (Prev.)'] || s['Previous Result / Marks']),
+          cleanVal(s.currExamRollNo || s['Exam R.No. (Current)'] || s.boardRoll || s.boardRollNo),
+          cleanVal(s.currResult || s['Result (Current)'] || s.result),
+          cleanVal(s.currMarksReapp || s['Marks/Reapp (Current)']),
+          cleanVal(s.admDate || s.admissionDate || s.onlineSubmDate || s['Adm. Date'] || s['Online Subm. Date'] || s.timestamp),
+          cleanVal(getStudentEffectiveStatus(s) || s.status || s['Status'] || 'Active'),
+          cleanVal(s.bankAccount || s['Bank Account No.'] || s.paymentRef || s.utrNo || s['Payment Reference']),
+          cleanVal(s.bankName || s['Bank Name'] || s['Name of Bank']),
+          cleanVal(s.ifsc || s['IFSC code'] || s['IFSC Code']),
+          cleanVal(s.paymentRef || s.utrNo || s['Payment Reference']),
+          cleanVal(s.remarks || s['Remarks'])
+        ];
+      });
+
       const wsStudents = XLSX.utils.aoa_to_sheet([studentHeaders, ...studentRows]);
       wsStudents['!cols'] = autoColWidths(studentHeaders, studentRows);
       XLSX.utils.book_append_sheet(wb, wsStudents, 'Student_Admissions');
 
-      // --- SHEET 2: Faculty_Directory ---
-      const facultyHeaders = ['S.No.', 'Full Name', 'Designation', 'Department / Stream', 'Qualification', 'Phone Number', 'Email Address', 'Status'];
+      // --- SHEET 2: Faculty_Directory (12 Comprehensive Columns) ---
+      const facultyHeaders = [
+        'S.No.', 'Full Name', 'Designation', 'Department', 'Subject / Stream',
+        'Highest Qualification', 'Phone / Mobile Number', 'Email Address',
+        'Assigned Classes', 'Assigned Subjects', 'Status', 'Photo Reference'
+      ];
       const facultyRows = facultyList.map((f, idx) => [
         idx + 1,
-        cleanVal(f.name || f.fullName),
-        cleanVal(f.designation || f.post),
-        cleanVal(f.department || f.stream || f.subject),
+        cleanVal(f.name || f.fullName || f.staffName),
+        cleanVal(f.designation || f.post || f.role),
+        cleanVal(f.department),
+        cleanVal(f.subject || f.teachingSubject || f.stream),
         cleanVal(f.qualification || f.highestDegree),
         cleanVal(f.phone || f.mobile || f.contact),
         cleanVal(f.email),
-        cleanVal(f.status || 'Active')
+        cleanVal(Array.isArray(f.assignedClasses) ? f.assignedClasses.join(', ') : (f.assignedClasses || '')),
+        cleanVal(Array.isArray(f.assignedSubjects) ? f.assignedSubjects.join(', ') : (f.assignedSubjects || '')),
+        cleanVal(f.status || 'Active'),
+        cleanVal(f.photo || f.photoUrl || '')
       ]);
       const wsFaculty = XLSX.utils.aoa_to_sheet([facultyHeaders, ...facultyRows]);
       wsFaculty['!cols'] = autoColWidths(facultyHeaders, facultyRows);
       XLSX.utils.book_append_sheet(wb, wsFaculty, 'Faculty_Directory');
 
-      // --- SHEET 3: Notices_Circulars ---
-      const noticeHeaders = ['S.No.', 'Title / Subject', 'Category', 'Publication Date', 'Description / Text', 'Attachment URL', 'Status'];
+      // --- SHEET 3: Notices_Circulars (8 Columns) ---
+      const noticeHeaders = [
+        'S.No.', 'Title / Subject', 'Category', 'Publication Date',
+        'Description / Content', 'Attachment Link / URL', 'Display Days', 'Status'
+      ];
       const noticeRows = noticesList.map((n, idx) => [
         idx + 1,
-        cleanVal(n.title || n.subject || 'Circular'),
-        cleanVal(n.category || 'General'),
+        cleanVal(n.title || n.subject || 'Circular Announcement'),
+        cleanVal(n.category || 'General Notice'),
         cleanVal(n.date || n.timestamp || ''),
         cleanVal(n.text || n.description || n.content || ''),
         cleanVal(n.url || n.link || n.pdfUrl || ''),
+        cleanVal(n.days || ''),
         cleanVal(n.status || (n.archived ? 'Archived' : 'Active'))
       ]);
       const wsNotices = XLSX.utils.aoa_to_sheet([noticeHeaders, ...noticeRows]);
@@ -7653,22 +7860,41 @@ export default function AdvancedReports({
       XLSX.utils.book_append_sheet(wb, wsNotices, 'Notices_Circulars');
 
       // --- SHEET 4: Site_Settings ---
-      const settingHeaders = ['Configuration Parameter', 'Configured Value'];
-      const settingRows = Object.entries(settingsObj).map(([k, v]) => [
-        cleanVal(k),
-        cleanVal(v)
-      ]);
+      const settingHeaders = ['Configuration Parameter / Category', 'Configured Value'];
+      const settingRows = [];
+      const appendSettingValues = (obj, prefix = '') => {
+        Object.entries(obj).forEach(([k, v]) => {
+          const fullK = prefix ? `${prefix}.${k}` : k;
+          if (v !== null && typeof v === 'object' && !Array.isArray(v)) {
+            appendSettingValues(v, fullK);
+          } else {
+            settingRows.push([
+              cleanVal(fullK),
+              cleanVal(Array.isArray(v) ? JSON.stringify(v) : v)
+            ]);
+          }
+        });
+      };
+      appendSettingValues(settingsObj);
       const wsSettings = XLSX.utils.aoa_to_sheet([settingHeaders, ...settingRows]);
       wsSettings['!cols'] = autoColWidths(settingHeaders, settingRows);
       XLSX.utils.book_append_sheet(wb, wsSettings, 'Site_Settings');
 
-      // --- SHEET 5: Admin_Accounts ---
-      const adminHeaders = ['S.No.', 'Admin Email', 'Assigned Role', 'Allowed Console Tabs', 'Account Status'];
+      // --- SHEET 5: Admin_Accounts (9 Columns) ---
+      const adminHeaders = [
+        'S.No.', 'Full Name', 'Admin Email', 'Assigned Role',
+        'Authorized Modules / Tabs', 'Assigned Classes', 'Assigned Subjects',
+        'Contact Mobile', 'Account Status'
+      ];
       const adminRows = adminsList.map((a, idx) => [
         idx + 1,
+        cleanVal(a.name || a.fullName || 'Administrator'),
         cleanVal(a.email || (typeof a === 'string' ? a : '')),
-        cleanVal(a.role || 'Administrator'),
-        cleanVal(Array.isArray(a.tabs) ? a.tabs.join(', ') : (a.allowedTabs || 'All Tabs')),
+        cleanVal(a.role || 'Admin'),
+        cleanVal(Array.isArray(a.perms) ? a.perms.join(', ') : (Array.isArray(a.tabs) ? a.tabs.join(', ') : (a.allowedTabs || 'All Modules'))),
+        cleanVal(Array.isArray(a.assignedClasses) ? a.assignedClasses.join(', ') : (a.assignedClasses || 'All Classes')),
+        cleanVal(Array.isArray(a.assignedSubjects) ? a.assignedSubjects.join(', ') : (a.assignedSubjects || a.subject || 'All Subjects')),
+        cleanVal(a.mobile || a.phone || ''),
         cleanVal(a.status || 'Active')
       ]);
       const wsAdmins = XLSX.utils.aoa_to_sheet([adminHeaders, ...adminRows]);
@@ -7696,12 +7922,15 @@ export default function AdvancedReports({
         ['Institution Name', 'Govt. Higher Secondary School Shangus'],
         ['Portal System', 'Enterprise School Management & Admission Suite'],
         ['Export Timestamp', new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })],
-        ['Total Students in Database', String((allStudents || []).length)],
+        ['Total Students in Database Backup', String(fullCandidateStudents.length)],
+        ['Active Admissions in Scope', String((currentAdmissions || []).length)],
+        ['Historical Digitized Records', String(Math.max(0, fullCandidateStudents.length - (currentAdmissions || []).length))],
         ['Total Faculty Members', String(facultyList.length)],
         ['Total Notices & Circulars', String(noticesList.length)],
+        ['Total Admin Accounts', String(adminsList.length)],
         ['Total Practicals Batches', String(practicalsList.length)],
         ['Platform Architecture', 'React 19, Cloud Firestore, SheetJS Enterprise Engine'],
-        ['Backup Engine Version', '2026.1 (Multi-Sheet Consolidated XLSX)']
+        ['Backup Engine Version', '2026.2 (Multi-Sheet Comprehensive XLSX)']
       ];
       const wsMeta = XLSX.utils.aoa_to_sheet([metaHeaders, ...metaRows]);
       wsMeta['!cols'] = autoColWidths(metaHeaders, metaRows);
@@ -7712,8 +7941,8 @@ export default function AdvancedReports({
       const filename = `HSS_Shangus_Full_Database_Backup_${dateStr}.xlsx`;
       XLSX.writeFile(wb, filename);
 
-      logAdminActivity('Full Database Backup Exported', `Generated complete multi-sheet Excel backup (${filename}) containing ${(allStudents || []).length} students, ${facultyList.length} faculty, ${noticesList.length} notices, and system settings.`);
-      showToast(`✅ Master Database Backup successfully generated & downloaded (${filename})!`, 'success');
+      logAdminActivity('Full Database Backup Exported', `Generated complete multi-sheet Excel backup (${filename}) containing ${fullCandidateStudents.length} students, ${facultyList.length} faculty, ${noticesList.length} notices, and system settings.`);
+      showToast(`✅ Master Database Backup successfully generated & downloaded (${filename}) with ${fullCandidateStudents.length} students and ${facultyList.length} faculty!`, 'success');
     } catch (err) {
       console.error('Database backup error:', err);
       showToast('Error generating full database backup: ' + (err.message || 'Unknown error'), 'error');
@@ -7727,40 +7956,94 @@ export default function AdvancedReports({
     try {
       showToast('Compiling Full JSON Disaster Recovery Backup...', 'info');
 
-      let facultyList = [];
-      let noticesList = [];
-      let settingsObj = {};
-      let adminsList = [];
-      let practicalsList = [];
-
+      // 1. Compile full student records
+      let fullCandidateStudents = allStudents || [];
       try {
-        const facSnap = await getDoc(doc(db, 'systemSettings', 'facultyPrivate'));
-        if (facSnap.exists()) facultyList = facSnap.data()?.members || [];
-        else {
-          const facSnap2 = await getDoc(doc(db, 'site', 'faculty'));
-          if (facSnap2.exists()) facultyList = facSnap2.data()?.members || [];
+        if (!window._hssMasterRegistersIsFull) {
+          const fullChunks = await getMasterRegistersScoped({ forceAll: true });
+          if (Array.isArray(fullChunks) && fullChunks.length > 0) {
+            const formatted = flattenAndFormatMasterRegisters(fullChunks);
+            setMasterHistoricalRecords(formatted);
+            const histMap = new Map();
+            formatted.forEach((item, idx) => {
+              const key = item.boardRegNo || item.formNo || item.classRollNo ? `${item.session || ''}_${item.class || ''}_${item.boardRegNo || item.formNo || item.classRollNo}_${idx}` : `h_${idx}`;
+              histMap.set(key, item);
+            });
+            fullCandidateStudents = [...(currentAdmissions || []), ...Array.from(histMap.values())];
+          }
         }
       } catch (_) {}
 
+      // 2. Load faculty with items support
+      let facultyList = [];
+      try {
+        const facSnap = await getDoc(doc(db, 'systemSettings', 'facultyPrivate'));
+        if (facSnap.exists()) {
+          const data = facSnap.data();
+          const list = data?.items || data?.members || data?.faculty;
+          if (Array.isArray(list) && list.length > 0) facultyList = list;
+        } else {
+          const facSnap2 = await getDoc(doc(db, 'site', 'faculty'));
+          if (facSnap2.exists()) {
+            const data2 = facSnap2.data();
+            const list2 = data2?.items || data2?.members || data2?.faculty;
+            if (Array.isArray(list2) && list2.length > 0) facultyList = list2;
+          }
+        }
+      } catch (_) {}
+
+      if (!facultyList.length) {
+        try {
+          const cached = localStorage.getItem('site_faculty') || localStorage.getItem('hss_public_faculty');
+          if (cached) {
+            const parsed = JSON.parse(cached);
+            if (Array.isArray(parsed) && parsed.length > 0) facultyList = parsed;
+          }
+        } catch (_) {}
+      }
+
+      if (!facultyList.length) {
+        try {
+          const r = await fetch('/slides/faculty.json?t=' + Date.now(), { cache: 'no-cache' });
+          if (r.ok) {
+            const data = await r.json();
+            if (Array.isArray(data) && data.length > 0) facultyList = data;
+          }
+        } catch (_) {}
+      }
+
+      // 3. Load notices
+      let noticesList = [];
       try {
         const notSnap = await getDoc(doc(db, 'site', 'notices'));
         if (notSnap.exists()) noticesList = notSnap.data();
       } catch (_) {}
 
+      // 4. Load settings
+      let settingsObj = {};
       try {
         const setSnap = await getDoc(doc(db, 'site', 'settings'));
         if (setSnap.exists()) settingsObj = setSnap.data() || {};
       } catch (_) {}
 
+      // 5. Load admins
+      let adminsList = [];
       try {
-        const admSnap = await getDoc(doc(db, 'systemSettings', 'adminDirectory'));
-        if (admSnap.exists()) adminsList = admSnap.data()?.admins || [];
-        else {
-          const admSnap2 = await getDoc(doc(db, 'site', 'admins'));
-          if (admSnap2.exists()) adminsList = admSnap2.data()?.admins || [];
+        const permSnap = await getDoc(doc(db, 'adminSettings', 'permissions'));
+        if (permSnap.exists() && Array.isArray(permSnap.data()?.users)) {
+          adminsList = permSnap.data().users;
+        } else {
+          const admSnap = await getDoc(doc(db, 'systemSettings', 'adminDirectory'));
+          if (admSnap.exists()) adminsList = admSnap.data()?.admins || admSnap.data()?.users || [];
+          else {
+            const admSnap2 = await getDoc(doc(db, 'site', 'admins'));
+            if (admSnap2.exists()) adminsList = admSnap2.data()?.admins || [];
+          }
         }
       } catch (_) {}
 
+      // 6. Load practicals
+      let practicalsList = [];
       try {
         const pracSnap = await getDocs(collection(db, 'practicalsData'));
         pracSnap.forEach(d => practicalsList.push({ id: d.id, ...d.data() }));
@@ -7770,11 +8053,13 @@ export default function AdvancedReports({
         meta: {
           institution: 'Govt. Higher Secondary School Shangus',
           system: 'GHSS Shangus Enterprise Portal',
-          version: '2026.1',
+          version: '2026.2',
           exportTimestamp: new Date().toISOString(),
-          totalStudents: (allStudents || []).length
+          totalStudents: fullCandidateStudents.length,
+          totalFaculty: facultyList.length,
+          totalAdmins: adminsList.length
         },
-        students: allStudents || [],
+        students: fullCandidateStudents,
         faculty: facultyList,
         notices: noticesList,
         settings: settingsObj,
@@ -7794,8 +8079,8 @@ export default function AdvancedReports({
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
 
-      logAdminActivity('Full JSON Disaster Recovery Backup', `Exported full database JSON containing ${(allStudents || []).length} students, faculty, notices, and system rules.`);
-      showToast('✅ Full JSON Disaster Recovery Backup downloaded successfully!', 'success');
+      logAdminActivity('Full JSON Disaster Recovery Backup', `Exported full database JSON containing ${fullCandidateStudents.length} students, ${facultyList.length} faculty, notices, and system rules.`);
+      showToast(`✅ Full JSON Disaster Recovery Backup downloaded successfully (${fullCandidateStudents.length} students)!`, 'success');
     } catch (err) {
       console.error('JSON backup error:', err);
       showToast('Failed to export JSON disaster recovery backup.', 'error');
@@ -7845,14 +8130,15 @@ export default function AdvancedReports({
                 await setDoc(doc(db, 'site', 'settings'), backupData.settings, { merge: true });
               }
               if (hasFaculty) {
-                await setDoc(doc(db, 'systemSettings', 'facultyPrivate'), { members: backupData.faculty }, { merge: true });
-                await setDoc(doc(db, 'site', 'faculty'), { members: backupData.faculty }, { merge: true });
+                await setDoc(doc(db, 'systemSettings', 'facultyPrivate'), { items: backupData.faculty, members: backupData.faculty }, { merge: true });
+                await setDoc(doc(db, 'site', 'faculty'), { items: backupData.faculty, members: backupData.faculty }, { merge: true });
               }
               if (hasNotices) {
                 const nPayload = typeof backupData.notices === 'object' ? backupData.notices : { text: String(backupData.notices) };
                 await setDoc(doc(db, 'site', 'notices'), nPayload, { merge: true });
               }
               if (hasAdmins) {
+                await setDoc(doc(db, 'adminSettings', 'permissions'), { users: backupData.admins }, { merge: true });
                 await setDoc(doc(db, 'systemSettings', 'adminDirectory'), { admins: backupData.admins }, { merge: true });
               }
               logAdminActivity('Database Restore Executed', 'Restored database configurations from JSON backup file.');
@@ -7969,7 +8255,18 @@ export default function AdvancedReports({
         return m && parseInt(m[0], 10) < 2022;
       });
 
-      let candidatePool = allStudents;
+      let candidatePool = [];
+      if (masterHistoricalRecords && masterHistoricalRecords.length > 0) {
+        const histMap = new Map();
+        masterHistoricalRecords.forEach((item, idx) => {
+          const key = item.boardRegNo || item.formNo || item.classRollNo ? `${item.session || ''}_${item.class || ''}_${item.boardRegNo || item.formNo || item.classRollNo}_${idx}` : `h_${idx}`;
+          histMap.set(key, item);
+        });
+        candidatePool = [...(currentAdmissions || []), ...Array.from(histMap.values())];
+      } else {
+        candidatePool = allStudents || [];
+      }
+
       if (needsFull && !window._hssMasterRegistersIsFull) {
         showToast('Hydrating complete 2006–2026 master register archives...', 'info');
         const fullChunks = await getMasterRegistersScoped({ forceAll: true });
@@ -8047,28 +8344,36 @@ export default function AdvancedReports({
         'Category',
         'PEN No',
         'Aadhaar No',
-        'Mobile No',
-        'Alternate Mobile No',
-        'Email',
-        'Permanent Address',
+        "Father's Aadhaar No",
+        'Mobile (Student)',
+        'Mobile (Parent)',
+        'Email Address',
+        'Permanent Address / Village',
         'Tehsil',
         'District',
-        'Pincode',
-        'Subjects 1',
-        'Subjects 2',
-        'Subjects 3',
-        'Subjects 4',
-        'Subjects 5',
-        'Subjects 6',
+        'PIN Code',
+        'Subject 1',
+        'Subject 2',
+        'Subject 3',
+        'Subject 4',
+        'Subject 5',
+        'Subject 6',
+        'Composite Subjects',
         'Previous School',
-        'Previous Class',
-        'Previous Session',
-        'Previous Roll No',
-        'Previous Result / Marks',
+        'Previous Exam Roll No',
+        'Previous Marks Obtained',
+        'Previous Max Marks',
+        'Previous Percentage',
+        'Previous Division / Result',
+        'Current Exam Roll No',
         'Current Result',
-        'Marks/Reappear (Current)',
+        'Marks / Reappear (Current)',
         'Admission Date',
         'Status',
+        'Bank Account No',
+        'Bank Name',
+        'IFSC Code',
+        'Payment Ref / UTR',
         'Remarks'
       ];
 
@@ -8078,47 +8383,60 @@ export default function AdvancedReports({
         return (str === '' || str === 'null' || str === 'undefined') ? '—' : str;
       };
 
-      const formatStudentRow = (s, idx) => [
-        idx + 1,
-        cleanVal(getStudentRollVal(s)),
-        cleanVal(s.admNo || s.admissionNo || s['Admission No']),
-        cleanVal(s.formNo || s['Form Number'] || s['Form No']),
-        cleanVal(normalizeClassVal(s.class || s.Class)),
-        cleanVal(s.session || s.Session),
-        cleanVal(s.stream || s.Stream),
-        cleanVal(extractRegNoClean(s) || s.boardRegNo || s['Board Registration Number']),
-        cleanVal(getStudentName(s)),
-        cleanVal(s.fatherName || s["Father's Name"]),
-        cleanVal(s.motherName || s["Mother's Name"]),
-        cleanVal(s.dob || s['Date of Birth']),
-        cleanVal(s.gender || s['Gender']),
-        cleanVal(s.category || s['Category']),
-        cleanVal(s.penNo || s['PEN No'] || s['PEN No.'] || s['PEN']),
-        cleanVal(s.aadhaarNo || s['Aadhaar Number'] || s['Aadhaar No.']),
-        cleanVal(s.mobile || s.phone || s['Mobile No.'] || s['Mobile Number']),
-        cleanVal(s.alternateMobile || s['Alternate Mobile No.']),
-        cleanVal(s.email || s['Email Address']),
-        cleanVal(s.address || s['Permanent Address']),
-        cleanVal(s.tehsil || s['Tehsil']),
-        cleanVal(s.district || s['District']),
-        cleanVal(s.pincode || s['Pincode']),
-        cleanVal(s.subjects1 || s['Subjects1']),
-        cleanVal(s.subjects2 || s['Subjects2']),
-        cleanVal(s.subjects3 || s['Subjects3']),
-        cleanVal(s.subjects4 || s['Subjects4']),
-        cleanVal(s.subjects5 || s['Subjects5']),
-        cleanVal(s.subjects6 || s.subject6 || s['Subjects6']),
-        cleanVal(s.prevSchool || s['Previous School Name']),
-        cleanVal(s.prevClass || s['Previous Class']),
-        cleanVal(s.prevSession || s['Previous Session']),
-        cleanVal(s.prevRollNo || s['Previous Roll No']),
-        cleanVal(s.prevResultMarks || s['Previous Result / Marks']),
-        cleanVal(s.currResult || s['Result (Current)']),
-        cleanVal(s.currMarksReapp || s['Marks/Reapp (Current)']),
-        cleanVal(s.admissionDate || s.admDate || s.timestamp || s.created_at),
-        cleanVal(s.status || s['Status'] || 'Active'),
-        cleanVal(s.remarks || s['Remarks'])
-      ];
+      const formatStudentRow = (s, idx) => {
+        const sClass = normalizeClassVal(s.class || s.Class || s['Admission sought for class'] || '');
+        const indivSubs = extractIndividualSubjectsList(s, sClass);
+        const formattedSubs = s.subs || s.subjects || s['Subjects'] || formatStudentSubjects(s, sClass);
+        return [
+          idx + 1,
+          cleanVal(s.classRollNo || getStudentRollVal(s)),
+          cleanVal(s.admNo || s.admissionNo || s['Admission No'] || s['Adm. No.']),
+          cleanVal(s.formNo || s['Form Number'] || s['Form No.']),
+          cleanVal(sClass),
+          cleanVal(s.session || s.Session),
+          cleanVal(s.stream || s.Stream || resolveStudentStream(s)),
+          cleanVal(extractRegNo(s) || s.boardRegNo || s['Board Registration Number']),
+          cleanVal(getStudentName(s) || s.studentName),
+          cleanVal(getFatherName(s) || s.fatherName),
+          cleanVal(s.motherName || s["Mother's Name"] || s["Mother's Name (as per school records)"]),
+          cleanVal(s.dob || s.DoB || s['Date of Birth'] || s["DoB (as per school records)"] || s['DoB (figures)']),
+          cleanVal(s.gender || s['Gender']),
+          cleanVal(s.category || s['Category'] || s['Cat._JKBOSE'] || s['Social category']),
+          cleanVal(s.penNo || s.pen || s['PEN No'] || s['PEN No.'] || s['PEN']),
+          cleanVal(s.aadhar || s.aadhaar || s.aadhaarNo || s.aadharNo || s['Aadhar No.'] || s['Aadhaar Number'] || s['Aadhaar No.']),
+          cleanVal(s.fatherAadhar || s.fatherAadhaar || s["Father's Aadhar No."] || s["Father's Aadhaar No."]),
+          cleanVal(s.mobile || s.phone || s['Mobile No.'] || s['Mobile Number'] || s["Mobile No. (with working WhatsApp)"] || s["Student's Contact"]),
+          cleanVal(s.parentContact || s.alternateMobile || s['Alternate Mobile No.'] || s["Parent's Contact"] || s["Parent's Mobile No."]),
+          cleanVal(s.email || s.email1 || s['Email Address'] || s['Email']),
+          cleanVal(s.residence || s.village || s.address || s['Residence (Village, District)'] || s['Name of your village'] || s['Village/Town'] || s['Permanent Address']),
+          cleanVal(s.tehsil || s['Tehsil']),
+          cleanVal(s.district || s['District']),
+          cleanVal(s.pinCode || s.pincode || s['PIN code'] || s['Pin Code'] || s['Pincode']),
+          cleanVal(s.subjects1 || indivSubs[0] || s['Subjects1']),
+          cleanVal(s.subjects2 || indivSubs[1] || s['Subjects2']),
+          cleanVal(s.subjects3 || indivSubs[2] || s['Subjects3']),
+          cleanVal(s.subjects4 || indivSubs[3] || s['Subjects4']),
+          cleanVal(s.subjects5 || indivSubs[4] || s['Subjects5']),
+          cleanVal(s.subjects6 || s.subject6 || indivSubs[5] || s['Subject6'] || s['Subjects6']),
+          cleanVal(formattedSubs),
+          cleanVal(s.prevSchool || s['Previous School'] || s['Name of the Institution last attended'] || s['Previous School Name']),
+          cleanVal(s.prevExamRollNo || s.prevRollNo || s['Exam R.No. (Prev.)'] || s['Roll No. (Class 10th)'] || s['Previous Roll No']),
+          cleanVal(s.prevMarksObt || s['Marks Obt. (Prev.)'] || s['Marks Obtained (Class 10th)']),
+          cleanVal(s.prevMaxMarks || s['Max. Marks (Prev.)'] || s['Max Marks (Class 10th)']),
+          cleanVal(s.prevPercentage || s['%age (Prev.)'] || s['Percentage (Class 10th)']),
+          cleanVal(s.prevDivision || s.prevResultMarks || s['Div/Distinc (Prev.)'] || s['Previous Result / Marks']),
+          cleanVal(s.currExamRollNo || s['Exam R.No. (Current)'] || s.boardRoll || s.boardRollNo),
+          cleanVal(s.currResult || s['Result (Current)'] || s.result),
+          cleanVal(s.currMarksReapp || s['Marks/Reapp (Current)']),
+          cleanVal(s.admDate || s.admissionDate || s.onlineSubmDate || s['Adm. Date'] || s['Online Subm. Date'] || s.timestamp),
+          cleanVal(getStudentEffectiveStatus(s) || s.status || s['Status'] || 'Active'),
+          cleanVal(s.bankAccount || s['Bank Account No.'] || s.paymentRef || s.utrNo || s['Payment Reference']),
+          cleanVal(s.bankName || s['Bank Name'] || s['Name of Bank']),
+          cleanVal(s.ifsc || s['IFSC code'] || s['IFSC Code']),
+          cleanVal(s.paymentRef || s.utrNo || s['Payment Reference']),
+          cleanVal(s.remarks || s['Remarks'])
+        ];
+      };
 
       const autoColWidths = (headers, rows) => {
         return headers.map((h, colIdx) => {
@@ -8271,29 +8589,43 @@ export default function AdvancedReports({
       showToast('Preparing faculty.json...', 'info');
       let facultyList = [];
       try {
-        const local = localStorage.getItem('hss_public_faculty') || localStorage.getItem('site_faculty');
-        if (local) facultyList = JSON.parse(local);
+        const facSnap = await getDoc(doc(db, 'systemSettings', 'facultyPrivate'));
+        if (facSnap.exists()) {
+          const data = facSnap.data();
+          const list = data?.items || data?.members || data?.faculty;
+          if (Array.isArray(list) && list.length > 0) facultyList = list;
+        }
       } catch (_) {}
 
       if (!facultyList.length) {
-        const facSnap = await getDoc(doc(db, 'systemSettings', 'facultyPrivate'));
-        if (facSnap.exists()) {
-          facultyList = facSnap.data()?.members || facSnap.data()?.faculty || [];
-        } else {
+        try {
           const facSnap2 = await getDoc(doc(db, 'site', 'faculty'));
-          if (facSnap2.exists()) facultyList = facSnap2.data()?.members || facSnap2.data()?.faculty || [];
-        }
+          if (facSnap2.exists()) {
+            const data2 = facSnap2.data();
+            const list2 = data2?.items || data2?.members || data2?.faculty;
+            if (Array.isArray(list2) && list2.length > 0) facultyList = list2;
+          }
+        } catch (_) {}
       }
 
       if (!facultyList.length) {
-        const res = await fetch('/slides/faculty.json');
-        if (res.ok) facultyList = await res.json();
+        try {
+          const local = localStorage.getItem('hss_public_faculty') || localStorage.getItem('site_faculty');
+          if (local) facultyList = JSON.parse(local);
+        } catch (_) {}
+      }
+
+      if (!facultyList.length) {
+        try {
+          const res = await fetch('/slides/faculty.json?t=' + Date.now(), { cache: 'no-cache' });
+          if (res.ok) facultyList = await res.json();
+        } catch (_) {}
       }
 
       const cleanedFaculty = toPublicFacultyList(facultyList);
       const content = JSON.stringify(cleanedFaculty, null, 2);
       downloadFileBlob('faculty.json', content, 'application/json');
-      showToast('✅ faculty.json downloaded successfully!', 'success');
+      showToast(`✅ faculty.json downloaded successfully (${cleanedFaculty.length} staff records)!`, 'success');
     } catch (err) {
       showToast('Error downloading faculty.json: ' + err.message, 'error');
     }
@@ -12838,72 +13170,87 @@ export default function AdvancedReports({
 
       {/* MODAL 2: Admin Tools (🛠 Tools) */}
       {showToolsModal && createPortal(
-        <div className="fixed inset-0 z-[99999] flex items-center justify-center p-1.5 sm:p-4 bg-slate-950/80 backdrop-blur-md animate-fadeIn overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="administrative-tools-title">
-          <div className="w-full max-w-5xl p-2.5 sm:p-4 rounded-xl sm:rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-2xl space-y-2.5 max-h-[96vh] sm:max-h-[92vh] overflow-y-auto my-auto">
-            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2">
-              <div className="flex items-center gap-2">
-                <div className="p-1 rounded-md bg-amber-500/15 text-amber-600 dark:text-amber-400">
-                  <Wrench size={16} />
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center p-2 sm:p-4 bg-slate-950/80 backdrop-blur-md animate-fadeIn" role="dialog" aria-modal="true" aria-labelledby="administrative-tools-title">
+          <div className="w-full max-w-5xl rounded-2xl border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-2xl flex flex-col max-h-[94vh] sm:max-h-[90vh] overflow-hidden my-auto animate-scaleUp">
+            
+            {/* ─── FROZEN / PINNED HEADER & SUB-NAV (Stays visible on scroll down) ─── */}
+            <div className="shrink-0 p-3 sm:p-4 pb-2.5 border-b border-slate-200/90 dark:border-slate-800 bg-white/98 dark:bg-slate-900/98 backdrop-blur-md space-y-2.5 z-20 shadow-xs">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-1.5 rounded-xl bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30 shadow-2xs">
+                    <Wrench size={17} />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 id="administrative-tools-title" className="font-black text-sm sm:text-base text-slate-900 dark:text-white leading-tight">
+                        Administrative Tools Suite
+                      </h3>
+                      <span className="text-[9.5px] font-black px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-500/30 uppercase tracking-wider">
+                        Enterprise
+                      </span>
+                    </div>
+                    <p className="text-[10.5px] text-slate-500 dark:text-slate-400 font-medium hidden sm:block">
+                      Bulk Processing, Master Register Exporters, Photos & Cloud Backups
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <h3 id="administrative-tools-title" className="font-black text-sm sm:text-base text-slate-900 dark:text-white leading-tight">
-                    Administrative Tools Suite
-                  </h3>
-                  <p className="text-[10.5px] text-slate-500 font-bold hidden sm:block">
-                    Bulk Processing, Master Register Exporters, Photos & Cloud Backups
-                  </p>
-                </div>
+
+                {/* Frozen Close Button */}
+                <button
+                  type="button"
+                  onClick={() => setShowToolsModal(false)}
+                  className="px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-100/90 hover:bg-rose-50 dark:bg-slate-800 dark:hover:bg-rose-950/40 text-slate-600 hover:text-rose-600 dark:text-slate-300 dark:hover:text-rose-300 transition-all cursor-pointer shadow-2xs hover:scale-105 active:scale-95 flex items-center gap-1.5"
+                  title="Close Administrative Tools (Esc)"
+                  aria-label="Close Administrative Tools"
+                >
+                  <span className="text-[10px] font-bold hidden sm:inline text-slate-500 dark:text-slate-400">Esc</span>
+                  <X size={16} />
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={() => setShowToolsModal(false)}
-                className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 transition-all cursor-pointer"
-                title="Close Administrative Tools"
-              >
-                <X size={17} />
-              </button>
+
+              {/* Tools Sub Navigation */}
+              <div className="flex items-center gap-1 p-1 rounded-xl border border-slate-200/90 dark:border-slate-800 bg-slate-100/90 dark:bg-slate-800/80 text-xs font-black overflow-x-auto no-scrollbar shadow-inner">
+                {[
+                  { id: 'bulk_forms', label: 'Bulk Forms Generator', icon: Printer },
+                  { id: 'db_editor', label: 'Bulk Class & Session', icon: RefreshCw },
+                  { id: 'photo_export', label: 'Bulk Photo Exporter (ZIP)', icon: Camera },
+                  { id: 'photo_manager', label: 'Photo Upload & Sync', icon: Upload },
+                  { id: 'db_backup', label: 'Database Backup & Excel', icon: Database },
+                  { id: 'google_contacts', label: 'Google Contacts CSV', icon: Users, isAction: true },
+                ].map(t => {
+                  const Icon = t.icon;
+                  const isActive = activeToolsTab === t.id;
+                  return (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => {
+                        if (t.id === 'google_contacts') {
+                          setShowToolsModal(false);
+                          setGoogleContactsInitialIds(null);
+                          setShowGoogleContactsModal(true);
+                        } else {
+                          setActiveToolsTab(t.id);
+                        }
+                      }}
+                      className={`py-1.5 px-2.5 sm:px-3 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap text-[11px] sm:text-xs font-black select-none ${
+                        isActive
+                          ? 'bg-amber-600 text-white shadow-xs scale-[1.02]'
+                          : 'text-slate-700 dark:text-slate-300 hover:bg-slate-200/90 dark:hover:bg-slate-700/60'
+                      }`}
+                    >
+                      <Icon size={13} className={isActive ? 'text-white' : 'text-slate-500 dark:text-slate-400'} />
+                      <span>{t.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
-            {/* Tools Sub Navigation */}
-            <div className="flex items-center gap-1 p-0.5 sm:p-1 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-800/80 text-xs font-black overflow-x-auto no-scrollbar">
-              {[
-                { id: 'bulk_forms', label: 'Bulk Forms Generator', icon: Printer },
-                { id: 'db_editor', label: 'Bulk Class & Session', icon: RefreshCw },
-                { id: 'photo_export', label: 'Bulk Photo Exporter (ZIP)', icon: Camera },
-                { id: 'photo_manager', label: 'Photo Upload & Sync', icon: Upload },
-                { id: 'db_backup', label: 'Database Backup & Excel', icon: Database },
-                { id: 'google_contacts', label: 'Google Contacts CSV', icon: Users, isAction: true },
-              ].map(t => {
-                const Icon = t.icon;
-                const isActive = activeToolsTab === t.id;
-                return (
-                  <button
-                    key={t.id}
-                    type="button"
-                    onClick={() => {
-                      if (t.id === 'google_contacts') {
-                        setShowToolsModal(false);
-                        setGoogleContactsInitialIds(null);
-                        setShowGoogleContactsModal(true);
-                      } else {
-                        setActiveToolsTab(t.id);
-                      }
-                    }}
-                    className={`py-1.5 px-2 sm:px-2.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap text-[11px] sm:text-xs font-black select-none ${
-                      isActive
-                        ? 'bg-amber-600 text-white shadow-xs'
-                        : 'text-slate-700 dark:text-slate-300 hover:bg-slate-200/80 dark:hover:bg-slate-700/60'
-                    }`}
-                  >
-                    <Icon size={13} className={isActive ? 'text-white' : 'text-slate-500 dark:text-slate-400'} />
-                    <span>{t.label}</span>
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Tool Content 0: Bulk Forms Generator */}
-            {activeToolsTab === 'bulk_forms' && (
+            {/* ─── SCROLLABLE TAB CONTENT BODY (flex-1 overflow-y-auto) ─── */}
+            <div className="flex-1 overflow-y-auto p-2.5 sm:p-4 space-y-3.5 scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-700 overscroll-contain">
+              {/* Tool Content 0: Bulk Forms Generator */}
+              {activeToolsTab === 'bulk_forms' && (
               <div className="space-y-2.5 p-2.5 sm:p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800">
                 <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2 flex-wrap gap-2">
                   <div>
@@ -14310,52 +14657,56 @@ export default function AdvancedReports({
 
             {/* Tool Content 4: Database Backup & Excel Suite */}
             {activeToolsTab === 'db_backup' && (
-              <div className="space-y-2.5 p-2.5 sm:p-3 rounded-xl bg-slate-50/70 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 animate-fadeIn">
-                <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2 flex-wrap gap-1.5">
+              <div className="space-y-3 p-3 sm:p-3.5 rounded-2xl bg-slate-50/80 dark:bg-slate-950/70 border border-slate-200/90 dark:border-slate-800 animate-fadeIn">
+                <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800/80 pb-2.5 flex-wrap gap-2">
                   <div>
-                    <div className="font-black text-xs sm:text-sm text-slate-900 dark:text-white flex items-center gap-1.5">
-                      <Database size={15} className="text-amber-600" />
+                    <div className="font-black text-xs sm:text-sm text-slate-900 dark:text-white flex items-center gap-2">
+                      <div className="p-1 rounded-lg bg-amber-500/15 text-amber-600 dark:text-amber-400">
+                        <Database size={15} />
+                      </div>
                       <span>Database Backup, Session Master Register & CMS Suite</span>
                     </div>
-                    <p className="text-slate-600 dark:text-slate-400 text-[10.5px] font-medium mt-0.5">
+                    <p className="text-slate-600 dark:text-slate-400 text-[11px] font-medium mt-0.5">
                       Export multi-session master registers (2006–2026), full database workbooks, public website configs, or disaster recovery archives.
                     </p>
                   </div>
                   <div className="flex items-center gap-1.5 text-[11px] font-black">
-                    <span className="px-2 py-0.5 rounded-lg bg-amber-100 dark:bg-amber-950/80 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-700">
-                      Total Students: {allStudents.length}
+                    <span className="px-2.5 py-1 rounded-xl bg-amber-50 dark:bg-amber-950/60 text-amber-900 dark:text-amber-200 border border-amber-300/80 dark:border-amber-700/80 shadow-2xs">
+                      Total Hydrated Students: {allStudents.length}
                     </span>
-                    <span className="px-2 py-0.5 rounded-lg bg-teal-100 dark:bg-teal-950/80 text-teal-900 dark:text-teal-200 border border-teal-300 dark:border-teal-700">
+                    <span className="px-2.5 py-1 rounded-xl bg-teal-50 dark:bg-teal-950/60 text-teal-900 dark:text-teal-200 border border-teal-300/80 dark:border-teal-700/80 shadow-2xs">
                       Filtered: {filteredStudents.length}
                     </span>
                   </div>
                 </div>
 
                 {/* ─── 1. SESSION MASTER REGISTER EXPORTER (2006–2026 MULTI-SESSION CHECKBOX) ─── */}
-                <div className="p-2.5 sm:p-3 rounded-xl bg-white dark:bg-slate-900 border border-amber-500/30 dark:border-amber-500/20 shadow-2xs space-y-2">
+                <div className="p-3 sm:p-4 rounded-2xl bg-white dark:bg-slate-900 border border-amber-500/30 dark:border-amber-500/20 shadow-xs space-y-3 hover:border-amber-500/50 transition-all">
                   <div className="flex items-center justify-between flex-wrap gap-2">
-                    <div className="font-black text-xs text-slate-900 dark:text-white flex items-center gap-1.5">
-                      <FileSpreadsheet size={14} className="text-amber-600" />
+                    <div className="font-black text-xs sm:text-sm text-slate-900 dark:text-white flex items-center gap-2">
+                      <div className="p-1.5 rounded-lg bg-amber-100 dark:bg-amber-950/80 text-amber-700 dark:text-amber-300">
+                        <FileSpreadsheet size={15} />
+                      </div>
                       <span>Historical & Current Session Master Register (.xlsx)</span>
-                      <span className="text-[9.5px] px-1.5 py-0.2 rounded-full bg-amber-500/15 text-amber-800 dark:text-amber-300 font-extrabold uppercase">
+                      <span className="text-[9.5px] px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-800 dark:text-amber-300 font-extrabold uppercase tracking-wide border border-amber-500/30">
                         2006–2026 Digitized
                       </span>
                     </div>
-                    <span className="text-[10px] text-slate-500 dark:text-slate-400 font-bold">
-                      Multi-sheet workbook: 1 consolidated tab + 1 tab per selected session (38 standardized columns)
+                    <span className="text-[10.5px] text-slate-500 dark:text-slate-400 font-medium bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md">
+                      47 Standardized Columns • Multi-Session Tabs
                     </span>
                   </div>
 
-                  {/* Class, Stream, Sessions & Status in ONE Row */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 text-xs">
-                    <div>
-                      <label className="block text-[10px] font-black text-slate-600 dark:text-slate-400 mb-0.5">
+                  {/* Class, Stream, Sessions & Status Controls */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 text-xs">
+                    <div className="space-y-1">
+                      <label className="block text-[10.5px] font-black text-slate-600 dark:text-slate-400">
                         Target Class:
                       </label>
                       <select
                         value={masterExportClass}
                         onChange={(e) => setMasterExportClass(e.target.value)}
-                        className="w-full p-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-xs font-bold text-slate-900 dark:text-white"
+                        className="w-full p-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-xs font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-amber-500 transition-all"
                       >
                         <option value="ALL">All Classes (11th & 12th)</option>
                         {availableClasses.map(c => (
@@ -14364,14 +14715,14 @@ export default function AdvancedReports({
                       </select>
                     </div>
 
-                    <div>
-                      <label className="block text-[10px] font-black text-slate-600 dark:text-slate-400 mb-0.5">
+                    <div className="space-y-1">
+                      <label className="block text-[10.5px] font-black text-slate-600 dark:text-slate-400">
                         Academic Stream:
                       </label>
                       <select
                         value={masterExportStream}
                         onChange={(e) => setMasterExportStream(e.target.value)}
-                        className="w-full p-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-xs font-bold text-slate-900 dark:text-white"
+                        className="w-full p-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-xs font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-amber-500 transition-all"
                       >
                         <option value="ALL">All Streams</option>
                         {availableStreams.map(st => (
@@ -14380,8 +14731,8 @@ export default function AdvancedReports({
                       </select>
                     </div>
 
-                    <div>
-                      <label className="block text-[10px] font-black text-slate-600 dark:text-slate-400 mb-0.5">
+                    <div className="space-y-1">
+                      <label className="block text-[10.5px] font-black text-slate-600 dark:text-slate-400">
                         Academic Sessions:
                       </label>
                       <MultiSelectCheckboxDropdown
@@ -14394,8 +14745,8 @@ export default function AdvancedReports({
                       />
                     </div>
 
-                    <div>
-                      <label className="block text-[10px] font-black text-slate-600 dark:text-slate-400 mb-0.5">
+                    <div className="space-y-1">
+                      <label className="block text-[10.5px] font-black text-slate-600 dark:text-slate-400">
                         Admission Status:
                       </label>
                       <MultiSelectCheckboxDropdown
@@ -14409,7 +14760,7 @@ export default function AdvancedReports({
                   </div>
 
                   {/* Export Trigger */}
-                  <div className="flex items-center justify-between flex-wrap gap-2 pt-1 border-t border-slate-200 dark:border-slate-800">
+                  <div className="flex items-center justify-between flex-wrap gap-2.5 pt-2 border-t border-slate-100 dark:border-slate-800">
                     <div className="text-[11px] text-slate-600 dark:text-slate-400 font-medium">
                       Scope:{' '}
                       <span className="font-black text-slate-900 dark:text-white">
@@ -14428,16 +14779,16 @@ export default function AdvancedReports({
                       type="button"
                       disabled={isExportingMasterRegister || masterExportSelectedSessions.includes('__NONE__')}
                       onClick={handleDownloadSessionMasterRegister}
-                      className="px-3.5 py-1.5 rounded-lg bg-teal-700 hover:bg-teal-600 text-white font-black text-xs shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50 transition-all"
+                      className="px-4 py-2 rounded-xl bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white font-black text-xs shadow-sm hover:shadow flex items-center gap-2 cursor-pointer disabled:opacity-50 transition-all"
                     >
                       {isExportingMasterRegister ? (
                         <>
-                          <RefreshCw size={13} className="animate-spin" />
+                          <RefreshCw size={14} className="animate-spin" />
                           <span>Generating Register...</span>
                         </>
                       ) : (
                         <>
-                          <Download size={13} />
+                          <Download size={14} />
                           <span>Download Master Register Excel (.xlsx)</span>
                         </>
                       )}
@@ -14446,33 +14797,33 @@ export default function AdvancedReports({
                 </div>
 
                 {/* ─── 2. MASTER MULTI-SHEET DATABASE BACKUP CARD ─── */}
-                <div className="p-2.5 sm:p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xs space-y-2">
-                  <div className="flex items-start justify-between flex-wrap gap-2">
-                    <div className="flex items-start gap-2.5">
-                      <div className="p-2 rounded-lg bg-teal-100 dark:bg-teal-950/80 text-teal-800 dark:text-teal-300 font-black shrink-0">
-                        <FileSpreadsheet size={16} />
+                <div className="p-3.5 sm:p-4 rounded-2xl bg-gradient-to-br from-teal-50/60 via-white to-emerald-50/50 dark:from-teal-950/25 dark:via-slate-900 dark:to-emerald-950/25 border-2 border-teal-500/40 dark:border-teal-500/30 shadow-xs space-y-2.5">
+                  <div className="flex items-start justify-between flex-wrap gap-3">
+                    <div className="flex items-start gap-3">
+                      <div className="p-2.5 rounded-xl bg-teal-600 text-white font-black shrink-0 shadow-xs">
+                        <FileSpreadsheet size={18} />
                       </div>
-                      <div className="space-y-0.5">
-                        <div className="font-black text-xs text-slate-900 dark:text-white flex items-center gap-1.5">
+                      <div className="space-y-1">
+                        <div className="font-black text-xs sm:text-sm text-slate-900 dark:text-white flex items-center gap-2">
                           <span>Master Multi-Sheet Excel Database Backup (.xlsx)</span>
-                          <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-teal-500/15 text-teal-700 dark:text-teal-300 font-extrabold uppercase">
+                          <span className="text-[9px] px-2 py-0.5 rounded-full bg-teal-600 text-white font-extrabold uppercase tracking-wider shadow-2xs">
                             Recommended
                           </span>
                         </div>
-                        <p className="text-[10.5px] text-slate-500 dark:text-slate-400 font-medium">
-                          Compiles a single, comprehensive Microsoft Excel workbook containing <strong>7 dedicated tabs</strong>:
+                        <p className="text-[11px] text-slate-600 dark:text-slate-300 font-medium">
+                          Compiles a single, comprehensive Microsoft Excel workbook containing <strong>7 dedicated tabs</strong> with 100% of institutional data:
                         </p>
-                        <div className="flex flex-wrap gap-1 pt-0.5">
+                        <div className="flex flex-wrap gap-1.5 pt-1">
                           {[
-                            '1. Student_Admissions',
-                            '2. Faculty_Directory',
+                            '1. Student_Admissions (47 Cols)',
+                            '2. Faculty_Directory (12 Cols)',
                             '3. Notices_Circulars',
                             '4. Site_Settings',
                             '5. Admin_Accounts',
                             '6. Practicals_Awards',
                             '7. System_Metadata'
                           ].map(t => (
-                            <span key={t} className="px-1.5 py-0.2 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-[9.5px] font-mono font-bold">
+                            <span key={t} className="px-2 py-0.5 rounded-lg bg-white/90 dark:bg-slate-800 text-slate-800 dark:text-slate-200 border border-teal-500/20 dark:border-teal-700/40 text-[10px] font-mono font-bold shadow-2xs">
                               {t}
                             </span>
                           ))}
@@ -14484,16 +14835,16 @@ export default function AdvancedReports({
                       type="button"
                       disabled={isExportingDbExcel}
                       onClick={handleDownloadFullDatabaseExcel}
-                      className="px-3.5 py-1.5 rounded-lg bg-teal-700 hover:bg-teal-600 text-white font-black text-xs shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50 transition-all shrink-0"
+                      className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-teal-700 to-emerald-700 hover:from-teal-600 hover:to-emerald-600 text-white font-black text-xs shadow-md hover:shadow-lg flex items-center gap-2 cursor-pointer disabled:opacity-50 transition-all shrink-0 hover:scale-[1.02] active:scale-[0.98]"
                     >
                       {isExportingDbExcel ? (
                         <>
-                          <RefreshCw size={13} className="animate-spin" />
+                          <RefreshCw size={14} className="animate-spin" />
                           <span>Compiling Multi-Sheet...</span>
                         </>
                       ) : (
                         <>
-                          <Download size={13} />
+                          <Download size={14} />
                           <span>Download Master Excel (.xlsx)</span>
                         </>
                       )}
@@ -14502,80 +14853,82 @@ export default function AdvancedReports({
                 </div>
 
                 {/* ─── 3. PUBLIC WEBSITE CONFIGURATION FILES (public/slides/) ─── */}
-                <div className="p-2.5 sm:p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xs space-y-2">
-                  <div className="flex items-center justify-between flex-wrap gap-1">
-                    <div className="font-black text-xs text-slate-900 dark:text-white flex items-center gap-1.5">
-                      <FolderDown size={14} className="text-indigo-600" />
+                <div className="p-3 sm:p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs space-y-2.5">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div className="font-black text-xs sm:text-sm text-slate-900 dark:text-white flex items-center gap-2">
+                      <div className="p-1 rounded-lg bg-indigo-100 dark:bg-indigo-950/80 text-indigo-600 dark:text-indigo-400">
+                        <FolderDown size={15} />
+                      </div>
                       <span>Public Website Static Configuration Backups (CMS public/slides/)</span>
                     </div>
-                    <span className="text-[10px] text-slate-500 font-bold">
+                    <span className="text-[10.5px] text-slate-500 dark:text-slate-400 font-medium">
                       Direct downloads for frontend JSON and text configuration mirrors
                     </span>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs">
                     {/* settings.json */}
-                    <div className="p-2 rounded-lg bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-750 flex flex-col justify-between gap-1.5">
+                    <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 flex flex-col justify-between gap-2 hover:border-amber-500/40 transition-colors">
                       <div>
-                        <div className="font-black text-[11px] text-slate-900 dark:text-white flex items-center gap-1">
-                          <Settings size={12} className="text-amber-600" />
+                        <div className="font-black text-[11.5px] text-slate-900 dark:text-white flex items-center gap-1.5">
+                          <Settings size={13} className="text-amber-600" />
                           <span>settings.json</span>
                         </div>
-                        <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
+                        <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
                           School metadata, banner carousel, vision & contact info.
                         </p>
                       </div>
                       <button
                         type="button"
                         onClick={handleDownloadSettingsJson}
-                        className="w-full py-1 rounded-md bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-black text-[10.5px] flex items-center justify-center gap-1 cursor-pointer transition-all"
+                        className="w-full py-1.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold text-[11px] flex items-center justify-center gap-1.5 cursor-pointer transition-all shadow-2xs hover:scale-[1.01]"
                       >
-                        <Download size={11} />
+                        <Download size={12} />
                         <span>Download settings.json</span>
                       </button>
                     </div>
 
                     {/* notices.txt */}
-                    <div className="p-2 rounded-lg bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-750 flex flex-col justify-between gap-1.5">
+                    <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 flex flex-col justify-between gap-2 hover:border-blue-500/40 transition-colors">
                       <div>
-                        <div className="font-black text-[11px] text-slate-900 dark:text-white flex items-center gap-1">
-                          <FileText size={12} className="text-blue-600" />
+                        <div className="font-black text-[11.5px] text-slate-900 dark:text-white flex items-center gap-1.5">
+                          <FileText size={13} className="text-blue-600" />
                           <span>notices.txt</span>
                         </div>
-                        <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
+                        <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
                           Live announcement board ticker and notifications feed.
                         </p>
                       </div>
                       <button
                         type="button"
                         onClick={handleDownloadNoticesTxt}
-                        className="w-full py-1 rounded-md bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-black text-[10.5px] flex items-center justify-center gap-1 cursor-pointer transition-all"
+                        className="w-full py-1.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold text-[11px] flex items-center justify-center gap-1.5 cursor-pointer transition-all shadow-2xs hover:scale-[1.01]"
                       >
-                        <Download size={11} />
+                        <Download size={12} />
                         <span>Download notices.txt</span>
                       </button>
                     </div>
 
                     {/* faculty.json */}
-                    <div className="p-2 rounded-lg bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-750 flex flex-col justify-between gap-1.5">
+                    <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 flex flex-col justify-between gap-2 hover:border-emerald-500/40 transition-colors">
                       <div>
-                        <div className="font-black text-[11px] text-slate-900 dark:text-white flex items-center gap-1">
-                          <Users size={12} className="text-emerald-600" />
+                        <div className="font-black text-[11.5px] text-slate-900 dark:text-white flex items-center gap-1.5">
+                          <Users size={13} className="text-emerald-600" />
                           <span>faculty.json</span>
-                          <span className="text-[8.5px] px-1 py-0.2 rounded bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 font-extrabold">
+                          <span className="text-[8.5px] px-1.5 py-0.2 rounded bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 font-extrabold uppercase">
                             Sanitized
                           </span>
                         </div>
-                        <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
+                        <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
                           Public directory with private salary/tax/PAN data stripped.
                         </p>
                       </div>
                       <button
                         type="button"
                         onClick={handleDownloadFacultyJson}
-                        className="w-full py-1 rounded-md bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-black text-[10.5px] flex items-center justify-center gap-1 cursor-pointer transition-all"
+                        className="w-full py-1.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold text-[11px] flex items-center justify-center gap-1.5 cursor-pointer transition-all shadow-2xs hover:scale-[1.01]"
                       >
-                        <Download size={11} />
+                        <Download size={12} />
                         <span>Download faculty.json</span>
                       </button>
                     </div>
@@ -14583,28 +14936,28 @@ export default function AdvancedReports({
                 </div>
 
                 {/* ─── 4. FULL JSON DISASTER RECOVERY BACKUP & RESTORE ─── */}
-                <div className="p-2.5 sm:p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xs space-y-2">
-                  <div className="flex items-start justify-between flex-wrap gap-2">
-                    <div className="flex items-start gap-2.5">
-                      <div className="p-2 rounded-lg bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 font-black shrink-0">
-                        <Save size={16} />
+                <div className="p-3 sm:p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs space-y-2.5">
+                  <div className="flex items-start justify-between flex-wrap gap-3">
+                    <div className="flex items-start gap-3">
+                      <div className="p-2 rounded-xl bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 font-black shrink-0">
+                        <Save size={17} />
                       </div>
                       <div className="space-y-0.5">
-                        <div className="font-black text-xs text-slate-900 dark:text-white flex items-center gap-1.5">
+                        <div className="font-black text-xs sm:text-sm text-slate-900 dark:text-white flex items-center gap-2">
                           <span>Full JSON Disaster Recovery Backup & Database Restore</span>
                         </div>
-                        <p className="text-[10.5px] text-slate-500 dark:text-slate-400 font-medium">
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
                           Complete raw Firestore document tree (all collections, rules & accounts) for offline disaster recovery, server backup, or cross-environment database migration.
                         </p>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-1.5 shrink-0">
+                    <div className="flex items-center gap-2 shrink-0">
                       <button
                         type="button"
                         disabled={isExportingDbJson}
                         onClick={handleDownloadFullDatabaseJson}
-                        className="px-3.5 py-1.5 rounded-lg bg-amber-700 hover:bg-amber-600 text-white font-black text-xs shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50 transition-all"
+                        className="px-4 py-2 rounded-xl bg-amber-700 hover:bg-amber-600 text-white font-black text-xs shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50 transition-all hover:scale-[1.02] active:scale-[0.98]"
                       >
                         {isExportingDbJson ? (
                           <>
@@ -14619,7 +14972,7 @@ export default function AdvancedReports({
                         )}
                       </button>
 
-                      <label className="px-3.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-black text-xs shadow-xs flex items-center gap-1.5 cursor-pointer transition-all">
+                      <label className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-black text-xs shadow-xs flex items-center gap-1.5 cursor-pointer transition-all hover:scale-[1.02] active:scale-[0.98]">
                         <Upload size={13} />
                         <span>{isRestoringDb ? 'Restoring...' : 'Restore from JSON'}</span>
                         <input
@@ -14635,6 +14988,7 @@ export default function AdvancedReports({
                 </div>
               </div>
             )}
+            </div>
           </div>
         </div>,
         document.body
