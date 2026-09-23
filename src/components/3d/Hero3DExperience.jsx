@@ -9,21 +9,16 @@ import * as THREE from 'three';
  * Core Features:
  * 1. ⚛️ Scientifically Accurate Carbon Atom Orbitals (Z = 6):
  *    - Central Nucleus: Official circular HSS Shangus logo seal enclosed in a 24K gold bezel
- *      with a glowing nuclear energy envelope.
+ *      with a glowing nuclear energy envelope, symbolizing HSS Shangus at the foundational core of every child.
  *    - Inner Shell (1s²): 2 high-speed Pauli-paired core electrons on a tight orbital ring.
- *    - Outer Valence Shell (2s² 2p² / sp³): 4 valence electrons orbiting in 4 spatially oriented
- *      quantum orbital planes (tetrahedral / orthogonal angles).
- *    - Total 6 electrons exactly matching the Carbon atom.
+ *    - Outer Valence Shell (2s² 2p²): Ground state Aufbau configuration with 2 electrons in 2s and 2 electrons in 2p.
  *    - Gyroscopically follows mouse location and tilts with quantum relativistic precession.
  * 2. 📖 Open Book of Wisdom:
- *    - Positioned gracefully beside the motto "nurturing minds, shaping futures" on the left,
- *      symbolizing the nurturing of minds, humanities, literature, and foundational wisdom.
+ *    - Positioned gracefully beside the motto on the left, symbolizing foundational theory, concepts, and scholastic inquiry across all streams (Humanities, Sciences, and Arts).
  *    - When hovered: cascading fluttering/slipping pages arching upward in elegant fan waves.
  * 3. 🧪 Scientific Laboratory Apparatus (Erlenmeyer Flask of Discovery):
- *    - Positioned gracefully beside the motto "nurturing minds, shaping futures" on the right,
- *      symbolizing the shaping of futures through science, chemistry, inquiry, and innovation.
+ *    - Positioned gracefully beside the motto on the right, symbolizing experimentation, practical testing, and hands-on innovation across all streams.
  *    - Borosilicate glass with volumetric graduations, glass stirring rod, glowing cyan discovery elixir, and rising effervescent bubbles.
- *    - Synchronized: when hovered, liquid radiates discovery glow and effervesces dynamically.
  * 4. Hero buttons maintain a clean, unobstructed layout below the motto.
  */
 export default function Hero3DExperience({ className = '', hoveredAction = null }) {
@@ -1116,9 +1111,9 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
         cardGlow: '0 20px 45px rgba(0, 0, 0, 0.75), 0 0 25px rgba(6, 182, 212, 0.25)',
         hairlineClass: 'tooltip-hairline absolute top-0 inset-x-2 sm:inset-x-3 h-[1.5px] sm:h-[2px] bg-gradient-to-r from-cyan-400 via-sky-300 to-cyan-500 rounded-full',
         title: 'Carbon-12 Structure',
-        subtitle: 'Theme: Scholastic Anchor • 1s² 2s² 2p²',
+        subtitle: 'Theme: Foundational Core • 1s² 2s² 2p²',
         subtitleColor: 'text-cyan-300',
-        body: 'Carbon is nature\'s fundamental building block (1s² 2s² 2p²). Featuring the <span class="text-amber-300 font-semibold">HSS Shangus seal</span> at its atomic core, this model anchors our 3-asset theme: uniting the <span class="text-amber-300 font-semibold">Book of Wisdom</span> ("nurturing minds") and the <span class="text-emerald-300 font-semibold">Flask of Discovery</span> ("shaping futures") into a complete scholastic vision.'
+        body: 'Just as carbon is nature\'s versatile, fundamental building block of life and matter (1s² 2s² 2p²), <span class="text-amber-300 font-semibold">HSS Shangus</span> stands at the atomic core, playing the central role in shaping each child\'s character and potential. It unites foundational theory (<span class="text-amber-300 font-semibold">The Book</span>) and practical testing (<span class="text-emerald-300 font-semibold">The Flask</span>) across Science, Humanities, and all streams to achieve one universal goal: <span class="text-sky-300 font-semibold">&quot;Nurturing Minds, Shaping Futures&quot;</span>.'
       },
       book: {
         badge: '📖',
@@ -1129,9 +1124,9 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
         cardGlow: '0 20px 45px rgba(0, 0, 0, 0.75), 0 0 25px rgba(245, 158, 11, 0.25)',
         hairlineClass: 'tooltip-hairline absolute top-0 inset-x-2 sm:inset-x-3 h-[1.5px] sm:h-[2px] bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-500 rounded-full',
         title: 'Open Book of Wisdom',
-        subtitle: 'Theme: "Nurturing Minds" • Humanities',
+        subtitle: 'Theme: Foundational Theory & Concepts',
         subtitleColor: 'text-amber-300',
-        body: 'Flanking our motto on the left, the <span class="text-amber-300 font-semibold">Book of Wisdom</span> represents the humanities, language, literature, and foundational scholarship. Its cascading pages and rising glyphs symbolize the continuous <span class="text-amber-300 font-semibold">&quot;nurturing minds&quot;</span> through wisdom and moral discipline.'
+        body: 'Flanking our motto on the left, the <span class="text-amber-300 font-semibold">Book of Wisdom</span> embodies foundational theory, deep inquiry, and conceptual knowledge across all streams—Humanities, Sciences, and Arts. Its cascading pages symbolize the rich intellectual and moral grounding essential to <span class="text-amber-300 font-semibold">&quot;nurture minds and shape futures&quot;</span> in every student.'
       },
       flask: {
         badge: '🧪',
@@ -1142,9 +1137,9 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
         cardGlow: '0 20px 45px rgba(0, 0, 0, 0.75), 0 0 25px rgba(16, 185, 129, 0.25)',
         hairlineClass: 'tooltip-hairline absolute top-0 inset-x-2 sm:inset-x-3 h-[1.5px] sm:h-[2px] bg-gradient-to-r from-emerald-400 via-teal-300 to-emerald-500 rounded-full',
         title: 'Flask of Discovery',
-        subtitle: 'Theme: "Shaping Futures" • Sciences',
+        subtitle: 'Theme: Practical Testing & Applied Inquiry',
         subtitleColor: 'text-emerald-300',
-        body: 'Flanking our motto on the right, the <span class="text-emerald-300 font-semibold">conical Erlenmeyer flask</span> represents science, chemistry, inquiry, and innovation. With its luminescent reaction and effervescent vapor, it symbolizes <span class="text-emerald-300 font-semibold">&quot;shaping futures&quot;</span> through hands-on experimentation and scientific progress.'
+        body: 'Flanking our motto on the right, the <span class="text-emerald-300 font-semibold">conical Erlenmeyer flask</span> embodies experimentation, practical testing, and empirical inquiry across all disciplines. With its luminescent reaction and effervescent vapor, it represents transforming concepts into real-world innovation, actively <span class="text-emerald-300 font-semibold">&quot;nurturing minds and shaping futures&quot;</span>.'
       }
     };
 
@@ -1773,7 +1768,7 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
                     Carbon-12 Structure
                   </h4>
                   <span className="tooltip-subtitle text-[8px] sm:text-[9.5px] font-mono font-medium text-cyan-300 shrink-0">
-                    Theme: Scholastic Anchor • 1s² 2s² 2p²
+                    Theme: Foundational Core • 1s² 2s² 2p²
                   </span>
                 </div>
               </div>
@@ -1789,7 +1784,7 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
 
             {/* Meaningful Theme Paragraph */}
             <p className="tooltip-body-text text-[9.5px] sm:text-[11px] leading-[1.45] sm:leading-[1.55] text-slate-200">
-              Carbon is nature&apos;s fundamental building block (1s² 2s² 2p²). Featuring the <span className="text-amber-300 font-semibold">HSS Shangus seal</span> at its atomic core, this model anchors our 3-asset theme: uniting the <span className="text-amber-300 font-semibold">Book of Wisdom</span> (&quot;nurturing minds&quot;) and the <span className="text-emerald-300 font-semibold">Flask of Discovery</span> (&quot;shaping futures&quot;) into a complete scholastic vision.
+              Just as carbon is nature&apos;s versatile, fundamental building block of life and matter (1s² 2s² 2p²), <span className="text-amber-300 font-semibold">HSS Shangus</span> stands at the atomic core, playing the central role in shaping each child&apos;s character and potential. It unites foundational theory (<span className="text-amber-300 font-semibold">The Book</span>) and practical testing (<span className="text-emerald-300 font-semibold">The Flask</span>) across Science, Humanities, and all streams to achieve one universal goal: <span className="text-sky-300 font-semibold">&quot;Nurturing Minds, Shaping Futures&quot;</span>.
             </p>
           </div>
 
