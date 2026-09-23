@@ -1109,33 +1109,42 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
     const assetTelemetry = {
       atom: {
         badge: '₆C',
-        badgeBg: 'rgba(6, 182, 212, 0.25)',
-        badgeBorder: 'rgba(56, 189, 248, 0.5)',
+        badgeBg: 'rgba(6, 182, 212, 0.22)',
+        badgeBorder: 'rgba(56, 189, 248, 0.65)',
         badgeColor: '#38bdf8',
+        cardBorder: 'rgba(6, 182, 212, 0.55)',
+        cardGlow: '0 20px 45px rgba(0, 0, 0, 0.75), 0 0 25px rgba(6, 182, 212, 0.25)',
+        hairlineClass: 'tooltip-hairline absolute top-0 inset-x-2 sm:inset-x-3 h-[1.5px] sm:h-[2px] bg-gradient-to-r from-cyan-400 via-sky-300 to-cyan-500 rounded-full',
         title: 'Carbon-12 Structure',
-        subtitle: '6p 6n • 1s² 2s² 2p²',
-        subtitleColor: 'text-cyan-400',
-        body: 'Carbon is nature\'s fundamental building block (1s² 2s² 2p²). Featuring the <span class="text-amber-300 font-semibold">HSS Shangus seal</span> at its atomic core, this model anchors our 3-asset theme: uniting the <span class="text-amber-300 font-semibold">Book of Wisdom</span> ("nurturing minds") and the <span class="text-emerald-400 font-semibold">Flask of Discovery</span> ("shaping futures") into a complete scholastic vision.'
+        subtitle: 'Theme: Scholastic Anchor • 1s² 2s² 2p²',
+        subtitleColor: 'text-cyan-300',
+        body: 'Carbon is nature\'s fundamental building block (1s² 2s² 2p²). Featuring the <span class="text-amber-300 font-semibold">HSS Shangus seal</span> at its atomic core, this model anchors our 3-asset theme: uniting the <span class="text-amber-300 font-semibold">Book of Wisdom</span> ("nurturing minds") and the <span class="text-emerald-300 font-semibold">Flask of Discovery</span> ("shaping futures") into a complete scholastic vision.'
       },
       book: {
         badge: '📖',
-        badgeBg: 'rgba(245, 158, 11, 0.25)',
-        badgeBorder: 'rgba(251, 191, 36, 0.5)',
-        badgeColor: '#f59e0b',
+        badgeBg: 'rgba(245, 158, 11, 0.22)',
+        badgeBorder: 'rgba(251, 191, 36, 0.65)',
+        badgeColor: '#fbbf24',
+        cardBorder: 'rgba(245, 158, 11, 0.55)',
+        cardGlow: '0 20px 45px rgba(0, 0, 0, 0.75), 0 0 25px rgba(245, 158, 11, 0.25)',
+        hairlineClass: 'tooltip-hairline absolute top-0 inset-x-2 sm:inset-x-3 h-[1.5px] sm:h-[2px] bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-500 rounded-full',
         title: 'Open Book of Wisdom',
-        subtitle: 'Theme: "Nurturing Minds"',
-        subtitleColor: 'text-amber-400',
-        body: 'Flanking our motto on the left, the Book of Wisdom represents the humanities, language, literature, and foundational scholarship. Its cascading pages and rising glyphs symbolize the continuous nurturing of young minds through wisdom and moral discipline.'
+        subtitle: 'Theme: "Nurturing Minds" • Humanities',
+        subtitleColor: 'text-amber-300',
+        body: 'Flanking our motto on the left, the <span class="text-amber-300 font-semibold">Book of Wisdom</span> represents the humanities, language, literature, and foundational scholarship. Its cascading pages and rising glyphs symbolize the continuous <span class="text-amber-300 font-semibold">&quot;nurturing minds&quot;</span> through wisdom and moral discipline.'
       },
       flask: {
         badge: '🧪',
-        badgeBg: 'rgba(16, 185, 129, 0.25)',
-        badgeBorder: 'rgba(52, 211, 153, 0.5)',
+        badgeBg: 'rgba(16, 185, 129, 0.22)',
+        badgeBorder: 'rgba(52, 211, 153, 0.65)',
         badgeColor: '#34d399',
+        cardBorder: 'rgba(16, 185, 129, 0.55)',
+        cardGlow: '0 20px 45px rgba(0, 0, 0, 0.75), 0 0 25px rgba(16, 185, 129, 0.25)',
+        hairlineClass: 'tooltip-hairline absolute top-0 inset-x-2 sm:inset-x-3 h-[1.5px] sm:h-[2px] bg-gradient-to-r from-emerald-400 via-teal-300 to-emerald-500 rounded-full',
         title: 'Flask of Discovery',
-        subtitle: 'Theme: "Shaping Futures"',
-        subtitleColor: 'text-emerald-400',
-        body: 'Flanking our motto on the right, the conical Erlenmeyer flask represents science, chemistry, inquiry, and innovation. With its luminescent reaction and effervescent vapor, it symbolizes shaping futures through hands-on experimentation and scientific progress.'
+        subtitle: 'Theme: "Shaping Futures" • Sciences',
+        subtitleColor: 'text-emerald-300',
+        body: 'Flanking our motto on the right, the <span class="text-emerald-300 font-semibold">conical Erlenmeyer flask</span> represents science, chemistry, inquiry, and innovation. With its luminescent reaction and effervescent vapor, it symbolizes <span class="text-emerald-300 font-semibold">&quot;shaping futures&quot;</span> through hands-on experimentation and scientific progress.'
       }
     };
 
@@ -1222,11 +1231,22 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
           if (displayedAsset !== activeAsset) {
             displayedAsset = activeAsset;
             const data = assetTelemetry[activeAsset];
+            const cardInner = tooltipEl.querySelector('.hero-3d-tooltip');
+            const hairlineEl = tooltipEl.querySelector('.tooltip-hairline');
             const badgeEl = tooltipEl.querySelector('.tooltip-badge');
             const titleEl = tooltipEl.querySelector('.tooltip-title');
             const subtitleEl = tooltipEl.querySelector('.tooltip-subtitle');
             const bodyEl = tooltipEl.querySelector('.tooltip-body-text');
 
+            if (cardInner) {
+              cardInner.style.setProperty('--hero-tooltip-border', data.cardBorder);
+              cardInner.style.setProperty('--hero-tooltip-glow', data.cardGlow);
+              cardInner.style.borderColor = data.cardBorder;
+              cardInner.style.boxShadow = data.cardGlow;
+            }
+            if (hairlineEl) {
+              hairlineEl.className = data.hairlineClass;
+            }
             if (badgeEl) {
               badgeEl.textContent = data.badge;
               badgeEl.style.backgroundColor = data.badgeBg;
@@ -1238,7 +1258,7 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
             }
             if (subtitleEl) {
               subtitleEl.textContent = data.subtitle;
-              subtitleEl.className = `tooltip-subtitle text-[8px] sm:text-[9.5px] font-mono shrink-0 ${data.subtitleColor}`;
+              subtitleEl.className = `tooltip-subtitle text-[8px] sm:text-[9.5px] font-mono font-medium shrink-0 ${data.subtitleColor}`;
             }
             if (bodyEl) {
               bodyEl.innerHTML = data.body;
@@ -1322,9 +1342,11 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
           const pipEl = tooltipEl.querySelector('.tooltip-pip');
           if (pipEl) {
             const data = assetTelemetry[activeAsset];
+            const pipBorder = data ? data.cardBorder : 'rgba(6, 182, 212, 0.55)';
             pipEl.style.display = 'block';
             pipEl.style.backgroundColor = '#0a0f1e';
-            pipEl.style.borderColor = data ? data.badgeBorder : 'rgba(6, 182, 212, 0.5)';
+            pipEl.style.setProperty('--hero-tooltip-border', pipBorder);
+            pipEl.style.borderColor = pipBorder;
             if (pipSide === 'bottom') {
               pipEl.className = 'tooltip-pip absolute w-2.5 h-2.5 rotate-45 left-1/2 -translate-x-1/2 -bottom-1.5 border-b border-r shadow-xs';
             } else if (pipSide === 'right') {
@@ -1724,12 +1746,12 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
           className="hero-3d-tooltip relative w-[285px] xs:w-[305px] sm:w-[410px] md:w-[440px] max-w-[calc(100vw-16px)] rounded-lg sm:rounded-xl p-2 sm:p-2.5 text-left pointer-events-auto ring-1 ring-white/10 shadow-2xl transition-all"
           style={{
             backgroundColor: 'rgba(10, 15, 30, 0.96)',
-            borderColor: 'rgba(6, 182, 212, 0.5)',
-            boxShadow: '0 20px 45px rgba(0, 0, 0, 0.75), 0 0 25px rgba(6, 182, 212, 0.22)'
+            borderColor: 'rgba(6, 182, 212, 0.55)',
+            boxShadow: '0 20px 45px rgba(0, 0, 0, 0.75), 0 0 25px rgba(6, 182, 212, 0.25)'
           }}
         >
           {/* Top glowing accent hairline */}
-          <div className="absolute top-0 inset-x-2 sm:inset-x-3 h-[1.5px] sm:h-[2px] bg-gradient-to-r from-cyan-400 via-amber-400 to-emerald-400 rounded-full" />
+          <div className="tooltip-hairline absolute top-0 inset-x-2 sm:inset-x-3 h-[1.5px] sm:h-[2px] bg-gradient-to-r from-cyan-400 via-sky-300 to-cyan-500 rounded-full" />
           
           {/* Unified Responsive Tooltip Layout (Mobile & Desktop) */}
           <div className="flex flex-col gap-1.5 sm:gap-2">
@@ -1737,10 +1759,10 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
             <div className="flex items-center justify-between gap-1 pb-1 sm:pb-1.5 border-b border-slate-700/60">
               <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
                 <span
-                  className="tooltip-badge w-5 h-5 sm:w-5.5 sm:h-5.5 rounded flex items-center justify-center font-bold text-[9px] sm:text-[10px] font-mono shrink-0 shadow-xs"
+                  className="tooltip-badge w-5 h-5 sm:w-5.5 sm:h-5.5 rounded border border-solid flex items-center justify-center font-bold text-[9px] sm:text-[10px] font-mono shrink-0 shadow-xs"
                   style={{
-                    backgroundColor: 'rgba(6, 182, 212, 0.25)',
-                    borderColor: 'rgba(56, 189, 248, 0.5)',
+                    backgroundColor: 'rgba(6, 182, 212, 0.22)',
+                    borderColor: 'rgba(56, 189, 248, 0.65)',
                     color: '#38bdf8'
                   }}
                 >
@@ -1750,8 +1772,8 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
                   <h4 className="tooltip-title font-bold text-[10.5px] sm:text-xs tracking-wide leading-none font-heading text-white truncate">
                     Carbon-12 Structure
                   </h4>
-                  <span className="tooltip-subtitle text-[8px] sm:text-[9.5px] font-mono text-cyan-400 shrink-0">
-                    6p 6n • 1s² 2s² 2p²
+                  <span className="tooltip-subtitle text-[8px] sm:text-[9.5px] font-mono font-medium text-cyan-300 shrink-0">
+                    Theme: Scholastic Anchor • 1s² 2s² 2p²
                   </span>
                 </div>
               </div>
@@ -1767,12 +1789,12 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
 
             {/* Meaningful Theme Paragraph */}
             <p className="tooltip-body-text text-[9.5px] sm:text-[11px] leading-[1.45] sm:leading-[1.55] text-slate-200">
-              Carbon is the fundamental building block of life and matter (1s² 2s² 2p²). Featuring the <span className="text-amber-300 font-semibold">HSS Shangus seal</span> at its atomic core, this model anchors our 3-asset theme: uniting the <span className="text-amber-300 font-semibold">Book of Wisdom</span> (&quot;nurturing minds&quot;) and the <span className="text-emerald-400 font-semibold">Flask of Discovery</span> (&quot;shaping futures&quot;) into a complete scholastic vision.
+              Carbon is nature&apos;s fundamental building block (1s² 2s² 2p²). Featuring the <span className="text-amber-300 font-semibold">HSS Shangus seal</span> at its atomic core, this model anchors our 3-asset theme: uniting the <span className="text-amber-300 font-semibold">Book of Wisdom</span> (&quot;nurturing minds&quot;) and the <span className="text-emerald-300 font-semibold">Flask of Discovery</span> (&quot;shaping futures&quot;) into a complete scholastic vision.
             </p>
           </div>
 
           {/* Directional indicator pip */}
-          <div className="tooltip-pip absolute w-2.5 h-2.5 bg-slate-950 border-cyan-500/50 rotate-45 -left-1.5 top-1/2 -translate-y-1/2 border-b border-l shadow-xs" />
+          <div className="tooltip-pip absolute w-2.5 h-2.5 bg-slate-950 border-cyan-500/55 rotate-45 -left-1.5 top-1/2 -translate-y-1/2 border-b border-l shadow-xs" />
         </div>
       </div>
     </div>
