@@ -7461,6 +7461,8 @@ export default function AdvancedReports({
   const [masterExportStream, setMasterExportStream] = useState('ALL');
   const [masterExportSelectedStatuses, setMasterExportSelectedStatuses] = useState(() => ['Approved', 'Submitted']);
   const [isExportingMasterRegister, setIsExportingMasterRegister] = useState(false);
+  const [masterMultiScope, setMasterMultiScope] = useState('filtered'); // 'filtered' | 'all'
+  const [masterMultiColumnMode, setMasterMultiColumnMode] = useState('important'); // 'important' | 'all'
 
   // Auto-sync photos from Cloud Firestore when Photo Exporter tab is active
   useEffect(() => {
@@ -7514,32 +7516,90 @@ export default function AdvancedReports({
       showToast('Compiling Full Multi-Sheet Database Backup into Excel (.xlsx)...', 'info');
 
       // 1. Compile complete student register across all sessions (active admissions + full 2006-2026 master registers)
-      let fullCandidateStudents = allStudents || [];
-      try {
-        if (!window._hssMasterRegistersIsFull) {
-          showToast('Hydrating complete institutional student registers from Cloud Firestore...', 'info');
-          const fullChunks = await getMasterRegistersScoped({ forceAll: true });
-          if (Array.isArray(fullChunks) && fullChunks.length > 0) {
-            const formatted = flattenAndFormatMasterRegisters(fullChunks);
-            setMasterHistoricalRecords(formatted);
-            const histMap = new Map();
-            formatted.forEach((item, idx) => {
-              const key = item.boardRegNo || item.formNo || item.classRollNo ? `${item.session || ''}_${item.class || ''}_${item.boardRegNo || item.formNo || item.classRollNo}_${idx}` : `h_${idx}`;
-              histMap.set(key, item);
-            });
-            fullCandidateStudents = [...(currentAdmissions || []), ...Array.from(histMap.values())];
-          }
-        } else if (masterHistoricalRecords && masterHistoricalRecords.length > 0) {
+      let candidatePool = [];
+      if (masterHistoricalRecords && masterHistoricalRecords.length > 0) {
+        const histMap = new Map();
+        masterHistoricalRecords.forEach((item, idx) => {
+          const key = item.boardRegNo || item.formNo || item.classRollNo ? `${item.session || ''}_${item.class || ''}_${item.boardRegNo || item.formNo || item.classRollNo}_${idx}` : `h_${idx}`;
+          histMap.set(key, item);
+        });
+        candidatePool = [...(currentAdmissions || []), ...Array.from(histMap.values())];
+      } else {
+        candidatePool = (allStudents && allStudents.length > 0) ? allStudents : (currentAdmissions || []);
+      }
+
+      // Check if hydration is required for any selected historical sessions
+      const activeSessList = masterExportSelectedSessions.length === 0
+        ? allKnownSessions
+        : masterExportSelectedSessions.filter(s => s !== '__NONE__');
+
+      const needsFull = masterMultiScope === 'all' || activeSessList.some(s => {
+        const m = String(s).match(/\d{4}/);
+        return m && parseInt(m[0], 10) < 2022;
+      });
+
+      if (needsFull && !window._hssMasterRegistersIsFull) {
+        showToast('Hydrating complete 2006–2026 master register archives from Cloud Firestore...', 'info');
+        const fullChunks = await getMasterRegistersScoped({ forceAll: true });
+        if (Array.isArray(fullChunks) && fullChunks.length > 0) {
+          const formatted = flattenAndFormatMasterRegisters(fullChunks);
+          setMasterHistoricalRecords(formatted);
           const histMap = new Map();
-          masterHistoricalRecords.forEach((item, idx) => {
+          formatted.forEach((item, idx) => {
             const key = item.boardRegNo || item.formNo || item.classRollNo ? `${item.session || ''}_${item.class || ''}_${item.boardRegNo || item.formNo || item.classRollNo}_${idx}` : `h_${idx}`;
             histMap.set(key, item);
           });
-          fullCandidateStudents = [...(currentAdmissions || []), ...Array.from(histMap.values())];
+          candidatePool = [...(currentAdmissions || []), ...Array.from(histMap.values())];
         }
-      } catch (err) {
-        console.warn('Student register compilation note for backup:', err);
       }
+
+      let studentsToExport = candidatePool;
+      if (masterMultiScope === 'filtered') {
+        const isAllSess = masterExportSelectedSessions.length === 0 || masterExportSelectedSessions.length === allKnownSessions.length;
+        const normSelectedSessions = new Set(activeSessList.map(s => String(s).trim().toLowerCase()));
+
+        studentsToExport = candidatePool.filter(s => {
+          const sSess = String(s.session || '').trim().toLowerCase();
+          if (!isAllSess && !normSelectedSessions.has(sSess)) return false;
+          if (masterExportClass !== 'ALL') {
+            if (normalizeClassVal(s.class) !== normalizeClassVal(masterExportClass)) return false;
+          }
+          if (masterExportStream !== 'ALL') {
+            if (String(s.stream || '').trim().toLowerCase() !== String(masterExportStream).trim().toLowerCase()) return false;
+          }
+          if (masterExportSelectedStatuses && masterExportSelectedStatuses.length > 0) {
+            if (masterExportSelectedStatuses.includes('__NONE__')) return false;
+            const normStatuses = new Set(masterExportSelectedStatuses.map(st => String(st).trim().toLowerCase()));
+            const eff = getStudentEffectiveStatus(s).toLowerCase();
+            if (!normStatuses.has(eff)) return false;
+          }
+          return true;
+        });
+
+        if (studentsToExport.length === 0) {
+          showToast('No student records found matching the active filter criteria. Exporting all records as fallback.', 'warning');
+          studentsToExport = candidatePool;
+        }
+      }
+
+      // Sort naturally by Session (descending), then Class (11th before 12th), then numeric Class Roll No
+      studentsToExport.sort((a, b) => {
+        const numA = parseInt(String(a.session || '').match(/\d{4}/)?.[0] || '0', 10);
+        const numB = parseInt(String(b.session || '').match(/\d{4}/)?.[0] || '0', 10);
+        if (numA !== numB) return numB - numA;
+
+        const clsA = normalizeClassVal(a.class);
+        const clsB = normalizeClassVal(b.class);
+        if (clsA !== clsB) return clsA.localeCompare(clsB);
+
+        const rA = parseInt(String(a.classRollNo || a['Class Roll No'] || a.rollNo || '0').replace(/\D/g, ''), 10) || 0;
+        const rB = parseInt(String(b.classRollNo || b['Class Roll No'] || b.rollNo || '0').replace(/\D/g, ''), 10) || 0;
+        if (rA !== rB) return rA - rB;
+
+        const fA = parseInt(String(a.formNo || a['Form Number'] || '0').replace(/\D/g, ''), 10) || 0;
+        const fB = parseInt(String(b.formNo || b['Form Number'] || '0').replace(/\D/g, ''), 10) || 0;
+        return fA - fB;
+      });
 
       // 2. Fetch authoritative faculty and staff records with multi-tier fallback
       let facultyList = [];
@@ -7725,7 +7785,15 @@ export default function AdvancedReports({
 
       const cleanVal = (val) => {
         if (val === undefined || val === null || val === '—' || val === 'N/A' || val === '-' || val === 'null' || val === 'undefined') return '';
-        if (typeof val === 'object') return JSON.stringify(val);
+        if (typeof val === 'object') {
+          if (val.toDate && typeof val.toDate === 'function') {
+            return val.toDate().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
+          }
+          if (val.seconds) {
+            return new Date(val.seconds * 1000).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
+          }
+          return JSON.stringify(val);
+        }
         return String(val).trim();
       };
 
@@ -7745,74 +7813,222 @@ export default function AdvancedReports({
 
       const wb = XLSX.utils.book_new();
 
-      // --- SHEET 1: Student_Admissions (47 Standardized Columns) ---
-      const studentHeaders = [
-        'S.No.', 'Class Roll No', 'Admission No', 'Form No', 'Class', 'Session',
-        'Stream', 'Board Reg No', "Student's Name", "Father's Name", "Mother's Name",
-        'Date of Birth', 'Gender', 'Category', 'PEN No', 'Aadhaar No', "Father's Aadhaar",
-        'Mobile (Student)', 'Mobile (Parent)', 'Email Address', 'Permanent Address / Village',
-        'Tehsil', 'District', 'PIN Code', 'Subject 1', 'Subject 2', 'Subject 3',
-        'Subject 4', 'Subject 5', 'Subject 6', 'Composite Subjects',
-        'Previous School', 'Previous Exam Roll No', 'Previous Marks Obtained',
-        'Previous Max Marks', 'Previous Percentage', 'Previous Division / Result',
-        'Current Exam Roll No', 'Current Result', 'Marks / Reappear (Current)',
-        'Admission Date', 'Status', 'Bank Account No', 'Bank Name', 'IFSC Code', 'Payment Ref / UTR', 'Remarks'
-      ];
+      // --- SHEET 1: Student_Admissions (Important 47 Columns vs Complete 100+ Details) ---
+      let studentHeaders = [];
+      let studentRows = [];
 
-      const studentRows = fullCandidateStudents.map((s, idx) => {
-        const sClass = normalizeClassVal(s.class || s.Class || s['Admission sought for class'] || '');
-        const indivSubs = extractIndividualSubjectsList(s, sClass);
-        const formattedSubs = s.subs || s.subjects || s['Subjects'] || formatStudentSubjects(s, sClass);
-        return [
-          s.sno || idx + 1,
-          cleanVal(s.classRollNo || getStudentRollVal(s)),
-          cleanVal(s.admNo || s.admissionNo || s['Admission No'] || s['Adm. No.']),
-          cleanVal(s.formNo || s['Form Number'] || s['Form No.']),
-          cleanVal(sClass),
-          cleanVal(s.session || s.Session),
-          cleanVal(s.stream || s.Stream || resolveStudentStream(s)),
-          cleanVal(extractRegNo(s) || s.boardRegNo || s['Board Registration Number']),
-          cleanVal(getStudentName(s) || s.studentName),
-          cleanVal(getFatherName(s) || s.fatherName),
-          cleanVal(s.motherName || s["Mother's Name"] || s["Mother's Name (as per school records)"]),
-          cleanVal(s.dob || s.DoB || s['Date of Birth'] || s["DoB (as per school records)"] || s['DoB (figures)']),
-          cleanVal(s.gender || s['Gender']),
-          cleanVal(s.category || s['Category'] || s['Cat._JKBOSE'] || s['Social category']),
-          cleanVal(s.penNo || s.pen || s['PEN No'] || s['PEN No.'] || s['PEN']),
-          cleanVal(s.aadhar || s.aadhaar || s.aadhaarNo || s.aadharNo || s['Aadhar No.'] || s['Aadhaar Number'] || s['Aadhaar No.']),
-          cleanVal(s.fatherAadhar || s.fatherAadhaar || s["Father's Aadhar No."] || s["Father's Aadhaar No."]),
-          cleanVal(s.mobile || s.phone || s['Mobile No.'] || s['Mobile Number'] || s["Mobile No. (with working WhatsApp)"] || s["Student's Contact"]),
-          cleanVal(s.parentContact || s.alternateMobile || s['Alternate Mobile No.'] || s["Parent's Contact"] || s["Parent's Mobile No."]),
-          cleanVal(s.email || s.email1 || s['Email Address'] || s['Email']),
-          cleanVal(s.residence || s.village || s.address || s['Residence (Village, District)'] || s['Name of your village'] || s['Village/Town'] || s['Permanent Address']),
-          cleanVal(s.tehsil || s['Tehsil']),
-          cleanVal(s.district || s['District']),
-          cleanVal(s.pinCode || s.pincode || s['PIN code'] || s['Pin Code'] || s['Pincode']),
-          cleanVal(s.subjects1 || indivSubs[0] || s['Subjects1']),
-          cleanVal(s.subjects2 || indivSubs[1] || s['Subjects2']),
-          cleanVal(s.subjects3 || indivSubs[2] || s['Subjects3']),
-          cleanVal(s.subjects4 || indivSubs[3] || s['Subjects4']),
-          cleanVal(s.subjects5 || indivSubs[4] || s['Subjects5']),
-          cleanVal(s.subjects6 || s.subject6 || indivSubs[5] || s['Subject6'] || s['Subjects6']),
-          cleanVal(formattedSubs),
-          cleanVal(s.prevSchool || s['Previous School'] || s['Name of the Institution last attended'] || s['Previous School Name']),
-          cleanVal(s.prevExamRollNo || s.prevRollNo || s['Exam R.No. (Prev.)'] || s['Roll No. (Class 10th)'] || s['Previous Roll No']),
-          cleanVal(s.prevMarksObt || s['Marks Obt. (Prev.)'] || s['Marks Obtained (Class 10th)']),
-          cleanVal(s.prevMaxMarks || s['Max. Marks (Prev.)'] || s['Max Marks (Class 10th)']),
-          cleanVal(s.prevPercentage || s['%age (Prev.)'] || s['Percentage (Class 10th)']),
-          cleanVal(s.prevDivision || s.prevResultMarks || s['Div/Distinc (Prev.)'] || s['Previous Result / Marks']),
-          cleanVal(s.currExamRollNo || s['Exam R.No. (Current)'] || s.boardRoll || s.boardRollNo),
-          cleanVal(s.currResult || s['Result (Current)'] || s.result),
-          cleanVal(s.currMarksReapp || s['Marks/Reapp (Current)']),
-          cleanVal(s.admDate || s.admissionDate || s.onlineSubmDate || s['Adm. Date'] || s['Online Subm. Date'] || s.timestamp),
-          cleanVal(getStudentEffectiveStatus(s) || s.status || s['Status'] || 'Active'),
-          cleanVal(s.bankAccount || s['Bank Account No.'] || s.paymentRef || s.utrNo || s['Payment Reference']),
-          cleanVal(s.bankName || s['Bank Name'] || s['Name of Bank']),
-          cleanVal(s.ifsc || s['IFSC code'] || s['IFSC Code']),
-          cleanVal(s.paymentRef || s.utrNo || s['Payment Reference']),
-          cleanVal(s.remarks || s['Remarks'])
+      if (masterMultiColumnMode === 'important') {
+        studentHeaders = [
+          'S.No.', 'Class Roll No', 'Admission No', 'Form No', 'Class', 'Session',
+          'Stream', 'Board Reg No', "Student's Name", "Father's Name", "Mother's Name",
+          'Date of Birth', 'Gender', 'Category', 'PEN No', 'Aadhaar No', "Father's Aadhaar",
+          'Mobile (Student)', 'Mobile (Parent)', 'Email Address', 'Permanent Address / Village',
+          'Tehsil', 'District', 'PIN Code', 'Subject 1', 'Subject 2', 'Subject 3',
+          'Subject 4', 'Subject 5', 'Subject 6', 'Composite Subjects',
+          'Previous School', 'Previous Exam Roll No', 'Previous Marks Obtained',
+          'Previous Max Marks', 'Previous Percentage', 'Previous Division / Result',
+          'Current Exam Roll No', 'Current Result', 'Marks / Reappear (Current)',
+          'Admission Date', 'Status', 'Bank Account No', 'Bank Name', 'IFSC Code', 'Payment Ref / UTR', 'Remarks'
         ];
-      });
+
+        studentRows = studentsToExport.map((s, idx) => {
+          const sClass = normalizeClassVal(s.class || s.Class || s['Admission sought for class'] || '');
+          const indivSubs = extractIndividualSubjectsList(s, sClass);
+          const formattedSubs = s.subs || s.subjects || s['Subjects'] || formatStudentSubjects(s, sClass);
+          return [
+            s.sno || idx + 1,
+            cleanVal(s.classRollNo || getStudentRollVal(s)),
+            cleanVal(formatStudentAdmNo(s) || s.admNo || s.admissionNo || s['Admission No'] || s['Adm. No.']),
+            cleanVal(s.formNo || s['Form Number'] || s['Form No.']),
+            cleanVal(sClass),
+            cleanVal(s.session || s.Session),
+            cleanVal(s.stream || s.Stream || resolveStudentStream(s)),
+            cleanVal(extractRegNo(s) || s.boardRegNo || s['Board Registration Number']),
+            cleanVal(getStudentName(s) || s.studentName),
+            cleanVal(getFatherName(s) || s.fatherName),
+            cleanVal(s.motherName || s["Mother's Name"] || s["Mother's Name (as per school records)"]),
+            cleanVal(s.dob || s.DoB || s['Date of Birth'] || s["DoB (as per school records)"] || s['DoB (figures)']),
+            cleanVal(s.gender || s['Gender']),
+            cleanVal(s.category || s['Category'] || s['Cat._JKBOSE'] || s['Social category']),
+            cleanVal(s.penNo || s.pen || s['PEN No'] || s['PEN No.'] || s['PEN']),
+            cleanVal(s.aadhar || s.aadhaar || s.aadhaarNo || s.aadharNo || s['Aadhar No.'] || s['Aadhaar Number'] || s['Aadhaar No.']),
+            cleanVal(s.fatherAadhar || s.fatherAadhaar || s["Father's Aadhar No."] || s["Father's Aadhaar No."]),
+            cleanVal(s.mobile || s.phone || s['Mobile No.'] || s['Mobile Number'] || s["Mobile No. (with working WhatsApp)"] || s["Student's Contact"]),
+            cleanVal(s.parentContact || s.alternateMobile || s['Alternate Mobile No.'] || s["Parent's Contact"] || s["Parent's Mobile No."]),
+            cleanVal(s.email || s.email1 || s['Email Address'] || s['Email']),
+            cleanVal(s.residence || s.village || s.address || s['Residence (Village, District)'] || s['Name of your village'] || s['Village/Town'] || s['Permanent Address']),
+            cleanVal(s.tehsil || s['Tehsil']),
+            cleanVal(s.district || s['District']),
+            cleanVal(s.pinCode || s.pincode || s['PIN code'] || s['Pin Code'] || s['Pincode']),
+            cleanVal(s.subjects1 || indivSubs[0] || s['Subjects1']),
+            cleanVal(s.subjects2 || indivSubs[1] || s['Subjects2']),
+            cleanVal(s.subjects3 || indivSubs[2] || s['Subjects3']),
+            cleanVal(s.subjects4 || indivSubs[3] || s['Subjects4']),
+            cleanVal(s.subjects5 || indivSubs[4] || s['Subjects5']),
+            cleanVal(s.subjects6 || s.subject6 || indivSubs[5] || s['Subject6'] || s['Subjects6']),
+            cleanVal(formattedSubs),
+            cleanVal(s.prevSchool || s['Previous School'] || s['Name of the Institution last attended'] || s['Previous School Name']),
+            cleanVal(s.prevExamRollNo || s.prevRollNo || s['Exam R.No. (Prev.)'] || s['Roll No. (Class 10th)'] || s['Previous Roll No']),
+            cleanVal(s.prevMarksObt || s['Marks Obt. (Prev.)'] || s['Marks Obtained (Class 10th)']),
+            cleanVal(s.prevMaxMarks || s['Max. Marks (Prev.)'] || s['Max Marks (Class 10th)']),
+            cleanVal(s.prevPercentage || s['%age (Prev.)'] || s['Percentage (Class 10th)']),
+            cleanVal(s.prevDivision || s.prevResultMarks || s['Div/Distinc (Prev.)'] || s['Previous Result / Marks']),
+            cleanVal(s.currExamRollNo || s['Exam R.No. (Current)'] || s.boardRoll || s.boardRollNo),
+            cleanVal(s.currResult || s['Result (Current)'] || s.result),
+            cleanVal(s.currMarksReapp || s['Marks/Reapp (Current)']),
+            cleanVal(s.admDate || s.admissionDate || s.onlineSubmDate || s['Adm. Date'] || s['Online Subm. Date'] || s.timestamp),
+            cleanVal(getStudentEffectiveStatus(s) || s.status || s['Status'] || 'Active'),
+            cleanVal(s.bankAccount || s['Bank Account No.'] || s.paymentRef || s.utrNo || s['Payment Reference']),
+            cleanVal(s.bankName || s['Bank Name'] || s['Name of Bank']),
+            cleanVal(s.ifsc || s['IFSC code'] || s['IFSC Code']),
+            cleanVal(s.paymentRef || s.utrNo || s['Payment Reference']),
+            cleanVal(s.remarks || s['Remarks'])
+          ];
+        });
+      } else {
+        // --- 100+ Comprehensive Columns Mode ---
+        const ALL_100_COLUMN_DEFS = [
+          // 1. Primary Identifiers & Enrollment
+          { id: 'sno', label: 'S.No.', getVal: (s, idx) => idx + 1 },
+          { id: 'classRollNo', label: 'Class Roll No', getVal: (s) => s.classRollNo || getStudentRollVal(s) },
+          { id: 'admNo', label: 'Admission No', getVal: (s) => formatStudentAdmNo(s) || s.admNo || s.admissionNo || s['Admission No'] || s['Adm. No.'] },
+          { id: 'formNo', label: 'Form No', getVal: (s) => s.formNo || s['Form Number'] || s['Form No.'] },
+          { id: 'class', label: 'Class', getVal: (s) => normalizeClassVal(s.class || s.Class || s['Admission sought for class'] || '') },
+          { id: 'session', label: 'Session', getVal: (s) => s.session || s.Session || s['Academic Session'] },
+          { id: 'stream', label: 'Stream', getVal: (s) => s.stream || s.Stream || resolveStudentStream(s) },
+          { id: 'section', label: 'Section', getVal: (s) => s.section || s.Section || s['Section'] },
+          { id: 'boardRegNo', label: 'Board Reg No', getVal: (s) => extractRegNo(s) || s.boardRegNo || s['Board Registration Number'] },
+          { id: 'boardName', label: 'Board Name', getVal: (s) => s.boardName || s['Board Name'] || s.board || 'JKBOSE' },
+          { id: 'penNo', label: 'PEN No', getVal: (s) => s.penNo || s.pen || s['PEN No'] || s['PEN No.'] || s['PEN'] },
+          { id: 'apaarId', label: 'APAAR ID', getVal: (s) => s.apaarId || s.apaar || s['APAAR ID'] || s['APAAR'] },
+          { id: 'readmission', label: 'Re-admission Status', getVal: (s) => s.readmission || s['readmission'] || s['Re-admission'] || (s.isReadmission ? 'Yes' : 'No') },
+          { id: 'oldAdmNo', label: 'Old Admission No', getVal: (s) => s.oldAdmNo || s['Old Admission No.'] || s['Old Adm. No.'] },
+
+          // 2. Personal & Demographics
+          { id: 'studentName', label: "Student's Name", getVal: (s) => getStudentName(s) || s.studentName },
+          { id: 'fatherName', label: "Father's Name", getVal: (s) => getFatherName(s) || s.fatherName },
+          { id: 'motherName', label: "Mother's Name", getVal: (s) => s.motherName || s["Mother's Name"] || s["Mother's Name (as per school records)"] },
+          { id: 'dob', label: 'Date of Birth', getVal: (s) => s.dob || s.DoB || s['Date of Birth'] || s["DoB (as per school records)"] || s['DoB (figures)'] },
+          { id: 'dobWords', label: 'DoB (in words)', getVal: (s) => s.dobWords || convertDobToWords(s.dob || s.DoB) || s['DoB (words)'] },
+          { id: 'gender', label: 'Gender', getVal: (s) => s.gender || s['Gender'] },
+          { id: 'category', label: 'Category', getVal: (s) => s.category || s['Category'] || s['Cat._JKBOSE'] },
+          { id: 'socialCategory', label: 'Social Category', getVal: (s) => s.socialCategory || s['Social category'] },
+          { id: 'socioEconomicCategory', label: 'Socio-Economic Category', getVal: (s) => s.socioEconomicCategory || s['Socio-economic category'] },
+          { id: 'religion', label: 'Religion', getVal: (s) => s.religion || s['Religion'] },
+          { id: 'bloodGroup', label: 'Blood Group', getVal: (s) => s.bloodType || s.bloodGroup || s['Blood Type'] || s['Blood Group'] },
+          { id: 'height', label: 'Height (cm)', getVal: (s) => s.height || s['Height (cm)'] || s['Height'] },
+          { id: 'weight', label: 'Weight (kg)', getVal: (s) => s.weight || s['Weight (kg)'] || s['Weight'] },
+          { id: 'disabilityStatus', label: 'Disability Status', getVal: (s) => s.disabilityStatus || s['Disability Status'] },
+          { id: 'disabilityType', label: 'Disability Type', getVal: (s) => s.disabilityType || s['Disability Type'] },
+          { id: 'orphanStatus', label: 'Orphan Status', getVal: (s) => s.orphanStatus || s['Orphan Status'] || (s.isOrphan ? 'Yes' : '') },
+          { id: 'aadhar', label: 'Aadhaar Number', getVal: (s) => s.aadhar || s.aadhaar || s.aadhaarNo || s.aadharNo || s['Aadhaar Number'] || s['Aadhaar No.'] },
+          { id: 'fatherAadhar', label: "Father's Aadhaar", getVal: (s) => s.fatherAadhar || s.fatherAadhaar || s["Father's Aadhar No."] || s["Father's Aadhaar No."] },
+          { id: 'motherAadhar', label: "Mother's Aadhaar", getVal: (s) => s.motherAadhar || s.motherAadhaar || s["Mother's Aadhar No."] },
+
+          // 3. Contact & Address
+          { id: 'mobile', label: 'Mobile (Student)', getVal: (s) => s.mobile || s.phone || s['Mobile No.'] || s['Mobile Number'] || s["Mobile No. (with working WhatsApp)"] },
+          { id: 'parentContact', label: 'Mobile (Parent)', getVal: (s) => s.parentContact || s.alternateMobile || s['Alternate Mobile No.'] || s["Parent's Contact"] || s["Parent's Mobile No."] },
+          { id: 'email', label: 'Primary Email', getVal: (s) => s.email || s.email1 || s['Email Address'] || s['Email'] },
+          { id: 'email2', label: 'Alternate Email', getVal: (s) => s.email2 || s['email2'] || s.alternateEmail },
+          { id: 'houseNo', label: 'House No.', getVal: (s) => s.houseNo || s['House No.'] },
+          { id: 'residence', label: 'Permanent Address / Village', getVal: (s) => s.residence || s.village || s.address || s['Residence (Village, District)'] || s['Permanent Address'] },
+          { id: 'village', label: 'Village / Town', getVal: (s) => s.village || s['Village/Town'] || s['Name of your village'] },
+          { id: 'block', label: 'Block', getVal: (s) => s.block || s['Block'] },
+          { id: 'tehsil', label: 'Tehsil', getVal: (s) => s.tehsil || s['Tehsil'] },
+          { id: 'district', label: 'District', getVal: (s) => s.district || s['District'] },
+          { id: 'state', label: 'State / UT', getVal: (s) => s.state || s['State/UT'] || 'Jammu & Kashmir' },
+          { id: 'pinCode', label: 'PIN Code', getVal: (s) => s.pinCode || s.pincode || s['PIN code'] || s['Pin Code'] },
+
+          // 4. Subjects & Curriculum
+          { id: 'subjects1', label: 'Subject 1', getVal: (s) => s.subjects1 || extractIndividualSubjectsList(s, normalizeClassVal(s.class))[0] || s['Subjects1'] },
+          { id: 'subjects2', label: 'Subject 2', getVal: (s) => s.subjects2 || extractIndividualSubjectsList(s, normalizeClassVal(s.class))[1] || s['Subjects2'] },
+          { id: 'subjects3', label: 'Subject 3', getVal: (s) => s.subjects3 || extractIndividualSubjectsList(s, normalizeClassVal(s.class))[2] || s['Subjects3'] },
+          { id: 'subjects4', label: 'Subject 4', getVal: (s) => s.subjects4 || extractIndividualSubjectsList(s, normalizeClassVal(s.class))[3] || s['Subjects4'] },
+          { id: 'subjects5', label: 'Subject 5', getVal: (s) => s.subjects5 || extractIndividualSubjectsList(s, normalizeClassVal(s.class))[4] || s['Subjects5'] },
+          { id: 'subjects6', label: 'Subject 6 (Additional)', getVal: (s) => s.subjects6 || s.subject6 || extractIndividualSubjectsList(s, normalizeClassVal(s.class))[5] || s['Subject6'] || s['Subjects6'] },
+          { id: 'subs', label: 'Composite Subjects', getVal: (s) => s.subs || s.subjects || s['Subjects'] || formatStudentSubjects(s, normalizeClassVal(s.class)) },
+          { id: 'vocationalSubject', label: 'Vocational Subject', getVal: (s) => s.vocationalSubject || s['Vocational Subject'] },
+          { id: 'vocationalPercentage', label: 'Vocational %age', getVal: (s) => s.vocationalPercentage || s['Vocational %age'] },
+
+          // 5. Previous Academic History
+          { id: 'prevSchool', label: 'Previous School', getVal: (s) => s.prevSchool || s['Previous School'] || s['Name of the Institution last attended'] },
+          { id: 'prevComplexHead', label: 'Previous Complex Head', getVal: (s) => s.prevComplexHead || s['Previous Complex Head'] },
+          { id: 'prevExamRollNo', label: 'Previous Exam Roll No', getVal: (s) => s.prevExamRollNo || s.prevRollNo || s['Exam R.No. (Prev.)'] || s['Roll No. (Class 10th)'] },
+          { id: 'prevExamMode', label: 'Previous Exam Mode', getVal: (s) => s.prevExamMode || s['Exam Mode (Prev.)'] },
+          { id: 'prevMarksObt', label: 'Previous Marks Obtained', getVal: (s) => s.prevMarksObt || s['Marks Obt. (Prev.)'] || s['Marks Obtained (Class 10th)'] },
+          { id: 'prevMaxMarks', label: 'Previous Max Marks', getVal: (s) => s.prevMaxMarks || s['Max. Marks (Prev.)'] || s['Max Marks (Class 10th)'] },
+          { id: 'prevPercentage', label: 'Previous Percentage', getVal: (s) => s.prevPercentage || s['%age (Prev.)'] || s['Percentage (Class 10th)'] },
+          { id: 'prevDivision', label: 'Previous Division / Result', getVal: (s) => s.prevDivision || s.prevResultMarks || s['Div/Distinc (Prev.)'] || s['Previous Result / Marks'] },
+          { id: 'prevCcDc', label: 'Previous CC/DC No. & Date', getVal: (s) => s.prevCcDc || s['CC/DC No. & Date (Prev. insitution)'] },
+
+          // 6. Current Academic Progress & Results
+          { id: 'currExamRollNo', label: 'Current Exam Roll No', getVal: (s) => s.currExamRollNo || s['Exam R.No. (Current)'] || s.boardRoll || s.boardRollNo },
+          { id: 'currExamMode', label: 'Current Exam Mode', getVal: (s) => s.currExamMode || s['Exam Mode (Current)'] },
+          { id: 'currResult', label: 'Current Result', getVal: (s) => s.currResult || s['Result (Current)'] || s.result },
+          { id: 'currMarksReapp', label: 'Marks / Reappear (Current)', getVal: (s) => s.currMarksReapp || s['Marks/Reapp (Current)'] },
+          { id: 'withdrawalDate', label: 'Date of Withdrawal', getVal: (s) => s.withdrawalDate || s['Date of withdrawl'] },
+          { id: 'currCcDc', label: 'CC/DC Issued (This Institution)', getVal: (s) => s.currCcDc || s['No. & Date of CC/DC Issued (This Institution)'] },
+
+          // 7. Banking & Payment Information
+          { id: 'bankAccount', label: 'Bank Account Number', getVal: (s) => s.bankAccount || s['Bank Account No.'] || s.accountNo },
+          { id: 'bankName', label: 'Bank Name', getVal: (s) => s.bankName || s['Bank Name'] || s['Name of Bank'] },
+          { id: 'ifsc', label: 'IFSC Code', getVal: (s) => s.ifsc || s['IFSC code'] || s['IFSC Code'] },
+          { id: 'accountHolder', label: 'Account Holder Name', getVal: (s) => s.accountHolder || s['Account Holder Name'] },
+          { id: 'paymentRef', label: 'Payment Reference / UTR', getVal: (s) => s.paymentRef || s.utrNo || s['Payment Reference'] },
+          { id: 'feeAmount', label: 'Fee Amount Paid', getVal: (s) => s.feeAmount || s['Fee Amount'] || s.amountPaid },
+          { id: 'receiptNo', label: 'Fee Receipt Number', getVal: (s) => s.receiptNo || s['Receipt No.'] || s.feeReceiptNo },
+          { id: 'paymentDate', label: 'Fee Payment Date', getVal: (s) => s.paymentDate || s['Payment Date'] },
+          { id: 'feeStatus', label: 'Fee Status', getVal: (s) => s.feeStatus || s['Fee Status'] || s.feePaymentStatus },
+
+          // 8. Media & Document URLs
+          { id: 'photoUrl', label: 'Student Photo URL', getVal: (s) => s.photoUrl || s.photo || s.photoId || s['Photo URL'] },
+          { id: 'signatureUrl', label: 'Student Signature URL', getVal: (s) => s.signatureUrl || s.signature || s['Signature URL'] },
+          { id: 'pdfUrl', label: 'Official Admission PDF URL', getVal: (s) => s.pdfUrl || s['PDF_URL'] || s.applicationPdfUrl },
+          { id: 'marksheetUrl', label: 'Marksheet Document URL', getVal: (s) => s.marksheetUrl || s['Marksheet URL'] || s.marksheetDoc },
+          { id: 'provisionalCertUrl', label: 'Provisional Certificate URL', getVal: (s) => s.provisionalCertUrl || s['Provisional Certificate URL'] },
+          { id: 'antiDrugDocUrl', label: 'Anti-Drug Undertaking URL', getVal: (s) => s.antiDrugDocUrl || s['Anti Drug Doc URL'] },
+          { id: 'undertakingAccepted', label: 'Anti-Drug Undertaking Accepted', getVal: (s) => s.undertakingAccepted ? 'Yes' : (s.antiDrugUndertaking ? 'Yes' : '') },
+          { id: 'libraryCardGenerated', label: 'Library Card Generated', getVal: (s) => s.libraryCardGenerated ? 'Yes' : '' },
+
+          // 9. System, Audit & Database Metadata
+          { id: 'status', label: 'Admission Status', getVal: (s) => getStudentEffectiveStatus(s) || s.status || s['Status'] || 'Active' },
+          { id: 'onlineSubmDate', label: 'Online Submission Date', getVal: (s) => s.onlineSubmDate || s['Online Subm. Date'] || s.submittedAt },
+          { id: 'admDate', label: 'Admission Date', getVal: (s) => s.admDate || s.admissionDate || s['Adm. Date'] || s.timestamp },
+          { id: 'createdAt', label: 'Record Created Timestamp', getVal: (s) => s.createdAt ? (s.createdAt.toDate ? s.createdAt.toDate().toISOString() : s.createdAt) : '' },
+          { id: 'updatedAt', label: 'Record Last Updated Timestamp', getVal: (s) => s.updatedAt ? (s.updatedAt.toDate ? s.updatedAt.toDate().toISOString() : s.updatedAt) : '' },
+          { id: 'lastEditedBy', label: 'Last Edited By', getVal: (s) => s.lastEditedBy || s.editedBy || '' },
+          { id: 'isDirect', label: 'Direct Ingestion Record', getVal: (s) => s._isDirectIngested ? 'Yes' : '' },
+          { id: 'docId', label: 'Database Document ID', getVal: (s) => s.id || s.docId || s._docId || '' },
+          { id: 'recordSource', label: 'Record Source Collection', getVal: (s) => s._source || (s._isHistorical ? 'masterRegisters (Historical)' : 'admissions (Active)') },
+          { id: 'jkboseBatchId', label: 'JKBOSE Batch ID', getVal: (s) => s.jkboseBatchId || s.batchId || s.importBatch || '' },
+          { id: 'remarks', label: 'Administrative Remarks', getVal: (s) => s.remarks || s['Remarks'] }
+        ];
+
+        // Discover any extra arbitrary dynamic keys present across any record in studentsToExport
+        const coveredKeySet = new Set(ALL_100_COLUMN_DEFS.map(d => d.id.toLowerCase()));
+        ['formno', 'admissionno', 'classrollno', 'studentname', 'fathername', 'mothername', 'dob', 'gender', 'category', 'stream', 'session', 'class', 'aadhar', 'mobile', 'address', 'residence', 'village', 'status', 'remarks', 'email', 'subs', 'subjects', 'photo', 'signature', 'pen', 'apaar', 'id', 'sno'].forEach(k => coveredKeySet.add(k));
+
+        const extraKeys = new Set();
+        studentsToExport.forEach(s => {
+          Object.keys(s).forEach(k => {
+            if (!k || k.startsWith('_') || typeof s[k] === 'function') return;
+            const norm = k.toLowerCase().replace(/[^a-z0-9]/g, '');
+            if (!coveredKeySet.has(norm) && !coveredKeySet.has(k.toLowerCase())) {
+              extraKeys.add(k);
+            }
+          });
+        });
+
+        const extraDefs = Array.from(extraKeys).sort().map(k => ({
+          id: k,
+          label: `Extra: ${k}`,
+          getVal: (s) => s[k]
+        }));
+
+        const finalDefs = [...ALL_100_COLUMN_DEFS, ...extraDefs];
+        studentHeaders = finalDefs.map(d => d.label);
+        studentRows = studentsToExport.map((s, idx) => finalDefs.map(d => cleanVal(d.getVal(s, idx))));
+      }
 
       const wsStudents = XLSX.utils.aoa_to_sheet([studentHeaders, ...studentRows]);
       wsStudents['!cols'] = autoColWidths(studentHeaders, studentRows);
@@ -7924,15 +8140,17 @@ export default function AdvancedReports({
         ['Institution Name', 'Govt. Higher Secondary School Shangus'],
         ['Portal System', 'Enterprise School Management & Admission Suite'],
         ['Export Timestamp', new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })],
-        ['Total Students in Database Backup', String(fullCandidateStudents.length)],
-        ['Active Admissions in Scope', String((currentAdmissions || []).length)],
-        ['Historical Digitized Records', String(Math.max(0, fullCandidateStudents.length - (currentAdmissions || []).length))],
+        ['Total Students in Database Backup', String(studentsToExport.length)],
+        ['Active Admissions in Scope', String(studentsToExport.filter(s => !s._isHistorical).length)],
+        ['Historical Digitized Records in Scope', String(studentsToExport.filter(s => s._isHistorical).length)],
+        ['Student Columns Mode', masterMultiColumnMode === 'all' ? `All Fields & Raw Attributes (${studentHeaders.length} Columns)` : `Important Only (${studentHeaders.length} Standard Columns)`],
+        ['Student Data Scope', masterMultiScope === 'filtered' ? `Filtered Scope (${masterExportSelectedSessions.join(', ')} | ${masterExportClass} | ${masterExportStream} | ${masterExportSelectedStatuses.join(', ')})` : 'All Institutional Database Records'],
         ['Total Faculty Members', String(facultyList.length)],
         ['Total Notices & Circulars', String(noticesList.length)],
         ['Total Admin Accounts', String(adminsList.length)],
         ['Total Practicals Batches', String(practicalsList.length)],
         ['Platform Architecture', 'React 19, Cloud Firestore, SheetJS Enterprise Engine'],
-        ['Backup Engine Version', '2026.2 (Multi-Sheet Comprehensive XLSX)']
+        ['Backup Engine Version', '2026.3 (Multi-Sheet Comprehensive XLSX)']
       ];
       const wsMeta = XLSX.utils.aoa_to_sheet([metaHeaders, ...metaRows]);
       wsMeta['!cols'] = autoColWidths(metaHeaders, metaRows);
@@ -7940,11 +8158,13 @@ export default function AdvancedReports({
 
       // Write file
       const dateStr = new Date().toISOString().slice(0, 10);
-      const filename = `HSS_Shangus_Full_Database_Backup_${dateStr}.xlsx`;
+      const scopeTag = masterMultiScope === 'filtered' ? 'Filtered' : 'Full';
+      const colTag = masterMultiColumnMode === 'all' ? '100Cols' : 'Standard';
+      const filename = `HSS_Shangus_Master_Database_Backup_${scopeTag}_${colTag}_${dateStr}.xlsx`;
       XLSX.writeFile(wb, filename);
 
-      logAdminActivity('Full Database Backup Exported', `Generated complete multi-sheet Excel backup (${filename}) containing ${fullCandidateStudents.length} students, ${facultyList.length} faculty, ${noticesList.length} notices, and system settings.`);
-      showToast(`✅ Master Database Backup successfully generated & downloaded (${filename}) with ${fullCandidateStudents.length} students and ${facultyList.length} faculty!`, 'success');
+      logAdminActivity('Full Database Backup Exported', `Generated complete multi-sheet Excel backup (${filename}) containing ${studentsToExport.length} students (${studentHeaders.length} columns), ${facultyList.length} faculty, ${noticesList.length} notices, and system settings.`);
+      showToast(`✅ Master Database Backup successfully generated & downloaded (${filename}) with ${studentsToExport.length} students (${masterMultiColumnMode === 'all' ? `${studentHeaders.length} columns` : '47 standard columns'}) across 7 sheets!`, 'success');
     } catch (err) {
       console.error('Database backup error:', err);
       showToast('Error generating full database backup: ' + (err.message || 'Unknown error'), 'error');
@@ -10070,6 +10290,47 @@ export default function AdvancedReports({
       return b.localeCompare(a, undefined, { numeric: true });
     });
   }, [availableSessions, CANONICAL_ACADEMIC_SESSIONS]);
+
+  // Real-time student candidate counts for Master Database Backup and Session Register
+  const masterFilteredStudentsCount = useMemo(() => {
+    const pool = (masterHistoricalRecords && masterHistoricalRecords.length > 0)
+      ? [...(currentAdmissions || []), ...masterHistoricalRecords]
+      : (allStudents && allStudents.length > 0 ? allStudents : (currentAdmissions || []));
+    if (pool.length === 0) return 0;
+
+    const activeSessList = masterExportSelectedSessions.length === 0
+      ? allKnownSessions
+      : masterExportSelectedSessions.filter(s => s !== '__NONE__');
+    if (activeSessList.length === 0) return 0;
+
+    const isAllSess = masterExportSelectedSessions.length === 0 || masterExportSelectedSessions.length === allKnownSessions.length;
+    const normSelectedSessions = new Set(activeSessList.map(s => String(s).trim().toLowerCase()));
+
+    return pool.filter(s => {
+      const sSess = String(s.session || '').trim().toLowerCase();
+      if (!isAllSess && !normSelectedSessions.has(sSess)) return false;
+      if (masterExportClass !== 'ALL') {
+        if (normalizeClassVal(s.class) !== normalizeClassVal(masterExportClass)) return false;
+      }
+      if (masterExportStream !== 'ALL') {
+        if (String(s.stream || '').trim().toLowerCase() !== String(masterExportStream).trim().toLowerCase()) return false;
+      }
+      if (masterExportSelectedStatuses && masterExportSelectedStatuses.length > 0) {
+        if (masterExportSelectedStatuses.includes('__NONE__')) return false;
+        const normStatuses = new Set(masterExportSelectedStatuses.map(st => String(st).trim().toLowerCase()));
+        const eff = getStudentEffectiveStatus(s).toLowerCase();
+        if (!normStatuses.has(eff)) return false;
+      }
+      return true;
+    }).length;
+  }, [allStudents, currentAdmissions, masterHistoricalRecords, masterExportSelectedSessions, masterExportClass, masterExportStream, masterExportSelectedStatuses, allKnownSessions]);
+
+  const totalCandidateStudentsCount = useMemo(() => {
+    if (masterHistoricalRecords && masterHistoricalRecords.length > 0) {
+      return (currentAdmissions?.length || 0) + masterHistoricalRecords.length;
+    }
+    return (allStudents && allStudents.length > 0) ? allStudents.length : (currentAdmissions?.length || 0);
+  }, [currentAdmissions, masterHistoricalRecords, allStudents]);
 
   // Helper set of recent sessions: current active session + previous 4 sessions (e.g. 2022-23 through 2025-26)
   const defaultSearchSessionsLowerSet = useMemo(() => {
@@ -14800,7 +15061,7 @@ export default function AdvancedReports({
                 </div>
 
                 {/* ─── 2. MASTER MULTI-SHEET DATABASE BACKUP CARD ─── */}
-                <div className="p-3.5 sm:p-4 rounded-2xl bg-gradient-to-br from-teal-50/60 via-white to-emerald-50/50 dark:from-teal-950/25 dark:via-slate-900 dark:to-emerald-950/25 border-2 border-teal-500/40 dark:border-teal-500/30 shadow-xs space-y-2.5">
+                <div className="p-3.5 sm:p-4 rounded-2xl bg-gradient-to-br from-teal-50/60 via-white to-emerald-50/50 dark:from-teal-950/25 dark:via-slate-900 dark:to-emerald-950/25 border-2 border-teal-500/40 dark:border-teal-500/30 shadow-xs space-y-3">
                   <div className="flex items-start justify-between flex-wrap gap-3">
                     <div className="flex items-start gap-3">
                       <div className="p-2.5 rounded-xl bg-teal-600 text-white font-black shrink-0 shadow-xs">
@@ -14814,23 +15075,8 @@ export default function AdvancedReports({
                           </span>
                         </div>
                         <p className="text-[11px] text-slate-600 dark:text-slate-300 font-medium">
-                          Compiles a single, comprehensive Microsoft Excel workbook containing <strong>7 dedicated tabs</strong> with 100% of institutional data:
+                          Compiles a single, comprehensive Microsoft Excel workbook containing <strong>7 dedicated tabs</strong> with institutional data from admissions to historical archives:
                         </p>
-                        <div className="flex flex-wrap gap-1.5 pt-1">
-                          {[
-                            '1. Student_Admissions (47 Cols)',
-                            '2. Faculty_Directory (12 Cols)',
-                            '3. Notices_Circulars',
-                            '4. Site_Settings',
-                            '5. Admin_Accounts',
-                            '6. Practicals_Awards',
-                            '7. System_Metadata'
-                          ].map(t => (
-                            <span key={t} className="px-2 py-0.5 rounded-lg bg-white/90 dark:bg-slate-800 text-slate-800 dark:text-slate-200 border border-teal-500/20 dark:border-teal-700/40 text-[10px] font-mono font-bold shadow-2xs">
-                              {t}
-                            </span>
-                          ))}
-                        </div>
                       </div>
                     </div>
 
@@ -14848,10 +15094,102 @@ export default function AdvancedReports({
                       ) : (
                         <>
                           <Download size={14} />
-                          <span>Download Master Excel (.xlsx)</span>
+                          <span>Download Master Excel {masterMultiColumnMode === 'all' ? '(100+ Cols)' : '(.xlsx)'}</span>
                         </>
                       )}
                     </button>
+                  </div>
+
+                  {/* Interactive Export Options Controls: Scope & Column Detail Level */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 p-2.5 rounded-xl bg-white/80 dark:bg-slate-900/80 border border-teal-500/20 dark:border-teal-700/30 text-xs">
+                    {/* Data Scope Control */}
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between text-[10.5px] font-black text-slate-700 dark:text-slate-300">
+                        <span>Student Data Scope:</span>
+                        <span className="text-teal-700 dark:text-teal-400 font-bold">
+                          {masterMultiScope === 'filtered' ? `${masterFilteredStudentsCount} Students in Filter` : `${totalCandidateStudentsCount} Total Students`}
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-1.5 p-0.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-[11px] font-bold">
+                        <button
+                          type="button"
+                          onClick={() => setMasterMultiScope('filtered')}
+                          className={`py-1.5 px-2 rounded-md transition-all cursor-pointer text-center truncate ${
+                            masterMultiScope === 'filtered'
+                              ? 'bg-teal-700 text-white shadow-xs font-black'
+                              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                          }`}
+                          title="Downloads records from admissions to history matching the active Class, Stream, Session, and Status filters configured above"
+                        >
+                          Filtered Scope ({masterFilteredStudentsCount})
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setMasterMultiScope('all')}
+                          className={`py-1.5 px-2 rounded-md transition-all cursor-pointer text-center truncate ${
+                            masterMultiScope === 'all'
+                              ? 'bg-teal-700 text-white shadow-xs font-black'
+                              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                          }`}
+                          title="Downloads all institutional records across admissions and digitized archives regardless of filters"
+                        >
+                          All Records ({totalCandidateStudentsCount})
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Column Detail Level Control */}
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between text-[10.5px] font-black text-slate-700 dark:text-slate-300">
+                        <span>Admissions Column Level:</span>
+                        <span className="text-teal-700 dark:text-teal-400 font-bold">
+                          {masterMultiColumnMode === 'important' ? '47 Standard Columns' : '100+ Complete Details'}
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-1.5 p-0.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-[11px] font-bold">
+                        <button
+                          type="button"
+                          onClick={() => setMasterMultiColumnMode('important')}
+                          className={`py-1.5 px-2 rounded-md transition-all cursor-pointer text-center truncate ${
+                            masterMultiColumnMode === 'important'
+                              ? 'bg-teal-700 text-white shadow-xs font-black'
+                              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                          }`}
+                          title="Exports curated 47 important and official columns (Recommended default)"
+                        >
+                          Important Only (Default)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setMasterMultiColumnMode('all')}
+                          className={`py-1.5 px-2 rounded-md transition-all cursor-pointer text-center truncate ${
+                            masterMultiColumnMode === 'all'
+                              ? 'bg-teal-700 text-white shadow-xs font-black'
+                              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                          }`}
+                          title="Exports exhaustive 100+ columns including all fields, metadata, document links, and raw properties"
+                        >
+                          All Details (100+ Cols)
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 7 Dedicated Sheet Badges */}
+                  <div className="flex flex-wrap gap-1.5">
+                    {[
+                      masterMultiColumnMode === 'all' ? '1. Student_Admissions (100+ Cols)' : '1. Student_Admissions (47 Cols)',
+                      '2. Faculty_Directory (12 Cols)',
+                      '3. Notices_Circulars',
+                      '4. Site_Settings',
+                      '5. Admin_Accounts',
+                      '6. Practicals_Awards',
+                      '7. System_Metadata'
+                    ].map(t => (
+                      <span key={t} className="px-2 py-0.5 rounded-lg bg-white/90 dark:bg-slate-800 text-slate-800 dark:text-slate-200 border border-teal-500/20 dark:border-teal-700/40 text-[10px] font-mono font-bold shadow-2xs">
+                        {t}
+                      </span>
+                    ))}
                   </div>
                 </div>
 
