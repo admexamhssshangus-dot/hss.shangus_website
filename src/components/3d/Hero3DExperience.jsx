@@ -30,8 +30,8 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
   const containerRef = useRef(null);
   const tooltipRef = useRef(null);
   const [webGlSupported, setWebGlSupported] = useState(true);
-  const [pinnedTooltip, setPinnedTooltip] = useState(false);
-  const pinnedTooltipRef = useRef(false);
+  const [pinnedAsset, setPinnedAsset] = useState(null); // 'atom' | 'book' | 'flask' | null
+  const pinnedAssetRef = useRef(null);
   const dismissedRef = useRef(false);
   const hoveredActionRef = useRef(hoveredAction);
 
@@ -41,8 +41,8 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
       e.preventDefault();
     }
     dismissedRef.current = true;
-    setPinnedTooltip(false);
-    pinnedTooltipRef.current = false;
+    setPinnedAsset(null);
+    pinnedAssetRef.current = null;
     if (tooltipRef.current) {
       tooltipRef.current.style.opacity = '0';
       tooltipRef.current.style.pointerEvents = 'none';
@@ -54,8 +54,8 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
   }, [hoveredAction]);
 
   useEffect(() => {
-    pinnedTooltipRef.current = pinnedTooltip;
-  }, [pinnedTooltip]);
+    pinnedAssetRef.current = pinnedAsset;
+  }, [pinnedAsset]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -249,8 +249,8 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
     atomInteractiveGroup.add(nucleusShell);
 
     // -------------------------------------------------------------------------
-    // 1B. CARBON INNER SHELL (K-SHELL, n = 1) — EXACTLY 2 ELECTRONS
-    // 2 electrons paired diametrically opposite (180°) on ground state orbit
+    // 1B. CARBON 1s SUBSHELL (K-SHELL, n = 1, l = 0) — 1s² (EXACTLY 2 ELECTRONS)
+    // Closest ground state spherical orbital carrying 2 Pauli-paired electrons (180°)
     // -------------------------------------------------------------------------
     const innerRingMat = new THREE.MeshStandardMaterial({
       color: 0x0ea5e9,
@@ -268,95 +268,94 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
 
     // Common Electron Material: Electric Blue/Cyan (matching textbook diagram)
     const electronMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8 });
-    const electronCoreGeo = new THREE.SphereGeometry(0.048, 12, 12);
+    const electronCoreGeo = new THREE.SphereGeometry(0.046, 12, 12);
 
-    // Electron 1 (Inner K-shell electron 1)
+    // Electron 1 & 2 (1s² core electrons, paired 180° apart)
     const electron1 = new THREE.Mesh(electronCoreGeo, electronMat);
     innerRing.add(electron1);
 
-    // Electron 2 (Inner K-shell electron 2, 180° opposite)
     const electron2 = new THREE.Mesh(electronCoreGeo, electronMat);
     innerRing.add(electron2);
 
     // -------------------------------------------------------------------------
-    // 1C. CARBON OUTER VALENCE SHELL (L-SHELL, n = 2) — EXACTLY 4 ELECTRONS
-    // Concentric outer quantum shell carrying exactly 4 electrons spaced at 90°
-    // With complementary tilted orbital guide rings (±28°) for rich 3D perspective
+    // 1C. CARBON 2s SUBSHELL (L-SHELL, n = 2, l = 0) — 2s² (EXACTLY 2 ELECTRONS)
+    // Intermediate spherical shell (radius 0.82) carrying 2 Pauli-paired electrons (180°)
     // -------------------------------------------------------------------------
-    const valenceRadius = 0.98;
-    const valenceRingGeo = new THREE.TorusGeometry(valenceRadius, 0.009, 12, 56);
-
-    const valenceRingMat1 = new THREE.MeshStandardMaterial({
-      color: 0x38bdf8,
-      emissive: 0x0284c7,
+    const ring2sRadius = 0.82;
+    const ring2sGeo = new THREE.TorusGeometry(ring2sRadius, 0.009, 12, 56);
+    const ring2sMat = new THREE.MeshStandardMaterial({
+      color: 0x10b981,
+      emissive: 0x047857,
       emissiveIntensity: 0.5,
       metalness: 0.92,
       roughness: 0.2
     });
-    const valenceRingMat2 = new THREE.MeshStandardMaterial({
-      color: 0x10b981,
-      emissive: 0x047857,
-      emissiveIntensity: 0.45,
-      metalness: 0.92,
-      roughness: 0.2
-    });
-    const valenceRingMat3 = new THREE.MeshStandardMaterial({
+    const ring2s = new THREE.Mesh(ring2sGeo, ring2sMat);
+    ring2s.rotation.set(-0.35, 0.45, 0.25);
+    atomInteractiveGroup.add(ring2s);
+
+    const electron2sGeo = new THREE.SphereGeometry(0.049, 12, 12);
+    // Electron 3 & 4 (2s² electrons, paired 180° apart)
+    const electron3 = new THREE.Mesh(electron2sGeo, electronMat);
+    ring2s.add(electron3);
+
+    const electron4 = new THREE.Mesh(electron2sGeo, electronMat);
+    ring2s.add(electron4);
+
+    // -------------------------------------------------------------------------
+    // 1D. CARBON 2p SUBSHELL (L-SHELL, n = 2, l = 1) — 2p² (EXACTLY 2 ELECTRONS)
+    // By Hund's rule, 2 electrons occupy separate orthogonal 2p orbitals (2p_x¹, 2p_y¹)
+    // along 3D spatial axes at outer radius 1.12 (with translucent 2p_z⁰ guide ring)
+    // -------------------------------------------------------------------------
+    const ring2pRadius = 1.12;
+    const ring2pGeo = new THREE.TorusGeometry(ring2pRadius, 0.0085, 12, 60);
+
+    // 2p_x Orbital Plane (Amethyst Purple)
+    const ring2pxMat = new THREE.MeshStandardMaterial({
       color: 0xa855f7,
       emissive: 0x7e22ce,
-      emissiveIntensity: 0.45,
+      emissiveIntensity: 0.5,
       metalness: 0.92,
       roughness: 0.2
     });
+    const ring2px = new THREE.Mesh(ring2pGeo, ring2pxMat);
+    ring2px.rotation.set(0.95, -0.55, -0.45);
+    atomInteractiveGroup.add(ring2px);
 
-    const electronValenceGeo = new THREE.SphereGeometry(0.052, 12, 12);
+    const electron2pGeo = new THREE.SphereGeometry(0.051, 12, 12);
+    // Valence Electron 5: 2p_x¹ orbital (1 electron)
+    const electron5 = new THREE.Mesh(electron2pGeo, electronMat);
+    ring2px.add(electron5);
 
-    // -------------------------------------------------------------------------
-    // 4 Spatially Oriented Valence Orbital Rings (Tetrahedral / 3D sp³ Geometry)
-    // Each carrying exactly one valence electron (total 4 valence electrons)
-    // -------------------------------------------------------------------------
-    const valenceRingMat4 = new THREE.MeshStandardMaterial({
+    // 2p_y Orbital Plane (Amber Gold)
+    const ring2pyMat = new THREE.MeshStandardMaterial({
       color: 0xf59e0b,
       emissive: 0xd97706,
-      emissiveIntensity: 0.45,
+      emissiveIntensity: 0.5,
       metalness: 0.92,
       roughness: 0.2
     });
+    const ring2py = new THREE.Mesh(ring2pGeo, ring2pyMat);
+    ring2py.rotation.set(-0.82, 0.60, 0.45);
+    atomInteractiveGroup.add(ring2py);
 
-    // Ring 1 (Cyan / Electric Blue, Orbital Plane 1)
-    const ringV1 = new THREE.Mesh(valenceRingGeo, valenceRingMat1);
-    ringV1.rotation.set(0.40, 0.35, 0);
-    atomInteractiveGroup.add(ringV1);
+    // Valence Electron 6: 2p_y¹ orbital (1 electron)
+    const electron6 = new THREE.Mesh(electron2pGeo, electronMat);
+    ring2py.add(electron6);
 
-    // Valence Electron 3 on Ring 1
-    const electron3 = new THREE.Mesh(electronValenceGeo, electronMat);
-    ringV1.add(electron3);
-
-    // Ring 2 (Emerald Green, Orbital Plane 2)
-    const ringV2 = new THREE.Mesh(valenceRingGeo, valenceRingMat2);
-    ringV2.rotation.set(-0.48, -0.42, 0.35);
-    atomInteractiveGroup.add(ringV2);
-
-    // Valence Electron 4 on Ring 2
-    const electron4 = new THREE.Mesh(electronValenceGeo, electronMat);
-    ringV2.add(electron4);
-
-    // Ring 3 (Amethyst Purple, Orbital Plane 3)
-    const ringV3 = new THREE.Mesh(valenceRingGeo, valenceRingMat3);
-    ringV3.rotation.set(0.95, -0.55, -0.45);
-    atomInteractiveGroup.add(ringV3);
-
-    // Valence Electron 5 on Ring 3
-    const electron5 = new THREE.Mesh(electronValenceGeo, electronMat);
-    ringV3.add(electron5);
-
-    // Ring 4 (Amber Gold, Orbital Plane 4)
-    const ringV4 = new THREE.Mesh(valenceRingGeo, valenceRingMat4);
-    ringV4.rotation.set(-0.82, 0.60, 0.45);
-    atomInteractiveGroup.add(ringV4);
-
-    // Valence Electron 6 on Ring 4
-    const electron6 = new THREE.Mesh(electronValenceGeo, electronMat);
-    ringV4.add(electron6);
+    // 2p_z Guide Ring (Unoccupied ground-state orbital completing 3D p-triplet)
+    const ring2pzMat = new THREE.MeshStandardMaterial({
+      color: 0x38bdf8,
+      emissive: 0x0284c7,
+      emissiveIntensity: 0.25,
+      transparent: true,
+      opacity: 0.22,
+      metalness: 0.9,
+      roughness: 0.25
+    });
+    const ring2pz = new THREE.Mesh(ring2pGeo, ring2pzMat);
+    ring2pz.rotation.set(0.25, 0.85, -0.65);
+    atomInteractiveGroup.add(ring2pz);
 
     masterGroup.add(atomAnchor);
 
@@ -975,19 +974,40 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
 
       const atomWorldPos = new THREE.Vector3();
       atomAnchor.getWorldPosition(atomWorldPos);
-      const projected = atomWorldPos.clone().project(camera);
-      const atomScreenX = (projected.x * 0.5 + 0.5) * rect.width;
-      const atomScreenY = (-projected.y * 0.5 + 0.5) * rect.height;
+      const projectedAtom = atomWorldPos.clone().project(camera);
+      const atomScreenX = (projectedAtom.x * 0.5 + 0.5) * rect.width;
+      const atomScreenY = (-projectedAtom.y * 0.5 + 0.5) * rect.height;
 
-      const dist = Math.hypot(clickX - atomScreenX, clickY - atomScreenY);
+      const bookWorldPos = new THREE.Vector3();
+      bookAnchor.getWorldPosition(bookWorldPos);
+      const projectedBook = bookWorldPos.clone().project(camera);
+      const bookScreenX = (projectedBook.x * 0.5 + 0.5) * rect.width;
+      const bookScreenY = (-projectedBook.y * 0.5 + 0.5) * rect.height;
+
+      const flaskWorldPos = new THREE.Vector3();
+      flaskAnchor.getWorldPosition(flaskWorldPos);
+      const projectedFlask = flaskWorldPos.clone().project(camera);
+      const flaskScreenX = (projectedFlask.x * 0.5 + 0.5) * rect.width;
+      const flaskScreenY = (-projectedFlask.y * 0.5 + 0.5) * rect.height;
+
+      const distAtom = Math.hypot(clickX - atomScreenX, clickY - atomScreenY);
+      const distBook = Math.hypot(clickX - bookScreenX, clickY - bookScreenY);
+      const distFlask = Math.hypot(clickX - flaskScreenX, clickY - flaskScreenY);
+
       const threshold = isMobile ? 65 : 90;
-      if (dist < threshold) {
+      if (distAtom < threshold) {
         dismissedRef.current = false;
-        setPinnedTooltip((prev) => !prev);
+        setPinnedAsset((prev) => (prev === 'atom' ? null : 'atom'));
+      } else if (distBook < threshold) {
+        dismissedRef.current = false;
+        setPinnedAsset((prev) => (prev === 'book' ? null : 'book'));
+      } else if (distFlask < threshold) {
+        dismissedRef.current = false;
+        setPinnedAsset((prev) => (prev === 'flask' ? null : 'flask'));
       } else {
-        // Tapped outside the globe on hero -> close tooltip easily!
+        // Tapped outside all 3 assets -> close tooltip easily!
         dismissedRef.current = true;
-        setPinnedTooltip(false);
+        setPinnedAsset(null);
         if (tooltipEl) {
           tooltipEl.style.opacity = '0';
           tooltipEl.style.pointerEvents = 'none';
@@ -996,7 +1016,7 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
     };
 
     const handlePointerUp = () => {
-      if (!pinnedTooltipRef.current) {
+      if (!pinnedAssetRef.current) {
         clientMouseX = -9999;
         clientMouseY = -9999;
         targetMouseX = 0;
@@ -1068,11 +1088,10 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
     // 8. QUANTUM CARBON ATOM & MICRO-INTERACTION RENDER LOOP
     // =========================================================================
     let lastTime = performance.now();
-    let innerElectronAngle = 0;
-    let valenceElectronAngle1 = 0;
-    let valenceElectronAngle2 = Math.PI / 2;
-    let valenceElectronAngle3 = Math.PI;
-    let valenceElectronAngle4 = (3 * Math.PI) / 2;
+    let innerElectronAngle = 0; // 1s² orbital angle
+    let electronAngle2s = 0;     // 2s² orbital angle
+    let electronAngle2px = 0;    // 2p_x¹ orbital angle
+    let electronAngle2py = Math.PI / 2; // 2p_y¹ orbital angle
 
     let flaskLiftProgress = 0;
     let flaskSwirlAngle = 0;
@@ -1085,6 +1104,40 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
     let currentTooltipX = -9999;
     let currentTooltipY = -9999;
     let wasTooltipActive = false;
+    let displayedAsset = null;
+
+    const assetTelemetry = {
+      atom: {
+        badge: '₆C',
+        badgeBg: 'rgba(6, 182, 212, 0.25)',
+        badgeBorder: 'rgba(56, 189, 248, 0.5)',
+        badgeColor: '#38bdf8',
+        title: 'Carbon-12 Structure',
+        subtitle: '6p 6n • 1s² 2s² 2p²',
+        subtitleColor: 'text-cyan-400',
+        body: 'Carbon is nature\'s fundamental building block (1s² 2s² 2p²). Featuring the <span class="text-amber-300 font-semibold">HSS Shangus seal</span> at its atomic core, this model anchors our 3-asset theme: uniting the <span class="text-amber-300 font-semibold">Book of Wisdom</span> ("nurturing minds") and the <span class="text-emerald-400 font-semibold">Flask of Discovery</span> ("shaping futures") into a complete scholastic vision.'
+      },
+      book: {
+        badge: '📖',
+        badgeBg: 'rgba(245, 158, 11, 0.25)',
+        badgeBorder: 'rgba(251, 191, 36, 0.5)',
+        badgeColor: '#f59e0b',
+        title: 'Open Book of Wisdom',
+        subtitle: 'Theme: "Nurturing Minds"',
+        subtitleColor: 'text-amber-400',
+        body: 'Flanking our motto on the left, the Book of Wisdom represents the humanities, language, literature, and foundational scholarship. Its cascading pages and rising glyphs symbolize the continuous nurturing of young minds through wisdom and moral discipline.'
+      },
+      flask: {
+        badge: '🧪',
+        badgeBg: 'rgba(16, 185, 129, 0.25)',
+        badgeBorder: 'rgba(52, 211, 153, 0.5)',
+        badgeColor: '#34d399',
+        title: 'Flask of Discovery',
+        subtitle: 'Theme: "Shaping Futures"',
+        subtitleColor: 'text-emerald-400',
+        body: 'Flanking our motto on the right, the conical Erlenmeyer flask represents science, chemistry, inquiry, and innovation. With its luminescent reaction and effervescent vapor, it symbolizes shaping futures through hands-on experimentation and scientific progress.'
+      }
+    };
 
     const renderLoop = (time) => {
       if (!isVisible) {
@@ -1132,25 +1185,32 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
       const distToFlask = Math.hypot(mouseRelX - flaskScreenX, mouseRelY - flaskScreenY);
       const isDirectFlaskHover = distToFlask < (isMobile ? 75 : 110);
 
-      const isDirectHover = distToAtom < hoverThreshold;
+      const isDirectAtomHover = distToAtom < hoverThreshold;
+      let hoveredAsset = null;
+      if (isDirectAtomHover) {
+        hoveredAsset = 'atom';
+      } else if (isDirectBookHover) {
+        hoveredAsset = 'book';
+      } else if (isDirectFlaskHover) {
+        hoveredAsset = 'flask';
+      }
+
       if (dismissedRef.current) {
-        if (!isDirectHover) {
+        if (!hoveredAsset) {
           dismissedRef.current = false;
         }
-        isAtomHovered = false;
-      } else {
-        isAtomHovered = isDirectHover || isTooltipHovered || pinnedTooltipRef.current;
       }
+
+      const activeAsset = pinnedAssetRef.current || (dismissedRef.current ? null : hoveredAsset) || (isTooltipHovered ? displayedAsset : null);
+      isAtomHovered = activeAsset === 'atom' || isDirectAtomHover;
 
       if (heroContainerEl && heroContainerEl.style) {
-        heroContainerEl.style.cursor = (isDirectHover || isDirectBookHover || isDirectFlaskHover) ? 'pointer' : '';
+        heroContainerEl.style.cursor = (isDirectAtomHover || isDirectBookHover || isDirectFlaskHover) ? 'pointer' : '';
       }
 
-      // Position and update HTML scientific tooltip card
-      // Mobile: Placed strictly ABOVE the globe, minimal and compact
-      // Desktop: Placed strictly to the LEFT or RIGHT with 110px clearance (NEVER over the globe)
+      // Position and update HTML scientific tooltip card for hovered/pinned asset
       if (tooltipEl) {
-        if (isAtomHovered) {
+        if (activeAsset && assetTelemetry[activeAsset]) {
           const isMobileScreen = rect.width < 768;
           const cardWidth = isMobileScreen
             ? Math.min(295, Math.max(260, rect.width - 20))
@@ -1158,54 +1218,89 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
           const measuredHeight = tooltipEl.offsetHeight || (isMobileScreen ? 98 : 72);
           const cardHeight = measuredHeight;
 
+          // Dynamically update tooltip content if asset switched
+          if (displayedAsset !== activeAsset) {
+            displayedAsset = activeAsset;
+            const data = assetTelemetry[activeAsset];
+            const badgeEl = tooltipEl.querySelector('.tooltip-badge');
+            const titleEl = tooltipEl.querySelector('.tooltip-title');
+            const subtitleEl = tooltipEl.querySelector('.tooltip-subtitle');
+            const bodyEl = tooltipEl.querySelector('.tooltip-body-text');
+
+            if (badgeEl) {
+              badgeEl.textContent = data.badge;
+              badgeEl.style.backgroundColor = data.badgeBg;
+              badgeEl.style.borderColor = data.badgeBorder;
+              badgeEl.style.color = data.badgeColor;
+            }
+            if (titleEl) {
+              titleEl.textContent = data.title;
+            }
+            if (subtitleEl) {
+              subtitleEl.textContent = data.subtitle;
+              subtitleEl.className = `tooltip-subtitle text-[8px] sm:text-[9.5px] font-mono shrink-0 ${data.subtitleColor}`;
+            }
+            if (bodyEl) {
+              bodyEl.innerHTML = data.body;
+            }
+          }
+
+          let anchorX = atomScreenX;
+          let anchorY = atomScreenY;
+          if (activeAsset === 'book') {
+            anchorX = bookScreenX;
+            anchorY = bookScreenY;
+          } else if (activeAsset === 'flask') {
+            anchorX = flaskScreenX;
+            anchorY = flaskScreenY;
+          }
+
           let targetX;
           let targetY;
           let pipSide = 'left';
 
           if (isMobileScreen) {
-            // =========================================================
-            // MOBILE: Placed strictly ABOVE the globe, horizontally centered
-            // =========================================================
+            // MOBILE: Placed strictly ABOVE the hovered asset, horizontally centered
             pipSide = 'bottom';
-
-            // Horizontally center above the globe
-            targetX = atomScreenX - (cardWidth / 2);
+            targetX = anchorX - (cardWidth / 2);
             targetX = Math.max(8, Math.min(targetX, rect.width - cardWidth - 8));
-
-            // Vertically place strictly ABOVE the globe with clean clearance
-            targetY = atomScreenY - 26 - cardHeight - 8;
+            targetY = anchorY - 26 - cardHeight - 8;
             targetY = Math.max(6, targetY);
-
           } else {
-            // =========================================================
-            // DESKTOP: Placed strictly to the LEFT or RIGHT of the globe
-            // NEVER OVER THE GLOBE — strictly 110px horizontal clearance
-            // =========================================================
+            // DESKTOP: Placed gracefully relative to the asset
             const screenCenterX = rect.width * 0.5;
-            if (tooltipSide === 'none') {
-              tooltipSide = atomScreenX >= screenCenterX ? 'left' : 'right';
-            } else if (tooltipSide === 'left' && atomScreenX < screenCenterX - 28) {
-              tooltipSide = 'right';
-            } else if (tooltipSide === 'right' && atomScreenX > screenCenterX + 28) {
-              tooltipSide = 'left';
-            }
-
-            const desktopClearance = 110;
-            if (tooltipSide === 'left') {
-              // Atom is on the RIGHT side of the screen -> Show tooltip on the LEFT of the atom!
+            if (activeAsset === 'book') {
+              pipSide = 'left';
+              targetX = anchorX + 70;
+              targetX = Math.max(16, Math.min(targetX, rect.width - cardWidth - 16));
+            } else if (activeAsset === 'flask') {
               pipSide = 'right';
-              targetX = atomScreenX - cardWidth - desktopClearance;
+              targetX = anchorX - cardWidth - 70;
               targetX = Math.max(16, Math.min(targetX, rect.width - cardWidth - 16));
             } else {
-              // Atom is on the LEFT side of the screen -> Show tooltip on the RIGHT of the atom!
-              pipSide = 'left';
-              targetX = atomScreenX + desktopClearance;
-              targetX = Math.max(16, Math.min(targetX, rect.width - cardWidth - 16));
+              if (tooltipSide === 'none') {
+                tooltipSide = anchorX >= screenCenterX ? 'left' : 'right';
+              } else if (tooltipSide === 'left' && anchorX < screenCenterX - 28) {
+                tooltipSide = 'right';
+              } else if (tooltipSide === 'right' && anchorX > screenCenterX + 28) {
+                tooltipSide = 'left';
+              }
+
+              const desktopClearance = 110;
+              if (tooltipSide === 'left') {
+                pipSide = 'right';
+                targetX = anchorX - cardWidth - desktopClearance;
+                targetX = Math.max(16, Math.min(targetX, rect.width - cardWidth - 16));
+              } else {
+                pipSide = 'left';
+                targetX = anchorX + desktopClearance;
+                targetX = Math.max(16, Math.min(targetX, rect.width - cardWidth - 16));
+              }
             }
 
             const minY = 12;
             const maxY = Math.max(minY, rect.height - cardHeight - 75);
-            targetY = atomScreenY - (cardHeight / 2);
+            targetY = anchorY - (cardHeight / 2);
             targetY = Math.max(minY, Math.min(targetY, maxY));
           }
 
@@ -1223,12 +1318,13 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
           tooltipEl.style.opacity = '1';
           tooltipEl.style.pointerEvents = 'auto';
 
-          // Update directional pointer pip
+          // Update directional pointer pip with asset theme color
           const pipEl = tooltipEl.querySelector('.tooltip-pip');
           if (pipEl) {
+            const data = assetTelemetry[activeAsset];
             pipEl.style.display = 'block';
             pipEl.style.backgroundColor = '#0a0f1e';
-            pipEl.style.borderColor = 'rgba(6, 182, 212, 0.5)';
+            pipEl.style.borderColor = data ? data.badgeBorder : 'rgba(6, 182, 212, 0.5)';
             if (pipSide === 'bottom') {
               pipEl.className = 'tooltip-pip absolute w-2.5 h-2.5 rotate-45 left-1/2 -translate-x-1/2 -bottom-1.5 border-b border-r shadow-xs';
             } else if (pipSide === 'right') {
@@ -1320,24 +1416,23 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
       electron1.position.set(Math.cos(innerElectronAngle) * innerRingRadius, Math.sin(innerElectronAngle) * innerRingRadius, 0);
       electron2.position.set(Math.cos(innerElectronAngle + Math.PI) * innerRingRadius, Math.sin(innerElectronAngle + Math.PI) * innerRingRadius, 0);
 
-      // 2. Outer Valence Shell (L-Shell, n=2) Electrons Animation:
-      // Exactly 4 valence electrons, each traversing its own distinct 3D spatial orbital ring (tetrahedral sp³ orientation)
-      valenceElectronAngle1 += 1.35 * delta * speedMult * mouseSpeedBoost;
-      valenceElectronAngle2 += 1.25 * delta * speedMult * mouseSpeedBoost;
-      valenceElectronAngle3 += 1.40 * delta * speedMult * mouseSpeedBoost;
-      valenceElectronAngle4 += 1.30 * delta * speedMult * mouseSpeedBoost;
+      // 2. Intermediate Shell 2s (2s²: exactly 2 paired electrons at radius 0.82, 180° apart)
+      electronAngle2s += 2.8 * delta * speedMult * mouseSpeedBoost;
+      electron3.position.set(Math.cos(electronAngle2s) * ring2sRadius, Math.sin(electronAngle2s) * ring2sRadius, 0);
+      electron4.position.set(Math.cos(electronAngle2s + Math.PI) * ring2sRadius, Math.sin(electronAngle2s + Math.PI) * ring2sRadius, 0);
 
-      electron3.position.set(Math.cos(valenceElectronAngle1) * valenceRadius, Math.sin(valenceElectronAngle1) * valenceRadius, 0);
-      electron4.position.set(Math.cos(valenceElectronAngle2) * valenceRadius, Math.sin(valenceElectronAngle2) * valenceRadius, 0);
-      electron5.position.set(Math.cos(valenceElectronAngle3) * valenceRadius, Math.sin(valenceElectronAngle3) * valenceRadius, 0);
-      electron6.position.set(Math.cos(valenceElectronAngle4) * valenceRadius, Math.sin(valenceElectronAngle4) * valenceRadius, 0);
+      // 3. Outer Subshell 2p (2p²: 2p_x¹ and 2p_y¹ at radius 1.12, 1 electron each)
+      electronAngle2px += 1.35 * delta * speedMult * mouseSpeedBoost;
+      electronAngle2py += 1.25 * delta * speedMult * mouseSpeedBoost;
+      electron5.position.set(Math.cos(electronAngle2px) * ring2pRadius, Math.sin(electronAngle2px) * ring2pRadius, 0);
+      electron6.position.set(Math.cos(electronAngle2py) * ring2pRadius, Math.sin(electronAngle2py) * ring2pRadius, 0);
 
-      // Quantum relativistic orbital precession across all 4 spatial valence planes + inner ring
-      ringV1.rotation.z += 0.18 * delta * speedMult;
-      ringV2.rotation.z -= 0.16 * delta * speedMult;
-      ringV3.rotation.z += 0.15 * delta * speedMult;
-      ringV4.rotation.z -= 0.17 * delta * speedMult;
+      // Quantum relativistic orbital precession across subshells + inner ring
       innerRing.rotation.z += 0.35 * delta * speedMult;
+      ring2s.rotation.z -= 0.22 * delta * speedMult;
+      ring2px.rotation.z += 0.16 * delta * speedMult;
+      ring2py.rotation.z -= 0.15 * delta * speedMult;
+      ring2pz.rotation.z += 0.12 * delta * speedMult;
 
       // -----------------------------------------------------------------------
       // 8B. BOOK & FLASK: ENHANCED HOVER RESPONSIVE REACTION
@@ -1613,11 +1708,11 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
       className={`hero-3d-canvas-container absolute inset-0 w-full h-full pointer-events-none z-30 overflow-visible ${className}`}
       style={{ opacity: 0.94 }}
     >
-      {/* High-Contrast Interactive Carbon Atom Scientific Telemetry Tooltip Card */}
+      {/* High-Contrast Interactive 3D Educational Telemetry Tooltip Card */}
       <div
         ref={tooltipRef}
         role="tooltip"
-        aria-hidden={!pinnedTooltip}
+        aria-hidden={!pinnedAsset}
         className="absolute transition-opacity duration-300 pointer-events-none opacity-0 z-50"
         style={{
           top: 0,
@@ -1642,7 +1737,7 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
             <div className="flex items-center justify-between gap-1 pb-1 sm:pb-1.5 border-b border-slate-700/60">
               <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
                 <span
-                  className="w-4.5 h-4.5 sm:w-5 sm:h-5 rounded flex items-center justify-center font-bold text-[8.5px] sm:text-[10px] font-mono shrink-0 shadow-xs"
+                  className="tooltip-badge w-5 h-5 sm:w-5.5 sm:h-5.5 rounded flex items-center justify-center font-bold text-[9px] sm:text-[10px] font-mono shrink-0 shadow-xs"
                   style={{
                     backgroundColor: 'rgba(6, 182, 212, 0.25)',
                     borderColor: 'rgba(56, 189, 248, 0.5)',
@@ -1652,11 +1747,11 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
                   ₆C
                 </span>
                 <div className="flex items-baseline gap-1.5 sm:gap-2 truncate">
-                  <h4 className="font-bold text-[10.5px] sm:text-xs tracking-wide leading-none font-heading text-white truncate">
+                  <h4 className="tooltip-title font-bold text-[10.5px] sm:text-xs tracking-wide leading-none font-heading text-white truncate">
                     Carbon-12 Structure
                   </h4>
-                  <span className="text-[8px] sm:text-[9.5px] font-mono text-cyan-400 shrink-0">
-                    6p 6n • K(2) L(4)
+                  <span className="tooltip-subtitle text-[8px] sm:text-[9.5px] font-mono text-cyan-400 shrink-0">
+                    6p 6n • 1s² 2s² 2p²
                   </span>
                 </div>
               </div>
@@ -1672,7 +1767,7 @@ export default function Hero3DExperience({ className = '', hoveredAction = null 
 
             {/* Meaningful Theme Paragraph */}
             <p className="tooltip-body-text text-[9.5px] sm:text-[11px] leading-[1.45] sm:leading-[1.55] text-slate-200">
-              Carbon is the fundamental building block of life and matter. Featuring the <span className="text-amber-300 font-semibold">HSS Shangus seal</span> at its atomic core, this model embodies our theme <span className="text-cyan-300 font-semibold">"nurturing minds, shaping futures"</span> — grounding academic curiosity, wisdom, and discipline to build tomorrow's leaders.
+              Carbon is the fundamental building block of life and matter (1s² 2s² 2p²). Featuring the <span className="text-amber-300 font-semibold">HSS Shangus seal</span> at its atomic core, this model anchors our 3-asset theme: uniting the <span className="text-amber-300 font-semibold">Book of Wisdom</span> (&quot;nurturing minds&quot;) and the <span className="text-emerald-400 font-semibold">Flask of Discovery</span> (&quot;shaping futures&quot;) into a complete scholastic vision.
             </p>
           </div>
 
