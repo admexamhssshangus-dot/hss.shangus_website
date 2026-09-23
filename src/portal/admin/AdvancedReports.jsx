@@ -8,7 +8,7 @@ import { sendPasswordResetEmail } from 'firebase/auth';
 import { collection, getDocs, doc, getDoc, updateDoc, setDoc, deleteDoc, deleteField, writeBatch, query, where } from 'firebase/firestore';
 import * as XLSX from 'xlsx';
 import { invalidateCache, updateCachedItem, getCachedCollectionSync, getCachedCollection, getMasterRegistersScoped, getPhotoUrlFromCache, preloadStudentPhotosCache, fetchStudentPhotoOnDemand, fetchAllMatchingStudentPhotos, syncStudentPhotoOnRegUpdate, reconcileAllStudentPhotosInDatabase, loadCentralStudentPhotosFromFirestore, invalidateStudentCaches } from '../../services/dbCache';
-import { compressImageFile, parsePhotoFilename, getStudentPhotoUrl } from '../../utils/imageCompressor';
+import { compressImageFile, parsePhotoFilename, getStudentPhotoUrl, getStudentPhotoDownloadFilename, downloadPhotoFile } from '../../utils/imageCompressor';
 import ApplicationReviewModal from './ApplicationReviewModal';
 import ConfirmDialogModal from '../components/ConfirmDialogModal';
 import ConfirmModal from '../components/ConfirmModal';
@@ -3586,7 +3586,7 @@ function OnDemandStudentPhotoCell({ student, val }) {
     if (!file) return;
     setIsUploading(true);
     try {
-      const compressed = await compressImageFile(file, 300, 360, 0.8);
+      const compressed = await compressImageFile(file, 300, 360, 0.75);
       await handleSetActivePhoto(compressed);
     } catch (err) {
       console.error('Upload photo error:', err);
@@ -3764,11 +3764,15 @@ function OnDemandStudentPhotoCell({ student, val }) {
             {displayPhoto && displayPhoto !== '/logo.png' && (
               <a
                 href={displayPhoto}
-                download={`${regNo || formNo || 'student'}_photo.jpg`}
+                download={getStudentPhotoDownloadFilename(student)}
+                onClick={(e) => {
+                  e.preventDefault();
+                  downloadPhotoFile(displayPhoto, getStudentPhotoDownloadFilename(student));
+                }}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="p-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 flex items-center justify-center border border-slate-200 dark:border-slate-700 transition-colors"
-                title="Download photo"
+                className="p-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 flex items-center justify-center border border-slate-200 dark:border-slate-700 transition-colors cursor-pointer"
+                title={`Download photo (${getStudentPhotoDownloadFilename(student)})`}
               >
                 <Download size={13} />
               </a>
@@ -3902,11 +3906,15 @@ function OnDemandStudentPhotoCell({ student, val }) {
 
                         <a
                           href={item.url}
-                          download={`${sName}_photo.jpg`}
+                          download={getStudentPhotoDownloadFilename(student)}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            downloadPhotoFile(item.url, getStudentPhotoDownloadFilename(student));
+                          }}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="p-1 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 transition-colors"
-                          title="Download"
+                          className="p-1 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 transition-colors cursor-pointer"
+                          title={`Download (${getStudentPhotoDownloadFilename(student)})`}
                         >
                           <Download size={13} />
                         </a>
@@ -11012,7 +11020,7 @@ export default function AdvancedReports({
 
     try {
       for (const item of matchedItems) {
-        const compressed = await compressImageFile(item.file, 300, 360, 0.8);
+        const compressed = await compressImageFile(item.file, 300, 360, 0.75);
         const s = item.matchedStudent;
 
         // 1. Sync to central studentPhotos collection
@@ -14685,8 +14693,13 @@ export default function AdvancedReports({
             <div className="flex items-center justify-center gap-2 pt-1">
               <a
                 href={previewPhotoModal.url}
-                download={`${previewPhotoModal.name || 'Student'}_Photo.png`}
+                download={getStudentPhotoDownloadFilename(previewPhotoModal)}
+                onClick={(e) => {
+                  e.preventDefault();
+                  downloadPhotoFile(previewPhotoModal.url, getStudentPhotoDownloadFilename(previewPhotoModal));
+                }}
                 className="w-full py-2.5 rounded-xl font-extrabold text-xs text-white bg-teal-700 hover:bg-teal-600 shadow-md flex items-center justify-center gap-2 cursor-pointer transition-colors"
+                title={`Download (${getStudentPhotoDownloadFilename(previewPhotoModal)})`}
               >
                 <Download size={14} /> Download Photo
               </a>

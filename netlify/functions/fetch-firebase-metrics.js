@@ -194,9 +194,9 @@ exports.handler = async function handler(event) {
 
     // 3. Fallback calculation if Cloud Monitoring API returned no data point (e.g. non-billing project)
     if (storageBytes <= 0) {
-      // Check for calibrated benchmark in site settings, otherwise use Google Cloud Console baseline (164.83 MiB)
-      let benchmarkMiB = 164.83;
-      let benchmarkSampledAt = '2026-09-22T00:00:00.000Z';
+      // Check for calibrated benchmark in site settings, otherwise use Google Cloud Console baseline (125.82 MiB)
+      let benchmarkMiB = 125.82;
+      let benchmarkSampledAt = '2026-09-23T01:30:00.000Z';
       try {
         const siteDoc = await db.collection('site').doc('settings').get();
         if (siteDoc.exists) {

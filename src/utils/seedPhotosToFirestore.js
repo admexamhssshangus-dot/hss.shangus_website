@@ -70,7 +70,7 @@ export async function seedPhotosToFirestore(files, onProgress = null) {
       matchedCount++;
       try {
         // Compress photo to ~5-10 KB JPEG
-        const dataUrl = await compressStudentPhoto(file, 300, 360, 0.8);
+        const dataUrl = await compressStudentPhoto(file, 300, 360, 0.75);
 
         // Update Firestore student record
         await setDoc(doc(db, 'admissions', studentMatch.docId), {
