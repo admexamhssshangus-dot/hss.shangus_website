@@ -61,6 +61,9 @@ export default function ControlsAndSubjects({ applications = [] } = {}) {
   const [practicalsSubmissionOpen, setPracticalsSubmissionOpen] = useState(true);
   const [attendanceSubmissionOpen, setAttendanceSubmissionOpen] = useState(true);
 
+  // Administrative Security & 2-Step Verification Controls
+  const [enableAdmin2StepVerification, setEnableAdmin2StepVerification] = useState(true);
+
   // Annual Session Rollover Cutoff States (Default: 15th October)
   const [rolloverMonth, setRolloverMonth] = useState(10); // 1-12 (October)
   const [rolloverDay, setRolloverDay] = useState(15); // 1-31
@@ -200,6 +203,7 @@ export default function ControlsAndSubjects({ applications = [] } = {}) {
           if (siteSettings.session) setSession(siteSettings.session);
           if (siteSettings.practicalsSubmissionOpen !== undefined) setPracticalsSubmissionOpen(Boolean(siteSettings.practicalsSubmissionOpen));
           if (siteSettings.attendanceSubmissionOpen !== undefined) setAttendanceSubmissionOpen(Boolean(siteSettings.attendanceSubmissionOpen));
+          if (siteSettings.enableAdmin2StepVerification !== undefined) setEnableAdmin2StepVerification(Boolean(siteSettings.enableAdmin2StepVerification));
 
           // Annual session cutoff date
           if (siteSettings.annualRolloverCutoff) {
@@ -273,6 +277,7 @@ export default function ControlsAndSubjects({ applications = [] } = {}) {
         },
         practicalsSubmissionOpen,
         attendanceSubmissionOpen,
+        enableAdmin2StepVerification,
         email_submission: emailSubmission,
         email_upgrade_pdf: emailUpgradePdf,
         email_rejection: emailRejection,
@@ -296,8 +301,8 @@ export default function ControlsAndSubjects({ applications = [] } = {}) {
       logAdminActivity({
         actionType: 'update',
         actionTitle: 'Updated System & Admission Controls',
-        details: `Updated controls: Session=${session}, 11th Adm=${allow11th ? 'OPEN' : 'CLOSED'}, 12th Adm=${allow12th ? 'OPEN' : 'CLOSED'}`,
-        metadata: { session, allow11th, allow12th, allow9th, allow10th }
+        details: `Updated controls: Session=${session}, 11th Adm=${allow11th ? 'OPEN' : 'CLOSED'}, 12th Adm=${allow12th ? 'OPEN' : 'CLOSED'}, Admin 2SV=${enableAdmin2StepVerification ? 'ENABLED' : 'DISABLED'}`,
+        metadata: { session, allow11th, allow12th, allow9th, allow10th, enableAdmin2StepVerification }
       });
       setAlert({ type: 'success', text: '✨ System & admission controls updated successfully!' });
     } catch (err) {
@@ -568,6 +573,51 @@ export default function ControlsAndSubjects({ applications = [] } = {}) {
                     className="w-3.5 h-3.5 sm:w-4 sm:h-4 rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer"
                   />
                 </label>
+              </div>
+            </div>
+
+            {/* Admin Security & Sign-In Controls Card */}
+            <div className="p-2.5 sm:p-3.5 rounded-xl sm:rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/40 space-y-1.5 sm:space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] sm:text-xs font-black text-slate-900 dark:text-white flex items-center gap-1.5">
+                  <ShieldCheck size={14} className="text-blue-600 dark:text-blue-400" />
+                  Admin Security & 2-Step Verification
+                </span>
+                <span className="text-[9px] sm:text-[10px] font-bold bg-blue-100 dark:bg-blue-950 text-blue-800 dark:text-blue-300 px-2 py-0.5 rounded-full">
+                  Super Admin Control
+                </span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-0.5">
+                <label className={`p-2.5 rounded-xl border text-[11px] sm:text-xs font-bold flex items-center justify-between cursor-pointer transition-all ${
+                  enableAdmin2StepVerification
+                    ? 'bg-blue-50/80 dark:bg-blue-950/40 border-blue-200 dark:border-blue-800 text-blue-950 dark:text-blue-200'
+                    : 'bg-amber-50/80 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800 text-amber-950 dark:text-amber-200'
+                }`}>
+                  <div className="pr-2">
+                    <span className="font-black block">Require 2-Step Email Link for Password Login</span>
+                    <span className="text-[9.5px] sm:text-[10px] opacity-80 block font-normal">
+                      {enableAdmin2StepVerification
+                        ? 'Active: Standard admins require a 15-minute verification link sent to their email.'
+                        : 'Disabled: Standard admins sign in directly with Email & Password without link verification.'}
+                    </span>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={enableAdmin2StepVerification}
+                    onChange={(e) => setEnableAdmin2StepVerification(e.target.checked)}
+                    className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 cursor-pointer shrink-0"
+                  />
+                </label>
+
+                <div className="p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex items-center justify-between text-[11px] sm:text-xs">
+                  <div>
+                    <span className="font-black text-slate-800 dark:text-slate-200 block">Sign In with Google</span>
+                    <span className="text-[9.5px] sm:text-[10px] text-slate-400 block font-normal">
+                      Bypasses 2-step verification automatically (browser session is already cryptographically verified).
+                    </span>
+                  </div>
+                  <CheckCircle2 size={16} className="text-emerald-500 shrink-0 ml-2" />
+                </div>
               </div>
             </div>
           </form>
