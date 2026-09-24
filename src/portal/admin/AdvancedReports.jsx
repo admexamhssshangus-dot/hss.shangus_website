@@ -6195,6 +6195,8 @@ export default function AdvancedReports({
   useEffect(() => {
     if (!triggerAction) return;
     if (triggerAction === 'analytics') {
+      setHistoryLoadRequested(true);
+      setFullHistoryRequested(true);
       setShowAnalyticsModal(true);
     } else if (triggerAction === 'directEntry') {
       setBulkOverwriteMode('express');
@@ -10700,8 +10702,8 @@ export default function AdvancedReports({
       return yr < 2022;
     });
 
-    const shouldLoadFull = fullHistoryRequested || hasOldSessionSelected;
-    const shouldLoadMaster = historyLoadRequested || isSearchActive || isSessionSelected || shouldLoadFull;
+    const shouldLoadFull = fullHistoryRequested || hasOldSessionSelected || showAnalyticsModal;
+    const shouldLoadMaster = historyLoadRequested || isSearchActive || isSessionSelected || shouldLoadFull || showAnalyticsModal;
 
     if (shouldLoadMaster && !isHydratingMasterRegisters) {
       const needFetch = (shouldLoadFull && !window._hssMasterRegistersIsFull) || (masterHistoricalRecords.length === 0 && !historicalLoadAttemptedRef.current);
@@ -10720,7 +10722,7 @@ export default function AdvancedReports({
         });
       }
     }
-  }, [historyLoadRequested, deferredSearchTerm, selectedSessions, masterHistoricalRecords.length, isHydratingMasterRegisters, fullHistoryRequested]);
+  }, [historyLoadRequested, deferredSearchTerm, selectedSessions, masterHistoricalRecords.length, isHydratingMasterRegisters, fullHistoryRequested, showAnalyticsModal]);
 
   // Target dataset:
   // When searching, by default search across active admissions + previous 4 sessions for lightning speed.
@@ -12745,7 +12747,11 @@ export default function AdvancedReports({
                 user={user}
                 onPrefetchModule={onPrefetchModule}
                 onOpenCustomRoster={() => setShowCustomRosterModal(true)}
-                onOpenAnalytics={() => setShowAnalyticsModal(true)}
+                onOpenAnalytics={() => {
+                  setHistoryLoadRequested(true);
+                  setFullHistoryRequested(true);
+                  setShowAnalyticsModal(true);
+                }}
                 onOpenDirectEntry={() => {
                   setBulkOverwriteMode('express');
                   setShowBulkOverwriteModal(true);
@@ -16128,6 +16134,9 @@ export default function AdvancedReports({
         isOpen={showAnalyticsModal}
         onClose={() => setShowAnalyticsModal(false)}
         students={allStudents.length > 0 ? allStudents : currentAdmissions}
+        historicalRecords={masterHistoricalRecords}
+        allKnownSessions={allKnownSessions}
+        isLoadingHistory={isHydratingMasterRegisters}
       />
 
       {/* 2-Stage Application Deletion Modal */}
