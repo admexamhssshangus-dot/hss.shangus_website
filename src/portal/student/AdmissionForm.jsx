@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Save, Send, CheckCircle, CheckCircle2, AlertCircle, RefreshCw, Loader2, Info, HelpCircle, X, Eye, Edit3, Camera, ShieldCheck, Printer, ArrowUp } from 'lucide-react';
+import { ArrowLeft, Save, Send, CheckCircle, CheckCircle2, AlertCircle, RefreshCw, Loader2, Info, HelpCircle, X, Eye, Edit3, Camera, ShieldCheck, Printer, ArrowUp, Search, ChevronDown, Check, Sparkles } from 'lucide-react';
 import SEO from '../../components/SEO';
 import DynamicFormField from '../components/DynamicFormField';
 import ModernLoader from '../../components/ModernLoader';
@@ -11,7 +11,7 @@ import { sessionManager } from '../../services/sessionManager';
 import { generateStudentAdmissionPdf, generateProvisionalAdmissionPdf } from '../../utils/pdfGenerator';
 import { auth, db } from '../../services/firebase';
 import { collection, getDocs } from 'firebase/firestore';
-import { loadAdmissionWorkspace, saveAdmissionDraft, submitAdmission } from '../../services/admissionWorkflowApi';
+import { loadAdmissionWorkspace, saveAdmissionDraft, submitAdmission, lookupRegistrationRecord } from '../../services/admissionWorkflowApi';
 import { invalidateStudentCaches } from '../../services/dbCache';
 import { logStudentActivity } from '../../services/adminActivityLogger';
 import { isValidAadhaar, areAadhaarsDistinct, isStrictIsoDate, normalizeDobToIso, validateMinimumAge, MIN_ADMISSION_AGE, isPersonNameField, sanitizePersonName, validatePersonName } from '../../utils/admissionValidation';
@@ -446,6 +446,61 @@ export default function AdmissionForm() {
   const [upgradeMode, setUpgradeMode] = useState(requestedUpgradeMode);
   const [upgradeSourceFormNo, setUpgradeSourceFormNo] = useState(null);
 
+  // Fast-track Registration lookup state for returning students
+  const [lookupRegNo, setLookupRegNo] = useState('');
+  const [isFetchingReg, setIsFetchingReg] = useState(false);
+  const [lookupSuccessInfo, setLookupSuccessInfo] = useState(null);
+
+  const handleFetchByRegNo = async (e) => {
+    if (e) e.preventDefault();
+    const clean = String(lookupRegNo || '').trim();
+    if (!clean || clean.length < 4) {
+      setAlert({
+        type: 'error',
+        text: 'Please enter a valid Board or DIET Registration Number (e.g. 2201000000610001 or DIET012345).'
+      });
+      return;
+    }
+
+    setIsFetchingReg(true);
+    setAlert(null);
+    try {
+      const res = await lookupRegistrationRecord(clean);
+      if (res && res.success && res.record) {
+        setFormData(prev => ({
+          ...prev,
+          ...res.record
+        }));
+        const meta = res.meta || {};
+        const studentName = meta.studentName || 'Student';
+        const prevClass = meta.previousClass || 'previous class';
+        const suggested = meta.suggestedClass || '';
+        setLookupSuccessInfo({
+          studentName,
+          prevClass,
+          suggested,
+          stream: meta.stream,
+        });
+        setAlert({
+          type: 'success',
+          text: `✓ Record found for ${studentName}! Previous academic & personal details pre-filled. Please review and fill your new exam details & subjects.`
+        });
+      } else {
+        setAlert({
+          type: 'info',
+          text: res?.message || `No previous record found matching Registration No. "${clean}". You can continue filling manually.`
+        });
+      }
+    } catch (err) {
+      console.error('Registration lookup error:', err);
+      setAlert({
+        type: 'error',
+        text: err.message || 'Could not fetch records with this Registration Number. Please verify and try again or fill manually.'
+      });
+    } finally {
+      setIsFetchingReg(false);
+    }
+  };
 
   const currentUserRef = useRef(sessionManager.getUser());
   const currentUser = currentUserRef.current;
@@ -811,11 +866,13 @@ export default function AdmissionForm() {
   }, [activeTab]);
 
   const handleFieldChange = (fieldName, value) => {
-    // Auto-collapse setup options as soon as student inputs data into form fields
+    // Setup fields must never auto-collapse the setup card
     const isSetupField = fieldName === 'Admission sought for class' ||
       fieldName.includes('Admission Type') ||
-      fieldName.includes('Stream for Class 11th') ||
-      fieldName.includes('Reason for Provisional');
+      fieldName.includes('Stream') ||
+      fieldName.includes('isProvisional') ||
+      fieldName.includes('Reason for Provisional') ||
+      fieldName === 'lookupRegNo';
     if (!isSetupField && hasAdmissionStart) {
       setIsSetupCollapsed(true);
     }
@@ -861,6 +918,14 @@ export default function AdmissionForm() {
         // A changed stream invalidates any subject choices made for the old stream.
         next['Subjects Studied in Class 11th'] = '';
         next['Stream & Subjects for Class 12th'] = '';
+      }
+      if (fieldName === 'Stream') {
+        next['Stream for Class 11th'] = value;
+        next['Stream opted in Class 11th'] = value;
+        if (prev['Stream'] !== value) {
+          next['Subjects to be taken in Class 11th'] = '';
+          next['Subjects Studied in Class 11th'] = '';
+        }
       }
       if (fieldName === 'Subjects Studied in Class 10th') {
         // Synchronize reappear subjects: keep only subjects that remain studied (compulsory + optional)
@@ -3001,8 +3066,8 @@ export default function AdmissionForm() {
                             </button>
                           </div>
                         ) : (
-                          /* Clean, Proportionate Expanded Setup Card */
-                          <div id="admission-start" className="p-3 sm:p-4 rounded-xl sm:rounded-2xl border bg-white dark:bg-slate-900 border-teal-500/30 dark:border-teal-500/20 shadow-xs space-y-3 scroll-mt-24 transition-all">
+                          /* Clean, Compact Responsive Expanded Setup Card */
+                          <div id="admission-start" className="p-2.5 sm:p-3.5 rounded-xl sm:rounded-2xl border bg-white dark:bg-slate-900 border-teal-500/30 dark:border-teal-500/20 shadow-xs space-y-2.5 scroll-mt-24 transition-all">
                             {/* Card Header */}
                             <div className="flex items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-2">
                               <div className="flex items-center gap-2 min-w-0">
@@ -3012,7 +3077,7 @@ export default function AdmissionForm() {
                                     Admission Setup
                                   </h2>
                                   <p className="text-[10px] text-slate-400">
-                                    Select class, type &amp; stream to configure your form
+                                    Fast-track previous records or configure class &amp; stream
                                   </p>
                                 </div>
                               </div>
@@ -3039,152 +3104,181 @@ export default function AdmissionForm() {
                               </div>
                             </div>
 
-                            {/* Options Grid */}
-                            <div className="space-y-3">
-                              {/* 1. Target Class */}
-                              <div className="space-y-1">
-                                <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300 flex items-center justify-between">
-                                  <span>1. Class applying for <span className="text-red-500">*</span></span>
-                                </label>
-                                <div className="grid grid-cols-4 gap-1.5 p-1 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
-                                  {['9th', '10th', '11th', '12th'].map(clsVal => {
-                                    const isSel = String(formData['Admission sought for class'] || '') === clsVal;
-                                    return (
-                                      <button
-                                        key={clsVal}
-                                        type="button"
-                                        onClick={() => handleFieldChange('Admission sought for class', clsVal)}
-                                        className={`h-8 sm:h-9 rounded-lg font-black text-xs transition-all cursor-pointer flex items-center justify-center ${
-                                          isSel
-                                            ? 'bg-teal-600 text-white shadow-xs'
-                                            : 'text-slate-700 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700'
-                                        }`}
-                                      >
-                                        {clsVal}
-                                      </button>
-                                    );
-                                  })}
-                                </div>
-                              </div>
-
-                              {/* 2. Admission Type & 3. Stream */}
-                              <div className={`grid grid-cols-1 ${(selectedClass === '11th' || selectedClass === '12th') ? 'sm:grid-cols-2' : 'sm:grid-cols-1'} gap-2.5`}>
-                                <div className="space-y-1">
-                                  <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300 flex items-center justify-between">
-                                    <span>2. Admission Type <span className="text-red-500">*</span></span>
-                                  </label>
-                                  <div className="grid grid-cols-2 gap-1.5 p-1 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
-                                    {[
-                                      { key: 'Full', label: 'Full Admission' },
-                                      { key: 'Provisional', label: 'Provisional' },
-                                    ].map(cat => {
-                                      const admTypeKey = selectedClass === '12th'
-                                        ? 'Admission Type (Class 12th)'
-                                        : selectedClass === '11th' ? 'Admission Type (Class 11th)' : 'Admission Type';
-                                      const currentVal = formData[admTypeKey] || formData['Admission Type'] || '';
-                                      const isSel = currentVal === cat.key;
-                                      return (
-                                        <button
-                                          key={cat.key}
-                                          type="button"
-                                          onClick={() => {
-                                            handleFieldChange(admTypeKey, cat.key);
-                                            handleFieldChange('Admission Type', cat.key);
-                                            handleFieldChange('isProvisional', cat.key === 'Provisional');
-                                          }}
-                                          className={`h-8 sm:h-9 px-2 rounded-lg font-bold text-xs transition-all cursor-pointer flex items-center justify-center text-center ${
-                                            isSel
-                                              ? cat.key === 'Provisional'
-                                                ? 'bg-amber-500 text-white shadow-xs font-black'
-                                                : 'bg-teal-600 text-white shadow-xs font-black'
-                                              : 'text-slate-700 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700'
-                                          }`}
-                                        >
-                                          {cat.label}
-                                        </button>
-                                      );
-                                    })}
-                                  </div>
-                                </div>
-
-                                {(selectedClass === '11th' || selectedClass === '12th') && (
-                                  <div className="space-y-1 animate-fadeIn">
-                                    <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300 flex items-center justify-between">
-                                      <span>3. {selectedClass === '12th' ? 'Stream in Class 11th/12th' : 'Stream Selection'} <span className="text-red-500">*</span></span>
-                                    </label>
-                                    <div className="grid grid-cols-2 gap-1.5 p-1 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
-                                      {[
-                                        { val: 'Science', label: 'Science' },
-                                        { val: 'Humanities', label: 'Humanities' },
-                                      ].map(st => {
-                                        const currentStream = selectedClass === '12th'
-                                          ? (formData['Stream opted in Class 11th'] || formData['Stream for Class 11th'] || formData['Stream'] || '')
-                                          : (formData['Stream for Class 11th'] || formData['Stream'] || '');
-                                        const isSel = Boolean(currentStream) && currentStream.toLowerCase() === st.val.toLowerCase();
-                                        return (
-                                          <button
-                                            key={st.val}
-                                            type="button"
-                                            onClick={() => {
-                                              if (selectedClass === '12th') {
-                                                handleFieldChange('Stream opted in Class 11th', st.val);
-                                                handleFieldChange('Stream for Class 11th', st.val);
-                                              } else {
-                                                handleFieldChange('Stream for Class 11th', st.val);
-                                              }
-                                              handleFieldChange('Stream', st.val);
-                                            }}
-                                            className={`h-8 sm:h-9 px-2 rounded-lg font-bold text-xs transition-all cursor-pointer flex items-center justify-center text-center ${
-                                              isSel
-                                                ? 'bg-teal-600 text-white shadow-xs font-black'
-                                                : 'text-slate-700 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700'
-                                            }`}
-                                          >
-                                            {st.label}
-                                          </button>
-                                        );
-                                      })}
-                                    </div>
-                                  </div>
+                            {/* Returning Student Auto-Fill Bar */}
+                            <div className="p-2 sm:p-2.5 rounded-xl bg-teal-500/5 dark:bg-teal-950/30 border border-teal-500/20 space-y-1.5">
+                              <div className="flex items-center justify-between gap-1">
+                                <span className="text-[10px] sm:text-[11px] font-black uppercase tracking-wider text-teal-800 dark:text-teal-300 flex items-center gap-1">
+                                  <Sparkles size={12} className="text-teal-600 dark:text-teal-400" />
+                                  Returning Student? Auto-Fill from Previous Record
+                                </span>
+                                {lookupSuccessInfo && (
+                                  <span className="text-[9.5px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950/60 px-1.5 py-0.5 rounded border border-emerald-400/40">
+                                    ✓ Linked: {lookupSuccessInfo.studentName}
+                                  </span>
                                 )}
                               </div>
+                              <div className="flex items-center gap-1.5">
+                                <div className="relative flex-1">
+                                  <input
+                                    type="text"
+                                    value={lookupRegNo}
+                                    onChange={(e) => setLookupRegNo(e.target.value)}
+                                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleFetchByRegNo(); } }}
+                                    placeholder="Enter Board or DIET Reg. No. (e.g. 2201000000610001)"
+                                    className="w-full h-8 pl-7 pr-2.5 text-xs font-semibold rounded-lg border border-teal-500/30 dark:border-teal-500/20 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-500 shadow-2xs font-mono"
+                                  />
+                                  <Search size={13} className="text-teal-600 dark:text-teal-400 absolute left-2 top-2.5 pointer-events-none" />
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={handleFetchByRegNo}
+                                  disabled={isFetchingReg || !lookupRegNo.trim()}
+                                  className="h-8 px-3 rounded-lg bg-teal-600 hover:bg-teal-700 disabled:opacity-50 text-white font-black text-xs transition-all cursor-pointer flex items-center gap-1.5 shadow-xs flex-shrink-0"
+                                  title="Fetch and prefill form from database"
+                                >
+                                  {isFetchingReg ? <RefreshCw size={12} className="animate-spin" /> : <Sparkles size={12} />}
+                                  <span>{isFetchingReg ? 'Fetching…' : 'Fetch Details'}</span>
+                                </button>
+                              </div>
+                            </div>
 
-                              {/* Reason for Provisional */}
-                              {selectedAdmissionType === 'Provisional' && (
-                                <div className="p-2.5 rounded-xl bg-amber-500/10 dark:bg-amber-950/40 border border-amber-500/30 space-y-1.5 animate-fadeIn">
-                                  <div className="text-[11px] font-bold text-amber-900 dark:text-amber-200">
-                                    Reason for Provisional Admission <span className="text-red-500">*</span>
+                            {/* Compact Single-Line / Wrap Dropdown Controls */}
+                            <div className="flex flex-wrap sm:flex-nowrap items-end gap-2 pt-0.5">
+                              {/* 1. Class Dropdown */}
+                              <div className="flex-[1_1_28%] min-w-[85px] space-y-0.5">
+                                <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center justify-between">
+                                  <span>1. Class <span className="text-red-500">*</span></span>
+                                  {selectedClass && <span className="text-teal-600 dark:text-teal-400 text-[10px]">✓</span>}
+                                </label>
+                                <div className="relative">
+                                  <select
+                                    value={selectedClass}
+                                    onChange={(e) => handleFieldChange('Admission sought for class', e.target.value)}
+                                    className={`w-full h-8 pl-2 pr-6 rounded-lg text-xs font-black appearance-none cursor-pointer transition-all border shadow-2xs ${
+                                      selectedClass
+                                        ? 'bg-teal-50 dark:bg-teal-950/40 text-teal-800 dark:text-teal-200 border-teal-500/40 focus:ring-2 focus:ring-teal-500'
+                                        : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-600 focus:ring-2 focus:ring-teal-500'
+                                    }`}
+                                  >
+                                    <option value="" disabled>Select Class</option>
+                                    {['9th', '10th', '11th', '12th'].map(c => (
+                                      <option key={c} value={c}>
+                                        {selectedClass === c ? '✓ ' : ''}Class {c}
+                                      </option>
+                                    ))}
+                                  </select>
+                                  <ChevronDown size={13} className="text-slate-400 dark:text-slate-500 absolute right-2 top-2.5 pointer-events-none" />
+                                </div>
+                              </div>
+
+                              {/* 2. Admission Type Dropdown */}
+                              <div className="flex-[1_1_34%] min-w-[105px] space-y-0.5">
+                                <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center justify-between">
+                                  <span>2. Type <span className="text-red-500">*</span></span>
+                                  {selectedAdmissionType && <span className="text-teal-600 dark:text-teal-400 text-[10px]">✓</span>}
+                                </label>
+                                <div className="relative">
+                                  <select
+                                    value={selectedAdmissionType}
+                                    onChange={(e) => {
+                                      const val = e.target.value;
+                                      handleFieldChange(admissionTypeField, val);
+                                      handleFieldChange('Admission Type', val);
+                                      handleFieldChange('isProvisional', val === 'Provisional');
+                                    }}
+                                    className={`w-full h-8 pl-2 pr-6 rounded-lg text-xs font-black appearance-none cursor-pointer transition-all border shadow-2xs ${
+                                      selectedAdmissionType === 'Provisional'
+                                        ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-900 dark:text-amber-200 border-amber-500/40 focus:ring-2 focus:ring-amber-500'
+                                        : selectedAdmissionType
+                                          ? 'bg-teal-50 dark:bg-teal-950/40 text-teal-800 dark:text-teal-200 border-teal-500/40 focus:ring-2 focus:ring-teal-500'
+                                          : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-600 focus:ring-2 focus:ring-teal-500'
+                                    }`}
+                                  >
+                                    <option value="" disabled>Select Type</option>
+                                    <option value="Full">{selectedAdmissionType === 'Full' ? '✓ ' : ''}Full Admission</option>
+                                    <option value="Provisional">{selectedAdmissionType === 'Provisional' ? '✓ ' : ''}Provisional</option>
+                                  </select>
+                                  <ChevronDown size={13} className="text-slate-400 dark:text-slate-500 absolute right-2 top-2.5 pointer-events-none" />
+                                </div>
+                              </div>
+
+                              {/* 3. Stream Dropdown (Only for Class 11th or 12th) */}
+                              {isHigherSecondary && (
+                                <div className="flex-[1_1_30%] min-w-[95px] space-y-0.5 animate-fadeIn">
+                                  <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center justify-between">
+                                    <span>3. Stream <span className="text-red-500">*</span></span>
+                                    {Boolean(selectedStream && selectedStream !== 'General') && <span className="text-teal-600 dark:text-teal-400 text-[10px]">✓</span>}
+                                  </label>
+                                  <div className="relative">
+                                    <select
+                                      value={['Science', 'Humanities'].find(s => s.toLowerCase() === (selectedStream || '').toLowerCase()) || ''}
+                                      onChange={(e) => {
+                                        const val = e.target.value;
+                                        if (selectedClass === '12th') {
+                                          handleFieldChange('Stream opted in Class 11th', val);
+                                          handleFieldChange('Stream for Class 11th', val);
+                                        } else {
+                                          handleFieldChange('Stream for Class 11th', val);
+                                        }
+                                        handleFieldChange('Stream', val);
+                                      }}
+                                      className={`w-full h-8 pl-2 pr-6 rounded-lg text-xs font-black appearance-none cursor-pointer transition-all border shadow-2xs ${
+                                        selectedStream && selectedStream !== 'General'
+                                          ? 'bg-purple-50 dark:bg-purple-950/40 text-purple-900 dark:text-purple-200 border-purple-500/40 focus:ring-2 focus:ring-purple-500'
+                                          : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-600 focus:ring-2 focus:ring-teal-500'
+                                      }`}
+                                    >
+                                      <option value="" disabled>Select Stream</option>
+                                      {['Science', 'Humanities'].map(st => {
+                                        const isSel = (selectedStream || '').toLowerCase() === st.toLowerCase();
+                                        return (
+                                          <option key={st} value={st}>
+                                            {isSel ? '✓ ' : ''}{st} Stream
+                                          </option>
+                                        );
+                                      })}
+                                    </select>
+                                    <ChevronDown size={13} className="text-slate-400 dark:text-slate-500 absolute right-2 top-2.5 pointer-events-none" />
                                   </div>
-                                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
-                                    {[
-                                      { val: 'Reappear Candidate', label: 'Reappear' },
-                                      { val: 'Result Awaited', label: 'Result Awaited' },
-                                      { val: 'Document Deficient', label: 'Doc Deficient' },
-                                      { val: 'Other', label: 'Other Reason' },
-                                    ].map(r => {
-                                      const reasonKey = selectedClass === '12th'
-                                        ? 'Reason for Provisional (Class 12th)'
-                                        : selectedClass === '11th' ? 'Reason for Provisional (Class 11th)' : 'Reason for Provisional';
-                                      const currentReason = formData[reasonKey] || formData['Reason for Provisional'] || '';
-                                      const isSel = currentReason === r.val;
-                                      return (
-                                        <button
-                                          key={r.val}
-                                          type="button"
-                                          onClick={() => {
-                                            handleFieldChange(reasonKey, r.val);
-                                            handleFieldChange('Reason for Provisional', r.val);
-                                          }}
-                                          className={`h-8 px-2 rounded-lg font-bold text-[11px] transition-all cursor-pointer flex items-center justify-center text-center ${
-                                            isSel
-                                              ? 'bg-amber-500 text-white shadow-xs font-black'
-                                              : 'bg-white dark:bg-slate-800 text-amber-900 dark:text-amber-200 border border-amber-500/30 hover:bg-amber-500/15'
-                                          }`}
-                                        >
-                                          {r.label}
-                                        </button>
-                                      );
-                                    })}
+                                </div>
+                              )}
+
+                              {/* 4. Reason for Provisional (if Provisional) */}
+                              {selectedAdmissionType === 'Provisional' && (
+                                <div className="flex-[1_1_100%] sm:flex-1 min-w-[120px] space-y-0.5 animate-fadeIn">
+                                  <label className="text-[10px] font-black uppercase tracking-wider text-amber-800 dark:text-amber-300 flex items-center justify-between">
+                                    <span>4. Reason <span className="text-red-500">*</span></span>
+                                    {hasReasonIfProvisional && <span className="text-amber-600 text-[10px]">✓</span>}
+                                  </label>
+                                  <div className="relative">
+                                    <select
+                                      value={
+                                        formData[selectedClass === '12th' ? 'Reason for Provisional (Class 12th)' : selectedClass === '11th' ? 'Reason for Provisional (Class 11th)' : 'Reason for Provisional'] ||
+                                        formData['Reason for Provisional'] || ''
+                                      }
+                                      onChange={(e) => {
+                                        const val = e.target.value;
+                                        const reasonKey = selectedClass === '12th'
+                                          ? 'Reason for Provisional (Class 12th)'
+                                          : selectedClass === '11th' ? 'Reason for Provisional (Class 11th)' : 'Reason for Provisional';
+                                        handleFieldChange(reasonKey, val);
+                                        handleFieldChange('Reason for Provisional', val);
+                                      }}
+                                      className="w-full h-8 pl-2 pr-6 rounded-lg text-xs font-black appearance-none cursor-pointer transition-all border shadow-2xs bg-amber-50 dark:bg-amber-950/40 text-amber-900 dark:text-amber-200 border-amber-500/40 focus:ring-2 focus:ring-amber-500"
+                                    >
+                                      <option value="" disabled>Select Reason</option>
+                                      {[
+                                        { val: 'Reappear Candidate', label: 'Reappear Candidate' },
+                                        { val: 'Result Awaited', label: 'Result Awaited' },
+                                        { val: 'Document Deficient', label: 'Doc Deficient' },
+                                        { val: 'Other', label: 'Other Reason' },
+                                      ].map(r => (
+                                        <option key={r.val} value={r.val}>
+                                          {formData['Reason for Provisional'] === r.val ? '✓ ' : ''}{r.label}
+                                        </option>
+                                      ))}
+                                    </select>
+                                    <ChevronDown size={13} className="text-amber-600/70 absolute right-2 top-2.5 pointer-events-none" />
                                   </div>
                                 </div>
                               )}
@@ -3222,9 +3316,11 @@ export default function AdmissionForm() {
                             key={workflowStep.id}
                             id={`admission-section-${workflowStep.id}`}
                             className="scroll-mt-24 space-y-3"
-                            onFocusCapture={() => {
+                            onFocusCapture={(e) => {
                               setActiveTab(workflowStep.id);
-                              if (hasAdmissionStart) setIsSetupCollapsed(true);
+                              if (hasAdmissionStart && e.target && ['INPUT', 'SELECT', 'TEXTAREA'].includes(e.target.tagName)) {
+                                setIsSetupCollapsed(true);
+                              }
                             }}
                           >
                             {/* Workflow Step Divider/Header — Minimal & Crisp */}

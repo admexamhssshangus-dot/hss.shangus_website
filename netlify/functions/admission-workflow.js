@@ -387,8 +387,8 @@ function validateSubmission(data, token) {
 async function consumeRateLimit(db, uid, action) {
   const ref = db.collection('securityRateLimits').doc(`admission_${uid}_${action}`);
   const now = Date.now();
-  const windowMs = action === 'load' ? 60000 : 300000;
-  const max = action === 'load' ? 30 : action === 'draft' ? 20 : 6;
+  const windowMs = action === 'load' ? 60000 : action === 'lookup_registration' ? 60000 : 300000;
+  const max = action === 'load' ? 30 : action === 'draft' ? 20 : action === 'lookup_registration' ? 25 : 6;
   return db.runTransaction(async tx => {
     const snap = await tx.get(ref);
     const prior = snap.exists ? snap.data() : {};
@@ -448,6 +448,222 @@ async function loadWorkspace(db, token) {
     admissionAvailability: {
       globalClosed: settings.globalAdmissionsClosed === true,
       classesClosed: settings.admissionsClosed || {},
+    },
+  };
+}
+
+function toIsoDate(d) {
+  if (!d) return '';
+  const s = String(d).trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  const parts = s.split(/[-/]/);
+  if (parts.length === 3) {
+    if (parts[0].length === 4) {
+      return `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
+    } else if (parts[2].length === 4) {
+      return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+    }
+  }
+  return s;
+}
+
+async function lookupRegistrationRecord(db, token, body) {
+  const rawReg = cleanString(body.registrationNo || '', 64);
+  const cleanKey = rawReg.toLowerCase().replace(/[^a-z0-9]/g, '');
+  if (!cleanKey || cleanKey.length < 4) {
+    throw Object.assign(new Error('Please enter a valid Board or DIET Registration Number (at least 4 characters).'), { status: 400 });
+  }
+
+  let foundRecord = null;
+  let source = '';
+
+  // 1. Search admissions collection
+  const admQueries = [
+    db.collection('admissions').where('registrationNoCanonical', '==', cleanKey).get(),
+    db.collection('admissions').where('Board Registration Number', '==', rawReg).get(),
+    db.collection('admissions').where('DIET Registration No.', '==', rawReg).get(),
+    db.collection('admissions').where('Board Reg. No.', '==', rawReg).get(),
+  ];
+  const admSnaps = await Promise.all(admQueries);
+  for (const snap of admSnaps) {
+    if (!snap.empty) {
+      const candidates = snap.docs
+        .map(d => ({ docId: d.id, ...d.data() }))
+        .filter(d => !['Deleted', 'Withdrawn'].includes(d.Status) && d._deleted !== true);
+      if (candidates.length > 0) {
+        foundRecord = candidates[0];
+        source = 'admissions';
+        break;
+      }
+    }
+  }
+
+  // 2. Search masterRegisters chunks if not found in admissions
+  if (!foundRecord) {
+    const masterSnaps = await db.collection('masterRegisters').get();
+    for (const doc of masterSnaps.docs) {
+      const data = doc.data();
+      const items = Array.isArray(data.items) ? data.items : (data["Student's Name"] ? [data] : []);
+      for (const it of items) {
+        const itReg = String(it['Board Reg. No.'] || it['Board Registration Number'] || it['DIET Registration No.'] || it.boardRegNo || it.regNo || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+        if (itReg === cleanKey) {
+          foundRecord = it;
+          source = 'masterRegister';
+          break;
+        }
+      }
+      if (foundRecord) break;
+    }
+  }
+
+  if (!foundRecord) {
+    return {
+      success: false,
+      notFound: true,
+      message: `No previous admission or master register record found matching Registration No. "${rawReg}". Please check the number or fill the form manually.`,
+    };
+  }
+
+  // Hydrate photo if photoRef exists
+  let resolvedPhoto = '';
+  if (foundRecord.photoRef) {
+    const pSnap = await db.doc(foundRecord.photoRef).get().catch(() => null);
+    if (pSnap && pSnap.exists) {
+      resolvedPhoto = validatedPhoto(pSnap.data()?.photo_id);
+    }
+  }
+  if (!resolvedPhoto && foundRecord.photo_id) {
+    resolvedPhoto = validatedPhoto(foundRecord.photo_id);
+  }
+
+  const studentName = cleanString(foundRecord["Student's Name (as per school records)"] || foundRecord["Student's Name"] || foundRecord.studentName || '', 100);
+  const fatherName = cleanString(foundRecord["Father's/Guardian's Name (as per school records)"] || foundRecord["Father's Name"] || foundRecord.fatherName || '', 100);
+  const motherName = cleanString(foundRecord["Mother's Name (as per school records)"] || foundRecord["Mother's Name"] || foundRecord.motherName || '', 100);
+  const dob = toIsoDate(foundRecord["DoB (as per school records)"] || foundRecord["DoB (figures)"] || foundRecord.dob);
+  const gender = cleanString(foundRecord["Gender"] || foundRecord.gender || '', 20);
+
+  const prevClass = normalizeClass(foundRecord['Class'] || foundRecord['Admission sought for class'] || foundRecord.class || '');
+  const prevSession = normalizeSession(foundRecord['Session'] || foundRecord.session || '');
+  const prevStream = cleanString(foundRecord['Stream for Class 11th'] || foundRecord['Stream opted in Class 11th'] || foundRecord['Stream'] || '', 30);
+  const prevRoll = cleanString(foundRecord['Exam R.No. (Current)'] || foundRecord.currExamRoll || foundRecord.examRollNo || foundRecord['Exam Roll Number of Class 10th'] || foundRecord['Exam Roll Number of Class 11th'] || '', 30);
+  const prevMarks = cleanString(foundRecord['Marks/Reapp (Current)'] || foundRecord.marksObtained || foundRecord['Total Marks Obtained in Class 10th'] || foundRecord['Total Marks Obtained in Class 11th'] || '', 20);
+
+  let suggestedClass = '';
+  if (prevClass === '9th') suggestedClass = '10th';
+  else if (prevClass === '10th') suggestedClass = '11th';
+  else if (prevClass === '11th') suggestedClass = '12th';
+  else if (prevClass === '12th') suggestedClass = '12th';
+
+  const prefill = {
+    // Identity & Parentage
+    "Student's Name (as per school records)": studentName,
+    "DoB (as per school records)": dob,
+    "Gender": gender,
+    "Father's/Guardian's Name (as per school records)": fatherName,
+    "Father's/Guardian's Occupation": cleanString(foundRecord["Father's/Guardian's Occupation"] || foundRecord["Father's Occupation"] || '', 60),
+    "Mother's Name (as per school records)": motherName,
+    "Aadhar No.": digits(foundRecord["Aadhar No."] || foundRecord.aadharNo || foundRecord.aadhaar),
+    "Father's Aadhar No.": digits(foundRecord["Father's Aadhar No."] || foundRecord.fatherAadhar),
+    "Your Mother Tongue": cleanString(foundRecord["Your Mother Tongue"] || 'Kashmiri', 30),
+    "Identification Mark (if any)": cleanString(foundRecord["Identification Mark (if any)"] || '', 100),
+
+    // Contact & Residential Address
+    "Mobile No. (with working WhatsApp)": digits(foundRecord["Mobile No. (with working WhatsApp)"] || foundRecord["Student's Contact"] || foundRecord.mobile || foundRecord.phone),
+    "Parent's Mobile No. (must be working)": digits(foundRecord["Parent's Mobile No. (must be working)"] || foundRecord["Parent's Contact"] || foundRecord.parentMobile),
+    "Email Address": cleanString(foundRecord["Email Address"] || foundRecord.email1 || foundRecord.email || '', 80),
+    "House No.": cleanString(foundRecord["House No."] || '', 30),
+    "Name of your village": cleanString(foundRecord["Name of your village"] || foundRecord["Village/Town"] || foundRecord["Residence (Village, District)"] || foundRecord.village || '', 60),
+    "Block": cleanString(foundRecord["Block"] || foundRecord.block || '', 50),
+    "Tehsil": cleanString(foundRecord["Tehsil"] || foundRecord.tehsil || '', 50),
+    "District": cleanString(foundRecord["District"] || foundRecord.district || 'Anantnag', 50),
+    "State/UT": cleanString(foundRecord["State/UT"] || 'Jammu and Kashmir', 50),
+    "PIN code": digits(foundRecord["PIN code"] || foundRecord.pinCode || foundRecord.pincode),
+
+    // Physical & Social
+    "Height (cm)": cleanString(foundRecord["Height (cm)"] || foundRecord.height || '', 10),
+    "Weight (kg)": cleanString(foundRecord["Weight (kg)"] || foundRecord.weight || '', 10),
+    "Blood Group": cleanString(foundRecord["Blood Group"] || foundRecord["Blood Type"] || '', 15),
+    "Religion": cleanString(foundRecord["Religion"] || foundRecord.religion || 'Islam', 30),
+    "Social category": cleanString(foundRecord["Social category"] || foundRecord["Cat._JKBOSE"] || foundRecord.category || 'OM', 20),
+    "Socio-economic category": cleanString(foundRecord["Socio-economic category"] || '', 30),
+    "Whether Any Disability": (foundRecord["Whether Any Disability"] || foundRecord["Disability Status"]) === 'Yes' ? 'Yes' : 'No',
+    "Type of Disability": cleanString(foundRecord["Type of Disability"] || foundRecord["Disability Type"] || '', 100),
+
+    // National IDs
+    "PEN number (given by UDISE portal)": cleanString(foundRecord["PEN number (given by UDISE portal)"] || foundRecord["PEN No."] || foundRecord.penNo || '', 20),
+    "APAAR ID": cleanString(foundRecord["APAAR ID"] || foundRecord.apaarId || '', 20),
+    "DIET Registration No.": cleanString(foundRecord["DIET Registration No."] || foundRecord.dietRegNo || (prevClass === '9th' ? rawReg : ''), 30),
+
+    // Bank Details
+    "Bank Account No.": cleanString(foundRecord["Bank Account No."] || foundRecord["Bank Account Number"] || foundRecord.bankAccount || '', 30).replace(/\s/g, ''),
+    "Name of Bank": cleanString(foundRecord["Name of Bank"] || foundRecord["Bank Name"] || foundRecord.bankName || '', 80),
+    "IFSC code": cleanString(foundRecord["IFSC code"] || foundRecord["IFSC Code"] || foundRecord.ifsc || '', 20).toUpperCase(),
+
+    // Photo
+    "Student Photo": resolvedPhoto || undefined,
+    "photo_id": resolvedPhoto || undefined,
+  };
+
+  // Populate Class-Specific Academic Records
+  if (suggestedClass === '12th' || prevClass === '11th') {
+    prefill["Admission sought for class"] = '12th';
+    prefill["Admission Type (Class 12th)"] = 'Full';
+    prefill["Board Registration No. (Class 11th)"] = rawReg;
+    prefill["Name of Previous School (Class 11th)"] = "Govt Higher Secondary School Shangus";
+    prefill["Board (Class 11th)"] = "JKBOSE";
+    if (prevStream) {
+      prefill["Stream opted in Class 11th"] = prevStream;
+      prefill["Stream for Class 11th"] = prevStream;
+      prefill["Stream"] = prevStream;
+    }
+    if (prevRoll) prefill["Exam Roll Number of Class 11th"] = prevRoll;
+    if (prevSession) prefill["Year of Passing Class 11th"] = prevSession;
+    if (prevMarks) prefill["Total Marks Obtained in Class 11th"] = prevMarks;
+    prefill["Total Max. Marks in Class 11th"] = '500';
+
+    if (foundRecord["Board Registration No. (Class 10th)"]) prefill["Board Registration No. (Class 10th)"] = foundRecord["Board Registration No. (Class 10th)"];
+    if (foundRecord["Exam Roll Number of Class 10th"]) prefill["Exam Roll Number of Class 10th"] = foundRecord["Exam Roll Number of Class 10th"];
+    if (foundRecord["Year of Passing Class 10th"]) prefill["Year of Passing Class 10th"] = foundRecord["Year of Passing Class 10th"];
+    if (foundRecord["Total Marks Obtained in Class 10th"]) prefill["Total Marks Obtained in Class 10th"] = foundRecord["Total Marks Obtained in Class 10th"];
+    if (foundRecord["Total Max. Marks in Class 10th"]) prefill["Total Max. Marks in Class 10th"] = foundRecord["Total Max. Marks in Class 10th"];
+    if (foundRecord["Name of Previous School (Class 10th)"]) prefill["Name of Previous School (Class 10th)"] = foundRecord["Name of Previous School (Class 10th)"];
+    if (foundRecord["Board (Class 10th)"]) prefill["Board (Class 10th)"] = foundRecord["Board (Class 10th)"];
+  } else if (suggestedClass === '11th' || prevClass === '10th') {
+    prefill["Admission sought for class"] = '11th';
+    prefill["Admission Type (Class 11th)"] = 'Full';
+    prefill["Board Registration No. (Class 10th)"] = rawReg;
+    prefill["Name of Previous School (Class 10th)"] = cleanString(foundRecord['Previous School'] || foundRecord['Name of Previous School (Class 10th)'] || "Govt Higher Secondary School Shangus", 120);
+    prefill["Board (Class 10th)"] = "JKBOSE";
+    if (prevStream && prevStream !== 'General') {
+      prefill["Stream for Class 11th"] = prevStream;
+      prefill["Stream"] = prevStream;
+    }
+    if (prevRoll) prefill["Exam Roll Number of Class 10th"] = prevRoll;
+    if (prevSession) prefill["Year of Passing Class 10th"] = prevSession;
+    if (prevMarks) prefill["Total Marks Obtained in Class 10th"] = prevMarks;
+    prefill["Total Max. Marks in Class 10th"] = '500';
+  } else if (suggestedClass === '10th' || prevClass === '9th') {
+    prefill["Admission sought for class"] = '10th';
+    prefill["Admission Type"] = 'Full';
+    prefill["Board Registration No. (Class 9th)"] = rawReg;
+    prefill["Name of Previous School (Class 9th)"] = "Govt Higher Secondary School Shangus";
+    prefill["Board (Class 9th)"] = "JKBOSE";
+  }
+
+  Object.keys(prefill).forEach(k => {
+    if (prefill[k] === undefined || prefill[k] === null || prefill[k] === '') delete prefill[k];
+  });
+
+  return {
+    success: true,
+    source,
+    record: prefill,
+    meta: {
+      studentName,
+      previousClass: prevClass || 'Unknown',
+      previousSession: prevSession || 'Unknown',
+      suggestedClass: suggestedClass || prevClass || '11th',
+      stream: prevStream || 'Science',
     },
   };
 }
@@ -905,13 +1121,14 @@ exports.handler = async function handler(event) {
     }
     const token = await authenticate(event);
     const action = cleanString(body.action, 20);
-    if (!['load', 'draft', 'submit', 'withdraw'].includes(action)) return response(400, { error: 'Invalid action.' }, origin);
+    if (!['load', 'draft', 'submit', 'withdraw', 'lookup_registration'].includes(action)) return response(400, { error: 'Invalid action.' }, origin);
     const db = getFirestore(getAdminApp());
     if (!(await consumeRateLimit(db, token.uid, action))) return response(429, { error: 'Too many admission requests. Please wait and try again.' }, origin);
     const result = action === 'load' ? await loadWorkspace(db, token)
       : action === 'draft' ? await saveDraft(db, token, body)
         : action === 'submit' ? await submitApplication(db, token, body)
-          : await withdrawApplication(db, token, body);
+          : action === 'lookup_registration' ? await lookupRegistrationRecord(db, token, body)
+            : await withdrawApplication(db, token, body);
     return response(200, result, origin);
   } catch (error) {
     console.error('Admission workflow error:', error.message);

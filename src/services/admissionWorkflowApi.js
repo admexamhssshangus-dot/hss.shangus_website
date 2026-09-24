@@ -170,11 +170,17 @@ export async function withdrawAdmission(applicationId) {
   return request('withdraw', { applicationId });
 }
 
+export async function lookupRegistrationRecord(registrationNo) {
+  return request('lookup_registration', { registrationNo }, { force: true, timeoutMs: 15000 });
+}
+
 const admissionWorkflowApi = {
   loadAdmissionWorkspace,
   saveAdmissionDraft,
   submitAdmission,
   withdrawAdmission,
+  lookupRegistrationRecord,
 };
 
 export default admissionWorkflowApi;
+
