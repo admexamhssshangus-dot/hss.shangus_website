@@ -54,6 +54,8 @@ export const HIGHER_SECONDARY_SUBJECTS_LIST = [
   'General English',
   'Physics',
   'Chemistry',
+  'Botany',
+  'Zoology',
   'Biology',
   'Mathematics',
   'Environmental Science',
@@ -64,8 +66,7 @@ export const HIGHER_SECONDARY_SUBJECTS_LIST = [
   'Urdu',
   'Physical Education',
   'Healthcare',
-  'IT and ITES',
-  'Arabic'
+  'IT and ITES'
 ];
 
 // Backwards-compatibility aliases

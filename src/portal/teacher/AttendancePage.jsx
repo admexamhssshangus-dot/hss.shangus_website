@@ -38,7 +38,6 @@ const MASTER_SUBJECTS = [
   { name: 'Accountancy', code: 'AY' },
   { name: 'Business Studies', code: 'BS' },
   { name: 'Entrepreneurship', code: 'EP' },
-  { name: 'Arabic', code: 'AR' },
   { name: 'Persian', code: 'PE' },
 ];
 

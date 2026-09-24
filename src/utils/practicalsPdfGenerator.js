@@ -531,6 +531,11 @@ export function printIndividualAwardRoll({
         }
       });
 
+      const hasAnyExamRoll = colChunk.some(r => {
+        const raw = r.examRollNo || r['Exam Roll No.'] || r['Exam Roll No'] || r['Exam Roll'] || r['Board Roll'] || '';
+        return raw && !/^(N\/A|#N\/A|—|-|null|undefined)$/i.test(String(raw).trim());
+      });
+
       let colHtml = `
         <div class="award-col-box">
           <div class="award-header-block">
@@ -553,7 +558,7 @@ export function printIndividualAwardRoll({
             <thead>
               <tr>
                 <th style="width: 12%;">S.No.</th>
-                <th style="width: 28%;">Exam R.No.</th>
+                <th style="width: 28%;">${hasAnyExamRoll ? 'Exam R.No.' : 'Class R.No. / Name'}</th>
                 <th style="width: 28%;">Marks<br>(Figures)</th>
                 <th style="width: 32%;">Marks<br>(Words)</th>
               </tr>
@@ -566,7 +571,32 @@ export function printIndividualAwardRoll({
       colChunk.forEach((r, idx) => {
         const sno = startSno + idx;
         const rawExamRoll = r.examRollNo || r['Exam Roll No.'] || r['Exam Roll No'] || r['Exam Roll'] || r['Board Roll'] || '';
-        const rollNo = (rawExamRoll && !/^(N\/A|—|-|null|undefined)$/i.test(String(rawExamRoll).trim())) ? String(rawExamRoll).trim() : '—';
+        const cleanExamRoll = (rawExamRoll && !/^(N\/A|#N\/A|—|-|null|undefined)$/i.test(String(rawExamRoll).trim())) ? String(rawExamRoll).trim() : '';
+
+        const rawClassRoll = r.classRollNo || r.rollNo || r.classRoll || r['Class Roll No'] || r['Class Roll'] || '';
+        const cleanClassRoll = (rawClassRoll && !/^(N\/A|#N\/A|—|-|null|undefined)$/i.test(String(rawClassRoll).trim())) ? String(rawClassRoll).trim() : '';
+
+        const rawName = r.name || r.studentName || r['Candidate Name'] || r['Student Name'] || '';
+        const cleanName = (rawName && !/^(N\/A|#N\/A|—|-|null|undefined)$/i.test(String(rawName).trim())) ? toTitleCase(String(rawName).trim()) : '';
+
+        let rollCellHtml = '';
+        if (cleanExamRoll) {
+          rollCellHtml = `<strong>${cleanExamRoll}</strong>`;
+        } else if (cleanClassRoll && cleanName) {
+          rollCellHtml = `
+            <div style="line-height: 1.15; padding: 1px 0;">
+              <strong style="font-size: 8.5pt; color: #0f172a;">${cleanClassRoll}</strong>
+              <div style="font-size: 6.8pt; font-weight: 600; color: #334155; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 105px; margin: 0 auto;" title="${cleanName}">${cleanName}</div>
+            </div>
+          `;
+        } else if (cleanClassRoll) {
+          rollCellHtml = `<strong>${cleanClassRoll}</strong>`;
+        } else if (cleanName) {
+          rollCellHtml = `<span style="font-size: 7.5pt; font-weight: bold; text-transform: uppercase;">${cleanName}</span>`;
+        } else {
+          rollCellHtml = '—';
+        }
+
         const rawMark = String(r.totalMarks ?? r.practicalMarks ?? r.marks ?? '').trim();
         const isAbs = rawMark.toUpperCase() === 'AB' || rawMark.toUpperCase() === 'A' || rawMark.toUpperCase() === 'ABSENT';
 
@@ -591,7 +621,7 @@ export function printIndividualAwardRoll({
         colHtml += `
           <tr>
             <td>${sno}</td>
-            <td><strong>${rollNo}</strong></td>
+            <td>${rollCellHtml}</td>
             <td>${isAbs ? '<span class="absent-text">Absent</span>' : `<strong>${rawMark || '—'}</strong>`}</td>
             <td>${isAbs ? '-' : numberToWordsInr(rawMark)}</td>
           </tr>
