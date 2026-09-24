@@ -507,17 +507,16 @@ export default function Home() {
           </React.Suspense>
         )}
 
-        {/* Real-time Google Cloud Traffic (Clean, no outline or fill, positioned at bottom right) */}
+        {/* Real-time Google Cloud Traffic (Clean, no outline or fill, positioned at bottom right, zero tooltip popups) */}
         <aside
           className={`absolute ${notices.length > 0 ? 'bottom-2 right-2.5 md:bottom-[4.2rem] md:right-5' : 'bottom-2.5 right-3 md:bottom-4 md:right-5'} z-30 pointer-events-auto select-none`}
           aria-label="Real-time website traffic metrics"
         >
           <div
             className="inline-flex items-center gap-1.5 sm:gap-2 text-[10px] sm:text-xs text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.95)] cursor-default transition-opacity hover:opacity-100 opacity-90 font-medium"
-            title="Google Cloud Realtime Telemetry: Total Visitors & Clicks"
           >
             {/* Live Indicator Dot */}
-            <span className="relative flex h-1.5 w-1.5 shrink-0" title="Live Google Cloud Telemetry">
+            <span className="relative flex h-1.5 w-1.5 shrink-0" aria-hidden="true">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
               <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-400" />
             </span>
@@ -526,7 +525,7 @@ export default function Home() {
             <span className="inline-flex items-center gap-1 text-white font-extrabold tracking-tight">
               <Users size={11} className="text-teal-300 stroke-[2.5] shrink-0 drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]" />
               <AnimatedCounter end={trafficStats.visitors} suffix="+" />
-              <span className="text-[8.5px] sm:text-[9.5px] text-slate-200 font-medium lowercase">visits</span>
+              <span className="text-[8.5px] sm:text-[9.5px] text-white/90 font-medium lowercase drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">visits</span>
             </span>
 
             <span className="text-white/40 select-none">•</span>
@@ -535,7 +534,7 @@ export default function Home() {
             <span className="inline-flex items-center gap-1 text-white font-extrabold tracking-tight">
               <MousePointerClick size={11} className="text-indigo-300 stroke-[2.5] shrink-0 drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]" />
               <AnimatedCounter end={trafficStats.interactions} suffix="+" />
-              <span className="text-[8.5px] sm:text-[9.5px] text-slate-200 font-medium lowercase">clicks</span>
+              <span className="text-[8.5px] sm:text-[9.5px] text-white/90 font-medium lowercase drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">clicks</span>
             </span>
           </div>
         </aside>
