@@ -59,6 +59,7 @@ export const DEFAULT_COLUMN_WIDTHS = {
   parentMobile: 66,
 
   // PART 2
+  p2_sno: 32,
   p2_stream: 52,
   p2_subs: 96,
   p2_aadhar: 80,
@@ -373,18 +374,18 @@ function renderOnlineSubmCell(status) {
     const datePart = parts[0];
     const timePart = parts.slice(1).join(' ');
     return (
-      <div className="flex flex-col justify-center items-start leading-tight">
-        <span className="whitespace-nowrap font-medium text-[7.5px]">{datePart}</span>
-        <span className="whitespace-nowrap text-[6.5px] text-slate-500 font-normal">{timePart}</span>
+      <div className="flex flex-col justify-center items-start leading-[1.05] overflow-hidden">
+        <span className="whitespace-nowrap font-medium text-[7px] leading-tight truncate">{datePart}</span>
+        <span className="whitespace-nowrap text-[6px] text-slate-500 font-normal leading-tight truncate">{timePart}</span>
       </div>
     );
   }
-  return <span className="whitespace-nowrap font-medium text-[7.5px]">{str}</span>;
+  return <span className="whitespace-nowrap font-medium text-[7px] truncate">{str}</span>;
 }
 
 function renderAdmDateCell(date) {
   if (!date || date === '—') return '—';
-  return <span className="whitespace-nowrap font-bold text-[8px] ledger-mono-font">{date}</span>;
+  return <span className="whitespace-nowrap font-bold text-[7.5px] ledger-mono-font truncate">{date}</span>;
 }
 
 function renderPenCell(pen) {
@@ -393,13 +394,13 @@ function renderPenCell(pen) {
   if (str.includes(',')) {
     const parts = str.split(',');
     return (
-      <div className="flex flex-col items-center justify-center leading-tight break-all max-w-full">
-        <span className="font-bold text-[7px] break-all">{parts[0].trim()}</span>
-        {parts[1] && <span className="text-[6px] text-slate-600 font-medium break-all">{parts[1].trim()}</span>}
+      <div className="flex flex-col items-center justify-center leading-[1.05] break-all max-w-full overflow-hidden">
+        <span className="font-bold text-[6.8px] leading-tight break-all">{parts[0].trim()}</span>
+        {parts[1] && <span className="text-[5.8px] text-slate-600 font-medium leading-tight break-all">{parts[1].trim()}</span>}
       </div>
     );
   }
-  return <div className="break-all max-w-full leading-tight text-[7px]">{str}</div>;
+  return <div className="break-all max-w-full leading-tight text-[6.8px] truncate">{str}</div>;
 }
 
 function renderAdmittedVideCell(val) {
@@ -410,17 +411,17 @@ function renderAdmittedVideCell(val) {
     const noPart = parts[0].trim();
     const datePart = parts.slice(1).join(';').trim();
     return (
-      <div className="flex flex-col items-center justify-center leading-tight">
-        <span className="font-bold text-[7.5px] leading-none">{noPart}{datePart ? ';' : ''}</span>
+      <div className="flex flex-col items-center justify-center leading-[1.05] overflow-hidden">
+        <span className="font-bold text-[6.8px] leading-tight truncate">{noPart}{datePart ? ';' : ''}</span>
         {datePart && (
-          <span className="whitespace-nowrap font-medium text-[7px] text-emerald-950 mt-0.5 leading-none">
+          <span className="whitespace-nowrap font-medium text-[6px] text-emerald-950 leading-tight truncate">
             {datePart}
           </span>
         )}
       </div>
     );
   }
-  return <span className="leading-tight break-words">{str}</span>;
+  return <span className="leading-tight break-words text-[6.8px]">{str}</span>;
 }
 
 const BOARD_REGISTRATION_KEYS = [
@@ -1159,6 +1160,7 @@ export default function AdmissionRegisterSuite({
             ...DEFAULT_COLUMN_WIDTHS,
             ...parsed.columnWidths,
             sno: Math.max(DEFAULT_COLUMN_WIDTHS.sno, parsed.columnWidths.sno || 0),
+            p2_sno: Math.max(DEFAULT_COLUMN_WIDTHS.p2_sno, parsed.columnWidths.p2_sno || parsed.columnWidths.sno || 0),
             rollNo: Math.max(DEFAULT_COLUMN_WIDTHS.rollNo, parsed.columnWidths.rollNo || 0),
             class: Math.max(DEFAULT_COLUMN_WIDTHS.class, parsed.columnWidths.class || 0),
             gender: Math.max(DEFAULT_COLUMN_WIDTHS.gender, parsed.columnWidths.gender || 0),
@@ -1398,7 +1400,9 @@ export default function AdmissionRegisterSuite({
     setColumnWidths(prev => {
       const updated = {
         ...prev,
-        [colKey]: newWidth
+        [colKey]: newWidth,
+        ...(colKey === 'sno' ? { p2_sno: newWidth } : {}),
+        ...(colKey === 'p2_sno' ? { sno: newWidth } : {})
       };
       try {
         localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify({
@@ -4112,9 +4116,9 @@ export default function AdmissionRegisterSuite({
             height: ${calculatedRowHeightMm}mm !important;
             min-height: ${calculatedRowHeightMm}mm !important;
             max-height: ${calculatedRowHeightMm}mm !important;
-            padding: 0.3mm 0.8mm !important;
-            font-size: ${currentStudentsPerPage >= 16 ? '7px' : '7.8px'} !important;
-            line-height: 1.15 !important;
+            padding: 0.2mm 0.6mm !important;
+            font-size: ${currentStudentsPerPage >= 16 ? '6.8px' : '7.5px'} !important;
+            line-height: 1.1 !important;
             vertical-align: middle !important;
             box-sizing: border-box !important;
             overflow: hidden !important;
@@ -4122,7 +4126,7 @@ export default function AdmissionRegisterSuite({
 
           .admission-spread-table tbody tr > td > div,
           .admission-spread-table tbody tr > td > span {
-            max-height: calc(${calculatedRowHeightMm}mm - 0.6mm) !important;
+            max-height: calc(${calculatedRowHeightMm}mm - 0.4mm) !important;
             overflow: hidden !important;
           }
 
@@ -4143,6 +4147,7 @@ export default function AdmissionRegisterSuite({
           }
 
           .admission-spread-table th[data-col="sno"],
+          .admission-spread-table th[data-col="p2_sno"],
           .sentup-table th[data-col="st_sno"] {
             width: 10mm !important;
             min-width: 9mm !important;
@@ -4738,25 +4743,44 @@ export default function AdmissionRegisterSuite({
           flex-shrink: 0;
         }
 
+        .admission-spread-table {
+          table-layout: fixed !important;
+        }
+
         .admission-spread-table thead {
-          height: 58px;
+          height: 56px !important;
         }
 
         .admission-spread-table thead tr {
-          height: 29px;
+          height: 28px !important;
+        }
+
+        .admission-spread-table thead th {
+          height: 28px !important;
+          box-sizing: border-box !important;
+          vertical-align: middle !important;
+          overflow: hidden !important;
         }
 
         .admission-spread-table thead th[rowspan="2"] {
-          height: 58px;
+          height: 56px !important;
         }
 
         .register-resizable-row,
         .register-resizable-row > td {
-          height: var(--register-row-height);
-          max-height: var(--register-row-height);
-          overflow: hidden;
+          height: var(--register-row-height) !important;
+          min-height: var(--register-row-height) !important;
+          max-height: var(--register-row-height) !important;
+          overflow: hidden !important;
           line-height: 1.12;
-          vertical-align: middle;
+          vertical-align: middle !important;
+          box-sizing: border-box !important;
+        }
+
+        .register-resizable-row > td > div,
+        .register-resizable-row > td > span {
+          max-height: calc(var(--register-row-height) - 4px);
+          overflow: hidden;
         }
 
         .register-resizable-row:hover > td {
@@ -6441,7 +6465,7 @@ export default function AdmissionRegisterSuite({
                                 return (
                                   <ResizableDataRow key={`chunk_row_p1_${s.id || ''}_${idx}`} rowHeight={rowHeight} onResize={handleRowHeightChange} className="hover:bg-slate-50 group">
                                     <td className="border border-slate-900 px-1 py-0.5 text-center font-bold ledger-mono-font">{s.sno}</td>
-                                    <td className="register-photo-cell border border-slate-900 p-0 text-center overflow-hidden bg-slate-50 print:bg-transparent" style={{ width: columnWidths.photo ? `${columnWidths.photo}px` : undefined, height: `${rowHeight}px` }}>
+                                    <td className="register-photo-cell border border-slate-900 p-0 text-center overflow-hidden bg-slate-50 print:bg-transparent" style={{ width: columnWidths.photo ? `${columnWidths.photo}px` : undefined }}>
                                       {photoSrc ? (
                                         <div className="w-full h-full flex items-center justify-center p-0.5">
                                           <img
@@ -6525,7 +6549,7 @@ export default function AdmissionRegisterSuite({
                         </div>
 
                         {/* Footer Signatures */}
-                        <div className="signature-footer flex justify-between items-center mt-6 sm:mt-8 pt-3 text-xs font-black text-red-700">
+                        <div className="signature-footer flex justify-between items-center mt-6 sm:mt-8 pt-3 text-xs font-black text-red-700 w-full">
                           <div className="signature-block text-center w-36 sm:w-40 border-t-2 border-red-700 pt-1">Incharge Admissions</div>
                           <div className="signature-block text-center w-36 sm:w-40 border-t-2 border-red-700 pt-1">Checked By</div>
                           <div className="signature-block text-center w-36 sm:w-40 border-t-2 border-red-700 pt-1">Principal</div>
@@ -6558,6 +6582,7 @@ export default function AdmissionRegisterSuite({
                         <div className="overflow-x-auto">
                           <table className="admission-spread-table w-full text-left text-[8.5px] border-collapse border border-slate-900 ledger-data-font">
                             <colgroup>
+                              <col style={{ width: `${columnWidths.p2_sno || columnWidths.sno || 32}px` }} />
                               <col style={{ width: `${columnWidths.p2_stream || 52}px` }} />
                               <col style={{ width: `${columnWidths.p2_subs || 96}px` }} />
                               <col style={{ width: `${columnWidths.p2_aadhar || 80}px` }} />
@@ -6577,6 +6602,7 @@ export default function AdmissionRegisterSuite({
                             </colgroup>
                             <thead>
                               <tr className="bg-slate-200 text-slate-900 uppercase font-black text-center">
+                                <ResizableTh colKey="p2_sno" sortKey="sno" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.p2_sno || columnWidths.sno || 32} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey"><span className="block whitespace-nowrap">S. NO.</span></ResizableTh>
                                 <ResizableTh colKey="p2_stream" sortKey="stream" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.p2_stream} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey"><span className="block whitespace-nowrap">STREAM</span></ResizableTh>
                                 <ResizableTh colKey="p2_subs" sortKey="subs" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.p2_subs} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 h-grey"><span className="block whitespace-nowrap">SUBS</span></ResizableTh>
                                 <ResizableTh colKey="p2_aadhar" sortKey="aadhar" sortConfig={sortConfig} onSort={handleSort} width={columnWidths.p2_aadhar} onResize={handleColumnResize} rowSpan="2" className="border border-slate-900 px-1 py-1 bg-yellow-200 text-slate-900 h-yellow"><span className="block whitespace-nowrap leading-tight">AADHAR</span><span className="block whitespace-nowrap leading-tight mt-0.5">NO.</span></ResizableTh>
@@ -6601,26 +6627,27 @@ export default function AdmissionRegisterSuite({
                             <tbody className="divide-y divide-slate-900 text-slate-900">
                               {chunk.map((s, idx) => (
                                 <ResizableDataRow key={`chunk_row_p2_${s.id || ''}_${idx}`} rowHeight={rowHeight} onResize={handleRowHeightChange} className="hover:bg-slate-50">
+                                  <td className="border border-slate-900 px-1 py-0.5 text-center font-bold ledger-mono-font" data-col="p2_sno">{s.sno}</td>
                                   <td className="border border-slate-900 px-1 py-0.5 text-center"><StreamLabel value={s.stream} /></td>
-                                  <td className="border border-slate-900 px-1 py-0.5 text-left text-[7px] leading-tight font-medium overflow-hidden">
-                                    <div className="line-clamp-2 leading-tight">{s.subs}</div>
+                                  <td className="border border-slate-900 px-1 py-0.5 text-left text-[6.5px] leading-[1.05] font-medium overflow-hidden">
+                                    <div className="line-clamp-2 leading-[1.05]">{s.subs}</div>
                                   </td>
-                                  <td className="border border-slate-900 px-1 py-0.5 text-center font-mono bg-yellow-50 ledger-mono-font">{s.aadhar}</td>
+                                  <td className="border border-slate-900 px-1 py-0.5 text-center font-mono bg-yellow-50 ledger-mono-font text-[7.5px]">{s.aadhar}</td>
                                   <td className="border border-slate-900 px-1 py-0.5 text-center bg-yellow-50 font-black">{s.category}</td>
                                   <td className="border border-slate-900 px-1 py-0.5 text-center bg-yellow-50">{s.socioEcon}</td>
                                   <td className="border border-slate-900 px-1 py-0.5 text-center bg-yellow-50 font-bold">{s.blood}</td>
-                                  <td className="border border-slate-900 px-1.5 py-0.5 text-left align-middle font-mono bg-yellow-50 ledger-mono-font overflow-hidden">
-                                     <div className="font-bold text-[7.5px] text-slate-900 leading-tight">
+                                  <td className="border border-slate-900 px-1 py-0.5 text-left align-middle font-mono bg-yellow-50 ledger-mono-font overflow-hidden">
+                                     <div className="font-bold text-[7px] text-slate-900 leading-[1.05] truncate">
                                        {s.account && s.account !== '—' ? s.account : '—'}
                                      </div>
                                      {s.ifsc && s.ifsc !== '—' && s.ifsc !== 'NA' && (
-                                       <div className="text-[6.5px] text-slate-600 font-medium leading-tight mt-0.5">
+                                       <div className="text-[6px] text-slate-600 font-medium leading-[1.05] truncate">
                                          {s.ifsc}
                                        </div>
                                      )}
                                    </td>
-                                  <td className="border border-slate-900 px-1 py-0.5 text-left text-[7.5px] leading-tight overflow-hidden">
-                                    <div className="line-clamp-2 leading-tight">{s.prevSchool}</div>
+                                  <td className="border border-slate-900 px-1 py-0.5 text-left text-[6.5px] leading-[1.05] overflow-hidden align-middle">
+                                    <div className="line-clamp-2 leading-[1.05]">{s.prevSchool}</div>
                                   </td>
                                   <td className="border border-slate-900 px-1 py-0.5 text-center font-mono ledger-mono-font">{s.prevRoll}</td>
                                   <td className="border border-slate-900 px-1 py-0.5 text-center font-bold">
@@ -6638,28 +6665,28 @@ export default function AdmissionRegisterSuite({
                                     {renderAdmittedVideCell(s.prevCC)}
                                   </td>
                                   <td className="border border-slate-900 px-1 py-0.5 text-center text-rose-900 text-[7.5px] bg-rose-50">{s.withdrawal}</td>
-                                  <td className="border border-slate-900 px-1 py-0.5 text-left text-[6.5px] bg-rose-50/50 overflow-hidden" style={{ verticalAlign: 'middle', height: `${rowHeight}px` }}>
+                                  <td className="border border-slate-900 px-1 py-0.5 text-left text-[6.5px] bg-rose-50/50 overflow-hidden align-middle">
                                     {s.issuedCC ? (
-                                      <div className="text-[7px] leading-tight font-medium line-clamp-2">{s.issuedCC}</div>
+                                      <div className="text-[6.5px] leading-tight font-medium line-clamp-2">{s.issuedCC}</div>
                                     ) : (
-                                      <div className="h-full flex flex-col justify-between text-[6.5px] leading-none py-1 select-none font-medium text-slate-800" style={{ maxHeight: `${Math.max(26, rowHeight - 4)}px` }}>
-                                        <div className="leading-tight">C.No. _________</div>
-                                        <div className="leading-tight">Dt. _________</div>
+                                      <div className="flex flex-col justify-center text-[6px] leading-[1.05] select-none font-medium text-slate-800 overflow-hidden">
+                                        <div className="truncate">C.No. _______</div>
+                                        <div className="truncate mt-0.5">Dt. _______</div>
                                       </div>
                                     )}
                                   </td>
-                                  <td className="border border-slate-900 px-1 py-0.5 text-left text-[6.5px] leading-tight bg-rose-50/50 overflow-hidden" style={{ verticalAlign: 'middle', height: `${rowHeight}px` }}>
+                                  <td className="border border-slate-900 px-1 py-0.5 text-left text-[6.5px] bg-rose-50/50 overflow-hidden align-middle">
                                     {s.receipt ? (
-                                      <div className="text-[7px] leading-tight font-medium line-clamp-2">{s.receipt}</div>
+                                      <div className="text-[6.5px] leading-tight font-medium line-clamp-2">{s.receipt}</div>
                                     ) : (
-                                      <div className="h-full flex flex-col justify-between text-[6.5px] leading-none py-1 select-none font-medium text-slate-800" style={{ maxHeight: `${Math.max(26, rowHeight - 4)}px` }}>
-                                        <div className="leading-tight truncate">rcvd DC/CC C.No. _____</div>
-                                        <div className="leading-tight">on ______ Sig. _______</div>
+                                      <div className="flex flex-col justify-center text-[6px] leading-[1.05] select-none font-medium text-slate-800 overflow-hidden">
+                                        <div className="truncate">rcvd DC/CC C.No. ___</div>
+                                        <div className="truncate mt-0.5">on _____ Sig. _____</div>
                                       </div>
                                     )}
                                   </td>
-                                  <td className="border border-slate-900 px-1 py-0.5 text-left text-[7px] leading-tight overflow-hidden">
-                                    <div className="line-clamp-2 leading-tight">{s.remarks}</div>
+                                  <td className="border border-slate-900 px-1 py-0.5 text-left text-[6.5px] leading-[1.05] overflow-hidden align-middle">
+                                    <div className="line-clamp-2 leading-[1.05]">{s.remarks}</div>
                                   </td>
                                 </ResizableDataRow>
                               ))}
@@ -6668,7 +6695,7 @@ export default function AdmissionRegisterSuite({
                         </div>
 
                         {/* Footer Signatures */}
-                        <div className="signature-footer flex justify-between items-center mt-6 sm:mt-8 pt-3 text-xs font-black text-red-700">
+                        <div className="signature-footer flex justify-between items-center mt-6 sm:mt-8 pt-3 text-xs font-black text-red-700 w-full">
                           <div className="signature-block text-center w-36 sm:w-40 border-t-2 border-red-700 pt-1">Incharge Admissions</div>
                           <div className="signature-block text-center w-36 sm:w-40 border-t-2 border-red-700 pt-1">Checked By</div>
                           <div className="signature-block text-center w-36 sm:w-40 border-t-2 border-red-700 pt-1">Principal</div>
