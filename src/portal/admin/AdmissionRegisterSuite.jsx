@@ -2593,7 +2593,7 @@ export default function AdmissionRegisterSuite({
         if (selectedStatus === 'Approved') {
           if (s.status !== 'Approved') return false;
         } else if (selectedStatus === 'Submitted') {
-          if (s.status !== 'Submitted' && s.status !== 'Approved') return false;
+          if (s.status !== 'Submitted') return false;
         } else if (selectedStatus === 'Provisional') {
           if (s.status !== 'Provisional') return false;
         } else if (s.status !== selectedStatus) {
@@ -3278,7 +3278,7 @@ export default function AdmissionRegisterSuite({
         if (selectedStatus === 'Approved') {
           if (s.status !== 'Approved') return false;
         } else if (selectedStatus === 'Submitted') {
-          if (s.status !== 'Submitted' && s.status !== 'Approved') return false;
+          if (s.status !== 'Submitted') return false;
         } else if (selectedStatus === 'Provisional') {
           if (s.status !== 'Provisional') return false;
         } else if (s.status !== selectedStatus) {
@@ -3393,6 +3393,7 @@ export default function AdmissionRegisterSuite({
   const [assignClasses, setAssignClasses] = useState(['9th', '11th']);
   const [assignSessionFilter, setAssignSessionFilter] = useState('2025-26');
   const [onlyMissingAdmNo, setOnlyMissingAdmNo] = useState(true);
+  const [onlyApprovedAssign, setOnlyApprovedAssign] = useState(true);
   const [assignStrategies, setAssignStrategies] = useState({});
 
   const calculatedNextAdmNo = useMemo(() => {
@@ -3414,6 +3415,7 @@ export default function AdmissionRegisterSuite({
 
   const candidateAssignStudents = useMemo(() => {
     return normalizedStudents.filter(st => {
+      if (onlyApprovedAssign && st.status !== 'Approved') return false;
       if (assignSessionFilter !== 'ALL' && st.session !== assignSessionFilter) return false;
       if (assignClasses.length > 0) {
         const match = assignClasses.some(c => matchesClassVal(c, st.class));
@@ -3424,7 +3426,7 @@ export default function AdmissionRegisterSuite({
       }
       return true;
     });
-  }, [normalizedStudents, assignSessionFilter, assignClasses, onlyMissingAdmNo]);
+  }, [normalizedStudents, onlyApprovedAssign, assignSessionFilter, assignClasses, onlyMissingAdmNo]);
 
   const candidateIdPreviewList = useMemo(() => {
     let seqCounter = parseInt(assignStartId, 10) || 5476;
@@ -3524,15 +3526,17 @@ export default function AdmissionRegisterSuite({
   const [assignDateField, setAssignDateField] = useState('admDate');
   const [assignDateSession, setAssignDateSession] = useState('2025-26');
   const [assignDateClass, setAssignDateClass] = useState('ALL');
+  const [onlyApprovedDates, setOnlyApprovedDates] = useState(true);
   const [assigningDates, setAssigningDates] = useState(false);
 
   const dateTargetStudents = useMemo(() => {
     return normalizedStudents.filter(st => {
+      if (onlyApprovedDates && st.status !== 'Approved') return false;
       if (assignDateSession !== 'ALL' && st.session !== assignDateSession) return false;
       if (assignDateClass !== 'ALL' && !matchesClassVal(assignDateClass, st.class)) return false;
       return true;
     });
-  }, [normalizedStudents, assignDateSession, assignDateClass]);
+  }, [normalizedStudents, onlyApprovedDates, assignDateSession, assignDateClass]);
 
   const handleRunAssignDates = async () => {
     if (dateTargetStudents.length === 0) {
@@ -4771,7 +4775,13 @@ export default function AdmissionRegisterSuite({
             {/* 1. Main Suite Module Dropdown */}
             <select
               value={activeTab}
-              onChange={(e) => setActiveTab(e.target.value)}
+              onChange={(e) => {
+                const nextTab = e.target.value;
+                setActiveTab(nextTab);
+                if (nextTab === 'adm_register' || nextTab === 'sentup') {
+                  setSelectedStatus('Approved');
+                }
+              }}
               className="py-0.5 px-2 text-[11.5px] rounded-lg border-2 border-amber-600/50 dark:border-amber-500/50 bg-amber-50 dark:bg-amber-950/70 text-amber-900 dark:text-amber-200 font-black cursor-pointer shadow-2xs focus:ring-1 focus:ring-amber-500 shrink-0"
             >
               <option value="adm_register">📖 Admission Register</option>
@@ -7555,6 +7565,17 @@ export default function AdmissionRegisterSuite({
                   />
                 </div>
 
+                {/* Only Approved Checkbox */}
+                <label className="flex items-center gap-1.5 cursor-pointer select-none bg-white dark:bg-slate-900 py-0.5 px-2 rounded-md border border-slate-200 dark:border-slate-800">
+                  <input
+                    type="checkbox"
+                    checked={onlyApprovedAssign}
+                    onChange={(e) => setOnlyApprovedAssign(e.target.checked)}
+                    className="rounded text-emerald-600 cursor-pointer"
+                  />
+                  <span className="text-[10.5px] font-bold text-emerald-700 dark:text-emerald-400">Only Approved</span>
+                </label>
+
                 {/* Only Missing Checkbox */}
                 <label className="flex items-center gap-1.5 cursor-pointer select-none bg-white dark:bg-slate-900 py-0.5 px-2 rounded-md border border-slate-200 dark:border-slate-800">
                   <input
@@ -7683,15 +7704,26 @@ export default function AdmissionRegisterSuite({
                   </div>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={handleRunAssignDates}
-                  disabled={assigningDates || dateTargetStudents.length === 0}
-                  className="py-1 px-3 rounded-lg font-black text-white bg-indigo-600 hover:bg-indigo-500 shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50 transition-all text-xs active:scale-95"
-                >
-                  {assigningDates ? <RefreshCw size={12} className="animate-spin" /> : <Check size={12} />}
-                  <span>Apply Date ({dateTargetStudents.length} Students)</span>
-                </button>
+                <div className="flex items-center gap-2">
+                  <label className="flex items-center gap-1.5 cursor-pointer select-none bg-white dark:bg-slate-900 py-1 px-2.5 rounded-lg border border-slate-200 dark:border-slate-800">
+                    <input
+                      type="checkbox"
+                      checked={onlyApprovedDates}
+                      onChange={(e) => setOnlyApprovedDates(e.target.checked)}
+                      className="rounded text-emerald-600 cursor-pointer"
+                    />
+                    <span className="text-xs font-bold text-emerald-700 dark:text-emerald-400">Only Approved</span>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={handleRunAssignDates}
+                    disabled={assigningDates || dateTargetStudents.length === 0}
+                    className="py-1 px-3 rounded-lg font-black text-white bg-indigo-600 hover:bg-indigo-500 shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50 transition-all text-xs active:scale-95"
+                  >
+                    {assigningDates ? <RefreshCw size={12} className="animate-spin" /> : <Check size={12} />}
+                    <span>Apply Date ({dateTargetStudents.length} Students)</span>
+                  </button>
+                </div>
               </div>
 
               {/* Compact Form Toolbar */}
