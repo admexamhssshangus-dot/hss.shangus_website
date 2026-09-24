@@ -4132,18 +4132,18 @@ export default function AdmissionRegisterSuite({
   const pageSizeCss = isA4 ? 'a4 landscape' : (isStandardLegal ? 'legal landscape' : '13.7in 8.5in');
 
   const printMarginMm = Math.max(2.5, Math.min(20, printMargin * 25.4));
-  // Account for browser print engine margins (such as Chrome Save as PDF default margins of ~8-10mm)
-  const effectiveMarginMm = Math.max(8.0, printMarginMm);
-  const printableHeightMm = Math.max(130, paperHeightMm - (effectiveMarginMm * 2) - 2.5);
+  // Account for browser print engine margins (such as Chrome Save as PDF default margins of ~10-12mm)
+  const effectiveMarginMm = Math.max(12.0, printMarginMm);
+  const printableHeightMm = Math.max(130, paperHeightMm - (effectiveMarginMm * 2) - 4.0);
 
   const currentStudentsPerPage = activeTab === 'sentup' ? (sentupStudentsPerPage || 10) : (studentsPerPage || 15);
   // Allowance for top school header, thead, and signature footer:
-  // Sentup: sentup-header (12mm) + margin (1.2mm) + thead (6.5mm) + signature-footer (8.5mm) + margin (1.5mm) + borders (2mm) = 31.7mm -> safe allowance 34mm
-  // Register: register-header (12mm) + margin (1.5mm) + thead (14mm) + signature-footer (13.5mm) + margin (1.5mm) + borders (2mm) = 44.5mm
-  const headerFooterAllowanceMm = activeTab === 'sentup' ? 34 : 45.0;
+  // Sentup: sentup-header (12mm) + margin (1.2mm) + thead (6.5mm) + signature-footer (8.5mm) + margin (1.5mm) + borders (2mm) = 31.7mm -> safe allowance 36mm
+  // Register: register-header (12mm) + margin (1.5mm) + thead (14mm) + signature-footer (13.5mm) + margin (1.5mm) + borders (2mm) = 44.5mm -> safe allowance 50mm
+  const headerFooterAllowanceMm = activeTab === 'sentup' ? 36.0 : 50.0;
   const maxFittingRowMm = (printableHeightMm - headerFooterAllowanceMm) / currentStudentsPerPage;
-  // Floor to 1 decimal place with 0.2mm safety buffer to guarantee zero page overflow in Blink:
-  const calculatedRowHeightMm = Math.max(5.5, Math.floor((maxFittingRowMm - 0.2) * 10) / 10).toFixed(1);
+  // Floor to 1 decimal place with 0.3mm safety buffer to guarantee zero page overflow in Blink:
+  const calculatedRowHeightMm = Math.max(5.5, Math.floor((maxFittingRowMm - 0.3) * 10) / 10).toFixed(1);
 
   return (
     <div ref={suiteRootRef} className="admission-suite-root min-h-screen bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col font-sans">
@@ -4383,6 +4383,8 @@ export default function AdmissionRegisterSuite({
             border-collapse: collapse !important;
             font-size: ${currentStudentsPerPage >= 16 ? '7px' : '7.8px'} !important;
             box-sizing: border-box !important;
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
           }
 
           /* Thead locked strictly to 14mm (7mm per row) on both Part 1 and Part 2 */
@@ -5432,7 +5434,7 @@ export default function AdmissionRegisterSuite({
       `}</style>
 
       {/* ─── ULTRA-COMPACT CONSOLIDATED 1-ROW TOOLBAR (MOBILE-FIRST & RESPONSIVE) ─── */}
-      <div role="toolbar" aria-label="Admission Register Suite Toolbar" className="admission-suite-toolbar no-print sticky top-0 z-50 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 shadow-xs px-2 sm:px-2.5 py-1">
+      <div role="toolbar" aria-label="Admission Register Suite Toolbar" className="admission-suite-toolbar no-print sticky top-0 z-50 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 shadow-xs px-2 sm:px-2.5 py-1">
         <div className="w-full max-w-[2000px] mx-auto flex items-center justify-between gap-1 xl:gap-2 flex-nowrap overflow-x-auto sm:overflow-visible no-scrollbar">
           {/* Left Cluster: Module Selector, Direct Class Scope, + Re-Adm, and Filters Popover */}
           <div className="flex items-center gap-1 xl:gap-1.5 flex-nowrap shrink-0">
@@ -5720,17 +5722,69 @@ export default function AdmissionRegisterSuite({
                     )}
                     <ChevronDown size={10} className="text-slate-400" />
                   </button>
+                </div>
 
-                  {/* View & Print Layout Modal (Centered Popup Window with Backdrop) */}
+                {/* 2. Record count badge */}
+                <div className="py-0.5 px-2 rounded-lg bg-amber-50 dark:bg-amber-950/70 border border-amber-200 dark:border-amber-800 text-amber-900 dark:text-amber-200 text-[11px] font-black shrink-0 shadow-2xs">
+                  {filteredStudents.length} Students
+                  {statusCounts.readmissions > 0 && (
+                    <span className="ml-1 text-purple-700 dark:text-purple-300 font-extrabold">
+                      ({statusCounts.readmissions} Re-Adm)
+                    </span>
+                  )}
+                </div>
+
+                {/* 3. Excel Export */}
+                <button
+                  type="button"
+                  onClick={handleExportExcel}
+                  className="py-0.5 px-2 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white font-bold text-[11.5px] shadow-xs flex items-center gap-1 cursor-pointer transition-all active:scale-95 shrink-0"
+                  title="Export Official Ledger to Excel (.xlsx)"
+                >
+                  <FileSpreadsheet size={11} />
+                  <span>Excel</span>
+                </button>
+
+                {/* 4. Print */}
+                <button
+                  type="button"
+                  onClick={handleCleanPrint}
+                  disabled={isPreparingPrint}
+                  className="py-0.5 px-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-black text-[11.5px] shadow-xs flex items-center gap-1 cursor-pointer transition-all active:scale-95 shrink-0 disabled:opacity-70 disabled:cursor-wait"
+                  title="Prepare visible records and photos, then open the clean print dialog"
+                >
+                  {isPreparingPrint ? <Loader2 size={11} className="animate-spin" /> : <Printer size={11} />}
+                  <span>{isPreparingPrint ? 'Preparing…' : 'Print'}</span>
+                </button>
+              </>
+            )}
+
+            {/* Universal Exit / Close Suite Button */}
+            {onClose && (
+              <button
+                type="button"
+                onClick={onClose}
+                className="py-0.5 px-2 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-black text-[11.5px] shadow-xs flex items-center gap-1 cursor-pointer transition-all active:scale-95 shrink-0"
+                title="Exit Admission Register Suite and return to Master Register"
+              >
+                <X size={12} strokeWidth={2.5} />
+                <span>Close</span>
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* View & Print Layout Modal (Centered Popup Window with Backdrop) */}
                   {showViewPopover && (
                     <div
-                      className="fixed inset-0 z-[120] bg-slate-950/65 dark:bg-black/80 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 md:p-6 animate-in fade-in duration-150"
+                      className="no-print fixed inset-0 z-[120] bg-slate-950/70 dark:bg-black/85 backdrop-blur-xs flex flex-col items-center justify-start sm:justify-center p-2 sm:p-4 overflow-y-auto animate-in fade-in duration-150"
                       onClick={(e) => {
                         if (e.target === e.currentTarget) setShowViewPopover(false);
                       }}
                     >
                       <div
-                        className="register-popover-panel relative w-full max-w-2xl lg:max-w-3xl max-h-[88vh] bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-300 dark:border-slate-800 flex flex-col overflow-hidden animate-in zoom-in-95 duration-150 text-slate-900 dark:text-slate-100"
+                        className="register-popover-panel relative w-full max-w-2xl lg:max-w-3xl my-auto max-h-[92vh] bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-300 dark:border-slate-800 flex flex-col overflow-hidden animate-in zoom-in-95 duration-150 text-slate-900 dark:text-slate-100"
                         onClick={(e) => e.stopPropagation()}
                       >
                         {/* 1. Header (Compact) */}
@@ -6395,58 +6449,6 @@ export default function AdmissionRegisterSuite({
                       </div>
                     </div>
                   )}
-                </div>
-
-                {/* 2. Record count badge */}
-                <div className="py-0.5 px-2 rounded-lg bg-amber-50 dark:bg-amber-950/70 border border-amber-200 dark:border-amber-800 text-amber-900 dark:text-amber-200 text-[11px] font-black shrink-0 shadow-2xs">
-                  {filteredStudents.length} Students
-                  {statusCounts.readmissions > 0 && (
-                    <span className="ml-1 text-purple-700 dark:text-purple-300 font-extrabold">
-                      ({statusCounts.readmissions} Re-Adm)
-                    </span>
-                  )}
-                </div>
-
-                {/* 3. Excel Export */}
-                <button
-                  type="button"
-                  onClick={handleExportExcel}
-                  className="py-0.5 px-2 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white font-bold text-[11.5px] shadow-xs flex items-center gap-1 cursor-pointer transition-all active:scale-95 shrink-0"
-                  title="Export Official Ledger to Excel (.xlsx)"
-                >
-                  <FileSpreadsheet size={11} />
-                  <span>Excel</span>
-                </button>
-
-                {/* 4. Print */}
-                <button
-                  type="button"
-                  onClick={handleCleanPrint}
-                  disabled={isPreparingPrint}
-                  className="py-0.5 px-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-black text-[11.5px] shadow-xs flex items-center gap-1 cursor-pointer transition-all active:scale-95 shrink-0 disabled:opacity-70 disabled:cursor-wait"
-                  title="Prepare visible records and photos, then open the clean print dialog"
-                >
-                  {isPreparingPrint ? <Loader2 size={11} className="animate-spin" /> : <Printer size={11} />}
-                  <span>{isPreparingPrint ? 'Preparing…' : 'Print'}</span>
-                </button>
-              </>
-            )}
-
-            {/* Universal Exit / Close Suite Button */}
-            {onClose && (
-              <button
-                type="button"
-                onClick={onClose}
-                className="py-0.5 px-2 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-black text-[11.5px] shadow-xs flex items-center gap-1 cursor-pointer transition-all active:scale-95 shrink-0"
-                title="Exit Admission Register Suite and return to Master Register"
-              >
-                <X size={12} strokeWidth={2.5} />
-                <span>Close</span>
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
 
       {/* ─── REAL-TIME TASK PROGRESS MODAL ─── */}
       {taskProgress && (
