@@ -1329,8 +1329,9 @@ export default function ConsolidatedGazetteView({ allStudents = [] }) {
         }
       }
       return {
-        examRollNo: row.examRollNo && row.examRollNo !== '—' ? row.examRollNo : row.rollNo,
-        rollNo: row.rollNo,
+        examRollNo: (row.examRollNo && !/^(N\/A|#N\/A|—|-|null|undefined)$/i.test(String(row.examRollNo).trim())) ? String(row.examRollNo).trim() : '',
+        classRollNo: row.classRollNo || row.rollNo || '',
+        rollNo: row.rollNo || row.classRollNo || '',
         regNo: row.regNo,
         name: row.name,
         fatherName: row.fatherName,

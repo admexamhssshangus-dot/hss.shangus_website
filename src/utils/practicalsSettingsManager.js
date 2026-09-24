@@ -12,6 +12,7 @@ export const SUBJECT_CONFIG_DEFS = [
   { code: 'PH',   name: 'Physics',                         stream: 'Science',                  isLab: true },
   { code: 'CH',   name: 'Chemistry',                       stream: 'Science',                  isLab: true },
   { code: 'BI',   name: 'Biology (Botany & Zoology)',      stream: 'Science',                  isLab: true },
+  { code: 'BI',   name: 'Biology',                         stream: 'Science',                  isLab: true },
   { code: 'BO',   name: 'Botany',                          stream: 'Science',                  isLab: true },
   { code: 'ZO',   name: 'Zoology',                         stream: 'Science',                  isLab: true },
   { code: 'BT',   name: 'Biotechnology',                  stream: 'Science',                  isLab: true },
@@ -743,9 +744,12 @@ export function isTeacherSubjectMatch(teacherSubject, selectedSubject) {
     const tNorm = normalizeSubjectIdentity(ts);
     if (tNorm && sNorm) {
       if (tNorm.code === sNorm.code) return true;
-      // Biology equivalence (Botany / Zoology / Biology)
-      const bioCodes = new Set(['BI', 'BO', 'ZO']);
-      if (bioCodes.has(tNorm.code) && bioCodes.has(sNorm.code)) return true;
+      // Botany & Zoology isolation: A teacher specifically assigned Botany or Zoology must NEVER cross-match the other!
+      if ((tNorm.code === 'ZO' && sNorm.code === 'BO') || (tNorm.code === 'BO' && sNorm.code === 'ZO')) return false;
+      // General Biology (BI) assignment can evaluate Botany or Zoology
+      if (tNorm.code === 'BI' && (sNorm.code === 'BO' || sNorm.code === 'ZO')) return true;
+      // Teacher assigned Botany or Zoology can evaluate general Biology (BI) as fallback
+      if (sNorm.code === 'BI' && (tNorm.code === 'BO' || tNorm.code === 'ZO')) return true;
       // Science equivalence (Science / Physics / Chemistry / Biology in lower classes)
       if (tNorm.code === 'SC' && ['PH', 'CH', 'BI', 'BO', 'ZO'].includes(sNorm.code)) return true;
       if (sNorm.code === 'SC' && ['PH', 'CH', 'BI', 'BO', 'ZO'].includes(tNorm.code)) return true;
@@ -806,6 +810,8 @@ export const HIGHER_SECONDARY_CURRICULUM_SUBJECTS = [
   'General English',
   'Physics',
   'Chemistry',
+  'Botany',
+  'Zoology',
   'Biology',
   'Mathematics',
   'Environmental Science',
@@ -816,8 +822,7 @@ export const HIGHER_SECONDARY_CURRICULUM_SUBJECTS = [
   'Urdu',
   'Physical Education',
   'Healthcare',
-  'IT and ITES',
-  'Arabic'
+  'IT and ITES'
 ];
 
 /**

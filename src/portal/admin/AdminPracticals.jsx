@@ -3441,11 +3441,14 @@ function SelectedSubmissionModal({ selSub, submissions = [], onClose, absentMark
                   const classRoll = r.classRollNo || r.classRoll || (r.rollNo && !/^\d{8,}$/.test(String(r.rollNo)) ? r.rollNo : '') || (dbSt ? getRollNo(dbSt) : '') || '—';
                   const examRoll = cleanExam || (dbSt ? (dbSt['Exam R.No. (Current)'] || dbSt.examRollNo) : '') || '—';
 
+                  const cleanExamVal = (examRoll && !/^(N\/A|#N\/A|—|-|null|undefined)$/i.test(String(examRoll).trim())) ? String(examRoll).trim() : '';
+                  const cleanClassVal = (classRoll && !/^(N\/A|#N\/A|—|-|null|undefined)$/i.test(String(classRoll).trim())) ? String(classRoll).trim() : '';
+
                   return {
                     sno: i + 1,
-                    classRollNo: classRoll,
-                    examRollNo: examRoll,
-                    rollNo: examRoll,
+                    classRollNo: cleanClassVal,
+                    examRollNo: cleanExamVal,
+                    rollNo: cleanExamVal || cleanClassVal,
                     name: r.name || r.studentName || '—',
                     practicalMarks: r.practicalMarks ?? '—',
                     vivaMarks: r.vivaMarks ?? '—',

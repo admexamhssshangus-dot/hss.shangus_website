@@ -49,11 +49,13 @@ export const SECONDARY_7_SUBJECTS = [
   { code: 'ITE', name: 'IT and ITES', defaultMax: 50 },
 ];
 
-// Authoritative 15 Core/Elective Subjects for Higher Secondary Classes (11th & 12th)
+// Authoritative Core/Elective Subjects for Higher Secondary Classes (11th & 12th)
 export const HIGHER_SECONDARY_15_SUBJECTS = [
   { code: 'EN', name: 'General English', defaultMax: 20 },
   { code: 'PH', name: 'Physics', defaultMax: 20 },
   { code: 'CH', name: 'Chemistry', defaultMax: 20 },
+  { code: 'BO', name: 'Botany', defaultMax: 20 },
+  { code: 'ZO', name: 'Zoology', defaultMax: 20 },
   { code: 'BI', name: 'Biology', defaultMax: 20 },
   { code: 'MA', name: 'Mathematics', defaultMax: 20 },
   { code: 'ES', name: 'Environmental Science', defaultMax: 20 },
@@ -65,7 +67,6 @@ export const HIGHER_SECONDARY_15_SUBJECTS = [
   { code: 'PD', name: 'Physical Education', defaultMax: 20 },
   { code: 'HTC', name: 'Healthcare', defaultMax: 20 },
   { code: 'ITE', name: 'IT and ITES', defaultMax: 20 },
-  { code: 'AR', name: 'Arabic', defaultMax: 20 },
 ];
 
 // Helper for Admission Number Formatting (handles numbers & sanitizes Excel formula errors)
@@ -1194,10 +1195,17 @@ export default function PracticalsPage() {
     const isSecondary = initialClass === '9th' || initialClass === '10th';
     const targetList = isSecondary ? SECONDARY_7_SUBJECTS : HIGHER_SECONDARY_15_SUBJECTS;
 
-    // Check class-specific assigned subjects first
+    // Check class-specific assigned subjects first (Exact Code Match prioritized!)
     const classAssigned = getTeacherAssignedSubjectsForClass(user, initialClass);
     if (classAssigned && classAssigned.length > 0) {
       for (const s of classAssigned) {
+        const sNorm = normalizeSubjectIdentity(s);
+        const exactMatch = targetList.find(m => {
+          const mNorm = normalizeSubjectIdentity(m.code || m.name);
+          return mNorm && sNorm && mNorm.code === sNorm.code;
+        });
+        if (exactMatch) return exactMatch.name;
+
         const match = targetList.find(m => isTeacherSubjectMatch(s, m.name) || isTeacherSubjectMatch(s, m.code));
         if (match) return match.name;
       }
@@ -1205,11 +1213,25 @@ export default function PracticalsPage() {
 
     if (allTeacherAssignedSubjects.length > 0) {
       for (const s of allTeacherAssignedSubjects) {
+        const sNorm = normalizeSubjectIdentity(s);
+        const exactMatch = targetList.find(m => {
+          const mNorm = normalizeSubjectIdentity(m.code || m.name);
+          return mNorm && sNorm && mNorm.code === sNorm.code;
+        });
+        if (exactMatch) return exactMatch.name;
+
         const match = targetList.find(m => isTeacherSubjectMatch(s, m.name) || isTeacherSubjectMatch(s, m.code));
         if (match) return match.name;
       }
     }
     if (teacherRegisteredSubject) {
+      const regNorm = normalizeSubjectIdentity(teacherRegisteredSubject);
+      const exactMatch = targetList.find(m => {
+        const mNorm = normalizeSubjectIdentity(m.code || m.name);
+        return mNorm && regNorm && mNorm.code === regNorm.code;
+      });
+      if (exactMatch) return exactMatch.name;
+
       const match = targetList.find(s => isTeacherSubjectMatch(teacherRegisteredSubject, s.name));
       if (match) return match.name;
     }
@@ -1252,9 +1274,9 @@ export default function PracticalsPage() {
   const [selectedSubject, setSelectedSubject] = useState(initialSubject);
   const [yearSuffix, setYearSuffix] = useState(location.state?.yearSuffix || CURRENT_SESSION);
   const [availableSessions, setAvailableSessions] = useState([CURRENT_SESSION]);
-  const [rosterScope, setRosterScope] = useState('all_class'); // 'all_class' | 'stream'
+  const [rosterScope, setRosterScope] = useState('stream'); // Default to 'stream' (Subject / Stream Only)
 
-  // Dynamic subject catalog filtered strictly to 7 subjects for Classes 9th & 10th and 15 subjects for Classes 11th & 12th
+  // Dynamic subject catalog filtered strictly to 7 subjects for Classes 9th & 10th and 16 subjects for Classes 11th & 12th
   const displaySubjectMap = useMemo(() => {
     const isSecondary = selectedClass === '9th' || selectedClass === '10th' || selectedClass === '9' || selectedClass === '10';
     return isSecondary ? SECONDARY_7_SUBJECTS : HIGHER_SECONDARY_15_SUBJECTS;
@@ -1269,6 +1291,15 @@ export default function PracticalsPage() {
     const classAssigned = getTeacherAssignedSubjectsForClass(user, selectedClass);
     if (classAssigned && classAssigned.length > 0) {
       for (const sub of classAssigned) {
+        const sNorm = normalizeSubjectIdentity(sub);
+        const exactMatch = targetList.find(m => {
+          const mNorm = normalizeSubjectIdentity(m.code || m.name);
+          return mNorm && sNorm && mNorm.code === sNorm.code;
+        });
+        if (exactMatch) {
+          assignedMatch = exactMatch.name;
+          break;
+        }
         const match = targetList.find(s => isTeacherSubjectMatch(sub, s.name) || isTeacherSubjectMatch(sub, s.code));
         if (match) {
           assignedMatch = match.name;
@@ -1278,6 +1309,15 @@ export default function PracticalsPage() {
     }
     if (!assignedMatch && allTeacherAssignedSubjects.length > 0) {
       for (const sub of allTeacherAssignedSubjects) {
+        const sNorm = normalizeSubjectIdentity(sub);
+        const exactMatch = targetList.find(m => {
+          const mNorm = normalizeSubjectIdentity(m.code || m.name);
+          return mNorm && sNorm && mNorm.code === sNorm.code;
+        });
+        if (exactMatch) {
+          assignedMatch = exactMatch.name;
+          break;
+        }
         const match = targetList.find(s => isTeacherSubjectMatch(sub, s.name) || isTeacherSubjectMatch(sub, s.code));
         if (match) {
           assignedMatch = match.name;
@@ -1286,8 +1326,17 @@ export default function PracticalsPage() {
       }
     }
     if (!assignedMatch && teacherRegisteredSubject) {
-      const match = targetList.find(s => isTeacherSubjectMatch(teacherRegisteredSubject, s.name));
-      if (match) assignedMatch = match.name;
+      const regNorm = normalizeSubjectIdentity(teacherRegisteredSubject);
+      const exactMatch = targetList.find(m => {
+        const mNorm = normalizeSubjectIdentity(m.code || m.name);
+        return mNorm && regNorm && mNorm.code === regNorm.code;
+      });
+      if (exactMatch) {
+        assignedMatch = exactMatch.name;
+      } else {
+        const match = targetList.find(s => isTeacherSubjectMatch(teacherRegisteredSubject, s.name));
+        if (match) assignedMatch = match.name;
+      }
     }
 
     const isCurrentInTarget = targetList.some(s => s.name.toLowerCase() === String(selectedSubject || '').toLowerCase());
@@ -1572,7 +1621,10 @@ export default function PracticalsPage() {
 
   const activeEvalOption = availableEvalTypes.find(e => e.value === practicalType);
   const isCustomEval = activeEvalOption?.isCustom;
-  const currentSubjectObj = SUBJECT_MAP.find(s => s.name === selectedSubject) || SUBJECT_MAP[1];
+  const currentSubjectObj = displaySubjectMap.find(s => s.name.toLowerCase() === String(selectedSubject || '').toLowerCase() || s.code.toLowerCase() === String(selectedSubject || '').toLowerCase()) ||
+    SUBJECT_MAP.find(s => s.name.toLowerCase() === String(selectedSubject || '').toLowerCase() || s.code.toLowerCase() === String(selectedSubject || '').toLowerCase()) ||
+    displaySubjectMap[0] ||
+    { name: selectedSubject || 'General English', code: 'EN', defaultMax: 20 };
   const evalTypeNorm = String(practicalType || '').toLowerCase().includes('ext') ? 'external' : 'internal';
   const currentMarksConfig = getSubjectMarksConfig(practicalsSettings, selectedClass, evalTypeNorm, currentSubjectObj.code);
   const customSubjOverride = getSubjectOverride(activeEvalOption?.evalConfig?.subjectOverrides, currentSubjectObj.code, selectedClass);
@@ -1728,14 +1780,15 @@ export default function PracticalsPage() {
           const matchYr = (docYrNorm === targetNorm) || dId === docId || dId === pendingDocId || (targetNorm === '2025-26' && (docYr === '2026' || docYrNorm === '2025-26'));
           if (!matchYr) return;
 
-          // Subject Match (supporting codes, full names, and Botany/Zoology/Biology splits)
+          // Subject Match (supporting codes, full names, and Botany/Zoology/Biology isolation)
           const docSubj = String(data.subjectName || data.Subject || data.subjectCode || data.subject || '').toUpperCase();
-          const matchSubj = docSubj.includes(targetSubjCode.toUpperCase()) || 
+          const matchSubj = dId === docId || dId === pendingDocId ||
+                            docSubj === targetSubjCode.toUpperCase() || 
+                            docSubj === targetSubjName.toUpperCase() ||
                             docSubj.includes(targetSubjName.toUpperCase()) ||
-                            (targetSubjCode === 'BO' && (docSubj.includes('BOTANY') || docSubj.includes('BO') || docSubj.includes('BI'))) ||
-                            (targetSubjCode === 'ZO' && (docSubj.includes('ZOOLOGY') || docSubj.includes('ZO') || docSubj.includes('BI'))) ||
-                            (targetSubjCode === 'BI' && (docSubj.includes('BIOLOGY') || docSubj.includes('BOTANY') || docSubj.includes('ZOOLOGY'))) ||
-                            dId === docId || dId === pendingDocId;
+                            (targetSubjCode === 'BO' && (docSubj.includes('BOTANY') || docSubj === 'BO')) ||
+                            (targetSubjCode === 'ZO' && (docSubj.includes('ZOOLOGY') || docSubj === 'ZO')) ||
+                            (targetSubjCode === 'BI' && (docSubj.includes('BIOLOGY') || docSubj === 'BI'));
           
           if (!matchSubj && dId !== docId && dId !== pendingDocId) return;
 
@@ -3079,17 +3132,21 @@ export default function PracticalsPage() {
       return;
     }
 
-    const recordsForPrint = studentMarks.map((st, i) => ({
-      sno: i + 1,
-      classRollNo: st.classRollNo || st.rollNo || '—',
-      rollNo: st.examRollNo || '—',
-      examRollNo: st.examRollNo || '—',
-      centreNo: st.centreNo || '',
-      name: st.name || st.studentName || '—',
-      practicalMarks: st.practicalMarks || '—',
-      vivaMarks: st.vivaMarks || '—',
-      totalMarks: (st.practicalMarks && st.practicalMarks.toUpperCase() === 'AB') ? 'AB' : (st.totalMarks || st.practicalMarks || '—')
-    }));
+    const recordsForPrint = studentMarks.map((st, i) => {
+      const rawExam = st.examRollNo;
+      const cleanExam = (rawExam && !/^(N\/A|#N\/A|—|-|null|undefined)$/i.test(String(rawExam).trim())) ? String(rawExam).trim() : '';
+      return {
+        sno: i + 1,
+        classRollNo: st.classRollNo || st.rollNo || '',
+        rollNo: cleanExam || st.classRollNo || st.rollNo || '',
+        examRollNo: cleanExam,
+        centreNo: st.centreNo || '',
+        name: st.name || st.studentName || '',
+        practicalMarks: st.practicalMarks || '—',
+        vivaMarks: st.vivaMarks || '—',
+        totalMarks: (st.practicalMarks && st.practicalMarks.toUpperCase() === 'AB') ? 'AB' : (st.totalMarks || st.practicalMarks || '—')
+      };
+    });
 
     const isExternal = practicalType.toLowerCase().includes('external');
     const isBiAnnual = /\b(oct|nov|bian|private|bi-annual|mar-apr)\b/i.test(yearSuffix);
@@ -3658,8 +3715,8 @@ export default function PracticalsPage() {
                     className="practicals-select practicals-control w-full px-2 py-1 rounded-lg text-xs font-semibold h-8.5 border focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 shadow-2xs cursor-pointer transition-colors font-bold"
                     title="Choose between evaluating all students in this class or only those enrolled in this specific stream/subject"
                   >
-                    <option value="all_class">All Class Students</option>
                     <option value="stream">Subject / Stream Only</option>
+                    <option value="all_class">All Class Students</option>
                   </select>
                 </div>
 
